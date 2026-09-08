@@ -1,13 +1,17 @@
 @preconcurrency import AVFoundation
+import Darwin
 import Foundation
 
 public enum RendererLeadBudget {
     static let schedulingSlackFrames = 2
 
-    static let maximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 48
+    static let localMaximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 32
 
-    static let maximumDecodedBytes = environmentDouble("ENCHRON_RENDERER_LEAD_MAX_BYTES")
-        ?? (200.0 * 1024.0 * 1024.0)
+    static let remoteMaximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 48
+
+    static let rampSeconds = 1.5
+
+    static let lowMemoryFloorBytes = 512 * 1024 * 1024
 
     private static let overrideLock = NSLock()
     nonisolated(unsafe) private static var fixedFramesOverride: Int?
@@ -20,27 +24,31 @@ public enum RendererLeadBudget {
         overrideLock.withLock { fixedFramesOverride }
     }
 
+    static func floorFrames(reorderDepth: Int) -> Int {
+        max(0, reorderDepth) + schedulingSlackFrames
+    }
+
+    static func maximumFrames(isRemoteSource: Bool) -> Int {
+        isRemoteSource ? remoteMaximumFrames : localMaximumFrames
+    }
+
     static func frames(
         reorderDepth: Int,
-        encodedWidth: Int,
-        encodedHeight: Int,
-        decodedBytesPerPixel: Double
+        isRemoteSource: Bool,
+        secondsSinceDeliveryStart: Double?,
+        availableMemoryBytes: Int
     ) -> Int {
         if let fixed = currentFixedFramesOverride {
             return fixed
         }
-        let floor = max(0, reorderDepth) + schedulingSlackFrames
-        let bytesPerFrame = Double(encodedWidth)
-            * Double(encodedHeight)
-            * decodedBytesPerPixel
-        guard bytesPerFrame > 0, bytesPerFrame.isFinite else {
-            return max(floor, maximumFrames)
+        let floor = floorFrames(reorderDepth: reorderDepth)
+        let ceiling = max(floor, maximumFrames(isRemoteSource: isRemoteSource))
+        guard availableMemoryBytes >= lowMemoryFloorBytes else { return floor }
+        guard let elapsed = secondsSinceDeliveryStart, elapsed.isFinite, elapsed > 0 else {
+            return floor
         }
-        let affordable = (maximumDecodedBytes / bytesPerFrame).rounded(.down)
-        guard affordable < Double(maximumFrames) else {
-            return max(floor, maximumFrames)
-        }
-        return max(floor, min(maximumFrames, Int(affordable)))
+        let progress = min(1, elapsed / rampSeconds)
+        return floor + Int((Double(ceiling - floor) * progress).rounded(.down))
     }
 
     private static func environmentInteger(_ name: String) -> Int? {
@@ -48,11 +56,15 @@ public enum RendererLeadBudget {
               let value = Int(raw), value > 0 else { return nil }
         return value
     }
+}
 
-    private static func environmentDouble(_ name: String) -> Double? {
-        guard let raw = ProcessInfo.processInfo.environment[name],
-              let value = Double(raw), value.isFinite, value > 0 else { return nil }
-        return value
+enum ProcessMemory {
+    static var availableBytes: Int {
+        #if os(iOS) || os(visionOS) || os(tvOS)
+        os_proc_available_memory()
+        #else
+        Int.max
+        #endif
     }
 }
 

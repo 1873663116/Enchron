@@ -4,23 +4,28 @@
 
 ## 渲染器超前预算的单位
 
-`RendererLeadBudget` 按**解码帧数与解码字节**计量交付循环可以跑在时间线前面多远，不按媒体秒。
+`RendererLeadBudget` 按**帧数**计量交付循环可以跑在时间线前面多远：从编码器 reorder 深度加两帧的地板起步，稳定交付 1.5 秒后升到来源上限，本地 32 帧、远程 48 帧；进程可用内存跌破 512 MB 时退回地板。它不再按解码字节算。
 
-媒体秒是错的单位：一次 seek 等的是渲染器 flush，而 flush 的开销跟随排队帧的数量与单帧大小，不跟随它们的时长。2026-08-22 在 Vision Pro 上对 8192x4096、59.94 fps 的流做的扫描，测得 flush 时间按 frames^1.8 增长；两条流持有同样多的"秒"，为一次 seek 付出的代价可以相差两个数量级。
+2026-08-22 起的规则按「解码字节 ÷ 单帧解码大小」定帧数，200 MB 在 4K 十比特只给 8 帧，在 8K 只给 4 帧。2026-09-08 在 Vision Pro 上的二分与扫描证明这条规则就是掉帧的原因，并且证伪了它的前提：
 
-成熟实现没有一个在解码侧按秒设界：VLC 按 field count 对齐编码器声明的 reorder depth 给 VideoToolbox 配速，Chromium 把并发解码请求固定封在四个，mpv 的可选解码队列在触及它那个两秒上限之前，先被帧数或字节数触发。
+| 片源 | 预读 | 每秒显示帧（采样计数，上限约 50） | 领先时钟 | 系统反压 | 进程 footprint |
+|---|---|---|---|---|---|
+| 4K60 十比特，3 帧重排 | 8 | 33–35 | 65 ms | 0 | |
+| 同上 | 12 | 42 | 132 ms | 0 | |
+| 同上 | 16 | 41–48 | 199 ms | 0 | |
+| 同上 | 24 | 45–52 | 332 ms | 0 | |
+| 同上 | 32 | 48–51 | 465 ms | 0 | |
+| 同上 | 48 | 45 | 731–899 ms | 0 | 461–512 MB |
+| 8192x4096 60p | 4 | 21 | 14–115 ms | 0 | 167 MB |
+| 8192x4096 60p | 24 | 46 | 348–399 ms | 0 | 345–351 MB |
 
-预算的三个界与它们的理由：
+三条事实决定了单位：饱和点在 24 帧上下，与分辨率无关，是硬解流水线加 RealityKit 采样自身的深度；整个过程送帧从未晚于时钟、相邻送帧间隔从未超过一个帧周期，本地来源的抖动不是原因；渲染器并不把送入的样本全部解出来持有，8K 送 24 帧的 footprint 只有 350 MB，「送几帧就持有几张解码帧」不成立，因此按解码字节设界没有依据。receiver 在 48 帧内从未挂起过交付，所以帧数上限是保险，不是它的胃口。
 
-| 界 | 含义 |
-|---|---|
-| `schedulingSlackFrames` | 交付循环可以超出编码器 reorder 延迟的帧数。一帧是渲染器正在显示的，另一帧覆盖 provider read——它与交付跑在同一个任务上，因此整段读取时间里交付是停住的。只留一帧时，任何一次读取超过一个帧周期渲染器就跑空，而远程来源日常如此。 |
-| `maximumFrames` | 解码字节不再是约束之后渲染器仍可持有的帧数上限。小帧单帧便宜，但每帧仍有拆除成本，所以字节数远低于上限的流也不允许无限排队。 |
-| `maximumDecodedBytes` | 解码字节上限，预算随分辨率缩放靠的就是它。取 200 MB 时，8-bit 4:2:0 的 8192x4096 单帧 50.3 MB，该流落在四帧附近——与 VLC、Chromium 对大画幅收敛到的深度一致；1280x720 单帧 1.4 MB，仍停在帧数上限。 |
+苹果的文档没有给出送多深的数字：`isReadyForMoreMediaData` 只描述队列占用，`hasSufficientMediaDataForReliablePlaybackStart` 只命名一个不公开的预热水位，RealityKit 的 `VideoPlayerComponent(videoRenderer:)` 文档要求「喂到满、准备好再喂」。其他播放器公开的 2–4 帧是显示侧队列，整条链（重排 + 在飞解码 + 图片池）VLC 约 14 帧、Chromium 旧 VideoToolbox 路径 16–21 帧；push 模型里这个预读对应的是整条链。
 
-reorder floor 优先于两个上限：队列比编码器自身的重排还浅会直接饿死解码器。8K 十比特的极端下，一帧 100 MB，字节上限要的比编码器重排需要的还少，由 floor 决定——那条流每次 seek 付出的代价超过它的字节预算，这是"绝不饿死解码器"的明码标价。
+seek 的代价仍然随持有帧数超线性增长（2026-08-22 在 8K60 上测得 frames^1.8），所以上限不由稳态一次性给满，而由爬坡给：打开和每次 seek 后 `startVideoDelivery()` 重置起点，连续拖动永远停在地板附近。
 
-断言在 `PlaybackCoreTests`：`theLeadBudgetSpendsDecodedBytesRatherThanMediaSeconds`、`theLeadBudgetNeverSitsBelowTheEncoderReorderDepth`。
+断言在 `PlaybackCoreTests`：`theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling`、`theLeadBudgetNeverSitsBelowTheEncoderReorderDepth`、`theLeadBudgetFallsToTheFloorWhenMemoryRunsLow`。
 
 ## 交付滞后恢复的实测数字
 

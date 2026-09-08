@@ -120,6 +120,7 @@ extension SampleBufferPlaybackSession {
 
     func startVideoDelivery() {
         guard mediaKind == .video else { return }
+        videoDeliveryStartHostSeconds = CMClockGetTime(CMClockGetHostTimeClock()).seconds
         let start = deliveryTaskLock.withLock { () -> (UInt64, Task<Void, Never>?)? in
             guard videoSampleDeliverySuspended == false else { return nil }
             videoDeliveryGeneration &+= 1
@@ -1177,12 +1178,14 @@ extension SampleBufferPlaybackSession {
     }
 
     var videoLeadFrames: Int {
-        let dimensions = diagnostics.videoGeometry?.encodedDimensions
+        let elapsed = videoDeliveryStartHostSeconds.map {
+            CMClockGetTime(CMClockGetHostTimeClock()).seconds - $0
+        }
         return RendererLeadBudget.frames(
             reorderDepth: diagnostics.videoReorderDepth,
-            encodedWidth: dimensions?.width ?? 0,
-            encodedHeight: dimensions?.height ?? 0,
-            decodedBytesPerPixel: diagnostics.decodedBytesPerPixel
+            isRemoteSource: sourceIsRemote,
+            secondsSinceDeliveryStart: elapsed,
+            availableMemoryBytes: ProcessMemory.availableBytes
         )
     }
 
@@ -1199,10 +1202,10 @@ extension SampleBufferPlaybackSession {
 
     func waitForBoundedVideoLead(presentationTime: CMTime) async throws {
         guard presentationTime.isNumeric else { return }
-        let budget = videoLeadFrames
         while true {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
+            let budget = videoLeadFrames
             let reading = timelineClockReading()
             let reference = leadReferenceSeconds(reading)
             let (framesInFlight, earliestRetirement) = videoFramesInFlightLock.withLock {

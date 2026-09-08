@@ -334,6 +334,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var videoEnqueueLeadWindowMinSeconds: Double?
     var videoEnqueueGapWindowMaxSeconds: Double?
     var lastVideoEnqueueHostSeconds: Double?
+    var videoDeliveryStartHostSeconds: Double?
+    var sourceIsRemote = false
     var lateVideoEnqueueCount: UInt64 = 0
     var lastDisplayedFrameIdentity: UInt64?
     var stereoLayoutOverride: VideoStereoLayout?
@@ -502,6 +504,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             : preferredPlaybackRate
         sourceURL = url
         sourceAsset = asset
+        sourceIsRemote = sourceTransport.isRemote
         try demuxSession?.configureSource(transport: sourceTransport)
         let sourceInformation: MediaSourceInformation?
         if let mediaSourceInformationLoader {

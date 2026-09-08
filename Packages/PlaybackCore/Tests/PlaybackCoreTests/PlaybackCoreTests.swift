@@ -1766,65 +1766,49 @@ private final class ReportedPositions: @unchecked Sendable {
     #endif
 }
 
-@Test func theLeadBudgetSpendsDecodedBytesRatherThanMediaSeconds() {
-    let eightK = RendererLeadBudget.frames(
-        reorderDepth: 2,
-        encodedWidth: 8192,
-        encodedHeight: 4096,
-        decodedBytesPerPixel: 1.5
+@Test func theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling() {
+    let plenty = Int.max
+    let floor = RendererLeadBudget.frames(
+        reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: nil, availableMemoryBytes: plenty
     )
-    let sevenTwenty = RendererLeadBudget.frames(
-        reorderDepth: 2,
-        encodedWidth: 1280,
-        encodedHeight: 720,
-        decodedBytesPerPixel: 1.5
-    )
-    #expect(eightK < sevenTwenty)
-    #expect(sevenTwenty == RendererLeadBudget.maximumFrames)
-    #expect(
-        Double(eightK) * 8192 * 4096 * 1.5 <= RendererLeadBudget.maximumDecodedBytes
-    )
+    #expect(floor == 3 + RendererLeadBudget.schedulingSlackFrames)
 
-    let fourK = RendererLeadBudget.frames(
-        reorderDepth: 2,
-        encodedWidth: 3840,
-        encodedHeight: 2160,
-        decodedBytesPerPixel: 1.5
+    let halfway = RendererLeadBudget.frames(
+        reorderDepth: 3,
+        isRemoteSource: false,
+        secondsSinceDeliveryStart: RendererLeadBudget.rampSeconds / 2,
+        availableMemoryBytes: plenty
     )
-    let fourKTenBit = RendererLeadBudget.frames(
-        reorderDepth: 2,
-        encodedWidth: 3840,
-        encodedHeight: 2160,
-        decodedBytesPerPixel: 3
-    )
-    #expect(fourKTenBit * 2 == fourK)
+    #expect(halfway > floor)
+    #expect(halfway < RendererLeadBudget.localMaximumFrames)
 
-    let eightKTenBit = RendererLeadBudget.frames(
-        reorderDepth: 2,
-        encodedWidth: 8192,
-        encodedHeight: 4096,
-        decodedBytesPerPixel: 3
+    let local = RendererLeadBudget.frames(
+        reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
     )
-    #expect(eightKTenBit == 2 + RendererLeadBudget.schedulingSlackFrames)
-    #expect(eightK == eightKTenBit)
+    #expect(local == RendererLeadBudget.localMaximumFrames)
+
+    let remote = RendererLeadBudget.frames(
+        reorderDepth: 3, isRemoteSource: true, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
+    )
+    #expect(remote == RendererLeadBudget.remoteMaximumFrames)
+    #expect(remote > local)
 }
 
 @Test func theLeadBudgetNeverSitsBelowTheEncoderReorderDepth() {
-    let absurdlyExpensive = RendererLeadBudget.frames(
-        reorderDepth: 16,
-        encodedWidth: 8192,
-        encodedHeight: 8192,
-        decodedBytesPerPixel: 6
+    let deepReorder = RendererLeadBudget.frames(
+        reorderDepth: 40, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: Int.max
     )
-    #expect(absurdlyExpensive == 16 + RendererLeadBudget.schedulingSlackFrames)
+    #expect(deepReorder == 40 + RendererLeadBudget.schedulingSlackFrames)
+}
 
-    let unmeasured = RendererLeadBudget.frames(
-        reorderDepth: 0,
-        encodedWidth: 0,
-        encodedHeight: 0,
-        decodedBytesPerPixel: 0
+@Test func theLeadBudgetFallsToTheFloorWhenMemoryRunsLow() {
+    let starved = RendererLeadBudget.frames(
+        reorderDepth: 1,
+        isRemoteSource: true,
+        secondsSinceDeliveryStart: 10,
+        availableMemoryBytes: RendererLeadBudget.lowMemoryFloorBytes - 1
     )
-    #expect(unmeasured == RendererLeadBudget.maximumFrames)
+    #expect(starved == 1 + RendererLeadBudget.schedulingSlackFrames)
 }
 
 @Test func framesInFlightRetireInDisplayOrderNotDeliveryOrder() {
