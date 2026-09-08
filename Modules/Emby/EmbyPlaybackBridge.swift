@@ -435,7 +435,9 @@ public actor EmbyPlaybackBridge {
         var subtitles: [ResolvedExternalSubtitleSource] = []
         for stream in source.mediaStreams where stream.kind == .subtitle && stream.isExternal {
             let sourceID = Self.externalSubtitleSourceID(for: stream.index)
-            let subtitleURL = try client.externalSubtitleURL(for: stream, on: server)
+            guard let subtitleURL = try? client.externalSubtitleURL(for: stream, on: server) else {
+                continue
+            }
             let subtitleHandle = try await MediaByteStreamServer.shared.register(
                 source: EmbyByteRangeSource(url: subtitleURL, reportedContentLength: nil),
                 filename: stream.displayTitle ?? "Subtitle \(stream.index)"
