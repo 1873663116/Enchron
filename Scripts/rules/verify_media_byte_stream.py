@@ -55,6 +55,23 @@ def main() -> int:
         "M8: a naked URL initializer is visible outside the test SPI",
     )
     require("Connection: close" not in byte_stream.split("private func sendError", 1)[0], "M9: success responses close connections")
+    release_suite = text(
+        "Tests/MediaByteStreamConformance/Tests/"
+        "MediaByteStreamConformanceTests/MediaByteStreamReleaseTests.swift"
+    )
+    unregister_body = byte_stream.split("fileprivate func unregister(token: String) {", 1)[1].split("\n    }\n", 1)[0]
+    require(
+        "transferTokens" in unregister_body and "task?.cancel()" in unregister_body,
+        "M10: releasing a registration no longer cancels its transfers",
+    )
+    require(
+        "try Task.checkCancellation()" in byte_stream.split("while offset < requestedRange.upperBound {", 1)[1][:200],
+        "M10: the ranged response loop no longer checks for cancellation before each read",
+    )
+    require(
+        "func releasingTheHandleCancelsAnUnansweredRead(" in release_suite,
+        "M10: the release-cancels-read contract is missing from its executable suite",
+    )
     require("AVAssetImageGenerator" not in text("Modules/MediaSource/ArtworkStore.swift"), "A1: artwork generation remains")
     require(
         not any("AVAssetImageGenerator" in path.read_text() for path in media_library.rglob("*.swift")),
