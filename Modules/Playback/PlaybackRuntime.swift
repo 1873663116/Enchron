@@ -1432,6 +1432,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let startTimeSeconds = max(0, playbackPosition.seconds)
         let speed = currentPlaybackSpeed
         let selectedAudioTrackID = currentAudioTrackID
+        var restoredAudioTrackID = selectedAudioTrackID
         let selectedSubtitleTrackID = currentSubtitleTrackID
 
         let replacementDriver = PlaybackMediaSessionDriver()
@@ -1489,7 +1490,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                    $0.streamIndex == streamIndex
                }) {
                 technicalSessionReplacementStage = .restoringAudioTrack
-                try await replacementDriver.selectAudioTrack(streamIndex: streamIndex)
+                do {
+                    try await replacementDriver.selectAudioTrack(streamIndex: streamIndex)
+                } catch {
+                    restoredAudioTrackID = replacementDriver.selectedAudioStreamIndex
+                        .map(String.init)
+                    SurfaceInputProbes.record(
+                        "replacementAudioTrackRestoreFailed"
+                            + " requested=\(selectedAudioTrackID)"
+                            + " restored=\(restoredAudioTrackID ?? "none")"
+                            + " reason=\(error.localizedDescription)",
+                        retention: .evidence
+                    )
+                }
             }
             if let selectedSubtitleTrackID,
                replacementDriver.availableSubtitleTracks.contains(where: {
@@ -1505,7 +1518,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 replacement: .init(
                     resource: replacement.resource,
                     speed: speed,
-                    selectedAudioTrackID: selectedAudioTrackID,
+                    selectedAudioTrackID: restoredAudioTrackID,
                     selectedSubtitleTrackID: selectedSubtitleTrackID
                 )
             )

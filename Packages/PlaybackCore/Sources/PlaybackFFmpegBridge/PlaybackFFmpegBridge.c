@@ -1348,6 +1348,74 @@ static int open_media_source(
     return result;
 }
 
+/// Widens a format context so a probe reaches audio the default limits stop short of.
+///
+/// FFmpeg gives up on stream information after 5 MB and, for MPEG-TS, after seven
+/// seconds of packets. A broadcast recording whose audio elementary stream starts
+/// later than that, or whose codec only reports its sample rate once a frame is
+/// decoded, leaves sample_rate and ch_layout at zero under those limits. Measured
+/// on an E-AC-3 transport stream whose audio starts ten seconds in: probed with the
+/// defaults the audio stream reports 0 Hz and 0 channels, probed with these limits
+/// it reports 48000 Hz and 2 channels.
+static void apply_extended_audio_probe_limits(AVFormatContext *context) {
+    if (!context) return;
+    context->probesize = 100LL * 1024 * 1024;
+    context->max_analyze_duration = 30LL * AV_TIME_BASE;
+    context->max_probe_packets = 100000;
+}
+
+/// Copies the audio facts an extended probe established onto the stream that lacks them.
+static bool adopt_probed_audio_parameters(AVStream *destination, const AVStream *probed) {
+    if (!destination || !probed || !audio_stream_is_supported(probed)) return false;
+    if (probed->codecpar->codec_id != destination->codecpar->codec_id) return false;
+    if (av_channel_layout_copy(
+            &destination->codecpar->ch_layout,
+            &probed->codecpar->ch_layout
+        ) < 0) return false;
+    destination->codecpar->sample_rate = probed->codecpar->sample_rate;
+    destination->codecpar->format = probed->codecpar->format;
+    destination->codecpar->frame_size = probed->codecpar->frame_size;
+    destination->codecpar->profile = probed->codecpar->profile;
+    destination->codecpar->bit_rate = probed->codecpar->bit_rate;
+    destination->codecpar->block_align = probed->codecpar->block_align;
+    destination->codecpar->bits_per_coded_sample = probed->codecpar->bits_per_coded_sample;
+    return audio_stream_is_supported(destination);
+}
+
+/// Runs the extended audio probe for a stream whose parameters an open context lacks.
+///
+/// A shared demux context is read by the video reader while the audio reader opens,
+/// so the audio reader cannot reopen or rewind it the way it reopens a context it
+/// owns. The probe runs on a private context over the same path and copies back only
+/// the audio facts the first probe failed to establish, which makes the answer the
+/// same whether the audio reader owns its context or shares the presentation's.
+static bool probe_extended_audio_parameters(
+    AVStream *stream,
+    const char *path,
+    atomic_bool *cancelled,
+    PBFFmpegSourceReadMonitor *monitor
+) {
+    if (!stream || !path || !audio_stream_needs_more_probe(stream)) return false;
+    PBFFmpegSourceReadContext readContext = { .monitor = monitor };
+    AVFormatContext *context = allocate_format_context(cancelled, &readContext);
+    if (context == NULL) return false;
+    apply_extended_audio_probe_limits(context);
+    int result = open_media_source(&context, path, &readContext);
+    if (result >= 0) result = read_stream_information(context, &readContext, NULL);
+    bool resolved = false;
+    if (result >= 0 && !cancellation_requested(cancelled)) {
+        probe_delayed_audio_parameters(context);
+        if (stream->index >= 0 && stream->index < (int)context->nb_streams) {
+            resolved = adopt_probed_audio_parameters(
+                stream,
+                context->streams[stream->index]
+            );
+        }
+    }
+    close_media_source(&context, &readContext);
+    return resolved;
+}
+
 static int open_media_source_for_audio(
     const char *path,
     AVFormatContext **contextOut,
@@ -1421,9 +1489,7 @@ static int open_media_source_for_audio(
         set_error(errorBuffer, errorBufferSize, "Unable to allocate extended audio probe context");
         return AVERROR(ENOMEM);
     }
-    context->probesize = 100LL * 1024 * 1024;
-    context->max_analyze_duration = 30LL * AV_TIME_BASE;
-    context->max_probe_packets = 100000;
+    apply_extended_audio_probe_limits(context);
     result = open_media_source(&context, path, sourceReadContext);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Reopen audio media source", result);
@@ -4968,11 +5034,21 @@ void PBFFmpegAudioReaderSetSourceReadMonitor(
     if (reader) reader->sourceReadContext.monitor = monitor;
 }
 
+static int supported_audio_stream_index(AVFormatContext *context) {
+    int index = av_find_best_stream(context, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0);
+    if (index >= 0 && audio_stream_is_supported(context->streams[index])) return index;
+    for (unsigned int candidate = 0; candidate < context->nb_streams; candidate++) {
+        if (audio_stream_is_supported(context->streams[candidate])) return (int)candidate;
+    }
+    return -1;
+}
+
 static bool configure_audio_reader(
     PBFFmpegAudioReader *reader,
     double startSeconds,
     int preferredStreamIndex,
     bool seeksContext,
+    const char *path,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -5002,7 +5078,13 @@ static bool configure_audio_reader(
             set_error(errorBuffer, errorBufferSize, message);
             return false;
         }
-        if (!audio_stream_is_supported(preferredStream)) {
+        if (!audio_stream_is_supported(preferredStream) &&
+            !probe_extended_audio_parameters(
+                preferredStream,
+                path,
+                &reader->cancelled,
+                reader->sourceReadContext.monitor
+            )) {
             set_error(
                 errorBuffer,
                 errorBufferSize,
@@ -5012,20 +5094,17 @@ static bool configure_audio_reader(
         }
         reader->audioStreamIndex = preferredStreamIndex;
     } else {
-        reader->audioStreamIndex = av_find_best_stream(
-            reader->formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0
-        );
-        if (reader->audioStreamIndex >= 0 &&
-            !audio_stream_is_supported(reader->formatContext->streams[reader->audioStreamIndex])) {
-            reader->audioStreamIndex = -1;
-        }
+        reader->audioStreamIndex = supported_audio_stream_index(reader->formatContext);
         if (reader->audioStreamIndex < 0) {
             for (unsigned int index = 0; index < reader->formatContext->nb_streams; index++) {
-                if (audio_stream_is_supported(reader->formatContext->streams[index])) {
-                    reader->audioStreamIndex = (int)index;
-                    break;
-                }
+                if (probe_extended_audio_parameters(
+                        reader->formatContext->streams[index],
+                        path,
+                        &reader->cancelled,
+                        reader->sourceReadContext.monitor
+                    )) break;
             }
+            reader->audioStreamIndex = supported_audio_stream_index(reader->formatContext);
         }
     }
     if (reader->audioStreamIndex < 0) {
@@ -5161,6 +5240,7 @@ bool PBFFmpegAudioReaderOpen(
         startSeconds,
         preferredStreamIndex,
         true,
+        path,
         errorBuffer,
         errorBufferSize
     );
@@ -5184,6 +5264,7 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
         0,
         preferredStreamIndex,
         false,
+        source->path,
         errorBuffer,
         errorBufferSize
     );

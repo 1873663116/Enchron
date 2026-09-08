@@ -2379,6 +2379,137 @@ func highEfficiencyAACProfilesDecodeToPCM(
     } == false)
 }
 
+@Test(arguments: [Int32(-1), Int32(1)])
+func lateStartAudioOpensOnASharedDemuxSource(preferredStreamIndex: Int32) throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try lateStartAudioTransportStream()
+    var error = [CChar](repeating: 0, count: 512)
+    let source = try #require(
+        fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+                nil,
+                &error,
+                error.count
+            )
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegDemuxSourceDestroy(source) }
+    #expect(
+        PBFFmpegDemuxSourceSeek(source, 6, &error, error.count),
+        Comment(rawValue: cString(error))
+    )
+    let reader = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(reader) }
+
+    let opened = PBFFmpegAudioReaderOpenWithDemuxSource(
+        reader,
+        source,
+        preferredStreamIndex,
+        &error,
+        error.count
+    )
+
+    #expect(opened, Comment(rawValue: cString(error)))
+    #expect(PBFFmpegAudioReaderGetStreamIndex(reader) == 1)
+    #expect(PBFFmpegAudioReaderGetSampleRate(reader) == 48_000)
+    #expect(PBFFmpegAudioReaderGetChannelCount(reader) == 2)
+    #expect(String(cString: PBFFmpegAudioReaderGetCodecName(reader)) == "eac3")
+    var sample: Unmanaged<CMSampleBuffer>?
+    var metadata = PBFFmpegAudioSampleMetadata()
+    let result = PBFFmpegAudioReaderCopyNextSample(
+        reader,
+        &sample,
+        &metadata,
+        &error,
+        error.count
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+    let buffer = try #require(sample?.takeRetainedValue())
+    #expect(CMSampleBufferGetNumSamples(buffer) > 0)
+}
+
+@Test func ownedContextAndSharedDemuxSourceReachTheSameLateStartAudio() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try lateStartAudioTransportStream()
+    var error = [CChar](repeating: 0, count: 512)
+    let owned = try #require(
+        fixture.path.withCString {
+            PBFFmpegAudioReaderCreate($0, 6, 1, &error, error.count)
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegAudioReaderDestroy(owned) }
+    let source = try #require(
+        fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+                nil,
+                &error,
+                error.count
+            )
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegDemuxSourceDestroy(source) }
+    let shared = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(shared) }
+    #expect(
+        PBFFmpegAudioReaderOpenWithDemuxSource(shared, source, 1, &error, error.count),
+        Comment(rawValue: cString(error))
+    )
+
+    #expect(
+        PBFFmpegAudioReaderGetSampleRate(shared) == PBFFmpegAudioReaderGetSampleRate(owned)
+    )
+    #expect(
+        PBFFmpegAudioReaderGetChannelCount(shared) == PBFFmpegAudioReaderGetChannelCount(owned)
+    )
+}
+
+@Test func audioWithoutPacketsStillFailsOnASharedDemuxSource() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try delayedAACTransportStream(includeAudioPackets: false)
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    var error = [CChar](repeating: 0, count: 512)
+    let source = try #require(
+        fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+                nil,
+                &error,
+                error.count
+            )
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegDemuxSourceDestroy(source) }
+    let reader = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(reader) }
+
+    let opened = PBFFmpegAudioReaderOpenWithDemuxSource(reader, source, 1, &error, error.count)
+
+    #expect(opened == false)
+    #expect(cString(error) == "Audio stream parameters are unavailable after extended probe")
+}
+
+private func lateStartAudioTransportStream() throws -> URL {
+    try #require(
+        Bundle.module.url(
+            forResource: "audio-eac3-late-start",
+            withExtension: "ts",
+            subdirectory: "Fixtures"
+        )
+    )
+}
+
 private func decodedFixture(resource: String, fileExtension: String) throws -> URL {
     let encodedURL = try #require(
         Bundle.module.url(
