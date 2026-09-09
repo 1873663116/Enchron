@@ -979,6 +979,18 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         for task in work.2 { await task.value }
     }
 
+    #if DEBUG
+        public func debugCancelListener() async {
+            guard let target = lock.withLock({ listener }) else { return }
+            target.cancel()
+            let deadline = ContinuousClock.now + .seconds(2)
+            while ContinuousClock.now < deadline {
+                if lock.withLock({ listener == nil }) { return }
+                try? await Task.sleep(for: .milliseconds(5))
+            }
+        }
+    #endif
+
     fileprivate func configureContainerIndex(token: String, revision: ContentRevision?) {
         guard let registration = lock.withLock({ registrations[token] }) else { return }
         registration.lock.withLock {
