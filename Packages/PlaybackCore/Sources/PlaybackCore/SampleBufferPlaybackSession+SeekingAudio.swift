@@ -199,7 +199,7 @@ extension SampleBufferPlaybackSession {
         let expectedEpoch = streamEpoch
         let expectedAudioEpoch = audioStreamEpoch
         let deadline = ContinuousClock.now
-            + PlaybackBufferingPolicy.seekTargetCoordinationTimeout
+            + PlaybackBufferingPolicy.seekProgressStallTimeout
         var videoReachedTarget = false
         do {
             while ContinuousClock.now < deadline {
@@ -428,7 +428,7 @@ extension SampleBufferPlaybackSession {
 
         let expectedEpoch = audioStreamEpoch
         let deadline = ContinuousClock.now
-            + PlaybackBufferingPolicy.seekTargetCoordinationTimeout
+            + PlaybackBufferingPolicy.seekProgressStallTimeout
         while ContinuousClock.now < deadline {
             try Task.checkCancellation()
             let sample = debugStore.snapshot().lastAudioSample

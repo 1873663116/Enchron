@@ -41,7 +41,7 @@ enum PlaybackBufferingPolicy {
     static let audioPrerollTimeout: Duration = .seconds(5)
     static let audioPrerollPollInterval: Duration = .milliseconds(5)
 
-    static let seekTargetCoordinationTimeout: Duration = .seconds(5)
+    static let seekProgressStallTimeout: Duration = .seconds(5)
 
     static func seekRequirement(
         target: CMTime,

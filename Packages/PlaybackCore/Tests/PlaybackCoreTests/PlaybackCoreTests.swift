@@ -2245,6 +2245,83 @@ struct RendererLeadBudgetTests {
     #expect(session.debugSnapshot().lifecycle == .paused)
 }
 
+@Test func aSeekThatKeepsMakingProgressCompletesAfterTheOldDeadline() async throws {
+    let samples = try (0...7).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index),
+            durationSeconds: 1
+        )
+    }
+    let trace = SeekTraceRecorder()
+    trace.install()
+    defer { trace.uninstall() }
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-progress-outlasts-the-old-deadline",
+        provider: FakeVideoSampleProvider(
+            events: samples.map { .sample($0) } + [.end],
+            postSeekEventDelay: .seconds(1),
+            durationSeconds: 30
+        ),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/slow-seek.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let startedAt = ContinuousClock.now
+    try await session.seek(
+        to: CMTime(seconds: 6, preferredTimescale: 600),
+        startsPaused: true
+    )
+    let elapsed = ContinuousClock.now - startedAt
+
+    #expect(elapsed > PlaybackBufferingPolicy.seekProgressStallTimeout)
+    #expect(session.debugSnapshot().lastFailure == nil)
+    #expect(
+        trace.events.contains {
+            $0.hasPrefix("session.seek.stalled seconds=6.0 lastProgressMs=")
+        },
+        "traces: \(trace.events)"
+    )
+}
+
+@Test func aSeekWithNoProgressFailsAfterTheStallTimeout() async throws {
+    let initialSample = try makeCompressedH264Sample(durationSeconds: 1)
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-without-progress-stalls",
+        provider: FakeVideoSampleProvider(
+            events: [.sample(initialSample), .end],
+            postSeekEventDelay: .seconds(20),
+            durationSeconds: 30
+        ),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/dead-seek.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let startedAt = ContinuousClock.now
+    await #expect(throws: CorePlaybackError.self) {
+        try await session.seek(
+            to: CMTime(seconds: 6, preferredTimescale: 600),
+            startsPaused: true
+        )
+    }
+    let elapsed = ContinuousClock.now - startedAt
+
+    #expect(elapsed >= PlaybackBufferingPolicy.seekProgressStallTimeout)
+    #expect(elapsed < .seconds(9))
+    let failure = try #require(session.debugSnapshot().lastFailure)
+    #expect(failure.stage == "control.seek.failed")
+    #expect((failure.progressAgeMilliseconds ?? 0) >= 5_000)
+}
+
 @Test(arguments: [false, true])
 func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     hasAudio: Bool
@@ -4635,6 +4712,8 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
     private let seekPrepareIgnoresCancellation: Bool
     private let readError: Error?
     private let eventDelay: Duration?
+    private let postSeekEventDelay: Duration?
+    private var deliversAfterSeek = false
     private(set) var startCount = 0
     private(set) var sourceInformationReceived: MediaSourceInformation?
 
@@ -4644,6 +4723,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         seekPrepareIgnoresCancellation: Bool = false,
         readError: Error? = nil,
         eventDelay: Duration? = nil,
+        postSeekEventDelay: Duration? = nil,
         projectionKind: String? = nil,
         durationSeconds: Double = 60,
         nominalFrameRate: Double = 30
@@ -4680,6 +4760,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         self.seekPrepareIgnoresCancellation = seekPrepareIgnoresCancellation
         self.readError = readError
         self.eventDelay = eventDelay
+        self.postSeekEventDelay = postSeekEventDelay
     }
 
     func prepare(
@@ -4689,6 +4770,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         startTime: CMTime
     ) async throws {
         sourceInformationReceived = sourceInformation
+        deliversAfterSeek = startTime > .zero
         if startTime > .zero, let seekPrepareDelay {
             if seekPrepareIgnoresCancellation {
                 await Task.detached {
@@ -4707,6 +4789,9 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         if let readError { throw readError }
         if let eventDelay {
             try await Task.sleep(for: eventDelay)
+        }
+        if deliversAfterSeek, let postSeekEventDelay {
+            try await Task.sleep(for: postSeekEventDelay)
         }
         guard index < events.count else { return .end }
         defer { index += 1 }
@@ -5680,4 +5765,24 @@ private let audioSwitchTestMedia = URL(fileURLWithPath: #filePath)
     #expect(snapshot.rendererState?.currentTimeSeconds ?? 0 >= 7.9)
     #expect(session.selectedAudioStreamIndex == replacement.streamIndex)
     await session.closeAndWait()
+}
+
+private final class SeekTraceRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [String] = []
+
+    var events: [String] {
+        lock.withLock { recorded }
+    }
+
+    func install() {
+        PlaybackTrace.installSink { [weak self] event in
+            guard let self else { return }
+            lock.withLock { recorded.append(event) }
+        }
+    }
+
+    func uninstall() {
+        PlaybackTrace.installSink(nil)
+    }
 }

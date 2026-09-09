@@ -380,6 +380,7 @@ public struct PlaybackFailureRecord: Codable, Equatable, Sendable {
     public var recoverability: String
     public var rendererKind: String?
     public var requiresFlushToResumeDecoding: Bool?
+    public var progressAgeMilliseconds: Double?
 
     public init(
         failureID: String = UUID().uuidString,
@@ -390,7 +391,8 @@ public struct PlaybackFailureRecord: Codable, Equatable, Sendable {
         message: String,
         recoverability: String,
         rendererKind: String? = nil,
-        requiresFlushToResumeDecoding: Bool? = nil
+        requiresFlushToResumeDecoding: Bool? = nil,
+        progressAgeMilliseconds: Double? = nil
     ) {
         self.failureID = failureID
         self.mediaSessionID = mediaSessionID
@@ -401,6 +403,7 @@ public struct PlaybackFailureRecord: Codable, Equatable, Sendable {
         self.recoverability = recoverability
         self.rendererKind = rendererKind
         self.requiresFlushToResumeDecoding = requiresFlushToResumeDecoding
+        self.progressAgeMilliseconds = progressAgeMilliseconds
     }
 }
 
