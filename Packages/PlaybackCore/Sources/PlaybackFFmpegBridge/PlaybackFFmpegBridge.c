@@ -32,6 +32,10 @@ struct PBFFmpegSourceReadMonitor {
     atomic_bool interrupted;
 };
 
+struct PBFFmpegReadCancellation {
+    atomic_bool cancelled;
+};
+
 typedef struct {
     PBFFmpegSourceReadMonitor *monitor;
     atomic_bool *cancelled;
@@ -331,6 +335,22 @@ static void close_media_source(
 ) {
     finish_source_read_context(sourceReadContext);
     avformat_close_input(formatContext);
+}
+
+PBFFmpegReadCancellation *PBFFmpegReadCancellationCreate(void) {
+    PBFFmpegReadCancellation *cancellation = calloc(1, sizeof(PBFFmpegReadCancellation));
+    if (!cancellation) return NULL;
+    atomic_init(&cancellation->cancelled, false);
+    return cancellation;
+}
+
+void PBFFmpegReadCancellationCancel(PBFFmpegReadCancellation *cancellation) {
+    if (!cancellation) return;
+    atomic_store_explicit(&cancellation->cancelled, true, memory_order_relaxed);
+}
+
+void PBFFmpegReadCancellationDestroy(PBFFmpegReadCancellation *cancellation) {
+    free(cancellation);
 }
 
 PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void) {
@@ -1375,11 +1395,17 @@ struct PBFFmpegMonitoredSource {
 PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen(
     const char *path,
     PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegReadCancellation *cancellation,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
     if (!path) {
         set_error(errorBuffer, errorBufferSize, "Invalid monitored source call");
+        return NULL;
+    }
+    atomic_bool *cancelled = cancellation ? &cancellation->cancelled : NULL;
+    if (cancellation_requested(cancelled)) {
+        set_error(errorBuffer, errorBufferSize, "The monitored source read was cancelled");
         return NULL;
     }
     PBFFmpegMonitoredSource *source = calloc(1, sizeof(PBFFmpegMonitoredSource));
@@ -1388,7 +1414,7 @@ PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen(
         return NULL;
     }
     source->readContext.monitor = monitor;
-    source->formatContext = allocate_format_context(NULL, &source->readContext);
+    source->formatContext = allocate_format_context(cancelled, &source->readContext);
     if (!source->formatContext) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate monitored source context");
         free(source);
@@ -6637,10 +6663,16 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
     int streamIndex,
     char *errorBuffer,
     size_t errorBufferSize,
-    PBFFmpegSourceReadMonitor *monitor
+    PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegReadCancellation *cancellation
 ) {
     if (!path || streamIndex < 0) {
         set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg subtitle reader call");
+        return NULL;
+    }
+    atomic_bool *cancelled = cancellation ? &cancellation->cancelled : NULL;
+    if (cancellation_requested(cancelled)) {
+        set_error(errorBuffer, errorBufferSize, "The subtitle read was cancelled");
         return NULL;
     }
     PBFFmpegSubtitleReader *reader = calloc(1, sizeof(PBFFmpegSubtitleReader));
@@ -6651,7 +6683,7 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
     reader->subtitleStreamIndex = streamIndex;
     reader->sourceReadContext.monitor = monitor;
     reader->formatContext = allocate_format_context(
-        NULL,
+        cancelled,
         &reader->sourceReadContext
     );
     if (!reader->formatContext) {

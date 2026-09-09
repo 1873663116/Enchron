@@ -28,6 +28,7 @@ typedef struct PBFFmpegReader PBFFmpegReader;
 typedef struct PBFFmpegAudioReader PBFFmpegAudioReader;
 typedef struct PBFFmpegDemuxSource PBFFmpegDemuxSource;
 typedef struct PBFFmpegSourceReadMonitor PBFFmpegSourceReadMonitor;
+typedef struct PBFFmpegReadCancellation PBFFmpegReadCancellation;
 typedef struct PBFFmpegMediaSourceInformation PBFFmpegMediaSourceInformation;
 typedef enum PBFFmpegMediaStreamCategory {
     PBFFmpegMediaStreamCategoryOther = 0,
@@ -105,6 +106,16 @@ uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
 // with this monitor, within one interrupt poll of the transport. Permanent:
 // a session interrupts its monitor once, at close.
 void PBFFmpegSourceReadMonitorInterrupt(PBFFmpegSourceReadMonitor *monitor);
+
+// One read's cancellation, independent of the session's monitor: it aborts
+// only the contexts opened with this handle, so a caller can drop a single
+// subtitle read while the session keeps playing. The flag is sticky, Cancel is
+// idempotent, and a context opened after Cancel fails at open. The handle has
+// to outlive every context opened with it: FFmpeg copies the interrupt
+// callback's opaque into each URLContext it opens.
+PBFFmpegReadCancellation *PBFFmpegReadCancellationCreate(void);
+void PBFFmpegReadCancellationCancel(PBFFmpegReadCancellation *cancellation);
+void PBFFmpegReadCancellationDestroy(PBFFmpegReadCancellation *cancellation);
 
 PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     const char *path,
@@ -383,7 +394,8 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
     int streamIndex,
     char *errorBuffer,
     size_t errorBufferSize,
-    PBFFmpegSourceReadMonitor *monitor
+    PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegReadCancellation *cancellation
 );
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(
     PBFFmpegDemuxSource *source,
@@ -402,13 +414,14 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
 );
 
 // Reads a subtitle document (a sidecar whose bytes are subtitle content) to
-// its end through the bridge's monitored door, so an interrupted monitor
-// aborts the read and the constructor fails instead of returning a
+// its end through the bridge's monitored door, so an interrupted monitor or a
+// cancelled read aborts it and the constructor fails instead of returning a
 // half-populated renderer.
 PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     const char *path,
     int streamIndex,
     PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegReadCancellation *cancellation,
     char *errorBuffer,
     size_t errorBufferSize
 );

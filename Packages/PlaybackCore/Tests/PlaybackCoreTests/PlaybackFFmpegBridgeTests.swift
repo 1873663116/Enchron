@@ -1455,13 +1455,15 @@ private func requireBitstreamExtradataBootstrap(
     let opens: [(String, @Sendable (UnsafePointer<CChar>, OpaquePointer, inout [CChar]) -> Bool)] = [
         ("subtitle reader", { path, monitor, error in
             let reader = PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
-                path, 1, &error, error.count, monitor
+                path, 1, &error, error.count, monitor, nil
             )
             PBFFmpegSubtitleReaderDestroy(reader)
             return reader != nil
         }),
         ("subtitle document renderer", { path, monitor, error in
-            let renderer = PBSubtitleFrameRendererCreate(path, 1, monitor, &error, error.count)
+            let renderer = PBSubtitleFrameRendererCreate(
+                path, 1, monitor, nil, &error, error.count
+            )
             PBSubtitleFrameRendererDestroy(renderer)
             return renderer != nil
         }),
@@ -1535,7 +1537,7 @@ private final class OpenOutcome: @unchecked Sendable {
     server.disconnectOnce(afterSendingAdditionalBytes: 2_048)
     var error = [CChar](repeating: 0, count: 512)
     let renderer = server.url.absoluteString.withCString { path in
-        PBSubtitleFrameRendererCreate(path, 1, monitor, &error, error.count)
+        PBSubtitleFrameRendererCreate(path, 1, monitor, nil, &error, error.count)
     }
     defer { PBSubtitleFrameRendererDestroy(renderer) }
     #expect(renderer == nil, "a document whose read failed mid-way produced a renderer")
@@ -1553,7 +1555,9 @@ private final class OpenOutcome: @unchecked Sendable {
     )
     var error = [CChar](repeating: 0, count: 512)
     let reader = fixture.path.withCString { path in
-        PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(path, 1, &error, error.count, nil)
+        PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
+            path, 1, &error, error.count, nil, nil
+        )
     }
     let activeReader = try #require(reader, Comment(rawValue: cString(error)))
     defer { PBFFmpegSubtitleReaderDestroy(activeReader) }

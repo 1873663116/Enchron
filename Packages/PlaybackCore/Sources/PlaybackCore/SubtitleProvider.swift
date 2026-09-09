@@ -144,7 +144,6 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         asset: PlaybackAsset?,
         track: PlaybackSubtitleTrack
     ) async throws -> [PlaybackSubtitleCue] {
-        var error = [CChar](repeating: 0, count: 512)
         let source = FFmpegSourceLocator.argument(for: url)
         if let demuxSession, demuxSession.isOpen(for: source) {
             let existing = rendererLock.withLock { sharedRenderers[track.id] }
@@ -158,17 +157,32 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
             }
             return try renderer.textCues(for: track)
         }
-        let reader: OpaquePointer?
-        reader = source.withCString { path in
+        let cancellation = FFmpegReadCancellation()
+        return try await withTaskCancellationHandler {
+            try self.documentCues(source: source, track: track, cancellation: cancellation)
+        } onCancel: {
+            cancellation.cancel()
+        }
+    }
+
+    private func documentCues(
+        source: String,
+        track: PlaybackSubtitleTrack,
+        cancellation: FFmpegReadCancellation
+    ) throws -> [PlaybackSubtitleCue] {
+        var error = [CChar](repeating: 0, count: 512)
+        let reader: OpaquePointer? = source.withCString { path in
             PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
                 path,
                 Int32(track.streamIndex),
                 &error,
                 error.count,
-                sourceReadMeter.bridgeMonitor
+                sourceReadMeter.bridgeMonitor,
+                cancellation.handle
             )
         }
         guard let reader else {
+            try Task.checkCancellation()
             throw SubtitleProviderError.open(Self.errorMessage(error))
         }
         defer { PBFFmpegSubtitleReaderDestroy(reader) }
@@ -206,6 +220,7 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
             case PBFFmpegReadResultEnd:
                 return cues
             default:
+                try Task.checkCancellation()
                 throw SubtitleProviderError.read(Self.errorMessage(error))
             }
         }
@@ -225,11 +240,17 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         if let demuxSession, demuxSession.isOpen(for: source) {
             renderer = rendererLock.withLock { sharedRenderers[track.id] }
         } else {
-            renderer = try FFmpegSubtitleFrameRenderer(
-                url: url,
-                track: track,
-                sourceReadMeter: sourceReadMeter
-            )
+            let cancellation = FFmpegReadCancellation()
+            renderer = try await withTaskCancellationHandler {
+                try FFmpegSubtitleFrameRenderer(
+                    url: url,
+                    track: track,
+                    sourceReadMeter: self.sourceReadMeter,
+                    cancellation: cancellation
+                )
+            } onCancel: {
+                cancellation.cancel()
+            }
         }
         guard let renderer else { return nil }
         if CoreTextSubtitleFrameRenderer.rendersTextTrack(codecName: track.codecName) {

@@ -625,6 +625,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     const char *path,
     int streamIndex,
     PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegReadCancellation *cancellation,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -635,6 +636,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     PBFFmpegMonitoredSource *source = PBFFmpegMonitoredSourceOpen(
         path,
         monitor,
+        cancellation,
         errorBuffer,
         errorBufferSize
     );
