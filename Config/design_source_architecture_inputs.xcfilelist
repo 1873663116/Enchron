@@ -101,6 +101,7 @@ $(SRCROOT)/Modules/Playback/Model/MediaProfile.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackPanelExpansion.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackPresentation.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackPresentationSettlementPhase.swift
+$(SRCROOT)/Modules/Playback/Model/PlaybackResidency.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackState.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackSurfacePlacement.swift
 $(SRCROOT)/Modules/Playback/Model/SpatialPlaybackSurfaceSettlementPolicy.swift

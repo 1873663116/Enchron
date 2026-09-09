@@ -429,7 +429,8 @@ def main() -> int:
 
     require("stopSpatialPlayback" in spatial_controls, "spatial stop action is missing")
     require(
-        "await playbackLauncher.stopPlaybackAndWait()" in spatial_controls,
+        "await playbackLauncher.stopPlaybackAndWait(reason: .backButton)"
+        in spatial_controls,
         "spatial stop does not await playback cleanup",
     )
     require(
@@ -546,7 +547,7 @@ def main() -> int:
             application,
             "spatialPlatformEffectCoordinator.onMainWindowClosedByWearer = {",
             "SpatialPlatformMainWindowClosurePolicy.stopsPlayback(",
-            "launcher?.stopPlayback()",
+            "launcher?.stopPlayback(reason: .windowClosedByWearer)",
         ),
         "closing the main window from the window bar no longer stops playback "
         "hosted in that window",
@@ -1364,8 +1365,14 @@ def main() -> int:
                         in debug_blackout_probe_platform_api_lines,
                         f"{relative_path} bypasses the platform executor: {stripped_line}",
                     )
-    require("public func stopPlaybackAndWait() async" in launch, "launch coordinator lacks cleanup barrier")
-    require("public func stopAndWait(" in runtime, "runtime lacks cleanup barrier")
+    require(
+        "public func stopPlaybackAndWait(reason: PlaybackLeaveReason) async" in launch,
+        "launch coordinator lacks cleanup barrier",
+    )
+    require(
+        "public func leavePlaybackAndWait(reason: PlaybackLeaveReason) async" in runtime,
+        "runtime lacks cleanup barrier",
+    )
     require(
         "releaseInteractionSurfacesForRealityViewTransfer()" in immersive
         and "func releaseInteractionSurfacesForRealityViewTransfer()" in reality_presenter
