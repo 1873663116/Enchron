@@ -382,29 +382,29 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "    case main\n    case player\n    case immersivePlaybackResident\n}\n",
-        "replaceWith": "    case main\n    case playback\n    case player\n    case immersivePlaybackResident\n}\n"
+        "find": "    case main\n    case player\n}\n",
+        "replaceWith": "    case main\n    case playback\n    case player\n}\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the window identities are no longer the browser, the player and the"
+          "the window identities are no longer the browser and the player"
         ]
       }
     },
     {
-      "id": "playback-surface-structure-rejects-an-immersive-entry-that-pushes-before-it-dismisses",
+      "id": "playback-surface-structure-rejects-an-immersive-entry-that-touches-the-player-window",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "            [.openImmersiveSpace]\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n                + (isPresent(residentWindowState)\n                    ? []\n                    : [.pushImmersiveResidentWindow])\n",
-        "replaceWith": "            [.openImmersiveSpace]\n                + (isPresent(residentWindowState)\n                    ? []\n                    : [.pushImmersiveResidentWindow])\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n"
+        "find": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n",
+        "replaceWith": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace, .dismissPlayerWindow]\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the immersive handover order lives outside the policy's action list"
+          "entering an immersive presentation touches the player window instead of"
         ]
       }
     },

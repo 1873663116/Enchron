@@ -542,28 +542,17 @@ def main() -> int:
         "is not allowed and the browser would not come back in place",
     )
     require(
-        order(
-            execution_lease,
-            "case .enterImmersivePlayback:",
-            "[.openImmersiveSpace]",
-            "[.dismissPlayerWindow]",
-            "[.pushImmersiveResidentWindow]",
-        )
-        and order(
-            execution_lease,
-            "private static func leaveImmersiveActions(",
-            "actions.append(.dismissImmersiveResidentWindow)",
-            "actions.append(.pushPlayerWindow)",
-        )
+        "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n"
+        in execution_lease
+        and "ImmersiveResidentWindow" not in execution_lease
         and order(
             platform_executor,
             "private func performWindowTransition(",
             "let actions = SpatialPlatformPlaybackWindowPolicy.actions(",
             "for action in actions {",
         ),
-        "the immersive handover order lives outside the policy's action list: "
-        "the space opens before the player is dismissed, and the resident is "
-        "dismissed before the player is pushed back",
+        "entering an immersive presentation touches the player window instead of "
+        "only opening the space, or a resident window is back in the action list",
     )
     require(
         order(
@@ -605,9 +594,9 @@ def main() -> int:
         )
         and order(
             app_scene,
-            "ImmersivePlaybackResidentRoot()",
+            "private struct WindowSceneGate<Content: View>: View {",
             ".windowSceneReporting { windowScene in",
-            ".recordWindowScene(windowScene, for: .immersivePlaybackResident)",
+            "spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: window)",
         ),
         "pushed window departure trusts the SwiftUI root's onDisappear, which "
         "visionOS delivers seconds after the UIKit scene is gone, so leaving the "
@@ -615,10 +604,11 @@ def main() -> int:
     )
     require(
         "case playback" not in execution_lease
-        and "    case main\n    case player\n    case immersivePlaybackResident\n}"
-        in execution_lease,
-        "the window identities are no longer the browser, the player and the "
-        "invisible immersive resident",
+        and "    case main\n    case player\n}"
+        in execution_lease
+        and "Resident" not in app_scene,
+        "the window identities are no longer the browser and the player, or a "
+        "resident window scene is back",
     )
     require(
         "sceneRole" not in main_view
