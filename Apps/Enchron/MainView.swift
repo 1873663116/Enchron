@@ -166,6 +166,10 @@ public struct MainView: View {
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
+        .toolbarVisibility(
+            spatialPlatformEffectCoordinator.playerWindowIsPresent ? .hidden : .automatic,
+            for: .tabBar
+        )
         .task {
             guard embySession.server != nil, embyHome.shelves.isEmpty else { return }
             await embyHome.refresh()
