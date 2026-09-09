@@ -787,22 +787,32 @@ extension SampleBufferPlaybackSession {
         #endif
     }
 
-    func recordFailure(_ error: Error, node: PlaybackNode, kind: String) {
+    func recordFailure(
+        _ error: Error,
+        node: PlaybackNode,
+        kind: String,
+        progressAgeMilliseconds: Double? = nil
+    ) {
         debugStore.recordFailure(PlaybackFailureRecord(
             mediaSessionID: traceID,
             node: node,
             stage: kind,
             errorType: String(reflecting: type(of: error)),
             message: error.localizedDescription,
-            recoverability: "notRecoverableWithinMediaSession"
+            recoverability: "notRecoverableWithinMediaSession",
+            progressAgeMilliseconds: progressAgeMilliseconds
         ))
         updateLifecycle(.failed)
+        var details = ["error": error.localizedDescription]
+        if let progressAgeMilliseconds {
+            details["progressAgeMs"] = String(format: "%.1f", progressAgeMilliseconds)
+        }
         debugStore.emit(
             mediaSessionID: traceID,
             node: node,
             kind: kind,
             outcome: .failed,
-            details: ["error": error.localizedDescription]
+            details: details
         )
         if activeOperation != nil {
             finishActiveOperation(.failed, failure: error.localizedDescription)

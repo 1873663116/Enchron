@@ -2,6 +2,16 @@
 import Foundation
 import OSLog
 
+struct PlaybackSeekProgressSignal: Equatable, Sendable {
+    var sourceBytesRead: UInt64
+    var videoSourceEventID: String?
+    var videoPresentationSeconds: Double?
+    var audioStreamEpoch: UInt64?
+    var audioPresentationSeconds: Double?
+    var rendererInputSourceEventID: String?
+    var rendererInputStreamEpoch: UInt64?
+}
+
 extension SampleBufferPlaybackSession {
     func seek(
         to time: CMTime,
@@ -198,11 +208,13 @@ extension SampleBufferPlaybackSession {
 
         let expectedEpoch = streamEpoch
         let expectedAudioEpoch = audioStreamEpoch
-        let deadline = ContinuousClock.now
-            + PlaybackBufferingPolicy.seekProgressStallTimeout
+        let waitStarted = ContinuousClock.now
+        var lastProgress = seekProgressSignal()
+        var lastProgressAt = waitStarted
+        var stallWasTraced = false
         var videoReachedTarget = false
         do {
-            while ContinuousClock.now < deadline {
+            while true {
                 try Task.checkCancellation()
                 let snapshot = debugStore.snapshot()
                 let audioReady = !requiresAudioTarget || !hasAudio || (
@@ -305,6 +317,26 @@ extension SampleBufferPlaybackSession {
                     != "audioRetiredVideoContinues" {
                     throw PlaybackProviderError.ffmpeg(error)
                 }
+                let progress = seekProgressSignal(snapshot)
+                let now = ContinuousClock.now
+                if progress != lastProgress {
+                    lastProgress = progress
+                    lastProgressAt = now
+                }
+                if now - lastProgressAt
+                    >= PlaybackBufferingPolicy.seekProgressStallTimeout {
+                    break
+                }
+                if stallWasTraced == false,
+                   now - waitStarted
+                    > PlaybackBufferingPolicy.seekProgressStallTimeout {
+                    stallWasTraced = true
+                    traceSeekStall(
+                        target: target,
+                        lastProgressAt: lastProgressAt,
+                        now: now
+                    )
+                }
                 try await Task.sleep(for: .milliseconds(10))
             }
         } catch {
@@ -355,7 +387,15 @@ extension SampleBufferPlaybackSession {
             return
         }
         let error = CorePlaybackError.seekTimedOut(target)
-        recordFailure(error, node: .rendererInputCoordination, kind: "control.seek.failed")
+        recordFailure(
+            error,
+            node: .rendererInputCoordination,
+            kind: "control.seek.failed",
+            progressAgeMilliseconds: Self.millisecondValue(
+                from: lastProgressAt,
+                to: ContinuousClock.now
+            )
+        )
         onStatusChange?(.failed(error.localizedDescription))
         throw error
     }
@@ -427,11 +467,14 @@ extension SampleBufferPlaybackSession {
         startAudioDelivery()
 
         let expectedEpoch = audioStreamEpoch
-        let deadline = ContinuousClock.now
-            + PlaybackBufferingPolicy.seekProgressStallTimeout
-        while ContinuousClock.now < deadline {
+        let waitStarted = ContinuousClock.now
+        var lastProgress = seekProgressSignal()
+        var lastProgressAt = waitStarted
+        var stallWasTraced = false
+        while true {
             try Task.checkCancellation()
-            let sample = debugStore.snapshot().lastAudioSample
+            let snapshot = debugStore.snapshot()
+            let sample = snapshot.lastAudioSample
             if sample?.streamEpoch == expectedEpoch,
                sample.map({
                    samplePresentationCoversTarget(
@@ -444,10 +487,33 @@ extension SampleBufferPlaybackSession {
                 finishActiveOperation(.completed)
                 return
             }
+            let progress = seekProgressSignal(snapshot)
+            let now = ContinuousClock.now
+            if progress != lastProgress {
+                lastProgress = progress
+                lastProgressAt = now
+            }
+            if now - lastProgressAt
+                >= PlaybackBufferingPolicy.seekProgressStallTimeout {
+                break
+            }
+            if stallWasTraced == false,
+               now - waitStarted > PlaybackBufferingPolicy.seekProgressStallTimeout {
+                stallWasTraced = true
+                traceSeekStall(target: target, lastProgressAt: lastProgressAt, now: now)
+            }
             try await Task.sleep(for: .milliseconds(10))
         }
         let error = CorePlaybackError.seekTimedOut(target)
-        recordFailure(error, node: .rendererInputCoordination, kind: "control.seek.failed")
+        recordFailure(
+            error,
+            node: .rendererInputCoordination,
+            kind: "control.seek.failed",
+            progressAgeMilliseconds: Self.millisecondValue(
+                from: lastProgressAt,
+                to: ContinuousClock.now
+            )
+        )
         finishActiveOperation(.failed, failure: error.localizedDescription)
         onStatusChange?(.failed(error.localizedDescription))
         throw error
@@ -768,14 +834,57 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    static func millisecondValue(
+        from start: ContinuousClock.Instant,
+        to end: ContinuousClock.Instant
+    ) -> Double {
+        let components = (end - start).components
+        return Double(components.seconds) * 1_000
+            + Double(components.attoseconds) / 1_000_000_000_000_000
+    }
+
     static func milliseconds(
         from start: ContinuousClock.Instant,
         to end: ContinuousClock.Instant
     ) -> String {
-        let components = (end - start).components
-        let value = Double(components.seconds) * 1_000
-            + Double(components.attoseconds) / 1_000_000_000_000_000
-        return String(format: "%.1f", value)
+        String(format: "%.1f", millisecondValue(from: start, to: end))
+    }
+
+    func seekProgressSignal(
+        _ snapshot: PlaybackDebugSnapshotV1? = nil
+    ) -> PlaybackSeekProgressSignal {
+        let observed = snapshot ?? debugStore.snapshot()
+        return PlaybackSeekProgressSignal(
+            sourceBytesRead: sourceReadMeter?.totalBytesRead ?? 0,
+            videoSourceEventID: observed.lastVideoSample?.sourceEventID,
+            videoPresentationSeconds: observed.lastVideoSample?.presentationTimeSeconds,
+            audioStreamEpoch: observed.lastAudioSample?.streamEpoch,
+            audioPresentationSeconds: observed.lastAudioSample?.presentationTimeSeconds,
+            rendererInputSourceEventID: observed.lastAcceptedRendererInput?.sourceEventID,
+            rendererInputStreamEpoch: observed.lastAcceptedRendererInput?.streamEpoch
+        )
+    }
+
+    func traceSeekStall(
+        target: Double,
+        lastProgressAt: ContinuousClock.Instant,
+        now: ContinuousClock.Instant
+    ) {
+        let lastProgressMilliseconds = Self.milliseconds(from: lastProgressAt, to: now)
+        PlaybackTrace.event(
+            "session.seek.stalled seconds=\(target)"
+                + " lastProgressMs=\(lastProgressMilliseconds)"
+        )
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "session.seek.stalled",
+            outcome: .succeeded,
+            details: [
+                "targetSeconds": String(target),
+                "lastProgressMs": lastProgressMilliseconds
+            ]
+        )
     }
 
 }
