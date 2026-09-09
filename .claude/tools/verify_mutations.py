@@ -49,7 +49,7 @@ def probe(copy: Path, relative: str) -> tuple[int, set[str], str]:
 def copy_tree(destination: Path) -> Path:
     shutil.copytree(
         CLAUDE, destination,
-        ignore=shutil.ignore_patterns("state", "__pycache__", "*.pyc"),
+        ignore=shutil.ignore_patterns("state", "worktrees", "__pycache__", "*.pyc"),
     )
     (destination / "state").mkdir(exist_ok=True)
     return destination
