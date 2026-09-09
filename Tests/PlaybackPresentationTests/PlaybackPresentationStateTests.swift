@@ -897,43 +897,26 @@ struct PlaybackPresentationStateTests {
         ) == false)
     }
 
-    @Test("Main glass hosts the browser unless a scene operation is in flight")
-    func browserSurfaceFollowsSettledSceneState() {
-        #expect(BrowserWindowSurfacePolicy.showsBrowser(
-            residency: .browsing,
-            transitionIsActive: false
-        ))
-        #expect(BrowserWindowSurfacePolicy.showsBrowser(
-            residency: .playing(host: .window),
-            transitionIsActive: false
-        ))
-        #expect(BrowserWindowSurfacePolicy.showsBrowser(
-            residency: .playing(host: .window),
-            transitionIsActive: true
-        ) == false)
-        #expect(BrowserWindowSurfacePolicy.showsBrowser(
-            residency: .playing(host: .immersiveSpace),
-            transitionIsActive: false
-        ) == false)
-    }
-
-    @Test("A closing page hosts the browser while the session tears down")
-    func closingPageHostsTheBrowser() {
-        #expect(BrowserWindowSurfacePolicy.showsBrowser(
-            residency: .closing(since: .now, reason: .backButton),
-            transitionIsActive: false
-        ))
+    @Test("A closing page restores the browser size only outside the immersive space")
+    func closingPageRestoresTheBrowserSizeOutsideTheSpace() {
         #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
             residency: .closing(since: .now, reason: .windowClosedByWearer),
-            transitionIsActive: false
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
         ))
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+            residency: .closing(since: .now, reason: .backButton),
+            transitionIsActive: false,
+            immersiveSpaceResidency: .open
+        ) == false)
     }
 
     @Test("Stopped playback restores the browser default window size")
     func stoppedPlaybackRestoresBrowserDefaultWindowSize() {
         #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
             residency: .browsing,
-            transitionIsActive: false
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
         ))
     }
 
@@ -941,7 +924,8 @@ struct PlaybackPresentationStateTests {
     func dismissingActiveWindowPlaybackPreservesWindowSize() {
         #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
             residency: .playing(host: .window),
-            transitionIsActive: false
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
         ) == false)
     }
 
@@ -949,29 +933,31 @@ struct PlaybackPresentationStateTests {
     func activePresentationTransitionPreservesWindowSize() {
         #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
             residency: .browsing,
-            transitionIsActive: true
+            transitionIsActive: true,
+            immersiveSpaceResidency: .closed
         ) == false)
     }
 
     @Test("An open immersive space preserves the window size")
     func openImmersiveSpacePreservesWindowSize() {
         #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+            residency: .browsing,
+            transitionIsActive: false,
+            immersiveSpaceResidency: .open
+        ) == false)
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
             residency: .playing(host: .immersiveSpace),
-            transitionIsActive: false
+            transitionIsActive: false,
+            immersiveSpaceResidency: .open
         ) == false)
     }
 
     @Test("The active-playback recovery browser preserves the window size")
     func activePlaybackRecoveryBrowserPreservesWindowSize() {
-        let residency = PlaybackResidency.playing(host: .window)
-
-        #expect(BrowserWindowSurfacePolicy.showsBrowser(
-            residency: residency,
-            transitionIsActive: false
-        ))
         #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
-            residency: residency,
-            transitionIsActive: false
+            residency: .playing(host: .window),
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
         ) == false)
     }
 
@@ -1062,10 +1048,11 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.immersiveSpaceResidency == .closed)
         #expect(appModel.presentationTransition == nil)
         #expect(appModel.pendingSpatialPlatformEffect == nil)
-        #expect(BrowserWindowSurfacePolicy.showsBrowser(
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
             residency: .playing(host: .window),
-            transitionIsActive: appModel.presentationTransition != nil
-        ))
+            transitionIsActive: appModel.presentationTransition != nil,
+            immersiveSpaceResidency: appModel.immersiveSpaceResidency
+        ) == false)
     }
 
     @Test("Panorama tap shell follows 180 and 360 degree projection coverage")

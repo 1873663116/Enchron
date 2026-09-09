@@ -34,26 +34,14 @@ private enum PlaybackRegressionIdentity {
     }
 }
 
-enum BrowserWindowSurfacePolicy {
-    static func showsBrowser(
-        residency: PlaybackResidency,
-        transitionIsActive: Bool
-    ) -> Bool {
-        switch residency {
-        case .browsing, .closing:
-            true
-        case .playing(let host):
-            transitionIsActive == false && host == .window
-        }
-    }
-}
-
 enum BrowserWindowGeometryPolicy {
     static func shouldRequestDefaultSize(
         residency: PlaybackResidency,
-        transitionIsActive: Bool
+        transitionIsActive: Bool,
+        immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency
     ) -> Bool {
         guard transitionIsActive == false else { return false }
+        guard immersiveSpaceResidency == .closed else { return false }
         switch residency {
         case .browsing, .closing:
             return true
@@ -140,7 +128,12 @@ public struct MainView: View {
     }
 
     private var showsWindowPlayback: Bool {
-        playbackRuntime.hasActivePlaybackRequest
+        switch playbackRuntime.residency {
+        case .browsing, .closing:
+            false
+        case .playing:
+            true
+        }
     }
 
     private var windowSurfaceIsActive: Bool {
@@ -320,7 +313,7 @@ public struct MainView: View {
 
     private var browserPrimaryContent: some View {
         ZStack {
-            browserWindowSurface
+            browser
         }
         .alert(
             "Resume Playback?",
@@ -363,18 +356,6 @@ public struct MainView: View {
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
                 PlaybackAutomationStateProbe(hostedPresentation: hostedPlaybackPresentation)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var browserWindowSurface: some View {
-        if BrowserWindowSurfacePolicy.showsBrowser(
-            residency: playbackRuntime.residency,
-            transitionIsActive: playbackSession.presentationTransition != nil
-        ) {
-            browser
-        } else {
-            Color.clear
         }
     }
 
@@ -475,7 +456,8 @@ public struct MainView: View {
             freeformSizeOnDisappear: { rememberedBrowserSize in
                 BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
                     residency: playbackRuntime.residency,
-                    transitionIsActive: playbackSession.presentationTransition != nil
+                    transitionIsActive: playbackSession.presentationTransition != nil,
+                    immersiveSpaceResidency: playbackSession.immersiveSpaceResidency
                 ) ? BrowserWindowLayout.restoredSize(remembering: rememberedBrowserSize) : nil
             },
             showsWindowChrome: showsPlaybackChrome
@@ -880,7 +862,6 @@ private struct WindowControlPlaneStateModifier: ViewModifier {
             "tapTrace=\(playbackSession.debugSurfaceTapTrace)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "residency=\(playbackRuntime.residency.probeDescription)",
-            "closeElapsedMs=\(playbackRuntime.closeElapsedMilliseconds.map(String.init) ?? "none")",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "mediaName=\((playbackRuntime.currentLaunchRequest?.displayName ?? "none").replacingOccurrences(of: ";", with: ","))",
             "playbackAddressKind=\(PlaybackRegressionIdentity.addressKind(playbackRuntime.currentLaunchRequest))",
@@ -1065,7 +1046,6 @@ private struct PlaybackAutomationStateProbe: View {
             "firstTechnicalSessionAttachment=\(playbackRuntime.firstAttachedPresentationForActiveTechnicalSession?.rawValue ?? "none")",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "residency=\(playbackRuntime.residency.probeDescription)",
-            "closeElapsedMs=\(playbackRuntime.closeElapsedMilliseconds.map(String.init) ?? "none")",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "mediaName=\((playbackRuntime.currentLaunchRequest?.displayName ?? "none").replacingOccurrences(of: ";", with: ","))",
             "playbackAddressKind=\(PlaybackRegressionIdentity.addressKind(playbackRuntime.currentLaunchRequest))",
