@@ -324,7 +324,7 @@
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "opens it outside the one recovery the wearer's own close leaves no other way out of"
+          "the executor opens or dismisses the main window"
         ]
       }
     },
@@ -382,45 +382,13 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "    case main\n    case immersivePlaybackResident\n    case windowPlaybackResident\n}\n",
-        "replaceWith": "    case main\n    case playback\n    case immersivePlaybackResident\n    case windowPlaybackResident\n}\n"
+        "find": "    case main\n    case immersivePlaybackResident\n}\n",
+        "replaceWith": "    case main\n    case playback\n    case immersivePlaybackResident\n}\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the window identities are no longer main plus the two invisible resident windows"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-a-resident-dismissal-before-the-main-window-returns",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "            windowPlaybackResidentDismissalIsPending = true\n",
-        "replaceWith": ""
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "its dismissal no longer waits for the main window to come back"
-        ]
-      }
-    },
-    {
-      "id": "playback-surface-structure-rejects-a-window-playback-start-without-a-resident-window",
-      "guard": "Scripts/rules/verify_playback_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        applyWindowPlaybackResidency(\n            for: hostsPlayback ? .windowPlaybackStarted : .playbackEnded\n        )\n",
-        "replaceWith": ""
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "the window playback resident window no longer covers the whole playback"
+          "a playback window identity exists"
         ]
       }
     },
