@@ -1,4 +1,5 @@
 import CoreGraphics
+import Dispatch
 import Foundation
 import PlaybackCore
 
@@ -159,12 +160,24 @@ struct PlaybackLoadingStateMachine {
         technicalSessionID: String,
         runtimeGeneration: UInt64
     ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID else { return }
+        state = .loading(.seeking(PlaybackSeekingEvidence(
+            runtimeGeneration: runtimeGeneration,
+            technicalSessionID: technicalSessionID,
+            targetSeconds: targetSeconds,
+            startedAtMillis: DispatchTime.now().uptimeNanoseconds / 1_000_000
+        )))
     }
 
     mutating func endSeek(
         technicalSessionID: String,
         runtimeGeneration: UInt64
     ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID,
+              state.stage == .seeking else { return }
+        state = .none
     }
 
     mutating func presentationBecameUsable(
@@ -187,7 +200,8 @@ struct PlaybackLoadingStateMachine {
               self.technicalSessionID == technicalSessionID else { return }
         switch observation.phase {
         case .starved:
-            guard lifecycle == .playing,
+            guard state.stage != .seeking,
+                  lifecycle == .playing,
                   let evidence = observation.evidence else { return }
             state = .loading(.starved(PlaybackStarvationEvidence(
                 runtimeGeneration: runtimeGeneration,

@@ -1126,12 +1126,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let seekGeneration = seekIntentGeneration
         let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
+        beginSeekIndication(targetSeconds: target, seekGeneration: seekGeneration)
         holdPosition(at: target)
         Task { [weak self] in
             guard let self else { return }
             defer {
                 if self.seekIntentGeneration == seekGeneration {
                     self.seekIsInProgress = false
+                    self.endSeekIndication(seekGeneration: seekGeneration)
                     self.releasePositionHoldIfIdle()
                 }
             }
@@ -1178,12 +1180,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let seekGeneration = seekIntentGeneration
         let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
+        beginSeekIndication(targetSeconds: target, seekGeneration: seekGeneration)
         holdPosition(at: target)
         Task { [weak self] in
             guard let self else { return }
             defer {
                 if self.seekIntentGeneration == seekGeneration {
                     self.seekIsInProgress = false
+                    self.endSeekIndication(seekGeneration: seekGeneration)
                     self.releasePositionHoldIfIdle()
                 }
             }
@@ -2165,6 +2169,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     private func clearPresentation() {
         presentationState = .hidden
+        cancelSeekIndication()
         updateLoadingState { $0.clear() }
         videoRendererIsPublished = false
         rendererTransferCoordinator.invalidatePresentationState()
@@ -2754,6 +2759,42 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             seconds: diagnostics.currentSeconds,
             duration: playbackPosition.duration
         )
+    }
+
+    private func beginSeekIndication(targetSeconds: Double, seekGeneration: UInt64) {
+        seekIndicationTask?.cancel()
+        let delay = seekIndicationDelay
+        seekIndicationTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard Task.isCancelled == false, let self else { return }
+            guard seekIntentGeneration == seekGeneration,
+                  seekIsInProgress,
+                  let activeTechnicalSessionID else { return }
+            updateLoadingState { stateMachine in
+                stateMachine.beginSeek(
+                    targetSeconds: targetSeconds,
+                    technicalSessionID: activeTechnicalSessionID,
+                    runtimeGeneration: observationGeneration
+                )
+            }
+        }
+    }
+
+    private func endSeekIndication(seekGeneration: UInt64) {
+        guard seekIntentGeneration == seekGeneration else { return }
+        cancelSeekIndication()
+        guard let activeTechnicalSessionID else { return }
+        updateLoadingState { stateMachine in
+            stateMachine.endSeek(
+                technicalSessionID: activeTechnicalSessionID,
+                runtimeGeneration: observationGeneration
+            )
+        }
+    }
+
+    private func cancelSeekIndication() {
+        seekIndicationTask?.cancel()
+        seekIndicationTask = nil
     }
 
     private func updateLoadingState(
