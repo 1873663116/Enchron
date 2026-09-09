@@ -165,6 +165,153 @@ import Testing
         #expect(stateMachine.state == .none)
     }
 
+    @Test("starvation observed during a seek stays invisible behind the seek")
+    func starvationDuringASeekIsIgnoredWhileSeeking() {
+        var stateMachine = activeLoadingStateMachine()
+        stateMachine.beginSeek(
+            targetSeconds: 999.9,
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        #expect(stateMachine.state.stage == .seeking)
+
+        stateMachine.receive(
+            deliveryContinuityObservation(.starved, incidentID: 30),
+            technicalSessionID: "session",
+            runtimeGeneration: 1,
+            lifecycle: .playing
+        )
+
+        #expect(stateMachine.state.stage == .seeking)
+    }
+
+    @Test("ending a seek cannot clear a starvation that began after it")
+    func endingASeekDoesNotClearALaterStarvation() {
+        var stateMachine = activeLoadingStateMachine()
+        stateMachine.beginSeek(
+            targetSeconds: 42,
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        stateMachine.endSeek(technicalSessionID: "session", runtimeGeneration: 1)
+        #expect(stateMachine.state == .none)
+
+        stateMachine.receive(
+            deliveryContinuityObservation(.starved, incidentID: 31),
+            technicalSessionID: "session",
+            runtimeGeneration: 1,
+            lifecycle: .playing
+        )
+        stateMachine.endSeek(technicalSessionID: "session", runtimeGeneration: 1)
+
+        #expect(stateMachine.state.stage == .starved)
+    }
+
+    @Test("a seek in flight past the indication delay shows seeking everywhere")
+    func aSeekLongerThanTheIndicationDelayShowsTheSeekingStageInEveryPresentation()
+        async throws {
+        let runtime = try await openedAudioRuntime()
+        defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
+        let gate = HeldSeek()
+        runtime.debugSetSeekGate { await gate.wait() }
+        runtime.seekIndicationDelay = .milliseconds(50)
+
+        runtime.seek(to: 0.1)
+        try await Task.sleep(for: .milliseconds(250))
+
+        #expect(runtime.loadingState.stage == .seeking)
+        #expect(runtime.loadingState.visibility == .loading)
+        #expect(seekingEvidence(runtime)?.targetSeconds == 0.1)
+        for presentation in PlaybackPresentation.allCases where presentation.usesImmersiveSpace {
+            #expect(
+                ImmersivePlaybackStallIndicatorPlacement.isVisible(
+                    loadingStage: runtime.loadingState.stage,
+                    presentation: presentation,
+                    transitionIsActive: false
+                )
+            )
+        }
+
+        gate.release()
+        await waitUntilSeekSettles(runtime)
+    }
+
+    @Test("a seek that settles inside the indication delay shows nothing")
+    func aSeekShorterThanTheIndicationDelayShowsNothing() async throws {
+        let runtime = try await openedAudioRuntime()
+        defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
+        let gate = HeldSeek()
+        runtime.debugSetSeekGate { await gate.wait() }
+        runtime.seekIndicationDelay = .milliseconds(400)
+
+        runtime.seek(to: 0.1)
+        var observedSeeking = false
+        let deadline = ContinuousClock.now + .milliseconds(800)
+        var released = false
+        let releaseAt = ContinuousClock.now + .milliseconds(60)
+        while ContinuousClock.now < deadline {
+            if released == false, ContinuousClock.now >= releaseAt {
+                released = true
+                gate.release()
+            }
+            if runtime.loadingState.stage == .seeking { observedSeeking = true }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+
+        #expect(observedSeeking == false)
+        #expect(runtime.loadingState == .none)
+        await waitUntilSeekSettles(runtime)
+    }
+
+    @Test("a seek that completes clears the seeking stage")
+    func aCompletedSeekClearsTheSeekingStage() async throws {
+        let runtime = try await openedAudioRuntime()
+        defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
+        let gate = HeldSeek()
+        runtime.debugSetSeekGate { await gate.wait() }
+        runtime.seekIndicationDelay = .milliseconds(50)
+
+        runtime.seek(to: 0.1)
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(runtime.loadingState.stage == .seeking)
+
+        gate.release()
+        await waitUntilSeekSettles(runtime)
+
+        #expect(runtime.loadingState == .none)
+        #expect(
+            ImmersivePlaybackStallIndicatorPlacement.isVisible(
+                loadingStage: runtime.loadingState.stage,
+                presentation: .docked,
+                transitionIsActive: false
+            ) == false
+        )
+    }
+
+    @Test("a superseding seek restarts the indication delay")
+    func aSupersedingSeekRestartsTheIndicationDelay() async throws {
+        let runtime = try await openedAudioRuntime()
+        defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
+        let gate = HeldSeek()
+        runtime.debugSetSeekGate { await gate.wait() }
+        runtime.seekIndicationDelay = .milliseconds(300)
+
+        runtime.seek(to: 0.1)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(runtime.loadingState.stage != .seeking)
+
+        runtime.seek(to: 0.2)
+        try await Task.sleep(for: .milliseconds(200))
+        #expect(runtime.loadingState.stage != .seeking)
+
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(runtime.loadingState.stage == .seeking)
+        #expect(seekingEvidence(runtime)?.targetSeconds == 0.2)
+
+        gate.release()
+        await waitUntilSeekSettles(runtime)
+    }
+
     @Test("runtime integrates opening, continuity, recovery, pause, and stale callbacks")
     func runtimeIntegration() async throws {
         let controller = PlaybackCoreController()
@@ -262,4 +409,71 @@ private func deliveryContinuityObservation(
                 : nil
         )
     )
+}
+
+@MainActor
+private final class HeldSeek {
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+    private var isReleased = false
+
+    func wait() async {
+        if isReleased { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        isReleased = true
+        let pending = waiters
+        waiters = []
+        for continuation in pending {
+            continuation.resume()
+        }
+    }
+}
+
+@MainActor
+private func seekingEvidence(_ runtime: PlaybackRuntime) -> PlaybackSeekingEvidence? {
+    guard case .seeking(let evidence) = runtime.loadingState.causalEvidence else {
+        return nil
+    }
+    return evidence
+}
+
+@MainActor
+private func waitUntilSeekSettles(_ runtime: PlaybackRuntime) async {
+    let deadline = ContinuousClock.now + .seconds(5)
+    while runtime.seekIsInProgress, ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+}
+
+@MainActor
+private func openedAudioRuntime() async throws -> PlaybackRuntime {
+    let runtime = PlaybackRuntime(controller: PlaybackCoreController())
+    let request = PlaybackLaunchRequest(
+        source: try PlaybackAddress(localFileURL: audioFixtureURL()),
+        displayName: audioFixtureURL().lastPathComponent
+    )
+    runtime.prepareForPlayback(request)
+    try await runtime.open(
+        request,
+        startTimeSeconds: 0,
+        initialSpeed: .default,
+        initialFormat: nil
+    )
+    return runtime
+}
+
+private func audioFixtureURL() -> URL {
+    URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .appending(
+            path: "TestMedia/TestVectors/Enchron/CodecContainer/Audio/"
+                + "he-aac-v1-apple-audio-toolbox.m4a"
+        )
 }

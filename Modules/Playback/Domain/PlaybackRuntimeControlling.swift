@@ -12,9 +12,14 @@ public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
     case failed
 }
 
-public enum PlaybackLoadingStage: String, Codable, Sendable, Equatable {
+public enum PlaybackLoadingStage: String, CaseIterable, Codable, Sendable, Equatable {
     case opening
+    case seeking
     case starved
+}
+
+public enum PlaybackSeekIndicationDelay {
+    public static let duration: Duration = .milliseconds(500)
 }
 
 public enum PlaybackLoadingVisibility: String, Codable, Sendable, Equatable {
@@ -38,6 +43,25 @@ public struct PlaybackOpeningEvidence: Codable, Sendable, Equatable {
     }
 }
 
+public struct PlaybackSeekingEvidence: Codable, Sendable, Equatable {
+    public var runtimeGeneration: UInt64
+    public var technicalSessionID: String
+    public var targetSeconds: Double
+    public var startedAtMillis: UInt64
+
+    public init(
+        runtimeGeneration: UInt64,
+        technicalSessionID: String,
+        targetSeconds: Double,
+        startedAtMillis: UInt64
+    ) {
+        self.runtimeGeneration = runtimeGeneration
+        self.technicalSessionID = technicalSessionID
+        self.targetSeconds = targetSeconds
+        self.startedAtMillis = startedAtMillis
+    }
+}
+
 public struct PlaybackStarvationEvidence: Codable, Sendable, Equatable {
     public var runtimeGeneration: UInt64
     public var technicalSessionID: String
@@ -56,12 +80,15 @@ public struct PlaybackStarvationEvidence: Codable, Sendable, Equatable {
 
 public enum PlaybackLoadingCausalEvidence: Codable, Sendable, Equatable {
     case opening(PlaybackOpeningEvidence)
+    case seeking(PlaybackSeekingEvidence)
     case starved(PlaybackStarvationEvidence)
 
     public var stage: PlaybackLoadingStage {
         switch self {
         case .opening:
             .opening
+        case .seeking:
+            .seeking
         case .starved:
             .starved
         }
@@ -125,6 +152,19 @@ struct PlaybackLoadingStateMachine {
             requestID: requestID,
             technicalSessionID: technicalSessionID
         )))
+    }
+
+    mutating func beginSeek(
+        targetSeconds: Double,
+        technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
+    }
+
+    mutating func endSeek(
+        technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
     }
 
     mutating func presentationBecameUsable(

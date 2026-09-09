@@ -2404,6 +2404,38 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("The immersive indicator shows for starvation and for seeking")
+    func immersiveStallIndicatorShowsStarvationAndSeeking() {
+        let visibleStages: [PlaybackLoadingStage] = [.starved, .seeking]
+        for presentation in PlaybackPresentation.allCases {
+            for stage in PlaybackLoadingStage.allCases {
+                let expected = visibleStages.contains(stage)
+                    && presentation.usesImmersiveSpace
+                #expect(
+                    ImmersivePlaybackStallIndicatorPlacement.isVisible(
+                        loadingStage: stage,
+                        presentation: presentation,
+                        transitionIsActive: false
+                    ) == expected
+                )
+                #expect(
+                    ImmersivePlaybackStallIndicatorPlacement.isVisible(
+                        loadingStage: stage,
+                        presentation: presentation,
+                        transitionIsActive: true
+                    ) == false
+                )
+            }
+            #expect(
+                ImmersivePlaybackStallIndicatorPlacement.isVisible(
+                    loadingStage: nil,
+                    presentation: presentation,
+                    transitionIsActive: false
+                ) == false
+            )
+        }
+    }
+
     @Test("Presentation transition keeps source visible until the visual cutover")
     func presentationTransitionKeepsSourceVisibleUntilVisualCutover() {
         let transition = PlaybackPresentationTransition(

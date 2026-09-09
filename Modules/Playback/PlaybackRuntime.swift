@@ -204,6 +204,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var externalSubtitleAccessBySourceID: [String: MediaAccessLease] = [:]
     #if DEBUG
         @ObservationIgnored
+        private var seekGate: (@MainActor () async -> Void)?
+        @ObservationIgnored
         private var playbackSwitchSampleHandler: (@Sendable (
             PlaybackSwitchRendererSample,
             MediaByteStreamDebugCounters?
@@ -334,6 +336,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var frameStepGeneration: UInt64 = 0
     private var activeSourceReadFailureSequence: UInt64 = 0
     private var loadingStateMachine = PlaybackLoadingStateMachine()
+    @ObservationIgnored
+    var seekIndicationDelay = PlaybackSeekIndicationDelay.duration
+    @ObservationIgnored
+    private var seekIndicationTask: Task<Void, Never>?
 
     private struct Attachment {
         let entityID: String
@@ -469,6 +475,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     #if DEBUG
+        public func debugSetSeekGate(_ gate: (@MainActor () async -> Void)?) {
+            seekGate = gate
+        }
+
         public func debugSetPlaybackSwitchSampleHandler(
             _ handler: (@Sendable (
                 PlaybackSwitchRendererSample,
@@ -1125,6 +1135,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     self.releasePositionHoldIfIdle()
                 }
             }
+            #if DEBUG
+                await seekGate?()
+            #endif
             do {
                 guard rendererTransferCoordinator.hasActiveDriver else {
                     throw RuntimeError.noSession
@@ -1174,6 +1187,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     self.releasePositionHoldIfIdle()
                 }
             }
+            #if DEBUG
+                await seekGate?()
+            #endif
             do {
                 guard rendererTransferCoordinator.hasActiveDriver else {
                     throw RuntimeError.noSession

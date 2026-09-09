@@ -782,6 +782,10 @@ private struct WindowControlPlaneStateModifier: ViewModifier {
             loadingCausalRuntimeGeneration = String(evidence.runtimeGeneration)
             loadingCausalRequestID = evidence.requestID
             loadingCausalTechnicalSessionID = evidence.technicalSessionID ?? "none"
+        case .seeking(let evidence):
+            loadingCausalRuntimeGeneration = String(evidence.runtimeGeneration)
+            loadingCausalRequestID = "none"
+            loadingCausalTechnicalSessionID = evidence.technicalSessionID
         case .starved(let evidence):
             loadingCausalRuntimeGeneration = String(evidence.runtimeGeneration)
             loadingCausalRequestID = "none"
