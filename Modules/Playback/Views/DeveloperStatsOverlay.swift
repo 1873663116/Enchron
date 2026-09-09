@@ -1,0 +1,294 @@
+import DesignSystem
+import PlaybackCore
+import SwiftUI
+
+struct DeveloperStatsField: Identifiable {
+    let key: String
+    let value: String
+    var unit: String?
+    var denominator: String?
+    var suffix: String?
+
+    var id: String { key }
+}
+
+struct DeveloperStatsGroup: Identifiable {
+    let id: String
+    let fields: [DeveloperStatsField]
+}
+
+public enum DeveloperStatsLine {
+    static func groups(
+        metrics: DeveloperProcessMetrics,
+        sceneUpdatesPerSecond: Double?,
+        presentedFramesPerSecond: Double?,
+        enqueuedSamplesPerSecond: Double?,
+        playback: PlaybackDiagnostics?,
+        sessionIsActive: Bool
+    ) -> [DeveloperStatsGroup] {
+        var result: [DeveloperStatsGroup] = []
+
+        var memory: [DeveloperStatsField] = [
+            DeveloperStatsField(
+                key: "MEM",
+                value: megabytes(metrics.footprintBytes),
+                unit: "MB",
+                denominator: metrics.limitIsReported ? megabytes(metrics.limitBytes) : nil
+            )
+        ]
+        if let graphics = metrics.graphicsFootprintBytes {
+            memory.append(
+                DeveloperStatsField(
+                    key: "GFX",
+                    value: megabytes(UInt64(max(graphics, 0))),
+                    unit: "MB"
+                )
+            )
+        }
+        if sessionIsActive, let playback, let pool = videoPoolBytes(playback) {
+            memory.append(
+                DeveloperStatsField(key: "VID≈", value: megabytes(pool), unit: "MB")
+            )
+        }
+        result.append(DeveloperStatsGroup(id: "memory", fields: memory))
+
+        var cadence: [DeveloperStatsField] = []
+        if let sceneUpdatesPerSecond {
+            cadence.append(
+                DeveloperStatsField(
+                    key: "SCENE",
+                    value: String(Int(sceneUpdatesPerSecond.rounded())),
+                    unit: "Hz",
+                    denominator: metrics.refreshHz.map { String(Int($0.rounded())) }
+                )
+            )
+        }
+        cadence.append(stallField(metrics))
+        result.append(DeveloperStatsGroup(id: "cadence", fields: cadence))
+
+        if sessionIsActive, let playback {
+            var session: [DeveloperStatsField] = []
+            if let lead = playback.videoLeadFramesBudget {
+                session.append(
+                    DeveloperStatsField(
+                        key: "LEAD",
+                        value: String(lead),
+                        denominator: playback.videoLeadFramesCeiling.map(String.init)
+                    )
+                )
+            }
+            if let buffer = playback.demuxBuffer, buffer.forwardLimitBytes > 0 {
+                session.append(
+                    DeveloperStatsField(
+                        key: "DEMUX",
+                        value: megabytes(UInt64(max(buffer.forwardBufferedBytes, 0))),
+                        unit: "MB",
+                        denominator: megabytes(UInt64(max(buffer.forwardLimitBytes, 0)))
+                    )
+                )
+            }
+            if playback.nominalFrameRate > 0 {
+                session.append(
+                    DeveloperStatsField(
+                        key: "ENQ",
+                        value: enqueuedSamplesPerSecond.map { String(Int($0.rounded())) } ?? "?",
+                        unit: "/s",
+                        denominator: String(format: "%.3f", playback.nominalFrameRate)
+                    )
+                )
+            }
+            if session.isEmpty == false {
+                result.append(DeveloperStatsGroup(id: "session", fields: session))
+            }
+        }
+
+        return result
+    }
+
+    public static func text(
+        metrics: DeveloperProcessMetrics,
+        sceneUpdatesPerSecond: Double?,
+        presentedFramesPerSecond: Double?,
+        enqueuedSamplesPerSecond: Double?,
+        playback: PlaybackDiagnostics?,
+        sessionIsActive: Bool
+    ) -> String {
+        groups(
+            metrics: metrics,
+            sceneUpdatesPerSecond: sceneUpdatesPerSecond,
+            presentedFramesPerSecond: presentedFramesPerSecond,
+            enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
+            playback: playback,
+            sessionIsActive: sessionIsActive
+        )
+        .map { group in
+            group.fields.map { field in
+                var text = "\(field.key) \(field.value)"
+                if let denominator = field.denominator { text += "/\(denominator)" }
+                if let unit = field.unit { text += unit }
+                if let suffix = field.suffix { text += " \(suffix)" }
+                return text
+            }
+            .joined(separator: " ")
+        }
+        .joined(separator: " · ")
+    }
+
+    static func decodedFrameBytes(_ playback: PlaybackDiagnostics) -> UInt64? {
+        let width = playback.videoPixelWidth
+        let height = playback.videoPixelHeight
+        let bytesPerPixel = playback.decodedBytesPerPixel
+        guard width > 0, height > 0, bytesPerPixel > 0 else { return nil }
+        let isPacked = playback.viewPackingKind != "missing" && playback.viewPackingKind != "—"
+        let views = (playback.hasRightStereoEyeView && isPacked == false) ? 2.0 : 1.0
+        let bytes = Double(width) * Double(height) * bytesPerPixel * views
+        guard bytes.isFinite, bytes > 0 else { return nil }
+        return UInt64(bytes)
+    }
+
+    static let displayBufferFrames = 3
+
+    static func videoPoolBytes(_ playback: PlaybackDiagnostics) -> UInt64? {
+        guard let frameBytes = decodedFrameBytes(playback) else { return nil }
+        let depth = displayBufferFrames + max(0, playback.videoReorderDepth)
+        return frameBytes * UInt64(depth)
+    }
+
+    private static func stallField(_ metrics: DeveloperProcessMetrics) -> DeveloperStatsField {
+        guard metrics.missedBeatCount > 0 else {
+            return DeveloperStatsField(key: "STALL", value: "0")
+        }
+        return DeveloperStatsField(
+            key: "STALL",
+            value: String(Int((metrics.longestStallSeconds * 1000).rounded())),
+            unit: "ms",
+            suffix: "×\(metrics.missedBeatCount)"
+        )
+    }
+
+    private static func megabytes(_ bytes: UInt64) -> String {
+        String(bytes / 1_048_576)
+    }
+}
+
+public struct DeveloperStatsOverlay: View {
+    private let metrics: DeveloperProcessMetrics
+    private let sceneUpdatesPerSecond: Double?
+    private let presentedFramesPerSecond: Double?
+    private let enqueuedSamplesPerSecond: Double?
+    private let playback: PlaybackDiagnostics?
+    private let sessionIsActive: Bool
+
+    public init(
+        metrics: DeveloperProcessMetrics,
+        sceneUpdatesPerSecond: Double? = nil,
+        presentedFramesPerSecond: Double? = nil,
+        enqueuedSamplesPerSecond: Double? = nil,
+        playback: PlaybackDiagnostics? = nil,
+        sessionIsActive: Bool = false
+    ) {
+        self.metrics = metrics
+        self.sceneUpdatesPerSecond = sceneUpdatesPerSecond
+        self.presentedFramesPerSecond = presentedFramesPerSecond
+        self.enqueuedSamplesPerSecond = enqueuedSamplesPerSecond
+        self.playback = playback
+        self.sessionIsActive = sessionIsActive
+    }
+
+    private var groups: [DeveloperStatsGroup] {
+        DeveloperStatsLine.groups(
+            metrics: metrics,
+            sceneUpdatesPerSecond: sceneUpdatesPerSecond,
+            presentedFramesPerSecond: presentedFramesPerSecond,
+            enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
+            playback: playback,
+            sessionIsActive: sessionIsActive
+        )
+    }
+
+    public var body: some View {
+        HStack(spacing: DesignTokens.Spacing.xxs) {
+            ForEach(groups) { group in
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    ForEach(group.fields) { field in
+                        reading(field)
+                    }
+                }
+                .padding(.horizontal, DesignTokens.Spacing.xs)
+                .padding(.vertical, DesignTokens.Spacing.xxs)
+                .background(
+                    DesignTokens.Surface.textScrimMaterial,
+                    in: .rect(cornerRadius: DesignTokens.Radius.small)
+                )
+            }
+        }
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("DeveloperStatsOverlay")
+        .accessibilityLabel(
+            DeveloperStatsLine.text(
+                metrics: metrics,
+                sceneUpdatesPerSecond: sceneUpdatesPerSecond,
+                presentedFramesPerSecond: presentedFramesPerSecond,
+                enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
+                playback: playback,
+                sessionIsActive: sessionIsActive
+            )
+        )
+        .allowsHitTesting(false)
+    }
+
+    private func reading(_ field: DeveloperStatsField) -> some View {
+        HStack(spacing: DesignTokens.Spacing.xxs) {
+            Text(field.key)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+            HStack(spacing: 0) {
+                Text(field.value)
+                if let denominator = field.denominator {
+                    Text("/\(denominator)")
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+                if let unit = field.unit {
+                    Text(unit)
+                        .font(DesignTokens.Typography.sectionHeader)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+                if let suffix = field.suffix {
+                    Text(" \(suffix)")
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+            }
+            .font(DesignTokens.Typography.monospacedDetail)
+            .monospacedDigit()
+        }
+    }
+}
+
+public extension View {
+    func developerStatsOverlay(
+        isEnabled: Bool,
+        metrics: DeveloperProcessMetrics,
+        sceneUpdatesPerSecond: Double? = nil,
+        presentedFramesPerSecond: Double? = nil,
+        enqueuedSamplesPerSecond: Double? = nil,
+        playback: PlaybackDiagnostics? = nil,
+        sessionIsActive: Bool = false
+    ) -> some View {
+        overlay(alignment: .bottomTrailing) {
+            if isEnabled {
+                DeveloperStatsOverlay(
+                    metrics: metrics,
+                    sceneUpdatesPerSecond: sceneUpdatesPerSecond,
+                    presentedFramesPerSecond: presentedFramesPerSecond,
+                    enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
+                    playback: playback,
+                    sessionIsActive: sessionIsActive
+                )
+                .enchronSpatialFrame(depth: 0)
+                .enchronSpatialOffset(z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth)
+                .padding(DesignTokens.Spacing.sm)
+            }
+        }
+    }
+}

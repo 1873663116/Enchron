@@ -3,14 +3,6 @@ import Darwin
 import Foundation
 
 public enum RendererLeadBudget {
-    /// How much memory the system says it is short of, which is the only external reason to
-    /// give delivery frames back.
-    ///
-    /// The process's own remaining allowance is deliberately *not* an input. That figure is
-    /// the limit minus our footprint, and the limit does not shrink because other processes
-    /// got busy — so a falling allowance is our own growth, and starving the picture in
-    /// response would hide the leak rather than address it. The allowance drives an alarm
-    /// and a cache release elsewhere; only system pressure moves this ladder.
     public enum MemoryPressure: Sendable, Equatable {
         case normal
         case warning
@@ -27,17 +19,8 @@ public enum RendererLeadBudget {
 
     static let rampSeconds = 1.5
 
-    /// The first concession, and a free one. 24 frames and 32 measure the same displayed
-    /// rate: 4K60 ten-bit gave 45–52 against 48–51 on 2026-09-08, and 2026-09-09 read 46.6
-    /// and 44.0 at 24 against 45.6 and 43.6 at 32 on an 8K stereo clip — indistinguishable
-    /// across two runs and within one.
     static let warningCeilingFrames = 24
 
-    /// The bottom of the ladder, and the whole of it. This step is not free — 8K measured
-    /// 34.8 displayed frames per second here against 46.6 at 24 — but it is far above the
-    /// reorder floor the previous rule fell to, which read 21 on the same footage. Below
-    /// this the picture is starved to save tens of megabytes, and a footprint that keeps
-    /// climbing past here is our own leak that a starved picture would only hide.
     static let criticalCeilingFrames = 16
 
     private static let overrideLock = NSLock()
@@ -63,11 +46,6 @@ public enum RendererLeadBudget {
         isRemoteSource ? remoteMaximumFrames : localMaximumFrames
     }
 
-    /// The ceiling the ramp climbs toward under a given pressure.
-    ///
-    /// Each step is clamped up to `floorFrames`: the reorder floor is a correctness bound —
-    /// below it a paused seek never settles on its target — so a stream with a deep reorder
-    /// depth keeps the frames it needs no matter how short of memory the system is.
     static func ceilingFrames(
         reorderDepth: Int,
         isRemoteSource: Bool,
@@ -99,9 +77,6 @@ public enum RendererLeadBudget {
             isRemoteSource: isRemoteSource,
             memoryPressure: memoryPressure
         )
-        // The ramp still starts at the reorder floor whatever the pressure: it exists so a
-        // dragged scrub holds few frames in flight and pays a cheap flush per seek, which is
-        // unrelated to how much memory is left.
         guard let elapsed = secondsSinceDeliveryStart, elapsed.isFinite, elapsed > 0 else {
             return floor
         }

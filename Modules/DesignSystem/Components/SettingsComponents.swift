@@ -1094,6 +1094,7 @@ struct SettingListGroupRow: View {
 
                 BoundGlassToggle(isOn: isOn, isEnabled: isEnabled)
                     .accessibilityLabel(title)
+                    .accessibilityIdentifier("Settings-toggle-\(id)")
             }
 
         case .value(let text):

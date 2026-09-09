@@ -17,12 +17,13 @@ struct SettingsScreen: View {
     @State private var showsLicenses = false
 
     private enum Category: String, CaseIterable {
-        case playback, storagePrivacy, about
+        case playback, storagePrivacy, developer, about
 
         var title: String {
             switch self {
             case .playback: "Playback"
             case .storagePrivacy: "Storage & Privacy"
+            case .developer: "Developer"
             case .about: "About"
             }
         }
@@ -31,6 +32,7 @@ struct SettingsScreen: View {
             switch self {
             case .playback: "Resume behavior, default environment, and control timing"
             case .storagePrivacy: "Rebuildable cache, playback history, and data handling"
+            case .developer: "Performance readout in every window and space"
             case .about: "Version, support, and feedback"
             }
         }
@@ -39,6 +41,7 @@ struct SettingsScreen: View {
             switch self {
             case .playback: "play.circle.fill"
             case .storagePrivacy: "internaldrive.fill"
+            case .developer: "wrench.and.screwdriver.fill"
             case .about: "info.circle.fill"
             }
         }
@@ -114,9 +117,31 @@ struct SettingsScreen: View {
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
+        case .developer:
+            SettingListGroup(accessibilityIdentifier: "Settings-Developer-group", items: developerItems)
         case .about:
             SettingListGroup(accessibilityIdentifier: "Settings-About-group", items: aboutItems)
         }
+    }
+
+    private var developerItems: [SettingListGroup.Item] {
+        [
+            SettingListGroup.Item(
+                id: "developer-overlay",
+                title: "Performance Overlay",
+                systemName: "gauge.with.dots.needle.bottom.50percent",
+                supportingText: "One line of live memory, cadence, and playback figures,"
+                    + " pinned in every window and in the immersive space.",
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { viewModel.preferences.developerModeEnabled },
+                        set: { value in viewModel.update { $0.developerModeEnabled = value } }
+                    ),
+                    isEnabled: true,
+                    marker: nil
+                )
+            )
+        ]
     }
 
     private var playbackItems: [SettingListGroup.Item] {

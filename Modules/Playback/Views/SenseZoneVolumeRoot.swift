@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct SenseZoneVolumeRoot: View {
     @Environment(PlaybackSessionModel.self) private var appModel
+    @Environment(DeveloperMetricsModel.self) private var developerMetrics
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.accessibilityPrefersCrossFadeTransitions)
     private var accessibilityPrefersCrossFadeTransitions
@@ -22,6 +23,11 @@ public struct SenseZoneVolumeRoot: View {
         )
         .opacity(revealCompleted ? 1 : 0)
         .scaleEffect(revealCompleted ? 1 : revealInitialScale)
+        .developerStatsOverlay(
+            isEnabled: developerMetrics.isRunning,
+            metrics: developerMetrics.metrics,
+            presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SenseZone-VolumeRoot")
         .accessibilityLabel("SenseZone environments")

@@ -9,6 +9,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
     private static let endBehaviorKey = "xrplayer.preferences.endBehavior"
     private static let defaultSpeedKey = "xrplayer.preferences.defaultSpeed"
     private static let controlsAutoHideKey = "xrplayer.preferences.controlsAutoHideSeconds"
+    private static let developerModeKey = "xrplayer.preferences.developerMode"
 
     public init(defaults: UserDefaults = .standard, playbackSpeedOverride: Double? = nil) {
         self.defaults = defaults
@@ -47,7 +48,8 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
             defaultEnvironmentID: envID,
-            controlsAutoHideSeconds: controlsAutoHide
+            controlsAutoHideSeconds: controlsAutoHide,
+            developerModeEnabled: defaults.bool(forKey: Self.developerModeKey)
         )
     }
 
@@ -76,6 +78,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         defaults.set(preferences.defaultPlaybackSpeed, forKey: Self.defaultSpeedKey)
         defaults.set(preferences.defaultEnvironmentID, forKey: Self.defaultEnvironmentKey)
         defaults.set(preferences.controlsAutoHideSeconds, forKey: Self.controlsAutoHideKey)
+        defaults.set(preferences.developerModeEnabled, forKey: Self.developerModeKey)
     }
 
     public func loadPlaybackPreferences() -> PlaybackPreferences {

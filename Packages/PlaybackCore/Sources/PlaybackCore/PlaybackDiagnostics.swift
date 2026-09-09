@@ -80,8 +80,6 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var sourcePixelFormat = "----"
     public var destinationPixelFormat = "----"
     public var dimensions = "—"
-    /// The encoded frame's pixel dimensions, so a reader can size a decoded frame without
-    /// parsing `dimensions` back out of its display string.
     public var videoPixelWidth = 0
     public var videoPixelHeight = 0
     public var videoGeometry: PlaybackVideoGeometry?
@@ -122,11 +120,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var rendererAccumulatedFrameDelaySeconds: TimeInterval?
     public var rendererPerformanceMetricsObservationCount: UInt64 = 0
     public var videoLeadFramesBudget: Int?
-    /// The source ceiling the budget ramps toward. It stays at the source's own maximum
-    /// under pressure, so a reader sees `16/32` rather than a self-consistent `16/16` and
-    /// can tell a stepped-down budget from a fully ramped one.
     public var videoLeadFramesCeiling: Int?
-    /// Which step of the memory ladder the budget is on: `normal`, `warning` or `critical`.
     public var videoLeadMemoryPressure: String?
     public var videoEnqueueLeadMinSeconds: Double?
     public var videoEnqueueLeadLastSeconds: Double?

@@ -8,19 +8,22 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
     public var defaultPlaybackSpeed: Double
     public var defaultEnvironmentID: String?
     public var controlsAutoHideSeconds: Int
+    public var developerModeEnabled: Bool
 
     public init(
         resumePolicy: ResumePolicy = .askEveryTime,
         playbackEndBehavior: PlaybackEndBehavior = .stop,
         defaultPlaybackSpeed: Double = 1.0,
         defaultEnvironmentID: String? = nil,
-        controlsAutoHideSeconds: Int = 8
+        controlsAutoHideSeconds: Int = 8,
+        developerModeEnabled: Bool = false
     ) {
         self.resumePolicy = resumePolicy
         self.playbackEndBehavior = playbackEndBehavior
         self.defaultPlaybackSpeed = defaultPlaybackSpeed
         self.defaultEnvironmentID = defaultEnvironmentID
         self.controlsAutoHideSeconds = controlsAutoHideSeconds
+        self.developerModeEnabled = developerModeEnabled
     }
 }
 

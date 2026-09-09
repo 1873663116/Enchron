@@ -1,5 +1,3 @@
-import ARKit
-import QuartzCore
 import RealityKit
 import simd
 
@@ -74,15 +72,20 @@ final class ImmersivePlaybackControlsAttachmentController {
 
     private weak var appModel: PlaybackSessionModel?
     private var attachmentEntity: Entity?
-    private var session: ARKitSession?
-    private var provider: WorldTrackingProvider?
-    private var generation = UUID()
-    private var trackingIsRunning = false
+    private var headPoseSource: HeadPoseSource?
     private var placementState = ImmersivePlaybackControlsPlacementState()
     private var lockedTransform: Transform?
 
-    func attach(_ entity: Entity, appModel: PlaybackSessionModel) {
+    func attach(
+        _ entity: Entity,
+        appModel: PlaybackSessionModel,
+        headPoseSource: HeadPoseSource
+    ) {
         self.appModel = appModel
+        if self.headPoseSource !== headPoseSource {
+            self.headPoseSource?.release(self)
+            self.headPoseSource = headPoseSource
+        }
         if attachmentEntity !== entity {
             if let attachmentEntity {
                 setEnabled(
@@ -103,7 +106,7 @@ final class ImmersivePlaybackControlsAttachmentController {
                 applyLockedTransform(lockedTransform, to: entity)
             }
         }
-        startTrackingIfNeeded()
+        retainHeadPoseIfNeeded()
         placeForPendingVisibilityRiseIfPossible()
     }
 
@@ -120,7 +123,7 @@ final class ImmersivePlaybackControlsAttachmentController {
                 "immersiveControlsAttachment placementRequested revision=\(revision)",
                 retention: .evidence
             )
-            startTrackingIfNeeded()
+            retainHeadPoseIfNeeded()
             placeForPendingVisibilityRiseIfPossible()
         case let .hide(lastPlacementRevision):
             lockedTransform = nil
@@ -145,49 +148,27 @@ final class ImmersivePlaybackControlsAttachmentController {
     }
 
     func stop() {
-        session?.stop()
-        session = nil
-        provider = nil
-        generation = UUID()
-        trackingIsRunning = false
+        headPoseSource?.release(self)
+        headPoseSource = nil
         lockedTransform = nil
         placementState = ImmersivePlaybackControlsPlacementState()
         hideAttachment(writer: "ImmersivePlaybackControlsAttachmentController.stop")
         attachmentEntity = nil
     }
 
-    private func startTrackingIfNeeded() {
-        guard session == nil,
-              attachmentEntity != nil,
-              WorldTrackingProvider.isSupported else {
-            return
-        }
-
-        let session = ARKitSession()
-        let provider = WorldTrackingProvider()
-        let generation = UUID()
-        self.session = session
-        self.provider = provider
-        self.generation = generation
-
-        Task { @MainActor [weak self] in
-            do {
-                try await session.run([provider])
-                guard let self, self.generation == generation else { return }
-                self.trackingIsRunning = true
-                self.placeForPendingVisibilityRiseIfPossible()
-            } catch {
-                guard let self, self.generation == generation else { return }
-                self.appModel?.recordSurfaceInputProbe(
-                    "immersiveControlsAttachment trackingFailed=\(error.localizedDescription)"
+    private func retainHeadPoseIfNeeded() {
+        guard attachmentEntity != nil, let headPoseSource else { return }
+        headPoseSource.retain(
+            self,
+            onReady: { [weak self] in
+                self?.placeForPendingVisibilityRiseIfPossible()
+            },
+            onFailure: { [weak self] reason in
+                self?.appModel?.recordSurfaceInputProbe(
+                    "immersiveControlsAttachment trackingFailed=\(reason)"
                 )
-                session.stop()
-                self.session = nil
-                self.provider = nil
-                self.generation = UUID()
-                self.trackingIsRunning = false
             }
-        }
+        )
     }
 
     private func placeForPendingVisibilityRiseIfPossible() {
@@ -199,23 +180,20 @@ final class ImmersivePlaybackControlsAttachmentController {
 
         let revision = placementState.pendingPlacementRevision!
         let headPose: (originTransform: simd_float4x4?, fallbackReason: String)
-        if trackingIsRunning, let provider {
-            let anchor = provider.queryDeviceAnchor(
-                atTimestamp: CACurrentMediaTime()
-            )
+        if let headPoseSource, headPoseSource.isRunning {
+            let reading = headPoseSource.pose()
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment headPoseQueried revision=\(revision)",
                 retention: .evidence
             )
-            if let anchor, anchor.isTracked {
-                headPose = (anchor.originFromAnchorTransform, "")
-            } else if anchor == nil {
-                headPose = (nil, "queryReturnedNil")
-            } else {
-                headPose = (nil, "anchorNotTracked")
+            switch reading {
+            case let .pose(originFromAnchorTransform):
+                headPose = (originFromAnchorTransform, "")
+            case let .unavailable(reason):
+                headPose = (nil, reason)
             }
         } else {
-            headPose = (nil, "headTrackingUnavailable")
+            headPose = (nil, HeadPoseSource.Reading.trackingUnavailableReason)
         }
         guard let placement = placementState.resolvePlacement(
             headAnchorIsAvailable: headPose.originTransform != nil

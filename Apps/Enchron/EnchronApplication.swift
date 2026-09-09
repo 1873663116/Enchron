@@ -117,6 +117,7 @@ final class EnchronApplication {
     let settingsViewModel: SettingsViewModel
     let modalPresentationCoordinator: AppModalPresentationCoordinator
     let connectionSecurityPrompt: ConnectionSecurityPrompt
+    let developerMetrics = DeveloperMetricsModel()
     private let certificateChangePlaybackBoundary: ServerCertificateChangePlaybackBoundary
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
     #if DEBUG
@@ -667,6 +668,7 @@ extension View {
             .environment(application.settingsViewModel)
             .environment(application.modalPresentationCoordinator)
             .environment(application.connectionSecurityPrompt)
+            .environment(application.developerMetrics)
     }
 }
 

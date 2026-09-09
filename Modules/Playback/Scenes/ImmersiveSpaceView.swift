@@ -656,6 +656,7 @@ public struct ImmersiveSpaceView: View {
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
+    @Environment(DeveloperMetricsModel.self) private var developerMetrics
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
 
@@ -678,6 +679,9 @@ public struct ImmersiveSpaceView: View {
     @State private var displayLinkProbe = SpatialDisplayLinkProbe()
     @State private var controlsAttachmentController =
         ImmersivePlaybackControlsAttachmentController()
+    @State private var headPoseSource = HeadPoseSource()
+    @State private var developerOverlayFollower = DeveloperOverlayFollower()
+    @State private var immersiveSceneTicks = SceneTickSubscriber()
     @State private var targetRevealState = PortalToPanoramaTargetRevealState()
     @State private var surfaceRefreshTick = 0
     @State private var hasRecordedCollisionShellShelved = false
@@ -750,14 +754,18 @@ public struct ImmersiveSpaceView: View {
     public var body: some View {
         RealityView { content, attachments in
             installRealityViewHostMarker(into: content)
+            observeImmersiveSceneUpdates(content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
+            installDeveloperOverlay(from: attachments, into: content)
         } update: { content, attachments in
             installRealityViewHostMarker(into: content)
+            observeImmersiveSceneUpdates(content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
+            installDeveloperOverlay(from: attachments, into: content)
         } attachments: {
             Attachment(
                 id: ImmersivePlaybackControlsAttachmentController.attachmentID
@@ -765,6 +773,19 @@ public struct ImmersiveSpaceView: View {
                 ImmersivePlaybackControlsAttachmentView(
                     presentation: requestedPresentation
                 )
+            }
+            Attachment(id: DeveloperOverlayFollower.attachmentID) {
+                if developerMetrics.isRunning {
+                    DeveloperStatsOverlay(
+                        metrics: developerMetrics.metrics,
+                        sceneUpdatesPerSecond: developerMetrics
+                            .sceneUpdatesPerSecond[.immersive],
+                        presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond,
+                        enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
+                        playback: playbackRuntime.diagnostics,
+                        sessionIsActive: playbackRuntime.activeSessionID != nil
+                    )
+                }
             }
             Attachment(id: ImmersivePlaybackStallIndicatorPlacement.attachmentID) {
                 if stallIndicatorIsVisible {
@@ -782,6 +803,8 @@ public struct ImmersiveSpaceView: View {
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {
             controlsAttachmentController.stop()
+            developerOverlayFollower.stop()
+            immersiveSceneTicks.cancel()
             realityViewUpdateScheduler.cancel()
             surfaceAccessibilityActivation.cancel()
             releaseSpatialSurface()
@@ -857,6 +880,37 @@ public struct ImmersiveSpaceView: View {
         )
     }
 
+    private func observeImmersiveSceneUpdates(_ content: RealityViewContent) {
+        guard developerMetrics.isRunning else {
+            immersiveSceneTicks.cancel()
+            return
+        }
+        immersiveSceneTicks.subscribe {
+            content.subscribe(to: SceneEvents.Update.self) { _ in
+                MainActor.assumeIsolated {
+                    developerMetrics.recordSceneTick(.immersive)
+                    developerMetrics.recordPresentedSurface(
+                        presentedSurfaceIdentity(
+                            of: videoEntity.components[VideoPlayerComponent.self]?.videoRenderer
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private func installDeveloperOverlay(
+        from attachments: RealityViewAttachments,
+        into content: RealityViewContent
+    ) {
+        developerOverlayFollower.setActive(
+            developerMetrics.isRunning,
+            attachment: attachments.entity(for: DeveloperOverlayFollower.attachmentID),
+            in: content,
+            headPoseSource: headPoseSource
+        )
+    }
+
     private func installStallIndicator(from attachments: RealityViewAttachments) {
         guard let entity = attachments.entity(
             for: ImmersivePlaybackStallIndicatorPlacement.attachmentID
@@ -896,7 +950,11 @@ public struct ImmersiveSpaceView: View {
         if attachment.parent == nil {
             content.add(attachment)
         }
-        controlsAttachmentController.attach(attachment, appModel: appModel)
+        controlsAttachmentController.attach(
+            attachment,
+            appModel: appModel,
+            headPoseSource: headPoseSource
+        )
     }
 
     private func scheduleSpatialSurfaceUpdate(
@@ -1385,7 +1443,11 @@ public struct ImmersiveSpaceView: View {
         subtitleFollower.dockTransformProvider = { [controlsAttachmentController] in
             controlsAttachmentController.lockedControlsTransform
         }
-        subtitleFollower.setActive(presentation == .panorama, in: content)
+        subtitleFollower.setActive(
+            presentation == .panorama,
+            in: content,
+            headPoseSource: headPoseSource
+        )
         subtitleSurface.update(
             on: subtitleParent(for: presentation),
             presentation: presentation,

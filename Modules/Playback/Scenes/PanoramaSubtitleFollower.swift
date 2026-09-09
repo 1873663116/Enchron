@@ -1,5 +1,3 @@
-import ARKit
-import QuartzCore
 import RealityKit
 import SwiftUI
 import simd
@@ -121,19 +119,24 @@ final class PanoramaSubtitleFollower {
     private var arcLift: Float = 0
 
     private var follow = LazyGazeFollow()
-    private var session: ARKitSession?
-    private var provider: WorldTrackingProvider?
-    private var trackingIsRunning = false
-    private var generation = UUID()
+    private var headPoseSource: HeadPoseSource?
     private var updateSubscription: EventSubscription?
 
-    func setActive(_ active: Bool, in content: RealityViewContent) {
+    func setActive(
+        _ active: Bool,
+        in content: RealityViewContent,
+        headPoseSource: HeadPoseSource
+    ) {
         let installed = content.entities.contains { $0 === root }
         if active {
             if installed == false {
                 content.add(root)
             }
-            startTrackingIfNeeded()
+            if self.headPoseSource !== headPoseSource {
+                self.headPoseSource?.release(self)
+                self.headPoseSource = headPoseSource
+            }
+            headPoseSource.retain(self)
             if updateSubscription == nil {
                 updateSubscription = content.subscribe(to: SceneEvents.Update.self) { [weak self] event in
                     self?.step(deltaTime: Float(event.deltaTime))
@@ -150,11 +153,8 @@ final class PanoramaSubtitleFollower {
     func stop() {
         updateSubscription?.cancel()
         updateSubscription = nil
-        session?.stop()
-        session = nil
-        provider = nil
-        trackingIsRunning = false
-        generation = UUID()
+        headPoseSource?.release(self)
+        headPoseSource = nil
         follow = LazyGazeFollow()
         wasDocked = false
         transitionTimeConstant = LazyGazeFollow.timeConstantSeconds
@@ -162,29 +162,6 @@ final class PanoramaSubtitleFollower {
         arcLift = 0
         root.scale = .one
         root.removeFromParent()
-    }
-
-    private func startTrackingIfNeeded() {
-        guard session == nil, WorldTrackingProvider.isSupported else { return }
-        let session = ARKitSession()
-        let provider = WorldTrackingProvider()
-        let generation = UUID()
-        self.session = session
-        self.provider = provider
-        self.generation = generation
-        Task { @MainActor [weak self] in
-            do {
-                try await session.run([provider])
-                guard let self, self.generation == generation else { return }
-                self.trackingIsRunning = true
-            } catch {
-                guard let self, self.generation == generation else { return }
-                session.stop()
-                self.session = nil
-                self.provider = nil
-                self.trackingIsRunning = false
-            }
-        }
     }
 
     static func dockedRootTransform(controls: Transform) -> Transform {
@@ -210,13 +187,10 @@ final class PanoramaSubtitleFollower {
     }
 
     private func step(deltaTime: Float) {
-        guard trackingIsRunning,
-              let provider,
-              let anchor = provider.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()),
-              anchor.isTracked else {
+        guard let headPoseSource,
+              case let .pose(transform) = headPoseSource.pose() else {
             return
         }
-        let transform = anchor.originFromAnchorTransform
         let forward = -SIMD3(transform.columns.2.x, transform.columns.2.y, transform.columns.2.z)
         let headPosition = SIMD3(transform.columns.3.x, transform.columns.3.y, transform.columns.3.z)
         let headGaze = LazyGazeFollow.gaze(of: forward)

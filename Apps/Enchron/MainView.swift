@@ -3,6 +3,7 @@ import Emby
 import Foundation
 import MediaSource
 import OSLog
+import PlaybackCore
 import Playback
 import SwiftUI
 
@@ -17,6 +18,8 @@ public struct MainView: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
+    @Environment(SettingsViewModel.self) private var settingsViewModel
+    @Environment(DeveloperMetricsModel.self) private var developerMetrics
 
     public init() {}
 
@@ -26,6 +29,33 @@ public struct MainView: View {
             spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
         }
         .enchronWindowGlassBackground(.always)
+        .developerStatsOverlay(
+            isEnabled: settingsViewModel.preferences.developerModeEnabled,
+            metrics: developerMetrics.metrics,
+            sceneUpdatesPerSecond: developerMetrics.sceneUpdatesPerSecond[.window],
+            presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond,
+            enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
+            playback: playbackRuntime.diagnostics,
+            sessionIsActive: playbackRuntime.activeSessionID != nil
+        )
+        .onChange(
+            of: settingsViewModel.preferences.developerModeEnabled,
+            initial: true
+        ) { _, isEnabled in
+            if isEnabled {
+                developerMetrics.droppedFrameCountSource = { [weak playbackRuntime] in
+                    playbackRuntime?.diagnostics.rendererDroppedFrameCount
+                }
+                developerMetrics.enqueuedSampleCountSource = { [weak playbackRuntime] in
+                    playbackRuntime?.diagnostics.enqueuedSampleCount
+                }
+                developerMetrics.start()
+            } else {
+                developerMetrics.stop()
+                developerMetrics.droppedFrameCountSource = nil
+                developerMetrics.enqueuedSampleCountSource = nil
+            }
+        }
         .onAppear {
             playbackRuntime.onPlaybackEnded = {
                 let showControls = playbackLauncher.handlePlaybackEnded {

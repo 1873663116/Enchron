@@ -197,6 +197,7 @@ public struct PlaybackVideoSurface: View {
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
+    @Environment(DeveloperMetricsModel.self) private var developerMetrics
 
     let presentation: PlaybackPresentation
     let isActive: Bool
@@ -223,6 +224,7 @@ public struct PlaybackVideoSurface: View {
     @State private var rendererTargetObservation =
         PlaybackVideoRendererTargetObservation()
     @State private var componentObservation = PlaybackVideoComponentObservation()
+    @State private var sceneTicks = SceneTickSubscriber()
     @State private var componentRevision = 0
     @State private var surfaceRefreshTick = 0
     @State private var validVisionLayoutViewportRefreshRevision: UInt64?
@@ -263,8 +265,10 @@ public struct PlaybackVideoSurface: View {
         )
         return GeometryReader3D { geometry in
             RealityView { content in
+                observeSceneUpdates(content)
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             } update: { content in
+                observeSceneUpdates(content)
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             }
             .frame(depth: realityViewDepth)
@@ -290,6 +294,25 @@ public struct PlaybackVideoSurface: View {
         .onDisappear {
             realityViewUpdateScheduler.cancel()
             releaseSurface()
+        }
+    }
+
+    private func observeSceneUpdates(_ content: RealityViewContent) {
+        guard developerMetrics.isRunning else {
+            sceneTicks.cancel()
+            return
+        }
+        sceneTicks.subscribe {
+            content.subscribe(to: SceneEvents.Update.self) { _ in
+                MainActor.assumeIsolated {
+                    developerMetrics.recordSceneTick(.window)
+                    developerMetrics.recordPresentedSurface(
+                        presentedSurfaceIdentity(
+                            of: videoEntity.components[VideoPlayerComponent.self]?.videoRenderer
+                        )
+                    )
+                }
+            }
         }
     }
 

@@ -149,6 +149,7 @@ def main() -> int:
     immersive_controls_attachment = read(
         "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachment.swift"
     )
+    head_pose_source = read("Modules/Playback/Scenes/HeadPoseSource.swift")
     reality_presenter = read(
         "Modules/Playback/Views/PlaybackRealityPresenter.swift"
     )
@@ -743,12 +744,16 @@ def main() -> int:
         "attached controls remain accessibility-visible while inactive",
     )
     require(
-        "WorldTrackingProvider" in immersive_controls_attachment,
-        "attached controls do not use world tracking for placement",
+        "HeadPoseSource" in immersive_controls_attachment,
+        "attached controls do not take their placement from the shared head pose source",
     )
     require(
-        "queryDeviceAnchor(" in immersive_controls_attachment,
-        "attached controls do not query the device anchor for placement",
+        "WorldTrackingProvider" in head_pose_source,
+        "the shared head pose source does not use world tracking",
+    )
+    require(
+        "queryDeviceAnchor(" in head_pose_source,
+        "the shared head pose source does not query the device anchor",
     )
     require(
         "OpacityComponent(" in immersive_controls_attachment,
