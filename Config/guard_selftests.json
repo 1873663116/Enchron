@@ -414,8 +414,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "            dismissalWasRequestedByApp: playerWindowDismissalIsAppRequested\n",
-        "replaceWith": "            dismissalWasRequestedByApp: false\n"
+        "find": "        let playerWindowStateBeforeDisconnect = playerWindowState\n        recordWindowResidency(.closed, for: window)\n",
+        "replaceWith": "        recordWindowResidency(.closed, for: window)\n        let playerWindowStateBeforeDisconnect = playerWindowState\n"
       },
       "expected": {
         "exitCode": 1,

@@ -581,10 +581,11 @@ def main() -> int:
         order(
             platform_executor,
             "forName: UIScene.didDisconnectNotification,",
+            "let playerWindowStateBeforeDisconnect = playerWindowState",
             "recordWindowResidency(.closed, for: window)",
             "guard window == .player else { return }",
             "SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(",
-            "dismissalWasRequestedByApp: playerWindowDismissalIsAppRequested",
+            "playerWindowStateBeforeDisconnect: playerWindowStateBeforeDisconnect",
             "onPlayerWindowClosedByWearer?()",
         )
         and order(
