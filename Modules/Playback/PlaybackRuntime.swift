@@ -34,6 +34,34 @@ private final class PlaybackSwitchRendererSampleForwarder:
 }
 #endif
 
+@MainActor
+private final class CloseSettlement {
+    enum Outcome {
+        case closed
+        case overran
+    }
+
+    private var outcome: Outcome?
+    private var continuation: CheckedContinuation<Outcome, Never>?
+
+    var isSettled: Bool { outcome != nil }
+
+    func wait() async -> Outcome {
+        if let outcome { return outcome }
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+        }
+    }
+
+    func settle(_ value: Outcome) {
+        guard outcome == nil else { return }
+        outcome = value
+        let continuation = continuation
+        self.continuation = nil
+        continuation?.resume(returning: value)
+    }
+}
+
 struct PlaybackPresentationSurfacePixelIdentity: Equatable {
     let technicalSessionID: String?
     let videoComponentRevision: UInt64
@@ -2008,7 +2036,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         openingDriver?.hush()
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
-        let closeTask = Task { @MainActor [weak self] in
+        let closeStartedAt = ContinuousClock.now
+        let settlement = CloseSettlement()
+        let closeBody = Task { @MainActor in
             PlaybackTrace.event(
                 "runtime.close.begin previous=\(previousClosingTask != nil)"
                     + " renderer=\(rendererCloseTask != nil)"
@@ -2026,8 +2056,36 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             for subtitleAccess in externalSubtitleAccesses {
                 subtitleAccess.release()
             }
+            if settlement.isSettled {
+                PlaybackTrace.event(
+                    "runtime.close.lateSettled elapsed="
+                        + "\(PlaybackCloseBudget.milliseconds(ContinuousClock.now - closeStartedAt))"
+                )
+            }
             PlaybackTrace.event("runtime.close.end")
-            self?.settleCloseResidency()
+            settlement.settle(.closed)
+        }
+        let deadlineTask = Task { @MainActor in
+            try? await Task.sleep(for: PlaybackCloseBudget.deadline)
+            guard Task.isCancelled == false else { return }
+            settlement.settle(.overran)
+        }
+        let closeTask = Task { @MainActor [weak self] in
+            let outcome = await settlement.wait()
+            deadlineTask.cancel()
+            guard let self else { return }
+            switch outcome {
+            case .closed:
+                settleCloseResidency()
+            case .overran:
+                forceTeardown(
+                    reason: leaveReason,
+                    elapsed: ContinuousClock.now - closeStartedAt,
+                    openingDriver: openingDriver,
+                    sourceAccess: sourceAccess,
+                    externalSubtitleAccesses: externalSubtitleAccesses
+                )
+            }
         }
         closingTask = closeTask
         clearPresentation()
@@ -2038,6 +2096,34 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func settleCloseResidency() {
         guard case .closing = residency else { return }
         residency = .browsing
+    }
+
+    private func forceTeardown(
+        reason: PlaybackLeaveReason?,
+        elapsed: Duration,
+        openingDriver: PlaybackMediaSessionDriver?,
+        sourceAccess: MediaAccessLease?,
+        externalSubtitleAccesses: [MediaAccessLease]
+    ) {
+        let elapsedMilliseconds = PlaybackCloseBudget.milliseconds(elapsed)
+        let reasonDescription = reason?.rawValue ?? "requestReplacement"
+        PlaybackTrace.event(
+            "runtime.close.overran elapsed=\(elapsedMilliseconds)"
+                + " reason=\(reasonDescription)"
+        )
+        SurfaceInputProbes.record(
+            "closeOverran reason=\(reasonDescription)"
+                + " elapsedMs=\(elapsedMilliseconds)",
+            retention: .evidence
+        )
+        rendererTransferCoordinator.abandonClose()
+        openingDriver?.abandon()
+        sourceAccess?.release()
+        for subtitleAccess in externalSubtitleAccesses {
+            subtitleAccess.release()
+        }
+        closingTask = nil
+        settleCloseResidency()
     }
 
     private func clearPresentation() {

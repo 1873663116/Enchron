@@ -820,6 +820,18 @@ final class RendererTransferCoordinator {
         return task
     }
 
+    @discardableResult
+    func abandonClose() -> Int {
+        closeTask = nil
+        guard case .closing(let closing) = state else { return 0 }
+        let drivers = uniqueDrivers(in: closing)
+        for driver in drivers {
+            driver.abandon()
+        }
+        state = .empty
+        return drivers.count
+    }
+
     private var active: Active? {
         switch state {
         case .empty:

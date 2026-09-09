@@ -347,6 +347,14 @@ final class PlaybackMediaSessionDriver {
         await task.value
     }
 
+    func abandon() {
+        controller.abandonActiveSession()
+        closeTask = nil
+        session = nil
+        callbacks = Callbacks()
+        unbindControllerCallbacks()
+    }
+
     func debugSnapshot() -> PlaybackDebugSnapshotV1? {
         attachedSession?.debugSnapshot()
     }

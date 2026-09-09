@@ -910,6 +910,52 @@ public final class PlaybackCoreController {
         PlaybackTrace.event("controller.close.end session=\(session.traceID)")
     }
 
+    public func abandonActiveSession() {
+        failedCleanupTask?.cancel()
+        failedCleanupTask = nil
+        activeSeekTask?.cancel()
+        activeSeekTask = nil
+        formatOverrideGeneration &+= 1
+        activeFormatOverrideTask?.cancel()
+        activeFormatOverrideTask = nil
+        subtitleSelectionGeneration &+= 1
+        activeSubtitleSelectionTask?.cancel()
+        activeSubtitleSelectionTask = nil
+        latestRequestedSeekTime = nil
+        for retirement in replacementRetirementTasks.values {
+            retirement.cancel()
+        }
+        replacementRetirementTasks.removeAll()
+
+        let abandonedSession = activeSession
+        abandonedSession?.interruptSourceReadsForClose()
+        let recorder = debugRecorder
+        debugRecorder = nil
+        if let abandonedSession {
+            activeSession = nil
+            onSessionChange?(nil)
+            diagnostics = PlaybackDiagnostics()
+            onDiagnosticsChange?(diagnostics)
+            abandonedSession.close()
+        }
+        let abandonedMediaSessionID = abandonedSession?.traceID
+            ?? pendingCleanupMediaSessionID
+        if let abandonedMediaSessionID {
+            _ = mediaSlot.release(mediaSessionID: abandonedMediaSessionID)
+        }
+        pendingCleanupMediaSessionID = nil
+        activeFailureContext = nil
+        deliveryContinuity = nil
+        setStatus(.idle)
+        recorder?.stop()
+        let waiters = pendingCleanupWaiters
+        pendingCleanupWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        PlaybackTrace.event(
+            "controller.close.abandoned session=\(abandonedMediaSessionID ?? "none")"
+        )
+    }
+
     @discardableResult
     public func retireActiveSessionForReplacement() -> Task<Void, Never>? {
         failedCleanupTask?.cancel()
