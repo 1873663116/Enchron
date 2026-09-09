@@ -84,31 +84,23 @@ struct PlaybackPresentationStateTests {
         #expect(fields.contains("audioTrueHDLastDecoderBatchInputPacketCount=60"))
     }
 
-    @Test("A resident window hosts an issue only while the main window is gone")
-    func residentWindowIssueLocation() {
+    @Test("immersive resident resolves each issue to its existing product location")
+    func immersiveResidentIssueLocation() {
         #expect(
-            PlaybackIssuePresentationScope.residentWindow(mainWindowIsOpen: false)
-                .resolve(.environmentLoadingFailed) == .immersiveSpace
+            PlaybackIssuePresentationScope.immersiveResident.resolve(
+                .environmentLoadingFailed
+            ) == .immersiveSpace
         )
         #expect(
-            PlaybackIssuePresentationScope.residentWindow(mainWindowIsOpen: false)
-                .resolve(.capabilityUnavailable(.videoDecoderUnavailable))
-                == .playerDeck
+            PlaybackIssuePresentationScope.immersiveResident.resolve(
+                .capabilityUnavailable(.videoDecoderUnavailable)
+            ) == .playerDeck
         )
         #expect(
-            PlaybackIssuePresentationScope.residentWindow(mainWindowIsOpen: false)
-                .resolve(.mediaRequestFailed) == nil
+            PlaybackIssuePresentationScope.immersiveResident.resolve(
+                .mediaRequestFailed
+            ) == nil
         )
-        for issue in [
-            PlaybackUserVisibleIssue.environmentLoadingFailed,
-            .capabilityUnavailable(.videoDecoderUnavailable),
-            .mediaRequestFailed
-        ] {
-            #expect(
-                PlaybackIssuePresentationScope.residentWindow(mainWindowIsOpen: true)
-                    .resolve(issue) == nil
-            )
-        }
     }
 
     @Test("Immersive playback entry pushes a resident window")
@@ -190,118 +182,7 @@ struct PlaybackPresentationStateTests {
                 residentWindowState: .absent
             ) == .pushResidentWindow
         )
-        #expect(
-            SpatialPlatformWindowIdentity.allCases == [
-                .main, .immersivePlaybackResident, .windowPlaybackResident
-            ]
-        )
-    }
-
-    @Test("Playback starting in the main window opens the resident window once")
-    func windowPlaybackStartOpensTheResidentWindowOnce() {
-        #expect(
-            SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                for: .windowPlaybackStarted,
-                residentWindowState: .absent
-            ) == .openResidentWindow
-        )
-        #expect(
-            SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                for: .windowPlaybackStarted,
-                residentWindowState: .closing
-            ) == .openResidentWindow
-        )
-        for residentWindowState in [
-            SpatialPlatformResidentWindowState.opening, .open
-        ] {
-            #expect(
-                SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                    for: .windowPlaybackStarted,
-                    residentWindowState: residentWindowState
-                ) == .retainResidentWindow
-            )
-        }
-    }
-
-    @Test("Entering and leaving the immersive space retains the resident window")
-    func immersiveTransitionsRetainTheResidentWindow() {
-        for transition in [
-            SpatialPlatformWindowPlaybackResidencyTransition.immersivePlaybackEntered,
-            .immersivePlaybackExited
-        ] {
-            for residentWindowState in [
-                SpatialPlatformResidentWindowState.absent, .opening, .open, .closing
-            ] {
-                #expect(
-                    SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                        for: transition,
-                        residentWindowState: residentWindowState
-                    ) == .retainResidentWindow
-                )
-            }
-        }
-    }
-
-    @Test("Playback ending dismisses the resident window it opened")
-    func playbackEndDismissesTheResidentWindow() {
-        for residentWindowState in [
-            SpatialPlatformResidentWindowState.opening, .open, .closing
-        ] {
-            #expect(
-                SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                    for: .playbackEnded,
-                    residentWindowState: residentWindowState
-                ) == .dismissResidentWindow
-            )
-        }
-        #expect(
-            SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                for: .playbackEnded,
-                residentWindowState: .absent
-            ) == .retainResidentWindow
-        )
-    }
-
-    @Test("A wearer close during window playback reopens the main window before dismissing the resident")
-    func aWearerCloseDuringWindowPlaybackReopensTheMainWindowBeforeDismissingTheResident() {
-        for residentWindowState in [
-            SpatialPlatformResidentWindowState.opening, .open, .closing
-        ] {
-            #expect(
-                SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                    for: .mainWindowClosedByWearer(stopsPlayback: true),
-                    residentWindowState: residentWindowState
-                ) == .reopenMainWindowThenDismissResidentWindow
-            )
-        }
-        #expect(
-            SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                for: .mainWindowClosedByWearer(stopsPlayback: true),
-                residentWindowState: .absent
-            ) == .retainResidentWindow
-        )
-        #expect(
-            SpatialPlatformWindowPlaybackResidencyPolicy
-                .mayDismissResidentWindow(mainWindowIsOpen: false) == false
-        )
-        #expect(
-            SpatialPlatformWindowPlaybackResidencyPolicy
-                .mayDismissResidentWindow(mainWindowIsOpen: true)
-        )
-    }
-
-    @Test("A wearer close during immersive playback leaves the resident window alone")
-    func aWearerCloseDuringImmersivePlaybackLeavesTheResidentWindowAlone() {
-        for residentWindowState in [
-            SpatialPlatformResidentWindowState.absent, .opening, .open, .closing
-        ] {
-            #expect(
-                SpatialPlatformWindowPlaybackResidencyPolicy.action(
-                    for: .mainWindowClosedByWearer(stopsPlayback: false),
-                    residentWindowState: residentWindowState
-                ) == .retainResidentWindow
-            )
-        }
+        #expect(SpatialPlatformWindowIdentity.allCases == [.main, .immersivePlaybackResident])
     }
 
     @Test("The window video entity appears in one step when a space hands back to the window")

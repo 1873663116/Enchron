@@ -1142,7 +1142,7 @@ private struct PlaybackAutomationStateProbe: View {
 
 enum PlaybackIssuePresentationScope {
     case location(PlaybackIssuePresentationLocation)
-    case residentWindow(mainWindowIsOpen: Bool)
+    case immersiveResident
 
     func resolve(
         _ issue: PlaybackUserVisibleIssue
@@ -1150,8 +1150,7 @@ enum PlaybackIssuePresentationScope {
         switch self {
         case .location(let location):
             return issue.canPresent(at: location) ? location : nil
-        case .residentWindow(let mainWindowIsOpen):
-            guard mainWindowIsOpen == false else { return nil }
+        case .immersiveResident:
             if issue.canPresent(at: .immersiveSpace) {
                 return .immersiveSpace
             }

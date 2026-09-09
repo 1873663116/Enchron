@@ -495,7 +495,16 @@ final class EnchronApplication {
             }
         )
         spatialPlatformEffectCoordinator.onMainWindowClosedByWearer = {
-            [weak launcher] in
+            [weak playbackSessionModel, weak launcher, weak playbackRuntime] in
+            guard let playbackSessionModel,
+                  let playbackRuntime,
+                  SpatialPlatformMainWindowClosurePolicy.stopsPlayback(
+                      hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
+                      presentation: playbackSessionModel.playbackPresentation,
+                      transition: playbackSessionModel.presentationTransition
+                  ) else {
+                return
+            }
             SurfaceInputProbes.record(
                 "mainWindowScene closedByWearer stoppingPlayback",
                 retention: .evidence
