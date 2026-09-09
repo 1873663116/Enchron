@@ -309,6 +309,7 @@ enum SpatialPlatformPlaybackWindowTransition: Equatable, Sendable {
     case leaveWindowPlayback
     case playerWindowClosedByWearer
     case enterImmersivePlayback(PresentationContentFamily)
+    case settleImmersivePlayback
     case exitImmersivePlayback(PresentationContentFamily)
     case collapseImmersivePlayback(PresentationContentFamily)
     case normalizeSpatialPlayback(returnsToPlayer: Bool)
@@ -386,7 +387,8 @@ enum SpatialPlatformPlaybackWindowPolicy {
             []
         case .enterImmersivePlayback:
             [.openImmersiveSpace]
-                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])
+        case .settleImmersivePlayback:
+            isPresent(playerWindowState) ? [.dismissPlayerWindow] : []
         case .exitImmersivePlayback, .collapseImmersivePlayback:
             isPresent(playerWindowState) ? [] : [.pushPlayerWindow]
         case .normalizeSpatialPlayback(let returnsToPlayer):

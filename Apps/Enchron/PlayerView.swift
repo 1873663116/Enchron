@@ -78,6 +78,8 @@ public struct PlayerView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
+    @Environment(SettingsViewModel.self) private var settingsViewModel
+    @Environment(DeveloperMetricsModel.self) private var developerMetrics
 
     @State private var playbackDeckOpacity: Double = 0
     @State private var reapplyVerificationSnapshotTick = 0
@@ -116,6 +118,15 @@ public struct PlayerView: View {
 
     public var body: some View {
         platformContent
+            .developerStatsOverlay(
+                isEnabled: settingsViewModel.preferences.developerModeEnabled,
+                metrics: developerMetrics.metrics,
+                sceneUpdatesPerSecond: developerMetrics.sceneUpdatesPerSecond[.window],
+                presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond,
+                enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
+                playback: playbackRuntime.diagnostics,
+                sessionIsActive: playbackRuntime.activeSessionID != nil
+            )
             .onChange(of: playbackRuntime.residency) { _, residency in
                 spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
             }

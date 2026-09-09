@@ -134,25 +134,39 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    @Test("Entering the immersive space opens the space and then takes the player window down")
-    func enteringImmersivePlaybackDismissesThePlayerWindow() {
+    @Test("Entering the immersive space only opens it; the player window waits for the first pixel")
+    func enteringImmersivePlaybackOnlyOpensTheSpace() {
         for family in [PresentationContentFamily.flat, .panoramic] {
-            for present in [SpatialPlatformPlayerWindowState.opening, .open] {
+            for playerWindowState in [
+                SpatialPlatformPlayerWindowState.absent, .opening, .open, .closing
+            ] {
                 #expect(
                     SpatialPlatformPlaybackWindowPolicy.actions(
                         for: .enterImmersivePlayback(family),
-                        playerWindowState: present
-                    ) == [.openImmersiveSpace, .dismissPlayerWindow]
-                )
-            }
-            for absent in [SpatialPlatformPlayerWindowState.absent, .closing] {
-                #expect(
-                    SpatialPlatformPlaybackWindowPolicy.actions(
-                        for: .enterImmersivePlayback(family),
-                        playerWindowState: absent
+                        playerWindowState: playerWindowState
                     ) == [.openImmersiveSpace]
                 )
             }
+        }
+    }
+
+    @Test("The settled immersive space takes the player window down behind it")
+    func settlingImmersivePlaybackDismissesThePlayerWindow() {
+        for present in [SpatialPlatformPlayerWindowState.opening, .open] {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.actions(
+                    for: .settleImmersivePlayback,
+                    playerWindowState: present
+                ) == [.dismissPlayerWindow]
+            )
+        }
+        for absent in [SpatialPlatformPlayerWindowState.absent, .closing] {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.actions(
+                    for: .settleImmersivePlayback,
+                    playerWindowState: absent
+                ) == []
+            )
         }
     }
 

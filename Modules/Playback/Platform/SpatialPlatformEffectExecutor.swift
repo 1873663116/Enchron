@@ -926,6 +926,10 @@ public final class SpatialPlatformEffectCoordinator {
             return
         }
         appModel.finishPresentationVisualCutover()
+        _ = await performWindowTransition(
+            .settleImmersivePlayback,
+            execution: execution
+        )
         await releaseDepartingPresentationResources()
         let resolution = await complete(execution, outcome: .succeeded)
         guard resolution == .presentationCommitted(presentation) else {

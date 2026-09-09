@@ -393,18 +393,18 @@
       }
     },
     {
-      "id": "playback-surface-structure-rejects-an-immersive-entry-that-leaves-the-player-window-standing",
+      "id": "playback-surface-structure-rejects-a-player-window-taken-down-before-the-space-shows-a-pixel",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n",
-        "replaceWith": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n"
+        "find": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n        case .settleImmersivePlayback:\n            isPresent(playerWindowState) ? [.dismissPlayerWindow] : []\n",
+        "replaceWith": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n        case .settleImmersivePlayback:\n            []\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "entering an immersive presentation leaves the player window standing"
+          "the player window comes down before the space has proven a pixel"
         ]
       }
     },
