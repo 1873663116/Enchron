@@ -60,11 +60,68 @@ struct ImmersivePlaybackControlsPlacementState: Equatable {
     }
 }
 
+enum ImmersivePlaybackControlsPlacementGeometry {
+    static let degenerateHorizontalLength: Float = 1e-4
+
+    static func headYaw(_ originFromAnchorTransform: simd_float4x4) -> Float {
+        let forward = normalized(-axis(2, of: originFromAnchorTransform))
+        let horizontalForward = SIMD2<Float>(forward.x, forward.z)
+        if simd_length(horizontalForward) >= degenerateHorizontalLength {
+            return yaw(ofHorizontal: horizontalForward)
+        }
+        let up = normalized(axis(1, of: originFromAnchorTransform))
+        let proxy = forward.y < 0 ? up : -up
+        let horizontalProxy = SIMD2<Float>(proxy.x, proxy.z)
+        guard simd_length(horizontalProxy) >= degenerateHorizontalLength else {
+            return 0
+        }
+        return yaw(ofHorizontal: horizontalProxy)
+    }
+
+    static func transform(
+        originFromAnchorTransform: simd_float4x4,
+        forwardOffsetMeters: Float,
+        verticalOffsetMeters: Float
+    ) -> Transform {
+        let rotation = simd_quatf(
+            angle: headYaw(originFromAnchorTransform),
+            axis: SIMD3<Float>(0, 1, 0)
+        )
+        let head = axis(3, of: originFromAnchorTransform)
+        let offset = rotation.act(
+            SIMD3<Float>(0, verticalOffsetMeters, forwardOffsetMeters)
+        )
+        return Transform(
+            scale: SIMD3<Float>(repeating: 1),
+            rotation: rotation,
+            translation: head + offset
+        )
+    }
+
+    private static func yaw(ofHorizontal horizontal: SIMD2<Float>) -> Float {
+        atan2(-horizontal.x, -horizontal.y)
+    }
+
+    private static func axis(
+        _ index: Int,
+        of matrix: simd_float4x4
+    ) -> SIMD3<Float> {
+        let column = matrix[index]
+        return SIMD3<Float>(column.x, column.y, column.z)
+    }
+
+    private static func normalized(_ vector: SIMD3<Float>) -> SIMD3<Float> {
+        let length = simd_length(vector)
+        guard length > 0 else { return vector }
+        return vector / length
+    }
+}
+
 @MainActor
 final class ImmersivePlaybackControlsAttachmentController {
     static let attachmentID = "immersivePlaybackControlsAttachment"
     static let forwardOffsetMeters: Float = -0.7
-    static let verticalOffsetMeters: Float = -0.22
+    static let verticalOffsetMeters: Float = -0.28
 
     var lockedControlsTransform: Transform? {
         placementState.isVisible ? lockedTransform : nil
@@ -214,15 +271,10 @@ final class ImmersivePlaybackControlsAttachmentController {
             )
         }
 
-        var offset = matrix_identity_float4x4
-        offset.columns.3 = SIMD4<Float>(
-            0,
-            Self.verticalOffsetMeters,
-            Self.forwardOffsetMeters,
-            1
-        )
-        let transform = Transform(
-            matrix: originFromAnchorTransform * offset
+        let transform = ImmersivePlaybackControlsPlacementGeometry.transform(
+            originFromAnchorTransform: originFromAnchorTransform,
+            forwardOffsetMeters: Self.forwardOffsetMeters,
+            verticalOffsetMeters: Self.verticalOffsetMeters
         )
         lockedTransform = transform
         applyLockedTransform(transform, to: attachmentEntity)

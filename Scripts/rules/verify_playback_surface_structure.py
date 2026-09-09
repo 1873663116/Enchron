@@ -791,6 +791,12 @@ def main() -> int:
         "private func applyLockedTransform(",
     )
     require(
+        "ImmersivePlaybackControlsPlacementGeometry.transform("
+        in pending_controls_placement
+        and "originFromAnchorTransform * offset" not in immersive_controls_attachment,
+        "immersive controls placement copies head pitch and roll instead of yaw alone",
+    )
+    require(
         "immersiveControlsAttachment placementRequested" in immersive_controls_attachment
         and "immersiveControlsAttachment placementApplied revision="
         in pending_controls_placement

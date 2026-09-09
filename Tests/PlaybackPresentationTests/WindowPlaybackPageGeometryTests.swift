@@ -1,7 +1,9 @@
 import CoreGraphics
 import DesignSystem
 @testable import Playback
+import RealityKit
 import Testing
+import simd
 @testable import Enchron
 
 @MainActor
@@ -328,6 +330,84 @@ struct WindowPlaybackPageGeometryTests {
             state.resolvePlacement(headAnchorIsAvailable: true)
                 == .headAnchor(revision: 2)
         )
+    }
+
+    @Test("immersive controls inherit the wearer's yaw alone when they are placed")
+    func immersiveControlsPlacementKeepsYawOnly() {
+        let yawRadians: Float = .pi / 3
+        let head = headTransform(
+            yaw: yawRadians,
+            pitch: -.pi / 5,
+            roll: .pi / 6,
+            position: [0.4, 1.5, -0.3]
+        )
+
+        let placement = ImmersivePlaybackControlsPlacementGeometry.transform(
+            originFromAnchorTransform: head,
+            forwardOffsetMeters: ImmersivePlaybackControlsAttachmentController
+                .forwardOffsetMeters,
+            verticalOffsetMeters: ImmersivePlaybackControlsAttachmentController
+                .verticalOffsetMeters
+        )
+
+        let up = placement.rotation.act(SIMD3<Float>(0, 1, 0))
+        #expect(abs(up.x) < 1e-4)
+        #expect(abs(up.y - 1) < 1e-4)
+        #expect(abs(up.z) < 1e-4)
+
+        let forward = placement.rotation.act(SIMD3<Float>(0, 0, -1))
+        #expect(abs(forward.y) < 1e-4)
+        #expect(
+            abs(ImmersivePlaybackControlsPlacementGeometry.headYaw(head) - yawRadians) < 1e-4
+        )
+
+        let expected = SIMD3<Float>(0.4, 1.5, -0.3)
+            + simd_quatf(angle: yawRadians, axis: SIMD3<Float>(0, 1, 0)).act(
+                SIMD3<Float>(
+                    0,
+                    ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters,
+                    ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
+                )
+            )
+        #expect(simd_distance(placement.translation, expected) < 1e-4)
+    }
+
+    @Test("immersive controls sit below eye level at a fixed world height")
+    func immersiveControlsPlacementMeasuresHeightInWorldSpace() {
+        let level = headTransform(yaw: 0, pitch: 0, roll: 0, position: [0, 1.5, 0])
+        let raised = headTransform(yaw: 0, pitch: .pi / 4, roll: 0, position: [0, 1.5, 0])
+        let forwardOffset = ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
+        let verticalOffset = ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters
+
+        let levelPlacement = ImmersivePlaybackControlsPlacementGeometry.transform(
+            originFromAnchorTransform: level,
+            forwardOffsetMeters: forwardOffset,
+            verticalOffsetMeters: verticalOffset
+        )
+        let raisedPlacement = ImmersivePlaybackControlsPlacementGeometry.transform(
+            originFromAnchorTransform: raised,
+            forwardOffsetMeters: forwardOffset,
+            verticalOffsetMeters: verticalOffset
+        )
+
+        #expect(simd_distance(levelPlacement.translation, raisedPlacement.translation) < 1e-4)
+        #expect(abs(levelPlacement.translation.y - (1.5 + verticalOffset)) < 1e-4)
+        #expect(verticalOffset < -0.22)
+        #expect(atan(-verticalOffset / -forwardOffset) < 23 * .pi / 180)
+    }
+
+    private func headTransform(
+        yaw: Float,
+        pitch: Float,
+        roll: Float,
+        position: SIMD3<Float>
+    ) -> simd_float4x4 {
+        let rotation = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
+            * simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
+            * simd_quatf(angle: roll, axis: SIMD3<Float>(0, 0, 1))
+        var matrix = simd_float4x4(rotation)
+        matrix.columns.3 = SIMD4<Float>(position.x, position.y, position.z, 1)
+        return matrix
     }
 
     @Test("Video Format editing snapshots the committed selection when editing begins")
