@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify that subtitle reads open only through the monitored, interruptible door."""
+"""Verify that subtitle reads open only through the monitored door and stay cancellable."""
 
 from pathlib import Path
 import re
@@ -22,6 +22,13 @@ PLAYBACK_CORE_SOURCES = "Packages/PlaybackCore/Sources"
 
 ALLOCATE_FORMAT_CONTEXT_SIGNATURE = "static AVFormatContext *allocate_format_context("
 OPEN_MEDIA_SOURCE_SIGNATURE = "static int open_media_source("
+MONITORED_SOURCE_OPEN_SIGNATURE = (
+    "PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen("
+)
+SUBTITLE_READER_SIGNATURE = (
+    "PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor("
+)
+UNCANCELLABLE_ALLOCATION = "allocate_format_context(NULL"
 BRIDGE_DIRECTORY = "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge"
 
 DECLARATION_NAME = re.compile(
@@ -29,6 +36,7 @@ DECLARATION_NAME = re.compile(
 )
 PATH_PARAMETER = re.compile(r"const\s+char\s*\*\s*path\b")
 MONITOR_PARAMETER = re.compile(r"PBFFmpegSourceReadMonitor\s*\*")
+CANCELLATION_PARAMETER = re.compile(r"PBFFmpegReadCancellation\s*\*")
 
 
 def read(path: str) -> str:
@@ -253,6 +261,23 @@ def check_S6(header_source: str) -> None:
             "PBFFmpegSourceReadMonitor * parameter, so its reads could not be "
             "interrupted at close",
         )
+        require(
+            bool(CANCELLATION_PARAMETER.search(parameters)),
+            f"S6: {name} takes a const char *path parameter without a "
+            "PBFFmpegReadCancellation * parameter, so one cancelled read could "
+            "not abort without closing the session",
+        )
+
+
+def check_S7(bridge_source: str) -> None:
+    for signature in (MONITORED_SOURCE_OPEN_SIGNATURE, SUBTITLE_READER_SIGNATURE):
+        body_start, body_end = find_definition_span(bridge_source, signature)
+        require(
+            UNCANCELLABLE_ALLOCATION not in bridge_source[body_start:body_end],
+            f"S7: {signature.rstrip('(')} allocates its format context with a NULL "
+            "cancellation flag, so a cancelled read would keep waiting on its source "
+            "until the session's monitor is interrupted at close",
+        )
 
 
 def main() -> int:
@@ -268,8 +293,9 @@ def main() -> int:
     check_S4(bridge, header, throughput, delivery)
     check_S5(collect_playback_core_sources())
     check_S6(header)
+    check_S7(stripped_bridge)
 
-    print("subtitle reads open only through the monitored, interruptible door")
+    print("subtitle reads open only through the monitored door and stay cancellable")
     return 0
 
 

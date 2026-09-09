@@ -44,7 +44,7 @@ ROGUE_OPEN_MEDIA_SOURCE_WITH_EXTERNAL_CALL = (
 
 SUBTITLE_SOURCE_WITHOUT_RAW_CALLS = (
     "PBFFmpegMonitoredSource *source = PBFFmpegMonitoredSourceOpen(\n"
-    "    path, monitor, errorBuffer, errorBufferSize\n"
+    "    path, monitor, cancellation, errorBuffer, errorBufferSize\n"
     ");\n"
 )
 
@@ -54,12 +54,14 @@ HEADER_WITH_MONITORED_SUBTITLE_DECLARATIONS = (
     "    int streamIndex,\n"
     "    char *errorBuffer,\n"
     "    size_t errorBufferSize,\n"
-    "    PBFFmpegSourceReadMonitor *monitor\n"
+    "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    PBFFmpegReadCancellation *cancellation\n"
     ");\n"
     "PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(\n"
     "    const char *path,\n"
     "    int streamIndex,\n"
     "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    PBFFmpegReadCancellation *cancellation,\n"
     "    char *errorBuffer,\n"
     "    size_t errorBufferSize\n"
     ");\n"
@@ -72,6 +74,48 @@ HEADER_WITH_MONITORLESS_SUBTITLE_CONSTRUCTOR = (
     "    char *errorBuffer,\n"
     "    size_t errorBufferSize\n"
     ");\n"
+)
+
+HEADER_WITH_UNCANCELLABLE_SUBTITLE_CONSTRUCTOR = (
+    "PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateFromPath(\n"
+    "    const char *path,\n"
+    "    int streamIndex,\n"
+    "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    char *errorBuffer,\n"
+    "    size_t errorBufferSize\n"
+    ");\n"
+)
+
+CANCELLABLE_MONITORED_OPENS = (
+    "PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen(\n"
+    "    const char *path,\n"
+    "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    PBFFmpegReadCancellation *cancellation,\n"
+    "    char *errorBuffer,\n"
+    "    size_t errorBufferSize\n"
+    ") {\n"
+    "    atomic_bool *cancelled = cancellation ? &cancellation->cancelled : NULL;\n"
+    "    source->formatContext = allocate_format_context(cancelled, &source->readContext);\n"
+    "    return source;\n"
+    "}\n"
+    "\n"
+    "PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(\n"
+    "    const char *path,\n"
+    "    int streamIndex,\n"
+    "    char *errorBuffer,\n"
+    "    size_t errorBufferSize,\n"
+    "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    PBFFmpegReadCancellation *cancellation\n"
+    ") {\n"
+    "    atomic_bool *cancelled = cancellation ? &cancellation->cancelled : NULL;\n"
+    "    reader->formatContext = allocate_format_context(cancelled, &reader->readContext);\n"
+    "    return reader;\n"
+    "}\n"
+)
+
+UNCANCELLABLE_MONITORED_OPENS = CANCELLABLE_MONITORED_OPENS.replace(
+    "allocate_format_context(cancelled, &source->readContext)",
+    "allocate_format_context(NULL, &source->readContext)",
 )
 
 SOURCES_WITHOUT_PRELOAD_BACKLOG = {
@@ -183,6 +227,23 @@ class SubtitleConstructorMonitorTests(unittest.TestCase):
         with self.assertRaises(AssertionError) as failure:
             rule.check_S6(HEADER_WITH_MONITORLESS_SUBTITLE_CONSTRUCTOR)
         self.assertIn("S6", str(failure.exception))
+
+    def test_subtitle_constructor_with_a_path_but_no_cancellation_is_rejected(
+        self,
+    ) -> None:
+        with self.assertRaises(AssertionError) as failure:
+            rule.check_S6(HEADER_WITH_UNCANCELLABLE_SUBTITLE_CONSTRUCTOR)
+        self.assertIn("PBFFmpegReadCancellation", str(failure.exception))
+
+
+class CancellationFlagWiringTests(unittest.TestCase):
+    def test_opens_that_forward_a_cancellation_flag_are_accepted(self) -> None:
+        rule.check_S7(CANCELLABLE_MONITORED_OPENS)
+
+    def test_an_open_that_allocates_with_a_null_flag_is_rejected(self) -> None:
+        with self.assertRaises(AssertionError) as failure:
+            rule.check_S7(UNCANCELLABLE_MONITORED_OPENS)
+        self.assertIn("S7", str(failure.exception))
 
 
 class RealTreeTests(unittest.TestCase):
