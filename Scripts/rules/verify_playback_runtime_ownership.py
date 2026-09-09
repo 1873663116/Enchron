@@ -19,15 +19,19 @@ a reference to `activeDriver` says exactly that it is.
 domain component, so it must not import the playback engine or a platform
 media framework at all.
 
-Leaving playback is one entry with one stated reason. `leavePlayback` and
-`leavePlaybackAndWait` are called from `PlaybackLaunchCoordinator` and from the
-runtime itself; a view, a scene or the application wiring reaching past the
-coordinator is how the reason gets lost. The unqualified `stop` the coordinator
-used to forward is gone, so no product source may call it.
+Leaving playback is one entry with one stated reason. `leavePlayback`,
+`leavePlaybackAndWait` and `stopForNextRequest` are called from
+`PlaybackLaunchCoordinator` only; a view, a scene or the application wiring
+reaching past the coordinator is how the reason gets lost, and a caller that
+replaces the request behind the coordinator's back leaves the page state and
+the launch generation disagreeing. The unqualified `stop` the coordinator used
+to forward is gone, so no product source may call it.
 
-The page the main window shows is decided from `PlaybackResidency`, not from
-`hasActivePlaybackRequest` plus the scene state, and the close the runtime runs
-is bounded by `PlaybackCloseBudget.deadline`.
+The page the main window shows is decided from `PlaybackResidency`:
+`MainView.showsWindowPlayback` reads the runtime's residency and
+`primaryContent` switches on it, so a failed open keeps the player page while
+`hasActivePlaybackRequest` says nothing about which page is up. The close the
+runtime runs is bounded by `PlaybackCloseBudget.deadline`.
 """
 
 from __future__ import annotations
@@ -46,10 +50,18 @@ PAGE_SOURCE = "Apps/Enchron/MainView.swift"
 PRODUCT_ROOTS = ("Apps", "Modules")
 
 COMMENT = re.compile(r"^\s*(//|\*|/\*)")
-LEAVE_CALL = re.compile(r"\.\s*leavePlayback(?:AndWait)?\s*\(")
+LEAVE_CALL = re.compile(
+    r"\.\s*(?:leavePlayback(?:AndWait)?|stopForNextRequest)\s*\("
+)
 LEGACY_STOP_CALL = re.compile(r"\bplaybackRuntime\s*\.\s*stop\s*\(")
-BROWSER_PAGE_POLICY = re.compile(
-    r"static\s+func\s+showsBrowser\s*\(\s*\n\s*residency:\s*PlaybackResidency"
+WINDOW_PAGE_DECISION = re.compile(
+    r"private\s+var\s+showsWindowPlayback:\s*Bool\s*\{\s*\n"
+    r"\s*switch\s+playbackRuntime\.residency\s*\{"
+)
+PRIMARY_CONTENT_PAGE = re.compile(
+    r"private\s+var\s+primaryContent:\s*some\s+View\s*\{[^}]*?"
+    r"if\s+showsWindowPlayback\s*\{",
+    re.DOTALL,
 )
 CLOSE_BUDGET = re.compile(r"\bPlaybackCloseBudget\s*\.\s*deadline\b")
 
@@ -155,7 +167,7 @@ def product_sources() -> list[Path]:
 
 
 def leave_entry_failures() -> list[str]:
-    permitted = {RUNTIME_SOURCE, COORDINATOR_SOURCE}
+    permitted = {COORDINATOR_SOURCE}
     failures = []
     for path in product_sources():
         relative = path.relative_to(REPOSITORY_ROOT).as_posix()
@@ -197,12 +209,19 @@ def page_authority_failures() -> list[str]:
     path = REPOSITORY_ROOT / PAGE_SOURCE
     if not path.is_file():
         return [f"{PAGE_SOURCE} is absent"]
-    if BROWSER_PAGE_POLICY.search(path.read_text(encoding="utf-8")):
-        return []
-    return [
-        f"{PAGE_SOURCE}: page-authority: BrowserWindowSurfacePolicy.showsBrowser "
-        f"decides the page from PlaybackResidency, not from the scene state"
-    ]
+    contents = path.read_text(encoding="utf-8")
+    failures = []
+    if not WINDOW_PAGE_DECISION.search(contents):
+        failures.append(
+            f"{PAGE_SOURCE}: page-authority: showsWindowPlayback reads "
+            f"PlaybackRuntime.residency, not hasActivePlaybackRequest"
+        )
+    if not PRIMARY_CONTENT_PAGE.search(contents):
+        failures.append(
+            f"{PAGE_SOURCE}: page-authority: primaryContent picks the page from "
+            f"showsWindowPlayback"
+        )
+    return failures
 
 
 def close_budget_failures() -> list[str]:
@@ -239,8 +258,8 @@ def main() -> int:
         "Playback ownership holds: the runtime picks no driver, holds no session "
         "or transfer internals, decides no format policy, the interpreter "
         "imports neither the engine nor a platform media framework, leaving "
-        "playback states its reason through one entry, the page follows "
-        "PlaybackResidency and the close is bounded"
+        "and replacing playback go through the launch coordinator, the page "
+        "follows PlaybackResidency and the close is bounded"
     )
     return 0
 

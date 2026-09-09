@@ -46,21 +46,33 @@ public final class PlaybackLaunchCoordinator {
     public func stopPlayback(reason: PlaybackLeaveReason) {
         playbackRuntime.leavePlayback(reason: reason)
     }
+
+    public func requestPlayback(_ request: PlaybackLaunchRequest) {
+        playbackRuntime.stopForNextRequest(releasingSourceAccess: true)
+        playbackRuntime.prepareForPlayback(request)
+    }
 }
 """
 
 CLEAN_PAGE = """import SwiftUI
 
-enum BrowserWindowSurfacePolicy {
-    static func showsBrowser(
-        residency: PlaybackResidency,
-        transitionIsActive: Bool
-    ) -> Bool {
-        switch residency {
+public struct MainView: View {
+    private var showsWindowPlayback: Bool {
+        switch playbackRuntime.residency {
         case .browsing, .closing:
+            false
+        case .playing:
             true
-        case .playing(let host):
-            transitionIsActive == false && host == .window
+        }
+    }
+
+    private var primaryContent: some View {
+        ZStack {
+            if showsWindowPlayback {
+                playbackPrimaryContent
+            } else {
+                browserPrimaryContent
+            }
         }
     }
 }
@@ -210,16 +222,51 @@ class PlaybackOwnershipTests(unittest.TestCase):
 
         self.assertIn("leave-reason", " ".join(checker.failures()))
 
-    def test_a_page_policy_that_reads_the_scene_state_fails(self) -> None:
+    def test_a_page_that_reads_the_active_request_fails(self) -> None:
         self.write(
             checker.PAGE_SOURCE,
             CLEAN_PAGE.replace(
-                "residency: PlaybackResidency",
-                "hasActivePlaybackRequest: Bool",
+                """        switch playbackRuntime.residency {
+        case .browsing, .closing:
+            false
+        case .playing:
+            true
+        }""",
+                "        playbackRuntime.hasActivePlaybackRequest",
             ),
         )
 
         self.assertIn("page-authority", " ".join(checker.failures()))
+
+    def test_a_primary_content_that_picks_the_page_elsewhere_fails(self) -> None:
+        self.write(
+            checker.PAGE_SOURCE,
+            CLEAN_PAGE.replace(
+                "if showsWindowPlayback {",
+                "if playbackRuntime.hasActivePlaybackRequest {",
+            ),
+        )
+
+        self.assertIn("page-authority", " ".join(checker.failures()))
+
+    def test_a_view_that_replaces_the_request_directly_fails(self) -> None:
+        self.write(
+            "Modules/Playback/Views/WindowPlayerDeck.swift",
+            "playbackRuntime.stopForNextRequest(releasingSourceAccess: true)\n",
+        )
+
+        self.assertIn("leave-entry", " ".join(checker.failures()))
+
+    def test_the_coordinator_replacing_the_request_passes(self) -> None:
+        self.assertEqual(checker.failures(), [])
+
+    def test_the_runtime_leaving_playback_directly_fails(self) -> None:
+        self.runtime(
+            CLEAN_RUNTIME
+            + "\nextension PlaybackRuntime { func leave() { self.leavePlayback(reason: .failure) } }\n"
+        )
+
+        self.assertIn("leave-entry", " ".join(checker.failures()))
 
     def test_an_absent_page_fails(self) -> None:
         (self.repository / checker.PAGE_SOURCE).unlink()
