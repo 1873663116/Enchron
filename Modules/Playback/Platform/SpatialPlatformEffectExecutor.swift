@@ -207,7 +207,13 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var windowCapabilityIDs: [SpatialPlatformWindowIdentity: UUID] = [:]
     @ObservationIgnored
-    private var playerWindowState = SpatialPlatformPlayerWindowState.absent
+    private var playerWindowState = SpatialPlatformPlayerWindowState.absent {
+        didSet {
+            playerWindowIsPresent =
+                SpatialPlatformPlaybackWindowPolicy.isPresent(playerWindowState)
+        }
+    }
+    public private(set) var playerWindowIsPresent = false
 
     public private(set) var lastPlatformOperation = "none"
     public private(set) var lastExecutionCheckpoint = "none"

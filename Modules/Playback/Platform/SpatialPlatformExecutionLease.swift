@@ -394,7 +394,7 @@ enum SpatialPlatformPlaybackWindowPolicy {
         }
     }
 
-    private static func isPresent(
+    static func isPresent(
         _ state: SpatialPlatformPlayerWindowState
     ) -> Bool {
         switch state {
@@ -403,6 +403,15 @@ enum SpatialPlatformPlaybackWindowPolicy {
         case .opening, .open:
             true
         }
+    }
+}
+
+public enum SpatialPlatformBrowserWindowVisibilityPolicy {
+    public static func hidesBrowser(
+        window: SpatialPlatformWindowIdentity,
+        playerWindowIsPresent: Bool
+    ) -> Bool {
+        window == .main && playerWindowIsPresent
     }
 }
 

@@ -193,6 +193,14 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("The browser renders nothing while the player window is present")
+    func browserHidesWhileThePlayerWindowIsPresent() {
+        typealias Policy = SpatialPlatformBrowserWindowVisibilityPolicy
+        #expect(Policy.hidesBrowser(window: .main, playerWindowIsPresent: true))
+        #expect(Policy.hidesBrowser(window: .player, playerWindowIsPresent: true) == false)
+        #expect(Policy.hidesBrowser(window: .main, playerWindowIsPresent: false) == false)
+    }
+
     @Test("Every window action names the one scene allowed to issue it")
     func everyWindowActionNamesItsIssuingScene() {
         #expect(SpatialPlatformPlaybackWindowAction.openImmersiveSpace.issuingWindow == .player)

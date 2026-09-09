@@ -202,6 +202,13 @@ private struct WindowSceneGate<Content: View>: View {
         )
     }
 
+    private var hidesBrowser: Bool {
+        SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
+            window: window,
+            playerWindowIsPresent: spatialPlatformEffectCoordinator.playerWindowIsPresent
+        )
+    }
+
     var body: some View {
         Group {
             if isOrphaned {
@@ -210,6 +217,10 @@ private struct WindowSceneGate<Content: View>: View {
                 content()
             }
         }
+        .opacity(hidesBrowser ? 0 : 1)
+        .allowsHitTesting(hidesBrowser == false)
+        .accessibilityHidden(hidesBrowser)
+        .persistentSystemOverlays(hidesBrowser ? .hidden : .automatic)
         .windowSceneReporting { windowScene in
             if let identifier = windowScene?.session.persistentIdentifier {
                 ownSessionIdentifier = identifier
