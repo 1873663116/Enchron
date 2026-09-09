@@ -222,7 +222,7 @@ import Testing
         )
         #expect(runtime.loadingState.stage == .opening)
 
-        await runtime.stopAndWait()
+        await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 }
 

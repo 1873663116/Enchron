@@ -240,8 +240,9 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
     func replay()
     func displayedArtworkImage() -> CGImage?
-    func stop(releasingSourceAccess: Bool)
-    func stopAndWait(releasingSourceAccess: Bool) async
+    func leavePlayback(reason: PlaybackLeaveReason)
+    func leavePlaybackAndWait(reason: PlaybackLeaveReason) async
+    func stopForNextRequest(releasingSourceAccess: Bool)
     func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?)
 }
 

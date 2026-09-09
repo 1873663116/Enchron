@@ -1052,7 +1052,8 @@ struct PlaybackPresentationStateTests {
         let coordinator = SpatialPlatformEffectCoordinator(
             session: appModel,
             playbackRuntime: PlaybackRuntime(),
-            playbackVideoEntityStore: PlaybackVideoEntityStore()
+            playbackVideoEntityStore: PlaybackVideoEntityStore(),
+            stopPlaybackForFailedPresentationTransfer: {}
         )
 
         coordinator.reconcileImmersiveSpaceResidency(

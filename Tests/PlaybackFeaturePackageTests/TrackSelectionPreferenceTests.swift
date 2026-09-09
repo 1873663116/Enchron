@@ -291,7 +291,7 @@ struct TrackSelectionPreferenceTests {
         try await firstRuntime.waitUntilOpened()
         firstRuntime.playbackPosition = .init(seconds: 120, duration: 1_200)
         firstRuntime.actualPlaybackSeconds = 20
-        firstCoordinator.stopPlayback()
+        firstCoordinator.stopPlayback(reason: .backButton)
         let identity = request.versionedIdentity!.mediaIdentity
         let persistedDeadline = ContinuousClock.now + .seconds(2)
         while await firstCoordinator.viewingState(for: identity) == nil,
@@ -342,7 +342,7 @@ struct TrackSelectionPreferenceTests {
         try await firstRuntime.waitUntilOpened()
         firstRuntime.playbackPosition = .init(seconds: 120, duration: 1_200)
         firstRuntime.actualPlaybackSeconds = 20
-        firstCoordinator.stopPlayback()
+        firstCoordinator.stopPlayback(reason: .backButton)
         let identity = try #require(request.versionedIdentity).mediaIdentity
         let persistedDeadline = ContinuousClock.now + .seconds(2)
         while await firstCoordinator.viewingState(for: identity) == nil,
@@ -388,7 +388,7 @@ struct TrackSelectionPreferenceTests {
         try await persistenceRuntime.waitUntilOpened()
         persistenceRuntime.playbackPosition = .init(seconds: 120, duration: 1_200)
         persistenceRuntime.actualPlaybackSeconds = 20
-        persistenceCoordinator.stopPlayback()
+        persistenceCoordinator.stopPlayback(reason: .backButton)
         let nextIdentity = try #require(nextRequest.versionedIdentity?.mediaIdentity)
         let persistedDeadline = ContinuousClock.now + .seconds(2)
         while await persistenceCoordinator.viewingState(for: nextIdentity) == nil,
@@ -786,7 +786,7 @@ struct TrackSelectionPreferenceTests {
         coordinator.savePlaybackMode(.window)
         runtime.playbackPosition = .init(seconds: 480, duration: 1_200)
         runtime.actualPlaybackSeconds = 120
-        coordinator.stopPlayback()
+        coordinator.stopPlayback(reason: .backButton)
         try await Self.waitUntilPersistedState(
             in: store,
             identity: identity,
@@ -835,7 +835,7 @@ struct TrackSelectionPreferenceTests {
         runtime.emitLifecycle(.playing)
         runtime.emitDiagnostics(positionSeconds: 49, actualPlaybackSeconds: 29)
         runtime.emitDiagnostics(positionSeconds: 50, actualPlaybackSeconds: 30)
-        coordinator.stopPlayback()
+        coordinator.stopPlayback(reason: .backButton)
 
         let calls = reporter.calls
         #expect(calls.count == 9)
@@ -878,7 +878,7 @@ struct TrackSelectionPreferenceTests {
         ))
         try await coordinatorRuntime.waitUntilConfigured()
         coordinatorRuntime.emitLifecycle(.playing)
-        coordinator.stopPlayback()
+        coordinator.stopPlayback(reason: .backButton)
         coordinatorRuntime.emitStopped()
         coordinatorRuntime.emitLifecycle(.failed)
         #expect(coordinatorReporter.stoppedCount == 1)
@@ -894,7 +894,7 @@ struct TrackSelectionPreferenceTests {
         try await directRuntime.waitUntilConfigured()
         directRuntime.emitLifecycle(.playing)
         let generation = directRuntime.observationGeneration
-        directRuntime.stop(releasingSourceAccess: true)
+        directRuntime.leavePlayback(reason: .backButton)
         directRuntime.emitStopped(generation: generation)
         directRuntime.emitLifecycle(.ended, generation: generation)
         #expect(runtimeReporter.stoppedCount == 1)
@@ -930,7 +930,7 @@ struct TrackSelectionPreferenceTests {
         runtime.emitStopped(generation: staleGeneration)
         runtime.emitLifecycle(.failed, generation: staleGeneration)
         #expect(secondReporter.stoppedCount == 0)
-        coordinator.stopPlayback()
+        coordinator.stopPlayback(reason: .backButton)
         #expect(secondReporter.stoppedCount == 1)
     }
 
@@ -1282,17 +1282,21 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
 
     func replay() {}
 
-    func stop(releasingSourceAccess: Bool) {
+    func leavePlayback(reason: PlaybackLeaveReason) {
+        stopForNextRequest(releasingSourceAccess: true)
+    }
+
+    func leavePlaybackAndWait(reason: PlaybackLeaveReason) async {
+        leavePlayback(reason: reason)
+    }
+
+    func stopForNextRequest(releasingSourceAccess: Bool) {
         if currentLaunchRequest != nil {
             emitStopped()
         }
         productLifecycle = .idle
         currentLaunchRequest = nil
         activeSessionID = nil
-    }
-
-    func stopAndWait(releasingSourceAccess: Bool) async {
-        stop(releasingSourceAccess: releasingSourceAccess)
     }
 
     func waitUntilOpened() async throws {

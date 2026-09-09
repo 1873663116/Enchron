@@ -159,7 +159,7 @@ public struct WindowPlayerDeckView: View {
                 if let onExitPlayback = self.onExitPlayback {
                     onExitPlayback()
                 } else {
-                    self.playbackLauncher.stopPlayback()
+                    self.playbackLauncher.stopPlayback(reason: .backButton)
                 }
             },
             onSetScreenScale: { scale in

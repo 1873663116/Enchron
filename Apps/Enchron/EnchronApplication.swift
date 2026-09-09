@@ -316,7 +316,7 @@ final class EnchronApplication {
             return mode
         }
         launcher.onEffectiveMediaFormatApplied = {
-            [weak playbackSessionModel, weak playbackRuntime] interpretation in
+            [weak playbackSessionModel, weak playbackRuntime, weak launcher] interpretation in
             guard let playbackSessionModel, let playbackRuntime else { return }
             let resolution = EffectiveMediaFormatPresentationResolver.resolve(
                 interpretation,
@@ -328,7 +328,11 @@ final class EnchronApplication {
                     guard playbackRuntime.technicalSessionFormatReplacementIsPending else {
                         return
                     }
-                    Task { @MainActor [weak playbackSessionModel, weak playbackRuntime] in
+                    Task { @MainActor [
+                        weak playbackSessionModel,
+                        weak playbackRuntime,
+                        weak launcher
+                    ] in
                         guard let playbackSessionModel, let playbackRuntime else { return }
                         SurfaceInputProbes.record(
                             "formatRebuild begin"
@@ -348,7 +352,7 @@ final class EnchronApplication {
                                     + " lifecycle=\(playbackRuntime.productLifecycle)"
                                     + " error=\(error)"
                             )
-                            await playbackRuntime.stopAndWait()
+                            await launcher?.stopPlaybackAndWait(reason: .failure)
                             playbackSessionModel.requestStoppedPlaybackCleanup()
                             playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
                         }
@@ -480,7 +484,7 @@ final class EnchronApplication {
             playbackRuntime: playbackRuntime,
             playbackVideoEntityStore: playbackVideoEntityStore,
             stopPlaybackForFailedPresentationTransfer: { [weak launcher] in
-                await launcher?.stopPlaybackAndWait()
+                await launcher?.stopPlaybackAndWait(reason: .failure)
             },
             persistSettledPlaybackMode: { [weak launcher] presentation in
                 let mode: PersistedPlaybackMode = switch presentation {
@@ -505,7 +509,7 @@ final class EnchronApplication {
                 "mainWindowScene closedByWearer stoppingPlayback",
                 retention: .evidence
             )
-            launcher?.stopPlayback()
+            launcher?.stopPlayback(reason: .windowClosedByWearer)
         }
         self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in

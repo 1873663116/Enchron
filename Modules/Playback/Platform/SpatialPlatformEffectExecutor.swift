@@ -250,7 +250,7 @@ public final class SpatialPlatformEffectCoordinator {
         session: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
         playbackVideoEntityStore: PlaybackVideoEntityStore,
-        stopPlaybackForFailedPresentationTransfer: (@MainActor () async -> Void)? = nil,
+        stopPlaybackForFailedPresentationTransfer: @escaping @MainActor () async -> Void,
         persistSettledPlaybackMode: (@MainActor (PlaybackPresentation) -> Void)? = nil
     ) {
         self.appModel = session
@@ -258,7 +258,6 @@ public final class SpatialPlatformEffectCoordinator {
         self.playbackVideoEntityStore = playbackVideoEntityStore
         self.stopPlaybackForFailedPresentationTransfer =
             stopPlaybackForFailedPresentationTransfer
-            ?? { await playbackRuntime.stopAndWait() }
         self.persistSettledPlaybackMode = persistSettledPlaybackMode ?? { _ in }
         appModel.setSpatialPlatformEffectReplacementHandler { [weak self] in
             self?.requestDrain()

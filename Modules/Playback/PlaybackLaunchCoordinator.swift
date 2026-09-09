@@ -6,7 +6,7 @@ import OSLog
 @MainActor
 public protocol PlaybackLaunching: AnyObject {
     func beginPlayback(_ request: PlaybackLaunchRequest)
-    func stopPlayback()
+    func stopPlayback(reason: PlaybackLeaveReason)
 }
 
 @MainActor
@@ -383,7 +383,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         metadataTask?.cancel()
         let reusesSourceAccess = request.sourceAccess != nil
             && playbackRuntime.currentLaunchRequest?.sourceAccess === request.sourceAccess
-        playbackRuntime.stop(releasingSourceAccess: reusesSourceAccess == false)
+        playbackRuntime.stopForNextRequest(
+            releasingSourceAccess: reusesSourceAccess == false
+        )
 
         let preparedRequest = request.updating(metadata: request.initialMetadata)
         playbackRuntime.prepareForPlayback(preparedRequest)
@@ -597,24 +599,23 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }
     }
 
-    public func stopPlayback() {
-        cancelPlaybackLaunchAndPersistProgress()
-        onPlaybackStopRequested?()
-        activeFailureRecovery = nil
-        activeFailureRetry = nil
-        lastResolvedLaunch = nil
-        playbackRuntime.setUserVisibleIssue(nil)
-        playbackRuntime.stop(releasingSourceAccess: true)
+    public func stopPlayback(reason: PlaybackLeaveReason) {
+        prepareToLeavePlayback()
+        playbackRuntime.leavePlayback(reason: reason)
     }
 
-    public func stopPlaybackAndWait() async {
+    public func stopPlaybackAndWait(reason: PlaybackLeaveReason) async {
+        prepareToLeavePlayback()
+        await playbackRuntime.leavePlaybackAndWait(reason: reason)
+    }
+
+    private func prepareToLeavePlayback() {
         cancelPlaybackLaunchAndPersistProgress()
         onPlaybackStopRequested?()
         activeFailureRecovery = nil
         activeFailureRetry = nil
         lastResolvedLaunch = nil
         playbackRuntime.setUserVisibleIssue(nil)
-        await playbackRuntime.stopAndWait(releasingSourceAccess: true)
     }
 
     private func cancelPlaybackLaunchAndPersistProgress() {

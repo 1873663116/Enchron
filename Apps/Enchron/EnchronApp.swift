@@ -267,7 +267,7 @@ private struct ImmersivePlaybackResidentRoot: View {
         isStoppingPlayback = true
         Task { @MainActor in
             defer { isStoppingPlayback = false }
-            await playbackLauncher.stopPlaybackAndWait()
+            await playbackLauncher.stopPlaybackAndWait(reason: .failure)
             playbackSession.requestStoppedPlaybackCleanup()
         }
     }

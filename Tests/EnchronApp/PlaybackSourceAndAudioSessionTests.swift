@@ -227,7 +227,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertEqual(runtime.userVisibleIssue, .mediaOpeningFailed)
         XCTAssertTrue(runtime.hasActivePlaybackRequest)
         XCTAssertEqual(runtime.currentLaunchRequest?.displayName, "Missing Video")
-        launcher.stopPlayback()
+        launcher.stopPlayback(reason: .backButton)
     }
 
     @MainActor
@@ -255,7 +255,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         XCTAssertTrue(runtime.hasActivePlaybackRequest)
 
-        await launcher.stopPlaybackAndWait()
+        await launcher.stopPlaybackAndWait(reason: .backButton)
 
         XCTAssertFalse(runtime.hasActivePlaybackRequest)
         XCTAssertNil(runtime.currentLaunchRequest)
@@ -282,7 +282,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             throw XCTSkip("Apple Immersive Video fixture is not available in this test process.")
         }
         let runtime = PlaybackRuntime()
-        defer { runtime.stop() }
+        defer { runtime.leavePlayback(reason: .backButton) }
         let request = PlaybackLaunchRequest(
             url: fixture,
             displayName: fixture.lastPathComponent
@@ -310,7 +310,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             "hvcC,lhvC"
         )
 
-        await runtime.stopAndWait()
+        await runtime.leavePlaybackAndWait(reason: .backButton)
         XCTAssertNil(runtime.activeSessionID)
         XCTAssertNil(runtime.renderer)
     }
@@ -368,7 +368,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         let runtime = PlaybackRuntime()
         addTeardownBlock { @MainActor in
-            await runtime.stopAndWait()
+            await runtime.leavePlaybackAndWait(reason: .backButton)
         }
         try await runtime.open(
             PlaybackLaunchRequest(
@@ -587,7 +587,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         let runtime = PlaybackRuntime()
         addTeardownBlock { @MainActor in
-            await runtime.stopAndWait()
+            await runtime.leavePlaybackAndWait(reason: .backButton)
         }
         var naturalEndCount = 0
         runtime.onPlaybackEnded = {
@@ -730,7 +730,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         let runtime = PlaybackRuntime()
         addTeardownBlock { @MainActor in
-            await runtime.stopAndWait()
+            await runtime.leavePlaybackAndWait(reason: .backButton)
         }
         try await runtime.open(
             PlaybackLaunchRequest(
@@ -833,7 +833,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         let runtime = PlaybackRuntime()
         addTeardownBlock { @MainActor in
-            await runtime.stopAndWait()
+            await runtime.leavePlaybackAndWait(reason: .backButton)
         }
         try await runtime.open(
             PlaybackLaunchRequest(
@@ -934,7 +934,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         }
         let runtime = PlaybackRuntime()
         addTeardownBlock { @MainActor in
-            await runtime.stopAndWait()
+            await runtime.leavePlaybackAndWait(reason: .backButton)
         }
         try await runtime.open(
             PlaybackLaunchRequest(
@@ -1181,7 +1181,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         _ request: PlaybackLaunchRequest
     ) async throws -> PlaybackRouteObservation {
         let runtime = PlaybackRuntime()
-        defer { Task { @MainActor in await runtime.stopAndWait() } }
+        defer { Task { @MainActor in await runtime.leavePlaybackAndWait(reason: .backButton) } }
         try await runtime.open(request)
         let logicalSessionID = try XCTUnwrap(runtime.activeSessionID)
         let session = try XCTUnwrap(runtime.activeSessionForVerification())
@@ -1238,7 +1238,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             seekLandedWithinOneSecond: abs(landed.seconds - seekTarget) < 1,
             userVisibleIssue: runtime.userVisibleIssue.map { String(describing: $0) }
         )
-        await runtime.stopAndWait()
+        await runtime.leavePlaybackAndWait(reason: .backButton)
         return observation
     }
 
@@ -1258,7 +1258,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             audioSessionLifecycle: PlaybackAudioSessionLifecycle()
         )
         addTeardownBlock { @MainActor in
-            await runtime.stopAndWait()
+            await runtime.leavePlaybackAndWait(reason: .backButton)
         }
         var naturalEndCount = 0
         runtime.onPlaybackEnded = {
@@ -1423,7 +1423,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             entityID: "window-entity-first-request"
         )
 
-        runtime.stop()
+        runtime.leavePlayback(reason: .backButton)
         runtime.prepareForPlayback(
             PlaybackLaunchRequest(
                 url: URL(fileURLWithPath: "/dev/null"),

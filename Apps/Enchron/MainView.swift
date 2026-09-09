@@ -261,7 +261,7 @@ public struct MainView: View {
                 .playbackIssueAlert(
                     at: .playerDeck,
                     onRetry: playbackLauncher.retryPlayback,
-                    onClose: playbackLauncher.stopPlayback
+                    onClose: { playbackLauncher.stopPlayback(reason: .failure) }
                 )
                 .opacity(playbackDeckOpacity)
                 .allowsHitTesting(playbackDeckOpacity > 0)
@@ -604,7 +604,7 @@ public struct MainView: View {
         .playbackIssueAlert(
             at: .mainWindow,
             onRetry: retryPlayback,
-            onClose: playbackLauncher.stopPlayback
+            onClose: { playbackLauncher.stopPlayback(reason: .failure) }
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")

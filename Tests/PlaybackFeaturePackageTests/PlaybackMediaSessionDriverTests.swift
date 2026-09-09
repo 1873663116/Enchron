@@ -94,6 +94,6 @@ struct PlaybackMediaSessionDriverTests {
                 ]
         )
 
-        await runtime.stopAndWait()
+        await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 }

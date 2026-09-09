@@ -22,7 +22,7 @@ struct PlaybackActiveFailureTests {
 
         #expect(runtime.productLifecycle == .failed)
         #expect(runtime.userVisibleIssue == .playbackFailed)
-        await runtime.stopAndWait()
+        await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 
     @Test("A repeated terminal failure retains a specific active diagnosis")
@@ -48,7 +48,7 @@ struct PlaybackActiveFailureTests {
         controller.onStatusChange?(.failed("Duplicate terminal callback"))
 
         #expect(runtime.userVisibleIssue == .activePlaybackFailure(failure))
-        await runtime.stopAndWait()
+        await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 
     @Test("connection interruption maps from URL HTTP and POSIX boundaries")
@@ -380,7 +380,7 @@ struct PlaybackActiveFailureTests {
             positionSeconds: 24
         )
 
-        coordinator.stopPlayback()
+        coordinator.stopPlayback(reason: .backButton)
         coordinator.retryPlayback()
         await Task.yield()
 
@@ -558,15 +558,22 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
 
     func replay() {}
 
-    func stop(releasingSourceAccess: Bool) {
+    func leavePlayback(reason: PlaybackLeaveReason) {
         stopCount += 1
         currentLaunchRequest = nil
         activeSessionID = nil
         productLifecycle = .idle
     }
 
-    func stopAndWait(releasingSourceAccess: Bool) async {
-        stop(releasingSourceAccess: releasingSourceAccess)
+    func leavePlaybackAndWait(reason: PlaybackLeaveReason) async {
+        leavePlayback(reason: reason)
+    }
+
+    func stopForNextRequest(releasingSourceAccess: Bool) {
+        stopCount += 1
+        currentLaunchRequest = nil
+        activeSessionID = nil
+        productLifecycle = .idle
     }
 
     func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?) {

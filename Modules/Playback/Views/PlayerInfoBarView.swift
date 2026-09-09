@@ -31,7 +31,7 @@ public struct PlayerInfoBarView: View {
                         retention: .evidence
                     )
 #endif
-                    launcher.stopPlayback()
+                    launcher.stopPlayback(reason: .backButton)
                 },
                 accessibilityIdentifier: "PlayerUI-InfoBar-button-back"
             )

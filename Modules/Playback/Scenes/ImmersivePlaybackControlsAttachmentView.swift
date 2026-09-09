@@ -223,7 +223,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
         isStoppingPlayback = true
         defer { isStoppingPlayback = false }
 
-        await playbackLauncher.stopPlaybackAndWait()
+        await playbackLauncher.stopPlaybackAndWait(reason: .backButton)
         appModel.requestStoppedPlaybackCleanup()
     }
 

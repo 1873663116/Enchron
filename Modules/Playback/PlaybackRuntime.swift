@@ -292,6 +292,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var displayedImageGeneration = 0
     private var lastResolvedProfile: PlaybackModel.MediaProfile?
     private var closingTask: Task<Void, Never>?
+    private var playbackHost = PlaybackHost.window
     private var startsWhenAttached = false
     private var playbackVolume: Float = 1
     private var playbackMuted = false
@@ -607,6 +608,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             mediaKind = openResult.mediaKind
             updateActiveSessionID(sessionResource.sessionID)
             activeTechnicalSessionID = sessionResource.sessionID
+            enterPlayingResidency()
             updateLoadingState { stateMachine in
                 stateMachine.bindTechnicalSession(
                     sessionResource.sessionID,
@@ -695,9 +697,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             } else {
                 issue = .mediaOpeningFailed
             }
+            if activeSessionID == nil {
+                residency = .browsing
+            }
             fail(error, issue: issue)
             throw error
         }
+    }
+
+    private func enterPlayingResidency() {
+        if case .playing = residency { return }
+        residency = .playing(host: playbackHost)
     }
 
     public func attach(
@@ -1940,24 +1950,22 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func leavePlayback(reason: PlaybackLeaveReason) {
-        _ = reason
+        beginStop(leaveReason: reason, releasingSourceAccess: true)
     }
 
     public func leavePlaybackAndWait(reason: PlaybackLeaveReason) async {
-        _ = reason
+        let closeTask = beginStop(leaveReason: reason, releasingSourceAccess: true)
+        await closeTask?.value
+    }
+
+    public func stopForNextRequest(releasingSourceAccess: Bool) {
+        beginStop(leaveReason: nil, releasingSourceAccess: releasingSourceAccess)
     }
 
     public func recordPlaybackHost(_ host: PlaybackHost) {
-        _ = host
-    }
-
-    public func stop(releasingSourceAccess: Bool = true) {
-        beginStop(releasingSourceAccess: releasingSourceAccess)
-    }
-
-    public func stopAndWait(releasingSourceAccess: Bool = true) async {
-        let closeTask = beginStop(releasingSourceAccess: releasingSourceAccess)
-        await closeTask?.value
+        playbackHost = host
+        guard case .playing = residency else { return }
+        residency = .playing(host: host)
     }
 
     public func displayedArtworkImage() -> CGImage? {
@@ -1966,7 +1974,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     @discardableResult
-    private func beginStop(releasingSourceAccess: Bool) -> Task<Void, Never>? {
+    private func beginStop(
+        leaveReason: PlaybackLeaveReason?,
+        releasingSourceAccess: Bool
+    ) -> Task<Void, Never>? {
+        if let leaveReason, case .playing = residency {
+            residency = .closing(since: ContinuousClock.now, reason: leaveReason)
+        }
         SurfaceInputProbes.record(
             "rendererOwnership.stop"
                 + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
@@ -1994,7 +2008,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         openingDriver?.hush()
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
-        let closeTask = Task { @MainActor in
+        let closeTask = Task { @MainActor [weak self] in
             PlaybackTrace.event(
                 "runtime.close.begin previous=\(previousClosingTask != nil)"
                     + " renderer=\(rendererCloseTask != nil)"
@@ -2013,11 +2027,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 subtitleAccess.release()
             }
             PlaybackTrace.event("runtime.close.end")
+            self?.settleCloseResidency()
         }
         closingTask = closeTask
         clearPresentation()
         logger.info("session stopped")
         return closeTask
+    }
+
+    private func settleCloseResidency() {
+        guard case .closing = residency else { return }
+        residency = .browsing
     }
 
     private func clearPresentation() {
