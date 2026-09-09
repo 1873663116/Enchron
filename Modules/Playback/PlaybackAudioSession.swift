@@ -222,6 +222,15 @@ public final class PlaybackAudioSessionLifecycle {
         }
     }
 
+    public func abandonDeactivation() {
+        guard case .deactivating(let id, let task) = state else { return }
+        guard id == operationID else { return }
+        task.cancel()
+        operationID &+= 1
+        state = .inactive
+        logger.notice("audio session deactivation abandoned")
+    }
+
     private func settleDeactivation(id: UInt64, succeeded: Bool) {
         guard case .deactivating(let currentID, _) = state,
               currentID == id else { return }

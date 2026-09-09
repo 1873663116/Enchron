@@ -6,7 +6,7 @@ import MediaSource
 import PlaybackCore
 
 @MainActor
-final class PlaybackMediaSessionDriver {
+class PlaybackMediaSessionDriver {
     struct OpenRequest {
         let url: URL
         let startTime: CMTime

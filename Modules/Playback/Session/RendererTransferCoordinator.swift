@@ -825,10 +825,10 @@ final class RendererTransferCoordinator {
         closeTask = nil
         guard case .closing(let closing) = state else { return 0 }
         let drivers = uniqueDrivers(in: closing)
+        state = .empty
         for driver in drivers {
             driver.abandon()
         }
-        state = .empty
         return drivers.count
     }
 

@@ -48,6 +48,7 @@ private final class CloseSettlement {
 
     func wait() async -> Outcome {
         if let outcome { return outcome }
+        precondition(continuation == nil)
         return await withCheckedContinuation { continuation in
             self.continuation = continuation
         }
@@ -141,10 +142,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public private(set) var residency: PlaybackResidency = .browsing
-    public var closeElapsedMilliseconds: Int? {
-        guard case .closing(let since, _) = residency else { return nil }
-        return PlaybackCloseBudget.milliseconds(ContinuousClock.now - since)
-    }
     public private(set) var lifecycle: PlaybackStatus = .idle
     public private(set) var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 0)
     public private(set) var currentPlaybackSpeed = PlaybackModel.PlaybackSpeed.default
@@ -324,6 +321,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var displayedImageGeneration = 0
     private var lastResolvedProfile: PlaybackModel.MediaProfile?
     private var closingTask: Task<Void, Never>?
+    private var closingSettlement: CloseSettlement?
     private var playbackHost = PlaybackHost.window
     private var startsWhenAttached = false
     private var playbackVolume: Float = 1
@@ -409,6 +407,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             observationGeneration &+= 1
         }
         currentLaunchRequest = request
+        enterPlayingResidency()
         updateLoadingState { stateMachine in
             stateMachine.beginOpening(
                 runtimeGeneration: observationGeneration,
@@ -561,8 +560,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
         do {
             PlaybackTrace.event("runtime.open.awaitClose pending=\(closingTask != nil)")
-            await closingTask?.value
-            closingTask = nil
+            let awaitedClose = closingTask
+            await awaitedClose?.value
+            if closingTask == awaitedClose {
+                closingTask = nil
+            }
             PlaybackTrace.event("runtime.open.closeSettled")
             guard request.sourceAccess?.ensureActive() != false else {
                 throw RuntimeError.sourceAccessUnavailable
@@ -640,7 +642,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             mediaKind = openResult.mediaKind
             updateActiveSessionID(sessionResource.sessionID)
             activeTechnicalSessionID = sessionResource.sessionID
-            enterPlayingResidency()
             updateLoadingState { stateMachine in
                 stateMachine.bindTechnicalSession(
                     sessionResource.sessionID,
@@ -728,9 +729,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 )
             } else {
                 issue = .mediaOpeningFailed
-            }
-            if activeSessionID == nil {
-                residency = .browsing
             }
             fail(error, issue: issue)
             throw error
@@ -2010,8 +2008,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         leaveReason: PlaybackLeaveReason?,
         releasingSourceAccess: Bool
     ) -> Task<Void, Never>? {
-        if let leaveReason, case .playing = residency {
-            residency = .closing(since: ContinuousClock.now, reason: leaveReason)
+        if let leaveReason {
+            switch residency {
+            case .browsing:
+                break
+            case .playing, .closing:
+                residency = .closing(since: ContinuousClock.now, reason: leaveReason)
+            }
         }
         SurfaceInputProbes.record(
             "rendererOwnership.stop"
@@ -2042,7 +2045,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let audioSessionLifecycle = audioSessionLifecycle
         let closeStartedAt = ContinuousClock.now
         let settlement = CloseSettlement()
-        let closeBody = Task { @MainActor in
+        Task { @MainActor in
             PlaybackTrace.event(
                 "runtime.close.begin previous=\(previousClosingTask != nil)"
                     + " renderer=\(rendererCloseTask != nil)"
@@ -2056,15 +2059,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             await openingDriver?.close(clearSource: hadActiveDriver == false)
             PlaybackTrace.event("runtime.close.driverSettled")
             await audioSessionLifecycle.deactivate()
-            sourceAccess?.release()
-            for subtitleAccess in externalSubtitleAccesses {
-                subtitleAccess.release()
-            }
             if settlement.isSettled {
                 PlaybackTrace.event(
                     "runtime.close.lateSettled elapsed="
                         + "\(PlaybackCloseBudget.milliseconds(ContinuousClock.now - closeStartedAt))"
                 )
+            } else {
+                sourceAccess?.release()
+                for subtitleAccess in externalSubtitleAccesses {
+                    subtitleAccess.release()
+                }
             }
             PlaybackTrace.event("runtime.close.end")
             settlement.settle(.closed)
@@ -2080,9 +2084,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             guard let self else { return }
             switch outcome {
             case .closed:
-                settleCloseResidency()
+                finishClose(settlement)
             case .overran:
                 forceTeardown(
+                    settlement: settlement,
                     reason: leaveReason,
                     elapsed: ContinuousClock.now - closeStartedAt,
                     openingDriver: openingDriver,
@@ -2092,9 +2097,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
         }
         closingTask = closeTask
+        closingSettlement = settlement
         clearPresentation()
         logger.info("session stopped")
         return closeTask
+    }
+
+    private func finishClose(_ settlement: CloseSettlement) {
+        guard closingSettlement === settlement else { return }
+        closingSettlement = nil
+        settleCloseResidency()
     }
 
     private func settleCloseResidency() {
@@ -2103,6 +2115,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func forceTeardown(
+        settlement: CloseSettlement,
         reason: PlaybackLeaveReason?,
         elapsed: Duration,
         openingDriver: PlaybackMediaSessionDriver?,
@@ -2111,22 +2124,26 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) {
         let elapsedMilliseconds = PlaybackCloseBudget.milliseconds(elapsed)
         let reasonDescription = reason?.rawValue ?? "requestReplacement"
+        let abandonedDrivers = rendererTransferCoordinator.abandonClose()
+        openingDriver?.abandon()
+        audioSessionLifecycle.abandonDeactivation()
+        sourceAccess?.release()
+        for subtitleAccess in externalSubtitleAccesses {
+            subtitleAccess.release()
+        }
         PlaybackTrace.event(
             "runtime.close.overran elapsed=\(elapsedMilliseconds)"
                 + " reason=\(reasonDescription)"
+                + " abandonedDrivers=\(abandonedDrivers)"
         )
         SurfaceInputProbes.record(
             "closeOverran reason=\(reasonDescription)"
                 + " elapsedMs=\(elapsedMilliseconds)",
             retention: .evidence
         )
-        rendererTransferCoordinator.abandonClose()
-        openingDriver?.abandon()
-        sourceAccess?.release()
-        for subtitleAccess in externalSubtitleAccesses {
-            subtitleAccess.release()
-        }
+        guard closingSettlement === settlement else { return }
         closingTask = nil
+        closingSettlement = nil
         settleCloseResidency()
     }
 

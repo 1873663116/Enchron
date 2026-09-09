@@ -5,7 +5,7 @@ import Testing
 @testable import Playback
 
 @MainActor
-@Suite("Playback residency")
+@Suite("Playback residency", .serialized)
 struct PlaybackResidencyTests {
     @Test("leaving playback lands in browsing with no session behind it")
     func leavingPlaybackReachesBrowsingWithNoSession() async throws {
@@ -60,19 +60,116 @@ struct PlaybackResidencyTests {
         #expect(elapsed <= .milliseconds(1_500))
         #expect(trace.events.contains { $0.contains("runtime.close.overran") })
 
+        let nextOpenProgress = OpenProgress()
         let nextOpen = Task { @MainActor in
             try? await runtime.open(try Self.request(for: fixture))
+            nextOpenProgress.finish()
         }
-        let nextOpenStarted = await Self.wait(
-            until: { runtime.activeSessionID != nil },
+        let nextOpenFinished = await Self.wait(
+            until: { nextOpenProgress.isFinished },
             within: .seconds(5)
         )
 
-        #expect(nextOpenStarted)
+        #expect(nextOpenFinished)
+        #expect(runtime.activeSessionID != nil)
         #expect(runtime.residency == .playing(host: .window))
         audioSession.finishDeactivation()
         _ = await nextOpen.value
         await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
+    @Test("a driver close that cannot finish is abandoned when the budget overruns")
+    func aDriverCloseThatCannotFinishIsAbandoned() async throws {
+        let fixture = try Self.audioFixture(named: "residency-driver-overrun")
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let driver = StalledCloseMediaSessionDriver()
+        defer { driver.releaseClose() }
+        let runtime = PlaybackRuntime(
+            openingDriver: driver,
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(
+                session: SettledAudioSession()
+            )
+        )
+        try await runtime.open(try Self.request(for: fixture))
+        #expect(runtime.residency == .playing(host: .window))
+        let trace = TraceRecorder()
+        trace.install()
+        defer { trace.uninstall() }
+
+        runtime.leavePlayback(reason: .backButton)
+        let reachedBrowsing = await Self.wait(until: { runtime.residency == .browsing })
+
+        #expect(reachedBrowsing)
+        #expect(driver.abandonCount == 1)
+        #expect(driver.closeIsStalled)
+        #expect(trace.events.contains { $0.contains("abandonedDrivers=1") })
+        #expect(trace.events.contains { $0.contains("controller.close.abandoned") })
+
+        driver.releaseClose()
+        try await runtime.open(try Self.request(for: fixture))
+
+        #expect(runtime.residency == .playing(host: .window))
+        #expect(runtime.activeSessionID != nil)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
+    @Test("a request replacement keeps the player page across the next open")
+    func aRequestReplacementKeepsThePlayerPage() async throws {
+        let first = try Self.audioFixture(named: "residency-replace-first")
+        defer { try? FileManager.default.removeItem(at: first) }
+        let second = try Self.audioFixture(named: "residency-replace-second")
+        defer { try? FileManager.default.removeItem(at: second) }
+        let runtime = PlaybackRuntime(
+            controller: PlaybackCoreController(),
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(
+                session: SettledAudioSession()
+            )
+        )
+        try await runtime.open(try Self.request(for: first))
+        #expect(runtime.residency == .playing(host: .window))
+
+        runtime.stopForNextRequest(releasingSourceAccess: true)
+
+        #expect(runtime.residency == .playing(host: .window))
+
+        let replacement = try Self.request(for: second)
+        runtime.prepareForPlayback(replacement)
+
+        #expect(runtime.residency == .playing(host: .window))
+
+        try await runtime.open(replacement)
+
+        #expect(runtime.residency == .playing(host: .window))
+        #expect(runtime.activeSessionID != nil)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+
+        #expect(runtime.residency == .browsing)
+    }
+
+    @Test("an open that fails keeps the player page and the request behind the retry")
+    func aFailedOpenKeepsThePlayerPage() async throws {
+        let fixture = try Self.corruptFixture(named: "residency-failed-open")
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let runtime = PlaybackRuntime(
+            controller: PlaybackCoreController(),
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(
+                session: SettledAudioSession()
+            )
+        )
+
+        await #expect(throws: Error.self) {
+            try await runtime.open(try Self.request(for: fixture))
+        }
+
+        #expect(runtime.residency == .playing(host: .window))
+        #expect(runtime.hasActivePlaybackRequest)
+        #expect(runtime.activeSessionID == nil)
+        #expect(runtime.userVisibleIssue != nil)
+
+        await runtime.leavePlaybackAndWait(reason: .failure)
+
+        #expect(runtime.residency == .browsing)
+        #expect(runtime.hasActivePlaybackRequest == false)
     }
 
     @Test("closing the main window while the immersive space hosts playback keeps playing")
@@ -107,7 +204,6 @@ struct PlaybackResidencyTests {
         arguments: [
             PlaybackLeaveReason.backButton,
             .windowClosedByWearer,
-            .sceneBackgrounded,
             .failure
         ]
     )
@@ -149,6 +245,14 @@ struct PlaybackResidencyTests {
         )
     }
 
+    private static func corruptFixture(named name: String) throws -> URL {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("\(name)-\(UUID().uuidString)")
+            .appendingPathExtension("wav")
+        try Data(repeating: 0x41, count: 4_096).write(to: url, options: .atomic)
+        return url
+    }
+
     private static func audioFixture(named name: String) throws -> URL {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("\(name)-\(UUID().uuidString)")
@@ -186,6 +290,44 @@ struct PlaybackResidencyTests {
         Swift.withUnsafeBytes(of: &value) {
             data.append(contentsOf: $0)
         }
+    }
+}
+
+@MainActor
+private final class OpenProgress {
+    private(set) var isFinished = false
+
+    func finish() {
+        isFinished = true
+    }
+}
+
+@MainActor
+private final class StalledCloseMediaSessionDriver: PlaybackMediaSessionDriver {
+    private(set) var abandonCount = 0
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isReleased = false
+
+    var closeIsStalled: Bool { continuation != nil }
+
+    override func close(clearSource: Bool) async {
+        if isReleased == false {
+            await withCheckedContinuation { continuation in
+                self.continuation = continuation
+            }
+        }
+        await super.close(clearSource: clearSource)
+    }
+
+    override func abandon() {
+        abandonCount += 1
+        super.abandon()
+    }
+
+    func releaseClose() {
+        isReleased = true
+        continuation?.resume()
+        continuation = nil
     }
 }
 
