@@ -61,12 +61,12 @@ public enum SpatialPlatformResidentWindowPolicy {
     }
 }
 
-public enum SpatialPlatformPlayerWindowClosurePolicy {
-    public static func stopsPlayback(
+enum SpatialPlatformPlayerWindowClosurePolicy {
+    static func stopsPlayback(
         hasActivePlaybackRequest: Bool,
-        dismissalWasRequestedByApp: Bool
+        playerWindowStateBeforeDisconnect: SpatialPlatformResidentWindowState
     ) -> Bool {
-        hasActivePlaybackRequest && dismissalWasRequestedByApp == false
+        hasActivePlaybackRequest && playerWindowStateBeforeDisconnect != .closing
     }
 }
 
@@ -222,7 +222,6 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var playerWindowState = SpatialPlatformResidentWindowState.absent
     @ObservationIgnored
-    private var playerWindowDismissalIsAppRequested = false
 
     public private(set) var residentWindowContentSize: CGSize?
     public private(set) var lastPlatformOperation = "none"
@@ -295,11 +294,12 @@ public final class SpatialPlatformEffectCoordinator {
         case .immersivePlaybackResident:
             break
         }
+        let playerWindowStateBeforeDisconnect = playerWindowState
         recordWindowResidency(.closed, for: window)
         guard window == .player else { return }
         let stopsPlayback = SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(
             hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
-            dismissalWasRequestedByApp: playerWindowDismissalIsAppRequested
+            playerWindowStateBeforeDisconnect: playerWindowStateBeforeDisconnect
         )
         appModel.recordSurfaceInputProbe(
             "playerWindowScene disconnected stopsPlayback=\(stopsPlayback)",
@@ -456,9 +456,6 @@ public final class SpatialPlatformEffectCoordinator {
             residentWindowState = observedState
         case .player:
             playerWindowState = observedState
-            if residency == .closed {
-                playerWindowDismissalIsAppRequested = false
-            }
         case .main:
             break
         }
@@ -1374,7 +1371,6 @@ public final class SpatialPlatformEffectCoordinator {
             )
         case .player:
             playerWindowState = .opening
-            playerWindowDismissalIsAppRequested = false
         case .main:
             return false
         }
@@ -1404,7 +1400,6 @@ public final class SpatialPlatformEffectCoordinator {
             residentWindowState = .closing
         case .player:
             playerWindowState = .closing
-            playerWindowDismissalIsAppRequested = true
         case .main:
             return false
         }

@@ -919,19 +919,25 @@ struct PlaybackPresentationStateTests {
         #expect(
             Policy.stopsPlayback(
                 hasActivePlaybackRequest: true,
-                dismissalWasRequestedByApp: false
+                playerWindowStateBeforeDisconnect: .open
             )
         )
         #expect(
             Policy.stopsPlayback(
                 hasActivePlaybackRequest: true,
-                dismissalWasRequestedByApp: true
+                playerWindowStateBeforeDisconnect: .opening
+            )
+        )
+        #expect(
+            Policy.stopsPlayback(
+                hasActivePlaybackRequest: true,
+                playerWindowStateBeforeDisconnect: .closing
             ) == false
         )
         #expect(
             Policy.stopsPlayback(
                 hasActivePlaybackRequest: false,
-                dismissalWasRequestedByApp: false
+                playerWindowStateBeforeDisconnect: .open
             ) == false
         )
     }
