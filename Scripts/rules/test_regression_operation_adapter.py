@@ -3960,8 +3960,8 @@ class OperationAllowlistTests(unittest.TestCase):
             else:
                 self.assertEqual(observation[field], value)
 
-    def test_main_view_playback_probe_exposes_narrow_remote_identity_fields(self) -> None:
-        source = (adapter.REPOSITORY_ROOT / "Apps/Enchron/MainView.swift").read_text(
+    def test_player_view_playback_probe_exposes_narrow_remote_identity_fields(self) -> None:
+        source = (adapter.REPOSITORY_ROOT / "Apps/Enchron/PlayerView.swift").read_text(
             encoding="utf-8"
         )
         for field in (

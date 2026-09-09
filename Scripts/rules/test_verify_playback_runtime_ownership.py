@@ -54,26 +54,32 @@ public final class PlaybackLaunchCoordinator {
 }
 """
 
-CLEAN_PAGE = """import SwiftUI
+CLEAN_WINDOW_POLICY = """import Foundation
 
-public struct MainView: View {
-    private var showsWindowPlayback: Bool {
-        switch playbackRuntime.residency {
+public enum SpatialPlatformPlaybackWindowPolicy {
+    static func pushedWindow(
+        for residency: PlaybackResidency
+    ) -> SpatialPlatformPushedWindow {
+        switch residency {
         case .browsing, .closing:
-            false
-        case .playing:
-            true
+            .none
+        case .playing(.window):
+            .player
+        case .playing(.immersiveSpace):
+            .immersiveResident
         }
     }
+}
+"""
 
-    private var primaryContent: some View {
-        ZStack {
-            if showsWindowPlayback {
-                playbackPrimaryContent
-            } else {
-                browserPrimaryContent
+CLEAN_WINDOW_ROOT = """import SwiftUI
+
+public struct WindowRoot: View {
+    public var body: some View {
+        primaryContent
+            .onChange(of: playbackRuntime.residency, initial: true) { _, residency in
+                spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
             }
-        }
     }
 }
 """
@@ -105,7 +111,9 @@ class PlaybackOwnershipTests(unittest.TestCase):
         self.runtime(CLEAN_RUNTIME)
         self.interpreter(CLEAN_INTERPRETER)
         self.write(checker.COORDINATOR_SOURCE, CLEAN_COORDINATOR)
-        self.write(checker.PAGE_SOURCE, CLEAN_PAGE)
+        self.write(checker.WINDOW_POLICY_SOURCE, CLEAN_WINDOW_POLICY)
+        for source in checker.WINDOW_ROOT_SOURCES:
+            self.write(source, CLEAN_WINDOW_ROOT)
         self.write("Modules/Playback/Views/PlayerInfoBarView.swift", CLEAN_VIEW)
 
     def write(self, relative: str, contents: str) -> None:
@@ -222,32 +230,44 @@ class PlaybackOwnershipTests(unittest.TestCase):
 
         self.assertIn("leave-reason", " ".join(checker.failures()))
 
-    def test_a_page_that_reads_the_active_request_fails(self) -> None:
+    def test_a_pushed_window_decided_by_the_active_request_fails(self) -> None:
         self.write(
-            checker.PAGE_SOURCE,
-            CLEAN_PAGE.replace(
-                """        switch playbackRuntime.residency {
-        case .browsing, .closing:
-            false
-        case .playing:
-            true
-        }""",
-                "        playbackRuntime.hasActivePlaybackRequest",
+            checker.WINDOW_POLICY_SOURCE,
+            CLEAN_WINDOW_POLICY.replace(
+                "        switch residency {",
+                "        switch playbackRuntime.hasActivePlaybackRequest {",
             ),
         )
 
-        self.assertIn("page-authority", " ".join(checker.failures()))
+        self.assertIn("window-authority", " ".join(checker.failures()))
 
-    def test_a_primary_content_that_picks_the_page_elsewhere_fails(self) -> None:
+    def test_a_browser_window_root_that_keeps_the_residency_to_itself_fails(self) -> None:
         self.write(
-            checker.PAGE_SOURCE,
-            CLEAN_PAGE.replace(
-                "if showsWindowPlayback {",
-                "if playbackRuntime.hasActivePlaybackRequest {",
+            "Apps/Enchron/MainView.swift",
+            CLEAN_WINDOW_ROOT.replace(
+                "spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)",
+                "showsWindowPlayback = residency != .browsing",
             ),
         )
 
-        self.assertIn("page-authority", " ".join(checker.failures()))
+        self.assertIn(
+            "Apps/Enchron/MainView.swift: window-authority",
+            " ".join(checker.failures()),
+        )
+
+    def test_a_player_window_root_that_keeps_the_residency_to_itself_fails(self) -> None:
+        self.write(
+            "Apps/Enchron/PlayerView.swift",
+            CLEAN_WINDOW_ROOT.replace(
+                "spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)",
+                "showsWindowPlayback = residency != .browsing",
+            ),
+        )
+
+        self.assertIn(
+            "Apps/Enchron/PlayerView.swift: window-authority",
+            " ".join(checker.failures()),
+        )
 
     def test_a_view_that_replaces_the_request_directly_fails(self) -> None:
         self.write(
@@ -268,10 +288,18 @@ class PlaybackOwnershipTests(unittest.TestCase):
 
         self.assertIn("leave-entry", " ".join(checker.failures()))
 
-    def test_an_absent_page_fails(self) -> None:
-        (self.repository / checker.PAGE_SOURCE).unlink()
+    def test_an_absent_window_root_fails(self) -> None:
+        (self.repository / "Apps/Enchron/PlayerView.swift").unlink()
 
-        self.assertIn("MainView.swift is absent", " ".join(checker.failures()))
+        self.assertIn("PlayerView.swift is absent", " ".join(checker.failures()))
+
+    def test_an_absent_window_policy_fails(self) -> None:
+        (self.repository / checker.WINDOW_POLICY_SOURCE).unlink()
+
+        self.assertIn(
+            f"{checker.WINDOW_POLICY_SOURCE} is absent",
+            " ".join(checker.failures()),
+        )
 
     def test_an_unbounded_close_fails(self) -> None:
         self.write(checker.RUNTIME_SOURCE, CLEAN_RUNTIME)

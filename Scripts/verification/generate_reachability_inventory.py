@@ -1160,7 +1160,7 @@ def presentation_derivation(
         ):
             source = required_source_location(
                 documents,
-                "Apps/Enchron/MainView.swift",
+                "Apps/Enchron/PlayerView.swift",
                 "PlayerInfoBarView(",
             )
             return main_window_presentations, {
@@ -1170,7 +1170,7 @@ def presentation_derivation(
         if template == "PlayerUI-audio-spectrum":
             source = required_source_location(
                 documents,
-                "Apps/Enchron/MainView.swift",
+                "Apps/Enchron/PlayerView.swift",
                 "AudioSpectrumSurface(frame:",
             )
             return ["window"], {
