@@ -81,6 +81,11 @@ struct EnchronApp: App {
             height: BrowserWindowLayout.defaultSize.height
         )
         .windowStyle(.plain)
+        .persistentSystemOverlays(
+            application.spatialPlatformEffectCoordinator.playerWindowIsPresent
+                ? .hidden
+                : .automatic
+        )
         .windowResizability(.contentSize)
 
         WindowGroup(
