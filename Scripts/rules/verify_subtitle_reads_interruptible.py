@@ -9,9 +9,6 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 
 BRIDGE_C = "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c"
-SUBTITLE_RENDERER_C = (
-    "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/SubtitleFrameRenderer.c"
-)
 BRIDGE_HEADER = (
     "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h"
 )
@@ -25,7 +22,7 @@ PLAYBACK_CORE_SOURCES = "Packages/PlaybackCore/Sources"
 
 ALLOCATE_FORMAT_CONTEXT_SIGNATURE = "static AVFormatContext *allocate_format_context("
 OPEN_MEDIA_SOURCE_SIGNATURE = "static int open_media_source("
-MONITORLESS_PATH_EXCEPTION = "PBFFmpegSubtitleReaderCreate"
+BRIDGE_DIRECTORY = "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge"
 
 DECLARATION_NAME = re.compile(
     r"\b((?:PBSubtitleFrameRenderer|PBFFmpegSubtitleReader)[A-Za-z0-9_]*)\("
@@ -70,6 +67,21 @@ def find_definition_span(source: str, signature: str) -> tuple[int, int]:
     close = source.find("\n}", cursor)
     require(close >= 0, f"no closing brace at column 0 for: {signature!r}")
     return index, close + 2
+
+
+C_COMMENT = re.compile(r"/\*.*?\*/|//[^\n]*", re.DOTALL)
+
+
+def without_comments(source: str) -> str:
+    return C_COMMENT.sub(lambda match: " " * len(match.group(0)), source)
+
+
+def bridge_unit_sources() -> dict[str, str]:
+    root = ROOT / BRIDGE_DIRECTORY
+    return {
+        str(path.relative_to(ROOT)): path.read_text(encoding="utf-8")
+        for path in sorted(root.glob("*.c"))
+    }
 
 
 def count_calls(source: str, call: str) -> list[int]:
@@ -120,18 +132,22 @@ def check_S2(bridge_source: str) -> None:
     )
 
 
-def check_S3(subtitle_source: str) -> None:
-    for call in (
-        "avformat_open_input(",
-        "avformat_alloc_context(",
-        "avformat_close_input(",
-    ):
-        require(
-            call not in subtitle_source,
-            "S3: SubtitleFrameRenderer.c must not call "
-            f"{call} directly; it must reach a format context only through "
-            "PBFFmpegMonitoredSourceOpen",
-        )
+def check_S3(unit_sources: dict[str, str]) -> None:
+    for name, unit_source in unit_sources.items():
+        if name.endswith("/PlaybackFFmpegBridge.c"):
+            continue
+        stripped = without_comments(unit_source)
+        for call in (
+            "avformat_open_input(",
+            "avformat_alloc_context(",
+            "avformat_close_input(",
+        ):
+            require(
+                not count_calls(stripped, call),
+                f"S3: {name} must not call {call} directly; every unit other than "
+                "PlaybackFFmpegBridge.c reaches a format context only through "
+                "PBFFmpegMonitoredSourceOpen",
+            )
 
 
 def function_body_by_brace_matching(source: str, signature: str) -> str:
@@ -231,27 +247,24 @@ def check_S6(header_source: str) -> None:
     for name, parameters in header_declarations(header_source):
         if not PATH_PARAMETER.search(parameters):
             continue
-        if MONITOR_PARAMETER.search(parameters):
-            continue
         require(
-            name == MONITORLESS_PATH_EXCEPTION,
+            bool(MONITOR_PARAMETER.search(parameters)),
             f"S6: {name} takes a const char *path parameter without a "
-            "PBFFmpegSourceReadMonitor * parameter; the single documented "
-            f"exception is {MONITORLESS_PATH_EXCEPTION}, the monitor-less "
-            "convenience that forwards to the monitored variant",
+            "PBFFmpegSourceReadMonitor * parameter, so its reads could not be "
+            "interrupted at close",
         )
 
 
 def main() -> int:
     bridge = read(BRIDGE_C)
-    subtitle_renderer = read(SUBTITLE_RENDERER_C)
     header = read(BRIDGE_HEADER)
     throughput = read(THROUGHPUT_SWIFT)
     delivery = read(DELIVERY_SWIFT)
 
-    check_S1(bridge)
-    check_S2(bridge)
-    check_S3(subtitle_renderer)
+    stripped_bridge = without_comments(bridge)
+    check_S1(stripped_bridge)
+    check_S2(stripped_bridge)
+    check_S3(bridge_unit_sources())
     check_S4(bridge, header, throughput, delivery)
     check_S5(collect_playback_core_sources())
     check_S6(header)

@@ -49,11 +49,12 @@ SUBTITLE_SOURCE_WITHOUT_RAW_CALLS = (
 )
 
 HEADER_WITH_MONITORED_SUBTITLE_DECLARATIONS = (
-    "PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(\n"
+    "PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(\n"
     "    const char *path,\n"
     "    int streamIndex,\n"
     "    char *errorBuffer,\n"
-    "    size_t errorBufferSize\n"
+    "    size_t errorBufferSize,\n"
+    "    PBFFmpegSourceReadMonitor *monitor\n"
     ");\n"
     "PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(\n"
     "    const char *path,\n"
@@ -128,12 +129,18 @@ class OpenPathCallSiteTests(unittest.TestCase):
         self.assertIn("S2", str(failure.exception))
 
     def test_subtitle_source_without_raw_open_calls_is_accepted(self) -> None:
-        rule.check_S3(SUBTITLE_SOURCE_WITHOUT_RAW_CALLS)
+        rule.check_S3({"Bridge/SubtitleFrameRenderer.c": SUBTITLE_SOURCE_WITHOUT_RAW_CALLS})
 
     def test_subtitle_source_with_a_raw_open_call_is_rejected(self) -> None:
         with self.assertRaises(AssertionError) as failure:
-            rule.check_S3("avformat_open_input(context, path, NULL, NULL);\n")
+            rule.check_S3({"Bridge/Extra.c": "avformat_open_input(context, path, NULL, NULL);\n"})
         self.assertIn("S3", str(failure.exception))
+
+    def test_a_raw_open_call_inside_a_comment_is_ignored(self) -> None:
+        rule.check_S3({"Bridge/Extra.c": "/* avformat_open_input( is documented here */\n"})
+        stripped = rule.without_comments("a(); // avformat_alloc_context(\n/* b */ c();\n")
+        self.assertEqual(rule.count_calls(stripped, "avformat_alloc_context("), [])
+        self.assertEqual(len(stripped), len("a(); // avformat_alloc_context(\n/* b */ c();\n"))
 
 
 class MonitorWiringTests(unittest.TestCase):
