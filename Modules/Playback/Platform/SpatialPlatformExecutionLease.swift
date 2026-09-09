@@ -247,6 +247,7 @@ struct SpatialPlatformImmersiveSpaceObservation {
 public enum SpatialPlatformWindowIdentity: String, CaseIterable, Hashable, Sendable {
     case main
     case immersivePlaybackResident
+    case windowPlaybackResident
 }
 
 public enum SpatialPlatformWindowResidency: Equatable, Sendable {
@@ -330,6 +331,60 @@ enum SpatialPlatformPlaybackWindowPolicy {
                 .dismissResidentWindow
             }
         }
+    }
+}
+
+enum SpatialPlatformWindowPlaybackResidencyTransition: Equatable, Sendable {
+    case windowPlaybackStarted
+    case immersivePlaybackEntered
+    case immersivePlaybackExited
+    case playbackEnded
+    case mainWindowClosedByWearer(stopsPlayback: Bool)
+}
+
+enum SpatialPlatformWindowPlaybackResidencyAction: Equatable, Sendable {
+    case openResidentWindow
+    case retainResidentWindow
+    case dismissResidentWindow
+    case reopenMainWindowThenDismissResidentWindow
+}
+
+enum SpatialPlatformWindowPlaybackResidencyPolicy {
+    static func action(
+        for transition: SpatialPlatformWindowPlaybackResidencyTransition,
+        residentWindowState: SpatialPlatformResidentWindowState
+    ) -> SpatialPlatformWindowPlaybackResidencyAction {
+        switch transition {
+        case .windowPlaybackStarted:
+            switch residentWindowState {
+            case .absent, .closing:
+                .openResidentWindow
+            case .opening, .open:
+                .retainResidentWindow
+            }
+        case .immersivePlaybackEntered, .immersivePlaybackExited:
+            .retainResidentWindow
+        case .playbackEnded:
+            switch residentWindowState {
+            case .absent:
+                .retainResidentWindow
+            case .opening, .open, .closing:
+                .dismissResidentWindow
+            }
+        case .mainWindowClosedByWearer(let stopsPlayback):
+            switch residentWindowState {
+            case .absent:
+                .retainResidentWindow
+            case .opening, .open, .closing:
+                stopsPlayback
+                    ? .reopenMainWindowThenDismissResidentWindow
+                    : .retainResidentWindow
+            }
+        }
+    }
+
+    static func mayDismissResidentWindow(mainWindowIsOpen: Bool) -> Bool {
+        mainWindowIsOpen
     }
 }
 

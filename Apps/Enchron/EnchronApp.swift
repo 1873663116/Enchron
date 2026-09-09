@@ -62,8 +62,6 @@ struct EnchronApp: App {
             .enchronEnvironment(application)
             .onAppear {
                 SurfaceInputProbes.record("mainWindowScene appeared")
-                application.spatialPlatformEffectCoordinator
-                    .recordWindowResidency(.open, for: .main)
                 Task { @MainActor in
                     await Task.yield()
                     application.spatialPlatformEffectCoordinator
@@ -72,8 +70,6 @@ struct EnchronApp: App {
             }
             .onDisappear {
                 SurfaceInputProbes.record("mainWindowScene disappeared")
-                application.spatialPlatformEffectCoordinator
-                    .recordWindowResidency(.closed, for: .main)
             }
         }
         .defaultSize(
@@ -106,6 +102,40 @@ struct EnchronApp: App {
                         .recordWindowResidency(
                             .closed,
                             for: .immersivePlaybackResident
+                        )
+                }
+                .persistentSystemOverlays(.hidden)
+        }
+        .windowStyle(.plain)
+        .defaultSize(ImmersiveResidentWindowLayout.fallbackSize)
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+        .persistentSystemOverlays(.hidden)
+
+        WindowGroup(
+            "Window Playback Resident",
+            id: SpatialPlatformWindowIdentity
+                .windowPlaybackResident.rawValue
+        ) {
+            WindowPlaybackResidentRoot()
+                .enchronEnvironment(application)
+                .windowSceneReporting { windowScene in
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowScene(windowScene, for: .windowPlaybackResident)
+                }
+                .onAppear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(
+                            .open,
+                            for: .windowPlaybackResident
+                        )
+                }
+                .onDisappear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(
+                            .closed,
+                            for: .windowPlaybackResident
                         )
                 }
                 .persistentSystemOverlays(.hidden)
@@ -230,6 +260,16 @@ private struct MainWindowSceneGate<Content: View>: View {
                 retention: .evidence
             )
         }
+        .onAppear {
+            guard isOrphaned == false else { return }
+            spatialPlatformEffectCoordinator
+                .recordWindowResidency(.open, for: .main)
+        }
+        .onDisappear {
+            guard isOrphaned == false else { return }
+            spatialPlatformEffectCoordinator
+                .recordWindowResidency(.closed, for: .main)
+        }
     }
 }
 
@@ -256,7 +296,10 @@ private struct ImmersivePlaybackResidentRoot: View {
                 )
             }
             .playbackIssueAlert(
-                in: .immersiveResident,
+                in: .residentWindow(
+                    mainWindowIsOpen: spatialPlatformEffectCoordinator
+                        .mainWindowIsOpen
+                ),
                 onRetry: playbackLauncher.retryPlayback,
                 onClose: stopSpatialPlayback
             )
@@ -270,6 +313,37 @@ private struct ImmersivePlaybackResidentRoot: View {
             await playbackLauncher.stopPlaybackAndWait(reason: .failure)
             playbackSession.requestStoppedPlaybackCleanup()
         }
+    }
+}
+
+private struct WindowPlaybackResidentRoot: View {
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(SpatialPlatformEffectCoordinator.self)
+    private var spatialPlatformEffectCoordinator
+
+    private var contentSize: CGSize {
+        spatialPlatformEffectCoordinator.residentWindowContentSize
+            ?? ImmersiveResidentWindowLayout.fallbackSize
+    }
+
+    var body: some View {
+        Color.clear
+            .frame(width: contentSize.width, height: contentSize.height)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .background {
+                SpatialPlatformEffectExecutor(
+                    windowIdentity: .windowPlaybackResident
+                )
+            }
+            .playbackIssueAlert(
+                in: .residentWindow(
+                    mainWindowIsOpen: spatialPlatformEffectCoordinator
+                        .mainWindowIsOpen
+                ),
+                onRetry: playbackLauncher.retryPlayback,
+                onClose: { playbackLauncher.stopPlayback(reason: .failure) }
+            )
     }
 }
 
