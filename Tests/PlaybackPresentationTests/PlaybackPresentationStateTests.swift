@@ -134,40 +134,41 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    @Test("Entering the immersive space only opens it; the player window waits for the first pixel")
-    func enteringImmersivePlaybackOnlyOpensTheSpace() {
+    @Test("Entering the immersive space opens the space and then takes the player window down")
+    func enteringImmersivePlaybackDismissesThePlayerWindow() {
         for family in [PresentationContentFamily.flat, .panoramic] {
-            for playerWindowState in [
-                SpatialPlatformPlayerWindowState.absent, .opening, .open, .closing
-            ] {
+            for present in [SpatialPlatformPlayerWindowState.opening, .open] {
                 #expect(
                     SpatialPlatformPlaybackWindowPolicy.actions(
                         for: .enterImmersivePlayback(family),
-                        playerWindowState: playerWindowState
+                        playerWindowState: present
+                    ) == [.openImmersiveSpace, .dismissPlayerWindow]
+                )
+            }
+            for absent in [SpatialPlatformPlayerWindowState.absent, .closing] {
+                #expect(
+                    SpatialPlatformPlaybackWindowPolicy.actions(
+                        for: .enterImmersivePlayback(family),
+                        playerWindowState: absent
                     ) == [.openImmersiveSpace]
                 )
             }
         }
     }
 
-    @Test("The settled immersive space takes the player window down behind it")
-    func settlingImmersivePlaybackDismissesThePlayerWindow() {
-        for present in [SpatialPlatformPlayerWindowState.opening, .open] {
-            #expect(
-                SpatialPlatformPlaybackWindowPolicy.actions(
-                    for: .settleImmersivePlayback,
-                    playerWindowState: present
-                ) == [.dismissPlayerWindow]
-            )
-        }
-        for absent in [SpatialPlatformPlayerWindowState.absent, .closing] {
-            #expect(
-                SpatialPlatformPlaybackWindowPolicy.actions(
-                    for: .settleImmersivePlayback,
-                    playerWindowState: absent
-                ) == []
-            )
-        }
+    @Test("A failed immersive entry asks for the player window back, not for the residency's answer")
+    func failedImmersiveEntryRestoresThePlayerWindow() {
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.actions(
+                for: .normalizeSpatialPlayback(returnsToPlayer: true),
+                playerWindowState: .absent
+            ) == [.pushPlayerWindow]
+        )
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.pushedWindow(
+                for: .playing(host: .immersiveSpace)
+            ) == .immersiveSpace
+        )
     }
 
     @Test("Leaving the immersive space pushes the player window back only when it is gone")

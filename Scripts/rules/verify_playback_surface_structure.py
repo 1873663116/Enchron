@@ -545,15 +545,11 @@ def main() -> int:
     require(
         "        case .enterImmersivePlayback:\n"
         "            [.openImmersiveSpace]\n"
-        "        case .settleImmersivePlayback:\n"
-        "            isPresent(playerWindowState) ? [.dismissPlayerWindow] : []\n"
+        "                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n"
         in execution_lease
-        and order(
-            platform_executor,
-            "lastPlatformOperation = \"spatial-surface-settled\"",
-            "appModel.finishPresentationVisualCutover()",
-            ".settleImmersivePlayback,",
-        )
+        and "normalizeWindowTransition" not in platform_executor.split(
+            "private func enterImmersivePlayback("
+        )[1].split("private func ")[1]
         and "ImmersiveResidentWindow" not in execution_lease
         and order(
             platform_executor,
@@ -561,10 +557,10 @@ def main() -> int:
             "let actions = SpatialPlatformPlaybackWindowPolicy.actions(",
             "for action in actions {",
         ),
-        "the player window comes down before the space has proven a pixel, which "
-        "costs the wearer a mode-request retry on the way in and leaves a failed "
-        "settlement with no window to fall back to, or a resident window is back "
-        "in the action list",
+        "entering an immersive presentation leaves the player window standing, so "
+        "the window surface races the space for the freshly minted entity, or a "
+        "failed entry normalizes by the residency, which has already moved to the "
+        "space and will therefore refuse to push the player window back",
     )
     require(
         "playbackResidency: PlaybackResidency" in execution_lease

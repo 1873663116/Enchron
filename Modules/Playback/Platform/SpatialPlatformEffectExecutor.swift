@@ -810,7 +810,7 @@ public final class SpatialPlatformEffectCoordinator {
                 return
             }
             _ = await restorePlaybackWindow(
-                for: normalizeWindowTransition,
+                for: immersiveEntryFailureWindowTransition,
                 execution: execution
             )
             _ = await complete(
@@ -823,7 +823,7 @@ public final class SpatialPlatformEffectCoordinator {
         guard appModel.allowPresentationSourceRendererRelease() else {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             _ = await restorePlaybackWindow(
-                for: normalizeWindowTransition,
+                for: immersiveEntryFailureWindowTransition,
                 execution: execution
             )
             return
@@ -838,7 +838,7 @@ public final class SpatialPlatformEffectCoordinator {
                     execution: execution
                   ) else { return }
             _ = await restorePlaybackWindow(
-                for: normalizeWindowTransition,
+                for: immersiveEntryFailureWindowTransition,
                 execution: execution
             )
             _ = await complete(
@@ -849,7 +849,7 @@ public final class SpatialPlatformEffectCoordinator {
         }
         guard appModel.allowPresentationTargetRendererBinding() else {
             _ = await restorePlaybackWindow(
-                for: normalizeWindowTransition,
+                for: immersiveEntryFailureWindowTransition,
                 execution: execution
             )
             return
@@ -865,7 +865,7 @@ public final class SpatialPlatformEffectCoordinator {
                     execution: execution
                   ) else { return }
             _ = await restorePlaybackWindow(
-                for: normalizeWindowTransition,
+                for: immersiveEntryFailureWindowTransition,
                 execution: execution
             )
             _ = await complete(
@@ -903,7 +903,7 @@ public final class SpatialPlatformEffectCoordinator {
                 execution: execution
             ) else { return }
             let playerWindowIsReady = await restorePlaybackWindow(
-                for: normalizeWindowTransition,
+                for: immersiveEntryFailureWindowTransition,
                 execution: execution
             )
             lastPlatformOperation = "spatial-surface-settlement-failed"
@@ -920,16 +920,12 @@ public final class SpatialPlatformEffectCoordinator {
 
         guard appModel.beginPresentationVisualCutover() else {
             _ = await restorePlaybackWindow(
-                for: normalizeWindowTransition,
+                for: immersiveEntryFailureWindowTransition,
                 execution: execution
             )
             return
         }
         appModel.finishPresentationVisualCutover()
-        _ = await performWindowTransition(
-            .settleImmersivePlayback,
-            execution: execution
-        )
         await releaseDepartingPresentationResources()
         let resolution = await complete(execution, outcome: .succeeded)
         guard resolution == .presentationCommitted(presentation) else {
@@ -1249,6 +1245,11 @@ public final class SpatialPlatformEffectCoordinator {
     ) -> SceneActions? {
         guard let capabilityID = windowCapabilityIDs[window] else { return nil }
         return leaseRegistry.capability(id: capabilityID)
+    }
+
+    private var immersiveEntryFailureWindowTransition:
+        SpatialPlatformPlaybackWindowTransition {
+        .normalizeSpatialPlayback(returnsToPlayer: true)
     }
 
     private var normalizeWindowTransition:
