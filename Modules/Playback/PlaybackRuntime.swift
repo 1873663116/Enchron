@@ -112,6 +112,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    public private(set) var residency: PlaybackResidency = .browsing
     public private(set) var lifecycle: PlaybackStatus = .idle
     public private(set) var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 0)
     public private(set) var currentPlaybackSpeed = PlaybackModel.PlaybackSpeed.default
@@ -1936,6 +1937,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "video renderer target identity changed within one playback session previous=\(previousEntityID, privacy: .public) current=\(entityID, privacy: .public)"
             )
         }
+    }
+
+    public func leavePlayback(reason: PlaybackLeaveReason) {
+        _ = reason
+    }
+
+    public func leavePlaybackAndWait(reason: PlaybackLeaveReason) async {
+        _ = reason
+    }
+
+    public func recordPlaybackHost(_ host: PlaybackHost) {
+        _ = host
     }
 
     public func stop(releasingSourceAccess: Bool = true) {
