@@ -5,7 +5,7 @@
     "equivalentDerivedHumanCoverageAuthorized": true,
     "runtimeHumanActorAllowed": false,
     "source": "Config/regression/semantic-authority-decisions.tsv",
-    "sourceDigest": "sha256:d5a08795fb2ed738806ef1ac44eb3a5811b0ef332d477b8f29411e7e833391a2"
+    "sourceDigest": "sha256:64987532750001e87261084638ec55d72e089282359fa85b212990007154fc8e"
   },
   "decisions": [
     {
@@ -109,7 +109,7 @@
       "status": "decided",
       "policy": "The closed loading vocabulary is none or loading. Opening and true playback starvation show Loading; a reconnect completely covered by buffered media never shows it.",
       "applicability": "Remote open, reconnect, and renderer-starvation windows.",
-      "evidence": ["Apps/Enchron/MainView.swift#WindowPlaybackLoadingVisibility", "Modules/Playback/PlaybackRuntime.swift#PresentationState"],
+      "evidence": ["Apps/Enchron/PlayerView.swift#WindowPlaybackLoadingVisibility", "Modules/Playback/PlaybackRuntime.swift#PresentationState"],
       "requiredWork": ["publish-starvation-loading-state"]
     },
     {

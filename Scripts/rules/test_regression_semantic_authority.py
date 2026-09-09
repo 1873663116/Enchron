@@ -125,7 +125,7 @@ class SemanticAuthorityTests(unittest.TestCase):
         self.assertRegex(digest, r"^sha256:[0-9a-f]{64}$")
         self.assertEqual(
             digest,
-            "sha256:3dc466224bfdbd1a9c5adb55b5b33dc48ad730bbed0cf1d6bd1c72be1faa3776",
+            "sha256:51f6e1e91726429465aff90c56b3cac7645e6ac704c4867eba779a47c8d6c88f",
         )
 
 
