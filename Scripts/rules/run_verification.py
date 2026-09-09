@@ -91,6 +91,7 @@ STRUCTURE_CHECKS = (
     ),
     StructureCheck("media-byte-stream", "verify_media_byte_stream.py"),
     StructureCheck("demux-buffer-policy", "verify_demux_buffer_policy.py"),
+    StructureCheck("subtitle-reads-interruptible", "verify_subtitle_reads_interruptible.py"),
     StructureCheck(
         "media-byte-stream-conformance",
         "verify_media_byte_stream_conformance.py",
