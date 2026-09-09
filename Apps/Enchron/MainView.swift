@@ -184,7 +184,10 @@ public struct MainView: View {
     }
 
     private var browserTabBarVisibility: Visibility {
-        spatialPlatformEffectCoordinator.playerWindowIsPresent ? .hidden : .automatic
+        SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
+            window: .main,
+            playbackResidency: spatialPlatformEffectCoordinator.playbackResidency
+        ) ? .hidden : .automatic
     }
 
     private var browserTabSelection: Binding<AppModel.NavigationTab> {

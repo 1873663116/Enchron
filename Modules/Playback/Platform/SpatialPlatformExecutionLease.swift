@@ -332,6 +332,7 @@ enum SpatialPlatformPlaybackWindowAction: Equatable, Sendable {
 enum SpatialPlatformPushedWindow: Equatable, Sendable {
     case none
     case player
+    case immersiveSpace
 }
 
 enum SpatialPlatformPlaybackWindowPolicy {
@@ -341,8 +342,10 @@ enum SpatialPlatformPlaybackWindowPolicy {
         switch residency {
         case .browsing, .closing:
             .none
-        case .playing:
+        case .playing(.window):
             .player
+        case .playing(.immersiveSpace):
+            .immersiveSpace
         }
     }
 
@@ -383,6 +386,7 @@ enum SpatialPlatformPlaybackWindowPolicy {
             []
         case .enterImmersivePlayback:
             [.openImmersiveSpace]
+                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])
         case .exitImmersivePlayback, .collapseImmersivePlayback:
             isPresent(playerWindowState) ? [] : [.pushPlayerWindow]
         case .normalizeSpatialPlayback(let returnsToPlayer):
@@ -409,9 +413,15 @@ enum SpatialPlatformPlaybackWindowPolicy {
 public enum SpatialPlatformBrowserWindowVisibilityPolicy {
     public static func hidesBrowser(
         window: SpatialPlatformWindowIdentity,
-        playerWindowIsPresent: Bool
+        playbackResidency: PlaybackResidency
     ) -> Bool {
-        window == .main && playerWindowIsPresent
+        guard window == .main else { return false }
+        switch playbackResidency {
+        case .browsing:
+            return false
+        case .playing, .closing:
+            return true
+        }
     }
 }
 

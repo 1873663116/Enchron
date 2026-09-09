@@ -82,9 +82,11 @@ struct EnchronApp: App {
         )
         .windowStyle(.plain)
         .persistentSystemOverlays(
-            application.spatialPlatformEffectCoordinator.playerWindowIsPresent
-                ? .hidden
-                : .automatic
+            SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
+                window: .main,
+                playbackResidency: application.spatialPlatformEffectCoordinator
+                    .playbackResidency
+            ) ? .hidden : .automatic
         )
         .windowResizability(.contentSize)
 
@@ -210,7 +212,7 @@ private struct WindowSceneGate<Content: View>: View {
     private var hidesBrowser: Bool {
         SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
             window: window,
-            playerWindowIsPresent: spatialPlatformEffectCoordinator.playerWindowIsPresent
+            playbackResidency: spatialPlatformEffectCoordinator.playbackResidency
         )
     }
 

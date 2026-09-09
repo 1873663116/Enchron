@@ -207,13 +207,8 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var windowCapabilityIDs: [SpatialPlatformWindowIdentity: UUID] = [:]
     @ObservationIgnored
-    private var playerWindowState = SpatialPlatformPlayerWindowState.absent {
-        didSet {
-            playerWindowIsPresent =
-                SpatialPlatformPlaybackWindowPolicy.isPresent(playerWindowState)
-        }
-    }
-    public private(set) var playerWindowIsPresent = false
+    private var playerWindowState = SpatialPlatformPlayerWindowState.absent
+    public private(set) var playbackResidency = PlaybackResidency.browsing
 
     public private(set) var lastPlatformOperation = "none"
     public private(set) var lastExecutionCheckpoint = "none"
@@ -1291,12 +1286,15 @@ public final class SpatialPlatformEffectCoordinator {
     }
 
     public func applyPlaybackResidency(_ residency: PlaybackResidency) {
+        playbackResidency = residency
         let transition: SpatialPlatformPlaybackWindowTransition
         switch SpatialPlatformPlaybackWindowPolicy.pushedWindow(for: residency) {
         case .player:
             transition = .startWindowPlayback
         case .none:
             transition = .leaveWindowPlayback
+        case .immersiveSpace:
+            return
         }
         for action in SpatialPlatformPlaybackWindowPolicy.actions(
             for: transition,

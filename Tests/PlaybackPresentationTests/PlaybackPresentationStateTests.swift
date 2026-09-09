@@ -134,16 +134,22 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    @Test("Entering the immersive space only opens the space; the player window stays where it is")
-    func enteringImmersivePlaybackKeepsThePlayerWindow() {
+    @Test("Entering the immersive space opens the space and then takes the player window down")
+    func enteringImmersivePlaybackDismissesThePlayerWindow() {
         for family in [PresentationContentFamily.flat, .panoramic] {
-            for playerWindowState in [
-                SpatialPlatformPlayerWindowState.absent, .opening, .open, .closing
-            ] {
+            for present in [SpatialPlatformPlayerWindowState.opening, .open] {
                 #expect(
                     SpatialPlatformPlaybackWindowPolicy.actions(
                         for: .enterImmersivePlayback(family),
-                        playerWindowState: playerWindowState
+                        playerWindowState: present
+                    ) == [.openImmersiveSpace, .dismissPlayerWindow]
+                )
+            }
+            for absent in [SpatialPlatformPlayerWindowState.absent, .closing] {
+                #expect(
+                    SpatialPlatformPlaybackWindowPolicy.actions(
+                        for: .enterImmersivePlayback(family),
+                        playerWindowState: absent
                     ) == [.openImmersiveSpace]
                 )
             }
@@ -193,12 +199,25 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("The browser renders nothing while the player window is present")
-    func browserHidesWhileThePlayerWindowIsPresent() {
+    @Test("The browser renders nothing from the first frame of playback until it ends")
+    func browserHidesForTheWholeOfPlayback() {
         typealias Policy = SpatialPlatformBrowserWindowVisibilityPolicy
-        #expect(Policy.hidesBrowser(window: .main, playerWindowIsPresent: true))
-        #expect(Policy.hidesBrowser(window: .player, playerWindowIsPresent: true) == false)
-        #expect(Policy.hidesBrowser(window: .main, playerWindowIsPresent: false) == false)
+        for host in [PlaybackHost.window, .immersiveSpace] {
+            #expect(Policy.hidesBrowser(window: .main, playbackResidency: .playing(host: host)))
+            #expect(
+                Policy.hidesBrowser(
+                    window: .player,
+                    playbackResidency: .playing(host: host)
+                ) == false
+            )
+        }
+        #expect(
+            Policy.hidesBrowser(
+                window: .main,
+                playbackResidency: .closing(since: .now, reason: .backButton)
+            )
+        )
+        #expect(Policy.hidesBrowser(window: .main, playbackResidency: .browsing) == false)
     }
 
     @Test("Every window action names the one scene allowed to issue it")
@@ -214,7 +233,7 @@ struct PlaybackPresentationStateTests {
         typealias Policy = SpatialPlatformPlaybackWindowPolicy
         #expect(Policy.pushedWindow(for: .browsing) == SpatialPlatformPushedWindow.none)
         #expect(Policy.pushedWindow(for: .playing(host: .window)) == .player)
-        #expect(Policy.pushedWindow(for: .playing(host: .immersiveSpace)) == .player)
+        #expect(Policy.pushedWindow(for: .playing(host: .immersiveSpace)) == .immersiveSpace)
         for reason in [
             PlaybackLeaveReason.backButton, .windowClosedByWearer, .failure
         ] {
