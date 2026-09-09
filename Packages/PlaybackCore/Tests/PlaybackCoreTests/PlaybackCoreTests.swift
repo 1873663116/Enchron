@@ -1769,9 +1769,8 @@ private final class ReportedPositions: @unchecked Sendable {
 @Suite(.serialized)
 struct RendererLeadBudgetTests {
     @Test func theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling() {
-        let plenty = Int.max
         let floor = RendererLeadBudget.frames(
-            reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: nil, availableMemoryBytes: plenty
+            reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: nil, memoryPressure: .normal
         )
         #expect(floor == 3 + RendererLeadBudget.schedulingSlackFrames)
 
@@ -1779,18 +1778,18 @@ struct RendererLeadBudgetTests {
             reorderDepth: 3,
             isRemoteSource: false,
             secondsSinceDeliveryStart: RendererLeadBudget.rampSeconds / 2,
-            availableMemoryBytes: plenty
+            memoryPressure: .normal
         )
         #expect(halfway > floor)
         #expect(halfway < RendererLeadBudget.localMaximumFrames)
 
         let local = RendererLeadBudget.frames(
-            reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
+            reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: 10, memoryPressure: .normal
         )
         #expect(local == RendererLeadBudget.localMaximumFrames)
 
         let remote = RendererLeadBudget.frames(
-            reorderDepth: 3, isRemoteSource: true, secondsSinceDeliveryStart: 10, availableMemoryBytes: plenty
+            reorderDepth: 3, isRemoteSource: true, secondsSinceDeliveryStart: 10, memoryPressure: .normal
         )
         #expect(remote == RendererLeadBudget.remoteMaximumFrames)
         #expect(remote > local)
@@ -1798,20 +1797,57 @@ struct RendererLeadBudgetTests {
 
     @Test func theLeadBudgetNeverSitsBelowTheEncoderReorderDepth() {
         let deepReorder = RendererLeadBudget.frames(
-            reorderDepth: 40, isRemoteSource: false, secondsSinceDeliveryStart: 10, availableMemoryBytes: Int.max
+            reorderDepth: 40, isRemoteSource: false, secondsSinceDeliveryStart: 10, memoryPressure: .normal
         )
         #expect(deepReorder == 40 + RendererLeadBudget.schedulingSlackFrames)
     }
 
-    @Test func theLeadBudgetFallsToTheFloorWhenMemoryRunsLow() {
-        let starved = RendererLeadBudget.frames(
-            reorderDepth: 1,
-            isRemoteSource: true,
-            secondsSinceDeliveryStart: 10,
-            availableMemoryBytes: RendererLeadBudget.lowMemoryFloorBytes - 1
+    @Test func theLeadBudgetStepsDownUnderSystemPressureAndStopsAtSixteen() {
+        func ramped(_ pressure: RendererLeadBudget.MemoryPressure) -> Int {
+            RendererLeadBudget.frames(
+                reorderDepth: 1,
+                isRemoteSource: true,
+                secondsSinceDeliveryStart: 10,
+                memoryPressure: pressure
+            )
+        }
+
+        #expect(ramped(.normal) == RendererLeadBudget.remoteMaximumFrames)
+        #expect(ramped(.warning) == RendererLeadBudget.warningCeilingFrames)
+        #expect(ramped(.critical) == RendererLeadBudget.criticalCeilingFrames)
+
+        // Critical is the bottom of the ladder, not the reorder floor: past this the picture
+        // is starved for tens of megabytes, and a footprint still climbing here is our leak.
+        #expect(ramped(.critical) > RendererLeadBudget.floorFrames(reorderDepth: 1))
+        #expect(ramped(.warning) > ramped(.critical))
+        #expect(ramped(.normal) > ramped(.warning))
+    }
+
+    @Test func theCorrectnessFloorOutranksEveryStepOfTheMemoryLadder() {
+        // A stream whose reorder depth puts the paused-seek floor above the ladder keeps the
+        // frames that seek needs, however short of memory the system says it is.
+        for pressure in [
+            RendererLeadBudget.MemoryPressure.normal, .warning, .critical
+        ] {
+            for reorderDepth in 0...40 {
+                let floor = RendererLeadBudget.floorFrames(reorderDepth: reorderDepth)
+                let ceiling = RendererLeadBudget.ceilingFrames(
+                    reorderDepth: reorderDepth,
+                    isRemoteSource: false,
+                    memoryPressure: pressure
+                )
+                #expect(ceiling >= min(floor, RendererLeadBudget.localMaximumFrames))
+            }
+        }
+    }
+
+    @Test func theLeadBudgetIgnoresTheProcessAllowanceThatOnlyOurOwnGrowthMoves() {
+        // The allowance is the limit minus our footprint, so it falls because we grew. The
+        // ladder must not read it; only the system's own pressure signal moves the ceiling.
+        let underPlenty = RendererLeadBudget.frames(
+            reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: 10, memoryPressure: .normal
         )
-        #expect(starved == RendererLeadBudget.floorFrames(reorderDepth: 1))
-        #expect(starved < RendererLeadBudget.remoteMaximumFrames)
+        #expect(underPlenty == RendererLeadBudget.localMaximumFrames)
     }
 
     @Test func theLeadFloorAdmitsTheFramesAPausedSeekNeedsToSettle() {

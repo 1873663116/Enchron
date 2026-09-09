@@ -45,6 +45,12 @@ extension SampleBufferPlaybackSession {
         diagnostics.rendererError = currentVideoRendererError ?? "none"
         diagnostics.demuxBuffer = demuxSession?.bufferDiagnostics()
         diagnostics.videoLeadFramesBudget = videoLeadFrames
+        diagnostics.videoLeadFramesCeiling = RendererLeadBudget.maximumFrames(
+            isRemoteSource: sourceIsRemote
+        )
+        diagnostics.videoLeadMemoryPressure = String(
+            describing: MemoryPressureMonitor.shared.current
+        )
         diagnostics.videoEnqueueLeadMinSeconds = videoEnqueueLeadWindowMinSeconds
         diagnostics.videoEnqueueGapMaxSeconds = videoEnqueueGapWindowMaxSeconds
         diagnostics.lateVideoEnqueueCount = lateVideoEnqueueCount
@@ -265,6 +271,8 @@ extension SampleBufferPlaybackSession {
         diagnostics.sourcePixelFormat = "compressed"
         diagnostics.destinationPixelFormat = fourCC(CMFormatDescriptionGetMediaSubType(format))
         diagnostics.dimensions = "\(dimensions.width)×\(dimensions.height)"
+        diagnostics.videoPixelWidth = Int(dimensions.width)
+        diagnostics.videoPixelHeight = Int(dimensions.height)
         diagnostics.videoGeometry = PlaybackVideoGeometry(formatDescription: format)
         diagnostics.colorPrimaries = extensionString(extensions, key: kCMFormatDescriptionExtension_ColorPrimaries)
         diagnostics.transferFunction = extensionString(extensions, key: kCMFormatDescriptionExtension_TransferFunction)

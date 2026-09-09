@@ -1206,7 +1206,7 @@ extension SampleBufferPlaybackSession {
             reorderDepth: diagnostics.videoReorderDepth,
             isRemoteSource: sourceIsRemote,
             secondsSinceDeliveryStart: elapsed,
-            availableMemoryBytes: ProcessMemory.availableBytes
+            memoryPressure: MemoryPressureMonitor.shared.current
         )
     }
 

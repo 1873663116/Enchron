@@ -4,7 +4,7 @@
 
 ## 渲染器超前预算的单位
 
-`RendererLeadBudget` 按**帧数**计量交付循环可以跑在时间线前面多远：从地板起步，稳定交付 1.5 秒后升到来源上限，本地 32 帧、远程 48 帧；进程可用内存跌破 512 MB 时退回地板。它不再按解码字节算。
+`RendererLeadBudget` 按**帧数**计量交付循环可以跑在时间线前面多远：从地板起步，稳定交付 1.5 秒后升到来源上限，本地 32 帧、远程 48 帧；系统内存压力把上限降到 24 帧（warning）或 16 帧（critical）。它不再按解码字节算，也不再读进程可用内存。
 
 地板是 `max(reorder 深度, 2) + 2`，由停播 seek 决定：时间线在目标之后要再收到 `max(reorder 深度, 2) + 1` 帧（解码器的输出滞后加一）才落到目标上，目标帧本身也占 gate 一个名额，所以 gate 至少要放 `max(reorder 深度, 2) + 2` 帧，否则停播 seek 永远停在关键帧的时间上，位置与字幕都停在那里。`pausedSeekCoverageIsSettled` 与地板共用 `RendererLeadBudget.outputLagFrames`，断言 `theLeadFloorAdmitsTheFramesAPausedSeekNeedsToSettle` 把这条关系钉住。
 
@@ -40,7 +40,45 @@ seek 的代价仍然随持有帧数超线性增长（2026-08-22 在 8K60 上测�
 
 冲刷随在飞帧数线性增长，4K 每帧约 2.5 ms、8K 每帧约 5.5 ms；32 帧已经到达显示计数的饱和点，再往上只在每次 seek 里多付这段时间。远程来源多给到 48 帧，换传输抖动的余量。`Scripts/verification/renderer_lead_sweep.py` 在真机上按给定预算序列重复这组测量。
 
-断言在 `PlaybackCoreTests`：`theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling`、`theLeadBudgetNeverSitsBelowTheEncoderReorderDepth`、`theLeadBudgetFallsToTheFloorWhenMemoryRunsLow`。
+## 内存压力下的降档
+
+2026-09-09 之前的规则是一道悬崖：`os_proc_available_memory()` 跌破 512 MB 就把预算退回地板。这条规则是这份文档里唯一没有实测出处的常数，而它与同一份文档里的两张表相矛盾——8K 在地板（4 帧）上每秒只显示 21 帧，在 24 帧上显示 46 帧，换来的是约 183 MB。它也没有回滞，而爬坡需要 1.5 秒，所以进入与退出会以几秒为周期来回震荡。
+
+替换后的阶梯只有两档，触发信号也换了：
+
+| 档 | 上限 | 触发 |
+|---|---|---|
+| 正常 | 本地 32 / 远程 48 | 默认 |
+| warning | 24 | `DispatchSource` 内存压力 warning |
+| critical | 16 | 同上 critical |
+
+第一档是免费的：上面那张扫描表里 24 帧与 32 帧的显示帧率没有差别（4K60 十比特 45–52 对 48–51，8K 在 24 帧就是 46），而 24 帧每次 seek 少冲刷 8 帧，8K 上约 44 ms。第二档 16 帧是阶梯的底，不再往下走到地板：再往下是用几十 MB 换掉一半画面帧率，而 footprint 在这之后仍然增长意味着我们自己在泄漏，饿死画面只会把它盖住。
+
+`floorFrames` 仍然压过每一档——它是停播 seek 的正确性下界，不是降级目标；reorder 深度深到让地板高于 16 的流，按地板给。爬坡起点也留在地板，与压力无关：它存在的理由是连续拖动时让在飞帧数保持低位，每次 seek 的冲刷才便宜。
+
+**进程可用内存不再是这条阶梯的输入。** 它等于额度减去 footprint，而额度不因别的进程忙起来而缩小，所以它下降几乎总是我们自己长出来的。它触发的应该是告警与缓存释放，不是静默降档——后者恰好掩盖了该被发现的问题。
+
+`MemoryPressureMonitor` 持有 `DispatchSource` 并给抬升的档位加 10 秒驻留（`releaseDwellSeconds`），压力消失后不立即回落，避免与 1.5 秒爬坡形成拍频；`setOverride` 给测试与设备扫描钉住档位。当前档位写进 `PlaybackDiagnostics.videoLeadMemoryPressure`，而 `videoLeadFramesCeiling` 保持来源自身的上限，读数因此是 `16/32` 而不是自洽的 `16/16`。
+
+断言在 `PlaybackCoreTests`：`theLeadBudgetRampsFromTheReorderFloorToTheSourceCeiling`、`theLeadBudgetNeverSitsBelowTheEncoderReorderDepth`、`theLeadBudgetStepsDownUnderSystemPressureAndStopsAtSixteen`、`theCorrectnessFloorOutranksEveryStepOfTheMemoryLadder`、`theLeadBudgetIgnoresTheProcessAllowanceThatOnlyOurOwnGrowthMoves`。
+
+2026-09-09 在真机上用 `renderer_lead_sweep.py` 扫过 `HNVR-158_H_4096p_8K_LR_180_clip`（4096p 8K 左右眼 180），补上了这两档的代价：
+
+| 预读 | 显示帧率中位 | 最低 | 样本 | 轮次 |
+|---|---|---|---|---|
+| 16 | 34.8 | 0.0 | 19 | A |
+| 24 | 46.6 | 41.5 | 16 | A |
+| 24 | 44.0 | 6.0 | 12 | C |
+| 32 | 45.6 | 39.9 | 17 | B |
+| 32 | 43.6 | 36.5 | 15 | C |
+
+**24 与 32 在显示帧率上无法区分**，两轮独立测量都是如此，C 轮更是在同一轮内相邻测得 44.0 对 43.6。warning 档因此确实不花帧率，这条成立。
+
+**16 帧在 8K 上要付约四分之一的显示帧率**（34.8 对 46.6）。critical 档不是免费的，它只是远好过旧规则退回的地板——同一片源上地板给出 21 帧。这是内存真正紧张时愿意付的代价，不是常态。
+
+这一轮**没能分离出预算本身对 footprint 的影响**。三轮里 footprint 都随会话时间单调上升，与预算的升降无关：A 轮升序读到 307／492／499 MB，B 轮降序读到 468／478／484 MB，C 轮升序读到 315／494 MB。窗口内的 footprint 峰值由预热主导，要测预算的内存代价需要另设计一轮（每档冷启、等 footprint 稳定后再采）。
+
+因此常态上限是否该从 32 降到 24 仍未定：帧率上二者等价已经证实，但支持 24 的理由只剩 seek 冲刷，而冲刷数据只有 A 轮干净（16 帧 71.6–99.1 ms，24 帧 76.2–102.9 ms，32 帧 137.8–162.4 ms），B、C 两轮的冲刷区间互相重叠。要动这个上限，需要一轮专门测冲刷的扫描。
 
 ## 交付滞后恢复的实测数字
 
