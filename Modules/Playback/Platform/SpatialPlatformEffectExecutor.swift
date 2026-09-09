@@ -50,21 +50,10 @@ enum SpatialPlatformPresentationFailurePolicy {
     }
 }
 
-public enum SpatialPlatformResidentWindowPolicy {
-    public static func contentSize(matching mainWindowSize: CGSize?) -> CGSize? {
-        guard let mainWindowSize,
-              mainWindowSize.width > 0,
-              mainWindowSize.height > 0 else {
-            return nil
-        }
-        return mainWindowSize
-    }
-}
-
 enum SpatialPlatformPlayerWindowClosurePolicy {
     static func stopsPlayback(
         hasActivePlaybackRequest: Bool,
-        playerWindowStateBeforeDisconnect: SpatialPlatformResidentWindowState
+        playerWindowStateBeforeDisconnect: SpatialPlatformPlayerWindowState
     ) -> Bool {
         hasActivePlaybackRequest && playerWindowStateBeforeDisconnect != .closing
     }
@@ -218,12 +207,8 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var windowCapabilityIDs: [SpatialPlatformWindowIdentity: UUID] = [:]
     @ObservationIgnored
-    private var residentWindowState = SpatialPlatformResidentWindowState.absent
-    @ObservationIgnored
-    private var playerWindowState = SpatialPlatformResidentWindowState.absent
-    @ObservationIgnored
+    private var playerWindowState = SpatialPlatformPlayerWindowState.absent
 
-    public private(set) var residentWindowContentSize: CGSize?
     public private(set) var lastPlatformOperation = "none"
     public private(set) var lastExecutionCheckpoint = "none"
     public private(set) var executionAttemptCount: UInt64 = 0
@@ -291,8 +276,6 @@ public final class SpatialPlatformEffectCoordinator {
             mainWindowScene = nil
         case .player:
             playerWindowScene = nil
-        case .immersivePlaybackResident:
-            break
         }
         let playerWindowStateBeforeDisconnect = playerWindowState
         recordWindowResidency(.closed, for: window)
@@ -348,7 +331,7 @@ public final class SpatialPlatformEffectCoordinator {
             windowCapabilityIDs[windowIdentity] = nil
         }
         let preferredFallbackID: UUID? = switch windowIdentity {
-        case .immersivePlaybackResident, .player:
+        case .player:
             windowCapabilityIDs[.player] ?? windowCapabilityIDs[.main]
         case .main, nil:
             nil
@@ -445,15 +428,13 @@ public final class SpatialPlatformEffectCoordinator {
         _ residency: SpatialPlatformWindowResidency,
         for window: SpatialPlatformWindowIdentity
     ) {
-        let observedState: SpatialPlatformResidentWindowState = switch residency {
+        let observedState: SpatialPlatformPlayerWindowState = switch residency {
         case .open:
             .open
         case .closed:
             .absent
         }
         switch window {
-        case .immersivePlaybackResident:
-            residentWindowState = observedState
         case .player:
             playerWindowState = observedState
         case .main:
@@ -490,8 +471,6 @@ public final class SpatialPlatformEffectCoordinator {
         case .player:
             playerWindowScene = windowScene
             applyPlayerWindowDestructionConditions()
-        case .immersivePlaybackResident:
-            break
         }
     }
 
@@ -1283,8 +1262,7 @@ public final class SpatialPlatformEffectCoordinator {
     ) async -> Bool {
         let actions = SpatialPlatformPlaybackWindowPolicy.actions(
             for: transition,
-            playerWindowState: playerWindowState,
-            residentWindowState: residentWindowState
+            playerWindowState: playerWindowState
         )
         for action in actions {
             let performed: Bool = switch action {
@@ -1300,16 +1278,6 @@ public final class SpatialPlatformEffectCoordinator {
                     .player,
                     execution: execution
                 )
-            case .pushImmersiveResidentWindow:
-                await pushWindowAndWaitForAppearance(
-                    .immersivePlaybackResident,
-                    execution: execution
-                )
-            case .dismissImmersiveResidentWindow:
-                await dismissWindowAndWaitForDisappearance(
-                    .immersivePlaybackResident,
-                    execution: execution
-                )
             }
             guard performed else { return false }
         }
@@ -1323,22 +1291,17 @@ public final class SpatialPlatformEffectCoordinator {
             transition = .startWindowPlayback
         case .none:
             transition = .leaveWindowPlayback
-        case .immersiveResident:
-            return
         }
         for action in SpatialPlatformPlaybackWindowPolicy.actions(
             for: transition,
-            playerWindowState: playerWindowState,
-            residentWindowState: residentWindowState
+            playerWindowState: playerWindowState
         ) {
             switch action {
             case .pushPlayerWindow:
                 issuePushedWindow(.player)
             case .dismissPlayerWindow:
                 issueDismissPushedWindow(.player)
-            case .openImmersiveSpace,
-                 .pushImmersiveResidentWindow,
-                 .dismissImmersiveResidentWindow:
+            case .openImmersiveSpace:
                 break
             }
         }
@@ -1357,18 +1320,6 @@ public final class SpatialPlatformEffectCoordinator {
             return false
         }
         switch window {
-        case .immersivePlaybackResident:
-            residentWindowState = .opening
-            residentWindowContentSize =
-                SpatialPlatformResidentWindowPolicy.contentSize(
-                    matching: connectedWindowScene(.main)?
-                        .effectiveGeometry.coordinateSpace.bounds.size
-                )
-            appModel.recordSurfaceInputProbe(
-                "immersivePlaybackResident-window-size"
-                    + " width=\(residentWindowContentSize?.width ?? 0)"
-                    + " height=\(residentWindowContentSize?.height ?? 0)"
-            )
         case .player:
             playerWindowState = .opening
         case .main:
@@ -1396,8 +1347,6 @@ public final class SpatialPlatformEffectCoordinator {
             return false
         }
         switch window {
-        case .immersivePlaybackResident:
-            residentWindowState = .closing
         case .player:
             playerWindowState = .closing
         case .main:

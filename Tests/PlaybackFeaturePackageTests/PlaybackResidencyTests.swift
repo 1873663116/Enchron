@@ -188,7 +188,7 @@ struct PlaybackResidencyTests {
         #expect(
             SpatialPlatformPlaybackWindowPolicy.pushedWindow(
                 for: runtime.residency
-            ) == .immersiveResident
+            ) == .player
         )
         #expect(
             SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(

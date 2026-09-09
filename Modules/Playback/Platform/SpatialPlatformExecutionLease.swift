@@ -252,7 +252,6 @@ struct SpatialPlatformImmersiveSpaceObservation {
 public enum SpatialPlatformWindowIdentity: String, CaseIterable, Hashable, Sendable {
     case main
     case player
-    case immersivePlaybackResident
 }
 
 public enum SpatialPlatformWindowResidency: Equatable, Sendable {
@@ -260,7 +259,7 @@ public enum SpatialPlatformWindowResidency: Equatable, Sendable {
     case closed
 }
 
-enum SpatialPlatformResidentWindowState: Equatable, Sendable {
+enum SpatialPlatformPlayerWindowState: Equatable, Sendable {
     case absent
     case opening
     case open
@@ -319,17 +318,13 @@ enum SpatialPlatformPlaybackWindowAction: Equatable, Sendable {
     case openImmersiveSpace
     case dismissPlayerWindow
     case pushPlayerWindow
-    case pushImmersiveResidentWindow
-    case dismissImmersiveResidentWindow
 
     var issuingWindow: SpatialPlatformWindowIdentity {
         switch self {
         case .openImmersiveSpace, .dismissPlayerWindow:
             .player
-        case .pushPlayerWindow, .pushImmersiveResidentWindow:
+        case .pushPlayerWindow:
             .main
-        case .dismissImmersiveResidentWindow:
-            .immersivePlaybackResident
         }
     }
 }
@@ -337,7 +332,6 @@ enum SpatialPlatformPlaybackWindowAction: Equatable, Sendable {
 enum SpatialPlatformPushedWindow: Equatable, Sendable {
     case none
     case player
-    case immersiveResident
 }
 
 enum SpatialPlatformPlaybackWindowPolicy {
@@ -347,10 +341,8 @@ enum SpatialPlatformPlaybackWindowPolicy {
         switch residency {
         case .browsing, .closing:
             .none
-        case .playing(.window):
+        case .playing:
             .player
-        case .playing(.immersiveSpace):
-            .immersiveResident
         }
     }
 
@@ -380,60 +372,30 @@ enum SpatialPlatformPlaybackWindowPolicy {
 
     static func actions(
         for transition: SpatialPlatformPlaybackWindowTransition,
-        playerWindowState: SpatialPlatformResidentWindowState,
-        residentWindowState: SpatialPlatformResidentWindowState
+        playerWindowState: SpatialPlatformPlayerWindowState
     ) -> [SpatialPlatformPlaybackWindowAction] {
         switch transition {
         case .startWindowPlayback:
-            isPresent(playerWindowState) || isPresent(residentWindowState)
-                ? []
-                : [.pushPlayerWindow]
+            isPresent(playerWindowState) ? [] : [.pushPlayerWindow]
         case .leaveWindowPlayback:
             isPresent(playerWindowState) ? [.dismissPlayerWindow] : []
         case .playerWindowClosedByWearer:
             []
         case .enterImmersivePlayback:
             [.openImmersiveSpace]
-                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])
-                + (isPresent(residentWindowState)
-                    ? []
-                    : [.pushImmersiveResidentWindow])
         case .exitImmersivePlayback, .collapseImmersivePlayback:
-            leaveImmersiveActions(
-                returnsToPlayer: true,
-                playerWindowState: playerWindowState,
-                residentWindowState: residentWindowState
-            )
+            isPresent(playerWindowState) ? [] : [.pushPlayerWindow]
         case .normalizeSpatialPlayback(let returnsToPlayer):
-            leaveImmersiveActions(
-                returnsToPlayer: returnsToPlayer,
-                playerWindowState: playerWindowState,
-                residentWindowState: residentWindowState
-            )
-        }
-    }
-
-    private static func leaveImmersiveActions(
-        returnsToPlayer: Bool,
-        playerWindowState: SpatialPlatformResidentWindowState,
-        residentWindowState: SpatialPlatformResidentWindowState
-    ) -> [SpatialPlatformPlaybackWindowAction] {
-        var actions: [SpatialPlatformPlaybackWindowAction] = []
-        if isPresent(residentWindowState) {
-            actions.append(.dismissImmersiveResidentWindow)
-        }
-        if returnsToPlayer {
-            if isPresent(playerWindowState) == false {
-                actions.append(.pushPlayerWindow)
+            if returnsToPlayer {
+                isPresent(playerWindowState) ? [] : [.pushPlayerWindow]
+            } else {
+                isPresent(playerWindowState) ? [.dismissPlayerWindow] : []
             }
-        } else if isPresent(playerWindowState) {
-            actions.append(.dismissPlayerWindow)
         }
-        return actions
     }
 
     private static func isPresent(
-        _ state: SpatialPlatformResidentWindowState
+        _ state: SpatialPlatformPlayerWindowState
     ) -> Bool {
         switch state {
         case .absent, .closing:

@@ -213,49 +213,15 @@ public struct MainView: View {
     }
 }
 
-enum PlaybackIssuePresentationScope {
-    case location(PlaybackIssuePresentationLocation)
-    case immersiveResident
-
-    func resolve(
-        _ issue: PlaybackUserVisibleIssue
-    ) -> PlaybackIssuePresentationLocation? {
-        switch self {
-        case .location(let location):
-            return issue.canPresent(at: location) ? location : nil
-        case .immersiveResident:
-            if issue.canPresent(at: .immersiveSpace) {
-                return .immersiveSpace
-            }
-            if issue.canPresent(at: .playerDeck) {
-                return .playerDeck
-            }
-            return nil
-        }
-    }
-}
-
 extension View {
     func playbackIssueAlert(
         at location: PlaybackIssuePresentationLocation,
         onRetry: @escaping () -> Void = {},
         onClose: @escaping () -> Void = {}
     ) -> some View {
-        playbackIssueAlert(
-            in: .location(location),
-            onRetry: onRetry,
-            onClose: onClose
-        )
-    }
-
-    func playbackIssueAlert(
-        in scope: PlaybackIssuePresentationScope,
-        onRetry: @escaping () -> Void = {},
-        onClose: @escaping () -> Void = {}
-    ) -> some View {
         modifier(
             PlaybackIssueAlertModifier(
-                scope: scope,
+                location: location,
                 onRetry: onRetry,
                 onClose: onClose
             )
@@ -267,7 +233,7 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
 
-    let scope: PlaybackIssuePresentationScope
+    let location: PlaybackIssuePresentationLocation
     let onRetry: () -> Void
     let onClose: () -> Void
 
@@ -276,7 +242,7 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
         location: PlaybackIssuePresentationLocation
     )? {
         guard let issue = playbackRuntime.userVisibleIssue,
-              let location = scope.resolve(issue) else { return nil }
+              issue.canPresent(at: location) else { return nil }
         return (issue, location)
     }
 

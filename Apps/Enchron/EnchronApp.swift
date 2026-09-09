@@ -104,40 +104,6 @@ struct EnchronApp: App {
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.suppressed)
 
-        WindowGroup(
-            "Immersive Playback Resident",
-            id: SpatialPlatformWindowIdentity
-                .immersivePlaybackResident.rawValue
-        ) {
-            ImmersivePlaybackResidentRoot()
-                .enchronEnvironment(application)
-                .windowSceneReporting { windowScene in
-                    application.spatialPlatformEffectCoordinator
-                        .recordWindowScene(windowScene, for: .immersivePlaybackResident)
-                }
-                .onAppear {
-                    application.spatialPlatformEffectCoordinator
-                        .recordWindowResidency(
-                            .open,
-                            for: .immersivePlaybackResident
-                        )
-                }
-                .onDisappear {
-                    application.spatialPlatformEffectCoordinator
-                        .recordWindowResidency(
-                            .closed,
-                            for: .immersivePlaybackResident
-                        )
-                }
-                .persistentSystemOverlays(.hidden)
-        }
-        .windowStyle(.plain)
-        .defaultSize(ImmersiveResidentWindowLayout.fallbackSize)
-        .windowResizability(.contentSize)
-        .restorationBehavior(.disabled)
-        .defaultLaunchBehavior(.suppressed)
-        .persistentSystemOverlays(.hidden)
-
 #if DEBUG
         WindowGroup("Blackout Probe", id: "blackoutProbe") {
             Color.clear.frame(width: 760, height: 220)
@@ -267,46 +233,6 @@ private struct WindowSceneGate<Content: View>: View {
             guard isOrphaned == false else { return }
             spatialPlatformEffectCoordinator
                 .recordWindowResidency(.closed, for: window)
-        }
-    }
-}
-
-private struct ImmersivePlaybackResidentRoot: View {
-    @Environment(PlaybackSessionModel.self) private var playbackSession
-    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    @Environment(SpatialPlatformEffectCoordinator.self)
-    private var spatialPlatformEffectCoordinator
-    @State private var isStoppingPlayback = false
-
-    private var contentSize: CGSize {
-        spatialPlatformEffectCoordinator.residentWindowContentSize
-            ?? ImmersiveResidentWindowLayout.fallbackSize
-    }
-
-    var body: some View {
-        Color.clear
-            .frame(width: contentSize.width, height: contentSize.height)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            .background {
-                SpatialPlatformEffectExecutor(
-                    windowIdentity: .immersivePlaybackResident
-                )
-            }
-            .playbackIssueAlert(
-                in: .immersiveResident,
-                onRetry: playbackLauncher.retryPlayback,
-                onClose: stopSpatialPlayback
-            )
-    }
-
-    private func stopSpatialPlayback() {
-        guard isStoppingPlayback == false else { return }
-        isStoppingPlayback = true
-        Task { @MainActor in
-            defer { isStoppingPlayback = false }
-            await playbackLauncher.stopPlaybackAndWait(reason: .failure)
-            playbackSession.requestStoppedPlaybackCleanup()
         }
     }
 }
