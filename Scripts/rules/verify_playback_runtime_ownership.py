@@ -18,6 +18,16 @@ a reference to `activeDriver` says exactly that it is.
 `MediaFormatInterpreter` is checked from the other direction: it is a pure
 domain component, so it must not import the playback engine or a platform
 media framework at all.
+
+Leaving playback is one entry with one stated reason. `leavePlayback` and
+`leavePlaybackAndWait` are called from `PlaybackLaunchCoordinator` and from the
+runtime itself; a view, a scene or the application wiring reaching past the
+coordinator is how the reason gets lost. The unqualified `stop` the coordinator
+used to forward is gone, so no product source may call it.
+
+The page the main window shows is decided from `PlaybackResidency`, not from
+`hasActivePlaybackRequest` plus the scene state, and the close the runtime runs
+is bounded by `PlaybackCloseBudget.deadline`.
 """
 
 from __future__ import annotations
@@ -31,8 +41,17 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 RUNTIME_SOURCE = "Modules/Playback/PlaybackRuntime.swift"
 INTERPRETER_SOURCE = "Modules/Playback/Domain/MediaFormatInterpreter.swift"
+COORDINATOR_SOURCE = "Modules/Playback/PlaybackLaunchCoordinator.swift"
+PAGE_SOURCE = "Apps/Enchron/MainView.swift"
+PRODUCT_ROOTS = ("Apps", "Modules")
 
 COMMENT = re.compile(r"^\s*(//|\*|/\*)")
+LEAVE_CALL = re.compile(r"\.\s*leavePlayback(?:AndWait)?\s*\(")
+LEGACY_STOP_CALL = re.compile(r"\bplaybackRuntime\s*\.\s*stop\s*\(")
+BROWSER_PAGE_POLICY = re.compile(
+    r"static\s+func\s+showsBrowser\s*\(\s*\n\s*residency:\s*PlaybackResidency"
+)
+CLOSE_BUDGET = re.compile(r"\bPlaybackCloseBudget\s*\.\s*deadline\b")
 
 
 @dataclass(frozen=True)
@@ -125,8 +144,88 @@ def interpreter_failures() -> list[str]:
     return failures
 
 
+def product_sources() -> list[Path]:
+    found: list[Path] = []
+    for root in PRODUCT_ROOTS:
+        base = REPOSITORY_ROOT / root
+        if not base.is_dir():
+            continue
+        found.extend(sorted(base.rglob("*.swift")))
+    return found
+
+
+def leave_entry_failures() -> list[str]:
+    permitted = {RUNTIME_SOURCE, COORDINATOR_SOURCE}
+    failures = []
+    for path in product_sources():
+        relative = path.relative_to(REPOSITORY_ROOT).as_posix()
+        if relative in permitted:
+            continue
+        for number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            if not line.strip() or COMMENT.match(line):
+                continue
+            if LEAVE_CALL.search(line):
+                failures.append(
+                    f"{relative}:{number}: leave-entry: leaving playback goes "
+                    f"through PlaybackLaunchCoordinator, not through "
+                    f"PlaybackRuntime directly ({line.strip()[:70]})"
+                )
+    return failures
+
+
+def legacy_stop_failures() -> list[str]:
+    failures = []
+    for path in product_sources():
+        relative = path.relative_to(REPOSITORY_ROOT).as_posix()
+        for number, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            if not line.strip() or COMMENT.match(line):
+                continue
+            if LEGACY_STOP_CALL.search(line):
+                failures.append(
+                    f"{relative}:{number}: leave-reason: stopping playback "
+                    f"without a PlaybackLeaveReason is gone; call "
+                    f"leavePlayback(reason:) ({line.strip()[:70]})"
+                )
+    return failures
+
+
+def page_authority_failures() -> list[str]:
+    path = REPOSITORY_ROOT / PAGE_SOURCE
+    if not path.is_file():
+        return [f"{PAGE_SOURCE} is absent"]
+    if BROWSER_PAGE_POLICY.search(path.read_text(encoding="utf-8")):
+        return []
+    return [
+        f"{PAGE_SOURCE}: page-authority: BrowserWindowSurfacePolicy.showsBrowser "
+        f"decides the page from PlaybackResidency, not from the scene state"
+    ]
+
+
+def close_budget_failures() -> list[str]:
+    path = REPOSITORY_ROOT / RUNTIME_SOURCE
+    if not path.is_file():
+        return [f"{RUNTIME_SOURCE} is absent"]
+    if CLOSE_BUDGET.search(path.read_text(encoding="utf-8")):
+        return []
+    return [
+        f"{RUNTIME_SOURCE}: close-budget: the close the runtime runs is bounded "
+        f"by PlaybackCloseBudget.deadline"
+    ]
+
+
 def failures() -> list[str]:
-    return runtime_failures() + interpreter_failures()
+    return (
+        runtime_failures()
+        + interpreter_failures()
+        + leave_entry_failures()
+        + legacy_stop_failures()
+        + page_authority_failures()
+        + close_budget_failures()
+    )
 
 
 def main() -> int:
@@ -138,8 +237,10 @@ def main() -> int:
         return 1
     print(
         "Playback ownership holds: the runtime picks no driver, holds no session "
-        "or transfer internals, decides no format policy, and the interpreter "
-        "imports neither the engine nor a platform media framework"
+        "or transfer internals, decides no format policy, the interpreter "
+        "imports neither the engine nor a platform media framework, leaving "
+        "playback states its reason through one entry, the page follows "
+        "PlaybackResidency and the close is bounded"
     )
     return 0
 

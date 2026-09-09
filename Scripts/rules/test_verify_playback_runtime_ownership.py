@@ -39,6 +39,48 @@ public struct MediaFormatInterpreter {
 }
 """
 
+CLEAN_COORDINATOR = """import Foundation
+
+@MainActor
+public final class PlaybackLaunchCoordinator {
+    public func stopPlayback(reason: PlaybackLeaveReason) {
+        playbackRuntime.leavePlayback(reason: reason)
+    }
+}
+"""
+
+CLEAN_PAGE = """import SwiftUI
+
+enum BrowserWindowSurfacePolicy {
+    static func showsBrowser(
+        residency: PlaybackResidency,
+        transitionIsActive: Bool
+    ) -> Bool {
+        switch residency {
+        case .browsing, .closing:
+            true
+        case .playing(let host):
+            transitionIsActive == false && host == .window
+        }
+    }
+}
+"""
+
+CLEAN_VIEW = """import SwiftUI
+
+struct PlayerInfoBarView: View {
+    var body: some View {
+        Button("Back") { launcher.stopPlayback(reason: .backButton) }
+    }
+}
+"""
+
+BUDGETED_CLOSE = """
+extension PlaybackRuntime {
+    func closeDeadline() -> Duration { PlaybackCloseBudget.deadline }
+}
+"""
+
 
 class PlaybackOwnershipTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -50,6 +92,9 @@ class PlaybackOwnershipTests(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.runtime(CLEAN_RUNTIME)
         self.interpreter(CLEAN_INTERPRETER)
+        self.write(checker.COORDINATOR_SOURCE, CLEAN_COORDINATOR)
+        self.write(checker.PAGE_SOURCE, CLEAN_PAGE)
+        self.write("Modules/Playback/Views/PlayerInfoBarView.swift", CLEAN_VIEW)
 
     def write(self, relative: str, contents: str) -> None:
         path = self.repository / relative
@@ -57,7 +102,7 @@ class PlaybackOwnershipTests(unittest.TestCase):
         path.write_text(contents, encoding="utf-8")
 
     def runtime(self, contents: str) -> None:
-        self.write(checker.RUNTIME_SOURCE, contents)
+        self.write(checker.RUNTIME_SOURCE, contents + BUDGETED_CLOSE)
 
     def interpreter(self, contents: str) -> None:
         self.write(checker.INTERPRETER_SOURCE, contents)
@@ -126,6 +171,65 @@ class PlaybackOwnershipTests(unittest.TestCase):
         self.interpreter("import RealityKit\n" + CLEAN_INTERPRETER)
 
         self.assertIn("must not import RealityKit", " ".join(checker.failures()))
+
+    def test_a_view_that_leaves_playback_directly_fails(self) -> None:
+        self.write(
+            "Modules/Playback/Views/PlayerInfoBarView.swift",
+            CLEAN_VIEW.replace(
+                "launcher.stopPlayback(reason: .backButton)",
+                "runtime.leavePlayback(reason: .backButton)",
+            ),
+        )
+
+        self.assertIn("leave-entry", " ".join(checker.failures()))
+
+    def test_the_scene_wiring_awaiting_a_leave_directly_fails(self) -> None:
+        self.write(
+            "Apps/Enchron/EnchronApplication.swift",
+            "await playbackRuntime.leavePlaybackAndWait(reason: .failure)\n",
+        )
+
+        self.assertIn("leave-entry", " ".join(checker.failures()))
+
+    def test_the_coordinator_leaving_playback_passes(self) -> None:
+        self.assertEqual(checker.failures(), [])
+
+    def test_a_leave_call_inside_a_comment_is_ignored(self) -> None:
+        self.write(
+            "Modules/Playback/Views/PlayerInfoBarView.swift",
+            CLEAN_VIEW + "// runtime.leavePlayback(reason: .backButton)\n",
+        )
+
+        self.assertEqual(checker.failures(), [])
+
+    def test_a_source_that_still_stops_the_runtime_fails(self) -> None:
+        self.write(
+            "Modules/Playback/Views/WindowPlayerDeck.swift",
+            "playbackRuntime.stop(releasingSourceAccess: true)\n",
+        )
+
+        self.assertIn("leave-reason", " ".join(checker.failures()))
+
+    def test_a_page_policy_that_reads_the_scene_state_fails(self) -> None:
+        self.write(
+            checker.PAGE_SOURCE,
+            CLEAN_PAGE.replace(
+                "residency: PlaybackResidency",
+                "hasActivePlaybackRequest: Bool",
+            ),
+        )
+
+        self.assertIn("page-authority", " ".join(checker.failures()))
+
+    def test_an_absent_page_fails(self) -> None:
+        (self.repository / checker.PAGE_SOURCE).unlink()
+
+        self.assertIn("MainView.swift is absent", " ".join(checker.failures()))
+
+    def test_an_unbounded_close_fails(self) -> None:
+        self.write(checker.RUNTIME_SOURCE, CLEAN_RUNTIME)
+
+        self.assertIn("close-budget", " ".join(checker.failures()))
 
     def test_an_absent_runtime_fails(self) -> None:
         (self.repository / checker.RUNTIME_SOURCE).unlink()
