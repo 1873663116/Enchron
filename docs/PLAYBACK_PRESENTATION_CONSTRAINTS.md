@@ -49,7 +49,8 @@
 
 ## 饥饿指示画在画面上
 
-- **播放中饥饿（`loadingStage == .starved`）只叠加转圈与读速率，不清空画面**。窗口与 Portal 由主窗口画布的 ZStack 叠加 `LoadingSpinner`，并像控件一样抬高 `coincidentChromeDepth`：不抬高时它与视频网格共面，保持住的那一帧会盖住它（2026-09-09 真机截图）。Dock 与 Panorama 由 `ImmersiveSpaceView` 的第二个 RealityView 附件承担，挂在字幕所在的父实体上：Dock 在屏幕中心前 2.5 cm，Panorama 在字幕跟随根正前 2.2 m；只在饥饿且无转场时启用，启用写入与其他实体一样进探针日志。打开阶段仍是原来的整窗加载。
+- **播放中饥饿与 seek（`loadingStage == .starved` 或 `.seeking`）只叠加转圈与读速率，不清空画面**。窗口与 Portal 由主窗口画布的 ZStack 叠加 `LoadingSpinner`，并像控件一样抬高 `coincidentChromeDepth`：不抬高时它与视频网格共面，保持住的那一帧会盖住它（2026-09-09 真机截图）。视频表面本身不看加载态（`windowSurfaceIsActive` 只读 residency 与绑定策略），所以转圈画在 seek 保持住的那一帧之上，而不是换掉它。Dock 与 Panorama 由 `ImmersiveSpaceView` 的第二个 RealityView 附件承担，挂在字幕所在的父实体上：Dock 在屏幕中心前 2.5 cm，Panorama 在字幕跟随根正前 2.2 m；只在饥饿或 seek 且无转场时启用，启用写入与其他实体一样进探针日志。打开阶段仍是原来的整窗加载。
+- **seek 的指示要等 `PlaybackSeekIndicationDelay.duration = 0.5 s` 才出现**。seek 停住时间线并作废看门狗，饥饿观测因此不可能在 seek 期间到达，`.seeking` 是四个呈现共用的唯一来源。发布挂在 runtime 已有的 seek 代次上：`seek` 与 `skip` 起一个去抖任务，下一次 seek 取消它并重新计时，任务在发布前复核代次与 `seekIsInProgress`，seek 完成、失败或被取代时由该代次的收尾清除。半秒的界是给人看的——本地 seek 在几十毫秒内落定，画一下就消失的转圈比不画更糟；慢驱动器上的 seek 现在按进展而不是固定五秒收场（见 `docs/PLAYBACK_ENGINE_CONSTRAINTS.md`），因此指示要能存活到 seek 真正结束。seek 期间到达的饥饿观测被丢弃，`endSeek` 只从 `.seeking` 回到 `.none`，所以完成的 seek 不会清掉它之后开始的饥饿。断言见 `aSeekLongerThanTheIndicationDelayShowsTheSeekingStageInEveryPresentation`、`aSeekShorterThanTheIndicationDelayShowsNothing`、`aCompletedSeekClearsTheSeekingStage`、`aSupersedingSeekRestartsTheIndicationDelay`（`Tests/PlaybackFeaturePackageTests/PlaybackLoadingStateTests.swift`）与 `immersiveStallIndicatorShowsStarvationAndSeeking`（`Tests/PlaybackPresentationTests/PlaybackPresentationStateTests.swift`）。
 
 ## 沉浸空间的几何与输入
 

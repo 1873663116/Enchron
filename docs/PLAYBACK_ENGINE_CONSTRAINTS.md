@@ -51,7 +51,9 @@ seek 的代价仍然随持有帧数超线性增长（2026-08-22 在 8K60 上测�
 - `deliveryLagRecoveryLeadSeconds = 1.0`：起点是 mpv 的一秒欠载恢复参考。同一条 2026-08-17 基线显示，把目标放到五秒会在远程 4K HEVC + TrueHD 上造成 6.8–13.1 秒的停顿。
 - `opportunisticAudioMaximumLeadSeconds`：音频仍按媒体秒设界。解码音频体积小、渲染器 flush 便宜，对视频帧错误的那个单位在这里是对的。
 
-`audioPrerollTimeout` 与 `seekTargetCoordinationTimeout` 的五秒是 **provider 或渲染器故障的界，不是缓冲媒体的策略**；5 毫秒轮询让激活在该界内保持响应。二者同为五秒是历史巧合，分开命名以免与已删除的"五秒媒体储备"混淆。
+`audioPrerollTimeout` 的五秒是 **provider 或渲染器故障的界，不是缓冲媒体的策略**；5 毫秒轮询让激活在该界内保持响应。它与 `seekProgressStallTimeout` 同为五秒是历史巧合，分开命名以免与已删除的"五秒媒体储备"混淆。
+
+`seekProgressStallTimeout = 5 s` 从**最后一次观察到进展**起算，不是从等待开始起算，seek 的两条协调循环（视频与纯音频）都没有绝对上界。进展指四个信号中任意一个发生变化：会话 `sourceReadMeter.totalBytesRead` 增加、`lastVideoSample` 换了 `sourceEventID` 或呈现时间、`lastAudioSample` 换了流 epoch 或呈现时间、`lastAcceptedRendererInput` 换了 `sourceEventID` 或流 epoch。取消与关闭仍然当场中断等待。绝对上界是错的判据：2026-09-09 真机上 seek 到 999.9 s 落在 990.57 s 的关键帧，驱动器给出 4.3 MB/s 而该流需要 7.4 MB/s，到达目标要约 16 秒；五秒时解码样本数正从 745 走到 866，seek 仍在推进，却以 `seekTimedOut` 报错、记录失败、关闭会话，画面冻在原处。等待超过五秒墙钟而仍有进展时发一次 `session.seek.stalled seconds=<target> lastProgressMs=<n>`，慢而活着的 seek 因此在 trace 里可见；真正停摆时的失败记录带上 `progressAgeMilliseconds`，说明距上一次进展有多久。断言见 `aSeekThatKeepsMakingProgressCompletesAfterTheOldDeadline` 与 `aSeekWithNoProgressFailsAfterTheStallTimeout`（`Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift`）。
 
 恢复要求为什么被帧预算封顶：交付 gate 最多持有 `leadFrames` 个 presentation end 落在时间线之后的帧；跨越 `timelineTime` 的那一帧在它之后不足一帧就结束，所以这些帧能达到的最深 end 比 `leadFrames / nominalFrameRate` 少一帧。要求整段跨度，就是提出一个 gate 永远无法满足的条件。音频有自己按媒体秒的 gate，因此不受该封顶影响——否则恰好在读取最慢的那些流上放弃实测得到的恢复储备。断言见 `deliveryLagRecoveryNeverAsksForMoreThanTheGateAdmits`。
 
