@@ -78,7 +78,12 @@ struct PBFFmpegDemuxSource {
     bool stopsReadThread;
     bool reachedEnd;
     int readResult;
-    PBFFmpegSourceReadContext sourceReadContext;
+    // Two stable slots: FFmpeg copies the interrupt callback, opaque
+    // included, into every URLContext it opens, so a read context has to
+    // outlive its format context. A reconnect opens the replacement in the
+    // slot the live context is not using and swaps the pointer.
+    PBFFmpegSourceReadContext readContexts[2];
+    PBFFmpegSourceReadContext *sourceReadContext;
     AVFormatContext *formatContext;
     PBFFmpegPacketQueue *queues;
     unsigned int queueCount;
@@ -345,7 +350,6 @@ void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor) {
     free(monitor);
 }
 
-
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     const PBFFmpegSourceReadMonitor *monitor
 ) {
@@ -517,23 +521,26 @@ static int64_t demux_source_resume_timestamp(
 
 static int reopen_demux_source(PBFFmpegDemuxSource *source) {
     int64_t resumeTimestamp = demux_source_resume_timestamp(source);
-    PBFFmpegSourceReadContext replacementReadContext = {
-        .monitor = source->sourceReadContext.monitor,
-    };
+    PBFFmpegSourceReadContext *replacementReadContext =
+        source->sourceReadContext == &source->readContexts[0]
+            ? &source->readContexts[1]
+            : &source->readContexts[0];
+    memset(replacementReadContext, 0, sizeof(*replacementReadContext));
+    replacementReadContext->monitor = source->sourceReadContext->monitor;
     AVFormatContext *replacement = allocate_format_context(
         &source->interrupted,
-        &replacementReadContext
+        replacementReadContext
     );
     if (!replacement) return AVERROR(ENOMEM);
     int result = open_media_source(
         &replacement,
         source->path,
-        &replacementReadContext
+        replacementReadContext
     );
     if (result >= 0) {
         result = read_stream_information(
             replacement,
-            &replacementReadContext,
+            replacementReadContext,
             NULL
         );
     }
@@ -556,15 +563,15 @@ static int reopen_demux_source(PBFFmpegDemuxSource *source) {
             INT64_MAX,
             AVSEEK_FLAG_BACKWARD
         );
-        publish_source_bytes(&replacementReadContext);
+        publish_source_bytes(replacementReadContext);
     }
     if (result < 0) {
-        close_media_source(&replacement, &replacementReadContext);
+        close_media_source(&replacement, replacementReadContext);
         return result;
     }
     pthread_mutex_lock(&source->lock);
     AVFormatContext *previous = source->formatContext;
-    PBFFmpegSourceReadContext previousReadContext = source->sourceReadContext;
+    PBFFmpegSourceReadContext *previousReadContext = source->sourceReadContext;
     source->formatContext = replacement;
     source->sourceReadContext = replacementReadContext;
     source->knownByteLength = knownByteLength;
@@ -574,7 +581,7 @@ static int reopen_demux_source(PBFFmpegDemuxSource *source) {
             source->replayThroughTimestamps[index] == AV_NOPTS_VALUE;
     }
     pthread_mutex_unlock(&source->lock);
-    close_media_source(&previous, &previousReadContext);
+    close_media_source(&previous, previousReadContext);
     return 0;
 }
 
@@ -602,7 +609,7 @@ static void *demux_source_read_loop(void *opaque) {
         if (stop) break;
 
         int result = av_read_frame(source->formatContext, packet);
-        publish_source_bytes(&source->sourceReadContext);
+        publish_source_bytes(source->sourceReadContext);
 
         pthread_mutex_lock(&source->lock);
         source->readFrameCount++;
@@ -1393,7 +1400,7 @@ PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen(
         PBFFmpegMonitoredSourceClose(&source);
         return NULL;
     }
-    result = read_stream_information(source->formatContext, &source->readContext, NULL);
+    result = finalize_stream_information(source->formatContext, &source->readContext, true);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read monitored source stream information", result);
         PBFFmpegMonitoredSourceClose(&source);
@@ -3797,10 +3804,11 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         return NULL;
     }
     source->path = av_strdup(path);
-    source->sourceReadContext.monitor = monitor;
+    source->sourceReadContext = &source->readContexts[0];
+    source->sourceReadContext->monitor = monitor;
     source->formatContext = allocate_format_context(
         &source->interrupted,
-        &source->sourceReadContext
+        source->sourceReadContext
     );
     if (!source->path || !source->formatContext) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg demux context");
@@ -3810,7 +3818,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     int result = open_media_source(
         &source->formatContext,
         path,
-        &source->sourceReadContext
+        source->sourceReadContext
     );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open demux media source", result);
@@ -3820,7 +3828,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     PBStreamInformationRead informationRead = {0};
     result = read_stream_information(
         source->formatContext,
-        &source->sourceReadContext,
+        source->sourceReadContext,
         &informationRead
     );
     if (result < 0) {
@@ -3838,7 +3846,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     if (needsAudioProbe && informationRead.skippedProbe) {
         result = finalize_stream_information(
             source->formatContext,
-            &source->sourceReadContext,
+            source->sourceReadContext,
             true
         );
         if (result < 0) {
@@ -3849,7 +3857,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     }
     if (needsAudioProbe) {
         probe_delayed_audio_parameters(source->formatContext);
-        publish_source_bytes(&source->sourceReadContext);
+        publish_source_bytes(source->sourceReadContext);
         result = avformat_seek_file(
             source->formatContext,
             -1,
@@ -3906,6 +3914,13 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     return source;
 }
 
+bool PBFFmpegDemuxSourceInterruptTargetsOwnReadContext(
+    const PBFFmpegDemuxSource *source
+) {
+    return source && source->formatContext &&
+        source->formatContext->interrupt_callback.opaque == source->sourceReadContext;
+}
+
 void PBFFmpegDemuxSourceInterrupt(PBFFmpegDemuxSource *source) {
     if (!source) return;
     atomic_store_explicit(
@@ -3933,7 +3948,7 @@ void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {
     free(source->lastQueuedTimestamps);
     free(source->replayThroughTimestamps);
     free(source->replayCaughtUp);
-    close_media_source(&source->formatContext, &source->sourceReadContext);
+    close_media_source(&source->formatContext, source->sourceReadContext);
     av_free(source->path);
     pthread_cond_destroy(&source->changed);
     pthread_mutex_destroy(&source->lock);
@@ -3987,7 +4002,7 @@ bool PBFFmpegDemuxSourceSeek(
         INT64_MAX,
         AVSEEK_FLAG_BACKWARD
     );
-    publish_source_bytes(&source->sourceReadContext);
+    publish_source_bytes(source->sourceReadContext);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Seek demux media source", result);
         return false;
@@ -6615,17 +6630,6 @@ static bool configure_subtitle_reader(
         return false;
     }
     return true;
-}
-
-PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
-    const char *path,
-    int streamIndex,
-    char *errorBuffer,
-    size_t errorBufferSize
-) {
-    return PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
-        path, streamIndex, errorBuffer, errorBufferSize, NULL
-    );
 }
 
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(

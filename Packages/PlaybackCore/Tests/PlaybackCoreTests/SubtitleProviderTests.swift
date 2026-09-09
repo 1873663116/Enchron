@@ -68,7 +68,7 @@ import Testing
     ) != nil)
 }
 
-@Test func sharedSourceSubtitleRendererIngestsOnDemandInsteadOfScanningTheSource() async throws {
+@Test func sharedSourceSubtitleRendererFoldsInQueuedCuesWithoutDuplicatesAfterASeek() async throws {
     let fixture = try subtitleFixtureURL()
     let meter = PlaybackSourceReadMeter()
     let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
@@ -118,7 +118,7 @@ import Testing
     #expect(try renderer.ingestPendingCues(for: track).isEmpty)
 }
 
-@Test func aSubtitleRendererCreatedAfterAForwardSeekCarriesCuesFromTheSeekTarget() async throws {
+@Test func aSubtitleRendererCreatedAfterAForwardSeekReceivesTheCuesThatFollow() async throws {
     let fixture = try subtitleFixtureURL()
     let meter = PlaybackSourceReadMeter()
     let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
@@ -187,7 +187,13 @@ import Testing
         url: server.url,
         sourceTransport: .remoteByteStream(buffering: .automatic)
     )
-    try await Task.sleep(for: .milliseconds(300))
+    var settledBytes = meter.totalBytesRead
+    for _ in 0..<50 {
+        try await Task.sleep(for: .milliseconds(100))
+        let bytes = meter.totalBytesRead
+        if bytes == settledBytes { break }
+        settledBytes = bytes
+    }
     let connectionsBeforeSelection = server.connections
     let rangesBeforeSelection = server.ranges
 

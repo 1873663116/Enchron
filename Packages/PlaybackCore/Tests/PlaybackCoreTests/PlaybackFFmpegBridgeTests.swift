@@ -1486,8 +1486,13 @@ private func requireBitstreamExtradataBootstrap(
             "\(name): the open never reached the stalled range request"
         )
         PBFFmpegSourceReadMonitorInterrupt(monitor)
+        let returnedAfterInterrupt = finished.wait(timeout: .now() + .seconds(2)) == .success
+        if !returnedAfterInterrupt {
+            server.stop()
+            finished.wait()
+        }
         #expect(
-            finished.wait(timeout: .now() + .seconds(2)) == .success,
+            returnedAfterInterrupt,
             "\(name): the open kept waiting on the stalled source after the interrupt"
         )
         #expect(opened.succeeded == false, "\(name): an interrupted open returned a reader")
@@ -1511,6 +1516,32 @@ private final class OpenOutcome: @unchecked Sendable {
     }
 }
 
+@Test func aSubtitleDocumentCutOffMidReadFailsInsteadOfReturningAShorterTrack() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try #require(
+        Bundle.module.url(
+            forResource: "subtitle-subrip",
+            withExtension: "mkv",
+            subdirectory: "Fixtures"
+        )
+    )
+    let server = try RecordingRangeServer(
+        serving: try Data(contentsOf: fixture),
+        responseChunkSize: 512
+    )
+    defer { server.stop() }
+    nonisolated(unsafe) let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
+    defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
+    server.disconnectOnce(afterSendingAdditionalBytes: 2_048)
+    var error = [CChar](repeating: 0, count: 512)
+    let renderer = server.url.absoluteString.withCString { path in
+        PBSubtitleFrameRendererCreate(path, 1, monitor, &error, error.count)
+    }
+    defer { PBSubtitleFrameRendererDestroy(renderer) }
+    #expect(renderer == nil, "a document whose read failed mid-way produced a renderer")
+    #expect(!cString(error).isEmpty)
+}
+
 @Test func embeddedSubRipCuesPreserveTimingUTF8AndLineBreaks() throws {
     silenceFFmpegDiagnostics()
     let fixture = try #require(
@@ -1522,7 +1553,7 @@ private final class OpenOutcome: @unchecked Sendable {
     )
     var error = [CChar](repeating: 0, count: 512)
     let reader = fixture.path.withCString { path in
-        PBFFmpegSubtitleReaderCreate(path, 1, &error, error.count)
+        PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(path, 1, &error, error.count, nil)
     }
     let activeReader = try #require(reader, Comment(rawValue: cString(error)))
     defer { PBFFmpegSubtitleReaderDestroy(activeReader) }

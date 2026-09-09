@@ -115,6 +115,13 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     size_t errorBufferSize
 );
 void PBFFmpegDemuxSourceInterrupt(PBFFmpegDemuxSource *source);
+// True when the live format context's interrupt callback points at the read
+// context the source owns. A reconnect that opened its replacement with a
+// read context on the stack leaves this false, and every later interrupt
+// poll on that context reads a dead frame.
+bool PBFFmpegDemuxSourceInterruptTargetsOwnReadContext(
+    const PBFFmpegDemuxSource *source
+);
 void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source);
 PBFFmpegMediaSourceInformation *PBFFmpegDemuxSourceCopyInformation(
     PBFFmpegDemuxSource *source,
@@ -371,12 +378,6 @@ int PBFFmpegAudioReaderGetChannelCount(const PBFFmpegAudioReader *reader);
 const char *PBFFmpegAudioReaderGetCodecName(const PBFFmpegAudioReader *reader);
 bool PBFFmpegAudioReaderOutputsPCM(const PBFFmpegAudioReader *reader);
 
-PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
-    const char *path,
-    int streamIndex,
-    char *errorBuffer,
-    size_t errorBufferSize
-);
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
     const char *path,
     int streamIndex,

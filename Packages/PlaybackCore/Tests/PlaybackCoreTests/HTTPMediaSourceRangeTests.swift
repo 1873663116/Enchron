@@ -336,6 +336,72 @@ struct DemuxNetworkResilienceTests {
         )
     }
 
+    @Test func interruptingAReconnectedSourceStopsItsReadThread() throws {
+        setFFmpegLogLevel(-8)
+        let server = try RecordingRangeServer(
+            serving: try Data(contentsOf: resilienceFixture),
+            responseChunkSize: 4_096,
+            responseChunkDelay: 0.02
+        )
+        defer { server.stop() }
+        var error = [CChar](repeating: 0, count: 512)
+        let source = server.url.absoluteString.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0, true, defaultDemuxBufferConfiguration(isRemote: true),
+                nil, &error, error.count
+            )
+        }
+        let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
+        let reader = try #require(PBFFmpegReaderAllocate())
+        try #require(PBFFmpegReaderOpenWithDemuxSource(
+            reader,
+            openedSource,
+            PBFFmpegModeCompressed,
+            &error,
+            error.count
+        ))
+
+        server.disconnectOnce(afterSendingAdditionalBytes: 64 * 1_024)
+        var reconnected = false
+        for _ in 0..<1_000 where !reconnected {
+            var sample: Unmanaged<CMSampleBuffer>?
+            let result = PBFFmpegReaderCopyNextSample(reader, &sample, &error, error.count)
+            sample?.release()
+            guard result == PBFFmpegReadResultSample else { break }
+            reconnected = PBFFmpegDemuxSourceGetReconnectAttemptCount(openedSource) == 1
+        }
+        guard reconnected else {
+            PBFFmpegReaderDestroy(reader)
+            PBFFmpegDemuxSourceDestroy(openedSource)
+            Issue.record("the source never reconnected")
+            return
+        }
+        #expect(
+            PBFFmpegDemuxSourceInterruptTargetsOwnReadContext(openedSource),
+            "the reconnected context's interrupt callback points away from the source's read context"
+        )
+
+        // Pause the body so the reconnected context's read thread sits in a
+        // transport wait, then tear the source down: the interrupt has to
+        // reach that wait through the callback FFmpeg copied at reconnect.
+        server.pauseResponses()
+        Thread.sleep(forTimeInterval: 0.3)
+        PBFFmpegReaderDestroy(reader)
+        let destroyed = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) let sourceToDestroy = openedSource
+        Thread.detachNewThread {
+            PBFFmpegDemuxSourceDestroy(sourceToDestroy)
+            destroyed.signal()
+        }
+        let destroyedPromptly = destroyed.wait(timeout: .now() + .seconds(3)) == .success
+        server.resumeResponses()
+        if !destroyedPromptly { destroyed.wait() }
+        #expect(
+            destroyedPromptly,
+            "destroying the reconnected source waited on its read thread after the interrupt"
+        )
+    }
+
     @Test func sharedDemuxReportsErrorOnlyAfterFiniteReconnectAttemptsAreExhausted() throws {
         setFFmpegLogLevel(-8)
         let server = try RecordingRangeServer(

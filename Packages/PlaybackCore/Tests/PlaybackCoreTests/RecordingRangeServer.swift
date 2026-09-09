@@ -17,6 +17,8 @@ final class RecordingRangeServer: @unchecked Sendable {
     private let responseChunkSize: Int
     private let responseChunkDelay: TimeInterval
     private var stallsNextResponse = false
+    private var pausesResponses = false
+    private let pausedResponse = DispatchSemaphore(value: 0)
     private let stalledResponse = DispatchSemaphore(value: 0)
     private let releaseStalledResponse = DispatchSemaphore(value: 0)
 
@@ -100,16 +102,30 @@ final class RecordingRangeServer: @unchecked Sendable {
     }
 
     func stop() {
-        let connections = lock.withLock {
-            listening = false
-            return Array(activeConnections)
+        let (wasListening, connections) = lock.withLock {
+            defer { listening = false }
+            return (listening, Array(activeConnections))
         }
+        guard wasListening else { return }
         for connection in connections {
             shutdown(connection, SHUT_RDWR)
         }
         releaseStalledResponse.signal()
+        resumeResponses()
         shutdown(socket, SHUT_RDWR)
         close(socket)
+    }
+
+    func pauseResponses() {
+        lock.withLock { pausesResponses = true }
+    }
+
+    func resumeResponses() {
+        let resumes = lock.withLock {
+            defer { pausesResponses = false }
+            return pausesResponses
+        }
+        if resumes { pausedResponse.signal() }
     }
 
     func stallNextRangeResponse() {
@@ -251,6 +267,11 @@ final class RecordingRangeServer: @unchecked Sendable {
             }
             if responseChunkDelay > 0, offset < body.count {
                 Thread.sleep(forTimeInterval: responseChunkDelay)
+            }
+            if lock.withLock({ pausesResponses }) {
+                pausedResponse.wait()
+                pausedResponse.signal()
+                guard lock.withLock({ listening }) else { return false }
             }
         }
         return true
