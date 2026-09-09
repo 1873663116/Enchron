@@ -370,6 +370,7 @@ struct DemuxNetworkResilienceTests {
             guard result == PBFFmpegReadResultSample else { break }
             reconnected = PBFFmpegDemuxSourceGetReconnectAttemptCount(openedSource) == 1
         }
+        reconnected = reconnected || PBFFmpegDemuxSourceGetReconnectAttemptCount(openedSource) == 1
         guard reconnected else {
             PBFFmpegReaderDestroy(reader)
             PBFFmpegDemuxSourceDestroy(openedSource)
