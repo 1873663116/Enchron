@@ -1096,6 +1096,11 @@
       "context": "docked",
       "operation": "accessibility:PlayerPanel-precision-timeline-back",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-toggle-{id}",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",
