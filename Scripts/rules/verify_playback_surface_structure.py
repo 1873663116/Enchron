@@ -503,12 +503,21 @@ def main() -> int:
         "dropped while video is visible, so playback needs its own window again",
     )
     require(
-        "openWindow(id: SpatialPlatformWindowIdentity.main" not in platform_executor
-        and "dismissWindow(id: SpatialPlatformWindowIdentity.main" not in platform_executor
+        "dismissWindow(id: SpatialPlatformWindowIdentity.main" not in platform_executor
         and "reconcilePlaybackWindowPresentation" not in platform_executor
-        and "UIApplication.shared.openSessions" not in platform_executor,
-        "the executor opens or dismisses the main window; the single Window is "
-        "always present unless the resident window is pushed over it",
+        and "UIApplication.shared.openSessions" not in platform_executor
+        and platform_executor.count(
+            "openWindow(id: SpatialPlatformWindowIdentity.main"
+        ) == 1
+        and order(
+            platform_executor,
+            "private func reopenMainWindowAfterWearerClose(",
+            "actions.openWindow(id: SpatialPlatformWindowIdentity.main.rawValue)",
+        ),
+        "the executor dismisses the main window, or opens it outside the one "
+        "recovery the wearer's own close leaves no other way out of; the single "
+        "Window is otherwise always present unless the resident window is "
+        "pushed over it",
     )
     require(
         order(
@@ -544,13 +553,56 @@ def main() -> int:
             "onMainWindowClosedByWearer?()",
         )
         and order(
+            platform_executor,
+            "recordWindowResidency(.closed, for: .main)",
+            "SpatialPlatformMainWindowClosurePolicy.stopsPlayback(",
+            "if stopsPlayback {",
+            "onMainWindowClosedByWearer?()",
+            "applyWindowPlaybackResidency(",
+            "for: .mainWindowClosedByWearer(stopsPlayback: stopsPlayback)",
+        )
+        and order(
             application,
             "spatialPlatformEffectCoordinator.onMainWindowClosedByWearer = {",
-            "SpatialPlatformMainWindowClosurePolicy.stopsPlayback(",
             "launcher?.stopPlayback(reason: .windowClosedByWearer)",
         ),
         "closing the main window from the window bar no longer stops playback "
-        "hosted in that window",
+        "hosted in that window, or stops it without asking the window playback "
+        "residency for the recovery that brings the browser back",
+    )
+    require(
+        order(
+            platform_executor,
+            "private func applyWindowPlaybackResidency(",
+            "SpatialPlatformWindowPlaybackResidencyPolicy.action(",
+            "case .openResidentWindow:",
+            "case .dismissResidentWindow:",
+            "case .reopenMainWindowThenDismissResidentWindow:",
+            "await self?.reopenMainWindowAfterWearerClose()",
+        )
+        and order(
+            platform_executor,
+            "public func setMainWindowHostsPlayback(",
+            "applyWindowPlaybackResidency(",
+            "for: hostsPlayback ? .windowPlaybackStarted : .playbackEnded",
+        )
+        and order(
+            platform_executor,
+            "private func dismissWindowPlaybackResidentWindow(",
+            "SpatialPlatformWindowPlaybackResidencyPolicy.mayDismissResidentWindow(",
+            "mainWindowIsOpen: mainWindowIsOpen",
+            "windowPlaybackResidentDismissalIsPending = true",
+        )
+        and order(
+            platform_executor,
+            "private func reopenMainWindowAfterWearerClose(",
+            "guard await waitForMainWindowResidency() else {",
+            "dismissWindowPlaybackResidentWindow(reason: \"wearerCloseRecovered\")",
+        ),
+        "the window playback resident window no longer covers the whole "
+        "playback, or its dismissal no longer waits for the main window to come "
+        "back; a wearer close then leaves the app with no window at all and "
+        "visionOS backgrounds it, where it cannot open one",
     )
     require(
         order(
@@ -564,20 +616,46 @@ def main() -> int:
             "ImmersivePlaybackResidentRoot()",
             ".windowSceneReporting { windowScene in",
             ".recordWindowScene(windowScene, for: .immersivePlaybackResident)",
+        )
+        and order(
+            app_scene,
+            "WindowPlaybackResidentRoot()",
+            ".windowSceneReporting { windowScene in",
+            ".recordWindowScene(windowScene, for: .windowPlaybackResident)",
+            ".recordWindowResidency(",
+            ".open,",
+            "for: .windowPlaybackResident",
+            ".recordWindowResidency(",
+            ".closed,",
+            "for: .windowPlaybackResident",
         ),
         "resident window departure trusts the SwiftUI root's onDisappear, which "
         "visionOS delivers seconds after the UIKit scene is gone, so leaving the "
         "immersive space times out and reports a failed conversion",
     )
     require(
-        "case playback" not in execution_lease
+        region(
+            execution_lease,
+            "public enum SpatialPlatformWindowIdentity",
+            "public enum SpatialPlatformWindowResidency",
+        ).count("case ") == 3
+        and order(
+            execution_lease,
+            "public enum SpatialPlatformWindowIdentity",
+            "case main",
+            "case immersivePlaybackResident",
+            "case windowPlaybackResident",
+            "public enum SpatialPlatformWindowResidency",
+        )
         and order(
             execution_lease,
             "case .absent:",
             ".retainMainWindow",
         ),
-        "a playback window identity exists, so a scene root can register for a "
-        "window that must never exist again",
+        "the window identities are no longer main plus the two invisible "
+        "resident windows, so a scene root can register for a second window "
+        "that hosts playback content, which is the split that duplicated the "
+        "main scene and trapped SwiftUI on the next return",
     )
     require(
         "sceneRole" not in main_view
