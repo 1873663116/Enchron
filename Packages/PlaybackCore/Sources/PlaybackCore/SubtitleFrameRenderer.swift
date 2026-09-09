@@ -97,19 +97,6 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         }
         self.renderer = renderer
         self.demuxSession = demuxSession
-        var backlogError = [CChar](repeating: 0, count: 512)
-        let backlog = source.withCString { path in
-            PBSubtitleFrameRendererPreloadBacklogFromPath(
-                renderer,
-                path,
-                &backlogError,
-                backlogError.count
-            )
-        }
-        if backlog < 0 {
-            PBSubtitleFrameRendererDestroy(renderer)
-            throw SubtitleProviderError.open(Self.errorMessage(backlogError))
-        }
     }
 
     deinit {

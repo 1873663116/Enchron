@@ -68,7 +68,7 @@ import Testing
     ) != nil)
 }
 
-@Test func sharedSourceSubtitleRendererPreloadsItsBacklogWithoutDrainingTheVideo() async throws {
+@Test func sharedSourceSubtitleRendererIngestsOnDemandInsteadOfScanningTheSource() async throws {
     let fixture = try subtitleFixtureURL()
     let meter = PlaybackSourceReadMeter()
     let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
@@ -83,26 +83,27 @@ import Testing
     let information = try await loader.load(from: fixture)
     let track = try #require(information.playbackSubtitleTracks.first)
 
-    // Selecting the track preloads the whole subtitle backlog through a
-    // subtitle-only scan, so both cues are present without waiting for the
-    // shared reader to pass them.
-    let cues = try await provider.cues(in: fixture, asset: nil, track: track)
-    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
-    #expect(cues.map(\.id) == ["ffmpeg.subtitle.1.cue.0", "ffmpeg.subtitle.1.cue.1"])
+    // Selecting the track subscribes the stream on the shared source and
+    // returns what its read thread has queued; the rest arrives as the
+    // thread passes it. Nothing opens the file a second time.
+    var cues = try await provider.cues(in: fixture, asset: nil, track: track)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
         asset: nil,
         track: track
     ))
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, cues.count < 2 {
+        cues += try renderer.ingestPendingCues(for: track)
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
+    #expect(cues.map(\.id) == ["ffmpeg.subtitle.1.cue.0", "ffmpeg.subtitle.1.cue.1"])
     #expect(try renderer.frame(
         at: CMTime(seconds: 1, preferredTimescale: 600),
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ) != nil)
-
-    // The backlog scan discards every non-subtitle stream, so it never forces
-    // the live playhead forward: the shared video reader stays at the start.
-    #expect(try #require(demuxSession.bufferDiagnostics()).readFrameCount < 60)
 
     // After a backward seek the shared source re-reads the same packets; the
     // renderer recognises them and produces no duplicate cues.
@@ -117,7 +118,7 @@ import Testing
     #expect(try renderer.ingestPendingCues(for: track).isEmpty)
 }
 
-@Test func aSubtitleRendererCreatedAfterAForwardSeekStillCarriesEarlierCues() async throws {
+@Test func aSubtitleRendererCreatedAfterAForwardSeekCarriesCuesFromTheSeekTarget() async throws {
     let fixture = try subtitleFixtureURL()
     let meter = PlaybackSourceReadMeter()
     let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
@@ -136,20 +137,102 @@ import Testing
     // the way a mid-stream presentation switch starts a fresh technical session.
     try demuxSession.seek(to: 2.5)
 
-    // Selecting the track over the seeked source must still recover the cue at
-    // one second: the renderer preloads the backlog the live subscription skips.
-    let cues = try await provider.cues(in: fixture, asset: nil, track: track)
-    #expect(cues.map(\.text).contains("第一行\n第二行"))
+    // Cues arrive from the seek target forward through the shared source's
+    // queue. A cue that began before the target is only recovered when the
+    // demuxer's backward keyframe landing happens to precede it; nothing
+    // scans the file for it.
+    var cues = try await provider.cues(in: fixture, asset: nil, track: track)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
         asset: nil,
         track: track
     ))
+    let deadline = ContinuousClock.now + .seconds(5)
+    while ContinuousClock.now < deadline, !cues.map(\.text).contains("再见") {
+        cues += try renderer.ingestPendingCues(for: track)
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(cues.map(\.text).contains("再见"))
     #expect(try renderer.frame(
-        at: CMTime(seconds: 1, preferredTimescale: 600),
+        at: CMTime(seconds: 3.5, preferredTimescale: 600),
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ) != nil)
+}
+
+@Test func selectingAnEmbeddedSubtitleOpensNoSecondInputOnTheRemoteSource() async throws {
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: try subtitleFixtureURL()))
+    defer { server.stop() }
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let videoProvider = FFmpegSampleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "shared-subtitle-remote-no-second-input",
+        provider: videoProvider,
+        subtitleProvider: FFmpegSubtitleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    try await session.prepare(
+        url: server.url,
+        sourceTransport: .remoteByteStream(buffering: .automatic)
+    )
+    try await Task.sleep(for: .milliseconds(300))
+    let connectionsBeforeSelection = server.connections
+    let rangesBeforeSelection = server.ranges
+
+    try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1")
+
+    #expect(session.selectedSubtitleTrackID == "ffmpeg.subtitle.1")
+    #expect(
+        server.connections == connectionsBeforeSelection,
+        "selecting an embedded track opened a second connection to the source"
+    )
+    #expect(
+        server.ranges == rangesBeforeSelection,
+        "selecting an embedded track requested ranges of the source again"
+    )
+    videoProvider.cancel()
+    session.close()
+}
+
+@MainActor
+@Test func closingTheControllerWhileASubtitleSelectionIsInFlightSettles() async throws {
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: try subtitleFixtureURL()))
+    defer { server.stop() }
+    let controller = PlaybackCoreController(
+        sessionFactory: { sessionID in SampleBufferPlaybackSession(traceID: sessionID) }
+    )
+    let session = try await controller.open(
+        server.url,
+        sourceTransport: .remoteByteStream(buffering: .automatic)
+    )
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(session.availableSubtitleTracks.map(\.id).contains("ffmpeg.subtitle.1"))
+
+    server.stallNextRangeResponse()
+    let selection = Task { try await controller.selectSubtitleTrack(id: "ffmpeg.subtitle.1") }
+    try await Task.sleep(for: .milliseconds(300))
+
+    let closeStarted = ContinuousClock.now
+    await controller.closeAndWait()
+    let closeDuration = ContinuousClock.now - closeStarted
+    #expect(
+        closeDuration < .seconds(2),
+        "closing waited \(closeDuration) on the in-flight subtitle selection"
+    )
+    server.stop()
+    _ = try? await selection.value
 }
 
 @Test func cancellingASubtitleSelectionReturnsWhileTheRemoteSourceStalls() async throws {
