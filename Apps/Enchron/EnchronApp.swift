@@ -27,7 +27,7 @@ struct EnchronApp: App {
             "Enchron",
             id: "main"
         ) {
-            MainWindowSceneGate {
+            WindowSceneGate(window: .main) {
             Group {
 #if DEBUG
                 if ProcessInfo.processInfo.environment[
@@ -82,6 +82,27 @@ struct EnchronApp: App {
         )
         .windowStyle(.plain)
         .windowResizability(.contentSize)
+
+        WindowGroup(
+            "Player",
+            id: SpatialPlatformWindowIdentity.player.rawValue
+        ) {
+            WindowSceneGate(window: .player) {
+                PlayerView()
+                    .background {
+                        SpatialPlatformEffectExecutor(windowIdentity: .player)
+                    }
+            }
+            .enchronEnvironment(application)
+        }
+        .windowStyle(.plain)
+        .defaultSize(
+            width: BrowserWindowLayout.defaultSize.width,
+            height: BrowserWindowLayout.defaultSize.height
+        )
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
 
         WindowGroup(
             "Immersive Playback Resident",
@@ -192,20 +213,26 @@ struct EnchronApp: App {
     }
 }
 
-private struct MainWindowSceneGate<Content: View>: View {
+private struct WindowSceneGate<Content: View>: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @State private var ownSessionIdentifier: String?
+    private let window: SpatialPlatformWindowIdentity
     private let content: () -> Content
 
-    init(@ViewBuilder content: @escaping () -> Content) {
+    init(
+        window: SpatialPlatformWindowIdentity,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.window = window
         self.content = content
     }
 
     private var isOrphaned: Bool {
-        SpatialPlatformMainWindowScenePolicy.isOrphaned(
+        SpatialPlatformWindowScenePolicy.isOrphaned(
             ownSessionIdentifier: ownSessionIdentifier,
-            liveSessionIdentifier: spatialPlatformEffectCoordinator.liveMainWindowSessionIdentifier
+            liveSessionIdentifier: spatialPlatformEffectCoordinator
+                .liveWindowSessionIdentifiers[window]
         )
     }
 
@@ -221,14 +248,25 @@ private struct MainWindowSceneGate<Content: View>: View {
             if let identifier = windowScene?.session.persistentIdentifier {
                 ownSessionIdentifier = identifier
             }
-            spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
+            spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: window)
         }
         .onChange(of: isOrphaned) { _, orphaned in
             guard orphaned else { return }
             SurfaceInputProbes.record(
-                "mainWindowScene orphaned session=\(ownSessionIdentifier ?? "none")",
+                "windowScene orphaned window=\(window.rawValue)"
+                    + " session=\(ownSessionIdentifier ?? "none")",
                 retention: .evidence
             )
+        }
+        .onAppear {
+            guard isOrphaned == false else { return }
+            spatialPlatformEffectCoordinator
+                .recordWindowResidency(.open, for: window)
+        }
+        .onDisappear {
+            guard isOrphaned == false else { return }
+            spatialPlatformEffectCoordinator
+                .recordWindowResidency(.closed, for: window)
         }
     }
 }

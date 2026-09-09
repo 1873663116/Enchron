@@ -91,16 +91,6 @@ public enum BrowserWindowLayout {
     public static let defaultSize = CGSize(width: 1_536, height: 864)
     static let maximumSize = CGSize(width: 1_808, height: 1_017)
 
-    public static func restoredSize(remembering rememberedSize: CGSize?) -> CGSize {
-        guard let rememberedSize,
-              rememberedSize.width >= minimumSize.width,
-              rememberedSize.height >= minimumSize.height,
-              rememberedSize.width <= maximumSize.width,
-              rememberedSize.height <= maximumSize.height else {
-            return defaultSize
-        }
-        return rememberedSize
-    }
 }
 
 public enum ImmersiveResidentWindowLayout {
@@ -319,14 +309,12 @@ public struct WindowPlaybackRootView<
     TopChrome: View
 >: View {
     @State private var owningWindowScene: UIWindowScene?
-    @State private var windowSizeBeforePlayback: CGSize?
     @State private var lastGeometryRefreshRevision: UInt64 = 0
     @State private var surfaceHeight: CGFloat = 0
     @State private var topChromeHeight: CGFloat = 0
     private let geometryPolicy: WindowPlaybackGeometryPolicy
     private let geometryRefreshRevision: UInt64
     private let preferredInitialSize: CGSize?
-    private let freeformSizeOnDisappear: @MainActor (CGSize?) -> CGSize?
     private let showsWindowChrome: Bool
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let onGeometryRefresh: @MainActor (WindowPlaybackGeometryRefreshEvent) -> Void
@@ -339,7 +327,6 @@ public struct WindowPlaybackRootView<
         geometryPolicy: WindowPlaybackGeometryPolicy,
         geometryRefreshRevision: UInt64 = 0,
         preferredInitialSize: CGSize? = nil,
-        freeformSizeOnDisappear: @escaping @MainActor (CGSize?) -> CGSize? = { _ in nil },
         showsWindowChrome: Bool,
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil,
         onGeometryRefresh: @escaping @MainActor (
@@ -353,7 +340,6 @@ public struct WindowPlaybackRootView<
         self.geometryPolicy = geometryPolicy
         self.geometryRefreshRevision = geometryRefreshRevision
         self.preferredInitialSize = preferredInitialSize
-        self.freeformSizeOnDisappear = freeformSizeOnDisappear
         self.showsWindowChrome = showsWindowChrome
         self.onWindowSceneChange = onWindowSceneChange
         self.onGeometryRefresh = onGeometryRefresh
@@ -377,10 +363,6 @@ public struct WindowPlaybackRootView<
                 WindowPlaybackSceneReader { windowScene in
                     guard owningWindowScene !== windowScene else { return }
                     owningWindowScene = windowScene
-                    if windowSizeBeforePlayback == nil, let windowScene {
-                        windowSizeBeforePlayback = windowScene.effectiveGeometry
-                            .coordinateSpace.bounds.size
-                    }
                     onWindowSceneChange?(windowScene)
                     updateWindowGeometry(in: windowScene)
                     requestGeometryRefreshIfNeeded(in: windowScene)
@@ -391,12 +373,6 @@ public struct WindowPlaybackRootView<
             }
             .onChange(of: geometryRefreshRevision) { _, _ in
                 requestGeometryRefreshIfNeeded(in: owningWindowScene)
-            }
-            .onDisappear {
-                restoreFreeformWindowGeometry(
-                    in: owningWindowScene,
-                    size: freeformSizeOnDisappear(windowSizeBeforePlayback)
-                )
             }
     }
 
@@ -497,37 +473,6 @@ public struct WindowPlaybackRootView<
                 resizingRestrictions: .uniform
             )
         }
-    }
-
-    private func restoreFreeformWindowGeometry(
-        in windowScene: UIWindowScene?,
-        size: CGSize?
-    ) {
-        guard let windowScene else { return }
-        windowScene.requestGeometryUpdate(
-            freeformWindowGeometryPreferences(
-                size: size,
-                minimumSize: size == nil ? nil : BrowserWindowLayout.minimumSize,
-                maximumSize: size == nil ? nil : BrowserWindowLayout.maximumSize
-            )
-        )
-    }
-
-    private func freeformWindowGeometryPreferences(
-        size: CGSize?,
-        minimumSize: CGSize? = nil,
-        maximumSize: CGSize? = nil
-    ) -> UIWindowScene.GeometryPreferences.Vision {
-        let systemDefault = CGSize(
-            width: UIProposedSceneSizeNoPreference,
-            height: UIProposedSceneSizeNoPreference
-        )
-        return UIWindowScene.GeometryPreferences.Vision(
-            size: size,
-            minimumSize: minimumSize ?? systemDefault,
-            maximumSize: maximumSize ?? systemDefault,
-            resizingRestrictions: .uniform
-        )
     }
 }
 

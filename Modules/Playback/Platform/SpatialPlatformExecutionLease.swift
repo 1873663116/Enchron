@@ -46,6 +46,11 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
         currentEntry()?.entry.capability
     }
 
+    func capability(id: UUID) -> Capability? {
+        guard retiredCapabilityIDs.contains(id) == false else { return nil }
+        return capabilities[id]?.capability
+    }
+
     @discardableResult
     mutating func preferCapability(id: UUID) -> Bool {
         guard capabilities[id] != nil,
@@ -246,6 +251,7 @@ struct SpatialPlatformImmersiveSpaceObservation {
 
 public enum SpatialPlatformWindowIdentity: String, CaseIterable, Hashable, Sendable {
     case main
+    case player
     case immersivePlaybackResident
 }
 
@@ -300,35 +306,140 @@ struct SpatialPlatformWindowObservation {
 }
 
 enum SpatialPlatformPlaybackWindowTransition: Equatable, Sendable {
+    case startWindowPlayback
+    case leaveWindowPlayback
+    case playerWindowClosedByWearer
     case enterImmersivePlayback(PresentationContentFamily)
     case exitImmersivePlayback(PresentationContentFamily)
     case collapseImmersivePlayback(PresentationContentFamily)
-    case normalizeSpatialPlayback
+    case normalizeSpatialPlayback(returnsToPlayer: Bool)
 }
 
 enum SpatialPlatformPlaybackWindowAction: Equatable, Sendable {
-    case pushResidentWindow
-    case dismissResidentWindow
-    case retainMainWindow
+    case openImmersiveSpace
+    case dismissPlayerWindow
+    case pushPlayerWindow
+    case pushImmersiveResidentWindow
+    case dismissImmersiveResidentWindow
+
+    var issuingWindow: SpatialPlatformWindowIdentity {
+        switch self {
+        case .openImmersiveSpace, .dismissPlayerWindow:
+            .player
+        case .pushPlayerWindow, .pushImmersiveResidentWindow:
+            .main
+        case .dismissImmersiveResidentWindow:
+            .immersivePlaybackResident
+        }
+    }
+}
+
+enum SpatialPlatformPushedWindow: Equatable, Sendable {
+    case none
+    case player
+    case immersiveResident
 }
 
 enum SpatialPlatformPlaybackWindowPolicy {
-    static func action(
+    static func pushedWindow(
+        for residency: PlaybackResidency
+    ) -> SpatialPlatformPushedWindow {
+        switch residency {
+        case .browsing, .closing:
+            .none
+        case .playing(.window):
+            .player
+        case .playing(.immersiveSpace):
+            .immersiveResident
+        }
+    }
+
+    static func windowTransition(
+        for effect: SpatialPlatformEffect,
+        residency: PlaybackResidency
+    ) -> SpatialPlatformPlaybackWindowTransition? {
+        switch effect {
+        case .enterImmersivePlayback(let family):
+            .enterImmersivePlayback(family)
+        case .exitImmersivePlayback(let family, _):
+            .exitImmersivePlayback(family)
+        case .collapseImmersivePlayback(let family):
+            .collapseImmersivePlayback(family)
+        case .normalizeStoppedSpatialPlayback,
+             .normalizeInvalidatedSpatialPlayback:
+            .normalizeSpatialPlayback(
+                returnsToPlayer: pushedWindow(for: residency) == .player
+            )
+        case .swapWindowPlaybackProjection,
+             .presentEnvironmentPreview,
+             .dismissEnvironmentPreview,
+             .presentEnvironmentCard:
+            nil
+        }
+    }
+
+    static func actions(
         for transition: SpatialPlatformPlaybackWindowTransition,
+        playerWindowState: SpatialPlatformResidentWindowState,
         residentWindowState: SpatialPlatformResidentWindowState
-    ) -> SpatialPlatformPlaybackWindowAction {
+    ) -> [SpatialPlatformPlaybackWindowAction] {
         switch transition {
+        case .startWindowPlayback:
+            isPresent(playerWindowState) || isPresent(residentWindowState)
+                ? []
+                : [.pushPlayerWindow]
+        case .leaveWindowPlayback:
+            isPresent(playerWindowState) ? [.dismissPlayerWindow] : []
+        case .playerWindowClosedByWearer:
+            []
         case .enterImmersivePlayback:
-            .pushResidentWindow
-        case .exitImmersivePlayback,
-             .collapseImmersivePlayback,
-             .normalizeSpatialPlayback:
-            switch residentWindowState {
-            case .absent:
-                .retainMainWindow
-            case .opening, .open, .closing:
-                .dismissResidentWindow
+            [.openImmersiveSpace]
+                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])
+                + (isPresent(residentWindowState)
+                    ? []
+                    : [.pushImmersiveResidentWindow])
+        case .exitImmersivePlayback, .collapseImmersivePlayback:
+            leaveImmersiveActions(
+                returnsToPlayer: true,
+                playerWindowState: playerWindowState,
+                residentWindowState: residentWindowState
+            )
+        case .normalizeSpatialPlayback(let returnsToPlayer):
+            leaveImmersiveActions(
+                returnsToPlayer: returnsToPlayer,
+                playerWindowState: playerWindowState,
+                residentWindowState: residentWindowState
+            )
+        }
+    }
+
+    private static func leaveImmersiveActions(
+        returnsToPlayer: Bool,
+        playerWindowState: SpatialPlatformResidentWindowState,
+        residentWindowState: SpatialPlatformResidentWindowState
+    ) -> [SpatialPlatformPlaybackWindowAction] {
+        var actions: [SpatialPlatformPlaybackWindowAction] = []
+        if isPresent(residentWindowState) {
+            actions.append(.dismissImmersiveResidentWindow)
+        }
+        if returnsToPlayer {
+            if isPresent(playerWindowState) == false {
+                actions.append(.pushPlayerWindow)
             }
+        } else if isPresent(playerWindowState) {
+            actions.append(.dismissPlayerWindow)
+        }
+        return actions
+    }
+
+    private static func isPresent(
+        _ state: SpatialPlatformResidentWindowState
+    ) -> Bool {
+        switch state {
+        case .absent, .closing:
+            false
+        case .opening, .open:
+            true
         }
     }
 }

@@ -172,8 +172,8 @@ struct PlaybackResidencyTests {
         #expect(runtime.hasActivePlaybackRequest == false)
     }
 
-    @Test("closing the main window while the immersive space hosts playback keeps playing")
-    func closingTheWindowWhileImmersiveKeepsPlaying() async throws {
+    @Test("the player window is absent while the immersive space hosts playback")
+    func playerWindowIsAbsentWhileImmersiveHostsPlayback() async throws {
         let fixture = try Self.audioFixture(named: "residency-immersive")
         defer { try? FileManager.default.removeItem(at: fixture) }
         let audioSession = SettledAudioSession()
@@ -185,16 +185,17 @@ struct PlaybackResidencyTests {
         runtime.recordPlaybackHost(.immersiveSpace)
         #expect(runtime.residency == .playing(host: .immersiveSpace))
 
-        let stopsPlayback = SpatialPlatformMainWindowClosurePolicy.stopsPlayback(
-            hasActivePlaybackRequest: runtime.hasActivePlaybackRequest,
-            presentation: .panorama,
-            transition: nil
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.pushedWindow(
+                for: runtime.residency
+            ) == .immersiveResident
         )
-        if stopsPlayback {
-            runtime.leavePlayback(reason: .windowClosedByWearer)
-        }
-
-        #expect(stopsPlayback == false)
+        #expect(
+            SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(
+                hasActivePlaybackRequest: runtime.hasActivePlaybackRequest,
+                dismissalWasRequestedByApp: true
+            ) == false
+        )
         #expect(runtime.residency == .playing(host: .immersiveSpace))
         await runtime.leavePlaybackAndWait(reason: .backButton)
     }

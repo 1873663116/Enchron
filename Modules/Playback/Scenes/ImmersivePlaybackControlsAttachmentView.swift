@@ -204,8 +204,8 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             "lastExecutionCheckpoint=\(spatialPlatformEffectCoordinator.lastExecutionCheckpoint)",
             "executionAttemptCount=\(spatialPlatformEffectCoordinator.executionAttemptCount)",
             "lastExecutionResolution=\(spatialPlatformEffectCoordinator.lastExecutionResolution)",
-            "mainWindowObservedResidency=\(spatialPlatformEffectCoordinator.mainWindowObservedResidency)",
-            "mainWindowObservationRevision=\(spatialPlatformEffectCoordinator.mainWindowObservationRevision)"
+            "playerWindowObservedResidency=\(spatialPlatformEffectCoordinator.playerWindowObservedResidency)",
+            "playerWindowObservationRevision=\(spatialPlatformEffectCoordinator.playerWindowObservationRevision)"
         ]
         fields.append(contentsOf: PlaybackStateAccessibility.rendererPerformanceAccessibilityFields(
             playbackRuntime.diagnostics
