@@ -117,6 +117,8 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             "skyboxActive=\(appModel.environmentSkyboxIsActive)",
             "surfacePreparation=\(appModel.spatialPlaybackSurfacePreparationStage.replacingOccurrences(of: ";", with: ","))",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
+            "residency=\(playbackRuntime.residency.probeDescription)",
+            "closeElapsedMs=\(playbackRuntime.closeElapsedMilliseconds.map(String.init) ?? "none")",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
             "rendererConsumer=\(playbackRuntime.rendererConsumerPresentation?.rawValue ?? "none")",
             "rendererConsumerEntity=\(playbackRuntime.rendererConsumerEntityID == nil ? "none" : "present")",

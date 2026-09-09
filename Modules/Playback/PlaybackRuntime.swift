@@ -141,6 +141,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public private(set) var residency: PlaybackResidency = .browsing
+    public var closeElapsedMilliseconds: Int? {
+        guard case .closing(let since, _) = residency else { return nil }
+        return PlaybackCloseBudget.milliseconds(ContinuousClock.now - since)
+    }
     public private(set) var lifecycle: PlaybackStatus = .idle
     public private(set) var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 0)
     public private(set) var currentPlaybackSpeed = PlaybackModel.PlaybackSpeed.default

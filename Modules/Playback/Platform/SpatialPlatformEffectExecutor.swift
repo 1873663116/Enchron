@@ -367,6 +367,9 @@ public final class SpatialPlatformEffectCoordinator {
         _ residency: SpatialPlatformImmersiveSpaceResidency
     ) {
         immersiveSpaceObservation.record(residency)
+        playbackRuntime.recordPlaybackHost(
+            residency == .open ? .immersiveSpace : .window
+        )
         let residencyDescription = String(describing: residency)
         logger.info(
             """

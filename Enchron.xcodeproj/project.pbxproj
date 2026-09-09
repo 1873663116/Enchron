@@ -177,6 +177,7 @@
 				Playback/Model/PlaybackPanelExpansion.swift,
 				Playback/Model/PlaybackPresentation.swift,
 				Playback/Model/PlaybackPresentationSettlementPhase.swift,
+				Playback/Model/PlaybackResidency.swift,
 				Playback/Model/PlaybackState.swift,
 				Playback/Model/PlaybackSurfacePlacement.swift,
 				Playback/Model/SpatialPlaybackSurfaceSettlementPolicy.swift,
