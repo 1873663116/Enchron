@@ -60,12 +60,13 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
     private let demuxSession: FFmpegDemuxSession?
     private var exportedTextCueCount = 0
 
-    init(url: URL, track: PlaybackSubtitleTrack) throws {
+    init(url: URL, track: PlaybackSubtitleTrack, sourceReadMeter: PlaybackSourceReadMeter) throws {
         var error = [CChar](repeating: 0, count: 512)
         let renderer = FFmpegSourceLocator.argument(for: url).withCString { path in
             PBSubtitleFrameRendererCreate(
                 path,
                 Int32(track.streamIndex),
+                sourceReadMeter.bridgeMonitor,
                 &error,
                 error.count
             )

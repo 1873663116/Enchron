@@ -477,7 +477,6 @@ static int ingest_available_packets(
 static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     AVFormatContext *format,
     PBFFmpegDemuxSource *demuxSource,
-    bool ownsFormat,
     int streamIndex,
     char *errorBuffer,
     size_t errorBufferSize
@@ -489,27 +488,23 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     int result = 0;
     if (streamIndex >= (int)format->nb_streams) {
         set_error(errorBuffer, errorBufferSize, "Subtitle frame stream index is unavailable");
-        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
     AVStream *stream = format->streams[streamIndex];
     enum AVCodecID codecID = stream->codecpar->codec_id;
     if (!is_text_codec(codecID) && !is_bitmap_codec(codecID)) {
         set_error(errorBuffer, errorBufferSize, "Subtitle frame codec is unsupported");
-        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
     const AVCodec *codec = avcodec_find_decoder(codecID);
     if (!codec) {
         set_error(errorBuffer, errorBufferSize, "Subtitle frame decoder is unavailable");
-        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
 
     PBSubtitleFrameRenderer *renderer = calloc(1, sizeof(PBSubtitleFrameRenderer));
     if (!renderer) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle frame renderer");
-        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
     renderer->codecID = codecID;
@@ -521,7 +516,6 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     renderer->decoder = avcodec_alloc_context3(codec);
     if (!renderer->decoder) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle decoder");
-        if (ownsFormat) avformat_close_input(&format);
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
     }
@@ -532,7 +526,6 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     }
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open subtitle frame decoder", result);
-        if (ownsFormat) avformat_close_input(&format);
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
     }
@@ -561,7 +554,6 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
             : NULL;
         if (!renderer->assLibrary || !renderer->assRenderer || !renderer->assTrack) {
             set_error(errorBuffer, errorBufferSize, "Initialize libass subtitle renderer");
-            if (ownsFormat) avformat_close_input(&format);
             PBSubtitleFrameRendererDestroy(renderer);
             return NULL;
         }
@@ -592,7 +584,6 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     AVPacket *packet = av_packet_alloc();
     if (!packet) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle frame packet");
-        if (ownsFormat) avformat_close_input(&format);
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
     }
@@ -613,14 +604,19 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
         av_packet_unref(packet);
         if (!succeeded) {
             av_packet_free(&packet);
-            if (ownsFormat) avformat_close_input(&format);
             set_error(errorBuffer, errorBufferSize, "Decode subtitle frame packet");
             PBSubtitleFrameRendererDestroy(renderer);
             return NULL;
         }
     }
     av_packet_free(&packet);
-    if (ownsFormat) avformat_close_input(&format);
+    if (result != AVERROR_EOF) {
+        // An interrupted or truncated document is a failure, not a shorter
+        // subtitle track.
+        set_av_error(errorBuffer, errorBufferSize, "Read subtitle frame packet", result);
+        PBSubtitleFrameRendererDestroy(renderer);
+        return NULL;
+    }
     if (is_text_codec(codecID)) avcodec_flush_buffers(renderer->decoder);
     return renderer;
 }
@@ -628,6 +624,7 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
 PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     const char *path,
     int streamIndex,
+    PBFFmpegSourceReadMonitor *monitor,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -635,26 +632,22 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
         set_error(errorBuffer, errorBufferSize, "Invalid subtitle frame renderer call");
         return NULL;
     }
-    AVFormatContext *format = NULL;
-    int result = avformat_open_input(&format, path, NULL, NULL);
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Open subtitle frame source", result);
-        return NULL;
-    }
-    result = avformat_find_stream_info(format, NULL);
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Read subtitle frame stream information", result);
-        avformat_close_input(&format);
-        return NULL;
-    }
-    return create_subtitle_frame_renderer(
-        format,
+    PBFFmpegMonitoredSource *source = PBFFmpegMonitoredSourceOpen(
+        path,
+        monitor,
+        errorBuffer,
+        errorBufferSize
+    );
+    if (!source) return NULL;
+    PBSubtitleFrameRenderer *renderer = create_subtitle_frame_renderer(
+        PBFFmpegMonitoredSourceGetFormatContext(source),
         NULL,
-        true,
         streamIndex,
         errorBuffer,
         errorBufferSize
     );
+    PBFFmpegMonitoredSourceClose(&source);
+    return renderer;
 }
 
 PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
@@ -675,7 +668,6 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
     PBSubtitleFrameRenderer *renderer = create_subtitle_frame_renderer(
         format,
         source,
-        false,
         streamIndex,
         errorBuffer,
         errorBufferSize

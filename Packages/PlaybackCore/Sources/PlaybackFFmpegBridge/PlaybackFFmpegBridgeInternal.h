@@ -25,3 +25,18 @@ void PBFFmpegDemuxSourceUnsubscribe(
     PBFFmpegDemuxSource *source,
     int streamIndex
 );
+
+// The bridge's single door to a format context that is not the shared demux
+// source: allocates the context with the interrupt callback that meters bytes
+// into the monitor and aborts reads once the monitor is interrupted, opens the
+// path and reads its stream information. The door owns the context; callers
+// borrow it and close the door when they are done.
+typedef struct PBFFmpegMonitoredSource PBFFmpegMonitoredSource;
+PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen(
+    const char *path,
+    PBFFmpegSourceReadMonitor *monitor,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+AVFormatContext *PBFFmpegMonitoredSourceGetFormatContext(PBFFmpegMonitoredSource *source);
+void PBFFmpegMonitoredSourceClose(PBFFmpegMonitoredSource **source);

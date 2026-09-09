@@ -1442,6 +1442,75 @@ private func requireBitstreamExtradataBootstrap(
     #expect(tracks.first?.title == "简体中文")
 }
 
+@Test func anInterruptedSourceReadMonitorAbortsSubtitleOpensOnAStalledSource() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try #require(
+        Bundle.module.url(
+            forResource: "subtitle-subrip",
+            withExtension: "mkv",
+            subdirectory: "Fixtures"
+        )
+    )
+    let payload = try Data(contentsOf: fixture)
+    let opens: [(String, @Sendable (UnsafePointer<CChar>, OpaquePointer, inout [CChar]) -> Bool)] = [
+        ("subtitle reader", { path, monitor, error in
+            let reader = PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
+                path, 1, &error, error.count, monitor
+            )
+            PBFFmpegSubtitleReaderDestroy(reader)
+            return reader != nil
+        }),
+        ("subtitle document renderer", { path, monitor, error in
+            let renderer = PBSubtitleFrameRendererCreate(path, 1, monitor, &error, error.count)
+            PBSubtitleFrameRendererDestroy(renderer)
+            return renderer != nil
+        }),
+    ]
+    for (name, open) in opens {
+        let server = try RecordingRangeServer(serving: payload)
+        defer { server.stop() }
+        nonisolated(unsafe) let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
+        defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
+        server.stallNextRangeResponse()
+        let finished = DispatchSemaphore(value: 0)
+        let opened = OpenOutcome()
+        let url = server.url.absoluteString
+        Thread.detachNewThread {
+            var error = [CChar](repeating: 0, count: 512)
+            let succeeded = url.withCString { open($0, monitor, &error) }
+            opened.record(succeeded: succeeded, message: cString(error))
+            finished.signal()
+        }
+        #expect(
+            server.waitForStalledResponse(timeout: .now() + .seconds(3)),
+            "\(name): the open never reached the stalled range request"
+        )
+        PBFFmpegSourceReadMonitorInterrupt(monitor)
+        #expect(
+            finished.wait(timeout: .now() + .seconds(2)) == .success,
+            "\(name): the open kept waiting on the stalled source after the interrupt"
+        )
+        #expect(opened.succeeded == false, "\(name): an interrupted open returned a reader")
+        #expect(!opened.message.isEmpty, "\(name): an interrupted open reported no error")
+    }
+}
+
+private final class OpenOutcome: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recordedSuccess = true
+    private var recordedMessage = ""
+
+    var succeeded: Bool { lock.withLock { recordedSuccess } }
+    var message: String { lock.withLock { recordedMessage } }
+
+    func record(succeeded: Bool, message: String) {
+        lock.withLock {
+            recordedSuccess = succeeded
+            recordedMessage = message
+        }
+    }
+}
+
 @Test func embeddedSubRipCuesPreserveTimingUTF8AndLineBreaks() throws {
     silenceFFmpegDiagnostics()
     let fixture = try #require(

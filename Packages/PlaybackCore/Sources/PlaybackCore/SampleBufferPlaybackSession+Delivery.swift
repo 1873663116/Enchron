@@ -97,6 +97,7 @@ extension SampleBufferPlaybackSession {
 
     func interruptSourceReadsForClose() {
         demuxSession?.interrupt()
+        sourceReadMeter?.interruptReads()
     }
 
     func finishCloseAfterFlush() {

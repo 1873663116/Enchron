@@ -61,6 +61,10 @@ final class PlaybackSourceReadMeter: @unchecked Sendable {
 
     var bridgeMonitor: OpaquePointer? { monitor }
 
+    func interruptReads() {
+        PBFFmpegSourceReadMonitorInterrupt(monitor)
+    }
+
     var totalBytesRead: UInt64 {
         PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
     }

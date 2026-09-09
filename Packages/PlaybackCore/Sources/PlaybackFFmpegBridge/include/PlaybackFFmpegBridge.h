@@ -101,6 +101,10 @@ void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor);
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     const PBFFmpegSourceReadMonitor *monitor
 );
+// Aborts the current and every later read of every format context opened
+// with this monitor, within one interrupt poll of the transport. Permanent:
+// a session interrupts its monitor once, at close.
+void PBFFmpegSourceReadMonitorInterrupt(PBFFmpegSourceReadMonitor *monitor);
 
 PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     const char *path,
@@ -396,9 +400,14 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
     size_t errorBufferSize
 );
 
+// Reads a subtitle document (a sidecar whose bytes are subtitle content) to
+// its end through the bridge's monitored door, so an interrupted monitor
+// aborts the read and the constructor fails instead of returning a
+// half-populated renderer.
 PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     const char *path,
     int streamIndex,
+    PBFFmpegSourceReadMonitor *monitor,
     char *errorBuffer,
     size_t errorBufferSize
 );

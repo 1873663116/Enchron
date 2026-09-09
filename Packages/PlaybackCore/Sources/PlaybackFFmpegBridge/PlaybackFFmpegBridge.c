@@ -29,6 +29,7 @@
 
 struct PBFFmpegSourceReadMonitor {
     atomic_uint_fast64_t totalBytesRead;
+    atomic_bool interrupted;
 };
 
 typedef struct {
@@ -284,6 +285,10 @@ static void publish_source_bytes(PBFFmpegSourceReadContext *context) {
 static int publish_source_bytes_and_check_cancellation(void *opaque) {
     PBFFmpegSourceReadContext *context = opaque;
     publish_source_bytes(context);
+    if (context && context->monitor &&
+        atomic_load_explicit(&context->monitor->interrupted, memory_order_relaxed)) {
+        return 1;
+    }
     atomic_bool *cancelled = context ? context->cancelled : NULL;
     return cancelled && atomic_load_explicit(cancelled, memory_order_relaxed);
 }
@@ -327,12 +332,19 @@ PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void) {
     PBFFmpegSourceReadMonitor *monitor = calloc(1, sizeof(PBFFmpegSourceReadMonitor));
     if (!monitor) return NULL;
     atomic_init(&monitor->totalBytesRead, 0);
+    atomic_init(&monitor->interrupted, false);
     return monitor;
+}
+
+void PBFFmpegSourceReadMonitorInterrupt(PBFFmpegSourceReadMonitor *monitor) {
+    if (!monitor) return;
+    atomic_store_explicit(&monitor->interrupted, true, memory_order_seq_cst);
 }
 
 void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor) {
     free(monitor);
 }
+
 
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     const PBFFmpegSourceReadMonitor *monitor
@@ -1346,6 +1358,59 @@ static int open_media_source(
         publish_source_bytes(sourceReadContext);
     }
     return result;
+}
+
+struct PBFFmpegMonitoredSource {
+    PBFFmpegSourceReadContext readContext;
+    AVFormatContext *formatContext;
+};
+
+PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen(
+    const char *path,
+    PBFFmpegSourceReadMonitor *monitor,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!path) {
+        set_error(errorBuffer, errorBufferSize, "Invalid monitored source call");
+        return NULL;
+    }
+    PBFFmpegMonitoredSource *source = calloc(1, sizeof(PBFFmpegMonitoredSource));
+    if (!source) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate monitored source");
+        return NULL;
+    }
+    source->readContext.monitor = monitor;
+    source->formatContext = allocate_format_context(NULL, &source->readContext);
+    if (!source->formatContext) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate monitored source context");
+        free(source);
+        return NULL;
+    }
+    int result = open_media_source(&source->formatContext, path, &source->readContext);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open monitored source", result);
+        PBFFmpegMonitoredSourceClose(&source);
+        return NULL;
+    }
+    result = read_stream_information(source->formatContext, &source->readContext, NULL);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Read monitored source stream information", result);
+        PBFFmpegMonitoredSourceClose(&source);
+        return NULL;
+    }
+    return source;
+}
+
+AVFormatContext *PBFFmpegMonitoredSourceGetFormatContext(PBFFmpegMonitoredSource *source) {
+    return source ? source->formatContext : NULL;
+}
+
+void PBFFmpegMonitoredSourceClose(PBFFmpegMonitoredSource **source) {
+    if (!source || !*source) return;
+    close_media_source(&(*source)->formatContext, &(*source)->readContext);
+    free(*source);
+    *source = NULL;
 }
 
 /// Widens a format context so a probe reaches audio the default limits stop short of.

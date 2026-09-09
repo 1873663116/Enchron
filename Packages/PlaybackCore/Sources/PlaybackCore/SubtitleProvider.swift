@@ -225,7 +225,11 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         if let demuxSession, demuxSession.isOpen(for: source) {
             renderer = rendererLock.withLock { sharedRenderers[track.id] }
         } else {
-            renderer = try FFmpegSubtitleFrameRenderer(url: url, track: track)
+            renderer = try FFmpegSubtitleFrameRenderer(
+                url: url,
+                track: track,
+                sourceReadMeter: sourceReadMeter
+            )
         }
         guard let renderer else { return nil }
         if CoreTextSubtitleFrameRenderer.rendersTextTrack(codecName: track.codecName) {
