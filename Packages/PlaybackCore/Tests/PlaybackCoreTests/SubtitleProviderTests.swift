@@ -152,6 +152,99 @@ import Testing
     ) != nil)
 }
 
+@Test func cancellingASubtitleSelectionReturnsWhileTheRemoteSourceStalls() async throws {
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: try subtitleFixtureURL()))
+    defer { server.stop() }
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    try demuxSession.configureSource(transport: .remoteByteStream(buffering: .automatic))
+    let loader = SystemMediaSourceInformationLoader(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let provider = FFmpegSubtitleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let information = try await loader.load(from: server.url)
+    let track = try #require(information.playbackSubtitleTracks.first)
+    try await Task.sleep(for: .milliseconds(300))
+
+    server.stallNextRangeResponse()
+    let selection = Task { try await provider.cues(in: server.url, asset: nil, track: track) }
+    try await Task.sleep(for: .milliseconds(300))
+    selection.cancel()
+    let returned = SettledFlag()
+    Task {
+        _ = try? await selection.value
+        returned.set()
+    }
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline, !returned.isSet {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(returned.isSet, "the cancelled selection kept reading the stalled source")
+}
+
+private final class SettledFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    var isSet: Bool { lock.withLock { value } }
+
+    func set() {
+        lock.withLock { value = true }
+    }
+}
+
+@Test func selectingASubtitleTrackCommitsWhileTheRemoteSourceStalls() async throws {
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: try subtitleFixtureURL()))
+    defer { server.stop() }
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let videoProvider = FFmpegSampleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "shared-subtitle-stalled-remote",
+        provider: videoProvider,
+        subtitleProvider: FFmpegSubtitleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    try await session.prepare(
+        url: server.url,
+        sourceTransport: .remoteByteStream(buffering: .automatic)
+    )
+    try await Task.sleep(for: .milliseconds(300))
+
+    server.stallNextRangeResponse()
+    let selection = Task { try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1") }
+    let deadline = ContinuousClock.now + .seconds(3)
+    while ContinuousClock.now < deadline, session.selectedSubtitleTrackID == nil {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(
+        session.selectedSubtitleTrackID == "ffmpeg.subtitle.1",
+        "the selection waited for a read of the stalled source instead of committing"
+    )
+    #expect(session.activeSubtitleCues(
+        at: CMTime(seconds: 1, preferredTimescale: 600)
+    ).map(\.text) == ["第一行\n第二行"])
+    server.stop()
+    _ = try? await selection.value
+    videoProvider.cancel()
+    session.close()
+}
+
 @Test func reselectingASubtitleTrackAfterTheSharedReaderEndedKeepsItsFrames() async throws {
     let fixture = try subtitleFixtureURL()
     let meter = PlaybackSourceReadMeter()
