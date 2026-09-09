@@ -72,6 +72,30 @@ def main() -> int:
         "func releasingTheHandleCancelsAnUnansweredRead(" in release_suite,
         "M10: the release-cancels-read contract is missing from its executable suite",
     )
+    listener_suite = text(
+        "Tests/MediaByteStreamConformance/Tests/"
+        "MediaByteStreamConformanceTests/MediaByteStreamListenerTests.swift"
+    )
+    fail_startup_body = byte_stream.split("private func failStartup(", 1)[1].split("\n    }\n", 1)[0]
+    state_handler_body = byte_stream.split("private func listenerStateChanged(", 1)[1].split("\n    }\n", 1)[0]
+    failed_branch = state_handler_body.split("case .failed", 1)[1].split("case .", 1)[0]
+    cancelled_branch = state_handler_body.split("case .cancelled", 1)[1].split("case .", 1)[0]
+    require(
+        "failStartup(" in failed_branch and "failStartup(" in cancelled_branch,
+        "M11: a failed or cancelled listener is no longer discarded by the state handler",
+    )
+    require(
+        "port = nil" in fail_startup_body,
+        "M11: a listener that failed or was cancelled leaves its port cached for the next registration",
+    )
+    require(
+        "bytestream.listener.state=" in byte_stream,
+        "M11: listener state changes are no longer traced",
+    )
+    require(
+        "func aRegistrationAfterTheListenerDiedServesFromANewListener(" in listener_suite,
+        "M11: the listener-death contract is missing from its executable suite",
+    )
     require("AVAssetImageGenerator" not in text("Modules/MediaSource/ArtworkStore.swift"), "A1: artwork generation remains")
     require(
         not any("AVAssetImageGenerator" in path.read_text() for path in media_library.rglob("*.swift")),
