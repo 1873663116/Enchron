@@ -768,6 +768,12 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     }
 
+    private struct ListenerTeardown {
+        let waiters: [CheckedContinuation<NWEndpoint.Port, any Error>]
+        let connections: [NWConnection]
+        let transfers: [Task<Void, Never>]
+    }
+
     private enum ByteRangeRequest {
         case entireRepresentation
         case bounded(start: Int64, end: Int64)
@@ -963,10 +969,18 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     #endif
 
     public func stopAndWait() async {
-        let work = lock.withLock { () -> (NWListener?, [NWConnection], [Task<Void, Never>]) in
-            let work = (listener, Array(connections.values), Array(transferTasks.values))
+        let work = lock.withLock { () -> (NWListener?, ListenerTeardown) in
+            let work = (
+                listener,
+                ListenerTeardown(
+                    waiters: startupWaiters,
+                    connections: Array(connections.values),
+                    transfers: Array(transferTasks.values)
+                )
+            )
             listener = nil
             port = nil
+            startupWaiters.removeAll()
             registrations.removeAll()
             connections.removeAll()
             transferTasks.removeAll()
@@ -974,9 +988,10 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             return work
         }
         work.0?.cancel()
-        work.1.forEach { $0.cancel() }
-        work.2.forEach { $0.cancel() }
-        for task in work.2 { await task.value }
+        work.1.connections.forEach { $0.cancel() }
+        work.1.transfers.forEach { $0.cancel() }
+        work.1.waiters.forEach { $0.resume(throwing: ServerError.listenerStopped) }
+        for task in work.1.transfers { await task.value }
     }
 
     #if DEBUG
@@ -1091,34 +1106,72 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             guard startsListener, let listener = lock.withLock({ self.listener }) else { return }
             listener.stateUpdateHandler = { [weak self, weak listener] state in
                 guard let self, let listener else { return }
-                switch state {
-                case .ready:
-                    guard let readyPort = listener.port else { return }
-                    let waiters = self.lock.withLock {
-                        self.port = readyPort
-                        let values = self.startupWaiters
-                        self.startupWaiters.removeAll()
-                        return values
-                    }
-                    waiters.forEach { $0.resume(returning: readyPort) }
-                case .failed(let error): self.failStartup(error)
-                case .cancelled: self.failStartup(ServerError.listenerStopped)
-                default: break
-                }
+                self.listenerStateChanged(state, of: listener)
             }
             listener.newConnectionHandler = { [weak self] in self?.accept($0) }
             listener.start(queue: queue)
         }
     }
 
-    private func failStartup(_ error: Error) {
-        let waiters = lock.withLock {
-            let values = startupWaiters
-            startupWaiters.removeAll()
-            listener = nil
-            return values
+    private func listenerStateChanged(_ state: NWListener.State, of listener: NWListener) {
+        switch state {
+        case .ready:
+            guard let readyPort = listener.port else { return }
+            let waiters = lock.withLock {
+                () -> [CheckedContinuation<NWEndpoint.Port, any Error>] in
+                guard self.listener === listener else { return [] }
+                port = readyPort
+                let values = startupWaiters
+                startupWaiters.removeAll()
+                return values
+            }
+            traceListenerState("ready", port: readyPort)
+            waiters.forEach { $0.resume(returning: readyPort) }
+        case .waiting(let error):
+            lock.withLock {
+                guard self.listener === listener else { return }
+                port = nil
+            }
+            traceListenerState("waiting:\(error)", port: listener.port)
+        case .failed(let error):
+            traceListenerState("failed:\(error)", port: listener.port)
+            failStartup(error, of: listener)
+        case .cancelled:
+            traceListenerState("cancelled", port: listener.port)
+            failStartup(ServerError.listenerStopped, of: listener)
+        default:
+            break
         }
-        waiters.forEach { $0.resume(throwing: error) }
+    }
+
+    private func traceListenerState(_ state: String, port: NWEndpoint.Port?) {
+        MediaSourceDebugTrace.event(
+            "bytestream.listener.state=\(state)"
+                + " port=\(port.map { String($0.rawValue) } ?? "none")"
+        )
+    }
+
+    private func failStartup(_ error: any Error, of listener: NWListener) {
+        let teardown = lock.withLock { () -> ListenerTeardown? in
+            guard self.listener === listener else { return nil }
+            let teardown = ListenerTeardown(
+                waiters: startupWaiters,
+                connections: Array(connections.values),
+                transfers: Array(transferTasks.values)
+            )
+            startupWaiters.removeAll()
+            self.listener = nil
+            port = nil
+            connections.removeAll()
+            transferTasks.removeAll()
+            transferTokens.removeAll()
+            return teardown
+        }
+        guard let teardown else { return }
+        listener.cancel()
+        teardown.waiters.forEach { $0.resume(throwing: error) }
+        teardown.connections.forEach { $0.cancel() }
+        teardown.transfers.forEach { $0.cancel() }
     }
 
     private func accept(_ connection: NWConnection) {
