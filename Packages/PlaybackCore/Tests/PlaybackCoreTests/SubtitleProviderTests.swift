@@ -286,6 +286,64 @@ private final class SettledFlag: @unchecked Sendable {
     }
 }
 
+@Test func cancellingAnExternalSubtitleLoadReturnsWhileItsSourceStalls() async throws {
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: try subtitleFixtureURL()))
+    defer { server.stop() }
+    let provider = FFmpegSubtitleProvider()
+    let track = PlaybackSubtitleTrack(
+        id: "ffmpeg.subtitle.1",
+        streamIndex: 1,
+        codecName: "subrip",
+        language: nil,
+        title: nil
+    )
+
+    server.stallNextRangeResponse()
+    let load = Task { try await provider.cues(in: server.url, asset: nil, track: track) }
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(server.ranges == ["bytes=0-"], "the load never reached the stalled document request")
+    load.cancel()
+    let returned = SettledFlag()
+    Task {
+        _ = try? await load.value
+        returned.set()
+    }
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline, !returned.isSet {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(returned.isSet, "the cancelled document load kept reading the stalled source")
+}
+
+@Test func cancellingAnExternalSubtitleRendererReturnsWhileItsSourceStalls() async throws {
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: try subtitleFixtureURL()))
+    defer { server.stop() }
+    let provider = FFmpegSubtitleProvider()
+    let track = PlaybackSubtitleTrack(
+        id: "ffmpeg.subtitle.1",
+        streamIndex: 1,
+        codecName: "subrip",
+        language: nil,
+        title: nil
+    )
+
+    server.stallNextRangeResponse()
+    let load = Task { try await provider.frameRenderer(in: server.url, asset: nil, track: track) }
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(server.ranges == ["bytes=0-"], "the load never reached the stalled document request")
+    load.cancel()
+    let returned = SettledFlag()
+    Task {
+        _ = try? await load.value
+        returned.set()
+    }
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline, !returned.isSet {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(returned.isSet, "the cancelled document renderer kept reading the stalled source")
+}
+
 @Test func selectingASubtitleTrackCommitsWhileTheRemoteSourceStalls() async throws {
     let server = try RecordingRangeServer(serving: try Data(contentsOf: try subtitleFixtureURL()))
     defer { server.stop() }
