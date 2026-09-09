@@ -286,8 +286,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Apps/Enchron/EnchronApp.swift",
-        "find": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        WindowGroup(\n",
-        "replaceWith": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        Window(\"Playback\", id: \"playback\") {\n            PlayerView()\n        }\n\n        WindowGroup(\n"
+        "find": "        .windowResizability(.contentSize)\n\n        WindowGroup(\n",
+        "replaceWith": "        .windowResizability(.contentSize)\n\n        Window(\"Playback\", id: \"playback\") {\n            PlayerView()\n        }\n\n        WindowGroup(\n"
       },
       "expected": {
         "exitCode": 1,
@@ -302,8 +302,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Apps/Enchron/EnchronApp.swift",
-        "find": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        WindowGroup(\n",
-        "replaceWith": "        .windowStyle(.automatic)\n        .windowResizability(.contentSize)\n\n        WindowGroup(\n"
+        "find": "        .windowStyle(.plain)\n        .persistentSystemOverlays(\n",
+        "replaceWith": "        .windowStyle(.automatic)\n        .persistentSystemOverlays(\n"
       },
       "expected": {
         "exitCode": 1,
@@ -393,18 +393,34 @@
       }
     },
     {
-      "id": "playback-surface-structure-rejects-an-immersive-entry-that-touches-the-player-window",
+      "id": "playback-surface-structure-rejects-an-immersive-entry-that-leaves-the-player-window-standing",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n",
-        "replaceWith": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace, .dismissPlayerWindow]\n"
+        "find": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n",
+        "replaceWith": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "entering an immersive presentation touches the player window instead of"
+          "entering an immersive presentation leaves the player window standing"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-a-browser-that-follows-the-player-window-instead-of-the-residency",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "        case .immersiveSpace:\n            return\n",
+        "replaceWith": "        case .immersiveSpace:\n            transition = .startWindowPlayback\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the browser's visibility follows the player window's presence rather"
         ]
       }
     },

@@ -542,7 +542,9 @@ def main() -> int:
         "is not allowed and the browser would not come back in place",
     )
     require(
-        "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n"
+        "        case .enterImmersivePlayback:\n"
+        "            [.openImmersiveSpace]\n"
+        "                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n"
         in execution_lease
         and "ImmersiveResidentWindow" not in execution_lease
         and order(
@@ -551,8 +553,18 @@ def main() -> int:
             "let actions = SpatialPlatformPlaybackWindowPolicy.actions(",
             "for action in actions {",
         ),
-        "entering an immersive presentation touches the player window instead of "
-        "only opening the space, or a resident window is back in the action list",
+        "entering an immersive presentation leaves the player window standing, so "
+        "its window bar and its RealityView outlive the handover, or a resident "
+        "window is back in the action list",
+    )
+    require(
+        "playbackResidency: PlaybackResidency" in execution_lease
+        and "playerWindowIsPresent" not in execution_lease
+        and "case .immersiveSpace:\n            return" in platform_executor,
+        "the browser's visibility follows the player window's presence rather "
+        "than the playback residency, so the browser reappears the moment the "
+        "player window is dismissed for the immersive space, or the residency "
+        "observer pushes the player window back while the space is open",
     )
     require(
         order(
