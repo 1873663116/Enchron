@@ -30,7 +30,7 @@ def main() -> int:
     byte_stream = read("Modules/MediaSource/MediaByteStream.swift")
     runtime = read("Modules/Playback/PlaybackRuntime.swift")
     launch = read("Modules/Playback/PlaybackLaunchRequest.swift")
-    diagnostics = read("Apps/Enchron/MainView.swift")
+    diagnostics = read("Apps/Enchron/PlayerView.swift")
 
     require(
         "150LL * 1024 * 1024" in bridge

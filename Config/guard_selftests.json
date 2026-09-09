@@ -287,12 +287,12 @@
         "type": "replace-text",
         "file": "Apps/Enchron/EnchronApp.swift",
         "find": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        WindowGroup(\n",
-        "replaceWith": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        Window(\"Playback\", id: \"playback\") {\n            MainView()\n        }\n\n        WindowGroup(\n"
+        "replaceWith": "        .windowStyle(.plain)\n        .windowResizability(.contentSize)\n\n        Window(\"Playback\", id: \"playback\") {\n            PlayerView()\n        }\n\n        WindowGroup(\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "playback lives in a second Window scene"
+          "the browser is no longer the app's single regular Window"
         ]
       }
     },
@@ -318,61 +318,61 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        case .retainMainWindow:\n            return true\n",
-        "replaceWith": "        case .retainMainWindow:\n            _ = openWindow(id: SpatialPlatformWindowIdentity.main.rawValue, execution: execution)\n            return true\n"
+        "find": "                preferPlayerWindowCapability()\n",
+        "replaceWith": "                _ = openWindow(id: SpatialPlatformWindowIdentity.main.rawValue, execution: execution)\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the executor opens or dismisses the main window"
+          "the executor opens or dismisses a window by identity through openWindow"
         ]
       }
     },
     {
-      "id": "playback-surface-structure-rejects-a-resident-push-from-another-window",
+      "id": "playback-surface-structure-rejects-a-push-from-a-scene-other-than-the-browser",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "              actions.windowIdentity == .main else {\n",
-        "replaceWith": "              actions.windowIdentity != nil else {\n"
+        "find": "        guard let actions = capability(for: .main) else {\n",
+        "replaceWith": "        guard let actions = capability(for: window) else {\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the resident window is pushed from a scene other than the main window"
+          "a pushed window is pushed from a scene other than the browser"
         ]
       }
     },
     {
-      "id": "playback-surface-structure-rejects-rebinding-before-the-main-window-returns",
+      "id": "playback-surface-structure-rejects-rebinding-before-the-player-window-returns",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "        let mainWindowIsReady = await waitForMainWindowToBecomeForeground(\n",
-        "replaceWith": "        let mainWindowIsReady = executionIsLive(execution) || await waitForMainWindowToBecomeForeground(\n"
+        "find": "        let playerWindowIsReady = await waitForPlayerWindowToBecomeForeground(\n",
+        "replaceWith": "        let playerWindowIsReady = executionIsLive(execution) || await waitForPlayerWindowToBecomeForeground(\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "no longer waits for the main window to return to the foreground"
+          "no longer waits for the player window to reach the foreground"
         ]
       }
     },
     {
-      "id": "playback-surface-structure-rejects-resident-departure-judged-by-the-swiftui-root",
+      "id": "playback-surface-structure-rejects-pushed-window-departure-judged-by-the-swiftui-root",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
-        "find": "            if window == .immersivePlaybackResident, residentWindowSceneHasDisconnected {\n                residentWindowSceneSessionIdentifier = nil\n                recordWindowResidency(.closed, for: window)\n                lastPlatformOperation = \"immersivePlaybackResident-window-scene-disconnected\"\n                return true\n            }\n",
-        "replaceWith": ""
+        "find": "            if windowSceneHasDisconnected(window) {\n",
+        "replaceWith": "            if false {\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "resident window departure trusts the SwiftUI root's onDisappear"
+          "pushed window departure trusts the SwiftUI root's onDisappear"
         ]
       }
     },
@@ -382,13 +382,61 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "    case main\n    case immersivePlaybackResident\n}\n",
-        "replaceWith": "    case main\n    case playback\n    case immersivePlaybackResident\n}\n"
+        "find": "    case main\n    case player\n    case immersivePlaybackResident\n}\n",
+        "replaceWith": "    case main\n    case playback\n    case player\n    case immersivePlaybackResident\n}\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "a playback window identity exists"
+          "the window identities are no longer the browser, the player and the"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-an-immersive-entry-that-pushes-before-it-dismisses",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
+        "find": "            [.openImmersiveSpace]\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n                + (isPresent(residentWindowState)\n                    ? []\n                    : [.pushImmersiveResidentWindow])\n",
+        "replaceWith": "            [.openImmersiveSpace]\n                + (isPresent(residentWindowState)\n                    ? []\n                    : [.pushImmersiveResidentWindow])\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the immersive handover order lives outside the policy's action list"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-an-app-dismissal-read-as-a-wearer-close",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "find": "            dismissalWasRequestedByApp: playerWindowDismissalIsAppRequested\n",
+        "replaceWith": "            dismissalWasRequestedByApp: false\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "or the app's own dismissal of it is read as a wearer close"
+        ]
+      }
+    },
+    {
+      "id": "playback-runtime-ownership-rejects-a-window-decided-outside-the-residency",
+      "guard": "Scripts/rules/verify_playback_runtime_ownership.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
+        "find": "    ) -> SpatialPlatformPushedWindow {\n        switch residency {\n",
+        "replaceWith": "    ) -> SpatialPlatformPushedWindow {\n        let decision = residency\n        switch decision {\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "window-authority: pushedWindow switches on"
         ]
       }
     },
@@ -397,14 +445,14 @@
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Apps/Enchron/MainView.swift",
+        "file": "Apps/Enchron/PlayerView.swift",
         "find": "        return presentationState != .videoVisible\n",
         "replaceWith": "        return true\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "the main window draws glass behind visible video"
+          "the player window draws glass behind visible video"
         ]
       }
     },
@@ -413,14 +461,14 @@
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Apps/Enchron/MainView.swift",
+        "file": "Apps/Enchron/PlayerView.swift",
         "find": "        .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n",
         "replaceWith": "        .background {\n            Color.clear.enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n        }\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "hosts the glass on a background color"
+          "the player window draws glass behind visible video"
         ]
       }
     },
@@ -430,29 +478,29 @@
       "defect": {
         "type": "replace-text",
         "file": "Apps/Enchron/MainView.swift",
-        "find": "    public init(playbackSurfaceIsEnabled: Bool = true) {\n",
-        "replaceWith": "    public init(sceneRole: Int = 0, playbackSurfaceIsEnabled: Bool = true) {\n"
+        "find": "    public init() {}\n",
+        "replaceWith": "    public init(sceneRole: Int = 0) {}\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "splits the view by scene role again"
+          "the view splits by scene role again"
         ]
       }
     },
     {
-      "id": "playback-surface-structure-rejects-hiding-system-overlays-while-browsing",
+      "id": "playback-surface-structure-rejects-hiding-system-overlays-while-the-controls-show",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Apps/Enchron/MainView.swift",
-        "find": "        .persistentSystemOverlays(\n            WindowSystemOverlayPolicy.visibility(\n                showsWindowPlayback: showsWindowPlayback,\n                showsPlaybackChrome: showsPlaybackChrome\n            )\n        )\n",
+        "file": "Apps/Enchron/PlayerView.swift",
+        "find": "        .persistentSystemOverlays(\n            PlayerWindowSystemOverlayPolicy.visibility(\n                showsPlaybackChrome: showsPlaybackChrome\n            )\n        )\n",
         "replaceWith": "        .persistentSystemOverlays(.hidden)\n"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "hides the system overlays while browsing"
+          "shows the system overlays while the playback controls are hidden"
         ]
       }
     },
@@ -637,7 +685,7 @@
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Apps/Enchron/MainView.swift",
+        "file": "Apps/Enchron/PlayerView.swift",
         "find": "        .modifier(windowControlPlaneState(geometryPolicy: geometryPolicy))\n",
         "replaceWith": "        .accessibilityValue(String(describing: playbackRuntime.playbackPosition))\n"
       },

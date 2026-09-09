@@ -27,10 +27,11 @@ replaces the request behind the coordinator's back leaves the page state and
 the launch generation disagreeing. The unqualified `stop` the coordinator used
 to forward is gone, so no product source may call it.
 
-The page the main window shows is decided from `PlaybackResidency`:
-`MainView.showsWindowPlayback` reads the runtime's residency and
-`primaryContent` switches on it, so a failed open keeps the player page while
-`hasActivePlaybackRequest` says nothing about which page is up. The close the
+Which window stands pushed over the browser is decided from `PlaybackResidency`
+and nothing else: `SpatialPlatformPlaybackWindowPolicy.pushedWindow` switches on
+the residency, and both window roots hand their observation of it to
+`applyPlaybackResidency`. A failed open keeps the player window up, while
+`hasActivePlaybackRequest` says nothing about which window is up. The close the
 runtime runs is bounded by `PlaybackCloseBudget.deadline`.
 """
 
@@ -46,7 +47,11 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_SOURCE = "Modules/Playback/PlaybackRuntime.swift"
 INTERPRETER_SOURCE = "Modules/Playback/Domain/MediaFormatInterpreter.swift"
 COORDINATOR_SOURCE = "Modules/Playback/PlaybackLaunchCoordinator.swift"
-PAGE_SOURCE = "Apps/Enchron/MainView.swift"
+WINDOW_POLICY_SOURCE = "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift"
+WINDOW_ROOT_SOURCES = (
+    "Apps/Enchron/MainView.swift",
+    "Apps/Enchron/PlayerView.swift",
+)
 PRODUCT_ROOTS = ("Apps", "Modules")
 
 COMMENT = re.compile(r"^\s*(//|\*|/\*)")
@@ -54,13 +59,15 @@ LEAVE_CALL = re.compile(
     r"\.\s*(?:leavePlayback(?:AndWait)?|stopForNextRequest)\s*\("
 )
 LEGACY_STOP_CALL = re.compile(r"\bplaybackRuntime\s*\.\s*stop\s*\(")
-WINDOW_PAGE_DECISION = re.compile(
-    r"private\s+var\s+showsWindowPlayback:\s*Bool\s*\{\s*\n"
-    r"\s*switch\s+playbackRuntime\.residency\s*\{"
+PUSHED_WINDOW_DECISION = re.compile(
+    r"static\s+func\s+pushedWindow\(\s*\n?"
+    r"\s*for\s+residency:\s*PlaybackResidency\s*\n?"
+    r"\s*\)\s*->\s*SpatialPlatformPushedWindow\s*\{\s*\n"
+    r"\s*switch\s+residency\s*\{",
 )
-PRIMARY_CONTENT_PAGE = re.compile(
-    r"private\s+var\s+primaryContent:\s*some\s+View\s*\{[^}]*?"
-    r"if\s+showsWindowPlayback\s*\{",
+RESIDENCY_HANDOFF = re.compile(
+    r"\.onChange\(of:\s*playbackRuntime\.residency[^\n]*\)\s*\{[^}]*?"
+    r"applyPlaybackResidency\(residency\)",
     re.DOTALL,
 )
 CLOSE_BUDGET = re.compile(r"\bPlaybackCloseBudget\s*\.\s*deadline\b")
@@ -206,21 +213,27 @@ def legacy_stop_failures() -> list[str]:
 
 
 def page_authority_failures() -> list[str]:
-    path = REPOSITORY_ROOT / PAGE_SOURCE
-    if not path.is_file():
-        return [f"{PAGE_SOURCE} is absent"]
-    contents = path.read_text(encoding="utf-8")
     failures = []
-    if not WINDOW_PAGE_DECISION.search(contents):
+    policy_path = REPOSITORY_ROOT / WINDOW_POLICY_SOURCE
+    if not policy_path.is_file():
+        failures.append(f"{WINDOW_POLICY_SOURCE} is absent")
+    elif not PUSHED_WINDOW_DECISION.search(
+        policy_path.read_text(encoding="utf-8")
+    ):
         failures.append(
-            f"{PAGE_SOURCE}: page-authority: showsWindowPlayback reads "
-            f"PlaybackRuntime.residency, not hasActivePlaybackRequest"
+            f"{WINDOW_POLICY_SOURCE}: window-authority: pushedWindow switches on "
+            f"PlaybackResidency, not on hasActivePlaybackRequest"
         )
-    if not PRIMARY_CONTENT_PAGE.search(contents):
-        failures.append(
-            f"{PAGE_SOURCE}: page-authority: primaryContent picks the page from "
-            f"showsWindowPlayback"
-        )
+    for source in WINDOW_ROOT_SOURCES:
+        path = REPOSITORY_ROOT / source
+        if not path.is_file():
+            failures.append(f"{source} is absent")
+            continue
+        if not RESIDENCY_HANDOFF.search(path.read_text(encoding="utf-8")):
+            failures.append(
+                f"{source}: window-authority: the window root hands every "
+                f"residency change to applyPlaybackResidency"
+            )
     return failures
 
 

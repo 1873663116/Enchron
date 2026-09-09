@@ -28,7 +28,7 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/MainView.swift",
+      "path": "Apps/Enchron/PlayerView.swift",
       "signature": ".opacity(0.001)",
       "count": 3
     },

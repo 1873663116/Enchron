@@ -47,6 +47,11 @@ ALLOWED_WRAPPER_CALLS = Counter(
             enclosing_type="MainView",
             callee="enchronWindowGlassBackground",
         ): 1,
+        WrapperCallIdentity(
+            path=Path("Apps/Enchron/PlayerView.swift"),
+            enclosing_type="PlayerView",
+            callee="enchronWindowGlassBackground",
+        ): 1,
     }
 )
 

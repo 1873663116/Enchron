@@ -123,6 +123,7 @@ def main() -> int:
     VIOLATIONS.clear()
     surface = read("Modules/Playback/Views/PlaybackVideoSurface.swift")
     main_view = read("Apps/Enchron/MainView.swift")
+    player_view = read("Apps/Enchron/PlayerView.swift")
     attachment_view = read(
         "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift"
     )
@@ -194,7 +195,7 @@ def main() -> int:
     execution_lease = execution_lease_path.read_text()
 
     window_playback = region(
-        main_view,
+        player_view,
         "private var windowPlayback: some View",
         "private var hostedPlaybackPresentation",
     )
@@ -292,7 +293,7 @@ def main() -> int:
     )
     require("PlayerInfoBarView()" in window_playback, "window info bar is missing")
     require(
-        "WindowPlayerDeckView(" in main_view,
+        "WindowPlayerDeckView(" in player_view,
         "window playback ornament is missing",
     )
     require(
@@ -300,7 +301,7 @@ def main() -> int:
         "window playback controls are still inside the window content plane",
     )
     require(
-        "attachmentAnchor: .scene(.bottom)" in main_view,
+        "attachmentAnchor: .scene(.bottom)" in player_view,
         "window playback controls are not attached as a bottom ornament",
     )
     require(
@@ -308,8 +309,8 @@ def main() -> int:
         "the App does not use the shared window playback root",
     )
     require(
-        "playbackRuntime.displayMediaProfile?.resolution" in main_view
-        and "playbackRuntime.effectiveStereoLayout" in main_view,
+        "playbackRuntime.displayMediaProfile?.resolution" in player_view
+        and "playbackRuntime.effectiveStereoLayout" in player_view,
         "window playback geometry does not use the current displayed media dimensions",
     )
     require(
@@ -327,7 +328,8 @@ def main() -> int:
         "the shared window playback root does not own the system uniform resize contract",
     )
     require(
-        "requestGeometryUpdate(" not in main_view,
+        "requestGeometryUpdate(" not in main_view
+        and "requestGeometryUpdate(" not in player_view,
         "the production host duplicates the shared window playback resize contract",
     )
     design_tokens = read("Modules/DesignSystem/DesignTokens.swift")
@@ -384,12 +386,12 @@ def main() -> int:
         "spatial acceptance state collapses or replaces the real Player Control Deck accessibility tree",
     )
     require(
-        '"position=\\(position.seconds)"' in main_view
-        and '"streamEpoch=\\(output.streamEpoch)"' in main_view
-        and '"videoSamples=\\(output.videoSampleCount)"' in main_view
-        and '"rendererInputs=\\(output.acceptedRendererInputCount)"' in main_view
-        and '"displayedPixel=\\(output.displayedPixelBuffer)"' in main_view
-        and '"audioSessionActive=\\(output.audioSessionActive)"' in main_view
+        '"position=\\(position.seconds)"' in player_view
+        and '"streamEpoch=\\(output.streamEpoch)"' in player_view
+        and '"videoSamples=\\(output.videoSampleCount)"' in player_view
+        and '"rendererInputs=\\(output.acceptedRendererInputCount)"' in player_view
+        and '"displayedPixel=\\(output.displayedPixelBuffer)"' in player_view
+        and '"audioSessionActive=\\(output.audioSessionActive)"' in player_view
         and '($0.double("position") ?? 0) >= baselinePosition' in regression_support
         and '($0.uint64("videoSamples") ?? 0) > baselineVideoSamples' in regression_support
         and '($0.uint64("rendererInputs") ?? 0) > baselineRendererInputs' in regression_support
@@ -493,9 +495,23 @@ def main() -> int:
         and '"Playback"' not in app_scene
         and "UIApplicationDelegateAdaptor" not in app_scene
         and "requestSceneSessionDestruction" not in app_scene,
-        "playback lives in a second Window scene, so browsing and playback hand "
-        "scenes back and forth; that handover duplicated the main scene, kept a "
-        "dismissed playback view alive, and trapped SwiftUI on the next return",
+        "the browser is no longer the app's single regular Window, so a second "
+        "UIKit scene can reach the same Window and trap SwiftUI",
+    )
+    require(
+        order(
+            app_scene,
+            'WindowGroup(\n            "Player",\n            id: SpatialPlatformWindowIdentity.player.rawValue\n        )',
+            "WindowSceneGate(window: .player)",
+            "PlayerView()",
+            "SpatialPlatformEffectExecutor(windowIdentity: .player)",
+            ".windowStyle(.plain)",
+            ".windowResizability(.contentSize)",
+            ".restorationBehavior(.disabled)",
+            ".defaultLaunchBehavior(.suppressed)",
+        ),
+        "the player window is not a suppressed, unrestored WindowGroup with its "
+        "own executor, so a relaunch from Home can build a bare player",
     )
     require(
         ".windowStyle(.plain)" in region(app_scene, 'id: "main"', "WindowGroup("),
@@ -503,60 +519,87 @@ def main() -> int:
         "dropped while video is visible, so playback needs its own window again",
     )
     require(
-        "openWindow(id: SpatialPlatformWindowIdentity.main" not in platform_executor
-        and "dismissWindow(id: SpatialPlatformWindowIdentity.main" not in platform_executor
+        "openWindow(id: SpatialPlatformWindowIdentity" not in platform_executor
+        and "dismissWindow(id: SpatialPlatformWindowIdentity" not in platform_executor
         and "reconcilePlaybackWindowPresentation" not in platform_executor
         and "UIApplication.shared.openSessions" not in platform_executor,
-        "the executor opens or dismisses the main window; the single Window is "
-        "always present unless the resident window is pushed over it",
+        "the executor opens or dismisses a window by identity through openWindow; "
+        "the browser is pushed over, never reopened, and the pushed windows are "
+        "pushed and dismissed through the identity-routed capabilities",
     )
     require(
         order(
             platform_executor,
-            "private func pushResidentWindowAndWaitForAppearance(",
-            "actions.windowIdentity == .main else {",
-            "actions.pushWindow(id: residentWindow.rawValue)",
+            "private func issuePushedWindow(",
+            "let actions = capability(for: .main) else {",
+            "actions.pushWindow(id: window.rawValue)",
+            "private func issueDismissPushedWindow(",
+            "let actions = capability(for: window) else {",
+            "actions.dismissWindow(id: window.rawValue)",
         ),
-        "the resident window is pushed from a scene other than the main window; "
-        "pushing from a pushed window is not allowed and the main window would "
-        "not come back in place",
+        "a pushed window is pushed from a scene other than the browser or "
+        "dismissed from a scene other than itself; pushing from a pushed window "
+        "is not allowed and the browser would not come back in place",
+    )
+    require(
+        order(
+            execution_lease,
+            "case .enterImmersivePlayback:",
+            "[.openImmersiveSpace]",
+            "[.dismissPlayerWindow]",
+            "[.pushImmersiveResidentWindow]",
+        )
+        and order(
+            execution_lease,
+            "private static func leaveImmersiveActions(",
+            "actions.append(.dismissImmersiveResidentWindow)",
+            "actions.append(.pushPlayerWindow)",
+        )
+        and order(
+            platform_executor,
+            "private func performWindowTransition(",
+            "let actions = SpatialPlatformPlaybackWindowPolicy.actions(",
+            "for action in actions {",
+        ),
+        "the immersive handover order lives outside the policy's action list: "
+        "the space opens before the player is dismissed, and the resident is "
+        "dismissed before the player is pushed back",
     )
     require(
         order(
             platform_executor,
-            "let windowRestorationBegan = await beginPlaybackWindowRestoration(",
-            "let mainWindowIsReady = await waitForMainWindowToBecomeForeground(",
-            "case .retainMainWindow:",
-            "return true",
-            "if windowObservation.residency(for: .main) != .open {",
-            "recordWindowResidency(.open, for: .main)",
-            "preferMainWindowCapability()",
+            "let windowRestorationBegan = await performWindowTransition(",
+            "let playerWindowIsReady = await waitForPlayerWindowToBecomeForeground(",
+            "connectedWindowScene(.player)?.activationState",
+            "recordWindowResidency(.open, for: .player)",
+            "preferPlayerWindowCapability()",
         ),
-        "leaving the immersive space without a resident window no longer waits "
-        "for the main window to return to the foreground before rebinding",
+        "leaving the immersive space no longer waits for the player window to "
+        "reach the foreground before rebinding",
     )
     require(
         order(
             platform_executor,
             "forName: UIScene.didDisconnectNotification,",
-            "sessionIdentifier == mainWindowSceneSessionIdentifier else {",
-            "recordWindowResidency(.closed, for: .main)",
-            "onMainWindowClosedByWearer?()",
+            "recordWindowResidency(.closed, for: window)",
+            "guard window == .player else { return }",
+            "SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(",
+            "dismissalWasRequestedByApp: playerWindowDismissalIsAppRequested",
+            "onPlayerWindowClosedByWearer?()",
         )
         and order(
             application,
-            "spatialPlatformEffectCoordinator.onMainWindowClosedByWearer = {",
-            "SpatialPlatformMainWindowClosurePolicy.stopsPlayback(",
+            "spatialPlatformEffectCoordinator.onPlayerWindowClosedByWearer = {",
             "launcher?.stopPlayback(reason: .windowClosedByWearer)",
         ),
-        "closing the main window from the window bar no longer stops playback "
-        "hosted in that window",
+        "closing the player window from the window bar no longer stops playback, "
+        "or the app's own dismissal of it is read as a wearer close",
     )
     require(
         order(
             platform_executor,
             "private func dismissWindowAndWaitForDisappearance(",
-            "if window == .immersivePlaybackResident, residentWindowSceneHasDisconnected {",
+            "if windowSceneHasDisconnected(window) {",
             "recordWindowResidency(.closed, for: window)",
         )
         and order(
@@ -565,54 +608,51 @@ def main() -> int:
             ".windowSceneReporting { windowScene in",
             ".recordWindowScene(windowScene, for: .immersivePlaybackResident)",
         ),
-        "resident window departure trusts the SwiftUI root's onDisappear, which "
+        "pushed window departure trusts the SwiftUI root's onDisappear, which "
         "visionOS delivers seconds after the UIKit scene is gone, so leaving the "
         "immersive space times out and reports a failed conversion",
     )
     require(
         "case playback" not in execution_lease
-        and order(
-            execution_lease,
-            "case .absent:",
-            ".retainMainWindow",
-        ),
-        "a playback window identity exists, so a scene root can register for a "
-        "window that must never exist again",
+        and "    case main\n    case player\n    case immersivePlaybackResident\n}"
+        in execution_lease,
+        "the window identities are no longer the browser, the player and the "
+        "invisible immersive resident",
     )
     require(
         "sceneRole" not in main_view
         and "Color.clear.enchronWindowGlassBackground" not in main_view
+        and ".enchronWindowGlassBackground(.always)" in main_view
         and order(
-            main_view,
-            "enum WindowGlassPolicy {",
-            "guard showsWindowPlayback else { return true }",
+            player_view,
+            "enum PlayerWindowGlassPolicy {",
+            "guard isRevealingPlayerWindow == false else { return false }",
             "return presentationState != .videoVisible",
             "        .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n"
             "        .persistentSystemOverlays(\n"
-            "            WindowSystemOverlayPolicy.visibility(\n"
-            "                showsWindowPlayback: showsWindowPlayback,\n"
+            "            PlayerWindowSystemOverlayPolicy.visibility(\n"
             "                showsPlaybackChrome: showsPlaybackChrome\n"
             "            )\n"
             "        )",
         ),
-        "the main window draws glass behind visible video, hides the system "
-        "overlays while browsing or shows them while playback controls are "
-        "hidden, splits the view by scene role again, or hosts "
-        "the glass on a background color whose platform view swallows the hit "
-        "test of every pure SwiftUI control above it",
+        "the player window draws glass behind visible video or shows the system "
+        "overlays while the playback controls are hidden, the browser drops its "
+        "glass, the view splits by scene role again, or the glass sits on a "
+        "background color whose platform view swallows the hit test of every "
+        "pure SwiftUI control above it",
     )
-    main_view_struct = region(
-        main_view,
-        "public struct MainView: View {",
+    player_view_struct = region(
+        player_view,
+        "public struct PlayerView: View {",
         "private struct WindowControlPlaneStateModifier: ViewModifier {",
     )
     require(
-        "playbackRuntime.playbackPosition" not in main_view_struct
-        and "playbackRuntime.debugSnapshot()" not in main_view_struct
-        and "windowPlaybackStateValue(" not in main_view_struct
-        and ".modifier(windowControlPlaneState(geometryPolicy: geometryPolicy))" in main_view_struct
+        "playbackRuntime.playbackPosition" not in player_view_struct
+        and "playbackRuntime.debugSnapshot()" not in player_view_struct
+        and "windowPlaybackStateValue(" not in player_view_struct
+        and ".modifier(windowControlPlaneState(geometryPolicy: geometryPolicy))" in player_view_struct
         and order(
-            main_view,
+            player_view,
             "private struct WindowControlPlaneStateModifier: ViewModifier {",
             "func body(content: Content) -> some View {",
             "content.accessibilityValue(stateValue)",
@@ -755,7 +795,7 @@ def main() -> int:
         and "requestedRevision &+= 1" in execution_lease
         and "let viewportRefreshRevision = viewportRefreshRevision" in surface
         and "validVisionLayoutViewportRefreshRevision = viewportRefreshRevision" in surface
-        and "recordMainWindowPlaybackSurfaceRefreshApplied" in main_view
+        and "recordMainWindowPlaybackSurfaceRefreshApplied" in player_view
         and "waitUntilPortalPlaybackViewportRefreshApplied(" in platform_executor,
         "the Portal collapse path does not invalidate a laid-out retained viewport",
     )
@@ -993,7 +1033,7 @@ def main() -> int:
         runtime.count("presentationState = .videoVisible") == 1
         and "phase == .settled && displayedPixelBuffer == true" in runtime
         and "productLifecycle == .ended" in runtime
-        and "PlaybackOutputVerification.firstIncompleteBoundary" in main_view
+        and "PlaybackOutputVerification.firstIncompleteBoundary" in player_view
         and "case displayedVideo" in output_verification
         and "case decoderBootstrap" in output_verification
         and "case timelineRate" in output_verification
