@@ -48,6 +48,11 @@ public final class PlaybackCoreController {
         mediaSlot.staleUpdateCount
     }
 
+    // How many sessions were let go of because their teardown outlasted
+    // `pendingCleanupDeadline`. Anything above zero in the field is a
+    // teardown defect, whatever the open that followed it looked like.
+    public private(set) var pendingCleanupAbandonmentCount = 0
+
     public var endedContinuity: PlaybackEndedContinuity? {
         guard case .ended(let reason) = status,
               let activeSession,
@@ -71,11 +76,14 @@ public final class PlaybackCoreController {
     private var debugRecorder: PlaybackDebugRecorder?
     private let debugRecorderMode: PlaybackDebugRecorderMode
     private let sessionFactory: (String) -> SampleBufferPlaybackSession
+    private let pendingCleanupDeadline: Duration
     private var activeSeekTask: Task<Void, Error>?
     private var activeSubtitleSelectionTask: Task<Void, Error>?
     private var activeFormatOverrideTask: Task<UInt64, Error>?
     private var failedCleanupTask: Task<Void, Never>?
     private var pendingCleanupMediaSessionID: String?
+    private var pendingCleanupRecorder: PlaybackDebugRecorder?
+    private var pendingCleanupDeadlineTask: Task<Void, Never>?
     private var pendingCleanupWaiters: [CheckedContinuation<Void, Never>] = []
     private var replacementRetirementTasks: [UUID: Task<Void, Never>] = [:]
     private var latestRequestedSeekTime: CMTime?
@@ -88,6 +96,7 @@ public final class PlaybackCoreController {
         sessionFactory = { sessionID in
             SampleBufferPlaybackSession(traceID: sessionID)
         }
+        pendingCleanupDeadline = Self.defaultPendingCleanupDeadline
         #if DEBUG
         debugRecorderMode = PlaybackDebugRecorderMode(
             environment: ProcessInfo.processInfo.environment
@@ -99,10 +108,13 @@ public final class PlaybackCoreController {
 
     init(
         sessionFactory: @escaping (String) -> SampleBufferPlaybackSession,
-        debugRecorderMode: PlaybackDebugRecorderMode = .enabled
+        debugRecorderMode: PlaybackDebugRecorderMode = .enabled,
+        pendingCleanupDeadline: Duration =
+            PlaybackCoreController.defaultPendingCleanupDeadline
     ) {
         self.sessionFactory = sessionFactory
         self.debugRecorderMode = debugRecorderMode
+        self.pendingCleanupDeadline = pendingCleanupDeadline
     }
 
     @discardableResult
@@ -943,6 +955,8 @@ public final class PlaybackCoreController {
         if let abandonedMediaSessionID {
             _ = mediaSlot.release(mediaSessionID: abandonedMediaSessionID)
         }
+        cancelPendingCleanupDeadline()
+        pendingCleanupRecorder = nil
         pendingCleanupMediaSessionID = nil
         activeFailureContext = nil
         deliveryContinuity = nil
@@ -1136,6 +1150,8 @@ public final class PlaybackCoreController {
             activeFailureContext = nil
         }
         setStatus(statusWhileClosing)
+        pendingCleanupRecorder = recorder
+        armPendingCleanupDeadline(mediaSessionID: mediaSessionID)
         session.close { [weak self] in
             Task { @MainActor in
                 guard let self else {
@@ -1150,6 +1166,52 @@ public final class PlaybackCoreController {
         }
     }
 
+    // How long a session that has been told to close is allowed to take
+    // before the next open stops waiting for it. Teardown measures 109 ms on
+    // device and the layer above races its own one second budget against the
+    // close, so this bound only decides anything when nothing above it did.
+    // What it rules out is the shape both of this branch's two field defects
+    // took: one session whose teardown never finishes leaving every later
+    // open waiting on a continuation that nobody will resume.
+    static let defaultPendingCleanupDeadline = Duration.seconds(2)
+
+    private func armPendingCleanupDeadline(mediaSessionID: String) {
+        pendingCleanupDeadlineTask?.cancel()
+        pendingCleanupDeadlineTask = Task { @MainActor [weak self] in
+            guard let deadline = self?.pendingCleanupDeadline else { return }
+            try? await Task.sleep(for: deadline)
+            guard !Task.isCancelled else { return }
+            self?.abandonPendingCleanupAfterDeadline(mediaSessionID: mediaSessionID)
+        }
+    }
+
+    private func cancelPendingCleanupDeadline() {
+        pendingCleanupDeadlineTask?.cancel()
+        pendingCleanupDeadlineTask = nil
+    }
+
+    // Lets go of everything the finished session still occupies without
+    // touching what the close reported. Status and the failure context stay
+    // as the close left them: a teardown that overran is not a reason to
+    // forget why playback failed.
+    private func abandonPendingCleanupAfterDeadline(mediaSessionID: String) {
+        guard pendingCleanupMediaSessionID == mediaSessionID else { return }
+        pendingCleanupDeadlineTask = nil
+        let recorder = pendingCleanupRecorder
+        pendingCleanupRecorder = nil
+        pendingCleanupMediaSessionID = nil
+        _ = mediaSlot.release(mediaSessionID: mediaSessionID)
+        pendingCleanupAbandonmentCount += 1
+        recorder?.stop()
+        let waiters = pendingCleanupWaiters
+        pendingCleanupWaiters.removeAll()
+        waiters.forEach { $0.resume() }
+        PlaybackTrace.event(
+            "controller.cleanup.abandonedAfterDeadline session=\(mediaSessionID)"
+                + " deadline=\(pendingCleanupDeadline)"
+        )
+    }
+
     private func finishPendingCleanup(
         mediaSessionID: String,
         recorder: PlaybackDebugRecorder?
@@ -1158,6 +1220,8 @@ public final class PlaybackCoreController {
             recorder?.stop()
             return
         }
+        cancelPendingCleanupDeadline()
+        pendingCleanupRecorder = nil
         _ = mediaSlot.release(mediaSessionID: mediaSessionID)
         pendingCleanupMediaSessionID = nil
         recorder?.stop()

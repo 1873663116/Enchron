@@ -779,6 +779,53 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
 }
 
 @MainActor
+@Test func aTeardownThatNeverFinishesStopsBlockingTheNextOpen() async throws {
+    // The close barrier is what both of this branch's field defects travelled
+    // through: one session that could not finish tearing down left the media
+    // slot occupied and every later open parked on a continuation nobody was
+    // going to resume, so after selecting one subtitle track nothing opened
+    // again until the app was restarted. The cause differed both times and the
+    // next one will differ again; what this pins is that a teardown which
+    // never finishes is let go of instead of inherited. A regression shows up
+    // as this test hanging rather than failing.
+    let stalledSink = FakeRendererInputSink(completesFlushImmediately: false)
+    let sessionCreationCount = LockedBox(0)
+    let controller = PlaybackCoreController(
+        sessionFactory: { sessionID in
+            let creation = sessionCreationCount.withLock { count in
+                count += 1
+                return count
+            }
+            return SampleBufferPlaybackSession(
+                traceID: sessionID,
+                provider: FakeVideoSampleProvider(events: [.end]),
+                rendererSink: creation == 1
+                    ? stalledSink
+                    : FakeRendererInputSink()
+            )
+        },
+        pendingCleanupDeadline: .milliseconds(200)
+    )
+    let source = URL(fileURLWithPath: "/fixtures/stalled-teardown.mov")
+    let first = try await controller.open(source)
+
+    controller.close(clearSource: false)
+    try await waitForFlushCount(1, in: stalledSink)
+
+    let started = ContinuousClock.now
+    let second = try await controller.open(source)
+    let waited = ContinuousClock.now - started
+
+    #expect(second.traceID != first.traceID)
+    #expect(controller.activeSession === second)
+    #expect(controller.pendingCleanupAbandonmentCount == 1)
+    #expect(waited < .seconds(2))
+
+    stalledSink.completePendingFlushes()
+    await controller.closeAndWait()
+}
+
+@MainActor
 @Test func replacementOpenDoesNotWaitForRetiringSessionCleanup() async throws {
     let retiringSink = FakeRendererInputSink(completesFlushImmediately: false)
     let replacementSink = FakeRendererInputSink()
