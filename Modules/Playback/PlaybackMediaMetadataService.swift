@@ -2,7 +2,7 @@ import Foundation
 
 actor PlaybackMediaMetadataStore {
     private let defaults: UserDefaults
-    private static let keyPrefix = "xrplayer.mediaMetadata."
+    private static let keyPrefix = "enchron.mediaMetadata."
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults

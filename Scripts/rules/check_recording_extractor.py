@@ -97,7 +97,7 @@ def synthesized_runner_log(scratch: Path) -> Path:
     of this size as an ansi stream in a tty container, which is exactly the
     misparse the container predicate exists to catch.
     """
-    log = scratch / "StandardOutputAndStandardError-com.xiongzhipeng.XrPlayer.txt"
+    log = scratch / "StandardOutputAndStandardError-com.xiongzhipeng.Enchron.txt"
     lines = []
     for index in range(400):
         lines.append(

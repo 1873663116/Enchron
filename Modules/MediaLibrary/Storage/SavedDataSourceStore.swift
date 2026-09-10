@@ -11,7 +11,7 @@ nonisolated final class SavedDataSourceStore: SavedDataSourceRecordStoring, @unc
 
     public init(
         defaults: UserDefaults = .standard,
-        key: String = "xrplayer.savedDataSources"
+        key: String = "enchron.savedDataSources"
     ) {
         self.defaults = defaults
         self.key = key

@@ -63,7 +63,7 @@ class ImmersiveResidentWindowEvidenceTests(unittest.TestCase):
         document = {
             "hierarchy": "\n".join(
                 (
-                    "identifier: 'com.xiongzhipeng.XrPlayer:SFBSystemService-1234'",
+                    "identifier: 'com.xiongzhipeng.Enchron:SFBSystemService-1234'",
                     "identifier: 'PlayerUI-product-target'",
                 )
             )

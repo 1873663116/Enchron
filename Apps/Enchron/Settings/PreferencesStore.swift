@@ -4,12 +4,12 @@ import Playback
 public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
     private let defaults: UserDefaults
     private let playbackSpeedOverride: Double?
-    private static let resumePolicyKey = "xrplayer.preferences.resumePolicy"
-    private static let defaultEnvironmentKey = "xrplayer.preferences.defaultEnvironment"
-    private static let endBehaviorKey = "xrplayer.preferences.endBehavior"
-    private static let defaultSpeedKey = "xrplayer.preferences.defaultSpeed"
-    private static let controlsAutoHideKey = "xrplayer.preferences.controlsAutoHideSeconds"
-    private static let developerModeKey = "xrplayer.preferences.developerMode"
+    private static let resumePolicyKey = "enchron.preferences.resumePolicy"
+    private static let defaultEnvironmentKey = "enchron.preferences.defaultEnvironment"
+    private static let endBehaviorKey = "enchron.preferences.endBehavior"
+    private static let defaultSpeedKey = "enchron.preferences.defaultSpeed"
+    private static let controlsAutoHideKey = "enchron.preferences.controlsAutoHideSeconds"
+    private static let developerModeKey = "enchron.preferences.developerMode"
 
     public init(defaults: UserDefaults = .standard, playbackSpeedOverride: Double? = nil) {
         self.defaults = defaults

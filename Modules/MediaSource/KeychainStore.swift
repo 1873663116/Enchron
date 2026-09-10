@@ -51,13 +51,14 @@ public nonisolated final class KeychainStore: CredentialStoring, @unchecked Send
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: sourceID,
-            kSecAttrAccount as String: "com.xrplayer.credentials"
+            kSecAttrAccount as String: "com.xiongzhipeng.Enchron.credentials"
         ]
 
         SecItemDelete(query as CFDictionary)
 
         var addQuery = query
         addQuery[kSecValueData as String] = jsonData
+        addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         let status = SecItemAdd(addQuery as CFDictionary, nil)
         guard status == errSecSuccess else {
             throw KeychainError.saveFailed(status)
@@ -68,7 +69,7 @@ public nonisolated final class KeychainStore: CredentialStoring, @unchecked Send
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: sourceID,
-            kSecAttrAccount as String: "com.xrplayer.credentials",
+            kSecAttrAccount as String: "com.xiongzhipeng.Enchron.credentials",
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -97,7 +98,7 @@ public nonisolated final class KeychainStore: CredentialStoring, @unchecked Send
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: sourceID,
-            kSecAttrAccount as String: "com.xrplayer.credentials"
+            kSecAttrAccount as String: "com.xiongzhipeng.Enchron.credentials"
         ]
 
         let status = SecItemDelete(query as CFDictionary)

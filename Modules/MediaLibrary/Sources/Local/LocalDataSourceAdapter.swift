@@ -11,7 +11,7 @@ public nonisolated enum LocalDataSourceError: Error, Sendable {
 nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Sendable {
     private let fileManager: FileManager
     private let filter: FileBrowsingDomain.FileFilter
-    private let ioQueue = DispatchQueue(label: "xrplayer.localdatasource.io", qos: .userInitiated)
+    private let ioQueue = DispatchQueue(label: "enchron.localdatasource.io", qos: .userInitiated)
 
     private var rootURL: URL?
     public private(set) var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected

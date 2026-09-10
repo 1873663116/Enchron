@@ -27,7 +27,7 @@ from harness import (
     wait_for,
 )
 
-APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
+APP_BUNDLE_ID = "com.xiongzhipeng.Enchron"
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"

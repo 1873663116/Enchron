@@ -4,7 +4,7 @@ import Playback
 
 nonisolated final class PreferencesPersistenceTests: XCTestCase {
     func testUserDefaultsStoreRoundTripsExtendedFields() {
-        let suite = "xrplayer.tests.preferences"
+        let suite = "enchron.tests.preferences"
         guard let defaults = UserDefaults(suiteName: suite) else {
             XCTFail("Could not create test UserDefaults suite")
             return
@@ -27,7 +27,7 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
     }
 
     func testDefaultsMatchSpecifiedFallbacks() {
-        let suite = "xrplayer.tests.preferences.empty"
+        let suite = "enchron.tests.preferences.empty"
         guard let defaults = UserDefaults(suiteName: suite) else {
             XCTFail("Could not create test UserDefaults suite")
             return

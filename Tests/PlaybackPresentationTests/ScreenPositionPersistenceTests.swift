@@ -3,7 +3,7 @@ import XCTest
 
 nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
     func testDockedPlacementRoundTripsDistanceElevationAndScale() async throws {
-        let suite = "xrplayer.tests.screen-position.\(UUID().uuidString)"
+        let suite = "enchron.tests.screen-position.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)
@@ -23,7 +23,7 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
     }
 
     func testDockedPlacementIsStoredIndependentlyForEachEnvironmentIdentity() async throws {
-        let suite = "xrplayer.tests.screen-position-isolation.\(UUID().uuidString)"
+        let suite = "enchron.tests.screen-position-isolation.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let store = PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)
@@ -54,7 +54,7 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
     }
 
     func testLegacyOffsetsDoNotMasqueradeAsUserCenteredPlacement() async throws {
-        let suite = "xrplayer.tests.screen-position-legacy.\(UUID().uuidString)"
+        let suite = "enchron.tests.screen-position-legacy.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set(
@@ -63,7 +63,7 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
                 "verticalOffsetMeters": 0.2,
                 "angleDegrees": 3.0
             ]),
-            forKey: "xrplayer.screenPos.enchron-environment"
+            forKey: "enchron.screenPos.enchron-environment"
         )
 
         let loaded = await PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)

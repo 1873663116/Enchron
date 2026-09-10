@@ -41,7 +41,7 @@ public nonisolated protocol ScreenPositionStoring: Sendable {
 
 nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unchecked Sendable {
     private let defaults: UserDefaults
-    private static let keyPrefix = "xrplayer.screenPos."
+    private static let keyPrefix = "enchron.screenPos."
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults

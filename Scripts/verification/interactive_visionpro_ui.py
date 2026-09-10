@@ -19,7 +19,7 @@ from typing import Callable
 
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
-APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
+APP_BUNDLE_ID = "com.xiongzhipeng.Enchron"
 DEVICE_PROCESS_MARKER = "Enchron"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"

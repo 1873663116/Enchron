@@ -18,7 +18,7 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>UTImportedTypeDeclarations</key>
+	<key>UTExportedTypeDeclarations</key>
 	<array>
 		<dict>
 			<key>UTTypeConformsTo</key>
@@ -28,7 +28,7 @@
 			<key>UTTypeDescription</key>
 			<string>SubRip subtitle</string>
 			<key>UTTypeIdentifier</key>
-			<string>io.mpv.subrip</string>
+			<string>com.xiongzhipeng.enchron.subrip</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>
@@ -45,7 +45,7 @@
 			<key>UTTypeDescription</key>
 			<string>Advanced SubStation Alpha subtitle</string>
 			<key>UTTypeIdentifier</key>
-			<string>io.mpv.ass</string>
+			<string>com.xiongzhipeng.enchron.ass</string>
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>public.filename-extension</key>

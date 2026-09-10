@@ -498,7 +498,7 @@ class MaterializedCatalogTests(unittest.TestCase):
             ),
             (BoundLane.SIMULATOR, BoundLane.DEVICE),
             BuildIdentity(
-                "com.xiongzhipeng.XrPlayer",
+                "com.xiongzhipeng.Enchron",
                 "catalog-materialization-test",
                 digest_a,
                 digest_b,
