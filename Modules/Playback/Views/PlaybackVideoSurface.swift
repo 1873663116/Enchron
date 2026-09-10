@@ -230,6 +230,11 @@ public struct PlaybackVideoSurface: View {
     @State private var validVisionLayoutViewportRefreshRevision: UInt64?
     @State private var surfaceVerticalFill: Float = 1
     @State private var hostRoot = PlaybackSurfaceHostRoot()
+    @State private var realityViewHostMarker: Entity = {
+        let entity = Entity()
+        entity.name = "EnchronRealityView.window"
+        return entity
+    }()
 
     private var videoEntity: Entity {
         playbackVideoEntityStore.hostedEntity(
@@ -265,9 +270,11 @@ public struct PlaybackVideoSurface: View {
         )
         return GeometryReader3D { geometry in
             RealityView { content in
+                installRealityViewHostMarker(into: content)
                 observeSceneUpdates(content)
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             } update: { content in
+                installRealityViewHostMarker(into: content)
                 observeSceneUpdates(content)
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             }
@@ -295,6 +302,14 @@ public struct PlaybackVideoSurface: View {
             realityViewUpdateScheduler.cancel()
             releaseSurface()
         }
+    }
+
+    private func installRealityViewHostMarker(into content: RealityViewContent) {
+        guard content.entities.contains(where: { $0 === realityViewHostMarker })
+                == false else {
+            return
+        }
+        content.add(realityViewHostMarker)
     }
 
     private func observeSceneUpdates(_ content: RealityViewContent) {
@@ -469,7 +484,7 @@ public struct PlaybackVideoSurface: View {
             presentation: presentation,
             videoComponentRevision: videoComponentRevision,
             host: .mainWindow,
-            hostIsActive: true,
+            hostIsActive: realityViewHostMarker.isActive,
             transition: appModel.presentationTransition,
             store: playbackVideoEntityStore,
             runtime: playbackRuntime,
