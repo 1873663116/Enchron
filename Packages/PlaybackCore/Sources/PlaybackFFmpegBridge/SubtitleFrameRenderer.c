@@ -110,6 +110,21 @@ static int64_t stream_start_timestamp(
     const AVFormatContext *format,
     const AVStream *stream
 ) {
+    // Normalising by the stream's start only makes sense inside a container
+    // that also carries the picture the cues are timed against. A subtitle
+    // document opened on its own carries film times already, and the `sup`
+    // demuxer reports the first display set as the stream start, so
+    // subtracting it would move every cue earlier by the length of the film's
+    // silent opening.
+    bool accompaniesMedia = false;
+    for (unsigned int index = 0; index < format->nb_streams; index++) {
+        enum AVMediaType type = format->streams[index]->codecpar->codec_type;
+        if (type == AVMEDIA_TYPE_VIDEO || type == AVMEDIA_TYPE_AUDIO) {
+            accompaniesMedia = true;
+            break;
+        }
+    }
+    if (!accompaniesMedia) return 0;
     if (stream->start_time != AV_NOPTS_VALUE) return stream->start_time;
     if (format->start_time != AV_NOPTS_VALUE) {
         return av_rescale_q(

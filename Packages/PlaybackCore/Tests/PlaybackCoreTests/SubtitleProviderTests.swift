@@ -1430,3 +1430,197 @@ private func waitForSubtitleTestSample(in session: SampleBufferPlaybackSession) 
     }
     Issue.record("Timed out waiting for subtitle fixture video sample")
 }
+
+// A Presentation Graphic Stream written by hand, so bitmap subtitle coverage
+// does not depend on a checked-in Blu-ray capture. Each display set paints one
+// bar of a width that follows its index, and is followed by a display set with
+// no objects, which is how the format takes a subtitle off screen. FFmpeg's
+// `sup` demuxer reads this layout directly.
+private enum GeneratedPresentationGraphicStream {
+    static let videoWidth = 1_920
+    static let videoHeight = 1_080
+    static let objectWidth = 600
+    static let objectHeight = 80
+    static let windowX = 660
+    static let windowY = 900
+    static let firstStartSeconds = 2.0
+    static let repeatSeconds = 2.0
+    static let visibleSeconds = 1.6
+
+    static func startSeconds(ofDisplaySet index: Int) -> Double {
+        firstStartSeconds + Double(index) * repeatSeconds
+    }
+
+    static func write(displaySetCount: Int, to url: URL) throws {
+        var stream = Data()
+        for index in 0..<displaySetCount {
+            let start = startSeconds(ofDisplaySet: index)
+            let end = start + visibleSeconds
+            stream.append(segment(at: start, type: 0x16, payload: presentation(index, showing: true)))
+            stream.append(segment(at: start, type: 0x17, payload: window()))
+            stream.append(segment(at: start, type: 0x14, payload: palette()))
+            stream.append(segment(at: start, type: 0x15, payload: object(index)))
+            stream.append(segment(at: start, type: 0x80, payload: Data()))
+            stream.append(segment(at: end, type: 0x16, payload: presentation(index, showing: false)))
+            stream.append(segment(at: end, type: 0x17, payload: window()))
+            stream.append(segment(at: end, type: 0x80, payload: Data()))
+        }
+        try stream.write(to: url, options: .atomic)
+    }
+
+    private static func big16(_ value: Int) -> Data {
+        Data([UInt8((value >> 8) & 0xFF), UInt8(value & 0xFF)])
+    }
+
+    private static func big32(_ value: UInt32) -> Data {
+        Data([
+            UInt8((value >> 24) & 0xFF),
+            UInt8((value >> 16) & 0xFF),
+            UInt8((value >> 8) & 0xFF),
+            UInt8(value & 0xFF),
+        ])
+    }
+
+    private static func segment(at seconds: Double, type: UInt8, payload: Data) -> Data {
+        var segment = Data("PG".utf8)
+        segment.append(big32(UInt32(seconds * 90_000)))
+        segment.append(big32(0))
+        segment.append(type)
+        segment.append(big16(payload.count))
+        segment.append(payload)
+        return segment
+    }
+
+    private static func presentation(_ index: Int, showing: Bool) -> Data {
+        var payload = big16(videoWidth)
+        payload.append(big16(videoHeight))
+        payload.append(0x10)
+        payload.append(big16(index * 2 + (showing ? 0 : 1)))
+        payload.append(showing ? 0x80 : 0x00)
+        payload.append(contentsOf: [0x00, 0x00, showing ? 0x01 : 0x00])
+        if showing {
+            payload.append(big16(0))
+            payload.append(contentsOf: [0x00, 0x00])
+            payload.append(big16(windowX))
+            payload.append(big16(windowY))
+        }
+        return payload
+    }
+
+    private static func window() -> Data {
+        var payload = Data([0x01, 0x00])
+        payload.append(big16(windowX))
+        payload.append(big16(windowY))
+        payload.append(big16(objectWidth))
+        payload.append(big16(objectHeight))
+        return payload
+    }
+
+    private static func palette() -> Data {
+        Data([0x00, 0x00, 0x01, 235, 128, 128, 255, 0x02, 16, 128, 128, 255])
+    }
+
+    private static func object(_ index: Int) -> Data {
+        let pixels = runLength(index)
+        var payload = big16(0)
+        payload.append(contentsOf: [0x00, 0xC0])
+        let length = pixels.count + 4
+        payload.append(contentsOf: [
+            UInt8((length >> 16) & 0xFF),
+            UInt8((length >> 8) & 0xFF),
+            UInt8(length & 0xFF),
+        ])
+        payload.append(big16(objectWidth))
+        payload.append(big16(objectHeight))
+        payload.append(pixels)
+        return payload
+    }
+
+    static func inkPixels(ofDisplaySet index: Int) -> Int {
+        (barWidth(index) + 120) * (objectHeight - 20)
+    }
+
+    private static func barWidth(_ index: Int) -> Int { 40 + (index % 5) * 40 }
+
+    private static func runLength(_ index: Int) -> Data {
+        var pixels = Data()
+        for row in 0..<objectHeight {
+            if row >= 10, row < objectHeight - 10 {
+                let bar = barWidth(index)
+                pixels.append(line([
+                    (0, 20), (1, bar), (0, 20), (1, 120), (0, objectWidth - 160 - bar),
+                ]))
+            } else {
+                pixels.append(line([(0, objectWidth)]))
+            }
+        }
+        return pixels
+    }
+
+    private static func line(_ runs: [(UInt8, Int)]) -> Data {
+        var encoded = Data()
+        for (colour, length) in runs {
+            var remaining = length
+            while remaining > 0 {
+                let run = min(remaining, 16_383)
+                remaining -= run
+                if colour == 0 {
+                    if run < 64 {
+                        encoded.append(contentsOf: [0x00, UInt8(run)])
+                    } else {
+                        encoded.append(contentsOf: [
+                            0x00, UInt8(0x40 | (run >> 8)), UInt8(run & 0xFF),
+                        ])
+                    }
+                } else if run < 64 {
+                    encoded.append(contentsOf: [0x00, UInt8(0x80 | run), colour])
+                } else {
+                    encoded.append(contentsOf: [
+                        0x00, UInt8(0xC0 | (run >> 8)), UInt8(run & 0xFF), colour,
+                    ])
+                }
+            }
+        }
+        encoded.append(contentsOf: [0x00, 0x00])
+        return encoded
+    }
+}
+
+private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
+    let directory = FileManager.default.temporaryDirectory
+        .appending(path: "PlaybackCorePresentationGraphicFixture")
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    let fixture = directory.appending(path: "generated-\(displaySetCount).sup")
+    try GeneratedPresentationGraphicStream.write(displaySetCount: displaySetCount, to: fixture)
+    return fixture
+}
+
+@Test func aBitmapSubtitleDocumentKeepsTheTimesItWasAuthoredWith() async throws {
+    // The `sup` demuxer reports the first display set as the stream start.
+    // A subtitle document has no picture beside it to be offset from, so its
+    // times are the film's own and nothing may be subtracted from them.
+    let fixture = try presentationGraphicFixtureURL(displaySetCount: 8)
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+    let firstStart = GeneratedPresentationGraphicStream.startSeconds(ofDisplaySet: 0)
+    #expect(firstStart > 0)
+    #expect(try renderer.frame(
+        at: CMTime(seconds: firstStart - 0.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ) == nil)
+    #expect(try renderer.frame(
+        at: CMTime(seconds: firstStart + 0.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ) != nil)
+}
+
