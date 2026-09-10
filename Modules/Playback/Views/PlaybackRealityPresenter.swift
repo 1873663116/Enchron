@@ -1087,16 +1087,39 @@ enum PlaybackRealityPresenter {
         entity.components.remove(VideoPlayerComponent.self)
     }
 
+    private static func recordOpacityChange(
+        entity: Entity,
+        from current: Float?,
+        to opacity: Float,
+        animated: Bool
+    ) {
+        SurfaceInputProbes.record(
+            "videoEntityOpacity"
+                + " entity=\(entity.name)"
+                + " from=\(current.map { String($0) } ?? "none")"
+                + " to=\(opacity)"
+                + " animated=\(animated)",
+            retention: .evidence
+        )
+    }
+
     static func setOpacity(
         of entity: Entity,
         to opacity: Float,
         animated: Bool
     ) {
         guard let current = entity.components[OpacityComponent.self] else {
+            recordOpacityChange(entity: entity, from: nil, to: opacity, animated: false)
             entity.components.set(OpacityComponent(opacity: opacity))
             return
         }
         guard current.opacity != opacity else { return }
+        recordOpacityChange(
+            entity: entity,
+            from: current.opacity,
+            to: opacity,
+            animated: animated
+        )
         guard animated else {
             entity.components.set(OpacityComponent(opacity: opacity))
             return
