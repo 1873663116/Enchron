@@ -334,7 +334,7 @@ class OperationContext:
     target: str
     attempt_root: Path
     controller_directory: Path
-    bundle_id: str = "com.xiongzhipeng.XrPlayer"
+    bundle_id: str = "com.xiongzhipeng.Enchron"
 
     def __post_init__(self) -> None:
         if self.lane not in ("simulator", "device"):
@@ -3382,7 +3382,7 @@ class ResidentOperationBackend:
             target = "dummy"
             attempt_root = Path("/tmp")
             controller_directory = Path("/tmp")
-            bundle_id = "com.xiongzhipeng.XrPlayer"
+            bundle_id = "com.xiongzhipeng.Enchron"
         key = (lane, target, str(attempt_root), str(controller_directory), bundle_id)
         cached = _INSTRUMENTS_CACHE.get(key)
         if cached is not None:

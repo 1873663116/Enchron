@@ -57,11 +57,16 @@ Regression/
   reviews/<review-class>/*.json  # review stage output, not materializer input
 
 Scripts/regression/
-  core/
-  operations/<capability>/
-  oracles/
-  regressionctl.py
+  core/                      # 合同、编译、计划与运行时状态机
+  tools/                     # MCP 工具：session、op、bundle、ledger、receipt
+  runctl.py                  # prepare-build、freeze、compile、status
+  reviewctl.py               # 审查阶段与派生收据
+  writectl.py                # 写入集
+  rubric_compiler.py         # 由 rubric criteria 编出 L0 字段谓词
+  materialize_catalog_v2.py  # 由 blueprint 物化本目录
 ```
+
+Operation 的分发实现不在 `Scripts/regression/` 下，而在 `Scripts/verification/regression_operation_adapter.py`。
 
 Promise、Fact、Preparation、Operation、Oracle、Rubric、Journey 和 Scenario 文件共同形成 `CatalogDigest`。Digest 由按类型和 ID 排序的 leaf digest 清单计算；review packet 绑定它实际包含的 leaf 集，因此只有内容发生变化的 packet receipt 失效，不要求未变化的 Journey 重审。首版不引入另一套 Oracle compatibility review 或可变的“受影响范围”推断。`reviews/` 中的 receipt 不进入 Catalog digest，否则 receipt 会引用包含自身的摘要。单个 receipt 绑定 packet digest、审查者身份、审查报告 digest、预算用量和结论；`CatalogGateReceipt` 对当前完整 packet 分区重新验覆盖后，再绑定完整 `CatalogDigest` 与本轮采用的全部 receipt digest。这样既不能拼出漏项 Catalog，也不会因无关 leaf 变化废掉仍然有效的审查。
 

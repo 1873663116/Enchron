@@ -11,10 +11,10 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:f518c15f006fa381f882e34adaeb4692df73365e8b04cea120c1a7c906ff6c3d",
+  "contentDigest": "sha256:b843d14472b306db3f33a1a317ae26ce0ed0fcada006f15f55beccd3fbe568dd",
   "copyDocuments": [
     {
-      "digest": "sha256:9cfb3bc7a08f373a41130092bd67e2e13e90ffb25820e690c9c344306944936e",
+      "digest": "sha256:6b034a5ac79a9004f3b23d8e04ebaad21c09b32eb90aaf33148835b6c3b8bfdf",
       "path": "README.md"
     },
     {
