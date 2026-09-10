@@ -213,6 +213,15 @@ public struct PlayerView: View {
             }
         }
         .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
+        .onChange(of: showsWindowGlass, initial: true) { _, shows in
+            playbackSession.recordSurfaceInputProbe(
+                "windowGlass"
+                    + " shows=\(shows)"
+                    + " presentationState=\(playbackRuntime.presentationState)"
+                    + " revealing=\(isRevealingPlayerWindow)",
+                retention: .evidence
+            )
+        }
         .persistentSystemOverlays(
             PlayerWindowSystemOverlayPolicy.visibility(
                 showsPlaybackChrome: showsPlaybackChrome
