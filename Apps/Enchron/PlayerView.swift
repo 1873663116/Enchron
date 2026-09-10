@@ -213,6 +213,11 @@ public struct PlayerView: View {
             }
         }
         .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
+        .persistentSystemOverlays(
+            PlayerWindowSystemOverlayPolicy.visibility(
+                showsPlaybackChrome: showsPlaybackChrome
+            )
+        )
         .onChange(of: showsWindowGlass, initial: true) { _, shows in
             playbackSession.recordSurfaceInputProbe(
                 "windowGlass"
@@ -222,11 +227,6 @@ public struct PlayerView: View {
                 retention: .evidence
             )
         }
-        .persistentSystemOverlays(
-            PlayerWindowSystemOverlayPolicy.visibility(
-                showsPlaybackChrome: showsPlaybackChrome
-            )
-        )
     }
 
     @ViewBuilder

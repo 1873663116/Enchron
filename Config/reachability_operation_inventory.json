@@ -2953,7 +2953,7 @@
       "scope": "debug-diagnostic",
       "sources": [
         {
-          "line": 337,
+          "line": 346,
           "path": "Apps/Enchron/PlayerView.swift"
         }
       ],
@@ -3005,7 +3005,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 350,
+          "line": 359,
           "path": "Apps/Enchron/PlayerView.swift"
         }
       ],
@@ -3083,7 +3083,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 770,
+          "line": 779,
           "path": "Apps/Enchron/PlayerView.swift"
         }
       ],
@@ -3265,7 +3265,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 278,
+          "line": 287,
           "path": "Apps/Enchron/PlayerView.swift"
         }
       ],
@@ -3291,7 +3291,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 275,
+          "line": 284,
           "path": "Apps/Enchron/PlayerView.swift"
         }
       ],
@@ -3304,7 +3304,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 362,
+          "line": 371,
           "path": "Apps/Enchron/PlayerView.swift"
         }
       ],
@@ -5818,7 +5818,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 261,
+            "line": 270,
             "path": "Apps/Enchron/PlayerView.swift"
           },
           {
@@ -5912,7 +5912,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 261,
+            "line": 270,
             "path": "Apps/Enchron/PlayerView.swift"
           },
           {
@@ -5945,7 +5945,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 261,
+            "line": 270,
             "path": "Apps/Enchron/PlayerView.swift"
           },
           {
@@ -5969,7 +5969,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 261,
+            "line": 270,
             "path": "Apps/Enchron/PlayerView.swift"
           },
           {
@@ -5993,7 +5993,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 261,
+            "line": 270,
             "path": "Apps/Enchron/PlayerView.swift"
           },
           {
@@ -6017,7 +6017,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 261,
+            "line": 270,
             "path": "Apps/Enchron/PlayerView.swift"
           },
           {
@@ -6041,7 +6041,7 @@
         "host": "windowPlaybackTopChrome",
         "sources": [
           {
-            "line": 261,
+            "line": 270,
             "path": "Apps/Enchron/PlayerView.swift"
           },
           {
