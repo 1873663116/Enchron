@@ -160,7 +160,7 @@ public struct MainView: View {
             Tab("Files", systemImage: "folder", value: AppModel.NavigationTab.files) {
                 FilesScreenHost()
                     .enchronScreenAppearance()
-                    .toolbarVisibility(browserTabBarVisibility, for: .tabBar)
+                    .browserTabBarVisibility(browserVisibility)
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
 
@@ -179,14 +179,14 @@ public struct MainView: View {
                     }
                 }
                 .enchronScreenAppearance()
-                .toolbarVisibility(browserTabBarVisibility, for: .tabBar)
+                .browserTabBarVisibility(browserVisibility)
             }
             .accessibilityIdentifier("Emby-Navigation-Tab")
 
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()
                     .enchronScreenAppearance()
-                    .toolbarVisibility(browserTabBarVisibility, for: .tabBar)
+                    .browserTabBarVisibility(browserVisibility)
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-settings")
 
@@ -196,11 +196,11 @@ public struct MainView: View {
                 value: AppModel.NavigationTab.environment
             ) {
                 Color.clear
-                    .toolbarVisibility(browserTabBarVisibility, for: .tabBar)
+                    .browserTabBarVisibility(browserVisibility)
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
-        .toolbarVisibility(browserTabBarVisibility, for: .tabBar)
+        .browserTabBarVisibility(browserVisibility)
         .task {
             guard embySession.server != nil, embyHome.shelves.isEmpty else { return }
             await embyHome.refresh()
@@ -213,11 +213,11 @@ public struct MainView: View {
 #endif
     }
 
-    private var browserTabBarVisibility: Visibility {
-        SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
+    private var browserVisibility: BrowserWindowVisibility {
+        BrowserWindowVisibility(
             window: .main,
             playbackResidency: spatialPlatformEffectCoordinator.playbackResidency
-        ) ? .hidden : .automatic
+        )
     }
 
     private var browserTabSelection: Binding<AppModel.NavigationTab> {

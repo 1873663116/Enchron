@@ -82,11 +82,11 @@ struct EnchronApp: App {
         )
         .windowStyle(.plain)
         .persistentSystemOverlays(
-            SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
+            BrowserWindowVisibility(
                 window: .main,
                 playbackResidency: application.spatialPlatformEffectCoordinator
                     .playbackResidency
-            ) ? .hidden : .automatic
+            ).systemOverlays
         )
         .windowResizability(.contentSize)
 
@@ -209,8 +209,8 @@ private struct WindowSceneGate<Content: View>: View {
         )
     }
 
-    private var hidesBrowser: Bool {
-        SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
+    private var browserVisibility: BrowserWindowVisibility {
+        BrowserWindowVisibility(
             window: window,
             playbackResidency: spatialPlatformEffectCoordinator.playbackResidency
         )
@@ -224,10 +224,7 @@ private struct WindowSceneGate<Content: View>: View {
                 content()
             }
         }
-        .opacity(hidesBrowser ? 0 : 1)
-        .allowsHitTesting(hidesBrowser == false)
-        .accessibilityHidden(hidesBrowser)
-        .persistentSystemOverlays(hidesBrowser ? .hidden : .automatic)
+        .browserWindowContentVisibility(browserVisibility)
         .windowSceneReporting { windowScene in
             if let identifier = windowScene?.session.persistentIdentifier {
                 ownSessionIdentifier = identifier
