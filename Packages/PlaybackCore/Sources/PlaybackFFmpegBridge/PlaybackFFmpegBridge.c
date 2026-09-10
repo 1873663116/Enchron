@@ -4205,6 +4205,26 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
     return count;
 }
 
+bool PBFFmpegHasDemuxer(const char *name) {
+    if (!name) return false;
+    return av_find_input_format(name) != NULL;
+}
+
+bool PBFFmpegHasDecoder(const char *name) {
+    if (!name) return false;
+    return avcodec_find_decoder_by_name(name) != NULL;
+}
+
+bool PBFFmpegHasInputProtocol(const char *name) {
+    if (!name) return false;
+    void *opaque = NULL;
+    const char *protocol = NULL;
+    while ((protocol = avio_enum_protocols(&opaque, 0)) != NULL) {
+        if (strcmp(protocol, name) == 0) return true;
+    }
+    return false;
+}
+
 int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
     PBFFmpegDemuxSource *source
 ) {

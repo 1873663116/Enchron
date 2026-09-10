@@ -98,6 +98,13 @@ typedef struct PBFFmpegDemuxBufferConfiguration {
 // part of what this package promises, not a detail of how it was made.
 const char *PBFFmpegBuildConfiguration(void);
 
+// Whether the vendored build actually contains a component this engine reads
+// media through. The configure line says what was asked for; these answer
+// what is in the binary, which is what a source at runtime meets.
+bool PBFFmpegHasDemuxer(const char *name);
+bool PBFFmpegHasDecoder(const char *name);
+bool PBFFmpegHasInputProtocol(const char *name);
+
 PBFFmpegDemuxBufferConfiguration PBFFmpegDemuxBufferConfigurationMake(
     PBFFmpegDemuxBufferMode mode,
     int64_t explicitForwardByteLimit

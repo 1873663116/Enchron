@@ -184,6 +184,33 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(subtitleProvider.sourceInformationReceived == information)
 }
 
+@MainActor
+@Test func everySnapshotCarriesTheFFmpegBuildItWasProducedBy() async throws {
+    // The build decides which containers and codecs exist, so a snapshot that
+    // does not say which build produced it cannot answer why a source behaved
+    // the way it did. The zlib defect was exactly this: nothing in the
+    // evidence said the binary could not uncompress a Matroska track.
+    let controller = PlaybackCoreController(
+        sessionFactory: { sessionID in
+            SampleBufferPlaybackSession(
+                traceID: sessionID,
+                provider: FakeVideoSampleProvider(events: [.end]),
+                rendererSink: FakeRendererInputSink()
+            )
+        },
+        debugRecorderMode: .disabledForVerification
+    )
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/build-configuration.mov")
+    )
+    defer { session.close() }
+
+    let configuration = try #require(
+        session.debugSnapshot().ffmpegBuildConfiguration
+    )
+    #expect(configuration.contains("--enable-zlib"))
+}
+
 @Test func aSubtitleTrackThatDecodesToNothingSaysSoInItsOutcome() async throws {
     // Drawing nothing is ordinary between cues and a defect when packets
     // reached the decoder and no display set ever came out. Those two looked

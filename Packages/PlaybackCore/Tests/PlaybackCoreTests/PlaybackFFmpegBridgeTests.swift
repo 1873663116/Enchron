@@ -61,6 +61,41 @@ private func mediaStreams(in fixture: URL) -> [TestMediaStreamInformation] {
     }
 }
 
+@Test func theVendoredBuildCarriesEveryComponentThisEngineReadsMediaThrough() throws {
+    // The build decides what a source can be at all, and a component that was
+    // configured away is missing at runtime with no error of its own: the
+    // compressed Matroska subtitle track simply produced no picture. The
+    // configure line is what was asked for; this is what is in the binary.
+    // Anything listed here is on a path the product takes, so a name that
+    // stops matching is either a real loss or a list that needs correcting -
+    // never something to delete to make the test pass.
+    for demuxer in ["matroska", "mov"] {
+        #expect(
+            PBFFmpegHasDemuxer(demuxer),
+            Comment(rawValue: "demuxer \(demuxer)")
+        )
+    }
+    for protocolName in ["file", "http", "https", "tcp", "tls"] {
+        #expect(
+            PBFFmpegHasInputProtocol(protocolName),
+            Comment(rawValue: "protocol \(protocolName)")
+        )
+    }
+    // Subtitles and audio are decoded here; video is handed to VideoToolbox
+    // as compressed samples and has no FFmpeg decoder on its path.
+    for decoder in [
+        "pgssub", "dvdsub", "ass", "srt", "subrip", "mov_text", "webvtt",
+        // DTS is "dca" here, after the codec family rather than the brand.
+        "aac", "ac3", "eac3", "dca", "truehd", "flac", "mp3", "opus", "vorbis",
+        "pcm_s16le",
+    ] {
+        #expect(
+            PBFFmpegHasDecoder(decoder),
+            Comment(rawValue: "decoder \(decoder)")
+        )
+    }
+}
+
 @Test func theVendoredBuildCanUncompressMatroskaTrackContents() throws {
     // Matroska may store a track's frames compressed, and mkvmerge does this
     // to Blu-ray bitmap subtitles by default. The demuxer uncompresses them

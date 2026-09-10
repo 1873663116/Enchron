@@ -32,6 +32,7 @@ private enum PlaybackDebugSnapshotV1CodingKey: String, CodingKey {
     case presentationBinding
     case presentationState
     case platform
+    case ffmpegBuildConfiguration
     case hardwareDisplayFacts
     case evidenceCorrelationIDs
     case streamEpoch
@@ -155,6 +156,10 @@ extension PlaybackDebugSnapshotV1 {
             forKey: .presentationState
         )
         platform = try container.decodeIfPresent(String.self, forKey: .platform)
+        ffmpegBuildConfiguration = try container.decodeIfPresent(
+            String.self,
+            forKey: .ffmpegBuildConfiguration
+        )
         hardwareDisplayFacts = try container.decode(
             FactAvailability.self,
             forKey: .hardwareDisplayFacts

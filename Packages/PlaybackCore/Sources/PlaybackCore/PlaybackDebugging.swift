@@ -1,4 +1,5 @@
 import Foundation
+import PlaybackFFmpegBridge
 
 public struct PlaybackDebugEvent: Codable, Equatable, Sendable {
     public var schemaVersion: Int
@@ -208,6 +209,11 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var presentationState: PresentationStateRecord?
     public var sourceReadObservation: PlaybackSourceReadObservation?
     public var platform: String?
+    // The configure line of the FFmpeg this build links. Every piece of
+    // evidence carries it because the build decides which containers and
+    // codecs exist at all, and a component that was configured away is
+    // missing at runtime without an error of its own.
+    public var ffmpegBuildConfiguration: String?
     public var hardwareDisplayFacts = FactAvailability.notAvailable
     public var evidenceCorrelationIDs: [String] = []
     public var streamEpoch: UInt64 = 0
@@ -587,6 +593,9 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         currentSnapshot.platform = platform
+        currentSnapshot.ffmpegBuildConfiguration = String(
+            cString: PBFFmpegBuildConfiguration()
+        )
         currentSnapshot.hardwareDisplayFacts = hardwareDisplayFacts
     }
 
