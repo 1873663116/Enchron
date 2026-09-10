@@ -2131,6 +2131,7 @@ public struct ImmersiveSpaceView: View {
                 == entityID(for: sourcePresentation) else {
             return
         }
+        PlaybackRealityPresenter.setOpacity(of: videoEntity, to: 0, animated: false)
         playbackVideoEntityStore.releaseInteractionSurfacesForRealityViewTransfer()
         playbackRuntime.releaseRendererConsumer(
             presentation: sourcePresentation,
