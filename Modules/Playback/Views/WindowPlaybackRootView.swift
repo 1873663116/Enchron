@@ -441,7 +441,15 @@ public struct WindowPlaybackRootView<
     }
 
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {
-        guard let windowScene else { return }
+        guard let windowScene else {
+            SurfaceInputProbes.record(
+                "windowGeometryUnasked"
+                    + " min=\(probeSize(geometryPolicy.minimumSize))"
+                    + " ideal=\(probeSize(geometryPolicy.idealSize))",
+                retention: .evidence
+            )
+            return
+        }
         let requestedMinimum = probeSize(geometryPolicy.minimumSize)
         let requestedIdeal = probeSize(geometryPolicy.idealSize)
         let requestedFrom = probeWindowSize
