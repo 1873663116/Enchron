@@ -397,6 +397,15 @@ public final class PlaybackSessionModel {
     public func prepareColdPlaybackLaunch(
         for family: PresentationContentFamily
     ) {
+        if let standing = presentationTransition {
+            SurfaceInputProbes.record(
+                "coldLaunchDuringTransition transition=\(standing.id)"
+                    + " previous=\(standing.previousPresentation.rawValue)"
+                    + " target=\(standing.targetPresentation.rawValue)"
+                    + " family=\(family)",
+                retention: .evidence
+            )
+        }
         resetPresentationTransitionAppearance()
         showControls = false
         playbackPresentationModel.prepareColdPlaybackLaunch(for: family)

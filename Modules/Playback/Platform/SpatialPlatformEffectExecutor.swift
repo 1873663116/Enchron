@@ -592,6 +592,20 @@ public final class SpatialPlatformEffectCoordinator {
     }
 
     private func finishExecution(_ lease: SpatialPlatformExecutionLease) {
+        if let standing = appModel.presentationTransition {
+            SurfaceInputProbes.record(
+                "executionAbandonedWithTransition transition=\(standing.id)"
+                    + " previous=\(standing.previousPresentation.rawValue)"
+                    + " target=\(standing.targetPresentation.rawValue)"
+                    + " checkpoint=\(lastExecutionCheckpoint)"
+                    + " operation=\(lastPlatformOperation)"
+                    + " sourceMayRelease="
+                    + "\(appModel.presentationSourceRendererMayRelease)"
+                    + " targetMayBind=\(appModel.presentationTargetRendererMayBind)"
+                    + " cutover=\(appModel.presentationVisualCutoverMayBegin)",
+                retention: .evidence
+            )
+        }
         lastExecutionCheckpoint = "execution-finish-entered"
         let pendingRequestBeforeFinish = appModel.pendingSpatialPlatformEffect?.id
         let nextRequestIsReady = SpatialPlatformExecutionDrainPolicy
