@@ -9,6 +9,7 @@
   "Scripts/verification/emby_probe.py",
   "Scripts/verification/ensure_test_services.py",
   "Scripts/verification/extract_visionpro_ui_recording.py",
+  "Scripts/verification/immersive_entry_race.py",
   "Scripts/verification/inventory_dynamic_range_corpus.py",
   "Scripts/verification/inventory_emby_open_matrix.py",
   "Scripts/verification/journey_audio_probe.py",
