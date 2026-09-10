@@ -13,7 +13,7 @@
 
 ## 工具链
 
-项目构建在 Xcode beta6 与同版本 visionOS SDK 上，active developer directory 不在默认的 `/Applications`；以 `xcodebuild -version` 和 `xcode-select -p` 为准。
+项目构建在 Xcode 27.0（27A266a）与同版本 visionOS SDK 上，active developer directory 不在默认的 `/Applications`；以 `xcodebuild -version` 和 `xcode-select -p` 为准。
 
 API 可用性与行为：Executor `apple_developer_docs`
 

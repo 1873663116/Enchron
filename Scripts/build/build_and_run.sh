@@ -14,7 +14,7 @@ SIGNING_ARGS=(CODE_SIGN_STYLE=Automatic)
 
 if [[ -z "${DEVELOPER_DIR:-}" && "$(/usr/bin/xcode-select -p 2>/dev/null || true)" == "/Library/Developer/CommandLineTools" ]]; then
   for xcode_app in \
-    /Volumes/Cortisol/Applications/Xcode-beta6.app; do
+    /Volumes/Cortisol/Applications/Xcode.app; do
     if [[ -d "$xcode_app/Contents/Developer" ]]; then
       export DEVELOPER_DIR="$xcode_app/Contents/Developer"
       break

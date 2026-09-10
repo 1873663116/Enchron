@@ -2,6 +2,7 @@
 
 本文的结论出自 2026-08-21 在 visionOS 27 模拟器上的实测，工具链为 Xcode 27 beta5（27A5237l）。
 2026-08-25 又使用 Xcode 27 beta6（27A5252f）与 visionOS 27 Simulator（24M5357a）复核了构建、安装、启动和 `TestCommandChannel`；其余能力矩阵仍以原始实测为准。
+2026-09-10 工具链换到 Xcode 27.0 正式版（27A266a）与 visionOS 27 Simulator 正式版 runtime（24M362），复核了构建、安装、启动与 `TestCommandChannel` ping；其余能力矩阵仍以原始实测为准。24M362 只接受 `com.apple.CoreSimulator.SimDeviceType.Apple-Vision-Pro-4K` 设备类型，对 2732x2048 的 `Apple-Vision-Pro` 返回 `Incompatible device`（SimError 403）。
 
 模拟器的 App 容器就是 Mac 上的一个普通目录（路径由 `xcrun simctl get_app_container <设备> <bundle id> data` 给出）。因此，真机上所有依赖 `devicectl` 网络往返的通道，在模拟器 lane 全部退化为本地文件读写，没有拷贝延迟。
 
