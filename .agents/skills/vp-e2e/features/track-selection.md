@@ -13,7 +13,7 @@
 
 ## How to get to it (user POV)
 
-用户在播放中唤出控件，顶部的 More 菜单里提供 Subtitles 与 Audio Track 两项，各自展开为可选的轨道列表。
+用户在播放中唤出控件，顶部的 More 菜单最多展开四项：Subtitles、Audio Track、Playback Speed、Episodes（`Modules/Playback/Views/WindowPlayerDeck.swift:410-438`）。Subtitles、Audio Track、Episodes 只在对应内容存在时才出现，Playback Speed 恒定可见。本特性覆盖前两项，各自展开为可选的轨道列表。
 
 ## Driving it with the controller
 
@@ -24,11 +24,11 @@ Preconditions: 会话已建立；已使用时长足够的多音轨片源起播�
 ```sh
 C app-command --verb toggleControls
 C tap --identifier PlayerUI-TopAction-more
-C tap --label 'Audio Track'      # 返回的层级里就有轨道条目
+C tap --identifier PlayerUI-menu-audio      # 返回的层级里就有轨道条目
 C tap --label '<轨道 label>' --index <n>
 ```
 
-Subtitles 菜单项有 identifier（`PlayerUI-menu-subtitles`）；Audio Track 菜单项与全部轨道条目都没有 identifier，只能按 label 命中。遇到同名条目（例如两条 `und · aac · 2ch`）时，用 `--label` 加 `--index` 的组合来区分。
+Subtitles 菜单项有 identifier（`PlayerUI-menu-subtitles`），Audio Track 菜单项也有（`PlayerUI-menu-audio`）；但两者之下的轨道条目都没有 identifier，只能按 label 命中。遇到同名条目（例如两条 `und · aac · 2ch`）时，用 `--label` 加 `--index` 的组合来区分。
 
 ## 证据
 

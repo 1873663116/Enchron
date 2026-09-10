@@ -20,11 +20,12 @@ xcrun devicectl device info details --device 59E3D57A-0288-53DC-9A7D-B657B693955
 python3 Scripts/verification/interactive_visionpro_ui.py \
   --device 00008142-001871A11491401C \
   --developer-dir "$(xcode-select -p)" \
+  --execution-input <证据目录>/execution-input.json \
   --output-directory <证据目录> \
   ensure-session
 ```
 
-`ensure-session` 内部依次完成：halt 清理、启动常驻 runner、等待新 `sessionID` 发布，最后以一次 `snapshot` 证明会话可用。只有返回 `stage: ready` 才算建立成功。2026-08-09 实测该命令 25.7 秒返回，全程在前台等待。
+`ensure-session` 内部依次完成：halt 清理、启动常驻 runner、等待新 `sessionID` 发布，最后以一次 `snapshot` 证明会话可用。只有返回 `stage: ready` 才算建立成功，全程在前台等待。实测耗时不稳定：`controller_timings.device.json` 的 27 个 `ensure-session` 样本（2026-08-26 至 09-03）落在 4 到 268 秒之间，单一数字不能代表这条命令的预算。
 
 该命令走 `test-without-building` 模式并复用同一份 DerivedData，单步命令之间不会重复构建；源码有改动时，需要先自行执行 `build-for-testing`。
 
@@ -45,7 +46,7 @@ python3 Scripts/verification/interactive_visionpro_ui.py \
 
 ```sh
 xcrun devicectl device copy from --device <CoreDevice ID> \
-  --domain-type appDataContainer --domain-identifier com.xiongzhipeng.XrPlayer \
+  --domain-type appDataContainer --domain-identifier com.xiongzhipeng.Enchron \
   --source Documents/surface-tap-probe.log --destination <本地路径>
 ```
 
@@ -59,7 +60,7 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 ## 录屏
 
-常驻会话默认只截图不录屏（使用 `InteractiveDeviceSession` 测试计划），空闲 30 分钟后自行结束。需要判断过渡、闪现、短暂遮挡、焦点变化或动画时，以 `--test-plan Enchron` 启动录屏会话，完成后立即 `halt` 促使 XCTest 落盘 `.xcresult`，再由 `Scripts/verification/extract_visionpro_ui_recording.py` 提取视频。录屏暂存写在头显本地存储，且只在测试结束时回收，因此录屏会话必须短小且有明确终点。
+常驻会话默认只截图不录屏，因为常规执行输入指向的是以 `InteractiveDeviceSession` 测试计划构建的 xctestrun（`preferredScreenCaptureFormat: screenshots`），空闲 30 分钟后自行结束。`interactive_visionpro_ui.py` 不接受 `--test-plan` 参数：录屏与否完全由 `--execution-input`／`ENCHRON_EXECUTION_INPUT` 指向的 xctestrun 决定。需要判断过渡、闪现、短暂遮挡、焦点变化或动画时，先以 `Enchron` 测试计划（`preferredScreenCaptureFormat: screenRecording`）`build-for-testing` 出对应 xctestrun 并冻结出指向它的执行输入，再用这份执行输入启动会话，完成后立即 `halt` 促使 XCTest 落盘 `.xcresult`，再由 `Scripts/verification/extract_visionpro_ui_recording.py` 提取视频。录屏暂存写在头显本地存储，且只在测试结束时回收，因此录屏会话必须短小且有明确终点。
 
 ## 已证伪路径
 
@@ -68,7 +69,7 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 - 经 `devicectl device process launch --terminate-existing` 启动目标 App，再由常驻 runner 接管：可以读取像素与层级，但输入没有有效的 App Scene 身份。
 - 对系统权限卡或 Files 选择器控件发送 App 全局坐标：可能命中错误的 Scene。应当使用语义 identifier 或可见 label；XCTest 触达不到的系统权限交由佩戴者处理。
 - 旧 runner 未干净停止时启动新 runner：session 身份、权限、结果包与目标 App 的所有权将变得含混。
-- 以 `Wait for com.xiongzhipeng.XrPlayer to idle` 判定失败：历史成功运行的快照与点击之前同样会出现该行。
+- 以 `Wait for com.xiongzhipeng.Enchron to idle` 判定失败：历史成功运行的快照与点击之前同样会出现该行。
 - 在异于 `xcodebuild` 的 PTY 中执行 `sudo -v`：无法覆盖 Xcode 随后启动的 `devicectl diagnose` 认证。
 
 ## 基础设施退化

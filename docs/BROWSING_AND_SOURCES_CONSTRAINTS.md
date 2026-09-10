@@ -23,6 +23,28 @@
 - **Emby 连接表单声明 `textContentType(.username)` 与 `textContentType(.password)`，提交它会引出系统的 Save-Password 面板**。WebDAV 与 SMB 的连接表单同样如此：产品提交的每一个凭据表单都会引出这张面板。见 `Scripts/verification/regression_preparation_adapter.py` 与 `Scripts/rules/test_regression_preparation_adapter.py`。
 - **这张面板在窗口层级之外**，同一个 Preparation 里后续的任何一步都清不掉它。每个连接分支因此在自己的连接按钮之后立刻关掉它，一次关闭只能顶一个分支。见 `Scripts/verification/regression_preparation_adapter.py`。
 
+## 服务器证书信任
+
+- **未进入信任链的证书按 Trust-on-First-Use 处理**。`ServerTrustPolicy.urlSession(_:didReceive:completionHandler:)`（`Modules/MediaSource/ServerTrustPolicy.swift`）在系统信任评估失败时不弹系统对话框，而是自己记指纹：证书 DER 编码的 SHA-256 存进 `UserDefaults.standard`，键是 `server-certificate-fingerprint.<host小写>:<port>`（`fingerprintKey(address:)`）。指纹只在佩戴者批准之后写入（`ServerTrustPolicy.swift:145`），此后这个地址的这张证书不再被问起；产品没有暴露任何界面能删掉这个键、把地址重新变回未验证状态。
+- **证书确认框只在一个连接批准窗口内出现**。`withConnectionApproval(to:operation:)` 给每个地址维护一个深度计数器，`operation` 开始时加一、结束时减一；`reportUntrustedCertificate` 用这个计数器是否大于 0 决定要不要弹框。整个代码库只有两处调用它，都在建立连接、而不是播放期间的普通请求上：`EmbyClient.authenticate(address:username:password:)`（`Modules/Emby/EmbyClient.swift:50`）包住登录请求，`WebDAVDataSourceAdapter.connect(with:)`（`Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift:59`）包住 `validateConnection`。
+- **窗口之外质询被直接取消，但改变通知已经先发出**。`urlSession(_:didReceive:completionHandler:)` 在深度计数器为 0 时用 `guard reportUntrustedCertificate(...), let approvalHandler else { completionHandler(.cancelAuthenticationChallenge, nil); return }` 拒绝质询，请求随之失败。但这个 `guard` 的第一个条件就是 `reportUntrustedCertificate` 本身的返回值：它只要读到一个与新指纹不同的旧指纹，就先把 `ServerCertificateChange` 派给 `certificateChangeHandler`，再返回批准窗口深度是否大于 0；这一步不看当前是否在窗口内，窗口只决定接下来要不要弹出确认框。
+- **佩戴者看到的是专用问题，不是随后到来的连接错误**。`certificateChangeHandler` 串到 `ServerCertificateChangePlaybackBoundary.receive(_:)`（`Apps/Enchron/EnchronApplication.swift:274`）：记一条 `certificateBoundary changed previous=... new=...` 诊断，播放正在进行就先暂停，再把 `PlaybackUserVisibleIssue.serverCertificateChanged` 设成当前问题；没有播放在跑时不暂停，问题照样设置（`ServerCertificateChangePlaybackBoundaryTests.testCertificateChangeWithoutPlayingSessionDoesNotPause`）。这个问题标题是 "Server Certificate Changed"，正文是 "The server certificate changed. Close playback before reconnecting."，唯一允许的动作是 `.close`，呈现在 `.mainWindow` 与 `.immersiveSpace`（`PlaybackUserVisibleIssue.swift:9`、`:146`、`:166`、`:208`、`:309`）；重新连接才会再次进入批准窗口。
+- **这个问题在播放停止前不会被通用失败顶掉**。`protectsCertificateChangeIssue` 在收到改变通知的那一刻记下当时有没有播放在跑；此后每来一次 `.activeFailure` 观察，只要这个标记为真就把问题重新设回 `.serverCertificateChanged`，直到 `.stopped` 事件把标记清掉。改变通知落地时那台服务器已经不可信，播放核心随后几乎总会自己先报一次连接类失败；没有这层保护，证书变了这个真正原因会立刻被更笼统的失败问题盖住。`ServerCertificateChangePlaybackBoundaryTests.testActiveFailureCannotReplaceCertificateIssueUntilPlaybackStops` 钉住这条保护。
+- **指纹仍然匹配就直接放行，不经过批准窗口**。`storedFingerprint == fingerprint` 时直接 `completionHandler(.useCredential, URLCredential(trust: trust))` 返回，既不调用 `reportUntrustedCertificate` 也不触碰批准窗口。一个自签名服务器只要证书没换过，佩戴者只在第一次连接时被问起。
+
+## 凭据的 Keychain 存储
+
+- **远程连接的用户名密码存进 Keychain，不进 UserDefaults**。`KeychainStore`（`Modules/MediaSource/KeychainStore.swift`）把 `{username, password}` 编码成 JSON 存进一条 `kSecClassGenericPassword` 条目：`kSecAttrService` 是调用方传入的来源 id，区分不同服务器与共享；`kSecAttrAccount` 是所有凭据共用的固定字符串 `"com.xiongzhipeng.Enchron.credentials"`，本身不携带身份信息，区分全靠 service。
+- **写入时的可访问性是 `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`**。凭据只在设备解锁后可读；这一类条目不随加密备份迁移到另一台设备，换设备恢复备份后这条凭据不在，需要重新输入。
+- **保存是先删后加，不是覆盖**。`saveCredential(for:credential:)` 在 `SecItemAdd` 之前先对同一个 service/account 跑一次 `SecItemDelete`，用的是不带 `kSecValueData` 的同一个 query。
+- **来源被移除时，凭据跟着删，除非还有别的来源在共用它**。`FileBrowsingViewModel.removeDataSource(id:)`（`Modules/MediaLibrary/FileBrowsingViewModel.swift:160`）把来源从 `savedDataSources` 里去掉之后，检查是否还有别的来源持有同一个 `credentialSourceID`；没有才调用 `deleteCredential(for:)`（:168）删掉这条 Keychain 记录。
+
+## 明文凭据的公网提示
+
+- **`http://` 请求要把凭据送过公网之前，产品问一次**。`CleartextExposurePolicy.decision(for:)`（`Modules/MediaSource/RemoteAddressScope.swift:89`）只在 scheme 是 `http`、host 非空、这个 host 的 `RemoteAddressScope` 判定为不留在局域网内（`keepsCleartextOffThePublicInternet == false`）、且这个 host 还没被确认过时才返回 `.askBeforeSending(host:)`，否则直接 `.proceed`。`authorize(_:)` 拿到确认后调用 `acknowledge(host:)`，把 `cleartext-exposure-acknowledged.<host>` 写进 `UserDefaults`，同一个 host 以后不再问。
+- **`CleartextExposurePolicy.shared` 是进程级单例，app 一启动就把 `approvalHandler` 装在它上面**（`Apps/Enchron/EnchronApplication.swift:236`）。处理器把问题交给 `ConnectionSecurityPrompt.requestApproval(for:)`，那个方法把 continuation 排进队列并呈现确认框，只有佩戴者按下按钮触发 `resolve(approved:)` 才恢复，没有超时也没有默认答案。`EnchronDomainTests` 与 `EnchronAppTests` 都以 `Enchron.app` 为 `TEST_HOST`，单元测试因此跑在这个已经装好处理器的进程里，直接用 `.shared` 的用例会停在一个没有人会按的确认框上。测明文路径的用例要自建 `CleartextExposurePolicy` 实例，并且每次给它一个新的 `UserDefaults` suite，因为 `acknowledge(host:)` 写下的 `cleartext-exposure-acknowledged.<host>` 会在共用 suite 的用例之间留存，让第二个用例根本不再被问。见 `Tests/EmbyPackageTests/EmbyViewModelTests.swift` 的 `isolatedCleartextPolicy()`。
+- **地址是否留在局域网内按地址段判定**（`RemoteAddressScope.swift:29-37`）。回环、RFC 1918 私网段、链路本地、100.64.0.0/10 这段 CGNAT（Tailscale 等在用）、`.local` 组播 DNS 名与不带点的裸主机名都算留在局域网内；带点的完整域名与解析不进以上任何一段的地址算公网地址，只有这两类才会触发确认。
+
 ## 详情页的滚动
 
 详情页只有两个位置：显示它的图片，或显示标题之下的分节。两者之间的一切是它经过的地方，不是它停留的地方。
@@ -49,7 +71,7 @@
 
 - **iOS 17 一代起，ATS 默认拒绝一切以 IP 地址为主机的明文加载**。自建 Emby 与 WebDAV 正是这种地址：佩戴者输入一串数字，没有域名，也没有为任何名字签发的证书。`Config/Enchron-Info.plist` 因此设 `NSAllowsArbitraryLoads`，这是唯一能覆盖无法预先枚举的地址的键。
 - **`NSAllowsLocalNetworking` 只豁免回环、RFC 1918 与链路本地地址**。100.64.0.0/10（Tailscale 等 CGNAT）与任何公网 IP 都不在其中，它们会以 `NSURLErrorDomain -1022` 被拒。
-- **`NSAllowsArbitraryLoads` 在被 `NSAllowsLocalNetworking`、`NSAllowsArbitraryLoadsInWebContent` 或 `NSAllowsArbitraryLoadsForMedia` 中任意一个同时声明时被系统忽略**，取默认值 NO。三者并存的 plist 读起来是放行的，实际拦截每一个可路由地址，既无编译警告也无运行日志。[`Scripts/rules/check_ats_cleartext_policy.py`](../Scripts/rules/check_ats_cleartext_policy.py) 断言这一点。
+- **`NSAllowsArbitraryLoads` 在被 `NSAllowsLocalNetworking`、`NSAllowsArbitraryLoadsInWebContent` 或 `NSAllowsArbitraryLoadsForMedia` 中任意一个同时声明时被系统忽略**，取默认值 NO；Apple 自己的文档建议把 `NSAllowsLocalNetworking` 当作意图声明加上去，这条建议本身就是最容易掉进的坑。三者并存的 plist 读起来是放行的，实际拦截每一个可路由地址，既无编译警告也无运行日志。[`Scripts/rules/check_ats_cleartext_policy.py`](../Scripts/rules/check_ats_cleartext_policy.py) 断言这一点。
 - **ATS 的拒绝不描述服务器**。`-1022` 说明的是本 App 的传输策略，不是对端要求 HTTPS；把它当作“请改用 https://”的依据，会把佩戴者指向一个只讲明文的端口。`RemoteConnectionFailureDiagnoser` 因此只凭 TLS 握手探测下判断。
 
 ## 文件浏览的导航栈
@@ -78,6 +100,7 @@
 
 ## Emby 交给播放核心的只有字节
 
+- **服务器没标为可直接播放的 media source 整个进不了列表**。`mapMediaSource(_:item:server:)`（`Modules/Emby/EmbyClient.swift:624`）第一步是 `guard source.supportsDirectPlay == true else { return nil }`，只支持转码或 direct stream 的版本在这里就被丢弃，播放核心永远看不到它们。`playbackInfo(for:on:)`（`Modules/Emby/EmbyClient.swift:388`）用 `compactMap` 收集剩下的结果，全部被丢掉时（`mediaSources.isEmpty`）直接 `throw EmbyError.directPlayUnavailable(itemID)`；这个错误没有专门的提示，跟其他播放请求失败一样被 `MainView` 通用捕获、设成 `.mediaRequestFailed`（`Apps/Enchron/MainView.swift:116`）——标题 "Unable to Play"，正文 "This item could not be prepared for playback."。
 - **流地址不带容器扩展名**：`/Videos/{id}/stream?Static=true&MediaSourceId=…`。Emby 对带扩展名与不带扩展名的地址回同一份字节（在真实服务器上核对过一部正常 MP4 与一部 Container 标成 mpegts 的 M2TS），带上扩展名只会把服务器自述的容器名塞进地址；`MediaSources[].Container` 会错，播放核心自己从内容判定容器，所以它在 `EmbyMediaSource` 上只是展示信息，缺失也不阻止播放。
 - **服务器自述的视频编码不预先拒绝播放**。以前 `EmbyPlaybackBridge` 用 Emby 报的 codec 名对照一张自己的白名单，在打开之前就抛错；那张表与播放核心的解码判定是两份会漂移的真相，而且自述可以错。现在编码是否可放由播放核心打开字节后判定，Emby 与本地文件走同一条路、得到同一种 "Unable to Play"。断言见 `Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift` 的 `declaredCodecDoesNotGatePlayback`。
 - **同一个文件经本地、共享（SMB／WebDAV 登记真实文件名）、Emby（登记无扩展名的服务器名字、经 `EmbyMediaByteSource` 取字节）三种形态送进播放核心，核心报出的编码、尺寸、时长、帧率、音轨、字幕轨、起播与 seek 落点必须完全一致**。任何一条路和本地不一样，就是中转链掉了东西。断言见 `Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift` 的 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughEveryRoute`（MKV 多轨与 MP4 各跑三条路，不依赖外部服务）与 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughTheLiveShares`（真实的 WebDAV 与 SMB 测试服务：读 `test-services/{webdav,smb}/runtime.json` 的身份，经 `WebDAVDataSourceAdapter`／`SMBDataSourceAdapter` 连接、列目录、取播放源，用 WebDAV 回归集合与 SMB 共享都持有的 `sdr-bframe-aggregate-30s.mkv`；两个 runtime.json 缺一即跳过，服务由 `Scripts/verification/ensure_test_services.py` 维护）。

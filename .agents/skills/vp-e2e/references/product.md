@@ -16,7 +16,7 @@
 
 沉浸呈现 settle 之后，主窗口仍然存在但内容为空：`PlayerUI-window-control-plane`、PlayerPanel、顶部动作与媒体库全部退出层级。因此诊断串只在 window、portal 及过渡的窗口阶段可读；panorama 与 docked 的 settle 判定改为轮询探针文件。
 
-沉浸空间里的 SwiftUI attachment（如 `PlayerUI-immersive-playback-surface`）会出现在层级中并报告 isHittable，对它执行 `tap --identifier` 也会返回 Element tapped——但 App 的空间手势并没有收到投递，因为合成点击不携带注视加捏合语义。XCUIAutomation 对空间表面报告 `invalid activation point transform (nil)`。**在真机上，空间手势只有真人的捏合能够触发**；在模拟器 lane，Device Hub 画布的鼠标映射（悬停为 Gaze、点击为 Pinch）可以产生走真实输入管线的空间手势，见[模拟器 lane](simulator.md)。无论哪条通路，投递与否都以探针文件为准。
+沉浸空间里的 SwiftUI attachment 会出现在层级中并报告 isHittable，对它执行 `tap --identifier` 也会返回 Element tapped——但 App 的空间手势并没有收到投递，因为合成点击不携带注视加捏合语义。XCUIAutomation 对空间表面报告 `invalid activation point transform (nil)`。**在真机上，空间手势只有真人的捏合能够触发**；在模拟器 lane，Device Hub 画布的鼠标映射（悬停为 Gaze、点击为 Pinch）可以产生走真实输入管线的空间手势，见[模拟器 lane](simulator.md)。无论哪条通路，投递与否都以探针文件为准。
 
 层级文本只打印主窗口一棵树。portal chrome 与系统 popover 承载的面板在这棵树之外，`snapshot --identifier` 对它们取不到 `matchedElement`——但这不代表不可达：`tap --identifier` 对这些元素仍能解析并命中。**可达性以 `tap` 自身的返回为准。**
 
@@ -36,9 +36,9 @@
 
 **合成滑动一律携带 `--identifier`。** 省略时，滑动目标退化为 Application 元素，而 visionOS 的 Application 元素不归属任何单一 Scene，合成事件因此取不到目标 Scene；三次重试全败后，失败被记入常驻测试方法，方法结束并拆除 App——表现为 TEST EXECUTE FAILED 且目标进程表中没有 Enchron，但两端进程均未崩溃。这个失败与页面无关，Emby 从未打开时同样必现；携带 identifier 的滑动在 Emby 各页与整窗具名元素上均正常。定性证据见 `docs/archive/plans/04-regression-journeys/emby-poster-wall-scroll.md`。
 
-播放控制面板的前缀是 `PlayerPanel-`，与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是真人专属操作（它是一个要求 200ms 稳定按住的状态机）。More 菜单中，Subtitles 具备 identifier（`PlayerUI-menu-subtitles`），Audio Track 及音轨条目只能按 label 命中；菜单存续短于两次往返，须读取 tap 自身返回的层级；同名条目（如两条 `und · aac · 2ch` 音轨）以 `--label` 加 `--index` 区分。DockMenu 条目按 label 命中（`Dark Mode`、`Light Mode`）；菜单打开后 `PlayerUI-TopAction-dock` 自身会退出层级，因此该按钮无匹配通常表示菜单已经打开。
+播放控制面板的前缀是 `PlayerPanel-`，与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是真人专属操作（它是一个要求 200ms 稳定按住的状态机）。More 菜单中，Subtitles 与 Audio Track 都具备 identifier（`PlayerUI-menu-subtitles`、`PlayerUI-menu-audio`），其下的音轨条目只能按 label 命中；菜单存续短于两次往返，须读取 tap 自身返回的层级；同名条目（如两条 `und · aac · 2ch` 音轨）以 `--label` 加 `--index` 区分。DockMenu 条目按 label 命中（`Dark Mode`、`Light Mode`）；菜单打开后 `PlayerUI-TopAction-dock` 自身会退出层级，因此该按钮无匹配通常表示菜单已经打开。
 
-Emby 的播放入口：首页「接下来看」横条的 `Emby-StillCard-<id>` 打开单集详情，可视区内提供 `Emby-Detail-Resume` 与 `Emby-Detail-PlayFromBeginning`。系列详情页按设计不提供播放按钮（`isPlayable` 对 series、season、boxSet 返回 false），播放入口是下方选集面板的 `Emby-Episode-<id>` 卡片，点击直接进入播放。折叠线以下的剧集条需要先携带 identifier 滚动到可视区。海报横条只有可视区内的卡片可点，靠右超出视野的卡片 tap 返回 False。
+Emby 的播放入口：首页「接下来看」横条的 `Emby-StillCard-<id>` 打开单集详情，可视区内的播放按钮只有一个，`Emby-Detail-Play`（`Modules/Emby/EmbyScreens.swift:1410`）。系列详情页按设计不提供播放按钮（`isPlayable` 对 series、season、boxSet 返回 false），播放入口是下方选集面板的 `Emby-Episode-<id>` 卡片。两个入口的选择结果都先经 `PlaybackLaunchCoordinator.decideResume`（`Modules/Playback/PlaybackLaunchCoordinator.swift:266-284`）：续播策略为 `.askEveryTime` 且存在可续播位置时，弹出系统 alert「Resume Playback?」，按钮为 `PlayerUI-resumeDecision-primary`（Resume）与 `PlayerUI-resumeDecision-secondary`（Play from Start）；策略为 `.alwaysResume` 或 `.alwaysStartFromBeginning` 时不弹出该 alert，直接续播或从头播放。驱动脚本发起播放前应先读取续播策略，据此判断是否要等待这个 alert。折叠线以下的剧集条需要先携带 identifier 滚动到可视区。海报横条只有可视区内的卡片可点，靠右超出视野的卡片 tap 返回 False。
 
 label 为 `Play button on a TV, filled` 的图标是导航栏的 Emby 页签（identifier `Emby-Navigation-Tab`，与 `Navigation-Ornament-tab-files`、`-settings` 同族但不同项），它不出现在系列详情页；已在 Emby 页签上时重复点击它没有可观察效果，这属于正确行为。
 

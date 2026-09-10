@@ -46,43 +46,43 @@
     {
       "path": ".agents/skills/vp-e2e/references/enchron.md",
       "removed": "2026-08-22",
-      "commit": "unreleased",
+      "commit": "1a203ced",
       "replacement": "按内容拆开：与 lane 无关的驱动与取证事实在 references/product.md，真机独有的传输、授权与已证伪路径在 references/device.md。"
     },
     {
       "path": "docs/adr/",
       "removed": "2026-08-25",
-      "commit": "unreleased",
+      "commit": "90a7fd1a",
       "replacement": "docs/archive/adr/ 保存全部 ADR；决策记录不再有活跃层。"
     },
     {
       "path": "docs/plans/",
       "removed": "2026-08-25",
-      "commit": "unreleased",
+      "commit": "90a7fd1a",
       "replacement": "docs/archive/plans/ 保存历史计划；在办工作不再有计划层。"
     },
     {
       "path": "docs/adr/0020-media-byte-stream-is-the-single-byte-entry.md",
       "removed": "2026-08-25",
-      "commit": "unreleased",
+      "commit": "90a7fd1a",
       "replacement": "docs/archive/adr/0020-media-byte-stream-is-the-single-byte-entry.md"
     },
     {
       "path": "docs/plans/03-media-byte-stream/overview.md",
       "removed": "2026-08-25",
-      "commit": "unreleased",
+      "commit": "90a7fd1a",
       "replacement": "docs/archive/plans/03-media-byte-stream/overview.md"
     },
     {
       "path": "docs/plans/04-regression-journeys/draft.md",
       "removed": "2026-08-25",
-      "commit": "unreleased",
+      "commit": "90a7fd1a",
       "replacement": "docs/archive/plans/04-regression-journeys/draft.md"
     },
     {
       "path": "docs/plans/04-regression-journeys/emby-poster-wall-scroll.md",
       "removed": "2026-08-25",
-      "commit": "unreleased",
+      "commit": "90a7fd1a",
       "replacement": "docs/archive/plans/04-regression-journeys/emby-poster-wall-scroll.md"
     },
     {
@@ -106,43 +106,43 @@
     {
       "path": ".agents/skills/vp-e2e/references/journeys/",
       "removed": "2026-08-29",
-      "commit": "unreleased",
+      "commit": "ac08ac2b",
       "replacement": "Regression/journeys/ 与 Config/regression/catalog-v2.json。"
     },
     {
       "path": ".agents/skills/vp-e2e/references/operation-units.md",
       "removed": "2026-08-29",
-      "commit": "unreleased",
+      "commit": "ac08ac2b",
       "replacement": "Regression/operations/、Regression/rubrics/ 与编译后的执行计划。"
     },
     {
       "path": "Scripts/verification/regression_journeys.py",
       "removed": "2026-08-29",
-      "commit": "unreleased",
+      "commit": "ac08ac2b",
       "replacement": "Scripts/regression/runctl.py 与 Regression/journeys/。"
     },
     {
       "path": "Scripts/verification/journey_units.py",
       "removed": "2026-08-29",
-      "commit": "unreleased",
+      "commit": "ac08ac2b",
       "replacement": "Scripts/verification/regression_operation_adapter.py 与 Regression/operations/。"
     },
     {
       "path": "Config/journey_operation_coverage.json",
       "removed": "2026-08-29",
-      "commit": "unreleased",
+      "commit": "ac08ac2b",
       "replacement": "Config/regression/catalog-v2.json 中闭合的 Operation Call 与 producer 绑定。"
     },
     {
       "path": ".claude/hooks/regression_journey_stop_gate.py",
       "removed": "2026-08-29",
-      "commit": "unreleased",
+      "commit": "ac08ac2b",
       "replacement": "Scripts/regression/runctl.py 生成的运行台账与终态收据。"
     },
     {
       "path": "Apps/Enchron/Screens/FilesScreen.swift",
       "removed": "2026-08-29",
-      "commit": "unreleased",
+      "commit": "5b96273a",
       "replacement": "Modules/MediaLibrary/Views/FilesScreen.swift 与 Apps/Enchron/Screens/FilesScreenHost.swift。"
     },
     {
@@ -156,6 +156,54 @@
       "removed": "2026-08-29",
       "commit": "unreleased",
       "replacement": "Scripts/regression/reviewctl.py derive-human。"
+    },
+    {
+      "path": "Scripts/rules/test_playback_defer_guard.py",
+      "removed": "2026-09-03",
+      "commit": "c1a112da",
+      "replacement": "Scripts/rules/test_simulator_lane_refuses_playback_open.py。旧用例证明模拟器 lane 上的开播 tap 被推迟到 device lane、以 known-defect verdict 收场；新行为在触达 controller 前直接以 playback-open-on-simulator-lane 的 instrument fault 结束该 segment，推迟被拒绝取代。"
+    },
+    {
+      "path": "Scripts/regression/sidekick_runner.py",
+      "removed": "2026-09-04",
+      "commit": "e8b9b63c",
+      "replacement": "Scripts/regression/core/runtime.py 的 MainRun，由后续的 MCP 工具直接调用。Main 与 Sidekick 的调度层整体退场，lease 分配与双 lane 并发推进不再有独立协调器。"
+    },
+    {
+      "path": "Scripts/rules/test_regression_sidekick_runner.py",
+      "removed": "2026-09-04",
+      "commit": "e8b9b63c",
+      "replacement": "Scripts/rules/test_regression_core_runtime.py。它用假 lane 证明 MainRun 状态机本身没坏，是调度层删除后剩下的判据；不再有专属 sidekick_runner 用例。"
+    },
+    {
+      "path": "Scripts/regression/oracle_agent.py",
+      "removed": "2026-09-04",
+      "commit": "dcdbb9ec",
+      "replacement": "Scripts/regression/agent_identity.py 的 agent_environment。子进程 Oracle provider 整体退场，判读改为 L0 字段谓词、L1 像素启发、L2 交互中的 Agent 三级，agent_identity.py 只保留身份 digest 的计算。"
+    },
+    {
+      "path": "Scripts/rules/test_regression_oracle_agent.py",
+      "removed": "2026-09-04",
+      "commit": "dcdbb9ec",
+      "replacement": "Scripts/rules/test_regression_agent_identity.py。绑定 provider 子进程行为的用例随 provider 一起删除，绑定 agent_environment digest 稳定性的用例改名迁入新文件。"
+    },
+    {
+      "path": "Scripts/verification/run_campaign.py",
+      "removed": "2026-09-04",
+      "commit": "b8090536",
+      "replacement": "无。它是按 segment plan 并发拉起多个 lane 进程的入口，从未有过生产消费者；两条 lane 各自在自己的 worktree 里并发跑，由驱动并发的人手动导出 ENCHRON_CAMPAIGN_TOKEN。"
+    },
+    {
+      "path": "Scripts/verification/harness/campaign.py",
+      "removed": "2026-09-04",
+      "commit": "b8090536",
+      "replacement": "无。CampaignNotParallelizable、default_spawn、launch、segment_command 随 run_campaign.py 一起退场；campaign 形状的拒绝逻辑留在 Scripts/verification/harness/parallel.py 的 serial_refusal_reason。"
+    },
+    {
+      "path": "Scripts/rules/test_campaign_launcher.py",
+      "removed": "2026-09-04",
+      "commit": "b8090536",
+      "replacement": "无。它是 run_campaign.py 与 harness/campaign.py 的唯一消费者，随两者一起退场。"
     }
   ]
 }

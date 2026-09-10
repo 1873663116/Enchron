@@ -4,7 +4,9 @@
 
 ## 播放与媒体
 
-**Playback Presentation**：视频在产品中的呈现位置。它与解释媒体画面的 Media Format 是不同概念。
+**Playback Presentation**：视频在产品中的呈现位置，取 `window`、`portal`、`docked`、`panorama` 之一，前两者由主窗口承载，后两者由沉浸空间承载。它与解释媒体画面的 Media Format 是不同概念。
+**Content Family**：一个 Playback Presentation 的画面几何类别，取 `flat`（`window` 与 `docked`）或 `panoramic`（`portal` 与 `panorama`）。它决定换片时落回哪一格，不表示视频当前由窗口还是沉浸空间承载。
+**Residency**：播放相对于宿主界面的驻留状态，取 `browsing`、`playing(host:)` 或 `closing(since:reason:)`，其中 host 为 `window` 或 `immersiveSpace`。它记录播放此刻由谁承载，不是 Playback Presentation 本身，两者可以在同一个 host 内变化。
 **Media Format**：用户要求 Enchron 如何解释媒体画面。它不表示视频当前呈现在哪里，也不是来源媒体自身声明的 Format Description。
 **Format Description**：一条媒体流向解码器声明的技术事实，包括编码、尺寸、色彩解释，以及立体与动态范围的配置。它由来源媒体决定，不随用户偏好改变。
 **Custom Angle**：Enchron 将矩形全景画面按 180° 至 360° 的水平覆盖角解释。它不表示鱼眼镜头映射。
@@ -59,6 +61,16 @@ W0 与 W1 由 `Scripts/rules/run_verification.py` 执行，是 PR 上那个会�
 
 **Journey**：按用户真实使用顺序编写的回归单元，声明前置状态、有序步骤、每步的证明目标与终态判据。每条 Journey 从干净状态开始，Journey 之间不传递状态。它组织行为层回归；送达事实由可达性矩阵回答。
 **Unguarded Evidence Point**：特性声明了但尚无看守者的证据格。它不是失败，是「绿」不覆盖的已知范围，回归报告必须逐项列出。
+
+**Lane**：一次回归运行绑定的执行环境，取 `simulator` 或 `device`；合同侧的 `LaneRequirement` 另有 `either` 与 `both` 两种要求，表示该节点接受哪些 lane。它是证据的产生环境，不是被测产品的配置。
+
+**Operation Call**：编译计划中对某个 Operation 的一次具体调用，是回归能够执行的最小单位，由 `op` 工具发起。它不是 Operation 合同，后者声明一项能力，Operation Call 是该能力在某个节点上的一次执行。
+
+**Rubric**：一份验收合同。front matter 的 `criteria` 逐条陈述判定依据，`negativeControls` 逐条陈述什么算不满足。它不是断言代码：能被编译成字段谓词的 criterion 走 L0，编不出的留给 L2 Agent。
+
+**Verdict**：对一个非 Satisfied 节点写入账本的裁决，字段为首个偏离帧序号、裁切区域观察、归因（`product`、`harness` 或 `spec`）与命中的签名 id。它不是 `op` 返回的判定结果——后者是这一次调用的观测，Verdict 是对该观测的归因。
+
+**已知缺陷台账**：登记在 `Config/regression/known_defects.json` 的一组在册缺陷，每条以一个签名 id 或一条字段谓词声明它认领哪种失败。命中的节点终态记 `failed(known)` 而不是 `failed`。它不豁免失败，只把已经归因过的失败与新失败分开。
 
 **账本锁**：一条 lane 上出现非 Satisfied 的节点之后，该 lane 拒绝下一次 op，直到账本收到那个节点的裁决。终局调用以仪器故障收场且计划不再允许重试的 attempt 同样非 Satisfied：节点停在 `leased`，裁决只能是归因 harness 的 `indeterminate` 或 `deferred(human)`。它不是工具约定而是回放期的转移规则：一份在锁住的 lane 上继续跑 op 的账本回放不过去。绿色步骤不设锁。
 

@@ -20,7 +20,7 @@ Preconditions: 会话已建立且 `ping` 有应答。注入路径还要求 fixtu
 
 ```sh
 xcrun devicectl device copy to --device <CoreDevice> \
-  --domain-type appDataContainer --domain-identifier com.xiongzhipeng.XrPlayer \
+  --domain-type appDataContainer --domain-identifier com.xiongzhipeng.Enchron \
   --source <本地媒体> --destination Documents/TestMediaInbox/<名字>
 python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
   --output-directory <dir> app-command --verb importMedia --arg file=<名字>

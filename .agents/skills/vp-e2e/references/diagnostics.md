@@ -33,7 +33,7 @@
 
 ## 干净停止
 
-停止会话用控制器的 `halt` 子命令。它先发送 `stop` 并唤醒 runner，最多等待 30 秒确认退出；随后给 `xcodebuild` 最多 180 秒的退出窗口，使 `.xcresult` 与录屏落盘；仍未退出的进程按仓库作用域解析（控制器、`xcodebuild` 与 test-runner），先 SIGTERM、5 秒后强杀，最终返回 `terminated` 与 `remaining` 两张清单。`remaining` 为空才算停净。各时限以 `interactive_visionpro_ui.py` 顶部的常量为准。
+停止会话用控制器的 `halt` 子命令。它先发送 `stop` 并唤醒 runner，最多等待 30 秒确认退出；随后给 `xcodebuild` 最多 2 秒的退出窗口，让一次正常退出跑完；这段等待不为落盘 `.xcresult` 买单，常驻会话的结果包没有消费者。仍未退出的进程按仓库作用域解析（控制器、`xcodebuild` 与 test-runner），先 SIGTERM、5 秒后强杀，最终返回 `terminated` 与 `remaining` 两张清单。`remaining` 为空才算停净。各时限以 `interactive_visionpro_ui.py` 顶部的常量为准。
 
 作用域按进程的工作目录判定，因此同一项目的另一个 checkout 或 worktree 不在清理范围内。自行拼写的 `pkill` 会按进程名匹配到范围之外的构建，不要使用。
 

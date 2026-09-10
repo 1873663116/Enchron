@@ -3,6 +3,8 @@
 实现事实来自代码、构建配置和运行结果。文档帮助定位这些事实，不替代它们：
 - Enchron 术语 `docs/CONTEXT.md`；
 - 当前代码所有权与依赖入口 `ARCHITECTURE.md`；
+- 合并证据强度、改动分类与授权裁决 `docs/MERGE_EVIDENCE.md`；
+- 自动回归的合同权威与执行、评审、判定协议 `Regression/`；
 - 播放引擎无法从代码读出的外部约束与实测常数 `docs/PLAYBACK_ENGINE_CONSTRAINTS.md`；
 - 设计系统的结构规则与平台约束 `docs/DESIGN_SYSTEM_CONSTRAINTS.md`；
 - 播放呈现层的 RealityKit／SwiftUI 平台约束 `docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md`；
@@ -17,7 +19,7 @@
 
 API 可用性与行为：Executor `apple_developer_docs`
 
-`Packages/PlaybackCore` 链接两个 vendored 二进制。`PlaybackSubtitleRenderer.xcframework` 在版本控制内；`PlaybackFFmpeg.xcframework` 有 358 MB，由 `Packages/PlaybackCore/.gitignore` 排除，克隆不带它，缺它则 PlaybackCore 无法解析。用 `Scripts/provision_vendored_ffmpeg.sh` 补齐：无参数时就地重建，参数给一个已持有该二进制的克隆路径时改为链接过去，worktree 与 CI 走后一条。重建由 `Packages/PlaybackCore/Scripts/build_ffmpeg.sh` 完成，按固定 SHA-256 取 FFmpeg 9.0.1 源码、套用 `Packages/PlaybackCore/Vendor/FFmpeg/Patches` 下的补丁，产出 macOS、visionOS 与 visionOS 模拟器三个 library。
+`Packages/PlaybackCore` 链接两个 vendored 二进制。`PlaybackSubtitleRenderer.xcframework` 在版本控制内；`PlaybackFFmpeg.xcframework` 约 380 MB，由 `Packages/PlaybackCore/.gitignore` 排除，克隆不带它，缺它则 PlaybackCore 无法解析。用 `Scripts/provision_vendored_ffmpeg.sh` 补齐：无参数时就地重建，参数给一个已持有该二进制的克隆路径时改为链接过去，worktree 与 CI 走后一条。重建由 `Packages/PlaybackCore/Scripts/build_ffmpeg.sh` 完成，按固定 SHA-256 取 FFmpeg 9.0.1 源码、套用 `Packages/PlaybackCore/Vendor/FFmpeg/Patches` 下的补丁，产出 macOS、visionOS 与 visionOS 模拟器三个 library。
 
 Xcode IDE 的工具，包括构建、运行、测试、调试、工程结构读写和 Apple 文档语义检索，有两条到达路径：Executor 的 `xcode_ide_docs_build_debug_device_tools` 直连，以及 XcodeBuildMCP 的 `xcode_ide_call_tool` 代理。两条通向同一批工具，默认走直连。
 

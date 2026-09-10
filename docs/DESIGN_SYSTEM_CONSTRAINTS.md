@@ -8,7 +8,7 @@
 2. **semantics**：`Surface`、`AnimationToken`、`HoverStyle`、`Interactive`——意图。
 3. **components**：`Card`、`Menu`、`ControlBar`——由前两层装配。
 
-组件层只允许引用前两层，不允许在组件层重新引入裸值。产品侧的视觉数值必须来自 token 或 DesignSystem 组件，由 `Scripts/rules/verify_design_source_architecture.py` 的 `production-hardcoded-visual` 规则强制。
+组件层只允许引用前两层，不允许在组件层重新引入裸值。产品侧的视觉数值必须来自 token 或 DesignSystem 组件，由 `Scripts/rules/verify_design_source_architecture.py` 的 `production-hardcoded-visual` 规则强制，但该规则只扫描产品侧调用点，`Modules/DesignSystem` 自身不在其覆盖范围内（见「未决」一节）。组件库内部的动效曲线与颜色字面量由 `.swiftlint.yml` 的 `components_use_animation_tokens` 与 `components_no_hardcoded_color` 两条自定义规则钉住（`*/Components/*.swift`，`severity: error`，目前零命中）；尺寸字面量不在这两条规则的范围内。
 
 ## 同心圆角
 
@@ -48,7 +48,7 @@
 
 ## 玻璃边界
 
-visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃层级（`View+EnchronGlass.swift` 的具名变体），调用点无法在窗口内部再造一层材质边界；只有窗口根、ornament 与空间附着物在各自宿主处经 `enchronGlassBackground(in:)` 显式选用平台玻璃。裸 `glassBackgroundEffect` 的所有权由 `verify_glass_usage.py` 钉死在 `View+Platform.swift`，包装器调用点是一张显式白名单。
+visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃层级（`View+EnchronGlass.swift` 的具名变体），调用点无法在窗口内部再造一层材质边界；只有窗口根经 `enchronWindowGlassBackground(_:)`（`MainView`、`PlayerView`）、ornament 与空间附着物经 `enchronGlassBackground(in:)`（`EnvironmentCard`、`FusedPlayerPanel`）在各自宿主处显式选用平台玻璃。裸 `glassBackgroundEffect` 的所有权由 `verify_glass_usage.py` 钉死在 `View+Platform.swift`，包装器调用点是一张显式白名单。
 
 原因不止是风格。`glassBackgroundEffect` 会把视图提升为**独立渲染层，任何祖先都无法裁切、遮罩或遮挡它**。网格卡片一旦带上它，滚动到边界时就画到窗口外并整张消失，而不是滑进侧栏下面。缩略图自带填充，玻璃从来只在占位符后面透出过。
 
@@ -138,7 +138,7 @@ Files 与 Emby 的侧栏都经 `SidebarSplitLayout`：内容区宽度随侧栏�
 
 - **主题强调色**是应用图标背景的粉色 `#F4E0E8`——图标纵向渐变的中点。产品的信号色与启动器磁贴因此是同一个色相。
 - **chrome 描边**用四分之一强度的强调色：一窗口的边如果都用满强度，会读成一格格亮框。
-- **圆形不定式（advance）动画常数**取自 material-components-android 的 `CircularIndeterminateAdvanceAnimatorDelegate`，放在 token 里是为了与 Design Preview 共享同一套时序，而不是在视图里重新编码一遍周期。
+- **圆形不定式（advance）动画常数**取自 material-components-android 的 `CircularIndeterminateAdvanceAnimatorDelegate`，放在 token 里，而不是在视图里重新编码一遍周期。
 - **字体一律走 `Typography` 语义映射，不用 `.system(size:)`**：系统 Text Style 自动处理 Dynamic Type 与 visionOS 的观看距离。
 - **scrubber 的抓取区**比拇指宽得多。拇指按轨道高度绘制以便读作轨道的一部分，那远小于佩戴者能命中的注视目标，因此启动 scrub 并显示注视高亮的区域另有宽度（`thumbGrabWidth`）；"算点击而不算拖拽"的位移上限（tap slop）与它是两个概念，取得很小，任何有意的拖拽都会超过它。
 - **详情页背景图向服务器请求的像素数**是限定值：原图是整幅制作剧照，解码它正是进入页面时卡住的原因。
@@ -146,4 +146,4 @@ Files 与 Emby 的侧栏都经 `SidebarSplitLayout`：内容区宽度随侧栏�
 
 ## 未决：滑块轨道尺寸尚未 token 化
 
-`CenterSlider` 与 `RangeSlider` 的旋钮（26）与轨道高度（30）沿用既有 toggle 的尺寸以便复用，尚未提升为共享 token——提升与否需要人来定。这些字面量目前记在 `Config/` 下 design-source 检查器的基线里，不是无人看管的漏网之鱼。
+`CenterSlider` 与 `RangeSlider` 的旋钮（26）与轨道高度（30）沿用既有 toggle 的尺寸以便复用，尚未提升为共享 token——提升与否需要人来定。这两个字面量没有出现在 `Config/design_source_architecture_baseline.json` 里，`Scripts/rules/verify_design_source_architecture.py` 在扫描产品侧硬编码视觉值之前先整体跳过 `Modules/DesignSystem`（:238-240）。组件库内部的尺寸字面量因此不受任何检查器约束：同一文件里 toggle 的旋钮与轨道尺寸（`InputComponents.swift:112-117`、`156-161`）、以及 `SettingsComponents.swift` 里多处 `.frame` 硬编码宽高（:1171、:1435、:1466、:1475）都是同样未 token 化的字面量，这是一类未加防护的缺口，不是单独登记的例外。

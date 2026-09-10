@@ -8,7 +8,10 @@
 - **`XCUIScreen.main` 在当前 visionOS 构建上返回 1×1 图像**，读起来像一张黑帧而不是一次抓取失败。application element 仍然能抓，所以退化的屏幕图像要回退到它。
 - **模拟器截图 lane 没有点进模拟器的通道**，想看的那一屏必须在启动时就可达；启动参数因此是到达某一屏的唯一途径。
 - **探针日志 192 KB，Dock 里曾几十秒就把因果链冲掉**（2026-09-08 真机：docked 的 `settlement` 每秒约 10 行、每行 1.5 KB，选集失败的错误类别与音频重开的触发点都只剩证据行）。原因是结算签名没把淡入期间每帧变化的 `surfaceOpacity` 排除，两侧宿主各维护一份排除列表且沉浸侧漏了它；现在两侧共用 `PlaybackSettlementProbeSignature`。压缩策略改为：证据超过压缩目标时按最新保留（LRU）并置 `evidenceOverflowed`，不再整本清空；诊断行在证据之外保有 `compactionTarget / 4` 的保底额度。渲染器所有权（`rendererOwnership.*`）、离场实体释放、空间拓扑写入、attachment 放置、`conversionFailed` 都改为证据级，真机回捞时这些跃迁必在。
-- **过渡过程只能靠 runner 内的连拍看清**。`simctl io recordVideo` 与 `screencapture` 都受 macOS 屏幕录制权限（TCC，错误 -12204）拦截，真机没有录屏通道，逐条 `snapshot` 每帧都要走一次 devicectl 往返（秒级）。runner 的 `screenshotBurst` 动词在进程内连拍：可选先 tap `--identifier`，随后按 `--count`／`--interval-milliseconds` 连续 `XCUIScreen.main.screenshot()` 写入 `responses/<id>-burst-<序号>-<epochMillis>.png`，响应的 `attachmentRelativePaths` 列出全部帧，控制端一次性拷回 `<output>/<id>-burst/`。真机上每帧约 100–300 ms，文件名里的毫秒时间戳用来与探针对齐。
+- **应答里的元素读数取两次，因为被作用的那个元素在应答写出来之前就可能已经不在层级里了**。`matchedElement` 是动作之前那一次读数，`elementAfterAction` 是动作之后那一次，元素离开层级时后者为 null。`snapshot` 只读不改，它的 `matchedElement` 直接用动作之后那一次，两次读的是同一个状态。这样一次点掉自己目标的 tap 仍然说得出它点的是什么。判定「该元素当时在不在」看 `matchedElement`，判定「这次动作把它变成了什么」看 `elementAfterAction`。`tapSequence` 按同一条规则处理路径，每一步在 `element.tap()` 之前把该步解析到的元素记进 `routeElements`，否则应答里只剩下标识符字符串，路径上每个元素的 label 无处可取。三个字段都由 `Scripts/verification/regression_operation_adapter.py` 消费。
+- **真机上过渡过程只能靠 runner 内的连拍看清**。真机没有录屏通道，逐条 `snapshot` 每帧都要走一次 devicectl 往返（秒级）。runner 的 `screenshotBurst` 动词在进程内连拍：可选先 tap `--identifier`，随后按 `--count`／`--interval-milliseconds` 连续 `XCUIScreen.main.screenshot()` 写入 `responses/<id>-burst-<序号>-<epochMillis>.png`，响应的 `attachmentRelativePaths` 列出全部帧，控制端一次性拷回 `<output>/<id>-burst/`。真机上每帧约 100–300 ms，文件名里的毫秒时间戳用来与探针对齐。
+- **模拟器的 `simctl io recordVideo` 可用与否取决于宿主授权，不是平台约束**。它和 `screencapture` 一样受 macOS 屏幕录制权限（TCC）管辖，未授权时以 -12204 失败；授权后正常出片（2026-09-10 本机实测：4 秒录得 3840×2160、h264、204 帧、3.4 秒时长的 `.mov`）。因此这条通道的可用性是每台机器各自的状态，换机器要重新确认，不能当作永久结论写进计划。`Scripts/verification/harness/recording.py` 的分段录屏建立在它之上。
+
 - **window bar 的关闭按钮不在 app 的可访问性树里，runner 点不到**。DEBUG 测试通道的 `app-command --verb closeMainWindow` 对前台 `windowApplication` scene 调 `requestSceneSessionDestruction`，走与佩戴者关闭相同的 `UIScene.didDisconnectNotification`；探针里应依次出现 `testcmd closeMainWindow`、`mainWindowScene disconnected trigger=wearer`、`mainWindowScene closedByWearer stoppingPlayback`。窗口关掉后 app 没有前台 scene，播放一停就会被系统挂起，测试通道随之失联，验证结果只能从容器里的探针文件读；`Scripts/verification/wearer_close_probe.py` 按这个顺序驱动并出裁决。
 - **渲染器预读只能在真机上量**。DEBUG 测试通道的 `app-command --verb setRendererLeadFrames --arg frames=N` 把 `RendererLeadBudget` 钉在 N 帧，不带 `frames` 回到爬坡；`seekNormalized --arg position=P` 按时长比例 seek。`Scripts/verification/renderer_lead_sweep.py` 按预算序列钉住、保持、seek，再把这段探针里的 `windowSettlement` 行归约成每个预算一格：显示计数速率、最小送帧领先、最大送帧间隔、footprint 与每次 seek 的冲刷时间；显示计数是采样值，只在同一台机器的预算之间比较。
 - **慢速远程后端只能在应用内模拟**。真实网盘的高峰期无法按需复现，DEBUG 测试通道的 `app-command --verb setSourceReadDelay --arg ms=N` 让回环服务器在把每次读取转发给 WebDAV／SMB／Emby 来源之前先等 N 毫秒，不带 `ms` 清除；`Scripts/verification/source_read_delay.py` 是它的宿主。容器索引缓存命中的读取不经过这段延迟，所以已经打开过的条目会立刻打开、几秒后才停住。
@@ -27,6 +30,7 @@
 - **控制面读不到就是沉浸式落点的签名**。沉浸式呈现清空主窗口，控制面随之消失，落点判定只能改读容器里的探针文件。见 `Scripts/verification/playback_open_sweep.py`。
 - **docked 与 panorama 内可以驱动剧集切换，但走的是与 window 不同的一套标识符**。deck ornament（`PlaybackPanel.swift`）用 `PlayerPanel-menu-more`／`PlayerPanel-menu-episodes` 打开 More 菜单，window host（`WindowPlayerDeck.swift`）用 `PlayerUI-TopAction-more`／`PlayerUI-menu-episodes`；两者的剧集条目标识符都以 `{category}-{item.id}` 收尾，`item.id` 是运行期 UUID，无法预先寻址，只能改用 `operation:accessibility.activate@2` 的 `labels`（配 `labelsAfterIdentifiers: true`）按可见文本命中。`operation:accessibility.activate@2`／`accessibility.inspect@2`／`evidence.capture-frames@1` 的 `context` 允许值集合（`CONTEXTS`，`Scripts/verification/regression_operation_adapter.py`）本就包含 `docked` 与 `panorama`，因此可以在这两种呈现内选中菜单项、读 `PlayerUI-spatial-state`、并抓帧取像素证据。**Scenario 里每一次剧集切换之后都必须有 `evidence.capture-frames`**：2026-09-08 docked 内选 180_3D.mp4 黑屏有声，可访问性树与窗口控制面都照样通过，只有像素能拒绝它；`Scripts/rules/check_episode_switch_captures_frames.py` 对蓝图强制这条规则。
 - **探针健康判据现在把 `compactionCount` 一并计入，不再只看 `evidenceOverflowed`**。App 侧 `probeStatus` 的 `ok` 字段只在字节上限溢出、`evidenceOverflowed` 或写失败时才置 false（`TestCommandChannel.swift` 的 `probeStatus` 分支），一次非零的 compaction 单独不会翻转它——但 compaction 说明 journal 在真正溢出之前已经在设置沉降噪声下丢数据，那次尝试的证据不可信。两处消费者都已改为拒绝非零 compaction：`operation:harness.assert-channels@2` 新增 `_require_healthy_probe_journal`（`Scripts/verification/regression_operation_adapter.py`），在 Scenario 的 operations 列表中作为不产出 obligation 的硬门槛，compaction 非零或 overflow 为真时直接抛错终止该次 attempt；`Scripts/verification/reachability_matrix.py` 的 `parse_probe_status_response` 把 `passed` 的判据从「compaction 计数存在即可」收紧为 `compaction_count == 0`。
+- **结构化检查的产物要自带一行 `ENCHRON_ASSERTION` JSON**。退出码与 `--filter` 名字只说明进程跑完了，不说明它观测到什么，而判定生命周期、media session 身份与 seek 之后的视频位置要的是读数。`STRUCTURED_ASSERTION_CHECKS`（`Scripts/verification/regression_operation_adapter.py`）列出六项检查，`playback-core-network-resilience` 与五项 `audio-retirement-*`，每项跑一个 Swift 测试并绑定它的 artifact；`_evidence_structural_test_1` 在 stdout 里逐行找这个标记并解析进 `assertionPayloads`，这六项里任何一项不是恰好一行就抛错终止该次 attempt。发这行的测试助手按字段拼接字符串而不走编码器（`Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift` 的 `expectRetiredAudioAllowsSeek`，与 `HTTPMediaSourceRangeTests.swift` 里网络韧性那条），因为每个值都是标识符、UUID 字符串、Bool 或有限 Double，不含需要转义的字符；缺席的视频样本打 `null`，不打无法解析的 infinity。新增字段要守住这条，否则那一行不再是合法 JSON，整次 attempt 被拒收。
 
 - **Settings 里的菜单格子改的是持久化偏好，跑完必须恢复**。`reachability_matrix.py` 的 `settings_menu_scenario` 为了证明投递会给每个 Settings 菜单选一个非当前项（默认倍速选 0.5），这些值写进 `UserDefaults`（`PreferencesStore.swift`），真机上一直留到下一次人手改回；2026-09-08 佩戴者发现每次播放都是 0.5 倍速。现在每个格子在投递证明之后用 `selected_menu_item` 读到的原选项调 `selectMenuItem` 恢复，结果记在结果文档的 `settingsRestorations`。
 
@@ -38,8 +42,21 @@
 - **`xcodebuild` 把 `TEST_RUNNER_ENCHRON_*` 去掉前缀转发进 runner 进程**。对一个不重启的常驻 runner 来说，这是调用方够到 app 环境变量的唯一路径。
 - **沉浸空间关闭之后场景输入所有权会丢**，需要显式恢复，而不是靠重启 app——重启会把当前状态一起丢掉。
 - **自动隐藏的 chrome 熬得过一次控制器往返，熬不过四次**，所以菜单序列必须落在同一条命令里。
+- **`tapSequence` 先点 `label`，再按顺序点 `identifiers`**，所以一条以可见文本收尾的路径要用 `trailingLabel` 而不是 `label`。嵌套菜单的叶子行没有标识符，只能按 label 命中，而它要等上面几步标识符把子菜单打开之后才存在。`trailingLabel` 在 identifiers 全部点完之后再按 `label == %@` 找一次，把这一步留在同一条命令里；拆成第二条命令时菜单撑不到那时候。适配器一侧的入口是 `operation:accessibility.activate@2` 的 `labelsAfterIdentifiers: true`（`Scripts/verification/regression_operation_adapter.py:4279`），它要求恰好一个 label、至少一个 identifier，且 gesture 是 tap。
 - **runner 对 stop 的反应是结束自己的测试，而不是写一条应答**，所以一次超时的 stop 应答不表示 stop 被忽略。等 `xcodebuild` 退出是唯一能区分两者的观察，那次退出也正是 result bundle 与录屏写完的时刻，`Scripts/verification/interactive_visionpro_ui.py` 的 halt 以它为准。
 - **runner 在 XCTest 拆掉测试之前就应答 stop**，带录屏的会话把这段拆解时间用于把视频从头显上拉下来并写 result bundle。在此期间杀掉 `xcodebuild` 会留下一个没有 Info.plist 的 bundle 和一段没有 moov atom 的录像；没有录屏的会话远在这段时间之内就自己退出。`Scripts/verification/interactive_visionpro_ui.py` 的 `resultBundleWritten` 报告的是 xcodebuild 有没有自己退出。
+
+## Harness 的失败模型与原语边界
+
+- **超时不是判决，是取证触发器**。每个 runner 动作只有两种终态：带正向证据的成功，或带类型的失败。等待到期本身不说明产品坏了，只说明该去取证了，因此没有任何一条判定以"等够了"结束。
+
+- **失败分两类，分类权分层**。产品失败（product）是有效证据，记录后继续；仪器故障（instrument）宣告后续观测不可信，终止当前段落并进入恢复。runner 报告它能观测到的失败；调用方库只补判 runner 自身死亡的情形——进程崩溃、JSON 不可解码、subprocess 超时——这些天然是仪器故障。产品失败以强类型值返回（`ProductFailure`），仪器故障以异常抛出（`InstrumentFault`）。两份 kind 清单在 `Scripts/verification/harness/failures.py:11-26`：`PRODUCT_KINDS` 两个，`INSTRUMENT_KINDS` 十个。`response-timeout` 属于仪器故障。
+
+- **人类层的入口条件只认四种超时 kind**：`transport-timeout`、`response-timeout`、`wait-expired`、`provisional-budget-expired`（`Scripts/regression/core/runview.py:112-119` 的 `HARNESS_TIMEOUT_KINDS`）。同一节点连续两次 attempt 都落在这四种之内才允许推迟给人。产品慢不在其中，产品慢是 `Violated`。
+
+- **超时预算一律由测量导出，禁止手写字面量**。这条由 `Scripts/rules/harness_primitives_gate.py` 强制：它扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 五个记号。豁免只有三类——`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`——以及 `Config/harness_primitives_allowlist.json` 里逐条列出的既有违例文件。该清单当前 29 条，每完成一次迁移删一行，清空后这道门即为无例外强制。清单本身就是迁移进度表，不是永久豁免。
+
+- **`harness/` 包内不写注释**。14 个 Python 文件当前注释行为零。无法用代码表达的约束写进本文，断言信息与日志字符串承担行内文档职责。这与 `Scripts/rules/verify_product_source_comments.py` 对全仓 Swift 与 Python 的要求是同一条规则，此处记录的是它对 harness 的具体含义：读者要找"为什么"，只能来本文，不要指望源文件。
 
 ## 预算与合成输入的实测常数
 

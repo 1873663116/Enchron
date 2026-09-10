@@ -14,7 +14,7 @@
 
 ```sh
 SIMCTL_CHILD_ENCHRON_TEST_CHANNEL=1 \
-  xcrun simctl launch --terminate-running-process <设备> com.xiongzhipeng.XrPlayer
+  xcrun simctl launch --terminate-running-process <设备> com.xiongzhipeng.Enchron
 ```
 
 这条通道的建立成本只有 App 冷启动的约 2 秒，不需要 XCTest、`xcodebuild` 或常驻 runner。实测 `ping` 往返 0.07 秒，跨轮询周期的动词约 0.5 秒。通道语义见[产品事实](product.md)。
@@ -26,7 +26,7 @@ XCUITest 是 visionOS 上合成输入的标准通路，两条 lane 共用同一�
 ```sh
 python3 Scripts/verification/interactive_visionpro_ui.py \
   --device <模拟器 UDID> --developer-dir "$(xcode-select -p)" \
-  --derived-data-path .scratch/DerivedData-<主题> \
+  --execution-input <证据目录>/execution-input.json \
   --output-directory <证据目录> \
   ensure-session
 ```
@@ -62,7 +62,7 @@ Files 选择器在 visionOS 中是独立系统窗口。2026-08-29 的现场实�
 
 #### 操作这条通路
 
-驱动它的是 `Scripts/verification/device_hub_canvas.py`。每次调用必须显式传入 `--device <Simulator UDID>`。脚本要求当前只有这一台 visionOS Simulator 处于 Booted 状态，并在结果的 `targetBinding` 中返回设备、运行时和设备名称；绑定不一致时拒绝发送输入。
+驱动它的是 `Scripts/verification/device_hub_canvas.py`。每次调用都要给出目标 Simulator UDID：`--device` 缺省时读取 `ENCHRON_TARGET_DEVICE` 环境变量，两者都缺席时报错拒绝执行。脚本要求当前只有这一台 visionOS Simulator 处于 Booted 状态，并在结果的 `targetBinding` 中返回设备、运行时和设备名称；绑定不一致时拒绝发送输入。
 
 **Device Hub 必须是前台应用，否则 cliclick 的事件落到别处，而且没有任何报错。** 这是这条通路最阴险的失败形态：命令返回成功、探针一行不增，读起来与「产品没收到点击」完全一致。从终端发命令本身不夺焦点，但任何 `osascript activate`、人手点一下终端、或别的应用弹窗都会。脚本因此在每一次指针动作前断言前台应用，不满足就拒绝执行而不是照发。
 
@@ -133,7 +133,7 @@ ARKit 会话在模拟器上无法建立，运行日志给出 `Hand Tracking is e
 | panorama | `rkContentType=equirectangular`，`wantImmersive` 与 `gotImmersive` 同为 `progressive`，`componentBound=true`，`surfaceOpacity=1.0` | 整个视野被视频填满，模拟房间消失 |
 | docked | `rkContentType=mono`，`gotImmersive=none`，`componentBound=true` | 房间按所选明暗效果变暗或提亮，视频作为影院屏幕悬停于房间中 |
 
-录屏通道同样成立，且覆盖面大于真机：以 `--test-plan Enchron` 建立会话，`halt` 使 XCTest 落盘，再由 `extract_visionpro_ui_recording.py` 提取。所得帧是佩戴者的整个视野而非仅 App 元素，转场、菜单开合与播放画面都在其中。真机上「录屏暂存写在头显侧、必须短会话」的约束在此不成立，但结果包仍然庞大（几十秒的会话约 65 MB），执行完毕照常清理。
+录屏通道同样成立，且覆盖面大于真机：`interactive_visionpro_ui.py` 不接受 `--test-plan` 参数，需先以 `Enchron` 测试计划（`preferredScreenCaptureFormat: screenRecording`）`build-for-testing` 出 xctestrun 并冻结出指向它的执行输入，用这份执行输入建立会话，`halt` 使 XCTest 落盘，再由 `extract_visionpro_ui_recording.py` 提取。所得帧是佩戴者的整个视野而非仅 App 元素，转场、菜单开合与播放画面都在其中。真机上「录屏暂存写在头显侧、必须短会话」的约束在此不成立，但结果包仍然庞大（几十秒的会话约 65 MB），执行完毕照常清理。
 
 ## 尚未定性
 

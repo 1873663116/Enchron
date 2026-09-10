@@ -19,7 +19,7 @@ Tests/                       Package 测试、App 测试、UI 测试与检查器
 Regression/                  自动回归的 Promise、Journey、Scenario、Operation、Oracle 与 rubric 合同
 Scripts/regression/          可移植的回归编译核心、运行时、Operation／Oracle 适配器与 CLI
 Scripts/rules/               规则本体、自测、verification 入口与分级器（W3）
-Scripts/verification/        驱动器、探针与清单生成器（W0）
+Scripts/verification/        驱动器、探针、清单生成器与 harness 的失败分类、等待与预算（W0）
 docs/                        术语与外部约束
 Config/                      检查器的基线与清单
 ```
@@ -28,7 +28,7 @@ Config/                      检查器的基线与清单
 
 `Modules/` 下的每一个 Swift 文件恰好由一个包 target 编译。[`Package.swift`](Package.swift) 声明五个 library target（`MediaSource`、`MediaLibrary`、`Emby`、`Playback`、`DesignSystem`），每个 target 的 `path` 恰为 `Modules/<name>`，`exclude` 为空，不声明 `sources` 子集——即整目录编译，新增文件不需要登记。
 
-[`Enchron.xcodeproj`](Enchron.xcodeproj) 声明四个原生 target：`Enchron` 一个 App，`EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests` 三个测试 bundle。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里（当前 118 条，与 `Modules` 下 Swift 文件数相等），因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
+[`Enchron.xcodeproj`](Enchron.xcodeproj) 声明四个原生 target：`Enchron` 一个 App，`EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests` 三个测试 bundle。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里，条目数与 `Modules` 下 Swift 文件数相等，因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
 
 `Modules/Playback` 在清单里带 `.defaultIsolation(MainActor.self)`，其余模块用 Swift 默认的 nonisolated。往 Playback 加纯值类型时要注意它默认被主线程隔离；往 MediaLibrary 加视图时要注意它没有这层默认，主线程隔离来自 SwiftUI 自身。
 
@@ -112,6 +112,6 @@ flowchart LR
 
 `EnchronAppTests` 对应 [`Tests/EnchronApp`](Tests/EnchronApp)，`EnchronAppUITests` 对应 [`Tests/EnchronAppUI`](Tests/EnchronAppUI)。测试计划见仓根四个 `.xctestplan`。引擎自身的测试在 [`Packages/PlaybackCore/Tests`](Packages/PlaybackCore/Tests)，字节流一致性套件是独立 Package [`Tests/MediaByteStreamConformance`](Tests/MediaByteStreamConformance)。
 
-规则本体、它们的自测、W0 与 W1 的入口 [`run_verification.py`](Scripts/rules/run_verification.py) 与分级器都在 [`Scripts/rules`](Scripts/rules)，基线与清单在 [`Config`](Config)。放进这个目录的 `test_*.py` 由入口扫描执行，不需要登记；[`verify_scripts_inventory.py`](Scripts/rules/verify_scripts_inventory.py) 要求每个脚本都落进已声明的类别，且文件名与内容一致。[`Scripts/regression`](Scripts/regression) 承担自动回归的可移植核心和适配器，[`Scripts/verification`](Scripts/verification) 留下驱动器、探针与清单生成器。自动回归的权威关系与运行不变量见 [`Regression/README.md`](Regression/README.md)；端到端设备操作读 [`.agents/skills/vp-e2e`](.agents/skills/vp-e2e)，级别定义读 [`docs/CONTEXT.md`](docs/CONTEXT.md)。
+规则本体、它们的自测、W0 与 W1 的入口 [`run_verification.py`](Scripts/rules/run_verification.py) 与分级器都在 [`Scripts/rules`](Scripts/rules)，基线与清单在 [`Config`](Config)。放进这个目录的 `test_*.py` 由入口扫描执行，不需要登记；[`verify_scripts_inventory.py`](Scripts/rules/verify_scripts_inventory.py) 要求每个脚本都落进已声明的类别，且文件名与内容一致。[`Scripts/regression`](Scripts/regression) 承担自动回归的可移植核心和适配器，[`Scripts/verification`](Scripts/verification) 留下驱动器、探针、清单生成器与 [`harness`](Scripts/verification/harness) 包：失败领域模型、等待策略与超时预算。自动回归的权威关系与运行不变量见 [`Regression/README.md`](Regression/README.md)；端到端设备操作读 [`.agents/skills/vp-e2e`](.agents/skills/vp-e2e)，级别定义读 [`docs/CONTEXT.md`](docs/CONTEXT.md)。
 
 改动模块目录结构时，有一批文件按路径锚定，必须同一个 commit 一起改：[`Config/design_source_architecture_inputs.xcfilelist`](Config/design_source_architecture_inputs.xcfilelist)、`Enchron.xcodeproj` 的 membershipExceptions、[`Config/reachability_operation_inventory.json`](Config/reachability_operation_inventory.json)，以及 [`Scripts/verification`](Scripts/verification) 下按源码位置或符号取锚的检查器。

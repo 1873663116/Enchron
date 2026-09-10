@@ -26,6 +26,11 @@ INSTRUCTION_ROOTS = (
     "ARCHITECTURE.md",
     "docs/CONTEXT.md",
     "docs/MERGE_EVIDENCE.md",
+    "docs/BROWSING_AND_SOURCES_CONSTRAINTS.md",
+    "docs/DESIGN_SYSTEM_CONSTRAINTS.md",
+    "docs/PLAYBACK_ENGINE_CONSTRAINTS.md",
+    "docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md",
+    "docs/UI_TEST_HARNESS_CONSTRAINTS.md",
     ".agents/skills",
     ".cursor/rules",
     ".github",
@@ -34,7 +39,7 @@ INSTRUCTION_ROOTS = (
     "Scripts",
 )
 
-HISTORY_ROOTS = ("docs/archive",)
+HISTORY_ROOTS = ("docs/archive", "docs/plans")
 
 DIGEST_BOUND_EVIDENCE_ROOTS = ("Regression/reviews",)
 

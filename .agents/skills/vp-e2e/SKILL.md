@@ -32,13 +32,13 @@ python3 Scripts/verification/interactive_visionpro_ui.py \
   ensure-session
 ```
 
-只有返回 `stage: ready` 才算建立成功。模拟器约 24 秒，真机约 26 秒。该命令走 `test-without-building` 并复用 DerivedData；源码有改动时先自行 `build-for-testing`。执行输入由 `python3 Scripts/regression/runctl.py freeze` 冻结，也可以改用 `ENCHRON_EXECUTION_INPUT` 环境变量给出同一份文件。`ensure-session` 的返回 stage 有五种：`adopted`、`ready`、`halt`、`firstCommand`、`readyTimeout`。
+只有返回 `stage: ready` 才算建立成功。实测耗时随会话状态大幅波动，不构成稳定预算：模拟器 lane 23 个样本落在 1 到 263 秒，真机 lane 27 个样本落在 4 到 268 秒（`Scripts/verification/controller_timings.simulator.json` 与 `controller_timings.device.json` 的 `ensure-session` 键）。该命令走 `test-without-building` 并复用 DerivedData；源码有改动时先自行 `build-for-testing`。执行输入由 `python3 Scripts/regression/runctl.py freeze` 冻结，也可以改用 `ENCHRON_EXECUTION_INPUT` 环境变量给出同一份文件。`ensure-session` 的返回 stage 有五种：`adopted`、`ready`、`halt`、`firstCommand`、`readyTimeout`。
 
 如果只需要做注入式前置或状态读取，可以跳过 runner，直接以测试通道冷启 App（约 2 秒，仅模拟器有此捷径）：
 
 ```sh
 SIMCTL_CHILD_ENCHRON_TEST_CHANNEL=1 \
-  xcrun simctl launch --terminate-running-process <UDID> com.xiongzhipeng.XrPlayer
+  xcrun simctl launch --terminate-running-process <UDID> com.xiongzhipeng.Enchron
 ```
 
 ## Doctor
@@ -56,7 +56,7 @@ SIMCTL_CHILD_ENCHRON_TEST_CHANNEL=1 \
 
 Bug 复现与回归测试应当模拟真实用户操作，默认走产品自己的 hit testing 与手势识别。导入媒体、开始播放、切换呈现模式、读取诊断状态与层级、取回探针、截图录屏，都由控制器的子命令连续完成（`snapshot`、`tap`、`tapSequence`、`typeText`、`swipe*`、`app-command` 等，完整列表见 `--help`）。元素定位规则、菜单时序与滑动约束见[产品事实](references/product.md)；每个特性的具体驱动序列见[特性地图](features/README.md)的对应分册。
 
-**操作单元**是一次驱动中的完整动作块，通常不是单步。例如 `library.new-folder` 包含：打开管理菜单、点新建、输入名称、确认，再检查网格上出现该文件夹——共一次调用、一个判据、数秒完成。单元之间的先后顺序由各自声明的 `needs` 决定，而不是文件顺序。前置单元失败时，依赖它的单元无法产生有效结论，应当跳过并记为阻塞，不能当作通过。
+**操作单元**是一次驱动中的完整动作块，通常不是单步。例如 `library.snapshot`（`Regression/operations/library-snapshot-v1.md`）调用 App 命令通道的 `listLibrary`，取回当前库的引用与暂存文件列表，并可选按 `baselineReferenceIDs` 等六个基线参数逐项比对——共一次调用、一份 `library.command` 结构证据、数秒完成。单元之间的先后顺序由各自声明的 `needs` 决定，而不是文件顺序。前置单元失败时，依赖它的单元无法产生有效结论，应当跳过并记为阻塞，不能当作通过。
 
 每一步都要声明驱动方式：
 
