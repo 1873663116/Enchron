@@ -5,11 +5,18 @@ nonisolated extension FileBrowsingDomain {
         public let id: UUID
         public var name: String
         public let parentID: UUID?
+        public let createdAt: Date?
 
-        public init(id: UUID = UUID(), name: String, parentID: UUID? = nil) {
+        public init(
+            id: UUID = UUID(),
+            name: String,
+            parentID: UUID? = nil,
+            createdAt: Date? = Date()
+        ) {
             self.id = id
             self.name = name
             self.parentID = parentID
+            self.createdAt = createdAt
         }
     }
 
@@ -152,7 +159,12 @@ nonisolated extension FileBrowsingDomain {
             ) else {
                 throw LibraryError.duplicateFolderName
             }
-            allFolders[index] = LibraryFolder(id: folder.id, name: trimmedName, parentID: folder.parentID)
+            allFolders[index] = LibraryFolder(
+                id: folder.id,
+                name: trimmedName,
+                parentID: folder.parentID,
+                createdAt: folder.createdAt
+            )
         }
 
         public mutating func removeFolder(_ folderID: UUID) {

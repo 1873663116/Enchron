@@ -715,6 +715,7 @@ private struct EmbyHomeScreen: View {
             await viewModel.refresh()
             initialRefreshCompleted = true
         }
+        .levelReadiness(initialRefreshCompleted)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Home")
     }
@@ -872,16 +873,17 @@ private struct EmbyPosterGrid: View {
         .task(id: revealKey) {
             revealed = false
             guard revealKey.isEmpty == false else { return }
-            await ArtworkPrefetch.warm(
-                items.prefix(DesignTokens.Card.gridRevealPrefetchCount)
-                    .compactMap { posterURL(for: $0, session: session) }
-            )
+            let posters = items.prefix(DesignTokens.Card.gridRevealPrefetchCount)
+                .compactMap { posterURL(for: $0, session: session) }
+            async let warmed: Void = ArtworkPrefetch.warm(posters)
             await Task.yield()
             try? await Task.sleep(for: .seconds(DesignTokens.Card.gridRevealLayoutDelay))
             withAnimation(.easeOut(duration: DesignTokens.Card.gridRevealDuration)) {
                 revealed = true
             }
+            await warmed
         }
+        .levelReadiness(isLoading == false)
         .scrollPosition($reachabilityScrollPosition)
 #if DEBUG
         .onReceive(

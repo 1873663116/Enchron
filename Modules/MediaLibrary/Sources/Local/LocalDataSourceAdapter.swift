@@ -82,17 +82,20 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
                 do {
                     let contents = try fileManager.contentsOfDirectory(
                         at: directoryURL,
-                        includingPropertiesForKeys: [.isDirectoryKey],
+                        includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
                         options: [.skipsHiddenFiles]
                     )
                     let folders = contents.compactMap { url -> FileBrowsingDomain.MediaFolder? in
-                        let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+                        let values = try? url.resourceValues(
+                            forKeys: [.isDirectoryKey, .contentModificationDateKey]
+                        )
                         guard values?.isDirectory == true else { return nil }
                         return FileBrowsingDomain.MediaFolder(
                             name: url.lastPathComponent,
                             dataSourceID: self.ownerDataSourceID,
                             path: url.path,
-                            url: url
+                            url: url,
+                            modifiedAt: values?.contentModificationDate
                         )
                     }
                     continuation.resume(returning: folders)

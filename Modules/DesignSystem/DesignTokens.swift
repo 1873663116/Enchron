@@ -58,6 +58,13 @@ public enum DesignTokens {
         public static let levelTransition: Animation = .easeOut(duration: 0.25)
         public static let levelExitDuration: Double = 0.12
         public static let levelEnterDuration: Double = 0.25
+        public static let levelPlaceholderThreshold: Double = 0.4
+        public static var levelEnter: Animation {
+            .easeOut(duration: levelEnterDuration)
+        }
+        public static var levelExit: Animation {
+            .easeIn(duration: levelExitDuration)
+        }
         public static let informationReveal: Animation = .easeOut(duration: 0.2)
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
 
@@ -101,13 +108,8 @@ public enum DesignTokens {
     public enum TransitionToken {
         @MainActor public static var levelReplace: AnyTransition {
             .asymmetric(
-                insertion: .opacity.animation(
-                    .easeOut(duration: AnimationToken.levelEnterDuration)
-                        .delay(AnimationToken.levelExitDuration)
-                ),
-                removal: .opacity.animation(
-                    .easeIn(duration: AnimationToken.levelExitDuration)
-                )
+                insertion: .identity,
+                removal: .opacity.animation(AnimationToken.levelExit)
             )
         }
     }

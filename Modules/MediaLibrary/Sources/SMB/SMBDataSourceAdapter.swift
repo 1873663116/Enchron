@@ -174,7 +174,8 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
                 name: name,
                 dataSourceID: self.ownerDataSourceID,
                 path: folderPath,
-                url: folderURL
+                url: folderURL,
+                modifiedAt: item.modifiedAt
             )
         }
     }

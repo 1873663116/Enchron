@@ -99,6 +99,11 @@
 - **清单扫描每个源文件里的每一个字符串，而不是只扫 `.accessibilityIdentifier` 的实参**。只有这个宽度才抓得到在别处拼装、再由另一处修饰符施加的标识符。见 `Scripts/verification/generate_reachability_inventory.py`。
 - **同样的宽度会捞进只向证据日志描述控件的字符串**。由这类字符串派生出的格子在屏幕上没有可驱动的对象，`NON_VIEW_IDENTIFIER_LITERALS` 因此逐条排除它们并写明每一条的理由。见 `Scripts/verification/generate_reachability_inventory.py`。
 
+## DEBUG 选择通道呈现的是此刻能点到的项
+
+- **通道给出的条目集合必须与菜单当前允许点的集合相同**。`DebugMenuSelectionItem` 没有禁用位，所以不可点的项以**不出现**表达：Files 的 manage 家族在浏览来源时返回空列表（按钮此时整颗灰显），`selectMultiple` 在媒体库没有条目时不出现（按钮此时 `.disabled`），排序键家族不列出当前层级回答不了的键（那一行此时 `.disabled`）。两边一旦分叉，自动化就能驱动一个佩戴者点不到的控件，用它取得的证据描述的是不存在的产品。
+- **由此，一个家族返回空列表是合法结果，不是通道故障**。控制端遇到空列表要判定为“此屏此刻不提供这个家族”，而不是重试或报错。
+
 ## 状态复位的语义
 
 App 侧测试通道的复位不是"删掉一切"：

@@ -116,16 +116,54 @@ public struct FilesScreen: View {
 
     private var isEmpty: Bool {
         if isBrowsingSource {
-            return viewModel.files.isEmpty && viewModel.folders.isEmpty && !viewModel.isLoading
+            return viewModel.files.isEmpty && viewModel.folders.isEmpty
         }
         return mediaLibrary.folders.isEmpty && mediaLibrary.references.isEmpty
+    }
+
+    private var levelIsReady: Bool {
+        isBrowsingSource ? viewModel.currentLevelHasSettled : true
     }
 
     private var displayedLibraryFolders: [FileBrowsingDomain.LibraryFolder] {
         let folders = mediaLibrary.folders.filter {
             MediaLibrarySearch.matches($0, query: viewModel.searchText)
         }
-        return folders.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        let byName = folders.sorted {
+            $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+        }
+        let criteria = uiState.sortCriteria
+        if criteria.key == .modifiedDate {
+            return FileBrowsingDomain.SortCriteria.dated(byName, order: criteria.order) { $0.createdAt }
+        }
+        return criteria.order == .ascending ? byName : Array(byName.reversed())
+    }
+
+    private var sortKeyAvailability: FileBrowsingDomain.SortKeyAvailability {
+        if isBrowsingSource {
+            return .init(
+                datedItemCount: viewModel.displayedFiles.count
+                    + viewModel.displayedFolders.filter { $0.modifiedAt != nil }.count,
+                sizedItemCount: viewModel.displayedFiles.count
+            )
+        }
+        return .init(
+            datedItemCount: displayedLibraryReferences.count
+                + displayedLibraryFolders.filter { $0.createdAt != nil }.count,
+            sizedItemCount: displayedLibraryReferences.count
+        )
+    }
+
+    private var unavailableSortKeys: Set<SortMenuKey> {
+        let availability = sortKeyAvailability
+        var keys: Set<SortMenuKey> = []
+        if availability.canOrder(by: .modifiedDate) == false {
+            keys.insert(.modifiedDate)
+        }
+        if availability.canOrder(by: .size) == false {
+            keys.insert(.size)
+        }
+        return keys
     }
 
     private var displayedLibraryReferences: [FileBrowsingDomain.MediaReference] {
@@ -593,13 +631,15 @@ public struct FilesScreen: View {
     @ViewBuilder
     private var filesBody: some View {
         currentFolderContent
+            .animation(DesignTokens.AnimationToken.informationReveal, value: levelIsReady)
+            .levelReadiness(levelIsReady)
             .levelContent(id: folderIdentity)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
     private var currentFolderContent: some View {
-        if isBrowsingSource && viewModel.isLoading && viewModel.files.isEmpty && viewModel.folders.isEmpty {
+        if !levelIsReady {
             loadingState
         } else if isEmpty {
             emptyState
@@ -680,6 +720,7 @@ public struct FilesScreen: View {
                 SortMenuButton(
                     sortKey: sortKeyBinding,
                     sortOrder: sortOrderBinding,
+                    unavailableKeys: unavailableSortKeys,
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
                 )
                 manageMenu
@@ -776,6 +817,7 @@ public struct FilesScreen: View {
             )
         }
         .buttonStyle(.plain)
+        .disabled(isBrowsingSource)
         .accessibilityLabel("Manage media library")
         .accessibilityIdentifier("FileBrowsing-Manage-button")
     }
@@ -1136,8 +1178,12 @@ public struct FilesScreen: View {
     ) {
         switch (request.host, request.family) {
         case (.files, .manage):
+            guard isBrowsingSource == false else {
+                request.handle(host: .files, family: .manage, items: [])
+                return
+            }
             let actions = FilesScreenManageAction.allCases.filter {
-                $0 != .selectMultiple || isBrowsingSource == false
+                $0 != .selectMultiple || displayedLibraryReferences.isEmpty == false
             }
             request.handle(
                 host: .files,

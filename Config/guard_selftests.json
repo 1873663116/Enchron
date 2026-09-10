@@ -734,8 +734,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
-        "find": "        currentFolderContent\n            .levelContent(id: folderIdentity)\n",
-        "replaceWith": "        currentFolderContent\n            .id(folderIdentity)\n            .transition(DesignTokens.TransitionToken.levelReplace)\n"
+        "find": "            .levelContent(id: folderIdentity)\n",
+        "replaceWith": "            .id(folderIdentity)\n            .transition(.opacity)\n"
       },
       "expected": {
         "exitCode": 1,
@@ -782,8 +782,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/DesignSystem/Components/LevelContent.swift",
-        "find": "        ZStack {\n            content\n                .id(id)\n                .transition(DesignTokens.TransitionToken.levelReplace)\n        }\n",
-        "replaceWith": "        content\n            .id(id)\n            .transition(DesignTokens.TransitionToken.levelReplace)\n"
+        "find": "        ZStack {\n            content\n                .id(id)\n                .transition(DesignTokens.TransitionToken.levelReplace)\n                .opacity(revealedID == id ? 1 : 0)\n        }\n",
+        "replaceWith": "        content\n            .id(id)\n            .transition(DesignTokens.TransitionToken.levelReplace)\n            .opacity(revealedID == id ? 1 : 0)\n"
       },
       "expected": {
         "exitCode": 1,
@@ -821,22 +821,6 @@
         "exitCode": 1,
         "outputContains": [
           "the Emby detail page must show nothing until its data"
-        ]
-      }
-    },
-    {
-      "id": "browser-surface-structure-rejects-a-poster-grid-that-fades-in-before-decoding",
-      "guard": "Scripts/rules/verify_browser_surface_structure.py",
-      "defect": {
-        "type": "replace-text",
-        "file": "Modules/Emby/EmbyScreens.swift",
-        "find": "            await ArtworkPrefetch.warm(\n                items.prefix(DesignTokens.Card.gridRevealPrefetchCount)\n                    .compactMap { posterURL(for: $0, session: session) }\n            )\n",
-        "replaceWith": ""
-      },
-      "expected": {
-        "exitCode": 1,
-        "outputContains": [
-          "the Emby poster grid must stay empty until its items are in"
         ]
       }
     },
@@ -1029,6 +1013,358 @@
         "exitCode": 1,
         "outputContains": [
           "asks for window chrome"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-poster-grid-that-waits-on-its-images",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Emby/EmbyScreens.swift",
+        "find": "            async let warmed: Void = ArtworkPrefetch.warm(posters)\n",
+        "replaceWith": "            await ArtworkPrefetch.warm(posters)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the Emby poster grid must stay empty until its items are in"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-an-entrance-that-fades-in-on-a-timer",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/DesignTokens.swift",
+        "find": "                insertion: .identity,\n",
+        "replaceWith": "                insertion: .opacity.animation(AnimationToken.levelEnter),\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "fades in on the transition's own schedule"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-level-revealed-before-it-settles",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/LevelContent.swift",
+        "find": "        let wait = LevelReveal.remaining(pendingFor: now - since, contentIsReady: contentIsReady)\n",
+        "replaceWith": "        let wait = LevelReveal.delay(contentIsReady: true)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must stay blank until its content settles"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-level-that-ignores-reported-readiness",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/DesignSystem/Components/LevelContent.swift",
+        "find": "        .onPreferenceChange(LevelReadinessKey.self) { isReady in\n            Task { @MainActor in contentIsReady = isReady }\n        }\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "no longer reads the readiness its level reports"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-files-level-without-its-own-placeholder",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "find": "        if !levelIsReady {\n            loadingState\n",
+        "replaceWith": "        if viewModel.isLoading {\n            loadingState\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must report whether its listing has settled"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-navigation-that-keeps-the-previous-listing",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/FileBrowsingViewModel.swift",
+        "find": "        currentRootDisplayName = folder.name\n        enterLevel()\n",
+        "replaceWith": "        currentRootDisplayName = folder.name\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must enter the level before requesting its listing"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-listing-that-never-settles-its-level",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/FileBrowsingViewModel.swift",
+        "find": "            applySortToLevel()\n            loadProgressForFiles()\n            settleCurrentLevel()\n",
+        "replaceWith": "            applySortToLevel()\n            loadProgressForFiles()\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must settle its level on both the remote and the local"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-level-that-orders-only-its-files",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/FileBrowsingViewModel.swift",
+        "find": "        files = criteria.sorted(files)\n        folders = criteria.sorted(folders)\n",
+        "replaceWith": "        files = criteria.sorted(files)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the sort control must order the whole level"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-listing-that-keeps-the-source-order",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/FileBrowsingViewModel.swift",
+        "find": "        applySortToLevel()\n        loadProgressForFiles()\n        settleCurrentLevel()\n",
+        "replaceWith": "        loadProgressForFiles()\n        settleCurrentLevel()\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "every listing terminal and the sort observer must re-order the level"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-folders-that-ignore-the-descending-choice",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Model/MediaBrowsing.swift",
+        "find": "            switch order {\n            case .ascending:\n                return byName\n            case .descending:\n                return Array(byName.reversed())\n            }\n        }\n",
+        "replaceWith": "            return byName\n        }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "under the size key folders order by name"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-library-level-whose-folders-ignore-the-sort",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "find": "        return criteria.order == .ascending ? byName : Array(byName.reversed())\n",
+        "replaceWith": "        return byName\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the library level's folders ignore the sort control"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-an-empty-collection-raised-as-a-failure",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift",
+        "find": "            return []\n",
+        "replaceWith": "            throw WebDAVError.invalidResponse\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "a collection that answers with nothing but itself is an empty"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-viewing-states-matched-by-position",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/FileBrowsingViewModel.swift",
+        "find": "                  Set(self.files.map(\\.id)) == Set(currentFiles.map(\\.id)) else { return }\n",
+        "replaceWith": "                  self.files.map(\\.id) == currentFiles.map(\\.id) else { return }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "identity, not by position"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-folders-that-ignore-a-reported-modification-time",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Model/MediaBrowsing.swift",
+        "find": "            if key == .modifiedDate {\n                return SortCriteria.dated(byName, order: order) { $0.modifiedAt }\n            }\n\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must order by it"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-undated-folders-that-do-not-sink",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Model/MediaBrowsing.swift",
+        "find": "            return dated + undated\n",
+        "replaceWith": "            return undated + dated\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must order by it"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-source-that-drops-its-folder-times",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift",
+        "find": "                modifiedAt: parseHTTPDate(responseItem.lastModified)\n",
+        "replaceWith": "                modifiedAt: nil\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "stopped reporting the modification time"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-local-source-that-drops-its-folder-times",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift",
+        "find": "                            modifiedAt: values?.contentModificationDate\n",
+        "replaceWith": "                            modifiedAt: nil\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "stopped reporting the modification time"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-sort-key-the-level-cannot-answer",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "find": "                    unavailableKeys: unavailableSortKeys,\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "must reach the menu as disabled"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-debug-channel-that-offers-forbidden-keys",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift",
+        "find": "                        .filter { unavailableKeys.contains($0.0) == false }\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "disagree on which keys"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-manage-menu-live-over-a-source",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "find": "        .disabled(isBrowsingSource)\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the button must be disabled"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-a-debug-channel-that-manages-over-a-source",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/FilesScreen.swift",
+        "find": "            guard isBrowsingSource == false else {\n                request.handle(host: .files, family: .manage, items: [])\n                return\n            }\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "the debug channel must offer nothing"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-an-smb-source-that-drops-its-folder-times",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift",
+        "find": "                modifiedAt: item.modifiedAt\n            )\n        }\n    }\n",
+        "replaceWith": "                modifiedAt: nil\n            )\n        }\n    }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "stopped reporting the modification time"
         ]
       }
     }

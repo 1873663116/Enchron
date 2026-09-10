@@ -38,13 +38,22 @@ nonisolated extension FileBrowsingDomain {
         public let dataSourceID: UUID
         public let path: String
         public let url: URL
+        public let modifiedAt: Date?
 
-        public init(id: String? = nil, name: String, dataSourceID: UUID, path: String, url: URL) {
+        public init(
+            id: String? = nil,
+            name: String,
+            dataSourceID: UUID,
+            path: String,
+            url: URL,
+            modifiedAt: Date? = nil
+        ) {
             self.id = id ?? Self.identity(for: dataSourceID, path: path)
             self.name = name
             self.dataSourceID = dataSourceID
             self.path = path
             self.url = url
+            self.modifiedAt = modifiedAt
         }
 
         private static func identity(for dataSourceID: UUID, path: String) -> String {
@@ -94,8 +103,29 @@ nonisolated extension FileBrowsingDomain {
 }
 
 nonisolated extension FileBrowsingDomain {
+    public struct SortKeyAvailability: Sendable, Equatable {
+        public let orderableByDate: Bool
+        public let orderableBySize: Bool
+
+        public init(datedItemCount: Int, sizedItemCount: Int) {
+            orderableByDate = datedItemCount > 0
+            orderableBySize = sizedItemCount > 0
+        }
+
+        public func canOrder(by key: SortCriteria.Key) -> Bool {
+            switch key {
+            case .name:
+                return true
+            case .modifiedDate:
+                return orderableByDate
+            case .size:
+                return orderableBySize
+            }
+        }
+    }
+
     public struct SortCriteria: Sendable, Equatable {
-        public enum Key: Sendable {
+        public enum Key: Sendable, Hashable {
             case name
             case modifiedDate
             case size
@@ -132,6 +162,43 @@ nonisolated extension FileBrowsingDomain {
             case .descending:
                 return Array(sorted.reversed())
             }
+        }
+
+        public func sorted(_ folders: [FileBrowsingDomain.MediaFolder]) -> [FileBrowsingDomain.MediaFolder] {
+            let byName = folders.sorted {
+                $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending
+            }
+
+            if key == .modifiedDate {
+                return SortCriteria.dated(byName, order: order) { $0.modifiedAt }
+            }
+
+            switch order {
+            case .ascending:
+                return byName
+            case .descending:
+                return Array(byName.reversed())
+            }
+        }
+
+        public static func dated<Element>(
+            _ nameOrdered: [Element],
+            order: Order,
+            by date: (Element) -> Date?
+        ) -> [Element] {
+            let indexed = Array(nameOrdered.enumerated())
+            let undated = indexed.filter { date($0.element) == nil }.map(\.element)
+            let dated = indexed
+                .filter { date($0.element) != nil }
+                .sorted { left, right in
+                    guard let leading = date(left.element), let trailing = date(right.element) else {
+                        return false
+                    }
+                    guard leading != trailing else { return left.offset < right.offset }
+                    return order == .ascending ? leading < trailing : leading > trailing
+                }
+                .map(\.element)
+            return dated + undated
         }
 
         public static let nameAscending = SortCriteria(key: .name, order: .ascending)

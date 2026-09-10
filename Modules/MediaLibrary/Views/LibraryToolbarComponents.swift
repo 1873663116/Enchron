@@ -3,7 +3,7 @@ import Foundation
 import MediaLibrary
 import SwiftUI
 
-public enum SortMenuKey {
+public enum SortMenuKey: Hashable {
     case name
     case modifiedDate
     case size
@@ -17,6 +17,7 @@ public enum SortMenuOrder {
 public struct SortMenuButton: View {
     @Binding var sortKey: SortMenuKey
     @Binding var sortOrder: SortMenuOrder
+    var unavailableKeys: Set<SortMenuKey> = []
     var accessibilityIdentifier: String = "DesignSystem-menu-sort"
 
     private let iconColor: Color = .secondary
@@ -27,6 +28,7 @@ public struct SortMenuButton: View {
             isSelected: sortKey == key,
             identifier: "\(accessibilityIdentifier)-\(id)"
         ) { sortKey = key }
+            .disabled(unavailableKeys.contains(key))
     }
 
     private func orderRow(_ title: String, _ order: SortMenuOrder, _ id: String) -> some View {
@@ -64,29 +66,24 @@ public struct SortMenuButton: View {
             }
             switch request.family {
             case .sortKey:
+                let rows: [(SortMenuKey, String, String)] = [
+                    (.name, "name", "Name"),
+                    (.modifiedDate, "modifiedDate", "Date Modified"),
+                    (.size, "size", "Size")
+                ]
                 request.handle(
                     host: .files,
                     family: .sortKey,
-                    items: [
-                        DebugMenuSelectionItem(
-                            id: "name",
-                            title: "Name",
-                            isSelected: sortKey == .name,
-                            select: { sortKey = .name }
-                        ),
-                        DebugMenuSelectionItem(
-                            id: "modifiedDate",
-                            title: "Date Modified",
-                            isSelected: sortKey == .modifiedDate,
-                            select: { sortKey = .modifiedDate }
-                        ),
-                        DebugMenuSelectionItem(
-                            id: "size",
-                            title: "Size",
-                            isSelected: sortKey == .size,
-                            select: { sortKey = .size }
-                        )
-                    ]
+                    items: rows
+                        .filter { unavailableKeys.contains($0.0) == false }
+                        .map { key, id, title in
+                            DebugMenuSelectionItem(
+                                id: id,
+                                title: title,
+                                isSelected: sortKey == key,
+                                select: { sortKey = key }
+                            )
+                        }
                 )
             case .sortOrder:
                 request.handle(
@@ -117,10 +114,12 @@ public struct SortMenuButton: View {
     public init(
         sortKey: Binding<SortMenuKey>,
         sortOrder: Binding<SortMenuOrder>,
+        unavailableKeys: Set<SortMenuKey> = [],
         accessibilityIdentifier: String = "DesignSystem-menu-sort"
     ) {
         self._sortKey = sortKey
         self._sortOrder = sortOrder
+        self.unavailableKeys = unavailableKeys
         self.accessibilityIdentifier = accessibilityIdentifier
     }
 }

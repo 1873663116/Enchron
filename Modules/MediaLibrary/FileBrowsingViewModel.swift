@@ -41,6 +41,24 @@ public final class FileBrowsingViewModel {
 
     public private(set) var canNavigateForward: Bool = false
 
+    private var settledLevel: LevelIdentity?
+
+    private struct LevelIdentity: Equatable {
+        let generation: UInt64
+        let dataSourceID: UUID?
+        let path: String
+    }
+
+    private var currentLevel: LevelIdentity {
+        LevelIdentity(
+            generation: sourceGeneration,
+            dataSourceID: activeDataSource?.id,
+            path: currentRemotePath
+        )
+    }
+
+    public var currentLevelHasSettled: Bool { settledLevel == currentLevel }
+
     private let localDataSource: any LocalFileSource
     private let uiState: MediaLibraryUIState
     private let logger = Logger(subsystem: "app.enchron", category: "FileBrowser")
@@ -105,7 +123,7 @@ public final class FileBrowsingViewModel {
 
         loadSavedDataSources()
         uiState.observeSortCriteriaChanges { [weak self] _ in
-            self?.applySortToFiles()
+            self?.applySortToLevel()
         }
     }
 
@@ -175,8 +193,7 @@ public final class FileBrowsingViewModel {
         activeDataSource = ds
         isLoading = true
         lastErrorMessage = nil
-        files = []
-        folders = []
+        enterLevel()
         currentRootDisplayName = ds.name
         let rootPath = ds.connectionInfo.rootPath
         remotePathStack = [rootPath]
@@ -235,6 +252,7 @@ public final class FileBrowsingViewModel {
             currentRootDisplayName = ds.name
             lastErrorMessage = nil
             isLoading = false
+            settleCurrentLevel()
             return .connected
         } catch {
             adapter.disconnect()
@@ -242,6 +260,7 @@ public final class FileBrowsingViewModel {
             guard isCurrentSource(generation, dataSourceID: ds.id) else { return result }
             isLoading = false
             activeRemoteAdapter = nil
+            settleCurrentLevel()
             return result
         }
     }
@@ -262,7 +281,7 @@ public final class FileBrowsingViewModel {
             case .invalidConnectionInfo:
                 return .invalidAddress
             case .notConnected, .invalidResponse, .requestFailed, .malformedResponse,
-                 .emptyDirectoryListing, .streamingFailed:
+                 .streamingFailed:
                 return .serverUnreachable
             }
         }
@@ -332,8 +351,9 @@ public final class FileBrowsingViewModel {
                 }
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             }
-            applySortToFiles()
+            applySortToLevel()
             loadProgressForFiles()
+            settleCurrentLevel()
             return
         }
 
@@ -355,8 +375,9 @@ public final class FileBrowsingViewModel {
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             print("[FileBrowser] loadFiles failed: \(error)")
         }
-        applySortToFiles()
+        applySortToLevel()
         loadProgressForFiles()
+        settleCurrentLevel()
     }
 
     private func reconnectAndSurfaceFailure(
@@ -368,6 +389,16 @@ public final class FileBrowsingViewModel {
               activeRemoteAdapter == nil,
               isLoading == false else { return }
         lastErrorMessage = failure.localizedDescription
+    }
+
+    private func settleCurrentLevel() {
+        settledLevel = currentLevel
+    }
+
+    private func enterLevel() {
+        settledLevel = nil
+        files = []
+        folders = []
     }
 
     private func mergeFiles(_ newFiles: [FileBrowsingDomain.MediaFile]) {
@@ -756,6 +787,7 @@ public final class FileBrowsingViewModel {
         forwardPathStack.removeAll()
         canNavigateForward = false
         currentRootDisplayName = folder.name
+        enterLevel()
         await loadFiles()
     }
 
@@ -777,6 +809,7 @@ public final class FileBrowsingViewModel {
             let name = (previousPath as NSString).lastPathComponent
             currentRootDisplayName = name.removingPercentEncoding ?? name
         }
+        enterLevel()
         await loadFiles()
     }
 
@@ -788,6 +821,7 @@ public final class FileBrowsingViewModel {
         canNavigateForward = !forwardPathStack.isEmpty
         let name = (next as NSString).lastPathComponent
         currentRootDisplayName = name.removingPercentEncoding ?? name
+        enterLevel()
         await loadFiles()
     }
 
@@ -832,6 +866,7 @@ public final class FileBrowsingViewModel {
             let name = (targetPath as NSString).lastPathComponent
             currentRootDisplayName = name.removingPercentEncoding ?? name
         }
+        enterLevel()
         await loadFiles()
     }
 
@@ -841,7 +876,7 @@ public final class FileBrowsingViewModel {
         activeDataSource = nil
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil
-        folders = []
+        enterLevel()
         remotePathStack = []
         canNavigateUp = false
 
@@ -849,10 +884,12 @@ public final class FileBrowsingViewModel {
             let values = try normalizedURL.resourceValues(forKeys: [.isDirectoryKey])
             guard values.isDirectory == true else {
                 lastErrorMessage = "Selected item is not a folder."
+                settleCurrentLevel()
                 return
             }
         } catch {
             lastErrorMessage = "Unable to access selected folder: \(error.localizedDescription)"
+            settleCurrentLevel()
             return
         }
 
@@ -875,7 +912,7 @@ public final class FileBrowsingViewModel {
         activeDataSource = nil
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil
-        folders = []
+        enterLevel()
         remotePathStack = []
         canNavigateUp = false
         securityScopedRootURL?.stopAccessingSecurityScopedResource()
@@ -899,6 +936,7 @@ public final class FileBrowsingViewModel {
             files = []
             lastErrorMessage = "Failed to connect local data source: \(error.localizedDescription)"
             print("[FileBrowser] connect failed: \(error)")
+            settleCurrentLevel()
         }
     }
 
@@ -917,23 +955,10 @@ public final class FileBrowsingViewModel {
         savedDataSourceStore.saveSavedDataSourceRecords(data)
     }
 
-    private func applySortToFiles() {
+    private func applySortToLevel() {
         let criteria = sortCriteria
-        let sorted: [FileBrowsingDomain.MediaFile]
-        switch criteria.key {
-        case .name:
-            sorted = files.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        case .modifiedDate:
-            sorted = files.sorted { $0.modifiedAt < $1.modifiedAt }
-        case .size:
-            sorted = files.sorted { $0.sizeInBytes < $1.sizeInBytes }
-        }
-        switch criteria.order {
-        case .ascending:
-            files = sorted
-        case .descending:
-            files = sorted.reversed()
-        }
+        files = criteria.sorted(files)
+        folders = criteria.sorted(folders)
     }
 
     private func makeStableIdentifier(
@@ -980,14 +1005,14 @@ public final class FileBrowsingViewModel {
                 map[file.id] = state
             }
             guard self.sourceGeneration == currentGeneration,
-                  self.files.map(\.id) == currentFiles.map(\.id) else { return }
+                  Set(self.files.map(\.id)) == Set(currentFiles.map(\.id)) else { return }
             self.fileViewingStates = map
             guard let durationProbe = self.durationProbe else { return }
             for file in currentFiles where map[file.id] == nil {
                 guard self.sourceGeneration == currentGeneration else { return }
                 guard let duration = await self.probeDuration(for: file, using: durationProbe) else { continue }
                 guard self.sourceGeneration == currentGeneration,
-                      self.files.map(\.id) == currentFiles.map(\.id),
+                      Set(self.files.map(\.id)) == Set(currentFiles.map(\.id)),
                       self.fileViewingStates[file.id] == nil else { continue }
                 self.fileViewingStates[file.id] = VideoCardViewingState(
                     positionSeconds: 0,

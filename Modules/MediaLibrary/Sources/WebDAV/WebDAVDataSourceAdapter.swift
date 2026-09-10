@@ -7,7 +7,6 @@ public nonisolated enum WebDAVError: LocalizedError, Sendable {
     case invalidResponse
     case requestFailed(Int)
     case malformedResponse
-    case emptyDirectoryListing
     case streamingFailed(String)
 
     public var errorDescription: String? {
@@ -22,8 +21,6 @@ public nonisolated enum WebDAVError: LocalizedError, Sendable {
             return "WebDAV request failed with HTTP status \(statusCode)."
         case .malformedResponse:
             return "WebDAV server returned malformed XML."
-        case .emptyDirectoryListing:
-            return "WebDAV server returned only the current directory entry. Directory listing could not be resolved."
         case .streamingFailed(let reason):
             return "WebDAV playback stream failed: \(reason)"
         }
@@ -93,7 +90,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
             case .invalidConnectionInfo:
                 return .invalidAddress
             case .notConnected, .invalidResponse, .requestFailed, .malformedResponse,
-                 .emptyDirectoryListing, .streamingFailed:
+                 .streamingFailed:
                 return .serverUnreachable
             }
         }
@@ -190,7 +187,8 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
                 name: folderName,
                 dataSourceID: ownerDataSourceID,
                 path: folderURL.path,
-                url: folderURL
+                url: folderURL,
+                modifiedAt: parseHTTPDate(responseItem.lastModified)
             )
         }
     }
@@ -246,7 +244,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
                 }
             }
 
-            throw WebDAVError.emptyDirectoryListing
+            return []
         }
 
         return primaryResult.responses

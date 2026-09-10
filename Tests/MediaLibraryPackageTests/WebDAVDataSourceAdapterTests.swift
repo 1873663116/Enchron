@@ -349,11 +349,133 @@ struct WebDAVDataSourceAdapterTests {
         #expect(failure == .requiresHTTPS)
     }
 
+    @Test("an empty WebDAV collection lists as empty instead of failing the level")
+    func emptyCollectionListsAsEmpty() async throws {
+        let recorder = WebDAVRequestRecorder()
+        WebDAVTestURLProtocol.setHandler { request in
+            recorder.record(request)
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: 207,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/xml"]
+                  ) else {
+                throw URLError(.badURL)
+            }
+            let path = URLComponents(url: url, resolvingAgainstBaseURL: false)?.path ?? ""
+            if path.hasPrefix("/dav/library/Season 1") || path.hasPrefix("/dav/library/Season%201") {
+                return (response, Data(Self.emptyCollectionListing.utf8))
+            }
+            return (response, Data(Self.directoryListing.utf8))
+        }
+        defer { WebDAVTestURLProtocol.setHandler(nil) }
+
+        let adapter = WebDAVDataSourceAdapter(
+            credentialStore: RecordingWebDAVCredentialStore(
+                credential: .init(username: "viewer", password: "secret")
+            ),
+            session: Self.makeSession()
+        )
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "https://media.example.test/dav/library",
+            username: "viewer"
+        )
+
+        try await adapter.connect(with: info)
+        let files = try await adapter.listContents(at: "/Season 1/")
+        let folders = try await adapter.listFolders(at: "/Season 1/")
+
+        #expect(files.isEmpty)
+        #expect(folders.isEmpty)
+    }
+
+    @Test("WebDAV folders carry the collection modification time the server reports")
+    func folderModificationTime() async throws {
+        WebDAVTestURLProtocol.setHandler { request in
+            guard let url = request.url,
+                  let response = HTTPURLResponse(
+                    url: url,
+                    statusCode: 207,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/xml"]
+                  ) else {
+                throw URLError(.badURL)
+            }
+            return (response, Data(Self.datedCollectionListing.utf8))
+        }
+        defer { WebDAVTestURLProtocol.setHandler(nil) }
+
+        let adapter = WebDAVDataSourceAdapter(
+            credentialStore: RecordingWebDAVCredentialStore(
+                credential: .init(username: "viewer", password: "secret")
+            ),
+            session: Self.makeSession()
+        )
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "https://media.example.test/dav/library",
+            username: "viewer"
+        )
+
+        try await adapter.connect(with: info)
+        let folders = try await adapter.listFolders(at: "/")
+        let dated = try #require(folders.first { $0.name == "Season 1" })
+        let undated = try #require(folders.first { $0.name == "Season 2" })
+
+        #expect(dated.modifiedAt == Date(timeIntervalSince1970: 1_794_693_600))
+        #expect(undated.modifiedAt == nil)
+    }
+
     private static func makeSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [WebDAVTestURLProtocol.self]
         return URLSession(configuration: configuration)
     }
+
+    nonisolated private static let datedCollectionListing = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <d:multistatus xmlns:d="DAV:">
+      <d:response>
+        <d:href>/dav/library/</d:href>
+        <d:propstat>
+          <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+          <d:status>HTTP/1.1 200 OK</d:status>
+        </d:propstat>
+      </d:response>
+      <d:response>
+        <d:href>/dav/library/Season%201/</d:href>
+        <d:propstat>
+          <d:prop>
+            <d:getlastmodified>Sat, 14 Nov 2026 22:00:00 GMT</d:getlastmodified>
+            <d:resourcetype><d:collection/></d:resourcetype>
+          </d:prop>
+          <d:status>HTTP/1.1 200 OK</d:status>
+        </d:propstat>
+      </d:response>
+      <d:response>
+        <d:href>/dav/library/Season%202/</d:href>
+        <d:propstat>
+          <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+          <d:status>HTTP/1.1 200 OK</d:status>
+        </d:propstat>
+      </d:response>
+    </d:multistatus>
+    """
+
+    nonisolated private static let emptyCollectionListing = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <d:multistatus xmlns:d="DAV:">
+      <d:response>
+        <d:href>/dav/library/Season%201/</d:href>
+        <d:propstat>
+          <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+          <d:status>HTTP/1.1 200 OK</d:status>
+        </d:propstat>
+      </d:response>
+    </d:multistatus>
+    """
 
     nonisolated private static let directoryListing = """
     <?xml version="1.0" encoding="utf-8"?>

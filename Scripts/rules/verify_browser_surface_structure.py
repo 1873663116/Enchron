@@ -59,8 +59,10 @@ def check_level_transitions() -> None:
     tokens = read("Modules/DesignSystem/DesignTokens.swift")
     require(
         "public static let levelExitDuration: Double = 0.12" in tokens
-        and "public static let levelEnterDuration: Double = 0.25" in tokens,
-        "the level transition animation drifted from the calibrated 0.12 s exit and 0.25 s entrance",
+        and "public static let levelEnterDuration: Double = 0.25" in tokens
+        and "public static let levelPlaceholderThreshold: Double = 0.4" in tokens,
+        "the level transition drifted from the calibrated 0.12 s exit, 0.25 s "
+        "entrance and 0.4 s blank window",
     )
     require(
         order(
@@ -68,15 +70,12 @@ def check_level_transitions() -> None:
             "public enum TransitionToken {",
             "@MainActor public static var levelReplace: AnyTransition {",
             ".asymmetric(",
-            "insertion: .opacity.animation(",
-            ".easeOut(duration: AnimationToken.levelEnterDuration)",
-            ".delay(AnimationToken.levelExitDuration)",
-            "removal: .opacity.animation(",
-            ".easeIn(duration: AnimationToken.levelExitDuration)",
+            "insertion: .identity,",
+            "removal: .opacity.animation(AnimationToken.levelExit)",
         ),
-        "the level transition overlaps the old and new levels again: the old "
-        "level must fade out fully before the new one fades in, or similar "
-        "levels crossfade into a ghost",
+        "the level being entered fades in on the transition's own schedule "
+        "again: the old level must fade out at once and the new one must be "
+        "inserted transparent, so levelContent can hold it until it settles",
     )
     for path, marker in LEVEL_CONTENT_SITES.items():
         source = read(path)
@@ -100,9 +99,102 @@ def check_level_transitions() -> None:
             "ZStack {",
             ".id(id)",
             ".transition(DesignTokens.TransitionToken.levelReplace)",
+            ".opacity(revealedID == id ? 1 : 0)",
             ".animation(DesignTokens.AnimationToken.levelTransition, value: id)",
         ),
         "LevelContent lost the ZStack that keeps the old level alive through its exit",
+    )
+    require(
+        order(
+            level,
+            "static func delay(contentIsReady: Bool) -> Duration {",
+            "? DesignTokens.AnimationToken.levelExitDuration",
+            ": DesignTokens.AnimationToken.levelPlaceholderThreshold",
+            "static func remaining(pendingFor elapsed: Duration, contentIsReady: Bool) -> Duration {",
+            "max(.zero, delay(contentIsReady: contentIsReady) - elapsed)",
+        )
+        and order(
+            level,
+            "private func reveal() async {",
+            "guard revealedID != id else { return }",
+            "guard hasRevealedALevel else {",
+            "let wait = LevelReveal.remaining(pendingFor: now - since, contentIsReady: contentIsReady)",
+            "try? await Task.sleep(for: wait)",
+            "withAnimation(DesignTokens.AnimationToken.levelEnter) {",
+            "revealedID = id",
+        ),
+        "a level must stay blank until its content settles or the placeholder "
+        "threshold elapses, and a listing that lands mid-wait must shorten that "
+        "wait instead of restarting it",
+    )
+    require(
+        order(
+            level,
+            "static func reduce(value: inout Bool, nextValue: () -> Bool) {",
+            "value = value && nextValue()",
+        )
+        and order(
+            level,
+            ".onPreferenceChange(LevelReadinessKey.self) { isReady in",
+            ".task(id: RevealRequest(id: id, contentIsReady: contentIsReady)) {",
+        ),
+        "levelContent no longer reads the readiness its level reports, so a "
+        "level that is still loading counts as settled",
+    )
+    files = read("Modules/MediaLibrary/Views/FilesScreen.swift")
+    require(
+        order(
+            files,
+            "private var levelIsReady: Bool {",
+            "isBrowsingSource ? viewModel.currentLevelHasSettled : true",
+        )
+        and order(
+            files,
+            "currentFolderContent",
+            ".levelReadiness(levelIsReady)",
+            ".levelContent(id: folderIdentity)",
+        )
+        and order(
+            files,
+            "private var currentFolderContent: some View {",
+            "if !levelIsReady {",
+            "loadingState",
+        ),
+        "the Files level must report whether its listing has settled and hold "
+        "its own placeholder until then",
+    )
+    browsing = read("Modules/MediaLibrary/FileBrowsingViewModel.swift")
+    require(
+        order(
+            browsing,
+            "private func enterLevel() {",
+            "settledLevel = nil",
+            "files = []",
+            "folders = []",
+        ),
+        "entering a level must drop the level being left: the listing merge "
+        "keeps rows until a replacement arrives, so the level being entered "
+        "would otherwise fade in over the previous level's rows",
+    )
+    for opening, closing in (
+        ("public func navigateToFolder(", "public func navigateUp("),
+        ("public func navigateUp(", "public func navigateForward("),
+        ("public func navigateForward(", "public var breadcrumbSegments:"),
+        ("public func navigateToBreadcrumb(", "public func selectLocalFolder("),
+    ):
+        require(
+            order(region(browsing, opening, closing), "enterLevel()", "await loadFiles()"),
+            f"{opening}) must enter the level before requesting its listing",
+        )
+    listing = region(
+        browsing,
+        "public func loadFiles() async {",
+        "private func reconnectAndSurfaceFailure(",
+    )
+    require(
+        listing.count("settleCurrentLevel()") == 2,
+        "a listing must settle its level on both the remote and the local "
+        "terminal, or a level whose listing failed never fades in",
     )
     grid = read("Modules/DesignSystem/Components/CardGrid.swift")
     require(
@@ -209,11 +301,25 @@ def check_sidebar_layout() -> None:
             ".opacity(revealed ? 1 : 0)",
             ".task(id: revealKey) {",
             "revealed = false",
-            "await ArtworkPrefetch.warm(",
+            "async let warmed: Void = ArtworkPrefetch.warm(posters)",
+            "try? await Task.sleep(for: .seconds(DesignTokens.Card.gridRevealLayoutDelay))",
             "withAnimation(.easeOut(duration: DesignTokens.Card.gridRevealDuration)) {",
+            "revealed = true",
+            ".levelReadiness(isLoading == false)",
         ),
-        "the Emby poster grid must stay empty until its items are in and lay out "
-        "before it fades in; fading while the grid is built stutters",
+        "the Emby poster grid must stay empty until its items are in, lay out "
+        "before it fades in, and report that readiness upward; awaiting the "
+        "poster images here holds the page blank for as long as the slowest "
+        "download takes",
+    )
+    require(
+        order(
+            emby,
+            "initialRefreshCompleted = true",
+            ".levelReadiness(initialRefreshCompleted)",
+        ),
+        "the Emby home level must report when its shelves are in, or it fades "
+        "in empty and fills afterwards",
     )
     artwork = read("Modules/DesignSystem/Components/AsyncArtworkImage.swift")
     require(
@@ -384,9 +490,185 @@ def check_grid_card_hover() -> None:
     )
 
 
+def check_level_ordering() -> None:
+    browsing = read("Modules/MediaLibrary/FileBrowsingViewModel.swift")
+    require(
+        order(
+            browsing,
+            "private func applySortToLevel() {",
+            "files = criteria.sorted(files)",
+            "folders = criteria.sorted(folders)",
+        )
+        and "applySortToFiles" not in browsing,
+        "the sort control must order the whole level: a level whose folders "
+        "keep the order the source listed them in does not visibly react to "
+        "the control at all while its folders fill the page",
+    )
+    require(
+        browsing.count("applySortToLevel()") == 4,
+        "every listing terminal and the sort observer must re-order the level, "
+        "or a listing that lands after the sort keeps the source's order",
+    )
+    domain = read("Modules/MediaLibrary/Model/MediaBrowsing.swift")
+    require(
+        order(
+            domain,
+            "public func sorted(_ folders: [FileBrowsingDomain.MediaFolder]) -> [FileBrowsingDomain.MediaFolder] {",
+            "$0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending",
+            "case .descending:",
+            "return Array(byName.reversed())",
+        ),
+        "a folder has no size of its own and reading one would mean crawling "
+        "its subtree, so under the size key folders order by name and only "
+        "follow the ascending or descending choice",
+    )
+    require(
+        order(
+            domain,
+            "public func sorted(_ folders: [FileBrowsingDomain.MediaFolder]) -> [FileBrowsingDomain.MediaFolder] {",
+            "if key == .modifiedDate {",
+            "return SortCriteria.dated(byName, order: order) { $0.modifiedAt }",
+        )
+        and order(
+            domain,
+            "public static func dated<Element>(",
+            "let undated = indexed.filter { date($0.element) == nil }.map(\\.element)",
+            "guard leading != trailing else { return left.offset < right.offset }",
+            "return dated + undated",
+        ),
+        "a folder whose source reported a modification time must order by it, "
+        "with undated folders at the end and ties left in name order in both "
+        "directions",
+    )
+    for path, opening, closing, expression in (
+        (
+            "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift",
+            "public func listFolders(at path: String)",
+            "public func listFiles(",
+            "modifiedAt: parseHTTPDate(responseItem.lastModified)",
+        ),
+        (
+            "Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift",
+            "public func listFolders(at path: String)",
+            "public func listFiles(",
+            "modifiedAt: item.modifiedAt",
+        ),
+        (
+            "Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift",
+            "public func listFolders(at path: String)",
+            "public func resolveURL(",
+            "modifiedAt: values?.contentModificationDate\n",
+        ),
+    ):
+        require(
+            expression in region(read(path), opening, closing),
+            f"{path}: this source stopped reporting the modification time of "
+            "the folders it lists, which silently removes the date key from "
+            "every folder-only level it serves",
+        )
+    require(
+        order(
+            domain,
+            "public struct SortKeyAvailability: Sendable, Equatable {",
+            "orderableByDate = datedItemCount > 0",
+            "orderableBySize = sizedItemCount > 0",
+            "public func canOrder(by key: SortCriteria.Key) -> Bool {",
+            "case .name:",
+            "return true",
+        ),
+        "the rule that a key nothing in the level can answer is offered as "
+        "disabled must live in one place; name is always answerable",
+    )
+    files = read("Modules/MediaLibrary/Views/FilesScreen.swift")
+    require(
+        order(
+            files,
+            "private var displayedLibraryFolders: [FileBrowsingDomain.LibraryFolder] {",
+            "if criteria.key == .modifiedDate {",
+            "return FileBrowsingDomain.SortCriteria.dated(byName, order: criteria.order) { $0.createdAt }",
+            "return criteria.order == .ascending ? byName : Array(byName.reversed())",
+        ),
+        "the library level's folders ignore the sort control that its files "
+        "obey, so one screen answers the same control two ways",
+    )
+    require(
+        order(
+            files,
+            "private var sortKeyAvailability: FileBrowsingDomain.SortKeyAvailability {",
+            "sizedItemCount: viewModel.displayedFiles.count",
+            "sizedItemCount: displayedLibraryReferences.count",
+        )
+        and order(
+            files,
+            "private var unavailableSortKeys: Set<SortMenuKey> {",
+            "keys.insert(.modifiedDate)",
+            "keys.insert(.size)",
+        )
+        and order(
+            files,
+            "SortMenuButton(",
+            "unavailableKeys: unavailableSortKeys,",
+        ),
+        "a sort key the level cannot answer must reach the menu as disabled; "
+        "a control that visibly changes nothing when pressed reads as broken",
+    )
+    toolbar = read("Modules/MediaLibrary/Views/LibraryToolbarComponents.swift")
+    require(
+        ".disabled(unavailableKeys.contains(key))" in toolbar
+        and ".filter { unavailableKeys.contains($0.0) == false }" in toolbar,
+        "the sort menu and the debug selection channel disagree on which keys "
+        "are offered, so automation can pick a row the screen forbids",
+    )
+    require(
+        order(
+            files,
+            ".disabled(isBrowsingSource)",
+            '.accessibilityIdentifier("FileBrowsing-Manage-button")',
+        )
+        and order(
+            files,
+            "case (.files, .manage):",
+            "guard isBrowsingSource == false else {",
+            "request.handle(host: .files, family: .manage, items: [])",
+            "$0 != .selectMultiple || displayedLibraryReferences.isEmpty == false",
+        ),
+        "every entry in the manage menu acts on the media library, so while a "
+        "source is being browsed the button must be disabled and the debug "
+        "channel must offer nothing; leaving it live builds folders and "
+        "imports files into a place the screen is not showing",
+    )
+    webdav = read("Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift")
+    require(
+        order(
+            webdav,
+            "if isSelfOnlyResponse(primaryResult.responses, requestURL: url) {",
+            "let retryURL = directoryURL(for: url)",
+            "if isSelfOnlyResponse(retryResult.responses, requestURL: retryURL) == false {",
+            "return retryResult.responses",
+            "return []",
+        )
+        and "emptyDirectoryListing" not in webdav,
+        "a collection that answers with nothing but itself is an empty "
+        "directory once the trailing-slash retry has also come back empty; "
+        "raising it as a failure puts an error on every empty leaf folder",
+    )
+    progress = region(
+        read("Modules/MediaLibrary/FileBrowsingViewModel.swift"),
+        "private func loadProgressForFiles() {",
+        "private func probeDuration(",
+    )
+    require(
+        progress.count("Set(self.files.map(\\.id)) == Set(currentFiles.map(\\.id))") == 2,
+        "viewing states and probed durations are matched to the level by "
+        "identity, not by position; re-sorting a level while they are in "
+        "flight must not discard them",
+    )
+
+
 def main() -> int:
     VIOLATIONS.clear()
     check_level_transitions()
+    check_level_ordering()
     check_sidebar_layout()
     check_grid_card_hover()
     if VIOLATIONS:

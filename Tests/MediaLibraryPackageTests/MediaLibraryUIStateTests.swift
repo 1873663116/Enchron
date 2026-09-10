@@ -93,6 +93,32 @@ struct MediaLibraryUIStateTests {
     }
 
     @MainActor
+    @Test("shared sort state orders the folders of the level as well")
+    func sharedSortStateOrdersFolders() throws {
+        let fixture = try DefaultsFixture.make()
+        defer { fixture.remove() }
+        let feature = makeFeature(defaultsSuiteName: fixture.suiteName)
+        let sourceID = UUID()
+        feature.browser.folders = ["Zeta", "alpha", "Mid"].map { name in
+            FileBrowsingDomain.MediaFolder(
+                name: name,
+                dataSourceID: sourceID,
+                path: "/\(name)",
+                url: URL(fileURLWithPath: "/\(name)")
+            )
+        }
+
+        feature.uiState.sortCriteria = .init(key: .name, order: .descending)
+        #expect(feature.browser.folders.map(\.name) == ["Zeta", "Mid", "alpha"])
+
+        feature.uiState.sortCriteria = .init(key: .name, order: .ascending)
+        #expect(feature.browser.folders.map(\.name) == ["alpha", "Mid", "Zeta"])
+
+        feature.uiState.sortCriteria = .init(key: .size, order: .descending)
+        #expect(feature.browser.folders.map(\.name) == ["Zeta", "Mid", "alpha"])
+    }
+
+    @MainActor
     private func makeFeature(defaultsSuiteName: String) -> MediaLibraryFeature {
         MediaLibraryFeature(defaultsSuiteName: defaultsSuiteName, onPlay: { _ in })
     }

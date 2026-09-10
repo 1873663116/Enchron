@@ -56,7 +56,15 @@
 
 - **栈里存的是逻辑查询键，不是显示路径**。本地根必须与加载器在空栈时首次列出用的那个逻辑根一致；在这里播下绝对路径，会让 `navigateUp` / `navigateForward` / 面包屑回根去查询一个来源不认识的键，返回一个空的根。
 - **进入文件夹开启新分支**，前进历史随即作废。
-- **列表增量更新**：成功才替换，并保留稳定的 UUID 让 SwiftUI 只做 diff 而不重建整张列表；失败时保留现有条目、只呈现错误，列表不会跳成空的。合并按 `uniquingKeysWith` 进行，因为数据源可能返回重复 ID，不去重会崩。
+- **列表增量更新**：成功才替换，并保留稳定的 UUID 让 SwiftUI 只做 diff 而不重建整张列表；原地刷新失败时保留现有条目、只呈现错误，列表不会跳成空的。合并按 `uniquingKeysWith` 进行，因为数据源可能返回重复 ID，不去重会崩。
+- **换层级先清空**：合并是就地增量，条目一直留到替换清单到达，所以离开一个层级时 `enterLevel()` 先丢掉 `files` 与 `folders`；否则新层级淡入的是上一层的行。这条只针对层级切换，同一层级的刷新仍然保留条目。
+- **层级的落定与呈现分离**：`currentLevelHasSettled` 表示当前层级的清单已到达终态——列出成功、列出为空、或列出失败。`loadFiles` 的远程与本地两条终点都调用 `settleCurrentLevel()`，连接与选根的失败分支同样调用，否则一个失败的层级永远不落定、页面永远不淡入。层级身份是 `(sourceGeneration, activeDataSource?.id, currentRemotePath)`：换源与换根都经 `beginSourceGeneration()`，因此不必再比对根路径。呈现侧怎么用这个信号见 `docs/DESIGN_SYSTEM_CONSTRAINTS.md` 的「层级切换的过渡」。
+- **没有层级缓存**：向上返回与前进历史都重新列出，落定前该层级是空的。缓存能让返回在第 0 帧就落定，但要先定义失效（删除、新建、重连、换源），目前没有实现。
+- **浏览来源时 Manage 菜单整颗禁用**：菜单里四项（Add Files、Add from Photos、Add Folder、New Library Folder）全部作用于媒体库，在来源层级里点下去不是空操作，而是把文件夹建到、把文件导到一个屏幕没有显示的地方。远程来源也不支持 mkdir／删除／重命名，适配器只有列目录与取字节。把远程文件送进媒体库的通道保留在卡片右键的 “Add to Media Library”。DEBUG 选择通道在来源分支返回空列表，与灰显一致。
+- **排序作用于整个层级**：`applySortToLevel()` 同时排文件与文件夹，由排序观察者与 `loadFiles` 的两条终点调用；文件夹仍然整体排在文件之前。此前只有文件被排，而来源按自己的顺序返回文件夹（WebDAV 是服务器的顺序，本地是 `contentsOfDirectory` 的顺序），所以一个以文件夹为主的层级对排序控件毫无反应。断言见 `MediaLibraryUIStateTests.sharedSortStateOrdersFolders`。
+- **文件夹按名字与时间排，不按体积**：文件夹自身没有体积，读出它要爬完整棵子树——WebDAV 要么 `Depth: infinity`（多数服务器默认关闭）要么逐层 PROPFIND，请求数等于子树节点数；SMB 与本地要递归遍历。排序是一个即时动作，不该在按下的那一刻发起这种爬取，因此体积键下文件夹按名字排，只跟随升降序。虚拟标签（媒体库文件夹）的成员体积虽然就在内存里，也不按内容合计排，否则同一个键在同一个页面的两支里是两种量。
+- **文件夹的修改时间来自来源，缺失时沉底**：WebDAV 用集合响应里的 `getlastmodified`（RFC 4918 不强制集合携带它，缺失即 nil）；SMB 用目录项自己的 `modifiedAt`，根一级的共享没有；本地在 `contentsOfDirectory` 的 keys 里要 `.contentModificationDateKey`。语义是目录条目发生增删的时间，不是内容最后被改的时间——新一集落进季文件夹，季文件夹就会浮到前面。时间键下没有时间的文件夹排在末尾（升降序都一样），同时间的按名字排且两个方向都保持名字升序。虚拟标签用自己的 `LibraryFolder.createdAt`；这个字段是后加的，老数据解码为 nil、同样沉底，不用成员的最新时间去伪造。
+- **这一层回答不了的排序键以禁用呈现**：判定在 `FileBrowsingDomain.SortKeyAvailability`——名称永远可用；时间在层级里没有任何条目携带时间时不可用；体积在层级里没有文件时不可用（纯文件夹的层级）。禁用**不改写用户存下来的选择**：带着体积键走进纯文件夹层级，偏好仍是体积、那一行仍带对勾但灰显，显示顺序是名字（这正是体积键对文件夹的含义），走回有文件的层级它自己重新生效；导航不静默修改用户的设置。断言见 `LevelSortingTests`。
 
 ## 字节流与来源身份
 
@@ -79,11 +87,12 @@
 - SMB 连接后**共享在根一级仍然表现为文件夹**，服务器本身是来源根；以 `$` 结尾的管理/隐藏共享被过滤掉。
 - 从完整的 rootPath 路径换算到相对共享的路径，是这两个适配器与来源根之间唯一的坐标转换。
 - **WebDAV 集合路径的尾斜杠是身份的一部分**：严格的服务器对 `/dav/regression` 回 404、对 `/dav/regression/` 回 207。适配器把 `"/"` 换算成已验证基地址时要用 `URLComponents.path`，`URL.path` 会丢掉尾斜杠。断言见 `WebDAVDataSourceAdapterTests` 的 `rootListingKeepsTheCollectionSlash`。
+- **只回自己的 PROPFIND 是一个空目录**：`Depth: 1` 的响应里只有集合自身时，先补尾斜杠重试一次——严格的服务器对不带尾斜杠的地址就是这么回的；重试后仍然只有自己，就当作空目录返回空清单。这里无法把「空目录」和「忽略 Depth 的服务器」区分开，选择前者：空目录是每天都会遇到的，而把它抛成错误会让每一个空的叶子目录都弹一次报错。断言见 `WebDAVDataSourceAdapterTests` 的 `emptyCollectionListsAsEmpty`。
 
 ## 卡片时长的来源
 
 - 目录列表只给体积，不给时长；时长只能从容器头读出。`MediaSourceProbe.information(for:)`（PlaybackCore）用 FFmpeg 打开来源、取 `MediaSourceInformation.durationSeconds` 后立即关闭，不建播放会话。远程文件走与播放相同的 `resolvePlayableSource` 与字节流服务，探测结束后 `release()` 句柄；MKV 只读头部几百 KB，moov 在尾部的 MP4 会多一次尾部读。
-- 探测在 `loadProgressForFiles`／`loadViewingStatesForCurrentFolder` 之后按目录顺序逐个进行，只针对没有观看状态也没有已知时长的文件，目录切换（`sourceGeneration`／引用列表变化）即停止。结果经 `PlaybackLaunchCoordinator.recordKnownDuration` 写入 `PersistedMediaState.knownDurationSeconds`，之后不再探测。
+- 探测在 `loadProgressForFiles`／`loadViewingStatesForCurrentFolder` 之后按目录顺序逐个进行，只针对没有观看状态也没有已知时长的文件，目录切换（`sourceGeneration`／引用列表变化）即停止；这里比的是条目 ID 的集合而不是顺序，否则探测途中改一次排序就把已经拿到的观看状态与时长全部丢掉。结果经 `PlaybackLaunchCoordinator.recordKnownDuration` 写入 `PersistedMediaState.knownDurationSeconds`，之后不再探测。
 - `knownDurationSeconds` 与观看状态独立：`ViewingStatePolicy` 对短于 15 分钟的内容不保存观看状态，但时长仍是事实；播放会话结束时也把探到的时长写进同一字段。没有观看状态、只有时长的文件，App 侧的 provider 返回位置 0 的 `VideoCardViewingState`，列表视图对位置 0 且未完成的记录不显示续播标记。
 
 

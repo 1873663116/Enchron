@@ -62,7 +62,13 @@ visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃�
 
 ## 层级切换的过渡
 
-浏览（Files 的文件夹层级、Emby 的目的地、Settings 的分类）三处都经 `.levelContent(id:)`（DesignSystem）：它内部是 ZStack + `.id` + `TransitionToken.levelReplace` + `AnimationToken.levelTransition`，页面不直接触碰这两个 token，守卫脚本禁止它们出现在页面源码里。纯 `.opacity` 交叉淡入在新旧内容外观相同时不可见——两层全是文件夹图标的目录互切看起来像瞬移，只有缩略图变化的目录才"溶解"。`levelReplace` 是先出后进的两段淡变：旧层 `levelExitDuration`（0.12 s）easeIn 淡出，新层延迟同样时长后 `levelEnterDuration`（0.25 s）easeOut 淡入，两层不同时可见。交叉淡变（同时半透明）在内容相似时叠出残影，加位移能让切换可见但佩戴者不接受任何移动；不重叠之后，相似内容看到的是暗一下再亮回来的明确信号，差异大的内容仍是平滑过渡。2026-09-05 真机否决了模糊替换、对称位移、同向位移三版。`Scripts/rules/verify_browser_surface_structure.py` 钉住三处调用与两个 token 的定义。
+浏览（Files 的文件夹层级、Emby 的目的地、Settings 的分类）三处都经 `.levelContent(id:)`（DesignSystem）：它内部是 ZStack + `.id` + `TransitionToken.levelReplace` + `AnimationToken.levelTransition`，页面不直接触碰这两个 token，守卫脚本禁止它们出现在页面源码里。
+
+纯 `.opacity` 交叉淡入在新旧内容外观相同时不可见——两层全是文件夹图标的目录互切看起来像瞬移，只有缩略图变化的目录才"溶解"。两层因此不同时可见：`levelReplace` 的 removal 是 `levelExitDuration`（0.12 s）easeIn 淡出，insertion 是 `.identity`——新层以完整布局插入却保持透明，何时揭示由 `levelContent` 决定，一个转场自己没法等一份清单。交叉淡变（同时半透明）在内容相似时叠出残影，加位移能让切换可见但佩戴者不接受任何移动；不重叠之后，相似内容看到的是暗一下再亮回来的明确信号，差异大的内容仍是平滑过渡。2026-09-05 真机否决了模糊替换、对称位移、同向位移三版。
+
+揭示的时刻取两个条件里先到的那个：层级经 `.levelReadiness(_:)` 上报内容已落定，或者已经空白了 `levelPlaceholderThreshold`（0.4 s）。前者是常态——本地目录与 Settings 分类在第 0 帧就落定，等待只剩旧层淡出的那 0.12 s，随后 `levelEnterDuration`（0.25 s）easeOut 淡入。后者是上界，它保证一份迟迟不回的远程清单不会把页面无限期留空；超时揭示的是该层级自己的占位。清单在等待途中到达时按已等时长扣减剩余等待（`LevelReveal.remaining`）而不重新计时。不上报 readiness 的层级视为已落定。第一个层级立即揭示：它前面没有可淡出的旧层，压住它只会让窗口在启动时空着。
+
+`Scripts/rules/verify_browser_surface_structure.py` 钉住三处调用、两个 token 的定义、`levelContent` 的门控与两个浏览层级的 readiness 上报。
 
 ## 侧栏进出与卡片网格
 
@@ -76,7 +82,8 @@ Files 与 Emby 的侧栏都经 `SidebarSplitLayout`：内容区宽度随侧栏�
 
 - **打开 Emby 条目**：先让侧栏滑出（`EmbyDetail.sidebarHandoffDelay` 0.45 s，父级页面先进入无侧栏状态），再推入详情页；返回时先弹出详情页，0.45 s 后侧栏再滑回。推入与宽度变化不落在同一批帧。
 - **Emby 详情页**：进入后页面为空；`refresh()` 完成、前 `entrancePrefetchCount`（12）张子条目封面解码完成、背景图解码完成（最多等 1.5 s）之后一次性揭示：背景图只淡入（0.4 s），之后静止 `heroEntranceDelay`（0.5 s）让佩戴者看一眼大图；然后标题、类型行、简介、技术行、操作行、剧集架、Special Features、Related、演职员、关于按同一个动画（`entranceDuration` 0.35 s，从下方 `entranceTravel` 40 pt 滑入）以相等间隔 `entranceStagger`（0.15 s）从上到下依次进入。hero 背后的 `titleWash`（椭圆压暗）随标题一起淡入——等待期间它不能先出现，否则空页上悬着一大块软阴影。背景图不设解码上限，其它封面维持 1024 px。
-- **Emby 海报网格**（换分类、搜索）：`isLoading` 期间不渲染网格；条目到齐后先把前 `gridRevealPrefetchCount`（24）张海报解码进缓存，网格再以 opacity 0 建立并完成布局，下一帧用 `gridRevealDuration`（0.25 s）淡入。层级切换的 `levelReplace` 只负责旧层淡出与空页淡入；把未解码的网格直接放进来仍会卡（2026-09-05 真机）。
+- **Emby 海报网格**（换分类、搜索）：`isLoading` 期间不渲染网格；条目到齐后网格以 opacity 0 建立并完成布局，下一帧用 `gridRevealDuration`（0.25 s）淡入——把未解码的网格直接放进正在跑的淡变里会卡（2026-09-05 真机）。前 `gridRevealPrefetchCount`（24）张海报的预取与这次揭示并行（`async let`），不再挡在它前面：门控的对象是结构数据而不是像素，海报自身有占位，而等 24 张图片下完会把页面留空到最慢那张为止。`isLoading == false` 同时经 `.levelReadiness` 上报，层级因此等条目到齐才淡入，而不是先淡入一张空页再填。
+- **Files 的文件夹层级**：`FileBrowsingViewModel.currentLevelHasSettled` 经 `.levelReadiness` 上报，落定之前页面渲染 `loadingState`。这个转圈被层级门控压在透明状态，只有空白超过 0.4 s 才真的出现；清单在那之前到达时，佩戴者看到的是一次淡入，中间没有转圈闪一下。
 
 ## 卡片 hover 揭示
 

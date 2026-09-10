@@ -30,6 +30,8 @@ struct LocalDataSourceAdapterTests {
 
         #expect(rootFolders.map(\.name) == ["Season 1"])
         #expect(listedSeason.dataSourceID == sourceID)
+        let seasonModifiedAt = try #require(listedSeason.modifiedAt)
+        #expect(abs(seasonModifiedAt.timeIntervalSinceNow) < 600)
         #expect(listedSeason.url.standardizedFileURL == season.standardizedFileURL)
         #expect(rootFiles.map(\.name) == ["Feature.mp4"])
 
