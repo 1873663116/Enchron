@@ -367,6 +367,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     public private(set) var availableAudioTracks: [PlaybackAudioTrack] = []
     let subtitleStateLock = NSLock()
     var subtitleState = SubtitleState()
+    var lastReportedEmptySubtitleSecond: Int?
     let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
     let activationReapplyVerificationConfiguration:
         PlaybackActivationReapplyVerificationConfiguration

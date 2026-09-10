@@ -57,6 +57,10 @@ final class CoreTextSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Se
         }
     }
 
+    var stateDescription: String { source.stateDescription }
+
+    var holdsUndecodablePackets: Bool { source.holdsUndecodablePackets }
+
     func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
         let arrived = try source.ingestPendingCues(for: track)
         guard !arrived.isEmpty else { return arrived }

@@ -451,6 +451,37 @@ int PBSubtitleFrameRendererGetTextCueCount(
 uint64_t PBSubtitleFrameRendererGetDecodedPacketCount(
     const PBSubtitleFrameRenderer *renderer
 );
+
+// What a bitmap renderer holds, for telling apart the ways it can come up
+// empty: no packet ever reached it, packets reached it but decoded to nothing,
+// or display sets exist and none covers the time being asked for.
+typedef struct PBSubtitleFrameRendererState {
+    uint64_t ingestedPacketCount;
+    uint64_t heldPacketCount;
+    uint64_t decodedPacketCount;
+    uint64_t displaySetCount;
+    uint64_t decodeCursor;
+    double firstPacketSeconds;
+    double lastPacketSeconds;
+    double coveredStartSeconds;
+    double coveredEndSeconds;
+    // The last packet handed to the subtitle decoder and what came back, for
+    // the case where packets arrive and no display set ever comes out.
+    int lastPacketSize;
+    int lastPacketHasPresentationTime;
+    int lastPacketSegmentType;
+    int lastPacketSegmentLength;
+    int lastDecodeResult;
+    int lastDecodeProduced;
+    unsigned int lastSubtitleRectCount;
+    unsigned int lastSubtitleFormat;
+    unsigned int lastSubtitleStartDisplayTime;
+    unsigned int lastSubtitleEndDisplayTime;
+} PBSubtitleFrameRendererState;
+
+PBSubtitleFrameRendererState PBSubtitleFrameRendererCopyState(
+    const PBSubtitleFrameRenderer *renderer
+);
 bool PBSubtitleFrameRendererCopyTextCue(
     const PBSubtitleFrameRenderer *renderer,
     int index,

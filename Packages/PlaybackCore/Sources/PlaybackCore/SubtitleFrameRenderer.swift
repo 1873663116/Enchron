@@ -48,10 +48,18 @@ public struct PlaybackSubtitleFrame: Sendable, Equatable {
 protocol SubtitleFrameRendering: AnyObject, Sendable {
     func frame(at time: CMTime, viewportWidth: Int, viewportHeight: Int) throws -> PlaybackSubtitleFrame?
     func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue]
+    // What the renderer is holding, for telling apart the ways a bitmap track
+    // can come up empty. Empty for renderers that hold nothing of the kind.
+    var stateDescription: String { get }
+    // True while packets have been decoded and none of them produced a display
+    // set: a track that is present, arriving and unreadable.
+    var holdsUndecodablePackets: Bool { get }
 }
 
 extension SubtitleFrameRendering {
     func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] { [] }
+    var stateDescription: String { "" }
+    var holdsUndecodablePackets: Bool { false }
 }
 
 final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Sendable {
@@ -159,6 +167,33 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
     // diagnostics that need to tell a lookup apart from a decode.
     var decodedPacketCount: UInt64 {
         lock.withLock { PBSubtitleFrameRendererGetDecodedPacketCount(renderer) }
+    }
+
+    var holdsUndecodablePackets: Bool {
+        let state = lock.withLock { PBSubtitleFrameRendererCopyState(renderer) }
+        return state.decodedPacketCount > 0 && state.displaySetCount == 0
+    }
+
+    var stateDescription: String {
+        let state = lock.withLock { PBSubtitleFrameRendererCopyState(renderer) }
+        func seconds(_ value: Double) -> String {
+            value.isFinite ? String(format: "%.3f", value) : "none"
+        }
+        return "ingested=\(state.ingestedPacketCount)"
+            + " held=\(state.heldPacketCount)"
+            + " decoded=\(state.decodedPacketCount)"
+            + " displaySets=\(state.displaySetCount)"
+            + " cursor=\(state.decodeCursor)"
+            + " packetSpan=\(seconds(state.firstPacketSeconds))..\(seconds(state.lastPacketSeconds))"
+            + " covered=\(seconds(state.coveredStartSeconds))..\(seconds(state.coveredEndSeconds))"
+            + " lastPacket=size:\(state.lastPacketSize)"
+            + ",pts:\(state.lastPacketHasPresentationTime != 0)"
+            + ",segment:\(state.lastPacketSegmentType)/\(state.lastPacketSegmentLength)"
+            + " lastDecode=result:\(state.lastDecodeResult)"
+            + ",produced:\(state.lastDecodeProduced)"
+            + ",rects:\(state.lastSubtitleRectCount)"
+            + ",format:\(state.lastSubtitleFormat)"
+            + ",display:\(state.lastSubtitleStartDisplayTime)..\(state.lastSubtitleEndDisplayTime)"
     }
 
     func textCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {

@@ -401,6 +401,27 @@ extension SampleBufferPlaybackSession {
             )
             frame = nil
         }
+        // A bitmap track that never draws leaves no other trace: the frame is
+        // empty rather than failed, and the surface says nothing about a frame
+        // it was never handed. Gaps between subtitles are empty too, so the
+        // report is limited to the state that cannot be a gap - packets have
+        // arrived and not one of them became a display set - and repeats at
+        // most once a second while it lasts.
+        if frame == nil, let renderer = snapshot.0 {
+            let description = renderer.stateDescription
+            if renderer.holdsUndecodablePackets {
+                let second = Int(time.seconds.isFinite ? time.seconds : 0)
+                if second != lastReportedEmptySubtitleSecond {
+                    lastReportedEmptySubtitleSecond = second
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        kind: "subtitle.frame.empty",
+                        outcome: .succeeded,
+                        details: ["atSeconds": String(second), "renderer": description]
+                    )
+                }
+            }
+        }
         let shouldPublish = subtitleStateLock.withLock {
             guard subtitleState.selectionGeneration == snapshot.1 else { return false }
             let current = subtitleState.activeFrame

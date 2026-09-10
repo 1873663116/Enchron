@@ -65,6 +65,19 @@ struct PBSubtitleFrameRenderer {
     uint64_t lastHash;
     uint64_t changeIdentifier;
     uint64_t decodedPacketCount;
+    // What the decoder was last handed and what it answered. Kept so a track
+    // whose packets arrive but never become a picture can say which of the two
+    // is missing.
+    int lastPacketSize;
+    int lastPacketHasPresentationTime;
+    int lastPacketSegmentType;
+    int lastPacketSegmentLength;
+    int lastDecodeResult;
+    int lastDecodeProduced;
+    unsigned int lastSubtitleRectCount;
+    unsigned int lastSubtitleFormat;
+    unsigned int lastSubtitleStartDisplayTime;
+    unsigned int lastSubtitleEndDisplayTime;
     bool hadFrame;
     // Incremental ingestion over a shared demux source. NULL for a renderer
     // that owns its own format context and scanned the file at creation.
@@ -882,6 +895,39 @@ uint64_t PBSubtitleFrameRendererGetDecodedPacketCount(
     return renderer ? renderer->decodedPacketCount : 0;
 }
 
+PBSubtitleFrameRendererState PBSubtitleFrameRendererCopyState(
+    const PBSubtitleFrameRenderer *renderer
+) {
+    PBSubtitleFrameRendererState state = {0};
+    if (!renderer) return state;
+    state.ingestedPacketCount = renderer->ingestedPacketCount;
+    state.heldPacketCount = renderer->packetCount;
+    state.decodedPacketCount = renderer->decodedPacketCount;
+    state.displaySetCount = renderer->bitmapEntryCount;
+    state.decodeCursor = renderer->nextPacketIndex;
+    state.firstPacketSeconds = renderer->packetCount > 0
+        ? renderer->packets[0].startSeconds
+        : NAN;
+    state.lastPacketSeconds = renderer->packetCount > 0
+        ? renderer->packets[renderer->packetCount - 1].startSeconds
+        : NAN;
+    state.coveredStartSeconds = renderer->coveredStartSeconds;
+    state.coveredEndSeconds = renderer->bitmapEntryCount > 0
+        ? renderer->bitmapEntries[renderer->bitmapEntryCount - 1].endSeconds
+        : NAN;
+    state.lastPacketSize = renderer->lastPacketSize;
+    state.lastPacketHasPresentationTime = renderer->lastPacketHasPresentationTime;
+    state.lastPacketSegmentType = renderer->lastPacketSegmentType;
+    state.lastPacketSegmentLength = renderer->lastPacketSegmentLength;
+    state.lastDecodeResult = renderer->lastDecodeResult;
+    state.lastDecodeProduced = renderer->lastDecodeProduced;
+    state.lastSubtitleRectCount = renderer->lastSubtitleRectCount;
+    state.lastSubtitleFormat = renderer->lastSubtitleFormat;
+    state.lastSubtitleStartDisplayTime = renderer->lastSubtitleStartDisplayTime;
+    state.lastSubtitleEndDisplayTime = renderer->lastSubtitleEndDisplayTime;
+    return state;
+}
+
 int PBSubtitleFrameRendererGetTextCueCount(
     const PBSubtitleFrameRenderer *renderer
 ) {
@@ -1104,12 +1150,26 @@ static PBSubtitleFrameResult copy_bitmap_frame(
         renderer->decodedPacketCount++;
         AVSubtitle subtitle = {0};
         int produced = 0;
+        renderer->lastPacketSize = item->packet->size;
+        renderer->lastPacketHasPresentationTime = item->packet->pts != AV_NOPTS_VALUE;
+        renderer->lastPacketSegmentType = item->packet->size >= 1
+            ? item->packet->data[0]
+            : -1;
+        renderer->lastPacketSegmentLength = item->packet->size >= 3
+            ? (item->packet->data[1] << 8) | item->packet->data[2]
+            : -1;
         int result = avcodec_decode_subtitle2(
             renderer->decoder,
             &subtitle,
             &produced,
             item->packet
         );
+        renderer->lastDecodeResult = result;
+        renderer->lastDecodeProduced = produced;
+        renderer->lastSubtitleRectCount = produced ? subtitle.num_rects : 0;
+        renderer->lastSubtitleFormat = produced ? subtitle.format : 0;
+        renderer->lastSubtitleStartDisplayTime = produced ? subtitle.start_display_time : 0;
+        renderer->lastSubtitleEndDisplayTime = produced ? subtitle.end_display_time : 0;
         if (result < 0) {
             set_av_error(errorBuffer, errorBufferSize, "Decode bitmap subtitle", result);
             return PBSubtitleFrameResultError;
