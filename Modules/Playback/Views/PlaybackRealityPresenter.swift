@@ -1276,10 +1276,6 @@ final class PlaybackSubtitleSurface {
 
     private var texture: TextureResource?
     private var textureSize = SIMD2<Int>(repeating: 0)
-    // A frame that cannot become a texture leaves the subtitle off screen with
-    // nothing else to show for it, and the enablement write says nothing after
-    // the first one because the entity is already disabled. The reason is kept
-    // here so each new one is reported once instead of every frame.
     private var lastRejectedFrame: String?
     private var changeIdentifier: UInt64?
     private var layout: PlaybackSubtitleLayout?
@@ -1411,9 +1407,6 @@ final class PlaybackSubtitleSurface {
         layout = nil
     }
 
-    // Names a frame the surface could not draw, with the measurements that
-    // decide whether the frame or the texture is at fault. Repeats of the same
-    // reason are dropped so a failing cue does not fill the journal.
     private func report(
         _ reason: String,
         frame: PlaybackSubtitleFrame,

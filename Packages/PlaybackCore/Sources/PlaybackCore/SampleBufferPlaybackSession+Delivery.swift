@@ -1811,11 +1811,6 @@ extension SampleBufferPlaybackSession {
         onDiagnosticsChange?(diagnostics)
     }
 
-    // The subtitle counterpart of retireAudio: what subtitles cannot do is
-    // never a reason for the video not to play. Reading the track list can
-    // fail, the source can declare a track whose packets turn out to be
-    // undecodable, a renderer can refuse to build - each of those loses the
-    // subtitles and nothing else, and says so where the evidence is read.
     func retireSubtitles(
         after error: Error,
         node: PlaybackNode,

@@ -48,11 +48,7 @@ public struct PlaybackSubtitleFrame: Sendable, Equatable {
 protocol SubtitleFrameRendering: AnyObject, Sendable {
     func frame(at time: CMTime, viewportWidth: Int, viewportHeight: Int) throws -> PlaybackSubtitleFrame?
     func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue]
-    // What the renderer is holding, for telling apart the ways a bitmap track
-    // can come up empty. Empty for renderers that hold nothing of the kind.
     var stateDescription: String { get }
-    // True while packets have been decoded and none of them produced a display
-    // set: a track that is present, arriving and unreadable.
     var holdsUndecodablePackets: Bool { get }
 }
 
@@ -163,8 +159,6 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         }
     }
 
-    // Packets this renderer has put through the subtitle decoder, for tests and
-    // diagnostics that need to tell a lookup apart from a decode.
     var decodedPacketCount: UInt64 {
         lock.withLock { PBSubtitleFrameRendererGetDecodedPacketCount(renderer) }
     }

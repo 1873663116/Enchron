@@ -48,9 +48,6 @@ public final class PlaybackCoreController {
         mediaSlot.staleUpdateCount
     }
 
-    // How many sessions were let go of because their teardown outlasted
-    // `pendingCleanupDeadline`. Anything above zero in the field is a
-    // teardown defect, whatever the open that followed it looked like.
     public private(set) var pendingCleanupAbandonmentCount = 0
 
     public var endedContinuity: PlaybackEndedContinuity? {
@@ -1166,13 +1163,6 @@ public final class PlaybackCoreController {
         }
     }
 
-    // How long a session that has been told to close is allowed to take
-    // before the next open stops waiting for it. Teardown measures 109 ms on
-    // device and the layer above races its own one second budget against the
-    // close, so this bound only decides anything when nothing above it did.
-    // What it rules out is the shape both of this branch's two field defects
-    // took: one session whose teardown never finishes leaving every later
-    // open waiting on a continuation that nobody will resume.
     static let defaultPendingCleanupDeadline = Duration.seconds(2)
 
     private func armPendingCleanupDeadline(mediaSessionID: String) {
@@ -1190,10 +1180,6 @@ public final class PlaybackCoreController {
         pendingCleanupDeadlineTask = nil
     }
 
-    // Lets go of everything the finished session still occupies without
-    // touching what the close reported. Status and the failure context stay
-    // as the close left them: a teardown that overran is not a reason to
-    // forget why playback failed.
     private func abandonPendingCleanupAfterDeadline(mediaSessionID: String) {
         guard pendingCleanupMediaSessionID == mediaSessionID else { return }
         pendingCleanupDeadlineTask = nil

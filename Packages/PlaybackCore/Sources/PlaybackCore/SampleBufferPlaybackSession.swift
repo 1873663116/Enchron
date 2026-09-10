@@ -529,12 +529,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         } else {
             mediaKind = .video
         }
-        // Listing the tracks playback does not need cannot decide whether the
-        // video opens. Audio already had this exemption one step later, where
-        // its provider is prepared; reading the lists is the same kind of
-        // work, and a source that cannot say what it carries beside the video
-        // is still a source whose video plays. Cancellation is not a failure
-        // of the track list and stays cancellation.
         var audioTrackFailure: Error?
         do {
             if let sourceInformation {
@@ -602,9 +596,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             )
         }
         if let audioTrackFailure {
-            // Preparing the provider comes next and retires audio on its own
-            // if it also fails; what is recorded here is that the list itself
-            // could not be read.
             recordFailureVideoContinues(
                 audioTrackFailure,
                 node: .videoTrackModel,

@@ -38,8 +38,6 @@ public struct PlaybackDemuxBufferDiagnostics: Sendable, Equatable {
     public let targetDurationSeconds: Double
     public let forwardBufferedBytes: Int64
     public let forwardLimitBytes: Int64
-    // Read-ahead of streams the video does not need. Held apart from
-    // forwardBufferedBytes because it can never park the read thread.
     public let auxiliaryBufferedBytes: Int64
     public let backwardBufferedBytes: Int64
     public let backwardLimitBytes: Int64

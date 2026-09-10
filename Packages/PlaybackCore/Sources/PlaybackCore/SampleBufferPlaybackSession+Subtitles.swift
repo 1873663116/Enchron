@@ -223,9 +223,6 @@ extension SampleBufferPlaybackSession {
                 subtitleState.frameRenderer = frameRenderer
                 subtitleState.activeFrame = nil
                 subtitleState.suppressesActiveCues = false
-                // A track the source offers but can hand over neither cues
-                // nor a renderer for is selected and mute, which is a fact
-                // about the source rather than a gap between cues.
                 subtitleState.outcome = cues.isEmpty && frameRenderer == nil
                     ? .unsupported
                     : .selected
@@ -368,8 +365,6 @@ extension SampleBufferPlaybackSession {
         }
         if let (cues, generation) = published {
             onSubtitleCuesChange?(cues)
-            // A cue reaching the screen counts as producing whether or not
-            // this track also draws frames.
             if !cues.isEmpty {
                 noteSubtitleOutcome(.producing, generation: generation)
             }
@@ -417,12 +412,6 @@ extension SampleBufferPlaybackSession {
             )
             frame = nil
         }
-        // A bitmap track that never draws leaves no other trace: the frame is
-        // empty rather than failed, and the surface says nothing about a frame
-        // it was never handed. Gaps between subtitles are empty too, so the
-        // report is limited to the state that cannot be a gap - packets have
-        // arrived and not one of them became a display set - and repeats at
-        // most once a second while it lasts.
         if frame != nil {
             noteSubtitleOutcome(.producing, generation: snapshot.1)
         }
@@ -456,9 +445,6 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    // Records where the selection has got to, without letting a later gap
-    // undo what was already seen: once something has been drawn the track is
-    // producing, whatever the frame at this instant is.
     func noteSubtitleOutcome(
         _ outcome: SubtitleTrackOutcome,
         generation: UInt64

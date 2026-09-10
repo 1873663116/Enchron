@@ -857,9 +857,6 @@ extension SampleBufferPlaybackSession {
         )
     }
 
-    // A failure that loses one thing and leaves playback running. It is
-    // recorded where the evidence is read but does not become the session's
-    // last error, which belongs to whatever actually stopped playback.
     func recordFailureVideoContinues(
         _ error: Error,
         node: PlaybackNode,
