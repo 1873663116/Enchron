@@ -150,6 +150,7 @@ extension SampleBufferPlaybackSession {
                 subtitleState.cues = []
                 subtitleState.frameRenderer = nil
                 subtitleState.suppressesActiveCues = false
+                subtitleState.outcome = .notSelected
                 return (subtitleState.selectionGeneration, subtitleState.streamEpoch)
             }
             recordSubtitleState(at: synchronizer.currentTime())
@@ -179,6 +180,7 @@ extension SampleBufferPlaybackSession {
             subtitleState.cues = []
             subtitleState.frameRenderer = nil
             subtitleState.suppressesActiveCues = true
+            subtitleState.outcome = .notSelected
             return (
                 track,
                 subtitleState.sourceURLByTrackID[track.id] ?? sourceURL,
@@ -221,6 +223,12 @@ extension SampleBufferPlaybackSession {
                 subtitleState.frameRenderer = frameRenderer
                 subtitleState.activeFrame = nil
                 subtitleState.suppressesActiveCues = false
+                // A track the source offers but can hand over neither cues
+                // nor a renderer for is selected and mute, which is a fact
+                // about the source rather than a gap between cues.
+                subtitleState.outcome = cues.isEmpty && frameRenderer == nil
+                    ? .unsupported
+                    : .selected
                 return true
             }
             guard committed else { throw CancellationError() }
@@ -245,6 +253,7 @@ extension SampleBufferPlaybackSession {
                 subtitleState.frameRenderer = nil
                 subtitleState.activeFrame = nil
                 subtitleState.suppressesActiveCues = false
+                subtitleState.outcome = .notSelected
             }
             recordSubtitleState(at: synchronizer.currentTime())
             publishSubtitleCues(at: synchronizer.currentTime())
@@ -294,7 +303,8 @@ extension SampleBufferPlaybackSession {
                 ).map(\.id),
                 streamEpoch: subtitleState.streamEpoch,
                 selectionGeneration: subtitleState.selectionGeneration,
-                suppressesActiveCues: subtitleState.suppressesActiveCues
+                suppressesActiveCues: subtitleState.suppressesActiveCues,
+                outcome: subtitleState.outcome
             )
         }
         debugStore.recordSubtitleState(record)
@@ -348,15 +358,21 @@ extension SampleBufferPlaybackSession {
 
     func publishSubtitleCues(at time: CMTime) {
         ingestPendingSubtitleCues()
-        let cues = subtitleStateLock.withLock { () -> [PlaybackSubtitleCue]? in
+        let published = subtitleStateLock.withLock {
+            () -> ([PlaybackSubtitleCue], UInt64)? in
             let activeCues = Self.activeSubtitleCues(in: subtitleState, at: time)
             let cueIDs = activeCues.map(\.id)
             guard cueIDs != subtitleState.lastPublishedCueIDs else { return nil }
             subtitleState.lastPublishedCueIDs = cueIDs
-            return activeCues
+            return (activeCues, subtitleState.selectionGeneration)
         }
-        if let cues {
+        if let (cues, generation) = published {
             onSubtitleCuesChange?(cues)
+            // A cue reaching the screen counts as producing whether or not
+            // this track also draws frames.
+            if !cues.isEmpty {
+                noteSubtitleOutcome(.producing, generation: generation)
+            }
         }
         publishSubtitleFrame(at: time)
     }
@@ -407,9 +423,13 @@ extension SampleBufferPlaybackSession {
         // report is limited to the state that cannot be a gap - packets have
         // arrived and not one of them became a display set - and repeats at
         // most once a second while it lasts.
+        if frame != nil {
+            noteSubtitleOutcome(.producing, generation: snapshot.1)
+        }
         if frame == nil, let renderer = snapshot.0 {
             let description = renderer.stateDescription
             if renderer.holdsUndecodablePackets {
+                noteSubtitleOutcome(.producedNothing, generation: snapshot.1)
                 let second = Int(time.seconds.isFinite ? time.seconds : 0)
                 if second != lastReportedEmptySubtitleSecond {
                     lastReportedEmptySubtitleSecond = second
@@ -434,6 +454,24 @@ extension SampleBufferPlaybackSession {
         if shouldPublish {
             onSubtitleFrameChange?(frame)
         }
+    }
+
+    // Records where the selection has got to, without letting a later gap
+    // undo what was already seen: once something has been drawn the track is
+    // producing, whatever the frame at this instant is.
+    func noteSubtitleOutcome(
+        _ outcome: SubtitleTrackOutcome,
+        generation: UInt64
+    ) {
+        let changed = subtitleStateLock.withLock { () -> Bool in
+            guard subtitleState.selectionGeneration == generation,
+                  subtitleState.outcome != outcome,
+                  subtitleState.outcome != .producing else { return false }
+            subtitleState.outcome = outcome
+            return true
+        }
+        guard changed else { return }
+        recordSubtitleState(at: synchronizer.currentTime())
     }
 
     static func activeSubtitleCues(

@@ -67,6 +67,26 @@ public struct AudioTrackRecord: Codable, Equatable, Sendable {
     }
 }
 
+// Where a subtitle selection ended up, as one machine state rather than
+// something to be inferred from an absence. Drawing nothing is ordinary
+// between cues and a defect when packets went in and no picture ever came
+// out; those two used to look identical from outside, which is what made the
+// zlib defect take a device session to find.
+public enum SubtitleTrackOutcome: String, Codable, Equatable, Sendable {
+    // Nothing is selected.
+    case notSelected
+    // Selected and carrying something to draw; nothing drawn yet.
+    case selected
+    // At least one cue or frame reached the screen.
+    case producing
+    // Packets reached the decoder and not one of them became a display set.
+    case producedNothing
+    // Selected, and the source offered neither cues nor a renderer for it.
+    case unsupported
+    // Given up, with the reason in the failure record that accompanies it.
+    case retired
+}
+
 public struct SubtitleStateRecord: Codable, Equatable, Sendable {
     public var availableTracks: [PlaybackSubtitleTrack]
     public var selectedTrackID: PlaybackSubtitleTrack.ID?
@@ -74,6 +94,7 @@ public struct SubtitleStateRecord: Codable, Equatable, Sendable {
     public var streamEpoch: UInt64
     public var selectionGeneration: UInt64
     public var suppressesActiveCues: Bool
+    public var outcome: SubtitleTrackOutcome
 
     public init(
         availableTracks: [PlaybackSubtitleTrack],
@@ -81,7 +102,8 @@ public struct SubtitleStateRecord: Codable, Equatable, Sendable {
         activeCueIDs: [PlaybackSubtitleCue.ID],
         streamEpoch: UInt64,
         selectionGeneration: UInt64,
-        suppressesActiveCues: Bool
+        suppressesActiveCues: Bool,
+        outcome: SubtitleTrackOutcome = .notSelected
     ) {
         self.availableTracks = availableTracks
         self.selectedTrackID = selectedTrackID
@@ -89,6 +111,7 @@ public struct SubtitleStateRecord: Codable, Equatable, Sendable {
         self.streamEpoch = streamEpoch
         self.selectionGeneration = selectionGeneration
         self.suppressesActiveCues = suppressesActiveCues
+        self.outcome = outcome
     }
 }
 

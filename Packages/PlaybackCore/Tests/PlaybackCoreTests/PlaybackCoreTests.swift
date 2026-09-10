@@ -184,6 +184,116 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(subtitleProvider.sourceInformationReceived == information)
 }
 
+@Test func aSubtitleTrackThatDecodesToNothingSaysSoInItsOutcome() async throws {
+    // Drawing nothing is ordinary between cues and a defect when packets
+    // reached the decoder and no display set ever came out. Those two looked
+    // identical from outside, which is why the compressed Matroska track took
+    // a device session to find. The selection now carries which of them it is.
+    let track = PlaybackSubtitleTrack(
+        id: "stub.subtitle.1",
+        streamIndex: 1,
+        codecName: "hdmv_pgs_subtitle",
+        language: "eng",
+        title: "English"
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-outcome-produced-nothing",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        subtitleProvider: StubSubtitleProvider(
+            tracks: [track],
+            renderer: StubSubtitleFrameRenderer(
+                holdsUndecodablePackets: true,
+                stateDescription: "ingested:177 displaySets:0"
+            )
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/subtitle-outcome.mov"),
+        startsPaused: true
+    )
+    #expect(session.debugSnapshot().subtitleState?.outcome == .notSelected)
+
+    // Committing the selection publishes once, which is the first chance to
+    // see this, so the state is already reported here rather than after some
+    // later frame.
+    try await session.selectSubtitleTrack(id: track.id)
+    #expect(session.debugSnapshot().subtitleState?.outcome == .producedNothing)
+
+    session.publishSubtitleFrame(at: CMTime(seconds: 12, preferredTimescale: 600))
+    #expect(session.debugSnapshot().subtitleState?.outcome == .producedNothing)
+}
+
+@Test func aSubtitleTrackTheSourceCannotHandOverIsRecordedAsUnsupported() async throws {
+    // A track the source lists but offers neither cues nor a renderer for is
+    // selected and mute. That is a fact about the source, and it is not the
+    // same fact as a track whose packets will not decode.
+    let track = PlaybackSubtitleTrack(
+        id: "stub.subtitle.2",
+        streamIndex: 2,
+        codecName: "dvb_teletext",
+        language: nil,
+        title: nil
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-outcome-unsupported",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        subtitleProvider: StubSubtitleProvider(tracks: [track]),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/subtitle-outcome-unsupported.mov"),
+        startsPaused: true
+    )
+
+    try await session.selectSubtitleTrack(id: track.id)
+
+    #expect(session.debugSnapshot().subtitleState?.outcome == .unsupported)
+}
+
+@Test func aSubtitleTrackThatDrawsIsRecordedAsProducing() async throws {
+    let track = PlaybackSubtitleTrack(
+        id: "stub.subtitle.3",
+        streamIndex: 1,
+        codecName: "hdmv_pgs_subtitle",
+        language: "eng",
+        title: "English"
+    )
+    let frame = PlaybackSubtitleFrame(
+        kind: .bitmap,
+        canvasWidth: 1_920,
+        canvasHeight: 1_080,
+        contentX: 0,
+        contentY: 0,
+        contentWidth: 4,
+        contentHeight: 1,
+        bytesPerRow: 16,
+        premultipliedBGRA: Data(repeating: 0xFF, count: 16),
+        changeIdentifier: 1
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-outcome-producing",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        subtitleProvider: StubSubtitleProvider(
+            tracks: [track],
+            renderer: StubSubtitleFrameRenderer(frame: frame)
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/subtitle-outcome-producing.mov"),
+        startsPaused: true
+    )
+
+    try await session.selectSubtitleTrack(id: track.id)
+    session.publishSubtitleFrame(at: CMTime(seconds: 12, preferredTimescale: 600))
+
+    #expect(session.debugSnapshot().subtitleState?.outcome == .producing)
+}
+
 @Test func aSourceWhoseSubtitleListCannotBeReadStillPlaysItsVideo() async throws {
     // Listing the subtitles used to be on the path that decides whether the
     // video opens, so a source that could not say what subtitles it carried
@@ -5226,6 +5336,71 @@ private final class MediaInformationRecordingSubtitleProvider: SubtitleProvider 
         track: PlaybackSubtitleTrack
     ) async throws -> [PlaybackSubtitleCue] {
         []
+    }
+
+    func cancel() {}
+}
+
+private final class StubSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Sendable {
+    let stateDescription: String
+    let holdsUndecodablePackets: Bool
+    private let producedFrame: PlaybackSubtitleFrame?
+
+    init(
+        frame: PlaybackSubtitleFrame? = nil,
+        holdsUndecodablePackets: Bool = false,
+        stateDescription: String = ""
+    ) {
+        producedFrame = frame
+        self.holdsUndecodablePackets = holdsUndecodablePackets
+        self.stateDescription = stateDescription
+    }
+
+    func frame(
+        at time: CMTime,
+        viewportWidth: Int,
+        viewportHeight: Int
+    ) throws -> PlaybackSubtitleFrame? {
+        producedFrame
+    }
+}
+
+private final class StubSubtitleProvider: SubtitleProvider {
+    private let tracks: [PlaybackSubtitleTrack]
+    private let trackCues: [PlaybackSubtitleCue]
+    private let renderer: SubtitleFrameRendering?
+
+    init(
+        tracks: [PlaybackSubtitleTrack],
+        cues: [PlaybackSubtitleCue] = [],
+        renderer: SubtitleFrameRendering? = nil
+    ) {
+        self.tracks = tracks
+        trackCues = cues
+        self.renderer = renderer
+    }
+
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?
+    ) async throws -> [PlaybackSubtitleTrack] {
+        tracks
+    }
+
+    func cues(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> [PlaybackSubtitleCue] {
+        trackCues
+    }
+
+    func frameRenderer(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> SubtitleFrameRendering? {
+        renderer
     }
 
     func cancel() {}

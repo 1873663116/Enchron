@@ -122,6 +122,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var cues: [PlaybackSubtitleCue] = []
         var frameRenderer: SubtitleFrameRendering?
         var activeFrame: PlaybackSubtitleFrame?
+        var outcome: SubtitleTrackOutcome = .notSelected
         var streamEpoch: UInt64 = 1
         var selectionGeneration: UInt64 = 0
         var suppressesActiveCues = false

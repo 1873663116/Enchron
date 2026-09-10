@@ -1831,6 +1831,7 @@ extension SampleBufferPlaybackSession {
             subtitleState.cues = []
             subtitleState.frameRenderer = nil
             subtitleState.activeFrame = nil
+            subtitleState.outcome = .retired
         }
         diagnostics.subtitlesRetired = true
         diagnostics.subtitleRetirementReason = error.localizedDescription
