@@ -442,9 +442,23 @@ public struct WindowPlaybackRootView<
 
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {
         guard let windowScene else { return }
+        let requestedMinimum = probeSize(geometryPolicy.minimumSize)
+        let requestedIdeal = probeSize(geometryPolicy.idealSize)
+        let requestedFrom = probeWindowSize
         windowScene.requestGeometryUpdate(
             windowGeometryPreferences(size: nil)
-        )
+        ) { error in
+            Task { @MainActor in
+                SurfaceInputProbes.record(
+                    "windowGeometryRefused"
+                        + " min=\(requestedMinimum)"
+                        + " ideal=\(requestedIdeal)"
+                        + " window=\(requestedFrom)"
+                        + " reason=\(error.localizedDescription)",
+                    retention: .evidence
+                )
+            }
+        }
     }
 
     private func requestGeometryRefreshIfNeeded(in windowScene: UIWindowScene?) {
