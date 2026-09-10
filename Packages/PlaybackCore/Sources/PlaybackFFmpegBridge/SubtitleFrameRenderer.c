@@ -1115,6 +1115,21 @@ static PBSubtitleFrameResult copy_bitmap_frame(
             return PBSubtitleFrameResultError;
         }
         if (!produced) continue;
+        // A bitmap subtitle is laid out against the resolution it was
+        // authored for, which these formats carry in the stream and FFmpeg
+        // reports on the decoder once it has read a display set. Blu-ray
+        // subtitles are authored at 1920x1080 whatever the picture's own
+        // resolution, so a 4K remux draws them at half size and halfway up
+        // the screen unless the canvas follows the subtitle rather than the
+        // video. Container metadata carries no dimensions for these streams,
+        // so this is the first point the real canvas is known.
+        if (renderer->decoder->width > 0 && renderer->decoder->height > 0 &&
+            (renderer->decoder->width != renderer->sourceWidth ||
+             renderer->decoder->height != renderer->sourceHeight)) {
+            renderer->sourceWidth = renderer->decoder->width;
+            renderer->sourceHeight = renderer->decoder->height;
+            clear_bitmap_cache(renderer);
+        }
         double startSeconds = item->startSeconds + subtitle.start_display_time / 1000.0;
         double endSeconds = item->startSeconds + subtitle.end_display_time / 1000.0;
         if (endSeconds <= startSeconds) {

@@ -1730,6 +1730,56 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
     ) != nil)
 }
 
+@Test func aBitmapSubtitleIsLaidOutAgainstItsOwnAuthoringResolution() async throws {
+    // Blu-ray subtitles are authored at 1920x1080 whatever the picture's own
+    // resolution. Matroska carries no dimensions for these streams and the
+    // fixture keeps its first display set past where opening stops reading,
+    // the way a feature-length remux does, so the resolution is known only
+    // once a display set has been decoded.
+    let fixture = try ultraHighDefinitionBitmapSubtitleFixtureURL()
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(
+        try await provider.tracks(in: fixture, asset: nil)
+            .first { $0.codecName == "hdmv_pgs_subtitle" }
+    )
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+    let frame = try #require(try renderer.frame(
+        at: CMTime(seconds: 120.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ))
+    #expect(frame.canvasWidth == 1_920)
+    #expect(frame.canvasHeight == 1_080)
+    #expect(frame.contentX == GeneratedPresentationGraphicStream.windowX)
+    #expect(frame.contentY == GeneratedPresentationGraphicStream.windowY)
+}
+
+private func ultraHighDefinitionBitmapSubtitleFixtureURL() throws -> URL {
+    let encoded = try #require(
+        Bundle.module.url(
+            forResource: "uhd-with-1080p-bitmap-subtitle.mkv",
+            withExtension: "base64",
+            subdirectory: "Fixtures"
+        )
+    )
+    let directory = FileManager.default.temporaryDirectory
+        .appending(path: "PlaybackCoreUltraHighDefinitionBitmapSubtitleFixture")
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    let fixture = directory.appending(path: "uhd-with-1080p-bitmap-subtitle.mkv")
+    let decoded = try #require(
+        Data(base64Encoded: try Data(contentsOf: encoded), options: .ignoreUnknownCharacters)
+    )
+    try decoded.write(to: fixture, options: .atomic)
+    return fixture
+}
+
 private func opaquePixelCount(in frame: PlaybackSubtitleFrame) -> Int {
     stride(from: 3, to: frame.premultipliedBGRA.count, by: 4)
         .count { frame.premultipliedBGRA[$0] > 0 }
