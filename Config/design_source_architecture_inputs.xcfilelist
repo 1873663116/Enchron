@@ -1,5 +1,6 @@
 $(SRCROOT)/Apps/Enchron/AppModalPresentationCoordinator.swift
 $(SRCROOT)/Apps/Enchron/AppModel.swift
+$(SRCROOT)/Apps/Enchron/BrowserWindowVisibility.swift
 $(SRCROOT)/Apps/Enchron/ConnectionSecurityPrompt.swift
 $(SRCROOT)/Apps/Enchron/EnchronApp.swift
 $(SRCROOT)/Apps/Enchron/EnchronApplication.swift
