@@ -1276,6 +1276,11 @@ final class PlaybackSubtitleSurface {
 
     private var texture: TextureResource?
     private var textureSize = SIMD2<Int>(repeating: 0)
+    // A frame that cannot become a texture leaves the subtitle off screen with
+    // nothing else to show for it, and the enablement write says nothing after
+    // the first one because the entity is already disabled. The reason is kept
+    // here so each new one is reported once instead of every frame.
+    private var lastRejectedFrame: String?
     private var changeIdentifier: UInt64?
     private var layout: PlaybackSubtitleLayout?
 
@@ -1313,6 +1318,12 @@ final class PlaybackSubtitleSurface {
         guard frameChanged || layout != nextLayout else { return }
         if frameChanged {
             guard let image = Self.image(frame) else {
+                report(
+                    "imageFailure",
+                    frame: frame,
+                    detail: "byteCount=\(frame.premultipliedBGRA.count)",
+                    emit: emitEnablementWrite
+                )
                 setEnabled(
                     false,
                     writer: "PlaybackSubtitleSurface.update.imageFailure",
@@ -1335,6 +1346,12 @@ final class PlaybackSubtitleSurface {
                     textureSize = nextSize
                 }
             } catch {
+                report(
+                    "textureFailure",
+                    frame: frame,
+                    detail: "error=\(error.localizedDescription)",
+                    emit: emitEnablementWrite
+                )
                 setEnabled(
                     false,
                     writer: "PlaybackSubtitleSurface.update.textureFailure",
@@ -1376,6 +1393,7 @@ final class PlaybackSubtitleSurface {
         )
         changeIdentifier = frame.changeIdentifier
         layout = nextLayout
+        lastRejectedFrame = nil
     }
 
     func remove(emitEnablementWrite: (String) -> Void = { _ in }) {
@@ -1391,6 +1409,26 @@ final class PlaybackSubtitleSurface {
         textureSize = .zero
         changeIdentifier = nil
         layout = nil
+    }
+
+    // Names a frame the surface could not draw, with the measurements that
+    // decide whether the frame or the texture is at fault. Repeats of the same
+    // reason are dropped so a failing cue does not fill the journal.
+    private func report(
+        _ reason: String,
+        frame: PlaybackSubtitleFrame,
+        detail: String,
+        emit: (String) -> Void
+    ) {
+        let fact = "subtitleFrameRejected reason=\(reason)"
+            + " kind=\(frame.kind.rawValue)"
+            + " content=\(frame.contentWidth)x\(frame.contentHeight)"
+            + " canvas=\(frame.canvasWidth)x\(frame.canvasHeight)"
+            + " bytesPerRow=\(frame.bytesPerRow)"
+            + " \(detail)"
+        guard lastRejectedFrame != fact else { return }
+        lastRejectedFrame = fact
+        emit(fact)
     }
 
     private func enablementWriteFact(writer: String, value: Bool) -> String {

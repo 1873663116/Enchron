@@ -758,6 +758,76 @@ struct PlaybackPresentationStateTests {
         #expect(PlaybackWindowChromeOcclusion.bottomFraction(ornamentHeight: 2_000, surfaceHeight: 100) == 0.5)
     }
 
+    @Test("A subtitle frame the surface cannot draw is named once, with the measurements that explain it")
+    func subtitleSurfaceNamesTheFrameItCannotDraw() throws {
+        let video = Entity()
+        let surface = PlaybackSubtitleSurface()
+        var facts: [String] = []
+        let screenSize = SIMD2<Float>(16.0 / 9.0, 1)
+
+        // A bitmap subtitle arrives sized by its own display set, so a frame
+        // whose pixels do not match its geometry leaves the plane empty. The
+        // entity is disabled either way, and the enablement write stops
+        // repeating once it is, so the reason has to be said out loud.
+        for identifier in UInt64(1)...3 {
+            surface.update(
+                on: video,
+                presentation: .window,
+                screenSize: screenSize,
+                reservedBottomFraction: 0,
+                frame: Self.undrawableSubtitleFrame(changeIdentifier: identifier),
+                emitEnablementWrite: { facts.append($0) }
+            )
+        }
+
+        #expect(surface.entity.isEnabled == false)
+        let rejections = facts.filter { $0.hasPrefix("subtitleFrameRejected") }
+        #expect(rejections.count == 1, "reported \(rejections.count) times")
+        let rejection = try #require(rejections.first)
+        #expect(rejection.contains("reason=imageFailure"))
+        #expect(rejection.contains("kind=bitmap"))
+        #expect(rejection.contains("content=64x16"))
+        #expect(rejection.contains("bytesPerRow=256"))
+
+        // A frame that draws clears the standing reason, so the next failure
+        // is reported rather than swallowed as a repeat.
+        surface.update(
+            on: video,
+            presentation: .window,
+            screenSize: screenSize,
+            reservedBottomFraction: 0,
+            frame: Self.subtitleFrame(changeIdentifier: 4),
+            emitEnablementWrite: { facts.append($0) }
+        )
+        #expect(surface.entity.isEnabled)
+        surface.update(
+            on: video,
+            presentation: .window,
+            screenSize: screenSize,
+            reservedBottomFraction: 0,
+            frame: Self.undrawableSubtitleFrame(changeIdentifier: 5),
+            emitEnablementWrite: { facts.append($0) }
+        )
+        #expect(facts.filter { $0.hasPrefix("subtitleFrameRejected") }.count == 2)
+    }
+
+    private static func undrawableSubtitleFrame(
+        changeIdentifier: UInt64
+    ) -> PlaybackSubtitleFrame {
+        PlaybackSubtitleFrame(
+            kind: .bitmap,
+            canvasWidth: 1_920,
+            canvasHeight: 1_080,
+            contentX: 928,
+            contentY: 1_000,
+            contentWidth: 64,
+            contentHeight: 16,
+            bytesPerRow: 64 * 4,
+            premultipliedBGRA: Data(count: 64 * 4 * 15),
+            changeIdentifier: changeIdentifier
+        )
+    }
+
     private static func subtitleFrame(
         changeIdentifier: UInt64,
         contentX: Int = 928
