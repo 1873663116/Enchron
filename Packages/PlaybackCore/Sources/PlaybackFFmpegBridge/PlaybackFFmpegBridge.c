@@ -91,6 +91,10 @@ struct PBFFmpegDemuxSource {
     AVFormatContext *formatContext;
     PBFFmpegPacketQueue *queues;
     unsigned int queueCount;
+    // Bytes held for a stream nobody reads: kept in case that stream is
+    // chosen later, evicted when it ages out. Counted apart from
+    // forwardBufferedByteCount, which is read-ahead a consumer will drain.
+    int64_t retainedByteCount;
     int videoStreamIndex;
     char *path;
     bool prebuffersAudio;
@@ -409,6 +413,31 @@ static void return_packet_node(
     source->freePacketNodes = node;
 }
 
+// A queue with a reader is read-ahead: its bytes are what the source has run
+// in front of playback, and they leave as the reader consumes them. A queue
+// with no reader is retained history, which nothing will ever drain. Only the
+// first kind may hold the read thread back, so the two are counted apart.
+static int64_t *packet_queue_byte_pool(
+    PBFFmpegDemuxSource *source,
+    const PBFFmpegPacketQueue *queue
+) {
+    return queue->subscribers > 0
+        ? &source->forwardBufferedByteCount
+        : &source->retainedByteCount;
+}
+
+static void release_packet_queue_bytes(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue,
+    int64_t byteCount
+) {
+    int64_t *pool = packet_queue_byte_pool(source, queue);
+    *pool -= byteCount;
+    if (*pool < 0) *pool = 0;
+    queue->bufferedByteCount -= byteCount;
+    if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
+}
+
 static void clear_packet_queue(
     PBFFmpegDemuxSource *source,
     PBFFmpegPacketQueue *queue
@@ -424,10 +453,7 @@ static void clear_packet_queue(
     queue->tail = NULL;
     queue->summedDurationMicroseconds = 0;
     queue->bufferedDurationMicroseconds = 0;
-    source->forwardBufferedByteCount -= queue->bufferedByteCount;
-    if (source->forwardBufferedByteCount < 0) {
-        source->forwardBufferedByteCount = 0;
-    }
+    release_packet_queue_bytes(source, queue, queue->bufferedByteCount);
     queue->bufferedByteCount = 0;
 }
 
@@ -450,6 +476,10 @@ static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
     );
 }
 
+// Retained history is left out of this decision on purpose. Read-ahead
+// shrinks as its reader consumes it, so pausing on it is flow control that
+// resolves itself; history has no consumer, so counting it here would let a
+// stream nobody reads fill the budget and park the read thread for good.
 static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     if (source->forwardBufferedByteCount >=
         source->bufferConfiguration.forwardByteLimit) return false;
@@ -463,6 +493,39 @@ static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
                 targetDurationMicroseconds) return true;
     }
     return false;
+}
+
+// How far back a stream nobody reads is kept, so that choosing a subtitle
+// track part way through a film still finds the cues from the recent past.
+static const int64_t PB_DEMUX_RETAINED_WINDOW_MICROSECONDS =
+    300LL * AV_TIME_BASE;
+
+// Evicts the oldest packets of a queue with no reader until what is left fits
+// the time window and the retained byte budget. This is the answer to a full
+// buffer for history: it is dropped, because no consumer will ever take it.
+static void trim_retained_packet_queue(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue
+) {
+    if (!queue || queue->subscribers > 0) return;
+    while (queue->head && queue->head != queue->tail) {
+        bool agedOut = queue->head->timestampMicroseconds != AV_NOPTS_VALUE &&
+            queue->tail->timestampMicroseconds != AV_NOPTS_VALUE &&
+            queue->tail->timestampMicroseconds - queue->head->timestampMicroseconds >
+                PB_DEMUX_RETAINED_WINDOW_MICROSECONDS;
+        bool overBudget = source->retainedByteCount >
+            source->bufferConfiguration.backwardByteLimit;
+        if (!agedOut && !overBudget) break;
+        PBFFmpegPacketNode *node = queue->head;
+        queue->head = node->next;
+        queue->summedDurationMicroseconds -= node->durationMicroseconds;
+        if (queue->summedDurationMicroseconds < 0) {
+            queue->summedDurationMicroseconds = 0;
+        }
+        release_packet_queue_bytes(source, queue, node->byteCount);
+        return_packet_node(source, node);
+    }
+    update_packet_queue_buffered_duration(queue);
 }
 
 static int64_t packet_timestamp_microseconds(
@@ -722,8 +785,9 @@ static void *demux_source_read_loop(void *opaque) {
                     queue->summedDurationMicroseconds +=
                         node->durationMicroseconds;
                     queue->bufferedByteCount += node->byteCount;
-                    source->forwardBufferedByteCount += node->byteCount;
+                    *packet_queue_byte_pool(source, queue) += node->byteCount;
                     update_packet_queue_buffered_duration(queue);
+                    trim_retained_packet_queue(source, queue);
                     source->lastQueuedTimestamps[streamIndex] = timestamp;
                 }
             }
@@ -778,7 +842,13 @@ static bool subscribe_to_demux_stream(
     pthread_mutex_lock(&source->lock);
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
     bool subscribed = queue->subscribers == 0;
-    if (subscribed) queue->subscribers = 1;
+    if (subscribed) {
+        // What was retained becomes read-ahead the new reader will drain.
+        source->retainedByteCount -= queue->bufferedByteCount;
+        if (source->retainedByteCount < 0) source->retainedByteCount = 0;
+        queue->subscribers = 1;
+        source->forwardBufferedByteCount += queue->bufferedByteCount;
+    }
     pthread_mutex_unlock(&source->lock);
     return subscribed;
 }
@@ -800,8 +870,10 @@ static void unsubscribe_from_demux_stream(
         (unsigned int)streamIndex >= source->queueCount) return;
     pthread_mutex_lock(&source->lock);
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
-    queue->subscribers = 0;
+    // Clear before dropping the reader: the queue's bytes are counted as
+    // read-ahead while it has one.
     clear_packet_queue(source, queue);
+    queue->subscribers = 0;
     source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
     source->replayThroughTimestamps[streamIndex] = AV_NOPTS_VALUE;
     source->replayCaughtUp[streamIndex] = true;
@@ -821,12 +893,7 @@ static void dequeue_demux_packet_locked(
     if (queue->summedDurationMicroseconds < 0) {
         queue->summedDurationMicroseconds = 0;
     }
-    queue->bufferedByteCount -= node->byteCount;
-    source->forwardBufferedByteCount -= node->byteCount;
-    if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
-    if (source->forwardBufferedByteCount < 0) {
-        source->forwardBufferedByteCount = 0;
-    }
+    release_packet_queue_bytes(source, queue, node->byteCount);
     update_packet_queue_buffered_duration(queue);
     av_packet_move_ref(packet, &node->packet);
     return_packet_node(source, node);
@@ -989,12 +1056,7 @@ static int copy_next_demux_packet_batch(
         if (queue->summedDurationMicroseconds < 0) {
             queue->summedDurationMicroseconds = 0;
         }
-        queue->bufferedByteCount -= batchByteCount;
-        source->forwardBufferedByteCount -= batchByteCount;
-        if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
-        if (source->forwardBufferedByteCount < 0) {
-            source->forwardBufferedByteCount = 0;
-        }
+        release_packet_queue_bytes(source, queue, batchByteCount);
         update_packet_queue_buffered_duration(queue);
         *availableNodes = batchHead;
         pthread_cond_broadcast(&source->changed);
@@ -4088,10 +4150,14 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferByteLimit(
 int64_t PBFFmpegDemuxSourceGetBackwardBufferedByteCount(
     PBFFmpegDemuxSource *source
 ) {
-    (void)source;
-    // Consumed packets leave this demuxer immediately. It currently holds no
-    // backward cache, so reporting zero is the exact retained byte count.
-    return 0;
+    if (!source) return 0;
+    // Consumed packets leave this demuxer immediately. What it retains is the
+    // recent past of streams nothing reads yet, held so that choosing one of
+    // them part way through a film still finds cues from before the choice.
+    pthread_mutex_lock(&source->lock);
+    int64_t retained = source->retainedByteCount;
+    pthread_mutex_unlock(&source->lock);
+    return retained;
 }
 
 int64_t PBFFmpegDemuxSourceGetBackwardBufferByteLimit(

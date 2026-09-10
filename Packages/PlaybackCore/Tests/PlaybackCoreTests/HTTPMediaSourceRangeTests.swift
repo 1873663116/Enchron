@@ -169,9 +169,81 @@ struct DemuxNetworkResilienceTests {
         #expect(observation.bufferedDurationSeconds >= 1)
         #expect(observation.targetDurationSeconds == 1)
         #expect(observation.forwardBufferedBytes < observation.forwardLimitBytes)
-        #expect(observation.backwardBufferedBytes == 0)
+        // Packets read for a stream nothing has claimed yet are retained, so
+        // a track chosen part way through a film finds its recent past. They
+        // are held apart from the read-ahead budget and inside their own.
+        #expect(observation.backwardBufferedBytes > 0)
+        #expect(observation.backwardBufferedBytes <= observation.backwardLimitBytes)
         #expect(observation.backwardLimitBytes == 50 * 1_024 * 1_024)
         #expect(observation.readFrameCountAfterSettling == observation.readFrameCount)
+    }
+
+    @Test func aStreamNothingReadsCannotStopTheReadThread() throws {
+        // The fixture's bitmap subtitle track is never claimed, and its
+        // packets outweigh the read-ahead budget set here. Retained packets
+        // have no consumer, so counting them as read-ahead would leave the
+        // budget permanently full and park the reader for the rest of the
+        // film - which is what a Blu-ray subtitle track used to do. A
+        // regression shows up as this drain never reaching the end: the read
+        // thread parks on a budget nothing can free, and the reader waits on
+        // packets it will never be handed.
+        let fixture = try bitmapSubtitleResilienceFixtureURL()
+        let forwardLimit: Int64 = 2 * 1_024
+        var error = [CChar](repeating: 0, count: 512)
+        let source = fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(
+                    PBFFmpegDemuxBufferModeBytes,
+                    forwardLimit
+                ),
+                nil,
+                &error,
+                error.count
+            )
+        }
+        let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
+        defer { PBFFmpegDemuxSourceDestroy(openedSource) }
+        let reader = try #require(PBFFmpegReaderAllocate())
+        defer { PBFFmpegReaderDestroy(reader) }
+        try #require(PBFFmpegReaderOpenWithDemuxSource(
+            reader,
+            openedSource,
+            PBFFmpegModeCompressed,
+            &error,
+            error.count
+        ), Comment(rawValue: reportedError(error)))
+
+        var samples = 0
+        var reachedEnd = false
+        let deadline = ContinuousClock.now + .seconds(10)
+        while ContinuousClock.now < deadline {
+            var sample: Unmanaged<CMSampleBuffer>?
+            let result = PBFFmpegReaderCopyNextSample(
+                reader,
+                &sample,
+                &error,
+                error.count
+            )
+            if result == PBFFmpegReadResultEnd {
+                reachedEnd = true
+                break
+            }
+            try #require(
+                result == PBFFmpegReadResultSample,
+                Comment(rawValue: reportedError(error))
+            )
+            sample?.release()
+            samples += 1
+        }
+
+        #expect(reachedEnd, "the reader stopped after \(samples) samples")
+        #expect(PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) <= forwardLimit)
+        #expect(
+            PBFFmpegDemuxSourceGetBackwardBufferedByteCount(openedSource)
+                <= PBFFmpegDemuxSourceGetBackwardBufferByteLimit(openedSource)
+        )
     }
 
     @Test func automaticStopsTheReadThreadAtItsForwardByteLimit() throws {
@@ -794,4 +866,26 @@ private final class DrainOutcome: @unchecked Sendable {
 
     #expect(provider.info.containerFormat == "mov,mp4,m4a,3gp,3g2,mj2")
     #expect(provider.info.formatSignaling.provenance == "AVAssetTrack.sourceFormatDescription")
+}
+
+private func bitmapSubtitleResilienceFixtureURL() throws -> URL {
+    let encoded = try #require(
+        Bundle.module.url(
+            forResource: "uhd-with-1080p-bitmap-subtitle.mkv",
+            withExtension: "base64",
+            subdirectory: "Fixtures"
+        )
+    )
+    let directory = FileManager.default.temporaryDirectory
+        .appending(path: "PlaybackCoreBitmapSubtitleResilienceFixture")
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    let fixture = directory.appending(path: "uhd-with-1080p-bitmap-subtitle.mkv")
+    let decoded = try #require(
+        Data(base64Encoded: try Data(contentsOf: encoded), options: .ignoreUnknownCharacters)
+    )
+    try decoded.write(to: fixture, options: .atomic)
+    return fixture
 }
