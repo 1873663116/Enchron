@@ -3487,6 +3487,11 @@ class ResidentOperationBackend:
             raise OperationAdapterError(
                 "product interaction omitted its post-action accessibility hierarchy"
             )
+        containment = response.get("chromeContainment")
+        if not isinstance(containment, list):
+            raise OperationAdapterError(
+                "product interaction omitted its post-action chrome containment reading"
+            )
 
         def redact(value: object) -> object:
             if redacted_text is None:
@@ -3516,6 +3521,7 @@ class ResidentOperationBackend:
             "hierarchy": sanitized_hierarchy,
             "hierarchyDigest": "sha256:"
             + hashlib.sha256(sanitized_hierarchy.encode("utf-8")).hexdigest(),
+            "chromeContainment": containment,
             "matchedElement": sanitized_matched,
             "elementAfterAction": sanitized_after,
         }

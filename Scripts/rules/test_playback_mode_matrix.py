@@ -92,5 +92,50 @@ class ProductErrorGateTests(HarnessContainerTests):
         self.assertEqual(result["verdict"], matrix.PRODUCT_ERROR)
         self.assertEqual(delta, lines)
 
+class ChromeDisplacementGateTests(HarnessContainerTests):
+    VIOLATION = {
+        "identifier": "DeveloperStatsOverlay",
+        "role": "Other",
+        "frame": [620.5, 821.5, 657.5, 22.5],
+        "host": "Window (Main)",
+        "hostFrame": [0.0, 0.0, 905.0, 1018.0],
+        "edges": ["right"],
+    }
+
+    def document(self, transition, violations):
+        return {
+            "chromeContainment": violations,
+            "matchedElement": {
+                "identifier": matrix.CONTROL_PLANE_IDENTIFIER,
+                "value": "presentation=window;transition=" + transition,
+            },
+        }
+
+    def setUp(self):
+        super().setUp()
+        matrix.reset_chrome_displacements()
+
+    def test_a_settled_displacement_is_recorded(self):
+        matrix.record_chrome_displacement("harness:snapshot", "snapshot", self.document("none", [self.VIOLATION]))
+        recorded = matrix.chrome_displacements()
+        self.assertEqual([entry["presentation"] for entry in recorded], ["window"])
+        self.assertEqual(recorded[0]["violations"], [self.VIOLATION])
+
+    def test_a_displacement_seen_mid_transition_is_not_recorded(self):
+        matrix.record_chrome_displacement("harness:snapshot", "snapshot", self.document("enterImmersive", [self.VIOLATION]))
+        self.assertEqual(matrix.chrome_displacements(), [])
+
+    def test_chrome_inside_the_window_records_nothing(self):
+        matrix.record_chrome_displacement("harness:snapshot", "snapshot", self.document("none", []))
+        self.assertEqual(matrix.chrome_displacements(), [])
+
+    def test_a_response_without_a_control_plane_records_nothing(self):
+        matrix.record_chrome_displacement("harness:snapshot", "snapshot", {"chromeContainment": [self.VIOLATION]})
+        self.assertEqual(matrix.chrome_displacements(), [])
+
+    def test_a_displaced_cell_does_not_pass(self):
+        self.assertNotIn(matrix.CHROME_DISPLACED, matrix.PASSING_VERDICTS)
+
+
 if __name__ == "__main__":
     unittest.main()

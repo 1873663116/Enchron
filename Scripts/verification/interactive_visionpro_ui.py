@@ -595,6 +595,7 @@ def annotate_response(
     if not isinstance(hierarchy, str):
         return
     response["alerts"] = alerts_from_hierarchy(hierarchy)
+    response["chromeContainment"] = chrome_containment_violations(hierarchy)
     in_immersive = IMMERSIVE_ATTACHMENT_MARKER in hierarchy
     state = load_session_state(arguments)
     if state.get("sessionID") != session_id:
@@ -619,6 +620,96 @@ HIERARCHY_ATTRIBUTE_PATTERN = re.compile(r", (?P<name>identifier|label|value): '
 
 def hierarchy_attributes(line: str) -> dict[str, str]:
     return {match.group("name"): match.group("value") for match in HIERARCHY_ATTRIBUTE_PATTERN.finditer(line)}
+
+
+HIERARCHY_FRAME_PATTERN = re.compile(
+    r"^(?P<indent>\s*)(?:\u2192)?(?P<role>[A-Za-z]+(?: \(Main\))?), 0x[0-9a-f]+, "
+    r"\{\{(?P<x>-?[\d.]+), (?P<y>-?[\d.]+)\}, \{(?P<width>-?[\d.]+), (?P<height>-?[\d.]+)\}\}"
+)
+CONTAINMENT_TOLERANCE_POINTS = 0.5
+"""Sub-point layout rounding a chrome element is allowed to spend outside its
+window. Every displacement this check exists for -- a developer readout anchored
+to a content rect wider than the glass, a control bar carried by a stale layout
+-- runs to tens of points, so half a point separates rounding from escape."""
+
+
+def hierarchy_frames(hierarchy: str) -> list[dict[str, object]]:
+    """Every element the runner printed a frame for, with the indentation depth
+    that places it in the tree. Frames are window-local: each Window subtree
+    starts its own coordinate space at its own origin."""
+    elements: list[dict[str, object]] = []
+    for line in hierarchy.splitlines():
+        match = HIERARCHY_FRAME_PATTERN.match(line)
+        if match is None:
+            continue
+        elements.append(
+            {
+                "depth": len(match.group("indent")),
+                "role": match.group("role"),
+                "frame": tuple(
+                    float(match.group(name)) for name in ("x", "y", "width", "height")
+                ),
+                "identifier": hierarchy_attributes(line).get("identifier", ""),
+            }
+        )
+    return elements
+
+
+def chrome_containment_violations(hierarchy: str) -> list[dict[str, object]]:
+    """Named elements whose frame leaves the window hosting them.
+
+    Scope is the elements the product names. Anonymous SwiftUI internals report
+    frames of their own -- a hidden tab bar collapses to zero and leaves a 68x20
+    remnant ten points above the window origin (simulator, 2026-09-10) -- and
+    those belong to the framework, not to the product's placement."""
+    hosts: list[tuple[int, tuple[float, float, float, float], str]] = []
+    violations: list[dict[str, object]] = []
+    for element in hierarchy_frames(hierarchy):
+        depth = element["depth"]
+        assert isinstance(depth, int)
+        while hosts and hosts[-1][0] >= depth:
+            hosts.pop()
+        identifier = element["identifier"]
+        frame = element["frame"]
+        assert isinstance(frame, tuple)
+        if hosts and identifier:
+            _, host_frame, host_role = hosts[-1]
+            edges = escaped_edges(frame, host_frame)
+            if edges:
+                violations.append(
+                    {
+                        "identifier": identifier,
+                        "role": element["role"],
+                        "frame": list(frame),
+                        "host": host_role,
+                        "hostFrame": list(host_frame),
+                        "edges": edges,
+                    }
+                )
+        role = element["role"]
+        assert isinstance(role, str)
+        if role.startswith("Window"):
+            hosts.append((depth, frame, role))
+    return violations
+
+
+def escaped_edges(
+    frame: tuple[float, float, float, float],
+    host: tuple[float, float, float, float],
+) -> list[str]:
+    x, y, width, height = frame
+    host_x, host_y, host_width, host_height = host
+    tolerance = CONTAINMENT_TOLERANCE_POINTS
+    edges: list[str] = []
+    if x < host_x - tolerance:
+        edges.append("left")
+    if y < host_y - tolerance:
+        edges.append("top")
+    if x + width > host_x + host_width + tolerance:
+        edges.append("right")
+    if y + height > host_y + host_height + tolerance:
+        edges.append("bottom")
+    return edges
 
 
 def alerts_from_hierarchy(hierarchy: str) -> list[dict[str, object]]:

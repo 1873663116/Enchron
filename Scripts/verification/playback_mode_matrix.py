@@ -31,6 +31,7 @@ STALL_TIMEOUT = "STALL_TIMEOUT"
 WRONG_STATE = "WRONG_STATE"
 DRIVE_ERROR = "DRIVE_ERROR"
 PRODUCT_ERROR = "PRODUCT_ERROR"
+CHROME_DISPLACED = "CHROME_DISPLACED"
 PASSING_VERDICTS = frozenset((PASS, STALL_RECOVERED))
 DEFAULT_CLIPS = ("180_3D.mp4", "180_3D_TB.mp4")
 STEREO_LABELS = {"180_3D.mp4": "Side-by-Side", "180_3D_TB.mp4": "Top-Bottom", "180_3D_loop10.mp4": "Side-by-Side", "180_3D_TB_loop10.mp4": "Top-Bottom"}
@@ -208,10 +209,44 @@ def parse_control_plane(document: dict[str, object]) -> dict[str, str] | None:
     return dict(part.split("=", 1) for part in value.split(";") if "=" in part)
 
 
+_CHROME_DISPLACEMENTS: list[dict[str, object]] = []
+
+
+def reset_chrome_displacements() -> None:
+    _CHROME_DISPLACEMENTS.clear()
+
+
+def chrome_displacements() -> list[dict[str, object]]:
+    return list(_CHROME_DISPLACEMENTS)
+
+
+def record_chrome_displacement(location: str, verb: str, document: dict[str, object]) -> None:
+    """A settled displacement is the one the wearer sees. The window resize a
+    presentation asks for is asynchronous, so chrome anchored to the content rect
+    can sit outside the glass for a frame or two on the way; only a reading taken
+    while the control plane reports no transition says the placement stayed
+    wrong."""
+    violations = document.get("chromeContainment")
+    if not isinstance(violations, list) or not violations:
+        return
+    plane = parse_control_plane(document)
+    if plane is None or plane.get("transition") != "none":
+        return
+    _CHROME_DISPLACEMENTS.append(
+        {
+            "location": location,
+            "verb": verb,
+            "presentation": plane.get("presentation"),
+            "violations": violations,
+        }
+    )
+
+
 def _invoke_controller(instruments: Instruments, client: ControllerClient, location: str, verb: str, *args: str) -> dict[str, object]:
     response = recovered(instruments, location, lambda: client.invoke(verb, list(args)))
     if response.failure is not None:
         raise InstrumentFault(response.failure.kind, response.failure.evidence)
+    record_chrome_displacement(location, verb, response.document)
     return response.document
 
 
@@ -1024,6 +1059,7 @@ def run_cell(*, clip: str, clip_index: int, path_name: str, path_index: int, rep
     controller_directory = Path(cell_directory) / "controller"
     controller_directory.mkdir(parents=True, exist_ok=True)
     client = _controller_client(instruments, Path(controller_directory))
+    reset_chrome_displacements()
     path = PATHS[path_name]
     cell_started_dt = datetime.now(timezone.utc)
     cell_started_f = cell_started_dt.timestamp()
@@ -1125,9 +1161,12 @@ def run_cell(*, clip: str, clip_index: int, path_name: str, path_index: int, rep
             steps.append(step_result)
             if step_result["verdict"] != PASS:
                 break
+    displacements = chrome_displacements()
     first_failure = next((step for step in steps if step["verdict"] != PASS), None)
     if first_failure is not None:
         verdict = str(first_failure["verdict"])
+    elif displacements:
+        verdict = CHROME_DISPLACED
     elif any(bool(step.get("stall_recovered")) for step in steps):
         verdict = STALL_RECOVERED
     else:
@@ -1147,7 +1186,7 @@ def run_cell(*, clip: str, clip_index: int, path_name: str, path_index: int, rep
             except ValueError as error:
                 wedge_check = "blocked"
                 wedge_evidence = {"error": str(error)}
-    return {"clip": clip, "path": path_name, "rep": rep, "verdict": verdict, "passed": verdict in PASSING_VERDICTS, "elapsed_seconds": round((datetime.now(timezone.utc) - cell_started_dt).total_seconds(), 3), "session": controller_summary(session), "steps": steps, "wedge_check": wedge_check, "wedge_evidence": wedge_evidence, "evidence_directory": str(cell_directory)}
+    return {"clip": clip, "path": path_name, "rep": rep, "verdict": verdict, "passed": verdict in PASSING_VERDICTS, "elapsed_seconds": round((datetime.now(timezone.utc) - cell_started_dt).total_seconds(), 3), "session": controller_summary(session), "steps": steps, "chrome_displacements": displacements, "wedge_check": wedge_check, "wedge_evidence": wedge_evidence, "evidence_directory": str(cell_directory)}
 
 
 def append_result(results_path: Path, result: dict[str, object]) -> None:

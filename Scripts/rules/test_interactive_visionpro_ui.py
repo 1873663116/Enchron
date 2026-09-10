@@ -1123,5 +1123,76 @@ class AlertsFromHierarchyTests(unittest.TestCase):
         lines = [line for line in self.HIERARCHY.splitlines() if "Alert" not in line and "conversion" not in line]
         self.assertEqual(controller.alerts_from_hierarchy("\n".join(lines)), [])
 
+class ChromeContainmentTests(unittest.TestCase):
+    """The measured shape of a simulator hierarchy: a scene container, a main
+    window, an ornament carrying its own coordinate space, and a developer
+    readout anchored to the window's bottom trailing corner."""
+
+    def hierarchy(self, overlay_frame: str, ornament_frame: str = "{{32.0, 12.0}, {680.0, 72.0}}") -> str:
+        return "\n".join([
+            "Attributes: Application, 0x109cf30c0, pid: 62328, label: 'Enchron'",
+            "Element subtree:",
+            " \u2192Application, 0x109cf30c0, pid: 62328, label: 'Enchron'",
+            "    Other, 0x109cf2940, {{0.0, 0.0}, {905.0, 1018.0}}, identifier: 'com.example.App:SFBSystemService-A5A1'",
+            "      Window (Main), 0x109cf2f80, {{0.0, 0.0}, {905.0, 1018.0}}",
+            "        Other, 0x109cf1e00, {{24.0, 20.0}, {857.0, 60.0}}, identifier: 'PlayerUI-window-top-overlay'",
+            f"        Other, 0x109ca6bc0, {overlay_frame}, identifier: 'DeveloperStatsOverlay', label: 'MEM 123MB'",
+            "      Window, 0x109ca7840, {{0.0, 0.0}, {744.0, 168.0}}",
+            "        Other, 0x109ca5b80, {{0.0, 0.0}, {744.0, 168.0}}, identifier: 'PlayerPanel-controls'",
+            f"          Other, 0x109ca7700, {ornament_frame}, identifier: 'PlayerPanel-media-information'",
+        ])
+
+    def test_chrome_inside_its_window_reports_nothing(self) -> None:
+        hierarchy = self.hierarchy("{{235.5, 983.5}, {657.5, 22.5}}")
+        self.assertEqual(controller.chrome_containment_violations(hierarchy), [])
+
+    def test_a_readout_anchored_to_a_wider_content_rect_escapes_to_the_right(self) -> None:
+        hierarchy = self.hierarchy("{{620.5, 821.5}, {657.5, 22.5}}")
+        self.assertEqual(controller.chrome_containment_violations(hierarchy), [{
+            "identifier": "DeveloperStatsOverlay",
+            "role": "Other",
+            "frame": [620.5, 821.5, 657.5, 22.5],
+            "host": "Window (Main)",
+            "hostFrame": [0.0, 0.0, 905.0, 1018.0],
+            "edges": ["right"],
+        }])
+
+    def test_a_readout_below_and_left_of_its_window_names_both_edges(self) -> None:
+        hierarchy = self.hierarchy("{{-40.0, 1010.0}, {657.5, 22.5}}")
+        violations = controller.chrome_containment_violations(hierarchy)
+        self.assertEqual([violation["edges"] for violation in violations], [["left", "bottom"]])
+
+    def test_an_ornament_is_judged_against_its_own_window(self) -> None:
+        """The ornament's window starts its own coordinate space at zero, so a
+        child at x=760 escapes a 744-wide ornament while sitting well inside the
+        905-wide window beside it."""
+        hierarchy = self.hierarchy(
+            "{{235.5, 983.5}, {657.5, 22.5}}",
+            ornament_frame="{{760.0, 12.0}, {680.0, 72.0}}",
+        )
+        violations = controller.chrome_containment_violations(hierarchy)
+        self.assertEqual(
+            [(violation["identifier"], violation["hostFrame"]) for violation in violations],
+            [("PlayerPanel-media-information", [0.0, 0.0, 744.0, 168.0])],
+        )
+
+    def test_an_unnamed_framework_remnant_is_not_a_product_placement(self) -> None:
+        hierarchy = self.hierarchy("{{235.5, 983.5}, {657.5, 22.5}}") + "\n".join([
+            "",
+            "        TabBar, 0x109cc3c00, {{0.0, 0.0}, {0.0, 0.0}}, label: 'Tab Bar'",
+            "          Other, 0x109cc3ac0, {{0.0, -10.0}, {68.0, 20.0}}",
+        ])
+        self.assertEqual(controller.chrome_containment_violations(hierarchy), [])
+
+    def test_sub_point_rounding_stays_inside_and_half_a_point_more_does_not(self) -> None:
+        rounded = self.hierarchy("{{247.9, 983.5}, {657.5, 22.5}}")
+        self.assertEqual(controller.chrome_containment_violations(rounded), [])
+        escaped = self.hierarchy("{{248.5, 983.5}, {657.5, 22.5}}")
+        self.assertEqual(
+            [violation["edges"] for violation in controller.chrome_containment_violations(escaped)],
+            [["right"]],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

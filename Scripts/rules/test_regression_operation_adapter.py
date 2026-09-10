@@ -836,6 +836,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 "success": True,
                 "appState": "runningForeground",
                 "hierarchy": "alert field typed",
+                "chromeContainment": [],
             },
         ) as controller:
             result = backend._accessibility_type_2(validated, self.simulator)
@@ -913,18 +914,21 @@ class OperationAllowlistTests(unittest.TestCase):
                     "path": "identifier",
                     "appState": "runningForeground",
                     "hierarchy": "identifier state",
+                    "chromeContainment": [],
                 },
                 {
                     "success": True,
                     "path": "label-1",
                     "appState": "runningForeground",
                     "hierarchy": "first label state",
+                    "chromeContainment": [],
                 },
                 {
                     "success": True,
                     "path": "label-2",
                     "appState": "runningForeground",
                     "hierarchy": "second label state",
+                    "chromeContainment": [],
                 },
             ),
         ) as controller:
@@ -969,6 +973,7 @@ class OperationAllowlistTests(unittest.TestCase):
                     "success": True,
                     "appState": "runningForeground",
                     "hierarchy": "first label state",
+                    "chromeContainment": [],
                 },
                 {"success": False, "reason": "not-found"},
             ),
@@ -992,16 +997,19 @@ class OperationAllowlistTests(unittest.TestCase):
             "success": True,
             "appState": "runningForeground",
             "hierarchy": "connection form",
+            "chromeContainment": [],
         }
         delivery = {
             "success": True,
             "appState": "runningForeground",
             "hierarchy": "connecting",
+            "chromeContainment": [],
         }
         settled = {
             "success": True,
             "appState": "runningForeground",
             "hierarchy": "connection issue",
+            "chromeContainment": [],
         }
         with (
             mock.patch.object(
@@ -1049,6 +1057,7 @@ class OperationAllowlistTests(unittest.TestCase):
                     "success": True,
                     "appState": "runningForeground",
                     "hierarchy": "resume tapped",
+                    "chromeContainment": [],
                 },
             ) as controller:
             result = backend._accessibility_activate_2(validated, self.device)
@@ -1075,6 +1084,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 "success": True,
                 "appState": "runningForeground",
                 "hierarchy": "resume panorama tapped",
+                "chromeContainment": [],
             },
         ):
             result = backend._accessibility_activate_2(validated, self.device)
@@ -1169,6 +1179,7 @@ class OperationAllowlistTests(unittest.TestCase):
         }
         response = {
             "success": True,
+            "chromeContainment": [],
             "hierarchy": (
                 "StaticText, identifier: 'FileBrowsing-FilesScreen-itemCount', "
                 "label: '1 item'\n"
@@ -1240,6 +1251,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 "success": True,
                 "appState": "runningForeground",
                 "hierarchy": "pressed media card state",
+                "chromeContainment": [],
             },
         ) as controller:
             result = backend._accessibility_activate_2(validated, self.device)
@@ -1306,6 +1318,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 "success": True,
                 "appState": "runningForeground",
                 "hierarchy": "format editor",
+                "chromeContainment": [],
                 "assertAbsentObservations": observations,
             },
         ) as controller:
@@ -1450,6 +1463,7 @@ class OperationAllowlistTests(unittest.TestCase):
                     "success": True,
                     "appState": "runningBackground",
                     "hierarchy": "SpringBoard",
+                    "chromeContainment": [],
                 },
             ) as controller,
         ):
@@ -2628,6 +2642,7 @@ class OperationAllowlistTests(unittest.TestCase):
                     "success": True,
                     "appState": "runningForeground",
                     "hierarchy": "SecureTextField value: '<redacted>'",
+                    "chromeContainment": [],
                 },
             ) as controller:
                 result = backend._accessibility_type_2(arguments, self.device)
@@ -4903,6 +4918,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "success": True,
             "appState": "runningForeground",
             "hierarchy": hierarchy,
+            "chromeContainment": [],
             "matchedElement": matched or None,
         }
 
@@ -5742,6 +5758,23 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "enchron.regression.post-action-product-state@1",
         )
 
+    def test_a_response_without_a_containment_reading_is_refused(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        response = self.action_response("Application, identifier: 'anything'")
+        del response["chromeContainment"]
+        with mock.patch.object(backend, "_controller", return_value=response):
+            with self.assertRaisesRegex(
+                adapter.OperationAdapterError,
+                "omitted its post-action chrome containment reading",
+            ):
+                backend._accessibility_activate_2(
+                    {
+                        "context": "main-window-browser",
+                        "identifiers": ["FileBrowsing-SourcesSidebar-sourceMore"],
+                    },
+                    self.device,
+                )
+
     def test_accessibility_activation_returns_same_transaction_post_state(self) -> None:
         backend = adapter.ResidentOperationBackend()
         response = self.action_response(
@@ -6235,6 +6268,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
             "success": True,
             "appState": "runningForeground",
             "hierarchy": "exit hittable",
+            "chromeContainment": [],
         }
         trace = {
             "success": True,
