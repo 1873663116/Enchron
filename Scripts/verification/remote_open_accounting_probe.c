@@ -1,16 +1,3 @@
-// Runs PlaybackFFmpegBridge's remote open sequence against the vendored FFmpeg
-// 8.0.1, with the bridge's own byte accounting, so the device reading of "one
-// avformat_find_stream_info consumed 14 MB" can be checked against the field it
-// was derived from.
-//
-// The sequence, the option, the interrupt callback and the publish points are
-// copied from `open_media_source` and `PBFFmpegReaderOpen` verbatim, because the
-// question is whether those publish points attribute bytes to the right step.
-// A sampler thread reads the same counter the device's poller read, at a finer
-// interval, so a plateau in the series is visible here if it exists.
-//
-// The URL carries credentials, so it arrives in PROBE_URL rather than argv.
-
 #include <inttypes.h>
 #include <pthread.h>
 #include <stdatomic.h>
@@ -104,9 +91,6 @@ static void one_open(const char *path, const Options *options, int index) {
     double t = now();
     int64_t length = 0;
     if (options->late_end_offset) {
-        // The proposed replacement: one connection carries both the length and
-        // the format probe, and the end offset is written onto it before the
-        // demuxer's first seek. Only this connection's own request is open ended.
         if (avio_open2(&owned, path, AVIO_FLAG_READ, &context->interrupt_callback, NULL) < 0) {
             printf("    avio_open2 FAILED\n");
             return;
@@ -168,7 +152,13 @@ static void one_open(const char *path, const Options *options, int index) {
 
 int main(int argc, char **argv) {
     const char *path = getenv("PROBE_URL");
-    if (!path) { fprintf(stderr, "set PROBE_URL\n"); return 2; }
+    if (!path) {
+        fprintf(
+            stderr,
+            "set PROBE_URL; the URL carries credentials and must not appear in argv\n"
+        );
+        return 2;
+    }
 
     Options options = {.end_offset = true, .probesize = 0, .analyzeduration = -1};
     int opens = 1;

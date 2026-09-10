@@ -49,7 +49,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
-import coordinator_state as ledger  # noqa: E402
+import coordinator_state as ledger
 
 TOOL = "python3 .claude/tools/orca_channel.py"
 DETACHERS = re.compile(r"(?<![\w-])(?:nohup|setsid|disown)(?![\w-])")
@@ -203,9 +203,6 @@ def verdict(text: str, project: Path, turn: int) -> str | None:
                 "check."
             )
         if "--ack" in command and "--run" not in command:
-            # Replaying this session put fifty-two chained acks through the gate,
-            # every one of them naming its Run and every one of them correct.
-            # What replays a queue is an ack that cannot say which Run it drained.
             return (
                 "An --ack without --run acknowledges against this terminal's "
                 "default binding rather than the Run whose delivery it names, so "

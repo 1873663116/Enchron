@@ -186,10 +186,6 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
 
 @MainActor
 @Test func everySnapshotCarriesTheFFmpegBuildItWasProducedBy() async throws {
-    // The build decides which containers and codecs exist, so a snapshot that
-    // does not say which build produced it cannot answer why a source behaved
-    // the way it did. The zlib defect was exactly this: nothing in the
-    // evidence said the binary could not uncompress a Matroska track.
     let controller = PlaybackCoreController(
         sessionFactory: { sessionID in
             SampleBufferPlaybackSession(
@@ -208,14 +204,13 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     let configuration = try #require(
         session.debugSnapshot().ffmpegBuildConfiguration
     )
-    #expect(configuration.contains("--enable-zlib"))
+    #expect(
+        configuration.contains("--enable-zlib"),
+        Comment(rawValue: "the snapshot's build says nothing about uncompressing Matroska tracks: \(configuration)")
+    )
 }
 
 @Test func aSubtitleTrackThatDecodesToNothingSaysSoInItsOutcome() async throws {
-    // Drawing nothing is ordinary between cues and a defect when packets
-    // reached the decoder and no display set ever came out. Those two looked
-    // identical from outside, which is why the compressed Matroska track took
-    // a device session to find. The selection now carries which of them it is.
     let track = PlaybackSubtitleTrack(
         id: "stub.subtitle.1",
         streamIndex: 1,
@@ -242,20 +237,17 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     )
     #expect(session.debugSnapshot().subtitleState?.outcome == .notSelected)
 
-    // Committing the selection publishes once, which is the first chance to
-    // see this, so the state is already reported here rather than after some
-    // later frame.
     try await session.selectSubtitleTrack(id: track.id)
-    #expect(session.debugSnapshot().subtitleState?.outcome == .producedNothing)
+    #expect(
+        session.debugSnapshot().subtitleState?.outcome == .producedNothing,
+        "committing the selection publishes once and the outcome was not settled by that publication"
+    )
 
     session.publishSubtitleFrame(at: CMTime(seconds: 12, preferredTimescale: 600))
     #expect(session.debugSnapshot().subtitleState?.outcome == .producedNothing)
 }
 
 @Test func aSubtitleTrackTheSourceCannotHandOverIsRecordedAsUnsupported() async throws {
-    // A track the source lists but offers neither cues nor a renderer for is
-    // selected and mute. That is a fact about the source, and it is not the
-    // same fact as a track whose packets will not decode.
     let track = PlaybackSubtitleTrack(
         id: "stub.subtitle.2",
         streamIndex: 2,
@@ -322,11 +314,6 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
 }
 
 @Test func aSourceWhoseSubtitleListCannotBeReadStillPlaysItsVideo() async throws {
-    // Listing the subtitles used to be on the path that decides whether the
-    // video opens, so a source that could not say what subtitles it carried
-    // failed the whole open. Audio already had this exemption one step later,
-    // where its provider is prepared. What subtitles cannot do is never a
-    // reason for the video not to play; the loss is recorded instead.
     let sample = try makeCompressedH264Sample(durationSeconds: 1)
     let subtitleProvider = TrackListFailingSubtitleProvider()
     let session = SampleBufferPlaybackSession(
@@ -346,15 +333,11 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(session.availableSubtitleTracks.isEmpty)
     #expect(session.diagnostics.subtitlesRetired)
     #expect(session.diagnostics.subtitleRetirementReason != nil)
-    // The video is prepared and delivers, which is the whole point.
     try session.start()
     try await waitForSampleCount(1, in: session)
 }
 
 @Test func aSourceWhoseAudioTrackListCannotBeReadStillPlaysItsVideo() async throws {
-    // The same exemption for the audio track list. Preparing the provider
-    // comes next and retires audio on its own when it also fails, so the
-    // session ends up without audio rather than without a video.
     let sample = try makeCompressedH264Sample(durationSeconds: 1)
     let session = SampleBufferPlaybackSession(
         traceID: "audio-track-list-failure",
@@ -972,14 +955,6 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
 
 @MainActor
 @Test func aTeardownThatNeverFinishesStopsBlockingTheNextOpen() async throws {
-    // The close barrier is what both of this branch's field defects travelled
-    // through: one session that could not finish tearing down left the media
-    // slot occupied and every later open parked on a continuation nobody was
-    // going to resume, so after selecting one subtitle track nothing opened
-    // again until the app was restarted. The cause differed both times and the
-    // next one will differ again; what this pins is that a teardown which
-    // never finishes is let go of instead of inherited. A regression shows up
-    // as this test hanging rather than failing.
     let stalledSink = FakeRendererInputSink(completesFlushImmediately: false)
     let sessionCreationCount = LockedBox(0)
     let controller = PlaybackCoreController(
@@ -2055,16 +2030,15 @@ struct RendererLeadBudgetTests {
         #expect(ramped(.warning) == RendererLeadBudget.warningCeilingFrames)
         #expect(ramped(.critical) == RendererLeadBudget.criticalCeilingFrames)
 
-        // Critical is the bottom of the ladder, not the reorder floor: past this the picture
-        // is starved for tens of megabytes, and a footprint still climbing here is our leak.
-        #expect(ramped(.critical) > RendererLeadBudget.floorFrames(reorderDepth: 1))
+        #expect(
+            ramped(.critical) > RendererLeadBudget.floorFrames(reorderDepth: 1),
+            "the critical step fell to the reorder floor instead of stopping at the bottom of the ladder"
+        )
         #expect(ramped(.warning) > ramped(.critical))
         #expect(ramped(.normal) > ramped(.warning))
     }
 
     @Test func theCorrectnessFloorOutranksEveryStepOfTheMemoryLadder() {
-        // A stream whose reorder depth puts the paused-seek floor above the ladder keeps the
-        // frames that seek needs, however short of memory the system says it is.
         for pressure in [
             RendererLeadBudget.MemoryPressure.normal, .warning, .critical
         ] {
@@ -2075,18 +2049,22 @@ struct RendererLeadBudgetTests {
                     isRemoteSource: false,
                     memoryPressure: pressure
                 )
-                #expect(ceiling >= min(floor, RendererLeadBudget.localMaximumFrames))
+                #expect(
+                    ceiling >= min(floor, RendererLeadBudget.localMaximumFrames),
+                    "reorder depth \(reorderDepth) under \(pressure) lost the frames a paused seek needs to settle"
+                )
             }
         }
     }
 
     @Test func theLeadBudgetIgnoresTheProcessAllowanceThatOnlyOurOwnGrowthMoves() {
-        // The allowance is the limit minus our footprint, so it falls because we grew. The
-        // ladder must not read it; only the system's own pressure signal moves the ceiling.
         let underPlenty = RendererLeadBudget.frames(
             reorderDepth: 3, isRemoteSource: false, secondsSinceDeliveryStart: 10, memoryPressure: .normal
         )
-        #expect(underPlenty == RendererLeadBudget.localMaximumFrames)
+        #expect(
+            underPlenty == RendererLeadBudget.localMaximumFrames,
+            "the ceiling moved without a system pressure signal, so it read the process allowance"
+        )
     }
 
     @Test func theLeadFloorAdmitsTheFramesAPausedSeekNeedsToSettle() {
@@ -5558,15 +5536,6 @@ private func waitForAudioRetirement(
     Issue.record("Timed out waiting for audio retirement")
 }
 
-/// Drives the retired-audio seek and prints the structured observation the
-/// regression adapter binds as this check's evidence.
-///
-/// The five audio-retirement structural checks each run one of these tests and
-/// bind its artifact, and an exit code plus a `--filter` name cannot witness a
-/// lifecycle, a media session identity or a post-seek video position. The
-/// `ENCHRON_ASSERTION` line below carries those readings;
-/// `_evidence_structural_test_1` parses it into `assertionPayloads` and refuses
-/// any of the five checks that omits it.
 private func expectRetiredAudioAllowsSeek(
     in session: SampleBufferPlaybackSession,
     check structuralCheck: String,
@@ -5600,9 +5569,6 @@ private func expectRetiredAudioAllowsSeek(
         .presentationTimeSeconds
     #expect((videoPresentationTimeSecondsAfterSeek ?? -.infinity) >= seekTargetSeconds)
 
-    // Every value is an identifier, a UUID string, a Bool or a finite Double, so
-    // the line stays valid JSON without escaping; an absent video sample prints
-    // null rather than an unparsable infinity.
     let fields = [
         "\"assertion\":\"audio-retirement-nonfatal-seek\"",
         "\"check\":\"\(structuralCheck)\"",

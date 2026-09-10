@@ -35,6 +35,21 @@ same vendored FFmpeg the bridge links, so the stream selection and the side data
 lookup are the ones production performs rather than a command line ffprobe's
 approximation of them.
 
+The probe exits non-zero only when it cannot read the file: 2 on a usage error,
+3 when `avformat_open_input` or `avformat_find_stream_info` fails. A file that
+violates a premise still prints its report and exits zero, because which premise
+applies to which fixture is decided here and not there. A probe changed to exit
+non-zero on a violated premise would turn every real premise failure into
+`measure`'s "could not read" abort, which names the wrong cause and stops the
+run before the remaining fixtures are measured.
+
+The probe prints the whole video stream record, which is wider than the premises
+below read: the index, the codec, the sample entry tag, the dimensions, which
+stream decodes, the configuration record and the declaration verdict. A failing
+premise is then read against the file it was measured on. The sample entry tag
+is in the record for the same reason: `codec_type` branches on the configuration
+record and reads no tag, so the tag is printed to be seen not deciding anything.
+
 Two controls run first, because every premise about the Profile 7.6 fixtures
 asserts that something is refused, and a mirror that refuses everything would
 satisfy all of them while measuring nothing. A single-layer file proves the

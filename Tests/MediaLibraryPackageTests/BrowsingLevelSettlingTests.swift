@@ -3,9 +3,6 @@ import MediaSource
 @testable import MediaLibrary
 import Testing
 
-/// A level is what the browsing view fades between. It has settled once its
-/// listing has reached a terminal state, and only then is there anything worth
-/// fading in.
 struct BrowsingLevelSettlingTests {
     @MainActor
     @Test("a connected source root has settled and carries its listing")
@@ -134,8 +131,6 @@ struct BrowsingLevelSettlingTests {
     }
 }
 
-/// Holds a listing mid-flight so a test can read the view model while the level
-/// being entered has not settled.
 private actor ListingGate {
     private var isOpen: Bool
     private var hasEntered = false

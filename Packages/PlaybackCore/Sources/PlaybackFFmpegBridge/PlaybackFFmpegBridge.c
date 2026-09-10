@@ -70,9 +70,6 @@ typedef struct {
     int64_t summedDurationMicroseconds;
     int64_t bufferedDurationMicroseconds;
     int64_t bufferedByteCount;
-    // Whether playing the video needs this stream. Video and audio do; a
-    // subtitle, data or attachment stream rides along with them and is never
-    // allowed to decide how fast they are read.
     bool isAuxiliary;
     uint64_t droppedPacketCount;
 } PBFFmpegPacketQueue;
@@ -87,18 +84,11 @@ struct PBFFmpegDemuxSource {
     bool stopsReadThread;
     bool reachedEnd;
     int readResult;
-    // Two stable slots: FFmpeg copies the interrupt callback, opaque
-    // included, into every URLContext it opens, so a read context has to
-    // outlive its format context. A reconnect opens the replacement in the
-    // slot the live context is not using and swaps the pointer.
     PBFFmpegSourceReadContext readContexts[2];
     PBFFmpegSourceReadContext *sourceReadContext;
     AVFormatContext *formatContext;
     PBFFmpegPacketQueue *queues;
     unsigned int queueCount;
-    // Bytes held for a stream nobody reads: kept in case that stream is
-    // chosen later, evicted when it ages out. Counted apart from
-    // forwardBufferedByteCount, which is read-ahead a consumer will drain.
     int64_t retainedByteCount;
     int videoStreamIndex;
     char *path;
@@ -109,12 +99,7 @@ struct PBFFmpegDemuxSource {
     int64_t *replayThroughTimestamps;
     bool *replayCaughtUp;
     PBFFmpegDemuxBufferConfiguration bufferConfiguration;
-    // Read-ahead of the streams playing the video needs. This is the only
-    // pool that may park the read thread.
     int64_t forwardBufferedByteCount;
-    // Read-ahead of subscribed auxiliary streams. Held apart so that a
-    // subtitle track whose reader has stopped draining is evicted rather than
-    // allowed to fill the forward budget and starve the video.
     int64_t auxiliaryBufferedByteCount;
     PBFFmpegPacketNode *freePacketNodes;
     PBFFmpegPacketNodePoolChunk *packetNodePoolChunks;
@@ -122,13 +107,10 @@ struct PBFFmpegDemuxSource {
     uint64_t readFrameCount;
 };
 
-// These are mpv demux_conf defaults from demux/demux.c. They were selected for
-// desktop playback. Enchron reports the effective values and accepts an
-// explicit configuration so visionOS device regressions can compare budgets.
 static const int64_t PB_DEMUX_DEFAULT_FORWARD_BYTE_LIMIT = 150LL * 1024 * 1024;
 static const int64_t PB_DEMUX_DEFAULT_BACKWARD_BYTE_LIMIT = 50LL * 1024 * 1024;
 static const double PB_DEMUX_DEFAULT_NON_CACHE_TARGET_SECONDS = 1.0;
-static const double PB_DEMUX_DEFAULT_CACHE_TARGET_SECONDS = 1000.0 * 60 * 60;
+static const double PB_DEMUX_UNCAPPED_CACHE_TARGET_SECONDS = 1000.0 * 60 * 60;
 static const long PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[] = {250, 500, 1000};
 static const unsigned int PB_DEMUX_RECONNECT_ATTEMPT_LIMIT =
     sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS) /
@@ -148,7 +130,7 @@ PBFFmpegDemuxBufferConfiguration PBFFmpegDemuxBufferConfigurationMake(
         .backwardByteLimit = PB_DEMUX_DEFAULT_BACKWARD_BYTE_LIMIT,
         .targetDurationSeconds = mode == PBFFmpegDemuxBufferModeNone
             ? PB_DEMUX_DEFAULT_NON_CACHE_TARGET_SECONDS
-            : PB_DEMUX_DEFAULT_CACHE_TARGET_SECONDS,
+            : PB_DEMUX_UNCAPPED_CACHE_TARGET_SECONDS,
     };
     if (mode == PBFFmpegDemuxBufferModeBytes) {
         configuration.forwardByteLimit = explicitForwardByteLimit;
@@ -428,13 +410,6 @@ static void return_packet_node(
     source->freePacketNodes = node;
 }
 
-// Three pools, because only one of them may hold the read thread back.
-// An essential queue with a reader is read-ahead: its bytes are what the
-// source has run in front of playback and they leave as the reader consumes
-// them, so pausing on them is flow control that resolves itself. An auxiliary
-// queue with a reader drains only as fast as that reader feels like, and a
-// queue with no reader never drains at all; neither may starve the video, so
-// both answer a full buffer by being evicted.
 static int64_t *packet_queue_byte_pool(
     PBFFmpegDemuxSource *source,
     const PBFFmpegPacketQueue *queue
@@ -495,23 +470,8 @@ static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
     );
 }
 
-// What one subscribed auxiliary stream may hold in front of its reader. A
-// display set of Blu-ray subtitles is tens of kilobytes, so this is hundreds
-// of cues of slack before anything is given up.
 static const int64_t PB_DEMUX_AUXILIARY_BYTE_LIMIT = 16LL * 1024 * 1024;
 
-// Asking for data and withholding it are not symmetric here.
-//
-// Only essential read-ahead may withhold: retained history never drains, and
-// auxiliary read-ahead drains whenever its reader feels like it, so letting
-// either reach the forward budget would park the read thread while the video
-// starves - which is what a chosen subtitle track nobody was draining used
-// to do.
-//
-// An auxiliary stream may still ask, or a consumer reading subtitles while no
-// essential stream is subscribed would never be handed a packet. It asks only
-// up to its own byte budget, so a reader that has stopped draining goes quiet
-// instead of pulling the whole file past itself.
 static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     if (source->forwardBufferedByteCount >=
         source->bufferConfiguration.forwardByteLimit) return false;
@@ -531,14 +491,9 @@ static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     return false;
 }
 
-// How far back a stream nobody reads is kept, so that choosing a subtitle
-// track part way through a film still finds the cues from the recent past.
 static const int64_t PB_DEMUX_RETAINED_WINDOW_MICROSECONDS =
     300LL * AV_TIME_BASE;
 
-// Evicts the oldest packets of a queue with no reader until what is left fits
-// the time window and the retained byte budget. This is the answer to a full
-// buffer for history: it is dropped, because no consumer will ever take it.
 static void trim_retained_packet_queue(
     PBFFmpegDemuxSource *source,
     PBFFmpegPacketQueue *queue
@@ -564,12 +519,6 @@ static void trim_retained_packet_queue(
     update_packet_queue_buffered_duration(queue);
 }
 
-// Evicts the oldest packets of an auxiliary queue that has run past its
-// budget. Its reader drains when it feels like it - folding queued subtitle
-// packets in happens on each publish - so a reader that has stopped draining
-// loses the packets it left behind instead of stopping the read thread. The
-// loss is counted, because cues quietly going missing is a defect the reader
-// has to be able to report.
 static void trim_auxiliary_packet_queue(
     PBFFmpegDemuxSource *source,
     PBFFmpegPacketQueue *queue
@@ -624,9 +573,6 @@ static int64_t packet_duration_microseconds(
 static bool demux_source_reached_known_end(const PBFFmpegDemuxSource *source) {
     if (!source || source->knownByteLength <= 0 || !source->formatContext ||
         !source->formatContext->pb) return false;
-    // A demuxer can finish before the last container byte, so byte position is
-    // not an end test. A declared total length plus EOF with no AVIO transport
-    // error distinguishes normal container completion from a short response.
     return source->formatContext->pb->error >= 0;
 }
 
@@ -906,8 +852,6 @@ static bool subscribe_to_demux_stream(
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
     bool subscribed = queue->subscribers == 0;
     if (subscribed) {
-        // What was retained becomes read-ahead the new reader will drain, in
-        // whichever pool this stream's level answers to.
         source->retainedByteCount -= queue->bufferedByteCount;
         if (source->retainedByteCount < 0) source->retainedByteCount = 0;
         queue->subscribers = 1;
@@ -934,8 +878,6 @@ static void unsubscribe_from_demux_stream(
         (unsigned int)streamIndex >= source->queueCount) return;
     pthread_mutex_lock(&source->lock);
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
-    // Clear before dropping the reader: the queue's bytes are counted as
-    // read-ahead while it has one.
     clear_packet_queue(source, queue);
     queue->subscribers = 0;
     source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
@@ -1000,11 +942,6 @@ static int copy_next_demux_packet(
     return 0;
 }
 
-// Returns the next queued packet without waiting: AVERROR(EAGAIN) when the
-// queue is empty and the source is still reading, the read result or
-// AVERROR_EOF once the source has ended. Subscribers that ingest a sparse
-// stream beside live playback (subtitles) use it so they never park the
-// caller behind the playhead.
 static int copy_next_demux_packet_if_available(
     PBFFmpegDemuxSource *source,
     int streamIndex,
@@ -1421,9 +1358,6 @@ static PBFFmpegActiveFailureCause active_failure_cause_for_decoder_error(int cod
     }
 }
 
-// The bridge has historically exposed Apple's 'apac' MOV sample entry as
-// AV_CODEC_ID_APAC. FFmpeg uses that ID for the unrelated Marian's A-pac codec,
-// so every Apple-specific decision must also require the MOV sample-entry tag.
 static void normalize_mov_codec_ids(AVFormatContext *context) {
     if (!context) return;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
@@ -1437,8 +1371,6 @@ static void normalize_mov_codec_ids(AVFormatContext *context) {
         if (parameters->codec_type == AVMEDIA_TYPE_VIDEO &&
             parameters->codec_id == AV_CODEC_ID_NONE &&
             parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
-            // FFmpeg 8.0.1 preserves the dav1 sample entry, av1C extradata, and
-            // Dolby Vision configuration but does not classify the track as AV1.
             parameters->codec_id = AV_CODEC_ID_AV1;
         }
     }
@@ -1457,35 +1389,40 @@ static int finalize_stream_information(
     return result;
 }
 
-/// A disc image carries no header a probe can read, because its first bytes are
-/// filesystem descriptors rather than media. FFmpeg scores those descriptors as an
-/// MPEG program stream and opens the image with one unreadable video stream, so the
-/// demuxer is named instead of guessed. Measured on FEL_test_for_AVS.iso: probed it
-/// reports format mpeg with 1 stream and the decoder rejects the picture, named it
-/// reports mpegts with the 2 streams the disc holds and the same 119.99 seconds.
-///
-/// Only a UDF image is claimed, which is what Blu-ray uses and where the video is
-/// always MPEG-TS. A DVD image holds a program stream and is not covered, and an
-/// encrypted disc has a payload no demuxer can read whatever it is named.
+enum {
+    PB_UDF_VOLUME_RECOGNITION_SEQUENCE_OFFSET = 32768,
+    PB_UDF_VOLUME_DESCRIPTOR_SIZE = 2048,
+    PB_UDF_VOLUME_IDENTIFIER_OFFSET = 1,
+    PB_UDF_VOLUME_IDENTIFIER_LENGTH = 5,
+};
+static const int64_t PB_DISC_IMAGE_RESYNC_SIZE = 16LL * 1024 * 1024;
+
 static const AVInputFormat *disc_image_input_format(const char *path) {
     if (!path) return NULL;
     FILE *file = fopen(path, "rb");
     if (!file) return NULL;
-    // The volume recognition sequence sits 32 KB in, as consecutive 2048-byte
-    // descriptors each carrying a five-character identifier one byte from its start.
-    uint8_t descriptors[2][2048];
+    uint8_t descriptors[2][PB_UDF_VOLUME_DESCRIPTOR_SIZE];
+    const uint8_t *firstIdentifier =
+        descriptors[0] + PB_UDF_VOLUME_IDENTIFIER_OFFSET;
+    const uint8_t *secondIdentifier =
+        descriptors[1] + PB_UDF_VOLUME_IDENTIFIER_OFFSET;
     bool isUDF = false;
-    if (fseek(file, 32768, SEEK_SET) == 0
+    if (fseek(file, PB_UDF_VOLUME_RECOGNITION_SEQUENCE_OFFSET, SEEK_SET) == 0
         && fread(descriptors, sizeof(descriptors[0]), 2, file) == 2
-        && memcmp(descriptors[0] + 1, "BEA01", 5) == 0) {
-        isUDF = memcmp(descriptors[1] + 1, "NSR02", 5) == 0
-            || memcmp(descriptors[1] + 1, "NSR03", 5) == 0;
+        && memcmp(
+               firstIdentifier, "BEA01", PB_UDF_VOLUME_IDENTIFIER_LENGTH
+           ) == 0) {
+        isUDF = memcmp(
+                    secondIdentifier, "NSR02", PB_UDF_VOLUME_IDENTIFIER_LENGTH
+                ) == 0
+            || memcmp(
+                   secondIdentifier, "NSR03", PB_UDF_VOLUME_IDENTIFIER_LENGTH
+               ) == 0;
     }
     fclose(file);
     return isUDF ? av_find_input_format("mpegts") : NULL;
 }
 
-/// Opens `path`, naming the demuxer only when the media itself requires one.
 static int open_media_source(
     AVFormatContext **context,
     const char *path,
@@ -1495,14 +1432,7 @@ static int open_media_source(
     int result = 0;
     const AVInputFormat *format = disc_image_input_format(path);
     if (format) {
-        // The stream sits behind the disc's filesystem metadata, and the demuxer
-        // stops looking for its first sync byte after 64 KB. Measured on
-        // FEL_test_for_AVS.iso, whose payload starts 917504 bytes in: at the default
-        // limit the streams are still identified, because probing reads ahead of
-        // where playback starts, and then the first av_read_frame returns nothing at
-        // all. That is the shape of the failure, an open that succeeds onto a stream
-        // no packet ever arrives from.
-        av_dict_set_int(&options, "resync_size", 16LL * 1024 * 1024, 0);
+        av_dict_set_int(&options, "resync_size", PB_DISC_IMAGE_RESYNC_SIZE, 0);
     }
     result = avformat_open_input(context, path, format, &options);
     av_dict_free(&options);
@@ -1572,15 +1502,6 @@ void PBFFmpegMonitoredSourceClose(PBFFmpegMonitoredSource **source) {
     *source = NULL;
 }
 
-/// Widens a format context so a probe reaches audio the default limits stop short of.
-///
-/// FFmpeg gives up on stream information after 5 MB and, for MPEG-TS, after seven
-/// seconds of packets. A broadcast recording whose audio elementary stream starts
-/// later than that, or whose codec only reports its sample rate once a frame is
-/// decoded, leaves sample_rate and ch_layout at zero under those limits. Measured
-/// on an E-AC-3 transport stream whose audio starts ten seconds in: probed with the
-/// defaults the audio stream reports 0 Hz and 0 channels, probed with these limits
-/// it reports 48000 Hz and 2 channels.
 static void apply_extended_audio_probe_limits(AVFormatContext *context) {
     if (!context) return;
     context->probesize = 100LL * 1024 * 1024;
@@ -1588,7 +1509,6 @@ static void apply_extended_audio_probe_limits(AVFormatContext *context) {
     context->max_probe_packets = 100000;
 }
 
-/// Copies the audio facts an extended probe established onto the stream that lacks them.
 static bool adopt_probed_audio_parameters(AVStream *destination, const AVStream *probed) {
     if (!destination || !probed || !audio_stream_is_supported(probed)) return false;
     if (probed->codecpar->codec_id != destination->codecpar->codec_id) return false;
@@ -1606,13 +1526,6 @@ static bool adopt_probed_audio_parameters(AVStream *destination, const AVStream 
     return audio_stream_is_supported(destination);
 }
 
-/// Runs the extended audio probe for a stream whose parameters an open context lacks.
-///
-/// A shared demux context is read by the video reader while the audio reader opens,
-/// so the audio reader cannot reopen or rewind it the way it reopens a context it
-/// owns. The probe runs on a private context over the same path and copies back only
-/// the audio facts the first probe failed to establish, which makes the answer the
-/// same whether the audio reader owns its context or shares the presentation's.
 static bool probe_extended_audio_parameters(
     AVStream *stream,
     const char *path,
@@ -1842,9 +1755,6 @@ static void describe_dovi_declaration(
     );
 }
 
-/// A dual-layer source is not declared as Dolby Vision. A format description carrying
-/// its Profile 7 dvcC can be created, but VideoToolbox rejects the format before a
-/// decompression session exists. The split path below sends only its HDR10 base layer.
 static bool has_usable_dovi_configuration(const AVCodecParameters *parameters) {
     PBDOVIDeclarationShape shape = dovi_declaration_shape(parameters);
     return shape == PBDOVIDeclarationHEVCNative ||
@@ -2012,13 +1922,6 @@ static const AVPacketSideData *codec_side_data(
     enum AVPacketSideDataType type
 );
 
-/// Dolby Vision Profile 7 stores its picture across two video streams, and the
-/// configuration record sits on the enhancement stream rather than on the base layer
-/// that gets decoded. Scanning every video stream is therefore the only way to learn
-/// that a source claims Dolby Vision at all, because reading the decoded stream alone
-/// reports a plain HDR10 track and the claim disappears. What separates a Dolby Vision
-/// picture from a base layer standing in for one is the enhancement layer flag, which
-/// reads the same wherever the record was found.
 typedef struct {
     int dolbyVisionProfile;
     int dolbyVisionCrossCompatibilityID;
@@ -2058,15 +1961,11 @@ static PBVideoSourceFacts video_source_facts(
         const AVDOVIDecoderConfigurationRecord *record =
             (const AVDOVIDecoderConfigurationRecord *)entry->data;
         bool onDecodedStream = (int)index == decodedStreamIndex;
+        bool describesPureEnhancementLayer = record->bl_present_flag == 0;
+        bool aRecordWasAlreadyTaken = facts.dolbyVisionProfile != 0;
         if (!onDecodedStream) {
-            // Believed only when it describes a pure enhancement layer, because such a
-            // layer cannot stand alone and so belongs to the stream being decoded. A
-            // second stream carrying its own base layer is an unrelated title, and its
-            // profile is not a fact about this one.
-            if (record->bl_present_flag != 0) continue;
-            // The decoded stream's own record outranks this one, so a record already
-            // taken from anywhere is left in place until that stream is reached.
-            if (facts.dolbyVisionProfile != 0) continue;
+            if (!describesPureEnhancementLayer) continue;
+            if (aRecordWasAlreadyTaken) continue;
         }
         facts.dolbyVisionProfile = record->dv_profile;
         facts.dolbyVisionCrossCompatibilityID =
@@ -2152,16 +2051,15 @@ static CFStringRef transfer_function(enum AVColorTransferCharacteristic value) {
     }
 }
 
+#define PB_CM_YCBCR_MATRIX_IPT_C2 CFSTR("IPT_C2")
+
 static CFStringRef ycbcr_matrix(enum AVColorSpace value) {
     switch (value) {
         case AVCOL_SPC_BT709: return kCMFormatDescriptionYCbCrMatrix_ITU_R_709_2;
         case AVCOL_SPC_BT2020_NCL:
         case AVCOL_SPC_BT2020_CL:
             return kCMFormatDescriptionYCbCrMatrix_ITU_R_2020;
-        case AVCOL_SPC_IPT_C2:
-            // CoreMedia publishes this value in Dolby Vision format descriptions,
-            // but does not expose a named SDK constant for it.
-            return CFSTR("IPT_C2");
+        case AVCOL_SPC_IPT_C2: return PB_CM_YCBCR_MATRIX_IPT_C2;
         default: return NULL;
     }
 }
@@ -2277,6 +2175,12 @@ static bool scaled_rational_u32(
     return true;
 }
 
+enum {
+    PB_FFMPEG_DISPLAY_PRIMARY_RED = 0,
+    PB_FFMPEG_DISPLAY_PRIMARY_GREEN = 1,
+    PB_FFMPEG_DISPLAY_PRIMARY_BLUE = 2,
+};
+
 static void add_static_hdr_extensions(
     const AVCodecParameters *parameters,
     CFMutableDictionaryRef extensions
@@ -2291,11 +2195,14 @@ static void add_static_hdr_extensions(
             (const AVMasteringDisplayMetadata *)masteringSideData->data;
         uint32_t chromaticity[8] = {0};
         uint32_t luminance[2] = {0};
-        // ISO/IEC 23008-2 serializes green, blue, red, then white point.
-        const int primaryOrder[3] = {1, 2, 0};
+        const int serializedPrimaryOrder[3] = {
+            PB_FFMPEG_DISPLAY_PRIMARY_GREEN,
+            PB_FFMPEG_DISPLAY_PRIMARY_BLUE,
+            PB_FFMPEG_DISPLAY_PRIMARY_RED,
+        };
         bool usable = metadata->has_primaries && metadata->has_luminance;
         for (int outputPrimary = 0; usable && outputPrimary < 3; outputPrimary++) {
-            int sourcePrimary = primaryOrder[outputPrimary];
+            int sourcePrimary = serializedPrimaryOrder[outputPrimary];
             usable = scaled_rational_u32(
                     metadata->display_primaries[sourcePrimary][0],
                     50000.0,
@@ -2812,10 +2719,6 @@ static bool mov_stream_table_is_qualified(const AVFormatContext *context) {
     return hasVideo;
 }
 
-/// A qualified MOV stream table lets the open skip `avformat_find_stream_info`,
-/// which is what keeps an open from reading media bytes just to describe itself.
-/// The fields that probe would have filled still live in the codec configuration
-/// atom, so opening a decoder over the extradata alone recovers them.
 static void fill_video_facts_from_codec_configuration(AVFormatContext *context) {
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVCodecParameters *parameters = context->streams[index]->codecpar;
@@ -3306,11 +3209,6 @@ static OSStatus create_annexb_format(
     return status;
 }
 
-// CoreMedia reads the SPS only inside its own H.264 parameter-set constructor.
-// Nothing else supplies the color primaries, transfer function, matrix and
-// full-or-limited range the stream declares there. FFmpeg's codec parameters do
-// not carry them, and passing the same avcC to CMVideoFormatDescriptionCreate as
-// a sample description atom returns noErr with all four fields absent.
 static OSStatus create_h264_format_from_avcc(
     const AVCodecParameters *parameters,
     CFDictionaryRef extensions,
@@ -3649,38 +3547,50 @@ static void copy_media_information_text(
     snprintf(buffer, bufferSize, "%s", value ? value : "");
 }
 
-/// Chroma subsampling counted in samples per pixel: 4:2:0 carries one luma and
-/// half a chroma sample, 4:2:2 one and one, 4:4:4 one and two.
+enum {
+    PB_CHROMA_LOG2_FULL_RESOLUTION = 0,
+    PB_CHROMA_LOG2_HALF_RESOLUTION = 1,
+};
+enum { PB_CHROMA_PLANE_COUNT = 2 };
+enum { PB_SAMPLE_WORD_BYTES_ABOVE_EIGHT_BIT = 2 };
+enum { PB_SAMPLE_WORD_BYTES_AT_EIGHT_BIT = 1 };
+
 static double samples_per_pixel_for_chroma(int log2ChromaWidth, int log2ChromaHeight) {
-    double chromaFraction = 1.0
+    double lumaSamplesPerPixel = 1.0;
+    double chromaSamplesPerPixelPerPlane = 1.0
         / (double)(1 << log2ChromaWidth)
         / (double)(1 << log2ChromaHeight);
-    return 1.0 + 2.0 * chromaFraction;
+    return lumaSamplesPerPixel
+        + (double)PB_CHROMA_PLANE_COUNT * chromaSamplesPerPixelPerPlane;
 }
 
-/// H.264 profiles above High select their own chroma format in the SPS; every
-/// profile below it is 4:2:0 by definition.
+static double samples_per_pixel_for_chroma420(void) {
+    return samples_per_pixel_for_chroma(
+        PB_CHROMA_LOG2_HALF_RESOLUTION,
+        PB_CHROMA_LOG2_HALF_RESOLUTION
+    );
+}
+
 static double samples_per_pixel_for_h264_profile(int profile) {
     switch (profile) {
         case AV_PROFILE_H264_HIGH_422:
         case AV_PROFILE_H264_HIGH_422_INTRA:
-            return samples_per_pixel_for_chroma(1, 0);
+            return samples_per_pixel_for_chroma(
+                PB_CHROMA_LOG2_HALF_RESOLUTION,
+                PB_CHROMA_LOG2_FULL_RESOLUTION
+            );
         case AV_PROFILE_H264_HIGH_444:
         case AV_PROFILE_H264_HIGH_444_PREDICTIVE:
         case AV_PROFILE_H264_HIGH_444_INTRA:
-            return samples_per_pixel_for_chroma(0, 0);
+            return samples_per_pixel_for_chroma(
+                PB_CHROMA_LOG2_FULL_RESOLUTION,
+                PB_CHROMA_LOG2_FULL_RESOLUTION
+            );
         default:
-            return samples_per_pixel_for_chroma(1, 1);
+            return samples_per_pixel_for_chroma420();
     }
 }
 
-/// What one decoded pixel costs on the output surface. Components deeper than
-/// eight bits land in sixteen-bit words, so ten-bit 4:2:0 costs three bytes
-/// where eight-bit costs one and a half.
-///
-/// The pixel format is the direct answer, but the H.264 decoder does not choose
-/// one until it decodes a frame, and this runs before any media byte is read.
-/// The SPS fields it does parse at open carry the same two facts.
 static double decoded_bytes_per_pixel(const AVCodecParameters *parameters) {
     double samplesPerPixel = 0;
     int depth = 0;
@@ -3696,10 +3606,13 @@ static double decoded_bytes_per_pixel(const AVCodecParameters *parameters) {
             : 8;
         samplesPerPixel = parameters->codec_id == AV_CODEC_ID_H264
             ? samples_per_pixel_for_h264_profile(parameters->profile)
-            : samples_per_pixel_for_chroma(1, 1);
+            : samples_per_pixel_for_chroma420();
     }
     if (samplesPerPixel <= 0 || depth <= 0) return 0;
-    return samplesPerPixel * (depth > 8 ? 2.0 : 1.0);
+    double bytesPerSample = depth > 8
+        ? (double)PB_SAMPLE_WORD_BYTES_ABOVE_EIGHT_BIT
+        : (double)PB_SAMPLE_WORD_BYTES_AT_EIGHT_BIT;
+    return samplesPerPixel * bytesPerSample;
 }
 
 static void fill_media_stream_storage(
@@ -4257,13 +4170,10 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferByteLimit(
     return limit;
 }
 
-int64_t PBFFmpegDemuxSourceGetBackwardBufferedByteCount(
+int64_t PBFFmpegDemuxSourceGetRetainedByteCount(
     PBFFmpegDemuxSource *source
 ) {
     if (!source) return 0;
-    // Consumed packets leave this demuxer immediately. What it retains is the
-    // recent past of streams nothing reads yet, held so that choosing one of
-    // them part way through a film still finds cues from before the choice.
     pthread_mutex_lock(&source->lock);
     int64_t retained = source->retainedByteCount;
     pthread_mutex_unlock(&source->lock);
@@ -4767,7 +4677,7 @@ void PBFFmpegReaderCancel(PBFFmpegReader *reader) {
     }
 }
 
-void PBFFmpegReaderForceBitstreamExtradataBootstrap(PBFFmpegReader *reader) {
+void PBFFmpegReaderForceBitstreamExtradataBootstrapOnNextOpen(PBFFmpegReader *reader) {
     if (reader) reader->forceBitstreamExtradataBootstrap = true;
 }
 
@@ -4996,6 +4906,19 @@ static int read_next_compressed_video_packet(
     }
 }
 
+enum {
+    PB_HEVC_NAL_TYPE_LAST_VCL = 31,
+    PB_HEVC_NAL_TYPE_VPS = 32,
+    PB_HEVC_NAL_TYPE_SPS = 33,
+    PB_HEVC_NAL_TYPE_PPS = 34,
+};
+
+static bool is_hevc_parameter_set(uint8_t nalType) {
+    return nalType == PB_HEVC_NAL_TYPE_VPS ||
+        nalType == PB_HEVC_NAL_TYPE_SPS ||
+        nalType == PB_HEVC_NAL_TYPE_PPS;
+}
+
 static bool prepare_profile7_base_layer_sample_bytes(
     PBFFmpegReader *reader,
     const AVPacket *packet,
@@ -5010,9 +4933,6 @@ static bool prepare_profile7_base_layer_sample_bytes(
     *allocatedBytesOut = NULL;
     if (!reader->reordersProfile7BaseLayerParameterSets) return true;
 
-    // The split-track Profile 7 MP4 places the next GOP's VPS/SPS/PPS after the
-    // preceding VCL NAL. VideoToolbox rejects that sample. Keep those parameter
-    // sets and prefix them to the following IRAP sample, where they take effect.
     size_t lengthSize = reader->hevcNALLengthSize;
     if (!packet->data || packet->size <= 0 ||
         reader->pendingHEVCParameterSetSize > SIZE_MAX - (size_t)packet->size) {
@@ -5050,13 +4970,14 @@ static bool prepare_profile7_base_layer_sample_bytes(
             return false;
         }
         uint8_t nalType = (packet->data[offset] >> 1) & 0x3f;
-        if (nalType <= 31) sawVCL = true;
+        if (nalType <= PB_HEVC_NAL_TYPE_LAST_VCL) sawVCL = true;
+        bool belongsToTheNextAccessUnit = sawVCL && is_hevc_parameter_set(nalType);
         size_t encodedNALSize = lengthSize + (size_t)nalSize;
-        uint8_t *destination = sawVCL && nalType >= 32 && nalType <= 34
+        uint8_t *destination = belongsToTheNextAccessUnit
             ? nextParameterSets + nextParameterSetSize
             : output + outputSize;
         memcpy(destination, packet->data + nalStart, encodedNALSize);
-        if (sawVCL && nalType >= 32 && nalType <= 34) {
+        if (belongsToTheNextAccessUnit) {
             nextParameterSetSize += encodedNALSize;
         } else {
             outputSize += encodedNALSize;

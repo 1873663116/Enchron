@@ -3,16 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
-/// Mirrors `disc_image_input_format` in PlaybackFFmpegBridge.c. Kept as a mirror
-/// rather than a call because the bridge is built for visionOS and this runs on the
-/// host, which is the standing limit of every probe here: a matching change on both
-/// sides passes. `--reads-nothing` builds the variant that always probes, which is
-/// the state before the fix.
-/// The resync limit the bridge sets for a disc image. Zero leaves the demuxer
-/// default, which is the state that identified the streams and then delivered no
-/// packet from them.
+#define LEAVE_DEMUXER_DEFAULT_RESYNC_SIZE 0
+
 #ifdef PROBE_WITHOUT_RESYNC
-static const int64_t DISC_IMAGE_RESYNC_SIZE = 0;
+static const int64_t DISC_IMAGE_RESYNC_SIZE = LEAVE_DEMUXER_DEFAULT_RESYNC_SIZE;
 #else
 static const int64_t DISC_IMAGE_RESYNC_SIZE = 16LL * 1024 * 1024;
 #endif
@@ -38,14 +32,16 @@ static const AVInputFormat *disc_image_input_format(const char *path) {
 #endif
 }
 
-/// Reads until this many packets have arrived from the selected video stream, or
-/// until the source stops yielding. Identifying a stream and delivering packets from
-/// it are separate things, and a disc image did the first without the second.
+static const int VIDEO_PACKETS_SOUGHT = 20;
+static const int MAXIMUM_PACKET_READS = 4000;
+
 static int video_packets_delivered(AVFormatContext *context, int stream) {
     AVPacket *packet = av_packet_alloc();
     int delivered = 0;
     int reads = 0;
-    while (delivered < 20 && reads < 4000 && av_read_frame(context, packet) >= 0) {
+    while (delivered < VIDEO_PACKETS_SOUGHT
+           && reads < MAXIMUM_PACKET_READS
+           && av_read_frame(context, packet) >= 0) {
         reads++;
         if (packet->stream_index == stream) delivered++;
         av_packet_unref(packet);
@@ -57,7 +53,7 @@ static int video_packets_delivered(AVFormatContext *context, int stream) {
 static void report(const char *label, const char *path, const AVInputFormat *forced) {
     AVFormatContext *context = avformat_alloc_context();
     AVDictionary *options = NULL;
-    if (forced && DISC_IMAGE_RESYNC_SIZE > 0) {
+    if (forced && DISC_IMAGE_RESYNC_SIZE != LEAVE_DEMUXER_DEFAULT_RESYNC_SIZE) {
         av_dict_set_int(&options, "resync_size", DISC_IMAGE_RESYNC_SIZE, 0);
     }
     int opened = avformat_open_input(&context, path, forced, &options);

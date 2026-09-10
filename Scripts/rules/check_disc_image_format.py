@@ -13,8 +13,15 @@ The control matters as much as the premise. Naming a demuxer for files that are
 not disc images would break every other source, so the check requires the two
 non-disc fixtures to open identically whether the helper runs or not.
 
-  --reads-nothing   build the probe as it behaved before the fix, to show the
-                    check failing rather than trusting that it would.
+Two negative controls build the probe in a state that is known to fail, so the
+check is seen failing rather than trusted to.
+
+  --reads-nothing   build the probe with the sniff removed, so every image is
+                    probed, which is the state before the fix.
+  --without-resync  build the probe with the sniff in place but the resync
+                    limit left at the demuxer default, which is the state that
+                    identified the streams and then delivered no packet from
+                    them.
 """
 
 from __future__ import annotations

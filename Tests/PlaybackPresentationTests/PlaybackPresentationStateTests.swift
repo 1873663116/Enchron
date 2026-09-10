@@ -765,10 +765,6 @@ struct PlaybackPresentationStateTests {
         var facts: [String] = []
         let screenSize = SIMD2<Float>(16.0 / 9.0, 1)
 
-        // A bitmap subtitle arrives sized by its own display set, so a frame
-        // whose pixels do not match its geometry leaves the plane empty. The
-        // entity is disabled either way, and the enablement write stops
-        // repeating once it is, so the reason has to be said out loud.
         for identifier in UInt64(1)...3 {
             surface.update(
                 on: video,
@@ -780,17 +776,28 @@ struct PlaybackPresentationStateTests {
             )
         }
 
-        #expect(surface.entity.isEnabled == false)
+        #expect(
+            surface.entity.isEnabled == false,
+            """
+            a bitmap frame is sized by its own display set, so pixels that do \
+            not fill its geometry leave the plane empty
+            """
+        )
         let rejections = facts.filter { $0.hasPrefix("subtitleFrameRejected") }
-        #expect(rejections.count == 1, "reported \(rejections.count) times")
+        #expect(
+            rejections.count == 1,
+            """
+            the entity is disabled whichever way a frame failed, and the \
+            enablement write stops repeating once it is, so the reason is \
+            named exactly once. Reported \(rejections.count) times
+            """
+        )
         let rejection = try #require(rejections.first)
         #expect(rejection.contains("reason=imageFailure"))
         #expect(rejection.contains("kind=bitmap"))
         #expect(rejection.contains("content=64x16"))
         #expect(rejection.contains("bytesPerRow=256"))
 
-        // A frame that draws clears the standing reason, so the next failure
-        // is reported rather than swallowed as a repeat.
         surface.update(
             on: video,
             presentation: .window,
@@ -808,7 +815,13 @@ struct PlaybackPresentationStateTests {
             frame: Self.undrawableSubtitleFrame(changeIdentifier: 5),
             emitEnablementWrite: { facts.append($0) }
         )
-        #expect(facts.filter { $0.hasPrefix("subtitleFrameRejected") }.count == 2)
+        #expect(
+            facts.filter { $0.hasPrefix("subtitleFrameRejected") }.count == 2,
+            """
+            a frame that draws clears the standing reason, so the next \
+            failure is reported rather than swallowed as a repeat
+            """
+        )
     }
 
     private static func undrawableSubtitleFrame(
@@ -2503,8 +2516,6 @@ struct PlaybackPresentationStateTests {
         #expect(target == 0.62)
         #expect(PlaybackSeekPresentation.pendingTarget(for: 0.62, livePositionAvailable: false) == nil)
 
-        // Right after release the reported position is still the pre-seek value,
-        // so the panel renders the committed target rather than snapping back.
         #expect(
             PlaybackSeekPresentation.displayProgress(
                 isDragging: false,
@@ -2512,17 +2523,25 @@ struct PlaybackPresentationStateTests {
                 localProgress: target ?? 0,
                 pendingTarget: target,
                 liveProgress: 0.30
-            ) == 0.62
+            ) == 0.62,
+            """
+            right after release the reported position is still the pre-seek \
+            value, so the panel renders the committed target rather than \
+            snapping back
+            """
         )
 
-        // The latch releases in seconds, not a fraction of duration: a two-hour
-        // title tolerates the same absolute gap a thirty-second clip does.
         #expect(
             !PlaybackSeekPresentation.pendingTargetHasSettled(
                 0.62,
                 observedProgress: 0.30,
                 durationSeconds: 7200
-            )
+            ),
+            """
+            the latch releases on absolute seconds, not on a fraction of \
+            duration, so a two-hour title tolerates the same gap a \
+            thirty-second clip does
+            """
         )
         #expect(
             PlaybackSeekPresentation.pendingTargetHasSettled(
@@ -2531,22 +2550,27 @@ struct PlaybackPresentationStateTests {
                 durationSeconds: 7200
             )
         )
-        // One frame of drift at 7200 s is far inside the 0.25 s tolerance.
         #expect(
             PlaybackSeekPresentation.pendingTargetHasSettled(
                 0.62,
                 observedProgress: 0.62 - (1.0 / 24.0) / 7200,
                 durationSeconds: 7200
-            )
+            ),
+            """
+            one frame of drift at 7200 s is far inside \
+            pendingTargetSettleToleranceSeconds
+            """
         )
-        // A gap that reads as under a quarter second on a short clip is far larger
-        // than a quarter second on a long one, so duration must scale the test.
         #expect(
             PlaybackSeekPresentation.pendingTargetHasSettled(
                 0.62,
                 observedProgress: 0.58,
                 durationSeconds: 5
-            )
+            ),
+            """
+            the same fractional gap is a fifth of a second on a five-second \
+            clip, so duration has to scale the comparison
+            """
         )
         #expect(
             !PlaybackSeekPresentation.pendingTargetHasSettled(
@@ -2573,8 +2597,13 @@ struct PlaybackPresentationStateTests {
             displayProgress: livePosition
         )
 
-        // The first dragging frame shows the seeded playhead, not 0.45.
-        #expect(drag.startProgress == livePosition)
+        #expect(
+            drag.startProgress == livePosition,
+            """
+            the first dragging frame shows the seeded playhead, not \
+            \(staleLocalProgress)
+            """
+        )
         #expect(
             PlaybackSeekPresentation.displayProgress(
                 isDragging: true,
@@ -2585,31 +2614,37 @@ struct PlaybackPresentationStateTests {
             ) == livePosition
         )
 
-        // A drag that delivered no intermediate sample still commits where
-        // it was released, from the gesture alone.
         let committed = PlaybackSeekPresentation.progress(
             of: drag,
             at: 400,
             travelWidth: 600
         )
-        #expect(committed == 0.60)
+        #expect(
+            committed == 0.60,
+            """
+            a drag that delivered no intermediate sample still commits where \
+            it was released, from the gesture alone
+            """
+        )
         #expect(committed != staleLocalProgress)
         #expect(committed != livePosition)
 
-        // Mid-drag rendering and the release commit agree for one location.
         #expect(
             PlaybackSeekPresentation.progress(of: drag, at: 250, travelWidth: 600)
-                == PlaybackSeekPresentation.progress(of: drag, at: 250, travelWidth: 600)
-        )
-        #expect(
-            PlaybackSeekPresentation.progress(of: drag, at: 250, travelWidth: 600)
-                == livePosition + (250 - 100) / 600
+                == livePosition + (250 - 100) / 600,
+            """
+            mid-drag rendering is the seeded playhead plus the travel \
+            fraction, and the release commit reads the same function, so one \
+            location gives one answer
+            """
         )
 
-        // Clamping and a degenerate track.
         #expect(PlaybackSeekPresentation.progress(of: drag, at: -1_000, travelWidth: 600) == 0)
         #expect(PlaybackSeekPresentation.progress(of: drag, at: 10_000, travelWidth: 600) == 1)
-        #expect(PlaybackSeekPresentation.progress(of: drag, at: 400, travelWidth: 0) == livePosition)
+        #expect(
+            PlaybackSeekPresentation.progress(of: drag, at: 400, travelWidth: 0) == livePosition,
+            "a degenerate track has no travel to map, so the drag stays where it started"
+        )
         #expect(
             PlaybackSeekPresentation.scrubDrag(beginningAt: 0, displayProgress: 1.4).startProgress == 1
         )

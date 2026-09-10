@@ -47,8 +47,6 @@ import Testing
     let information = try await loader.load(from: fixture)
     let track = try #require(information.playbackSubtitleTracks.first)
 
-    // On the shared source the selection returns what is queued and the rest
-    // arrives as the reader passes it; neither step reopens the file.
     var cues = try await provider.cues(in: fixture, asset: nil, track: track)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
@@ -83,9 +81,6 @@ import Testing
     let information = try await loader.load(from: fixture)
     let track = try #require(information.playbackSubtitleTracks.first)
 
-    // Selecting the track subscribes the stream on the shared source and
-    // returns what its read thread has queued; the rest arrives as the
-    // thread passes it. Nothing opens the file a second time.
     var cues = try await provider.cues(in: fixture, asset: nil, track: track)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
@@ -105,8 +100,6 @@ import Testing
         viewportHeight: 1_080
     ) != nil)
 
-    // After a backward seek the shared source re-reads the same packets; the
-    // renderer recognises them and produces no duplicate cues.
     try demuxSession.seek(to: 0)
     var duplicates: [PlaybackSubtitleCue] = []
     let seekDeadline = ContinuousClock.now + .seconds(2)
@@ -114,7 +107,10 @@ import Testing
         duplicates += try renderer.ingestPendingCues(for: track)
         try await Task.sleep(for: .milliseconds(10))
     }
-    #expect(duplicates.isEmpty)
+    #expect(
+        duplicates.isEmpty,
+        "the packets the shared source re-read after the backward seek came back as duplicate cues"
+    )
     #expect(try renderer.ingestPendingCues(for: track).isEmpty)
 }
 
@@ -133,14 +129,9 @@ import Testing
     let information = try await loader.load(from: fixture)
     let track = try #require(information.playbackSubtitleTracks.first)
 
-    // Advance the shared source past the first cue before any renderer exists,
-    // the way a mid-stream presentation switch starts a fresh technical session.
-    try demuxSession.seek(to: 2.5)
+    let secondsPastTheFirstCue = 2.5
+    try demuxSession.seek(to: secondsPastTheFirstCue)
 
-    // Cues arrive from the seek target forward through the shared source's
-    // queue. A cue that began before the target is only recovered when the
-    // demuxer's backward keyframe landing happens to precede it; nothing
-    // scans the file for it.
     var cues = try await provider.cues(in: fixture, asset: nil, track: track)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
@@ -152,7 +143,10 @@ import Testing
         cues += try renderer.ingestPendingCues(for: track)
         try await Task.sleep(for: .milliseconds(10))
     }
-    #expect(cues.map(\.text).contains("再见"))
+    #expect(
+        cues.map(\.text).contains("再见"),
+        "the cue that follows the seek target never arrived through the shared source's queue"
+    )
     #expect(try renderer.frame(
         at: CMTime(seconds: 3.5, preferredTimescale: 600),
         viewportWidth: 1_920,
@@ -473,10 +467,6 @@ private final class SettledFlag: @unchecked Sendable {
         sourceReadMeter: meter,
         demuxSession: demuxSession
     )
-    // prepare subscribes the video stream on the shared source and nothing
-    // drains it until the test pulls samples itself, so the shared reader
-    // parks a second or so past the playhead, the way it parks behind 4K
-    // video that playback has not consumed yet.
     try await session.prepare(url: fixture)
     #expect(session.availableSubtitleTracks.map(\.id) == [
         "ffmpeg.subtitle.1",
@@ -520,11 +510,12 @@ private final class SettledFlag: @unchecked Sendable {
         at: CMTime(seconds: 3.5, preferredTimescale: 600)
     ).map(\.text) == ["再见"])
 
-    // A backward seek makes the shared source re-read the same packets; the
-    // renderer folds each packet in once.
     try demuxSession.seek(to: 0)
     try await drainVideoToTheEnd()
-    #expect(ingestedCueTexts() == ["第一行\n第二行", "再见"])
+    #expect(
+        ingestedCueTexts() == ["第一行\n第二行", "再见"],
+        "the packets the shared source re-read after the backward seek were folded in more than once"
+    )
 
     videoProvider.cancel()
     session.close()
@@ -1431,11 +1422,6 @@ private func waitForSubtitleTestSample(in session: SampleBufferPlaybackSession) 
     Issue.record("Timed out waiting for subtitle fixture video sample")
 }
 
-// A Presentation Graphic Stream written by hand, so bitmap subtitle coverage
-// does not depend on a checked-in Blu-ray capture. Each display set paints one
-// bar of a width that follows its index, and is followed by a display set with
-// no objects, which is how the format takes a subtitle off screen. FFmpeg's
-// `sup` demuxer reads this layout directly.
 private enum GeneratedPresentationGraphicStream {
     static let videoWidth = 1_920
     static let videoHeight = 1_080
@@ -1446,6 +1432,12 @@ private enum GeneratedPresentationGraphicStream {
     static let firstStartSeconds = 2.0
     static let repeatSeconds = 2.0
     static let visibleSeconds = 1.6
+    static let presentationCompositionSegment: UInt8 = 0x16
+    static let windowDefinitionSegment: UInt8 = 0x17
+    static let paletteDefinitionSegment: UInt8 = 0x14
+    static let objectDefinitionSegment: UInt8 = 0x15
+    static let endOfDisplaySetSegment: UInt8 = 0x80
+    static let segmentsPerDisplaySet = 5
 
     static func startSeconds(ofDisplaySet index: Int) -> Double {
         firstStartSeconds + Double(index) * repeatSeconds
@@ -1456,14 +1448,22 @@ private enum GeneratedPresentationGraphicStream {
         for index in 0..<displaySetCount {
             let start = startSeconds(ofDisplaySet: index)
             let end = start + visibleSeconds
-            stream.append(segment(at: start, type: 0x16, payload: presentation(index, showing: true)))
-            stream.append(segment(at: start, type: 0x17, payload: window()))
-            stream.append(segment(at: start, type: 0x14, payload: palette()))
-            stream.append(segment(at: start, type: 0x15, payload: object(index)))
-            stream.append(segment(at: start, type: 0x80, payload: Data()))
-            stream.append(segment(at: end, type: 0x16, payload: presentation(index, showing: false)))
-            stream.append(segment(at: end, type: 0x17, payload: window()))
-            stream.append(segment(at: end, type: 0x80, payload: Data()))
+            stream.append(segment(
+                at: start,
+                type: presentationCompositionSegment,
+                payload: presentation(index, showing: true)
+            ))
+            stream.append(segment(at: start, type: windowDefinitionSegment, payload: window()))
+            stream.append(segment(at: start, type: paletteDefinitionSegment, payload: palette()))
+            stream.append(segment(at: start, type: objectDefinitionSegment, payload: object(index)))
+            stream.append(segment(at: start, type: endOfDisplaySetSegment, payload: Data()))
+            stream.append(segment(
+                at: end,
+                type: presentationCompositionSegment,
+                payload: presentation(index, showing: false)
+            ))
+            stream.append(segment(at: end, type: windowDefinitionSegment, payload: window()))
+            stream.append(segment(at: end, type: endOfDisplaySetSegment, payload: Data()))
         }
         try stream.write(to: url, options: .atomic)
     }
@@ -1617,10 +1617,11 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
         )
     }
 
-    // Before the first display set, and in the gap a clearing display set
-    // leaves behind, nothing is on screen.
-    #expect(try frame(at: 1.0) == nil)
-    #expect(try frame(at: 3.9) == nil)
+    #expect(try frame(at: 1.0) == nil, "something was drawn before the first display set")
+    #expect(
+        try frame(at: 3.9) == nil,
+        "something was drawn in the gap the clearing display set leaves behind"
+    )
 
     let second = try #require(try frame(at: 4.5))
     #expect(second.kind == .bitmap)
@@ -1635,24 +1636,22 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
             == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 1)
     )
 
-    // The display set the time lands on is the one drawn, whichever order the
-    // times are asked for.
     let first = try #require(try frame(at: 2.5))
     #expect(
         opaquePixelCount(in: first)
-            == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 0)
+            == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 0),
+        "asking for an earlier time drew a display set other than the one covering it"
     )
     let third = try #require(try frame(at: 6.5))
     #expect(
         opaquePixelCount(in: third)
-            == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 2)
+            == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 2),
+        "asking for a later time drew a display set other than the one covering it"
     )
 }
 
 @Test func aBitmapSubtitleRequestDecodesTheDisplaySetItNeedsAndNotTheTrack() async throws {
-    // Five packets carry one display set in a `sup` document: the composition,
-    // the window, the palette, the object and the end marker.
-    let packetsPerDisplaySet = 5
+    let packetsPerDisplaySet = GeneratedPresentationGraphicStream.segmentsPerDisplaySet
     let displaySets = 1_200
     let fixture = try presentationGraphicFixtureURL(displaySetCount: displaySets)
     let provider = FFmpegSubtitleProvider()
@@ -1670,8 +1669,6 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
         )
     }
 
-    // Selecting a bitmap track in the middle of a film draws the display set
-    // that covers the playhead without replaying the ones before it.
     let late = GeneratedPresentationGraphicStream.startSeconds(ofDisplaySet: displaySets - 40)
     #expect(try frame(at: late + 0.5) != nil)
     let afterFirstRequest = renderer.decodedPacketCount
@@ -1680,7 +1677,6 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
         "a first request decoded \(afterFirstRequest) packets of a \(displaySets) display set track"
     )
 
-    // Walking forward decodes each display set it passes, once.
     var time = late + 0.5
     let walkSeconds = 4.0
     for _ in 0..<40 {
@@ -1689,11 +1685,11 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
     }
     let passed = Int(walkSeconds / GeneratedPresentationGraphicStream.repeatSeconds) + 1
     let afterWalk = renderer.decodedPacketCount
-    #expect(afterWalk - afterFirstRequest <= UInt64(passed * packetsPerDisplaySet * 2))
+    #expect(
+        afterWalk - afterFirstRequest <= UInt64(passed * packetsPerDisplaySet * 2),
+        "walking forward decoded \(afterWalk - afterFirstRequest) packets for the \(passed) display sets it passed"
+    )
 
-    // Stepping back inside what the renderer kept is a lookup. The playhead
-    // does this whenever the timeline retreats by a hair, and replaying the
-    // track there is what made closing a session wait on subtitle decoding.
     for step in 1...20 {
         _ = try frame(at: time - Double(step) * 0.05)
         _ = try frame(at: time)
@@ -1705,9 +1701,6 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
 }
 
 @Test func aBitmapSubtitleDocumentKeepsTheTimesItWasAuthoredWith() async throws {
-    // The `sup` demuxer reports the first display set as the stream start.
-    // A subtitle document has no picture beside it to be offset from, so its
-    // times are the film's own and nothing may be subtracted from them.
     let fixture = try presentationGraphicFixtureURL(displaySetCount: 8)
     let provider = FFmpegSubtitleProvider()
     let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
@@ -1731,11 +1724,6 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
 }
 
 @Test func aBitmapSubtitleIsLaidOutAgainstItsOwnAuthoringResolution() async throws {
-    // Blu-ray subtitles are authored at 1920x1080 whatever the picture's own
-    // resolution. Matroska carries no dimensions for these streams and the
-    // fixture keeps its first display set past where opening stops reading,
-    // the way a feature-length remux does, so the resolution is known only
-    // once a display set has been decoded.
     let fixture = try ultraHighDefinitionBitmapSubtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
     let track = try #require(
@@ -1747,13 +1735,20 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
         asset: nil,
         track: track
     ))
+    let secondsInsideTheFirstDisplaySet = 120.5
     let frame = try #require(try renderer.frame(
-        at: CMTime(seconds: 120.5, preferredTimescale: 600),
+        at: CMTime(seconds: secondsInsideTheFirstDisplaySet, preferredTimescale: 600),
         viewportWidth: 1_920,
         viewportHeight: 1_080
     ))
-    #expect(frame.canvasWidth == 1_920)
-    #expect(frame.canvasHeight == 1_080)
+    #expect(
+        frame.canvasWidth == 1_920,
+        "the bitmap canvas is \(frame.canvasWidth) wide, not the resolution the subtitle was authored against"
+    )
+    #expect(
+        frame.canvasHeight == 1_080,
+        "the bitmap canvas is \(frame.canvasHeight) tall, not the resolution the subtitle was authored against"
+    )
     #expect(frame.contentX == GeneratedPresentationGraphicStream.windowX)
     #expect(frame.contentY == GeneratedPresentationGraphicStream.windowY)
 }

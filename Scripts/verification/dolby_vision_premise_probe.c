@@ -1,28 +1,3 @@
-// Reports the facts that the Dolby Vision handling in PlaybackFFmpegBridge.c
-// rests on, measured through the same FFmpeg build the bridge links rather than
-// through a command line ffprobe that may be a different version.
-//
-// Every value here mirrors one decision in the bridge:
-//   decodedStreamIndex   av_find_best_stream, which is what PBFFmpegReaderOpen
-//                        picks and therefore the only stream that reaches the
-//                        decoder;
-//   videoStreams[].dolbyVision
-//                        the AV_PKT_DATA_DOVI_CONF side data detect_dolby_vision
-//                        scans for on every video stream, which is where the
-//                        dynamic range line gets its profile and the digit after
-//                        it, which is the cross compatibility ID and not the level;
-//   videoStreams[].declarable
-//                        has_usable_dovi_configuration, the condition that
-//                        decides whether codec_type and add_dovi_configuration_atom
-//                        declare the track as Dolby Vision to VideoToolbox. A
-//                        record with an enhancement layer is not declarable,
-//                        because only the base layer reaches one decoder input
-//                        and VideoToolbox refuses a track it is told is Profile 7.
-//
-// Prints one JSON object on stdout. Exits non-zero only when the file cannot be
-// opened; a file that fails a premise still reports, because the caller decides
-// which premise applies to which fixture.
-
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/dovi_meta.h>
@@ -51,17 +26,21 @@ static const AVDOVIDecoderConfigurationRecord *dolby_vision_record(const AVStrea
     return (const AVDOVIDecoderConfigurationRecord *)entry->data;
 }
 
-/// The same condition has_usable_dovi_configuration applies. A record that is
-/// present but carries an enhancement layer is deliberately not usable.
 static bool declarable(const AVStream *stream) {
     const AVDOVIDecoderConfigurationRecord *record = dolby_vision_record(stream);
     return record != NULL && record->el_present_flag == 0;
 }
 
+enum {
+    PROBE_EXIT_REPORTED = 0,
+    PROBE_EXIT_USAGE = 2,
+    PROBE_EXIT_SOURCE_UNREADABLE = 3,
+};
+
 int main(int argc, char **argv) {
     if (argc < 2) {
         fprintf(stderr, "usage: %s <media-path>\n", argv[0]);
-        return 2;
+        return PROBE_EXIT_USAGE;
     }
     const char *path = argv[1];
 
@@ -71,7 +50,7 @@ int main(int argc, char **argv) {
         char message[256];
         av_strerror(result, message, sizeof(message));
         fprintf(stderr, "cannot open %s: %s\n", path, message);
-        return 3;
+        return PROBE_EXIT_SOURCE_UNREADABLE;
     }
     result = avformat_find_stream_info(context, NULL);
     if (result < 0) {
@@ -79,21 +58,13 @@ int main(int argc, char **argv) {
         av_strerror(result, message, sizeof(message));
         fprintf(stderr, "cannot read stream info for %s: %s\n", path, message);
         avformat_close_input(&context);
-        return 3;
+        return PROBE_EXIT_SOURCE_UNREADABLE;
     }
 
     int decodedStreamIndex = av_find_best_stream(context, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
 
-    // The same scan detect_dolby_vision runs, including the rule that ties a record
-    // on some other stream to this one: only a pure enhancement layer, which cannot
-    // stand alone, is believed. A second stream carrying its own base layer is an
-    // unrelated title and its profile is not a fact about the stream being decoded.
     int detectedProfile = 0;
-    // The reader publishes the cross compatibility ID and not the level, because the
-    // digit after the profile in a Dolby Vision name is the dynamic range the base
-    // layer is also readable as. The level counts resolution and bitrate tiers and
-    // takes its own values, which happen to coincide on some files and not others.
-    int detectedCrossCompatibility = 0;
+    int detectedCrossCompatibilityID = 0;
     bool detectedEnhancementLayer = false;
     int recordStreamIndex = -1;
     for (unsigned index = 0; index < context->nb_streams; index++) {
@@ -107,7 +78,7 @@ int main(int argc, char **argv) {
             if (detectedProfile != 0) continue;
         }
         detectedProfile = record->dv_profile;
-        detectedCrossCompatibility = record->dv_bl_signal_compatibility_id;
+        detectedCrossCompatibilityID = record->dv_bl_signal_compatibility_id;
         detectedEnhancementLayer = record->el_present_flag != 0;
         recordStreamIndex = (int)index;
         if (onDecodedStream) break;
@@ -132,9 +103,6 @@ int main(int argc, char **argv) {
         printf("\n    {\"index\": %u, \"codec\": ", index);
         const AVCodecDescriptor *descriptor = avcodec_descriptor_get(parameters->codec_id);
         print_json_string(descriptor && descriptor->name ? descriptor->name : "unknown");
-        // codec_type reaches its Dolby Vision branch only for a dvh1 or dvhe sample
-        // entry; add_dovi_configuration_atom reads no tag at all, which is why the
-        // record alone decides whether a descriptor is attached.
         char tag[5] = {0};
         for (int byte = 0; byte < 4; byte++) {
             char value = (char)((parameters->codec_tag >> (byte * 8)) & 0xFF);
@@ -164,7 +132,7 @@ int main(int argc, char **argv) {
     printf("\n  ],\n  \"detected\": {\"profile\": %d, \"crossCompatibilityID\": %d, "
            "\"hasEnhancementLayer\": %s, \"recordStreamIndex\": %d}",
            detectedProfile,
-           detectedCrossCompatibility,
+           detectedCrossCompatibilityID,
            detectedEnhancementLayer ? "true" : "false",
            recordStreamIndex);
     printf(",\n  \"decodedStreamDeclaresDolbyVision\": %s\n}\n",
@@ -173,5 +141,5 @@ int main(int argc, char **argv) {
                : "false");
 
     avformat_close_input(&context);
-    return 0;
+    return PROBE_EXIT_REPORTED;
 }

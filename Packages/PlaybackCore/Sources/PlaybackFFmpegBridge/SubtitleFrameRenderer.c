@@ -23,10 +23,6 @@ typedef struct PBSubtitleTextCue {
     CFStringRef text;
 } PBSubtitleTextCue;
 
-// One decoded display set, kept so a request that lands on it is a lookup
-// rather than a replay of the packets that led to it. `pixels` is NULL for a
-// display set that clears the screen: the entry still covers its interval, so
-// "nothing is showing here" is an answer the cache can give.
 typedef struct PBSubtitleBitmapEntry {
     double startSeconds;
     double endSeconds;
@@ -34,9 +30,6 @@ typedef struct PBSubtitleBitmapEntry {
     PBSubtitleFrameInfo info;
 } PBSubtitleBitmapEntry;
 
-// Identity of a packet already folded into the renderer. A shared demux
-// source re-reads packets after every seek, so ingestion has to be
-// idempotent per packet rather than per pass.
 typedef struct PBSubtitlePacketIdentity {
     int64_t timestamp;
     int size;
@@ -50,9 +43,6 @@ struct PBSubtitleFrameRenderer {
     PBSubtitleTextCue *textCues;
     size_t textCueCount;
     size_t nextPacketIndex;
-    // Decoded display sets in ascending display order, bounded in count and in
-    // bytes. `coveredStartSeconds` is the earliest time the cache can answer
-    // for; everything before it was evicted and has to be decoded again.
     PBSubtitleBitmapEntry *bitmapEntries;
     size_t bitmapEntryCount;
     size_t bitmapEntryBytes;
@@ -65,9 +55,6 @@ struct PBSubtitleFrameRenderer {
     uint64_t lastHash;
     uint64_t changeIdentifier;
     uint64_t decodedPacketCount;
-    // What the decoder was last handed and what it answered. Kept so a track
-    // whose packets arrive but never become a picture can say which of the two
-    // is missing.
     int lastPacketSize;
     int lastPacketHasPresentationTime;
     int lastPacketSegmentType;
@@ -79,8 +66,6 @@ struct PBSubtitleFrameRenderer {
     unsigned int lastSubtitleStartDisplayTime;
     unsigned int lastSubtitleEndDisplayTime;
     bool hadFrame;
-    // Incremental ingestion over a shared demux source. NULL for a renderer
-    // that owns its own format context and scanned the file at creation.
     PBFFmpegDemuxSource *demuxSource;
     int streamIndex;
     AVRational streamTimeBase;
@@ -137,12 +122,6 @@ static int64_t stream_start_timestamp(
     const AVFormatContext *format,
     const AVStream *stream
 ) {
-    // Normalising by the stream's start only makes sense inside a container
-    // that also carries the picture the cues are timed against. A subtitle
-    // document opened on its own carries film times already, and the `sup`
-    // demuxer reports the first display set as the stream start, so
-    // subtracting it would move every cue earlier by the length of the film's
-    // silent opening.
     bool accompaniesMedia = false;
     for (unsigned int index = 0; index < format->nb_streams; index++) {
         enum AVMediaType type = format->streams[index]->codecpar->codec_type;
@@ -181,14 +160,8 @@ static void blend_premultiplied_bgra(uint8_t *destination, const uint8_t *source
     destination[3] = (uint8_t)(sourceAlpha + destination[3] * inverseAlpha / 255);
 }
 
-// How many display sets, and how many pixel bytes, the decoded cache keeps.
-// The count decides how far back a request can step without decoding again;
-// the byte ceiling keeps a full-frame bitmap track from growing without bound.
 static const size_t PB_SUBTITLE_BITMAP_ENTRY_LIMIT = 64;
 static const size_t PB_SUBTITLE_BITMAP_BYTE_LIMIT = 8 * 1024 * 1024;
-// Packets one copy call may decode. A request that cannot reach its time
-// within the budget answers from what is already decoded and resumes on the
-// next call, so no single call can hold the caller for the length of a track.
 static const int PB_SUBTITLE_BITMAP_DECODE_BUDGET = 24;
 
 static void clear_bitmap_cache(PBSubtitleFrameRenderer *renderer) {
@@ -202,8 +175,6 @@ static void clear_bitmap_cache(PBSubtitleFrameRenderer *renderer) {
     renderer->coveredStartSeconds = INFINITY;
 }
 
-// Drops the oldest entries until the cache is inside both ceilings. The first
-// surviving entry becomes the earliest time the cache can answer for.
 static void trim_bitmap_cache(PBSubtitleFrameRenderer *renderer) {
     size_t dropped = 0;
     while (renderer->bitmapEntryCount - dropped > 1 &&
@@ -228,8 +199,6 @@ static void trim_bitmap_cache(PBSubtitleFrameRenderer *renderer) {
     renderer->coveredStartSeconds = renderer->bitmapEntries[0].startSeconds;
 }
 
-// Appends one decoded display set. A display set stays on screen until the
-// next one replaces it, so appending also closes the previous entry.
 static bool append_bitmap_entry(
     PBSubtitleFrameRenderer *renderer,
     uint8_t *pixels,
@@ -266,9 +235,6 @@ static bool append_bitmap_entry(
     return true;
 }
 
-// Drops every decoded entry that covers `seconds` or later. Called when a
-// packet arrives that belongs before the decode cursor, so the cache never
-// answers with a display set that a newly arrived packet would have replaced.
 static void invalidate_bitmap_cache_from(
     PBSubtitleFrameRenderer *renderer,
     double seconds
@@ -289,8 +255,6 @@ static void invalidate_bitmap_cache_from(
     }
 }
 
-// The latest time the cache is authoritative for. Beyond it the answer needs
-// a packet the renderer has not decoded yet.
 static double bitmap_cache_covered_end(const PBSubtitleFrameRenderer *renderer) {
     if (renderer->nextPacketIndex < renderer->packetCount) {
         return renderer->packets[renderer->nextPacketIndex].startSeconds;
@@ -317,6 +281,20 @@ static const PBSubtitleBitmapEntry *find_bitmap_entry(
     return found;
 }
 
+static bool append_cleared_display_set(
+    PBSubtitleFrameRenderer *renderer,
+    double startSeconds,
+    double endSeconds
+) {
+    return append_bitmap_entry(
+        renderer,
+        NULL,
+        (PBSubtitleFrameInfo) { .kind = PBSubtitleFrameKindBitmap },
+        startSeconds,
+        endSeconds
+    );
+}
+
 static bool make_bitmap_frame(
     PBSubtitleFrameRenderer *renderer,
     const AVSubtitle *subtitle,
@@ -339,16 +317,7 @@ static bool make_bitmap_frame(
         maxY = rect->y + rect->h > maxY ? rect->y + rect->h : maxY;
     }
     if (minX == INT_MAX || maxX <= minX || maxY <= minY) {
-        // A display set with nothing in it clears the screen. It still earns
-        // an entry so the cache can answer "nothing is showing" without
-        // decoding the packets around it again.
-        return append_bitmap_entry(
-            renderer,
-            NULL,
-            (PBSubtitleFrameInfo) { .kind = PBSubtitleFrameKindBitmap },
-            startSeconds,
-            endSeconds
-        );
+        return append_cleared_display_set(renderer, startSeconds, endSeconds);
     }
 
     int width = maxX - minX;
@@ -412,11 +381,6 @@ static bool append_packet(
     renderer->packets = packets;
     AVPacket *copy = av_packet_clone(packet);
     if (!copy) return false;
-    // Bitmap frames are decoded sequentially by presentation time, so a
-    // packet that arrives after a backward seek is inserted in order and the
-    // sequential decode rewinds to it. Only the display sets from that point
-    // on are dropped: the decode resumes where the new packet belongs rather
-    // than at the head of the track.
     size_t index = renderer->packetCount;
     while (index > 0 && renderer->packets[index - 1].startSeconds > startSeconds) {
         renderer->packets[index] = renderer->packets[index - 1];
@@ -596,10 +560,6 @@ static bool process_text_packet(
     return storedCue;
 }
 
-// Folds one packet of the renderer's stream into the cue and frame state.
-// Packets of other streams and packets seen before are ignored, so the same
-// routine serves the one-pass scan of an owned format context and the
-// repeated pumps of a shared demux source.
 static bool ingest_packet(
     PBSubtitleFrameRenderer *renderer,
     AVPacket *packet
@@ -618,9 +578,6 @@ static bool ingest_packet(
     return remember_ingested_packet(renderer, timestamp, packet->size);
 }
 
-// Drains every packet the shared demux source has queued for the subtitle
-// stream without waiting for more. Returns the number of packets folded in,
-// or -1 with an error message.
 static int ingest_available_packets(
     PBSubtitleFrameRenderer *renderer,
     char *errorBuffer,
@@ -762,9 +719,6 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
         return NULL;
     }
     if (demuxSource) {
-        // The shared source feeds live playback and only advances at the
-        // playhead's pace, so the renderer takes what is queued now and
-        // folds in the rest through PBSubtitleFrameRendererIngestAvailablePackets.
         renderer->demuxSource = demuxSource;
         renderer->ingestPacket = packet;
         if (ingest_available_packets(renderer, errorBuffer, errorBufferSize) < 0) {
@@ -785,8 +739,6 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     }
     av_packet_free(&packet);
     if (result != AVERROR_EOF) {
-        // An interrupted or truncated document is a failure, not a shorter
-        // subtitle track.
         set_av_error(errorBuffer, errorBufferSize, "Read subtitle frame packet", result);
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
@@ -848,8 +800,6 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
         errorBuffer,
         errorBufferSize
     );
-    // The subscription lives as long as the renderer: the source keeps
-    // queueing the stream and the renderer drains it on every ingest.
     if (!renderer) PBFFmpegDemuxSourceUnsubscribe(source, streamIndex);
     return renderer;
 }
@@ -1087,9 +1037,6 @@ static PBSubtitleFrameResult copy_bitmap_frame(
     char *errorBuffer,
     size_t errorBufferSize
 ) {
-    // A time the cache already covers is a lookup. This is the steady state,
-    // and it is also every small step backwards the playhead takes, which is
-    // why neither has to decode anything.
     if (timeSeconds + 0.001 >= renderer->coveredStartSeconds &&
         timeSeconds + 0.001 < bitmap_cache_covered_end(renderer)) {
         const PBSubtitleBitmapEntry *entry = find_bitmap_entry(renderer, timeSeconds);
@@ -1099,7 +1046,6 @@ static PBSubtitleFrameResult copy_bitmap_frame(
         return copy_pixels(renderer, entry->pixels, entry->info, dataOut, infoOut);
     }
 
-    // Index just past the last packet that can be showing at this time.
     size_t low = 0;
     size_t high = renderer->packetCount;
     while (low < high) {
@@ -1110,22 +1056,14 @@ static PBSubtitleFrameResult copy_bitmap_frame(
             high = middle;
         }
     }
-    size_t reached = low;
+    size_t packetsUpToTime = low;
 
-    // Requests far from the decode cursor - a track selected in the middle of
-    // a film, or a seek - restart at the display set that covers the time
-    // instead of replaying everything between. A display set is the run of
-    // packets sharing one presentation time: Matroska carries it as a single
-    // packet, a `sup` document as one packet per segment, and the decoder
-    // needs the whole run to compose an image. A set that only refers back to
-    // an earlier epoch stays blank until the next complete one, which is what
-    // any player joining mid-stream shows.
     bool rewinds = renderer->bitmapEntryCount > 0 &&
         timeSeconds + 0.001 < renderer->coveredStartSeconds;
-    bool skipsAhead = reached >
+    bool skipsAhead = packetsUpToTime >
         renderer->nextPacketIndex + (size_t)PB_SUBTITLE_BITMAP_DECODE_BUDGET;
     if (rewinds || skipsAhead) {
-        size_t restart = reached > 0 ? reached - 1 : 0;
+        size_t restart = packetsUpToTime > 0 ? packetsUpToTime - 1 : 0;
         while (restart > 0 &&
                renderer->packets[restart - 1].startSeconds ==
                    renderer->packets[restart].startSeconds) {
@@ -1136,8 +1074,6 @@ static PBSubtitleFrameResult copy_bitmap_frame(
         clear_bitmap_cache(renderer);
     }
 
-    // The budget bounds one call, and it is spent only at display set
-    // boundaries so a set split across segments is never decoded in halves.
     int budget = PB_SUBTITLE_BITMAP_DECODE_BUDGET;
     while (renderer->nextPacketIndex < renderer->packetCount &&
            renderer->packets[renderer->nextPacketIndex].startSeconds <= timeSeconds + 0.001) {
@@ -1175,14 +1111,6 @@ static PBSubtitleFrameResult copy_bitmap_frame(
             return PBSubtitleFrameResultError;
         }
         if (!produced) continue;
-        // A bitmap subtitle is laid out against the resolution it was
-        // authored for, which these formats carry in the stream and FFmpeg
-        // reports on the decoder once it has read a display set. Blu-ray
-        // subtitles are authored at 1920x1080 whatever the picture's own
-        // resolution, so a 4K remux draws them at half size and halfway up
-        // the screen unless the canvas follows the subtitle rather than the
-        // video. Container metadata carries no dimensions for these streams,
-        // so this is the first point the real canvas is known.
         if (renderer->decoder->width > 0 && renderer->decoder->height > 0 &&
             (renderer->decoder->width != renderer->sourceWidth ||
              renderer->decoder->height != renderer->sourceHeight)) {

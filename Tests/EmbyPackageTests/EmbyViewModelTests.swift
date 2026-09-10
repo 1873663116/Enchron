@@ -219,10 +219,6 @@ struct EmbyViewModelTests {
         #expect(detail.children == .none)
     }
 
-    /// The application installs a cleartext approval handler that denies when
-    /// no prompt is on screen, and these tests run inside that host. A policy of
-    /// their own keeps them measuring authentication rather than the app's
-    /// answer to a question nobody is there to answer.
     func isolatedCleartextPolicy() -> CleartextExposurePolicy {
         let suiteName = "EmbyViewModelTests.cleartext.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName) ?? .standard

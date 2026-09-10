@@ -156,13 +156,6 @@ private final class InteractiveDeviceUIChannel {
             ? nil
             : matchedElementObservation(for: command)
         let result = execute(command)
-        // A snapshot only reads, so the reading it publishes as matchedElement is
-        // already the state the command found. Every other action changes what it
-        // addressed, and the element it addressed is the one that has to exist for
-        // the action to be admissible, so matchedElement stays the pre-action
-        // reading -- a tap that dismisses its own target still has to say what it
-        // tapped. What the action did to that element is a second reading, taken
-        // here after execute, and nil when the element left the hierarchy.
         let observationAfterAction = matchedElementObservation(for: command)
         let observation = command.action == .snapshot
             ? observationAfterAction
@@ -418,9 +411,6 @@ private final class InteractiveDeviceUIChannel {
         }
         var alsoInspected: [InteractiveDeviceUIInspectedElement] = []
         var observations: [InteractiveDeviceUIInspectedElement] = []
-        // The route each step resolved, read while the element is still on
-        // screen. A tapped element is gone by the time the response is
-        // published, so this is the only place its label can be recorded.
         var routeElements: [InteractiveDeviceUIElementObservation] = []
 
         func record(afterStep: String) {
@@ -495,11 +485,6 @@ private final class InteractiveDeviceUIChannel {
             element.tap()
             record(afterStep: identifier)
         }
-        // A nested menu route addresses its leaf row by label, and that row
-        // only exists once the identifier steps above have opened the submenu.
-        // `label` is tapped before the identifiers, so a route that ends on a
-        // label needs this step instead of a second command: the menu does not
-        // survive two controller round trips.
         if let trailingLabel = command.trailingLabel,
            trailingLabel.isEmpty == false {
             let matches = app.descendants(matching: .any).matching(

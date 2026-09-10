@@ -117,7 +117,7 @@ private func observeDemuxPrefetch(
         targetDurationSeconds: PBFFmpegDemuxSourceGetBufferTargetDurationSeconds(openedSource),
         forwardBufferedBytes: PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource),
         forwardLimitBytes: PBFFmpegDemuxSourceGetForwardBufferByteLimit(openedSource),
-        backwardBufferedBytes: PBFFmpegDemuxSourceGetBackwardBufferedByteCount(openedSource),
+        backwardBufferedBytes: PBFFmpegDemuxSourceGetRetainedByteCount(openedSource),
         backwardLimitBytes: PBFFmpegDemuxSourceGetBackwardBufferByteLimit(openedSource),
         readFrameCount: readFrameCount,
         readFrameCountAfterSettling: PBFFmpegDemuxSourceGetReadFrameCount(openedSource)
@@ -169,26 +169,21 @@ struct DemuxNetworkResilienceTests {
         #expect(observation.bufferedDurationSeconds >= 1)
         #expect(observation.targetDurationSeconds == 1)
         #expect(observation.forwardBufferedBytes < observation.forwardLimitBytes)
-        // Packets read for a stream nothing has claimed yet are retained, so
-        // a track chosen part way through a film finds its recent past. They
-        // are held apart from the read-ahead budget and inside their own.
-        #expect(observation.backwardBufferedBytes > 0)
-        #expect(observation.backwardBufferedBytes <= observation.backwardLimitBytes)
+        #expect(
+            observation.backwardBufferedBytes > 0,
+            "nothing was retained for the unclaimed streams, so a track chosen part way through the film finds no recent past"
+        )
+        #expect(
+            observation.backwardBufferedBytes <= observation.backwardLimitBytes,
+            "the retained packets grew past the budget they are held in, apart from read-ahead"
+        )
         #expect(observation.backwardLimitBytes == 50 * 1_024 * 1_024)
         #expect(observation.readFrameCountAfterSettling == observation.readFrameCount)
     }
 
     @Test func aStreamNothingReadsCannotStopTheReadThread() throws {
-        // The fixture's bitmap subtitle track is never claimed, and its
-        // packets outweigh the read-ahead budget set here. Retained packets
-        // have no consumer, so counting them as read-ahead would leave the
-        // budget permanently full and park the reader for the rest of the
-        // film - which is what a Blu-ray subtitle track used to do. A
-        // regression shows up as this drain never reaching the end: the read
-        // thread parks on a budget nothing can free, and the reader waits on
-        // packets it will never be handed.
         let fixture = try bitmapSubtitleResilienceFixtureURL()
-        let forwardLimit: Int64 = 2 * 1_024
+        let forwardLimitSmallerThanOneSubtitlePacket: Int64 = 2 * 1_024
         var error = [CChar](repeating: 0, count: 512)
         let source = fixture.path.withCString {
             PBFFmpegDemuxSourceCreate(
@@ -196,7 +191,7 @@ struct DemuxNetworkResilienceTests {
                 false,
                 PBFFmpegDemuxBufferConfigurationMake(
                     PBFFmpegDemuxBufferModeBytes,
-                    forwardLimit
+                    forwardLimitSmallerThanOneSubtitlePacket
                 ),
                 nil,
                 &error,
@@ -239,25 +234,16 @@ struct DemuxNetworkResilienceTests {
         }
 
         #expect(reachedEnd, "the reader stopped after \(samples) samples")
-        #expect(PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) <= forwardLimit)
+        #expect(PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) <= forwardLimitSmallerThanOneSubtitlePacket)
         #expect(
-            PBFFmpegDemuxSourceGetBackwardBufferedByteCount(openedSource)
+            PBFFmpegDemuxSourceGetRetainedByteCount(openedSource)
                 <= PBFFmpegDemuxSourceGetBackwardBufferByteLimit(openedSource)
         )
     }
 
     @Test func aSubscribedSubtitleNobodyDrainsCannotStopTheReadThread() throws {
-        // A subtitle track that has been chosen has a subscriber, and its
-        // renderer folds queued packets in only when it publishes a frame. A
-        // renderer that stops folding - slow, cancelled, or unable to decode
-        // what it was handed - therefore leaves its packets queued. Counting
-        // those as read-ahead would fill the forward budget and park the read
-        // thread, so the video would starve on a subtitle track; auxiliary
-        // read-ahead is held in its own pool and evicted instead. The budget
-        // here is smaller than one subtitle packet, so a regression shows up
-        // as this drain running to its deadline without reaching the end.
         let fixture = try bitmapSubtitleResilienceFixtureURL()
-        let forwardLimit: Int64 = 2 * 1_024
+        let forwardLimitSmallerThanOneSubtitlePacket: Int64 = 2 * 1_024
         var error = [CChar](repeating: 0, count: 512)
         let source = fixture.path.withCString {
             PBFFmpegDemuxSourceCreate(
@@ -265,7 +251,7 @@ struct DemuxNetworkResilienceTests {
                 false,
                 PBFFmpegDemuxBufferConfigurationMake(
                     PBFFmpegDemuxBufferModeBytes,
-                    forwardLimit
+                    forwardLimitSmallerThanOneSubtitlePacket
                 ),
                 nil,
                 &error,
@@ -274,12 +260,11 @@ struct DemuxNetworkResilienceTests {
         }
         let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
         defer { PBFFmpegDemuxSourceDestroy(openedSource) }
-        // Stream 1 of this fixture is its PGS track. Creating the renderer
-        // subscribes to it; nothing here ever ingests what arrives after.
+        let bitmapSubtitleStreamIndex: Int32 = 1
         let subtitles = try #require(
             PBSubtitleFrameRendererCreateWithDemuxSource(
                 openedSource,
-                1,
+                bitmapSubtitleStreamIndex,
                 &error,
                 error.count
             ),
@@ -320,10 +305,11 @@ struct DemuxNetworkResilienceTests {
         }
 
         #expect(reachedEnd, "the reader stopped after \(samples) samples")
-        #expect(PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) <= forwardLimit)
-        // The subtitle packets were held, and they were held somewhere that
-        // cannot park the reader.
-        #expect(PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(openedSource) > forwardLimit)
+        #expect(PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) <= forwardLimitSmallerThanOneSubtitlePacket)
+        #expect(
+            PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(openedSource) > forwardLimitSmallerThanOneSubtitlePacket,
+            "the undrained subtitle packets are not in the auxiliary pool, so they were counted somewhere that can park the reader"
+        )
     }
 
     @Test func automaticStopsTheReadThreadAtItsForwardByteLimit() throws {
@@ -534,11 +520,9 @@ struct DemuxNetworkResilienceTests {
             "the reconnected context's interrupt callback points away from the source's read context"
         )
 
-        // Pause the body so the reconnected context's read thread sits in a
-        // transport wait, then tear the source down: the interrupt has to
-        // reach that wait through the callback FFmpeg copied at reconnect.
+        let secondsForTheReadThreadToReachATransportWait = 0.3
         server.pauseResponses()
-        Thread.sleep(forTimeInterval: 0.3)
+        Thread.sleep(forTimeInterval: secondsForTheReadThreadToReachATransportWait)
         PBFFmpegReaderDestroy(reader)
         let destroyed = DispatchSemaphore(value: 0)
         nonisolated(unsafe) let sourceToDestroy = openedSource

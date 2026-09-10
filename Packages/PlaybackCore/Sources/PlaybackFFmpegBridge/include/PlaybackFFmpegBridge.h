@@ -45,13 +45,7 @@ typedef struct PBFFmpegMediaStreamInfo {
     int width;
     int height;
     double nominalFrameRate;
-    /// Frames the encoder may hold before output order catches up, from the
-    /// stream's own reorder delay. A decode queue shallower than this starves.
     int reorderDepth;
-    /// Bytes one decoded pixel occupies on the platform's output surface.
-    /// Chroma subsampling is counted in samples per pixel; components deeper
-    /// than eight bits land in sixteen-bit words, so ten-bit 4:2:0 costs three
-    /// bytes where eight-bit costs one and a half.
     double decodedBytesPerPixel;
     int sampleRate;
     int channelCount;
@@ -92,15 +86,8 @@ typedef struct PBFFmpegDemuxBufferConfiguration {
     double targetDurationSeconds;
 } PBFFmpegDemuxBufferConfiguration;
 
-// The configure line the vendored FFmpeg was built with. The build decides
-// which container features exist at all - a Matroska track whose frames are
-// zlib compressed is readable only in a build that has zlib - so the line is
-// part of what this package promises, not a detail of how it was made.
 const char *PBFFmpegBuildConfiguration(void);
 
-// Whether the vendored build actually contains a component this engine reads
-// media through. The configure line says what was asked for; these answer
-// what is in the binary, which is what a source at runtime meets.
 bool PBFFmpegHasDemuxer(const char *name);
 bool PBFFmpegHasDecoder(const char *name);
 bool PBFFmpegHasInputProtocol(const char *name);
@@ -115,17 +102,8 @@ void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor);
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     const PBFFmpegSourceReadMonitor *monitor
 );
-// Aborts the current and every later read of every format context opened
-// with this monitor, within one interrupt poll of the transport. Permanent:
-// a session interrupts its monitor once, at close.
 void PBFFmpegSourceReadMonitorInterrupt(PBFFmpegSourceReadMonitor *monitor);
 
-// One read's cancellation, independent of the session's monitor: it aborts
-// only the contexts opened with this handle, so a caller can drop a single
-// subtitle read while the session keeps playing. The flag is sticky, Cancel is
-// idempotent, and a context opened after Cancel fails at open. The handle has
-// to outlive every context opened with it: FFmpeg copies the interrupt
-// callback's opaque into each URLContext it opens.
 PBFFmpegReadCancellation *PBFFmpegReadCancellationCreate(void);
 void PBFFmpegReadCancellationCancel(PBFFmpegReadCancellation *cancellation);
 void PBFFmpegReadCancellationDestroy(PBFFmpegReadCancellation *cancellation);
@@ -139,10 +117,6 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     size_t errorBufferSize
 );
 void PBFFmpegDemuxSourceInterrupt(PBFFmpegDemuxSource *source);
-// True when the live format context's interrupt callback points at the read
-// context the source owns. A reconnect that opened its replacement with a
-// read context on the stack leaves this false, and every later interrupt
-// poll on that context reads a dead frame.
 bool PBFFmpegDemuxSourceInterruptTargetsOwnReadContext(
     const PBFFmpegDemuxSource *source
 );
@@ -170,20 +144,14 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
 int64_t PBFFmpegDemuxSourceGetForwardBufferByteLimit(
     PBFFmpegDemuxSource *source
 );
-// Read-ahead held by subscribed streams playing the video does not need -
-// subtitles and anything else that rides along. It is counted apart from the
-// forward budget because it is never allowed to park the read thread: over
-// its own limit the oldest packets are evicted instead.
 int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
     PBFFmpegDemuxSource *source
 );
-// Packets of one stream given up because its reader left them behind. Any
-// value above zero means that stream's consumer has seen a gap.
 uint64_t PBFFmpegDemuxSourceGetDroppedPacketCount(
     PBFFmpegDemuxSource *source,
     int streamIndex
 );
-int64_t PBFFmpegDemuxSourceGetBackwardBufferedByteCount(
+int64_t PBFFmpegDemuxSourceGetRetainedByteCount(
     PBFFmpegDemuxSource *source
 );
 int64_t PBFFmpegDemuxSourceGetBackwardBufferByteLimit(
@@ -311,9 +279,7 @@ bool PBFFmpegReaderOpenWithDemuxSource(
 );
 void PBFFmpegReaderCancel(PBFFmpegReader *reader);
 
-/// Test seam for exercising streams whose container metadata omits codec configuration.
-/// Call after allocation and before `PBFFmpegReaderOpen`.
-void PBFFmpegReaderForceBitstreamExtradataBootstrap(PBFFmpegReader *reader);
+void PBFFmpegReaderForceBitstreamExtradataBootstrapOnNextOpen(PBFFmpegReader *reader);
 bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader);
 
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader);
@@ -322,12 +288,6 @@ PBFFmpegMediaSourceInformation *PBFFmpegReaderCopyMediaSourceInformation(
     const PBFFmpegReader *reader
 );
 
-/// Creates or copies every compressed video format description owned by the bridge.
-/// Pass only `reader` to create or copy its compressed format. Otherwise, pass
-/// `sourceFormat` with either `bridgeFormat` or `replacementExtensions`. A bridge
-/// format fills missing decoder-configuration atoms without replacing source atoms;
-/// replacement extensions form the complete extension dictionary.
-/// The caller owns the returned format description and must release it.
 OSStatus PBFFmpegVideoFormatDescriptionCreate(
     PBFFmpegReader *reader,
     CMVideoFormatDescriptionRef sourceFormat,
@@ -439,10 +399,6 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
     size_t errorBufferSize
 );
 
-// Reads a subtitle document (a sidecar whose bytes are subtitle content) to
-// its end through the bridge's monitored door, so an interrupted monitor or a
-// cancelled read aborts it and the constructor fails instead of returning a
-// half-populated renderer.
 PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     const char *path,
     int streamIndex,
@@ -457,10 +413,6 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
     char *errorBuffer,
     size_t errorBufferSize
 );
-// Folds in every packet the shared demux source has queued for the
-// renderer's stream since creation or the previous call, without waiting.
-// Returns the number of packets ingested, or -1 with an error message.
-// A renderer created from a path scanned its file at creation and returns 0.
 int PBSubtitleFrameRendererIngestAvailablePackets(
     PBSubtitleFrameRenderer *renderer,
     char *errorBuffer,
@@ -471,16 +423,10 @@ int PBSubtitleFrameRendererGetTextCueCount(
     const PBSubtitleFrameRenderer *renderer
 );
 
-// Packets this renderer has put through the subtitle decoder. A bitmap track
-// keeps the display sets it decoded, so the count follows the track's packets
-// rather than the number of frame requests.
 uint64_t PBSubtitleFrameRendererGetDecodedPacketCount(
     const PBSubtitleFrameRenderer *renderer
 );
 
-// What a bitmap renderer holds, for telling apart the ways it can come up
-// empty: no packet ever reached it, packets reached it but decoded to nothing,
-// or display sets exist and none covers the time being asked for.
 typedef struct PBSubtitleFrameRendererState {
     uint64_t ingestedPacketCount;
     uint64_t heldPacketCount;
@@ -491,8 +437,6 @@ typedef struct PBSubtitleFrameRendererState {
     double lastPacketSeconds;
     double coveredStartSeconds;
     double coveredEndSeconds;
-    // The last packet handed to the subtitle decoder and what came back, for
-    // the case where packets arrive and no display set ever comes out.
     int lastPacketSize;
     int lastPacketHasPresentationTime;
     int lastPacketSegmentType;

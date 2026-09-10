@@ -8,6 +8,11 @@ notifications, and each new arm replaces the pending one. The combination that
 kills it is a timer firing on a turn that then ends without arming another;
 after that nothing wakes the session at all.
 
+The loop's state is the last ScheduleWakeup in the transcript, not the presence
+of one. Reading presence made `stop:true` a no-op from the following turn
+onward, so a loop that had been ended on purpose was asked for a new interval
+every time the session tried to stop.
+
 Three further shapes cost more than the dead loop did, and all three are the
 same shape: the turn ended while a wait was open and unread.
 
@@ -44,7 +49,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
-import coordinator_state as ledger  # noqa: E402
+import coordinator_state as ledger
 
 TOOL = "python3 .claude/tools/orca_channel.py"
 WAKEUP = "ScheduleWakeup"
@@ -131,10 +136,6 @@ def verdict(records: list[dict], project: Path) -> str | None:
         )
 
     wakeups = [arguments for _, name, arguments in tool_uses(records, 0) if name == WAKEUP]
-    # A loop is a two-state thing and the last transition names the state. Asking
-    # whether the transcript holds any wakeup at all made stop:true a no-op from
-    # the next turn onward, so a loop that was ended on purpose kept demanding a
-    # new interval every time the session tried to stop.
     in_loop = bool(wakeups) and not wakeups[-1].get("stop")
     if in_loop and not arms:
         return (
