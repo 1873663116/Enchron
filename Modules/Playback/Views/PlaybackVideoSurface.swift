@@ -590,7 +590,10 @@ public struct PlaybackVideoSurface: View {
                 "windowVideoOpacity target=\(videoEntityOpacity)"
                     + " current=\(currentOpacity.map { String($0) } ?? "none")"
                     + " animated=\(animatesOpacity)"
-                    + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+                    + " inserted=\(needsInsertion)"
+                    + " inScene=\(videoEntity.scene != nil)"
+                    + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+                retention: .evidence
             )
         }
         PlaybackRealityPresenter.setOpacity(
@@ -598,6 +601,15 @@ public struct PlaybackVideoSurface: View {
             to: Float(videoEntityOpacity),
             animated: animatesOpacity
         )
+        if currentOpacity != Float(videoEntityOpacity) {
+            appModel.recordSurfaceInputProbe(
+                "windowVideoOpacityWrite target=\(videoEntityOpacity)"
+                    + " after="
+                    + "\(videoEntity.components[OpacityComponent.self]?.opacity.description ?? "none")"
+                    + " animated=\(animatesOpacity)",
+                retention: .evidence
+            )
+        }
         surfaceAccessibilityActivation.observe(
             in: content,
             accepts: { PlaybackWindowInteractionSurface.contains($0) },

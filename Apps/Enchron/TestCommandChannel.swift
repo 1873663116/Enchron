@@ -1141,6 +1141,25 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [String(playbackSession.environmentCardDismissalRequestRevision)]
             )
+        case "enterSpatial":
+            guard let target = playbackSession.playbackPresentation.enterImmersiveTarget else {
+                throw CommandError(message: "enterSpatial requires window playback.")
+            }
+            let entry = try playbackSession.requestPlaybackPresentation(
+                target,
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+            SurfaceInputProbes.record(
+                "testcmd enterSpatial delivered target=\(target) transition=\(entry.id)",
+                retention: .evidence
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [String(describing: target), entry.id.uuidString]
+            )
         case "exitSpatial":
             guard let target = playbackSession.playbackPresentation.exitImmersiveTarget else {
                 throw CommandError(message: "exitSpatial requires immersive playback.")
