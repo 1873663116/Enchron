@@ -46,6 +46,65 @@ def without_debug_blocks(source: str) -> str:
 
 VIOLATIONS: list[str] = []
 
+RENDERER_ACQUISITION = "PlaybackVideoSurfaceReconciler.acquire("
+HOST_ACTIVITY_ARGUMENT = "hostIsActive:"
+BOOLEAN_LITERALS = ("true", "false")
+
+
+def argument_list(source: str, opening: int) -> str:
+    depth = 0
+    for index in range(opening, len(source)):
+        character = source[index]
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            depth -= 1
+            if depth == 0:
+                return source[opening + 1:index]
+    raise AssertionError("unterminated argument list at offset " + str(opening))
+
+
+def host_activity_arguments(source: str) -> list[str]:
+    arguments: list[str] = []
+    position = source.find(RENDERER_ACQUISITION)
+    while position >= 0:
+        opening = position + len(RENDERER_ACQUISITION) - 1
+        for argument in argument_list(source, opening).split(","):
+            name, separator, value = argument.partition(":")
+            if separator and name.strip() + ":" == HOST_ACTIVITY_ARGUMENT:
+                arguments.append(value.strip())
+        position = source.find(RENDERER_ACQUISITION, position + 1)
+    return arguments
+
+
+def check_every_host_reports_whether_it_still_hosts() -> None:
+    """A host that hardcodes hostIsActive keeps passing the renderer's ownership
+    check after its RealityView is gone, and the dying window's queued update
+    claims the entity out from under the space that is opening. The two hosts
+    that exist today are not the subject: any future third one is, so the rule
+    reads every call site rather than the two it knows."""
+    sites = 0
+    for path in sorted((REPOSITORY_ROOT / "Modules").rglob("*.swift")):
+        source = path.read_text(encoding="utf-8")
+        if RENDERER_ACQUISITION not in source:
+            continue
+        for value in host_activity_arguments(source):
+            sites += 1
+            require(
+                value not in BOOLEAN_LITERALS,
+                str(path.relative_to(REPOSITORY_ROOT))
+                + " claims the renderer with hostIsActive: "
+                + value
+                + "; a host has to report whether its RealityView still hosts it",
+            )
+    require(
+        sites >= 2,
+        "no playback surface host passes hostIsActive to the renderer "
+        "acquisition; the check reads every call site and found none",
+    )
+
+
+
 
 def read_baseline(path: Path) -> Counter[str]:
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -212,12 +271,7 @@ def main() -> int:
     )
 
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
-    require(
-        "hostIsActive: realityViewHostMarker.isActive" in surface
-        and "hostIsActive: realityViewHostMarker.isActive" in immersive,
-        "a playback surface host claims the renderer without reporting whether "
-        "its RealityView still hosts it",
-    )
+    check_every_host_reports_whether_it_still_hosts()
     window_interaction_surface = region(
         reality_presenter,
         "enum PlaybackWindowInteractionSurface",

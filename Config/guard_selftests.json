@@ -276,7 +276,7 @@
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "a playback surface host claims the renderer without reporting whether its RealityView still hosts it"
+          "PlaybackVideoSurface.swift claims the renderer with hostIsActive: true"
         ]
       }
     },
@@ -933,6 +933,70 @@
         "exitCode": 1,
         "outputContains": [
           "selects an episode without a later evidence.capture-frames call"
+        ]
+      }
+    },
+    {
+      "id": "browser-window-visibility-rejects-a-tab-that-keeps-the-tab-bar",
+      "guard": "Scripts/rules/verify_browser_window_visibility.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/MainView.swift",
+        "find": "                SettingsScreen()\n                    .enchronScreenAppearance()\n                    .browserTabBarVisibility(browserVisibility)\n",
+        "replaceWith": "                SettingsScreen()\n                    .enchronScreenAppearance()\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "tab bar left behind"
+        ]
+      }
+    },
+    {
+      "id": "browser-window-visibility-rejects-a-hidden-browser-that-stays-in-the-accessibility-tree",
+      "guard": "Scripts/rules/verify_browser_window_visibility.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/BrowserWindowVisibility.swift",
+        "find": "            .accessibilityHidden(visibility.hidesBrowser)\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "a surface the wearer can still reach"
+        ]
+      }
+    },
+    {
+      "id": "browser-window-visibility-rejects-a-surface-that-reads-the-policy-itself",
+      "guard": "Scripts/rules/verify_browser_window_visibility.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/EnchronApp.swift",
+        "find": "        .browserWindowContentVisibility(browserVisibility)",
+        "replaceWith": "        .opacity(SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(window: window, playbackResidency: spatialPlatformEffectCoordinator.playbackResidency) ? 0 : 1)"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "reads the browser visibility policy directly"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-an-immersive-host-that-always-calls-itself-inactive",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
+        "find": "            hostIsActive: realityViewHostMarker.isActive,",
+        "replaceWith": "            hostIsActive: false,"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "ImmersiveSpaceView.swift claims the renderer with hostIsActive: false"
         ]
       }
     }
