@@ -1598,6 +1598,112 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
     return fixture
 }
 
+@Test func presentationGraphicRendererDrawsTheDisplaySetThatCoversTheTime() async throws {
+    let fixture = try presentationGraphicFixtureURL(displaySetCount: 8)
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    #expect(track.codecName == "hdmv_pgs_subtitle")
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+
+    func frame(at seconds: Double) throws -> PlaybackSubtitleFrame? {
+        try renderer.frame(
+            at: CMTime(seconds: seconds, preferredTimescale: 600),
+            viewportWidth: 1_920,
+            viewportHeight: 1_080
+        )
+    }
+
+    // Before the first display set, and in the gap a clearing display set
+    // leaves behind, nothing is on screen.
+    #expect(try frame(at: 1.0) == nil)
+    #expect(try frame(at: 3.9) == nil)
+
+    let second = try #require(try frame(at: 4.5))
+    #expect(second.kind == .bitmap)
+    #expect(second.canvasWidth == GeneratedPresentationGraphicStream.videoWidth)
+    #expect(second.canvasHeight == GeneratedPresentationGraphicStream.videoHeight)
+    #expect(second.contentX == GeneratedPresentationGraphicStream.windowX)
+    #expect(second.contentY == GeneratedPresentationGraphicStream.windowY)
+    #expect(second.contentWidth == GeneratedPresentationGraphicStream.objectWidth)
+    #expect(second.contentHeight == GeneratedPresentationGraphicStream.objectHeight)
+    #expect(
+        opaquePixelCount(in: second)
+            == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 1)
+    )
+
+    // The display set the time lands on is the one drawn, whichever order the
+    // times are asked for.
+    let first = try #require(try frame(at: 2.5))
+    #expect(
+        opaquePixelCount(in: first)
+            == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 0)
+    )
+    let third = try #require(try frame(at: 6.5))
+    #expect(
+        opaquePixelCount(in: third)
+            == GeneratedPresentationGraphicStream.inkPixels(ofDisplaySet: 2)
+    )
+}
+
+@Test func aBitmapSubtitleRequestDecodesTheDisplaySetItNeedsAndNotTheTrack() async throws {
+    // Five packets carry one display set in a `sup` document: the composition,
+    // the window, the palette, the object and the end marker.
+    let packetsPerDisplaySet = 5
+    let displaySets = 1_200
+    let fixture = try presentationGraphicFixtureURL(displaySetCount: displaySets)
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let renderer = try #require(
+        try await provider.frameRenderer(in: fixture, asset: nil, track: track)
+            as? FFmpegSubtitleFrameRenderer
+    )
+
+    func frame(at seconds: Double) throws -> PlaybackSubtitleFrame? {
+        try renderer.frame(
+            at: CMTime(seconds: seconds, preferredTimescale: 600),
+            viewportWidth: 1_920,
+            viewportHeight: 1_080
+        )
+    }
+
+    // Selecting a bitmap track in the middle of a film draws the display set
+    // that covers the playhead without replaying the ones before it.
+    let late = GeneratedPresentationGraphicStream.startSeconds(ofDisplaySet: displaySets - 40)
+    #expect(try frame(at: late + 0.5) != nil)
+    let afterFirstRequest = renderer.decodedPacketCount
+    #expect(
+        afterFirstRequest <= UInt64(packetsPerDisplaySet * 2),
+        "a first request decoded \(afterFirstRequest) packets of a \(displaySets) display set track"
+    )
+
+    // Walking forward decodes each display set it passes, once.
+    var time = late + 0.5
+    let walkSeconds = 4.0
+    for _ in 0..<40 {
+        time += walkSeconds / 40
+        _ = try frame(at: time)
+    }
+    let passed = Int(walkSeconds / GeneratedPresentationGraphicStream.repeatSeconds) + 1
+    let afterWalk = renderer.decodedPacketCount
+    #expect(afterWalk - afterFirstRequest <= UInt64(passed * packetsPerDisplaySet * 2))
+
+    // Stepping back inside what the renderer kept is a lookup. The playhead
+    // does this whenever the timeline retreats by a hair, and replaying the
+    // track there is what made closing a session wait on subtitle decoding.
+    for step in 1...20 {
+        _ = try frame(at: time - Double(step) * 0.05)
+        _ = try frame(at: time)
+    }
+    #expect(
+        renderer.decodedPacketCount == afterWalk,
+        "stepping back decoded \(renderer.decodedPacketCount - afterWalk) packets again"
+    )
+}
+
 @Test func aBitmapSubtitleDocumentKeepsTheTimesItWasAuthoredWith() async throws {
     // The `sup` demuxer reports the first display set as the stream start.
     // A subtitle document has no picture beside it to be offset from, so its
@@ -1624,3 +1730,7 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
     ) != nil)
 }
 
+private func opaquePixelCount(in frame: PlaybackSubtitleFrame) -> Int {
+    stride(from: 3, to: frame.premultipliedBGRA.count, by: 4)
+        .count { frame.premultipliedBGRA[$0] > 0 }
+}

@@ -23,6 +23,17 @@ typedef struct PBSubtitleTextCue {
     CFStringRef text;
 } PBSubtitleTextCue;
 
+// One decoded display set, kept so a request that lands on it is a lookup
+// rather than a replay of the packets that led to it. `pixels` is NULL for a
+// display set that clears the screen: the entry still covers its interval, so
+// "nothing is showing here" is an answer the cache can give.
+typedef struct PBSubtitleBitmapEntry {
+    double startSeconds;
+    double endSeconds;
+    uint8_t *pixels;
+    PBSubtitleFrameInfo info;
+} PBSubtitleBitmapEntry;
+
 // Identity of a packet already folded into the renderer. A shared demux
 // source re-reads packets after every seek, so ingestion has to be
 // idempotent per packet rather than per pass.
@@ -39,11 +50,13 @@ struct PBSubtitleFrameRenderer {
     PBSubtitleTextCue *textCues;
     size_t textCueCount;
     size_t nextPacketIndex;
-    double lastRequestSeconds;
-    double bitmapStartSeconds;
-    double bitmapEndSeconds;
-    uint8_t *bitmapPixels;
-    PBSubtitleFrameInfo bitmapInfo;
+    // Decoded display sets in ascending display order, bounded in count and in
+    // bytes. `coveredStartSeconds` is the earliest time the cache can answer
+    // for; everything before it was evicted and has to be decoded again.
+    PBSubtitleBitmapEntry *bitmapEntries;
+    size_t bitmapEntryCount;
+    size_t bitmapEntryBytes;
+    double coveredStartSeconds;
     int sourceWidth;
     int sourceHeight;
     ASS_Library *assLibrary;
@@ -51,6 +64,7 @@ struct PBSubtitleFrameRenderer {
     ASS_Track *assTrack;
     uint64_t lastHash;
     uint64_t changeIdentifier;
+    uint64_t decodedPacketCount;
     bool hadFrame;
     // Incremental ingestion over a shared demux source. NULL for a renderer
     // that owns its own format context and scanned the file at creation.
@@ -154,12 +168,140 @@ static void blend_premultiplied_bgra(uint8_t *destination, const uint8_t *source
     destination[3] = (uint8_t)(sourceAlpha + destination[3] * inverseAlpha / 255);
 }
 
-static void clear_bitmap_frame(PBSubtitleFrameRenderer *renderer) {
-    free(renderer->bitmapPixels);
-    renderer->bitmapPixels = NULL;
-    memset(&renderer->bitmapInfo, 0, sizeof(renderer->bitmapInfo));
-    renderer->bitmapStartSeconds = INFINITY;
-    renderer->bitmapEndSeconds = -INFINITY;
+// How many display sets, and how many pixel bytes, the decoded cache keeps.
+// The count decides how far back a request can step without decoding again;
+// the byte ceiling keeps a full-frame bitmap track from growing without bound.
+static const size_t PB_SUBTITLE_BITMAP_ENTRY_LIMIT = 64;
+static const size_t PB_SUBTITLE_BITMAP_BYTE_LIMIT = 8 * 1024 * 1024;
+// Packets one copy call may decode. A request that cannot reach its time
+// within the budget answers from what is already decoded and resumes on the
+// next call, so no single call can hold the caller for the length of a track.
+static const int PB_SUBTITLE_BITMAP_DECODE_BUDGET = 24;
+
+static void clear_bitmap_cache(PBSubtitleFrameRenderer *renderer) {
+    for (size_t index = 0; index < renderer->bitmapEntryCount; index++) {
+        free(renderer->bitmapEntries[index].pixels);
+    }
+    free(renderer->bitmapEntries);
+    renderer->bitmapEntries = NULL;
+    renderer->bitmapEntryCount = 0;
+    renderer->bitmapEntryBytes = 0;
+    renderer->coveredStartSeconds = INFINITY;
+}
+
+// Drops the oldest entries until the cache is inside both ceilings. The first
+// surviving entry becomes the earliest time the cache can answer for.
+static void trim_bitmap_cache(PBSubtitleFrameRenderer *renderer) {
+    size_t dropped = 0;
+    while (renderer->bitmapEntryCount - dropped > 1 &&
+           (renderer->bitmapEntryCount - dropped > PB_SUBTITLE_BITMAP_ENTRY_LIMIT ||
+            renderer->bitmapEntryBytes > PB_SUBTITLE_BITMAP_BYTE_LIMIT)) {
+        PBSubtitleBitmapEntry *entry = &renderer->bitmapEntries[dropped];
+        if (entry->pixels) {
+            renderer->bitmapEntryBytes -= (size_t)entry->info.bytesPerRow *
+                (size_t)entry->info.contentHeight;
+            free(entry->pixels);
+            entry->pixels = NULL;
+        }
+        dropped++;
+    }
+    if (dropped == 0) return;
+    memmove(
+        renderer->bitmapEntries,
+        renderer->bitmapEntries + dropped,
+        (renderer->bitmapEntryCount - dropped) * sizeof(PBSubtitleBitmapEntry)
+    );
+    renderer->bitmapEntryCount -= dropped;
+    renderer->coveredStartSeconds = renderer->bitmapEntries[0].startSeconds;
+}
+
+// Appends one decoded display set. A display set stays on screen until the
+// next one replaces it, so appending also closes the previous entry.
+static bool append_bitmap_entry(
+    PBSubtitleFrameRenderer *renderer,
+    uint8_t *pixels,
+    PBSubtitleFrameInfo info,
+    double startSeconds,
+    double endSeconds
+) {
+    PBSubtitleBitmapEntry *entries = realloc(
+        renderer->bitmapEntries,
+        (renderer->bitmapEntryCount + 1) * sizeof(PBSubtitleBitmapEntry)
+    );
+    if (!entries) {
+        free(pixels);
+        return false;
+    }
+    renderer->bitmapEntries = entries;
+    if (renderer->bitmapEntryCount > 0) {
+        PBSubtitleBitmapEntry *previous =
+            &renderer->bitmapEntries[renderer->bitmapEntryCount - 1];
+        if (previous->endSeconds > startSeconds) previous->endSeconds = startSeconds;
+    } else {
+        renderer->coveredStartSeconds = startSeconds;
+    }
+    renderer->bitmapEntries[renderer->bitmapEntryCount++] = (PBSubtitleBitmapEntry) {
+        .startSeconds = startSeconds,
+        .endSeconds = endSeconds,
+        .pixels = pixels,
+        .info = info,
+    };
+    if (pixels) {
+        renderer->bitmapEntryBytes += (size_t)info.bytesPerRow * (size_t)info.contentHeight;
+    }
+    trim_bitmap_cache(renderer);
+    return true;
+}
+
+// Drops every decoded entry that covers `seconds` or later. Called when a
+// packet arrives that belongs before the decode cursor, so the cache never
+// answers with a display set that a newly arrived packet would have replaced.
+static void invalidate_bitmap_cache_from(
+    PBSubtitleFrameRenderer *renderer,
+    double seconds
+) {
+    while (renderer->bitmapEntryCount > 0) {
+        PBSubtitleBitmapEntry *entry =
+            &renderer->bitmapEntries[renderer->bitmapEntryCount - 1];
+        if (entry->endSeconds <= seconds) break;
+        if (entry->pixels) {
+            renderer->bitmapEntryBytes -= (size_t)entry->info.bytesPerRow *
+                (size_t)entry->info.contentHeight;
+            free(entry->pixels);
+        }
+        renderer->bitmapEntryCount--;
+    }
+    if (renderer->bitmapEntryCount == 0) {
+        renderer->coveredStartSeconds = INFINITY;
+    }
+}
+
+// The latest time the cache is authoritative for. Beyond it the answer needs
+// a packet the renderer has not decoded yet.
+static double bitmap_cache_covered_end(const PBSubtitleFrameRenderer *renderer) {
+    if (renderer->nextPacketIndex < renderer->packetCount) {
+        return renderer->packets[renderer->nextPacketIndex].startSeconds;
+    }
+    return INFINITY;
+}
+
+static const PBSubtitleBitmapEntry *find_bitmap_entry(
+    const PBSubtitleFrameRenderer *renderer,
+    double seconds
+) {
+    size_t low = 0;
+    size_t high = renderer->bitmapEntryCount;
+    const PBSubtitleBitmapEntry *found = NULL;
+    while (low < high) {
+        size_t middle = low + (high - low) / 2;
+        if (renderer->bitmapEntries[middle].startSeconds <= seconds + 0.001) {
+            found = &renderer->bitmapEntries[middle];
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    return found;
 }
 
 static bool make_bitmap_frame(
@@ -184,8 +326,16 @@ static bool make_bitmap_frame(
         maxY = rect->y + rect->h > maxY ? rect->y + rect->h : maxY;
     }
     if (minX == INT_MAX || maxX <= minX || maxY <= minY) {
-        clear_bitmap_frame(renderer);
-        return true;
+        // A display set with nothing in it clears the screen. It still earns
+        // an entry so the cache can answer "nothing is showing" without
+        // decoding the packets around it again.
+        return append_bitmap_entry(
+            renderer,
+            NULL,
+            (PBSubtitleFrameInfo) { .kind = PBSubtitleFrameKindBitmap },
+            startSeconds,
+            endSeconds
+        );
     }
 
     int width = maxX - minX;
@@ -223,11 +373,7 @@ static bool make_bitmap_frame(
         }
     }
 
-    clear_bitmap_frame(renderer);
-    renderer->bitmapPixels = pixels;
-    renderer->bitmapStartSeconds = startSeconds;
-    renderer->bitmapEndSeconds = endSeconds;
-    renderer->bitmapInfo = (PBSubtitleFrameInfo) {
+    PBSubtitleFrameInfo info = {
         .kind = PBSubtitleFrameKindBitmap,
         .canvasWidth = renderer->sourceWidth > 0 ? renderer->sourceWidth : maxX,
         .canvasHeight = renderer->sourceHeight > 0 ? renderer->sourceHeight : maxY,
@@ -237,7 +383,7 @@ static bool make_bitmap_frame(
         .contentHeight = height,
         .bytesPerRow = width * 4,
     };
-    return true;
+    return append_bitmap_entry(renderer, pixels, info, startSeconds, endSeconds);
 }
 
 static bool append_packet(
@@ -254,8 +400,10 @@ static bool append_packet(
     AVPacket *copy = av_packet_clone(packet);
     if (!copy) return false;
     // Bitmap frames are decoded sequentially by presentation time, so a
-    // packet that arrives after a backward seek is inserted in order and
-    // the sequential decode restarts when it lands before the cursor.
+    // packet that arrives after a backward seek is inserted in order and the
+    // sequential decode rewinds to it. Only the display sets from that point
+    // on are dropped: the decode resumes where the new packet belongs rather
+    // than at the head of the track.
     size_t index = renderer->packetCount;
     while (index > 0 && renderer->packets[index - 1].startSeconds > startSeconds) {
         renderer->packets[index] = renderer->packets[index - 1];
@@ -268,8 +416,8 @@ static bool append_packet(
     renderer->packetCount++;
     if (index < renderer->nextPacketIndex) {
         avcodec_flush_buffers(renderer->decoder);
-        renderer->nextPacketIndex = 0;
-        clear_bitmap_frame(renderer);
+        renderer->nextPacketIndex = index;
+        invalidate_bitmap_cache_from(renderer, startSeconds);
     }
     return true;
 }
@@ -525,9 +673,7 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
     renderer->codecID = codecID;
     renderer->streamIndex = streamIndex;
     renderer->streamTimeBase = stream->time_base;
-    renderer->lastRequestSeconds = -INFINITY;
-    renderer->bitmapStartSeconds = INFINITY;
-    renderer->bitmapEndSeconds = -INFINITY;
+    renderer->coveredStartSeconds = INFINITY;
     renderer->decoder = avcodec_alloc_context3(codec);
     if (!renderer->decoder) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle decoder");
@@ -714,7 +860,7 @@ void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer) {
     }
     av_packet_free(&renderer->ingestPacket);
     free(renderer->ingestedPackets);
-    clear_bitmap_frame(renderer);
+    clear_bitmap_cache(renderer);
     for (size_t index = 0; index < renderer->packetCount; index++) {
         av_packet_free(&renderer->packets[index].packet);
     }
@@ -728,6 +874,12 @@ void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer) {
     if (renderer->assRenderer) ass_renderer_done(renderer->assRenderer);
     if (renderer->assLibrary) ass_library_done(renderer->assLibrary);
     free(renderer);
+}
+
+uint64_t PBSubtitleFrameRendererGetDecodedPacketCount(
+    const PBSubtitleFrameRenderer *renderer
+) {
+    return renderer ? renderer->decodedPacketCount : 0;
 }
 
 int PBSubtitleFrameRendererGetTextCueCount(
@@ -889,16 +1041,67 @@ static PBSubtitleFrameResult copy_bitmap_frame(
     char *errorBuffer,
     size_t errorBufferSize
 ) {
-    if (timeSeconds + 0.001 < renderer->lastRequestSeconds) {
-        avcodec_flush_buffers(renderer->decoder);
-        renderer->nextPacketIndex = 0;
-        clear_bitmap_frame(renderer);
+    // A time the cache already covers is a lookup. This is the steady state,
+    // and it is also every small step backwards the playhead takes, which is
+    // why neither has to decode anything.
+    if (timeSeconds + 0.001 >= renderer->coveredStartSeconds &&
+        timeSeconds + 0.001 < bitmap_cache_covered_end(renderer)) {
+        const PBSubtitleBitmapEntry *entry = find_bitmap_entry(renderer, timeSeconds);
+        if (!entry || !entry->pixels || timeSeconds >= entry->endSeconds - 0.001) {
+            return copy_empty_frame(renderer, infoOut);
+        }
+        return copy_pixels(renderer, entry->pixels, entry->info, dataOut, infoOut);
     }
-    renderer->lastRequestSeconds = timeSeconds;
 
+    // Index just past the last packet that can be showing at this time.
+    size_t low = 0;
+    size_t high = renderer->packetCount;
+    while (low < high) {
+        size_t middle = low + (high - low) / 2;
+        if (renderer->packets[middle].startSeconds <= timeSeconds + 0.001) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    size_t reached = low;
+
+    // Requests far from the decode cursor - a track selected in the middle of
+    // a film, or a seek - restart at the display set that covers the time
+    // instead of replaying everything between. A display set is the run of
+    // packets sharing one presentation time: Matroska carries it as a single
+    // packet, a `sup` document as one packet per segment, and the decoder
+    // needs the whole run to compose an image. A set that only refers back to
+    // an earlier epoch stays blank until the next complete one, which is what
+    // any player joining mid-stream shows.
+    bool rewinds = renderer->bitmapEntryCount > 0 &&
+        timeSeconds + 0.001 < renderer->coveredStartSeconds;
+    bool skipsAhead = reached >
+        renderer->nextPacketIndex + (size_t)PB_SUBTITLE_BITMAP_DECODE_BUDGET;
+    if (rewinds || skipsAhead) {
+        size_t restart = reached > 0 ? reached - 1 : 0;
+        while (restart > 0 &&
+               renderer->packets[restart - 1].startSeconds ==
+                   renderer->packets[restart].startSeconds) {
+            restart--;
+        }
+        renderer->nextPacketIndex = restart;
+        avcodec_flush_buffers(renderer->decoder);
+        clear_bitmap_cache(renderer);
+    }
+
+    // The budget bounds one call, and it is spent only at display set
+    // boundaries so a set split across segments is never decoded in halves.
+    int budget = PB_SUBTITLE_BITMAP_DECODE_BUDGET;
     while (renderer->nextPacketIndex < renderer->packetCount &&
            renderer->packets[renderer->nextPacketIndex].startSeconds <= timeSeconds + 0.001) {
+        bool startsDisplaySet = renderer->nextPacketIndex == 0 ||
+            renderer->packets[renderer->nextPacketIndex].startSeconds !=
+                renderer->packets[renderer->nextPacketIndex - 1].startSeconds;
+        if (budget <= 0 && startsDisplaySet) break;
+        budget--;
         PBSubtitlePacket *item = &renderer->packets[renderer->nextPacketIndex++];
+        renderer->decodedPacketCount++;
         AVSubtitle subtitle = {0};
         int produced = 0;
         int result = avcodec_decode_subtitle2(
@@ -928,18 +1131,11 @@ static PBSubtitleFrameResult copy_bitmap_frame(
         }
     }
 
-    if (!renderer->bitmapPixels ||
-        timeSeconds + 0.001 < renderer->bitmapStartSeconds ||
-        timeSeconds >= renderer->bitmapEndSeconds - 0.001) {
+    const PBSubtitleBitmapEntry *entry = find_bitmap_entry(renderer, timeSeconds);
+    if (!entry || !entry->pixels || timeSeconds >= entry->endSeconds - 0.001) {
         return copy_empty_frame(renderer, infoOut);
     }
-    return copy_pixels(
-        renderer,
-        renderer->bitmapPixels,
-        renderer->bitmapInfo,
-        dataOut,
-        infoOut
-    );
+    return copy_pixels(renderer, entry->pixels, entry->info, dataOut, infoOut);
 }
 
 PBSubtitleFrameResult PBSubtitleFrameRendererCopyFrame(

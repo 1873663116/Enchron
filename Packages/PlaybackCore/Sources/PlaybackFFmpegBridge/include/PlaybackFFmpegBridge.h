@@ -444,6 +444,13 @@ int PBSubtitleFrameRendererIngestAvailablePackets(
 int PBSubtitleFrameRendererGetTextCueCount(
     const PBSubtitleFrameRenderer *renderer
 );
+
+// Packets this renderer has put through the subtitle decoder. A bitmap track
+// keeps the display sets it decoded, so the count follows the track's packets
+// rather than the number of frame requests.
+uint64_t PBSubtitleFrameRendererGetDecodedPacketCount(
+    const PBSubtitleFrameRenderer *renderer
+);
 bool PBSubtitleFrameRendererCopyTextCue(
     const PBSubtitleFrameRenderer *renderer,
     int index,

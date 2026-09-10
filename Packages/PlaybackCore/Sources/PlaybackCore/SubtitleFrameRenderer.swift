@@ -155,6 +155,12 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         }
     }
 
+    // Packets this renderer has put through the subtitle decoder, for tests and
+    // diagnostics that need to tell a lookup apart from a decode.
+    var decodedPacketCount: UInt64 {
+        lock.withLock { PBSubtitleFrameRendererGetDecodedPacketCount(renderer) }
+    }
+
     func textCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
         try lock.withLock {
             let count = Int(PBSubtitleFrameRendererGetTextCueCount(renderer))
