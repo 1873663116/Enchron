@@ -478,8 +478,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Apps/Enchron/PlayerView.swift",
-        "find": "        return presentationState != .videoVisible\n",
-        "replaceWith": "        return true\n"
+        "find": "        case .videoVisible:\n            return false\n",
+        "replaceWith": "        case .videoVisible:\n            return true\n"
       },
       "expected": {
         "exitCode": 1,
@@ -997,6 +997,22 @@
         "exitCode": 1,
         "outputContains": [
           "ImmersiveSpaceView.swift claims the renderer with hostIsActive: false"
+        ]
+      }
+    },
+    {
+      "id": "playback-surface-structure-rejects-glass-filling-the-gap-between-two-surfaces",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/PlayerView.swift",
+        "find": "        case .hidden, .placeholder:\n            return hasActiveSession == false\n",
+        "replaceWith": "        case .hidden, .placeholder:\n            return true\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "fills the gap between"
         ]
       }
     }

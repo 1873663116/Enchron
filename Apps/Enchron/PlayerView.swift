@@ -64,10 +64,18 @@ enum PlayerWindowSystemOverlayPolicy {
 enum PlayerWindowGlassPolicy {
     static func showsGlass(
         presentationState: PlaybackRuntime.PresentationState,
-        isRevealingPlayerWindow: Bool
+        isRevealingPlayerWindow: Bool,
+        hasActiveSession: Bool
     ) -> Bool {
         guard isRevealingPlayerWindow == false else { return false }
-        return presentationState != .videoVisible
+        switch presentationState {
+        case .videoVisible:
+            return false
+        case .audioVisible:
+            return true
+        case .hidden, .placeholder:
+            return hasActiveSession == false
+        }
     }
 }
 
@@ -97,7 +105,8 @@ public struct PlayerView: View {
     private var showsWindowGlass: Bool {
         PlayerWindowGlassPolicy.showsGlass(
             presentationState: playbackRuntime.presentationState,
-            isRevealingPlayerWindow: isRevealingPlayerWindow
+            isRevealingPlayerWindow: isRevealingPlayerWindow,
+            hasActiveSession: playbackRuntime.activeSessionID != nil
         )
     }
 

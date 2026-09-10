@@ -695,7 +695,9 @@ def main() -> int:
             player_view,
             "enum PlayerWindowGlassPolicy {",
             "guard isRevealingPlayerWindow == false else { return false }",
-            "return presentationState != .videoVisible",
+            "        case .videoVisible:\n            return false",
+            "        case .hidden, .placeholder:\n"
+            "            return hasActiveSession == false",
             "        .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)\n"
             "        .persistentSystemOverlays(\n"
             "            PlayerWindowSystemOverlayPolicy.visibility(\n"
@@ -703,7 +705,7 @@ def main() -> int:
             "            )\n"
             "        )",
         ),
-        "the player window draws glass behind visible video or shows the system "
+        "the player window draws glass behind visible video, fills the gap between "
         "overlays while the playback controls are hidden, the browser drops its "
         "glass, the view splits by scene role again, or the glass sits on a "
         "background color whose platform view swallows the hit test of every "
