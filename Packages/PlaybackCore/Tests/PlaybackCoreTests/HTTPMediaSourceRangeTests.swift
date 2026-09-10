@@ -246,6 +246,86 @@ struct DemuxNetworkResilienceTests {
         )
     }
 
+    @Test func aSubscribedSubtitleNobodyDrainsCannotStopTheReadThread() throws {
+        // A subtitle track that has been chosen has a subscriber, and its
+        // renderer folds queued packets in only when it publishes a frame. A
+        // renderer that stops folding - slow, cancelled, or unable to decode
+        // what it was handed - therefore leaves its packets queued. Counting
+        // those as read-ahead would fill the forward budget and park the read
+        // thread, so the video would starve on a subtitle track; auxiliary
+        // read-ahead is held in its own pool and evicted instead. The budget
+        // here is smaller than one subtitle packet, so a regression shows up
+        // as this drain running to its deadline without reaching the end.
+        let fixture = try bitmapSubtitleResilienceFixtureURL()
+        let forwardLimit: Int64 = 2 * 1_024
+        var error = [CChar](repeating: 0, count: 512)
+        let source = fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(
+                    PBFFmpegDemuxBufferModeBytes,
+                    forwardLimit
+                ),
+                nil,
+                &error,
+                error.count
+            )
+        }
+        let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
+        defer { PBFFmpegDemuxSourceDestroy(openedSource) }
+        // Stream 1 of this fixture is its PGS track. Creating the renderer
+        // subscribes to it; nothing here ever ingests what arrives after.
+        let subtitles = try #require(
+            PBSubtitleFrameRendererCreateWithDemuxSource(
+                openedSource,
+                1,
+                &error,
+                error.count
+            ),
+            Comment(rawValue: reportedError(error))
+        )
+        defer { PBSubtitleFrameRendererDestroy(subtitles) }
+        let reader = try #require(PBFFmpegReaderAllocate())
+        defer { PBFFmpegReaderDestroy(reader) }
+        try #require(PBFFmpegReaderOpenWithDemuxSource(
+            reader,
+            openedSource,
+            PBFFmpegModeCompressed,
+            &error,
+            error.count
+        ), Comment(rawValue: reportedError(error)))
+
+        var samples = 0
+        var reachedEnd = false
+        let deadline = ContinuousClock.now + .seconds(10)
+        while ContinuousClock.now < deadline {
+            var sample: Unmanaged<CMSampleBuffer>?
+            let result = PBFFmpegReaderCopyNextSample(
+                reader,
+                &sample,
+                &error,
+                error.count
+            )
+            if result == PBFFmpegReadResultEnd {
+                reachedEnd = true
+                break
+            }
+            try #require(
+                result == PBFFmpegReadResultSample,
+                Comment(rawValue: reportedError(error))
+            )
+            sample?.release()
+            samples += 1
+        }
+
+        #expect(reachedEnd, "the reader stopped after \(samples) samples")
+        #expect(PBFFmpegDemuxSourceGetForwardBufferedByteCount(openedSource) <= forwardLimit)
+        // The subtitle packets were held, and they were held somewhere that
+        // cannot park the reader.
+        #expect(PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(openedSource) > forwardLimit)
+    }
+
     @Test func automaticStopsTheReadThreadAtItsForwardByteLimit() throws {
         let server = try RecordingRangeServer(
             serving: try Data(contentsOf: resilienceFixture)

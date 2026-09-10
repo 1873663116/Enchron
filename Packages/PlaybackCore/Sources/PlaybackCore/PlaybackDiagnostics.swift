@@ -182,6 +182,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
             + "targetSeconds=\(buffer.targetDurationSeconds), "
             + "forwardBytes=\(buffer.forwardBufferedBytes), "
             + "forwardLimitBytes=\(buffer.forwardLimitBytes), "
+            + "auxiliaryBytes=\(buffer.auxiliaryBufferedBytes), "
             + "backwardBytes=\(buffer.backwardBufferedBytes), "
             + "backwardLimitBytes=\(buffer.backwardLimitBytes), "
             + "reconnects=\(buffer.reconnectAttemptCount), "

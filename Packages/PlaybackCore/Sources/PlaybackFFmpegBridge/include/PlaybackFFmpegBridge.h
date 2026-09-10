@@ -163,6 +163,19 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
 int64_t PBFFmpegDemuxSourceGetForwardBufferByteLimit(
     PBFFmpegDemuxSource *source
 );
+// Read-ahead held by subscribed streams playing the video does not need -
+// subtitles and anything else that rides along. It is counted apart from the
+// forward budget because it is never allowed to park the read thread: over
+// its own limit the oldest packets are evicted instead.
+int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
+    PBFFmpegDemuxSource *source
+);
+// Packets of one stream given up because its reader left them behind. Any
+// value above zero means that stream's consumer has seen a gap.
+uint64_t PBFFmpegDemuxSourceGetDroppedPacketCount(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+);
 int64_t PBFFmpegDemuxSourceGetBackwardBufferedByteCount(
     PBFFmpegDemuxSource *source
 );

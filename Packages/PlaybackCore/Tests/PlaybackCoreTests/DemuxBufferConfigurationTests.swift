@@ -38,6 +38,7 @@ import Testing
         targetDurationSeconds: 3_600_000,
         forwardBufferedBytes: 123_456,
         forwardLimitBytes: 157_286_400,
+        auxiliaryBufferedBytes: 4_096,
         backwardBufferedBytes: 0,
         backwardLimitBytes: 52_428_800,
         reconnectAttemptCount: 2,
@@ -50,6 +51,7 @@ import Testing
     #expect(text.contains("targetSeconds=3600000.0"))
     #expect(text.contains("forwardBytes=123456"))
     #expect(text.contains("forwardLimitBytes=157286400"))
+    #expect(text.contains("auxiliaryBytes=4096"))
     #expect(text.contains("backwardBytes=0"))
     #expect(text.contains("backwardLimitBytes=52428800"))
     #expect(text.contains("reconnects=2"))

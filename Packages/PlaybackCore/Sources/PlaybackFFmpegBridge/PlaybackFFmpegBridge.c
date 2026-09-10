@@ -70,6 +70,11 @@ typedef struct {
     int64_t summedDurationMicroseconds;
     int64_t bufferedDurationMicroseconds;
     int64_t bufferedByteCount;
+    // Whether playing the video needs this stream. Video and audio do; a
+    // subtitle, data or attachment stream rides along with them and is never
+    // allowed to decide how fast they are read.
+    bool isAuxiliary;
+    uint64_t droppedPacketCount;
 } PBFFmpegPacketQueue;
 
 struct PBFFmpegDemuxSource {
@@ -104,7 +109,13 @@ struct PBFFmpegDemuxSource {
     int64_t *replayThroughTimestamps;
     bool *replayCaughtUp;
     PBFFmpegDemuxBufferConfiguration bufferConfiguration;
+    // Read-ahead of the streams playing the video needs. This is the only
+    // pool that may park the read thread.
     int64_t forwardBufferedByteCount;
+    // Read-ahead of subscribed auxiliary streams. Held apart so that a
+    // subtitle track whose reader has stopped draining is evicted rather than
+    // allowed to fill the forward budget and starve the video.
+    int64_t auxiliaryBufferedByteCount;
     PBFFmpegPacketNode *freePacketNodes;
     PBFFmpegPacketNodePoolChunk *packetNodePoolChunks;
     unsigned int reconnectAttemptCount;
@@ -417,17 +428,21 @@ static void return_packet_node(
     source->freePacketNodes = node;
 }
 
-// A queue with a reader is read-ahead: its bytes are what the source has run
-// in front of playback, and they leave as the reader consumes them. A queue
-// with no reader is retained history, which nothing will ever drain. Only the
-// first kind may hold the read thread back, so the two are counted apart.
+// Three pools, because only one of them may hold the read thread back.
+// An essential queue with a reader is read-ahead: its bytes are what the
+// source has run in front of playback and they leave as the reader consumes
+// them, so pausing on them is flow control that resolves itself. An auxiliary
+// queue with a reader drains only as fast as that reader feels like, and a
+// queue with no reader never drains at all; neither may starve the video, so
+// both answer a full buffer by being evicted.
 static int64_t *packet_queue_byte_pool(
     PBFFmpegDemuxSource *source,
     const PBFFmpegPacketQueue *queue
 ) {
-    return queue->subscribers > 0
-        ? &source->forwardBufferedByteCount
-        : &source->retainedByteCount;
+    if (queue->subscribers == 0) return &source->retainedByteCount;
+    return queue->isAuxiliary
+        ? &source->auxiliaryBufferedByteCount
+        : &source->forwardBufferedByteCount;
 }
 
 static void release_packet_queue_bytes(
@@ -480,10 +495,23 @@ static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
     );
 }
 
-// Retained history is left out of this decision on purpose. Read-ahead
-// shrinks as its reader consumes it, so pausing on it is flow control that
-// resolves itself; history has no consumer, so counting it here would let a
-// stream nobody reads fill the budget and park the read thread for good.
+// What one subscribed auxiliary stream may hold in front of its reader. A
+// display set of Blu-ray subtitles is tens of kilobytes, so this is hundreds
+// of cues of slack before anything is given up.
+static const int64_t PB_DEMUX_AUXILIARY_BYTE_LIMIT = 16LL * 1024 * 1024;
+
+// Asking for data and withholding it are not symmetric here.
+//
+// Only essential read-ahead may withhold: retained history never drains, and
+// auxiliary read-ahead drains whenever its reader feels like it, so letting
+// either reach the forward budget would park the read thread while the video
+// starves - which is what a chosen subtitle track nobody was draining used
+// to do.
+//
+// An auxiliary stream may still ask, or a consumer reading subtitles while no
+// essential stream is subscribed would never be handed a packet. It asks only
+// up to its own byte budget, so a reader that has stopped draining goes quiet
+// instead of pulling the whole file past itself.
 static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     if (source->forwardBufferedByteCount >=
         source->bufferConfiguration.forwardByteLimit) return false;
@@ -492,9 +520,13 @@ static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     );
     for (unsigned int index = 0; index < source->queueCount; index++) {
         const PBFFmpegPacketQueue *queue = &source->queues[index];
-        if (queue->subscribers > 0 &&
-            queue->bufferedDurationMicroseconds <
-                targetDurationMicroseconds) return true;
+        if (queue->subscribers == 0) continue;
+        if (queue->bufferedDurationMicroseconds >=
+            targetDurationMicroseconds) continue;
+        if (queue->isAuxiliary &&
+            source->auxiliaryBufferedByteCount >=
+                PB_DEMUX_AUXILIARY_BYTE_LIMIT) continue;
+        return true;
     }
     return false;
 }
@@ -528,6 +560,32 @@ static void trim_retained_packet_queue(
         }
         release_packet_queue_bytes(source, queue, node->byteCount);
         return_packet_node(source, node);
+    }
+    update_packet_queue_buffered_duration(queue);
+}
+
+// Evicts the oldest packets of an auxiliary queue that has run past its
+// budget. Its reader drains when it feels like it - folding queued subtitle
+// packets in happens on each publish - so a reader that has stopped draining
+// loses the packets it left behind instead of stopping the read thread. The
+// loss is counted, because cues quietly going missing is a defect the reader
+// has to be able to report.
+static void trim_auxiliary_packet_queue(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue
+) {
+    if (!queue || queue->subscribers == 0 || !queue->isAuxiliary) return;
+    while (queue->head && queue->head != queue->tail &&
+           source->auxiliaryBufferedByteCount > PB_DEMUX_AUXILIARY_BYTE_LIMIT) {
+        PBFFmpegPacketNode *node = queue->head;
+        queue->head = node->next;
+        queue->summedDurationMicroseconds -= node->durationMicroseconds;
+        if (queue->summedDurationMicroseconds < 0) {
+            queue->summedDurationMicroseconds = 0;
+        }
+        release_packet_queue_bytes(source, queue, node->byteCount);
+        return_packet_node(source, node);
+        queue->droppedPacketCount++;
     }
     update_packet_queue_buffered_duration(queue);
 }
@@ -792,6 +850,7 @@ static void *demux_source_read_loop(void *opaque) {
                     *packet_queue_byte_pool(source, queue) += node->byteCount;
                     update_packet_queue_buffered_duration(queue);
                     trim_retained_packet_queue(source, queue);
+                    trim_auxiliary_packet_queue(source, queue);
                     source->lastQueuedTimestamps[streamIndex] = timestamp;
                 }
             }
@@ -847,11 +906,12 @@ static bool subscribe_to_demux_stream(
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
     bool subscribed = queue->subscribers == 0;
     if (subscribed) {
-        // What was retained becomes read-ahead the new reader will drain.
+        // What was retained becomes read-ahead the new reader will drain, in
+        // whichever pool this stream's level answers to.
         source->retainedByteCount -= queue->bufferedByteCount;
         if (source->retainedByteCount < 0) source->retainedByteCount = 0;
         queue->subscribers = 1;
-        source->forwardBufferedByteCount += queue->bufferedByteCount;
+        *packet_queue_byte_pool(source, queue) += queue->bufferedByteCount;
     }
     pthread_mutex_unlock(&source->lock);
     return subscribed;
@@ -3989,6 +4049,10 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         source->lastQueuedTimestamps[index] = AV_NOPTS_VALUE;
         source->replayThroughTimestamps[index] = AV_NOPTS_VALUE;
         source->replayCaughtUp[index] = true;
+        enum AVMediaType type =
+            source->formatContext->streams[index]->codecpar->codec_type;
+        source->queues[index].isAuxiliary = type != AVMEDIA_TYPE_VIDEO &&
+            type != AVMEDIA_TYPE_AUDIO;
     }
     if (source->formatContext->pb) {
         int64_t length = avio_size(source->formatContext->pb);
@@ -4137,6 +4201,28 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
     if (!source) return 0;
     pthread_mutex_lock(&source->lock);
     int64_t count = source->forwardBufferedByteCount;
+    pthread_mutex_unlock(&source->lock);
+    return count;
+}
+
+int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    int64_t count = source->auxiliaryBufferedByteCount;
+    pthread_mutex_unlock(&source->lock);
+    return count;
+}
+
+uint64_t PBFFmpegDemuxSourceGetDroppedPacketCount(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return 0;
+    pthread_mutex_lock(&source->lock);
+    uint64_t count = source->queues[streamIndex].droppedPacketCount;
     pthread_mutex_unlock(&source->lock);
     return count;
 }

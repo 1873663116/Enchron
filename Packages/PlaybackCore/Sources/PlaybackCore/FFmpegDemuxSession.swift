@@ -126,6 +126,8 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             targetDurationSeconds: PBFFmpegDemuxSourceGetBufferTargetDurationSeconds(source),
             forwardBufferedBytes: PBFFmpegDemuxSourceGetForwardBufferedByteCount(source),
             forwardLimitBytes: PBFFmpegDemuxSourceGetForwardBufferByteLimit(source),
+            auxiliaryBufferedBytes:
+                PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(source),
             backwardBufferedBytes: PBFFmpegDemuxSourceGetBackwardBufferedByteCount(source),
             backwardLimitBytes: PBFFmpegDemuxSourceGetBackwardBufferByteLimit(source),
             reconnectAttemptCount: PBFFmpegDemuxSourceGetReconnectAttemptCount(source),
