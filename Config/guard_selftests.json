@@ -265,6 +265,22 @@
       }
     },
     {
+      "id": "playback-surface-structure-rejects-a-window-host-that-always-calls-itself-active",
+      "guard": "Scripts/rules/verify_playback_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/Views/PlaybackVideoSurface.swift",
+        "find": "            hostIsActive: realityViewHostMarker.isActive,",
+        "replaceWith": "            hostIsActive: true,"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "a playback surface host claims the renderer without reporting whether its RealityView still hosts it"
+        ]
+      }
+    },
+    {
       "id": "playback-surface-structure-rejects-a-non-singleton-media-library-window",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {

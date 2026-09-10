@@ -212,6 +212,12 @@ def main() -> int:
     )
 
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
+    require(
+        "hostIsActive: realityViewHostMarker.isActive" in surface
+        and "hostIsActive: realityViewHostMarker.isActive" in immersive,
+        "a playback surface host claims the renderer without reporting whether "
+        "its RealityView still hosts it",
+    )
     window_interaction_surface = region(
         reality_presenter,
         "enum PlaybackWindowInteractionSurface",

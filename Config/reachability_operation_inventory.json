@@ -2914,7 +2914,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 257,
+          "line": 262,
           "path": "Modules/Playback/Views/PlaybackVideoSurface.swift"
         }
       ],
@@ -3278,7 +3278,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 422,
+          "line": 440,
           "path": "Modules/Playback/Views/WindowPlaybackRootView.swift"
         }
       ],
@@ -3533,7 +3533,7 @@
       "scope": "product",
       "sources": [
         {
-          "line": 395,
+          "line": 403,
           "path": "Modules/Playback/Views/WindowPlaybackRootView.swift"
         }
       ],
@@ -6434,11 +6434,11 @@
         "host": "windowPlaybackSurfaceEntityTapTarget",
         "sources": [
           {
-            "line": 422,
+            "line": 440,
             "path": "Modules/Playback/Views/WindowPlaybackRootView.swift"
           },
           {
-            "line": 346,
+            "line": 361,
             "path": "Modules/Playback/Views/PlaybackVideoSurface.swift"
           },
           {
