@@ -1034,6 +1034,10 @@ final class PlaybackModeRequestRetry {
     }
 }
 
+struct PlaybackOpacityDestinationComponent: Component {
+    let opacity: Float
+}
+
 @MainActor
 enum PlaybackRealityPresenter {
     enum VideoComponentWrite: String {
@@ -1110,16 +1114,23 @@ enum PlaybackRealityPresenter {
     ) {
         guard let current = entity.components[OpacityComponent.self] else {
             recordOpacityChange(entity: entity, from: nil, to: opacity, animated: false)
+            entity.components.set(PlaybackOpacityDestinationComponent(opacity: opacity))
             entity.components.set(OpacityComponent(opacity: opacity))
             return
         }
         guard current.opacity != opacity else { return }
+        if animated,
+           entity.components[PlaybackOpacityDestinationComponent.self]?.opacity
+            == opacity {
+            return
+        }
         recordOpacityChange(
             entity: entity,
             from: current.opacity,
             to: opacity,
             animated: animated
         )
+        entity.components.set(PlaybackOpacityDestinationComponent(opacity: opacity))
         guard animated else {
             entity.components.set(OpacityComponent(opacity: opacity))
             return

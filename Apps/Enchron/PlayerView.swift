@@ -223,7 +223,9 @@ public struct PlayerView: View {
                 "windowGlass"
                     + " shows=\(shows)"
                     + " presentationState=\(playbackRuntime.presentationState)"
-                    + " revealing=\(isRevealingPlayerWindow)",
+                    + " revealing=\(isRevealingPlayerWindow)"
+                    + " transition=\(playbackSession.presentationTransition != nil)"
+                    + " session=\(playbackRuntime.activeSessionID != nil)",
                 retention: .evidence
             )
         }
