@@ -452,6 +452,14 @@ public struct PlaybackVideoSurface: View {
         }
         if let rendererConsumerPresentation = playbackRuntime.rendererConsumerPresentation,
            rendererConsumerPresentation.usesImmersiveSpace {
+            SurfaceInputProbes.record(
+                "rendererOwnership.prepareSurface outcome=immersiveConsumerStillOwns"
+                    + " presentation=\(presentation.rawValue)"
+                    + " consumer=\(rendererConsumerPresentation.rawValue)"
+                    + " entity=\(PlaybackRuntime.probeEntity(entityID))"
+                    + " transition="
+                    + "\(appModel.presentationTransition.map(String.init(describing:)) ?? "none")"
+            )
             return false
         }
 

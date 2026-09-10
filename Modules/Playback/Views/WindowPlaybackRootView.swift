@@ -384,15 +384,33 @@ public struct WindowPlaybackRootView<
                     .allowsHitTesting(showsWindowChrome)
                     .accessibilityHidden(!showsWindowChrome)
             }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                surfaceHeight = $0
-                onSurfaceHeightChange?($0)
+            .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                surfaceHeight = size.height
+                onSurfaceHeightChange?(size.height)
+                SurfaceInputProbes.record(
+                    "windowContentGeometry"
+                        + " content=\(Int(size.width))x\(Int(size.height))"
+                        + " window=\(probeWindowSize)"
+                        + " min=\(probeSize(geometryPolicy.minimumSize))"
+                        + " ideal=\(probeSize(geometryPolicy.idealSize))",
+                    retention: .evidence
+                )
             }
             .onChange(of: topChromeOcclusionFraction, initial: true) { _, fraction in
                 onTopChromeOcclusionChange?(fraction)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("WindowPlayback-root")
+    }
+
+    private var probeWindowSize: String {
+        guard let owningWindowScene else { return "none" }
+        return probeSize(owningWindowScene.effectiveGeometry.coordinateSpace.bounds.size)
+    }
+
+    private func probeSize(_ size: CGSize?) -> String {
+        guard let size else { return "none" }
+        return "\(Int(size.width))x\(Int(size.height))"
     }
 
     private var topChromeOcclusionFraction: Float {

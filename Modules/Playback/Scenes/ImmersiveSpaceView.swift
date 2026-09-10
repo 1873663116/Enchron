@@ -2080,6 +2080,16 @@ public struct ImmersiveSpaceView: View {
         headInputProbe.removeFromParent()
         removeDockedHitTestProbes()
 #endif
+        appModel.recordSurfaceInputProbe(
+            "spatialSurfaceRelease presentation=\(presentation?.rawValue ?? "none")"
+                + " consumer="
+                + "\(playbackRuntime.rendererConsumerPresentation?.rawValue ?? "none")"
+                + " attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")"
+                + " entity=\(ObjectIdentifier(videoEntity))"
+                + " hasParent=\(videoEntity.parent != nil)"
+                + " entityActive=\(videoEntity.isActive)",
+            retention: .evidence
+        )
         guard let presentation, presentation.usesImmersiveSpace else { return }
         videoEntity.removeFromParent()
         let preservesPlaybackComponent = playbackRuntime.activeSessionID != nil
@@ -2130,6 +2140,13 @@ public struct ImmersiveSpaceView: View {
         playbackRuntime.detachSurface(
             entityID: entityID(for: sourcePresentation),
             realityViewID: realityViewID(for: sourcePresentation)
+        )
+        appModel.recordSurfaceInputProbe(
+            "spatialSurfaceFadeRelease source=\(sourcePresentation.rawValue)"
+                + " entity=\(ObjectIdentifier(videoEntity))"
+                + " hasParent=\(videoEntity.parent != nil)"
+                + " entityActive=\(videoEntity.isActive)",
+            retention: .evidence
         )
     }
 
