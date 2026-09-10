@@ -528,29 +528,47 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         } else {
             mediaKind = .video
         }
-        if let sourceInformation {
-            availableAudioTracks = try await audioProvider.tracks(
-                in: url,
-                asset: asset,
-                sourceInformation: sourceInformation
-            )
-        } else if mediaSourceInformationLoader != nil {
+        // Listing the tracks playback does not need cannot decide whether the
+        // video opens. Audio already had this exemption one step later, where
+        // its provider is prepared; reading the lists is the same kind of
+        // work, and a source that cannot say what it carries beside the video
+        // is still a source whose video plays. Cancellation is not a failure
+        // of the track list and stays cancellation.
+        var audioTrackFailure: Error?
+        do {
+            if let sourceInformation {
+                availableAudioTracks = try await audioProvider.tracks(
+                    in: url,
+                    asset: asset,
+                    sourceInformation: sourceInformation
+                )
+            } else if mediaSourceInformationLoader != nil {
+                availableAudioTracks = []
+            } else {
+                availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
+            }
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw error }
             availableAudioTracks = []
-        } else {
-            availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
+            audioTrackFailure = error
         }
         debugStore.recordAvailableAudioTracks(availableAudioTracks)
-        let subtitleTracks: [PlaybackSubtitleTrack]
-        if let sourceInformation {
-            subtitleTracks = try await subtitleProvider.tracks(
-                in: url,
-                asset: asset,
-                sourceInformation: sourceInformation
-            )
-        } else if mediaSourceInformationLoader != nil {
+        var subtitleTracks: [PlaybackSubtitleTrack] = []
+        var subtitleTrackFailure: Error?
+        do {
+            if let sourceInformation {
+                subtitleTracks = try await subtitleProvider.tracks(
+                    in: url,
+                    asset: asset,
+                    sourceInformation: sourceInformation
+                )
+            } else if mediaSourceInformationLoader == nil {
+                subtitleTracks = try await subtitleProvider.tracks(in: url, asset: asset)
+            }
+        } catch {
+            if error is CancellationError || Task.isCancelled { throw error }
             subtitleTracks = []
-        } else {
-            subtitleTracks = try await subtitleProvider.tracks(in: url, asset: asset)
+            subtitleTrackFailure = error
         }
         subtitleStateLock.withLock {
             subtitleState.availableTracks = subtitleTracks
@@ -575,6 +593,24 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             outcome: .succeeded,
             details: ["count": String(subtitleTracks.count)]
         )
+        if let subtitleTrackFailure {
+            retireSubtitles(
+                after: subtitleTrackFailure,
+                node: .videoTrackModel,
+                kind: "subtitleProvider.tracksFailed.videoContinues"
+            )
+        }
+        if let audioTrackFailure {
+            // Preparing the provider comes next and retires audio on its own
+            // if it also fails; what is recorded here is that the list itself
+            // could not be read.
+            recordFailureVideoContinues(
+                audioTrackFailure,
+                node: .videoTrackModel,
+                kind: "audioProvider.tracksFailed.videoContinues",
+                recoverability: "audioTrackListUnavailableVideoContinues"
+            )
+        }
         requestedTimelineStart = startTime
         recordTimelineControlState()
         beginOperation(.open, targetTimeSeconds: startTime.seconds)

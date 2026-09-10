@@ -112,6 +112,8 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var rendererInputIsMultiview: Bool?
     public var audioRetired = false
     public var audioRetirementReason: String?
+    public var subtitlesRetired = false
+    public var subtitleRetirementReason: String?
     public var rendererFailedToDecode = false
     public var rendererTotalFrameCount: Int?
     public var rendererDroppedFrameCount: Int?
@@ -170,6 +172,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         renderer: status=\(rendererStatus), error=\(rendererError)
         rendererInputIsMultiview: \(rendererInputIsMultiview.map(String.init) ?? "notObserved")
         audioRetired: \(audioRetired), reason=\(audioRetirementReason ?? "none")
+        subtitlesRetired: \(subtitlesRetired), reason=\(subtitleRetirementReason ?? "none")
         rendererFailedToDecode: \(rendererFailedToDecode)
         rendererPerformance: \(rendererPerformanceSummary)
         demuxBuffer: \(demuxBufferSummary)

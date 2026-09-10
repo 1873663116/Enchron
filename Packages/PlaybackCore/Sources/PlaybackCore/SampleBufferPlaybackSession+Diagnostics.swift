@@ -857,6 +857,48 @@ extension SampleBufferPlaybackSession {
         )
     }
 
+    // A failure that loses one thing and leaves playback running. It is
+    // recorded where the evidence is read but does not become the session's
+    // last error, which belongs to whatever actually stopped playback.
+    func recordFailureVideoContinues(
+        _ error: Error,
+        node: PlaybackNode,
+        kind: String,
+        recoverability: String
+    ) {
+        debugStore.recordFailure(PlaybackFailureRecord(
+            mediaSessionID: traceID,
+            node: node,
+            stage: kind,
+            errorType: String(reflecting: type(of: error)),
+            message: error.localizedDescription,
+            recoverability: recoverability
+        ), recordsLastError: false)
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: node,
+            kind: kind,
+            outcome: .failed,
+            details: [
+                "error": error.localizedDescription,
+                "videoContinues": "true"
+            ]
+        )
+    }
+
+    func recordSubtitleRetirement(
+        _ error: Error,
+        node: PlaybackNode,
+        kind: String
+    ) {
+        recordFailureVideoContinues(
+            error,
+            node: node,
+            kind: kind,
+            recoverability: "subtitlesRetiredVideoContinues"
+        )
+    }
+
     func publishRendererFailure(_ fact: RendererFailureFact) {
         if fact.rendererKind == .audio {
             guard hasAudio else { return }

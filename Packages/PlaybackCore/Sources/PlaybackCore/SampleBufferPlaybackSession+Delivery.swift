@@ -1811,6 +1811,35 @@ extension SampleBufferPlaybackSession {
         onDiagnosticsChange?(diagnostics)
     }
 
+    // The subtitle counterpart of retireAudio: what subtitles cannot do is
+    // never a reason for the video not to play. Reading the track list can
+    // fail, the source can declare a track whose packets turn out to be
+    // undecodable, a renderer can refuse to build - each of those loses the
+    // subtitles and nothing else, and says so where the evidence is read.
+    func retireSubtitles(
+        after error: Error,
+        node: PlaybackNode,
+        kind: String
+    ) {
+        subtitleStateLock.withLock {
+            subtitleState.selectionGeneration &+= 1
+            subtitleState.streamEpoch &+= 1
+            subtitleState.availableTracks = []
+            subtitleState.sourceURLByTrackID = [:]
+            subtitleState.externalSourceIDByTrackID = [:]
+            subtitleState.selectedTrackID = nil
+            subtitleState.cues = []
+            subtitleState.frameRenderer = nil
+            subtitleState.activeFrame = nil
+        }
+        diagnostics.subtitlesRetired = true
+        diagnostics.subtitleRetirementReason = error.localizedDescription
+        recordSubtitleRetirement(error, node: node, kind: kind)
+        recordSubtitleState(at: synchronizer.currentTime())
+        publishSubtitleCues(at: synchronizer.currentTime())
+        onDiagnosticsChange?(diagnostics)
+    }
+
     func resetFirstVideoFrameDeadline() {
         let task = firstVideoFrameLock.withLock {
             let task = firstVideoFrameDeadlineTask

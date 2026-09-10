@@ -184,6 +184,61 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(subtitleProvider.sourceInformationReceived == information)
 }
 
+@Test func aSourceWhoseSubtitleListCannotBeReadStillPlaysItsVideo() async throws {
+    // Listing the subtitles used to be on the path that decides whether the
+    // video opens, so a source that could not say what subtitles it carried
+    // failed the whole open. Audio already had this exemption one step later,
+    // where its provider is prepared. What subtitles cannot do is never a
+    // reason for the video not to play; the loss is recorded instead.
+    let sample = try makeCompressedH264Sample(durationSeconds: 1)
+    let subtitleProvider = TrackListFailingSubtitleProvider()
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-track-list-failure",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        audioProvider: FakeAudioSampleProvider(),
+        subtitleProvider: subtitleProvider,
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/subtitle-track-list-failure.mov"),
+        startsPaused: true
+    )
+
+    #expect(session.availableSubtitleTracks.isEmpty)
+    #expect(session.diagnostics.subtitlesRetired)
+    #expect(session.diagnostics.subtitleRetirementReason != nil)
+    // The video is prepared and delivers, which is the whole point.
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+}
+
+@Test func aSourceWhoseAudioTrackListCannotBeReadStillPlaysItsVideo() async throws {
+    // The same exemption for the audio track list. Preparing the provider
+    // comes next and retires audio on its own when it also fails, so the
+    // session ends up without audio rather than without a video.
+    let sample = try makeCompressedH264Sample(durationSeconds: 1)
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-track-list-failure",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        audioProvider: FakeAudioSampleProvider(
+            trackListError: FakeSampleError.audioRead
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/audio-track-list-failure.mov"),
+        startsPaused: true
+    )
+
+    #expect(session.availableAudioTracks.isEmpty)
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+}
+
 @Test func audioOnlySessionNeverPreparesOrStartsTheVideoProvider() async throws {
     let information = MediaSourceInformation(
         containerFormat: "mp3",
@@ -5044,6 +5099,7 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
     private let repeatsSample: Bool
     private let readError: Error?
     private let failingPrepareOrdinal: Int?
+    private let trackListError: Error?
     private var nextSample: CMSampleBuffer?
     private var prepareOrdinal = 0
 
@@ -5052,17 +5108,20 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         sampleAfterPrepare: CMSampleBuffer? = nil,
         repeatsSample: Bool = false,
         readError: Error? = nil,
-        failingPrepareOrdinal: Int? = nil
+        failingPrepareOrdinal: Int? = nil,
+        trackListError: Error? = nil
     ) {
         self.failingStreamIndex = failingStreamIndex
         self.sampleAfterPrepare = sampleAfterPrepare
         self.repeatsSample = repeatsSample
         self.readError = readError
         self.failingPrepareOrdinal = failingPrepareOrdinal
+        self.trackListError = trackListError
     }
 
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
-        [
+        if let trackListError { throw trackListError }
+        return [
             PlaybackAudioTrack(
                 streamIndex: 1, codecName: "aac", sampleRate: 48_000,
                 channelCount: 2, language: "eng", title: "English"
@@ -5080,6 +5139,7 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         sourceInformation: MediaSourceInformation?
     ) async throws -> [PlaybackAudioTrack] {
         sourceInformationReceived = sourceInformation
+        if let trackListError { throw trackListError }
         if let sourceInformation {
             return sourceInformation.playbackAudioTracks
         }
@@ -5169,6 +5229,27 @@ private final class MediaInformationRecordingSubtitleProvider: SubtitleProvider 
     }
 
     func cancel() {}
+}
+
+private final class TrackListFailingSubtitleProvider: SubtitleProvider {
+    private(set) var cancelCount = 0
+
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?
+    ) async throws -> [PlaybackSubtitleTrack] {
+        throw FakeSampleError.subtitleTrackList
+    }
+
+    func cues(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> [PlaybackSubtitleCue] {
+        throw FakeSampleError.subtitleTrackList
+    }
+
+    func cancel() { cancelCount += 1 }
 }
 
 private final class FakeAudioRendererInputSink: AudioRendererInputSink, @unchecked Sendable {
@@ -5716,6 +5797,7 @@ private enum FakeSampleError: Error {
     case providerRead
     case audioPrepare
     case audioRead
+    case subtitleTrackList
 }
 
 private final class LockedBox<Value>: @unchecked Sendable {
