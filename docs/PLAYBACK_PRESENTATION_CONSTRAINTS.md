@@ -124,6 +124,7 @@
 - **`UnmetCapability` 不是 `PlaybackError`**。后者的每个 case 都是终止性的，于是"画面播了但第二视图缺失"或"音频编码被拒因而静音播放"无处可记，只能以一张没有解释的画面到达佩戴者。决定这类事实显示在哪里的唯一区别是**究竟播了没有**，所以那是这里唯一的轴；再细的分级（比如严重度阶梯）是各表面用不上的分类。这里的每个字段都已由 PlaybackCore 发布，本文件不探测设备：看不见的能力是事实集的缺口，不是可以用启发式推断的东西。
 - **播放边界只接受已注册的字节来源**。远程调用方必须先注册字节来源，任意网络 URL 因此无法绕过 MediaSource 直接进入播放。
 - **来源发现不越过持久化的用户覆盖**。文件自报的事实记录下来，但优先级低于交给这次技术会话的用户覆盖。
+- **两个 RealityView host 都必须如实回答自己是否还在托管**。沉浸空间把一个标记 entity 放进自己的 content，用它的 `isActive` 回答 reconciler 的 `hostIsActive`；播放窗口曾经直接写 `true`。窗口被拆除之后，排队中的表面更新照样通过 host 检查、取走共享 entity 并认领 renderer，共享 entity 随即以 `presentation=window` 重铸，沉浸空间接过去的是为窗口铸的那一个，settlement 从此停在 `pixels=false`，四十余秒后入口以 `spatialPlaybackSurfaceUnavailable` 失败——佩戴者看到的是空间里一片全黑、音频照常、点击召不出控件，因为转场一直没有结束。窗口补上同一个标记后，`spatialVideoTopology skipped reason=inactiveHost scope=mainWindow` 出现在 `windowResidency residency=closed` 之后三个探针序号处，正好挡在原先那次认领的位置。结构规则见 `Scripts/rules/verify_playback_surface_structure.py`。
 - **只有产品状态能证明一个 RealityView 永不落定**，经过的墙钟时间不能。首帧慢的表面在活动媒体请求的整个生命周期内保持 attach 资格。
 - **`PlaybackUserVisibleIssue` 只接受有界的产品事实**，`Error` 与任意诊断字符串进不了这个类型，因此呈现代码永远不需要判断一段文本是否可以示人。
 - **ProRes 解码器可用性经 `VTDecompressionSessionCreate` 实测**，不从渲染器的错误文本推断。见 `Tests/EnchronApp/VideoDecoderAvailabilityTests.swift`（真机 lane 专有，模拟器上按构造失败）。

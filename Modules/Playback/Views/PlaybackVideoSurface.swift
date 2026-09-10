@@ -616,15 +616,6 @@ public struct PlaybackVideoSurface: View {
             to: Float(videoEntityOpacity),
             animated: animatesOpacity
         )
-        if currentOpacity != Float(videoEntityOpacity) {
-            appModel.recordSurfaceInputProbe(
-                "windowVideoOpacityWrite target=\(videoEntityOpacity)"
-                    + " after="
-                    + "\(videoEntity.components[OpacityComponent.self]?.opacity.description ?? "none")"
-                    + " animated=\(animatesOpacity)",
-                retention: .evidence
-            )
-        }
         surfaceAccessibilityActivation.observe(
             in: content,
             accepts: { PlaybackWindowInteractionSurface.contains($0) },
