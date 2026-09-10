@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="9.0.1"
-CONFIGURATION_REVISION="apac-passthrough-v1-ffmpeg-$VERSION"
+CONFIGURATION_REVISION="apac-passthrough-zlib-v2-ffmpeg-$VERSION"
 BUILD_ROOT="$ROOT_DIR/.build/ffmpeg"
 ARCHIVE="$BUILD_ROOT/ffmpeg-$VERSION.tar.xz"
 ARCHIVE_SHA256="cf38e0e28c7e5605942c4a77755349b0145804a397af37eb1fb4c77cb237f635"
@@ -76,7 +76,8 @@ build_slice() {
         --disable-muxers \
         --disable-swscale \
         --disable-autodetect \
-        --enable-securetransport
+        --enable-securetransport \
+        --enable-zlib
       make -j"$(sysctl -n hw.logicalcpu)" install
     )
   fi

@@ -92,6 +92,12 @@ typedef struct PBFFmpegDemuxBufferConfiguration {
     double targetDurationSeconds;
 } PBFFmpegDemuxBufferConfiguration;
 
+// The configure line the vendored FFmpeg was built with. The build decides
+// which container features exist at all - a Matroska track whose frames are
+// zlib compressed is readable only in a build that has zlib - so the line is
+// part of what this package promises, not a detail of how it was made.
+const char *PBFFmpegBuildConfiguration(void);
+
 PBFFmpegDemuxBufferConfiguration PBFFmpegDemuxBufferConfigurationMake(
     PBFFmpegDemuxBufferMode mode,
     int64_t explicitForwardByteLimit

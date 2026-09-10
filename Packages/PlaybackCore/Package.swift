@@ -40,6 +40,10 @@ let package = Package(
                 .linkedLibrary("c++"),
                 .linkedLibrary("hvf"),
                 .linkedLibrary("iconv"),
+                // Matroska can carry a track's frames zlib compressed. Without
+                // this the demuxer hands the compressed bytes on as if they
+                // were the codec's own.
+                .linkedLibrary("z"),
             ]
         ),
         .target(

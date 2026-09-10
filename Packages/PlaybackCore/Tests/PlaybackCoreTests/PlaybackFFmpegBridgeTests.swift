@@ -61,6 +61,20 @@ private func mediaStreams(in fixture: URL) -> [TestMediaStreamInformation] {
     }
 }
 
+@Test func theVendoredBuildCanUncompressMatroskaTrackContents() throws {
+    // Matroska may store a track's frames compressed, and mkvmerge does this
+    // to Blu-ray bitmap subtitles by default. The demuxer uncompresses them
+    // only in a build that has zlib; without it the compressed bytes reach the
+    // codec, which reads them as its own format, finds nothing it knows and
+    // produces no picture - no error anywhere along the way. The configure
+    // line is what decides this, so it is asserted rather than described.
+    let configuration = String(cString: PBFFmpegBuildConfiguration())
+    #expect(
+        configuration.contains("--enable-zlib"),
+        Comment(rawValue: "vendored FFmpeg configure line: \(configuration)")
+    )
+}
+
 @Test func nonSquarePixelStereoFixtureCarriesItsDisplayGeometryThroughTheBridge() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(

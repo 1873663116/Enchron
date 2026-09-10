@@ -123,6 +123,10 @@ static const unsigned int PB_DEMUX_RECONNECT_ATTEMPT_LIMIT =
     sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS) /
     sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[0]);
 
+const char *PBFFmpegBuildConfiguration(void) {
+    return avformat_configuration();
+}
+
 PBFFmpegDemuxBufferConfiguration PBFFmpegDemuxBufferConfigurationMake(
     PBFFmpegDemuxBufferMode mode,
     int64_t explicitForwardByteLimit
