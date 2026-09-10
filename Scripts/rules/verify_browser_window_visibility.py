@@ -21,8 +21,11 @@ CONTENT_MODIFIERS = (
     ".opacity(visibility.hidesBrowser ? 0 : 1)",
     ".allowsHitTesting(visibility.hidesBrowser == false)",
     ".accessibilityHidden(visibility.hidesBrowser)",
-    ".persistentSystemOverlays(visibility.systemOverlays)",
 )
+WINDOW_CHROME_OWNERS = {
+    "Apps/Enchron/EnchronApp.swift": "the browser scene",
+    "Apps/Enchron/PlayerView.swift": "the player window's own chrome policy",
+}
 PRODUCT_ROOTS = ("Apps", "Modules")
 VIOLATIONS: list[str] = []
 
@@ -77,6 +80,34 @@ def check_the_modifier_names_the_whole_set() -> None:
     )
 
 
+def check_window_chrome_is_asked_for_once_per_window() -> None:
+    """persistentSystemOverlays is what visionOS reads for a WindowGroup's
+    window bar and resize bar, and an outer one replaces what a child asked for.
+    The browser asks at its scene, the player asks inside PlayerView from its own
+    chrome policy, and nothing may ask on their shared content -- a gate that
+    asks there pins whichever window it does not hide to .automatic and the
+    player's own request never lands."""
+    for path in product_sources():
+        relative_path = relative(path)
+        if relative_path in WINDOW_CHROME_OWNERS:
+            continue
+        require(
+            ".persistentSystemOverlays(" not in path.read_text(encoding="utf-8"),
+            relative_path
+            + " asks for window chrome; only "
+            + " and ".join(sorted(WINDOW_CHROME_OWNERS.values()))
+            + " may, because an outer request replaces an inner one",
+        )
+    scene = read("Apps/Enchron/EnchronApp.swift")
+    require(
+        "        .persistentSystemOverlays(\n"
+        "            BrowserWindowVisibility(\n"
+        "                window: .main," in scene,
+        "the browser scene no longer hides its window bar while playback owns "
+        "the space",
+    )
+
+
 def check_the_policy_is_read_in_one_place() -> None:
     for path in product_sources():
         if relative(path) == VISIBILITY_SOURCE:
@@ -125,6 +156,7 @@ def check_every_tab_carries_the_tab_bar_modifier() -> None:
 
 def main() -> int:
     check_the_modifier_names_the_whole_set()
+    check_window_chrome_is_asked_for_once_per_window()
     check_the_policy_is_read_in_one_place()
     check_the_tab_bar_modifier_has_no_second_spelling()
     check_every_tab_carries_the_tab_bar_modifier()

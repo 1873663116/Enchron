@@ -26,7 +26,6 @@ extension View {
         opacity(visibility.hidesBrowser ? 0 : 1)
             .allowsHitTesting(visibility.hidesBrowser == false)
             .accessibilityHidden(visibility.hidesBrowser)
-            .persistentSystemOverlays(visibility.systemOverlays)
     }
 
     func browserTabBarVisibility(

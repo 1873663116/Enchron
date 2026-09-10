@@ -1015,6 +1015,22 @@
           "fills the gap between"
         ]
       }
+    },
+    {
+      "id": "browser-window-visibility-rejects-a-gate-that-pins-the-player-window-chrome",
+      "guard": "Scripts/rules/verify_browser_window_visibility.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Apps/Enchron/BrowserWindowVisibility.swift",
+        "find": "            .accessibilityHidden(visibility.hidesBrowser)\n    }\n",
+        "replaceWith": "            .accessibilityHidden(visibility.hidesBrowser)\n            .persistentSystemOverlays(visibility.systemOverlays)\n    }\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "asks for window chrome"
+        ]
+      }
     }
   ],
   "externalSubject": [
