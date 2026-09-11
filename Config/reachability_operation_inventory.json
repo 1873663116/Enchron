@@ -2721,7 +2721,7 @@
           "path": "Modules/Playback/Views/PlaybackTopActions.swift"
         }
       ],
-      "template": "PlayerUI-DockMenu-skybox"
+      "template": "PlayerUI-DockMenu-default"
     },
     {
       "action": "activate",
@@ -5765,8 +5765,8 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "id": "accessibility:PlayerUI-DockMenu-skybox",
-      "identifierTemplate": "PlayerUI-DockMenu-skybox",
+      "id": "accessibility:PlayerUI-DockMenu-default",
+      "identifierTemplate": "PlayerUI-DockMenu-default",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "windowPlaybackDockEntryTopActions",
@@ -6704,32 +6704,6 @@
         "selectVerb": "selectMenuItem"
       },
       "id": "menu:settings:controls-auto-hide",
-      "kind": "menu-selection",
-      "proofContextDerivation": {
-        "host": "explicitOperationContract",
-        "sources": [
-          {
-            "line": 1,
-            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
-    },
-    {
-      "debugEquivalent": {
-        "families": [
-          "default-scenic-environment"
-        ],
-        "host": "settings",
-        "listVerb": "listMenuItems",
-        "selectVerb": "selectMenuItem"
-      },
-      "id": "menu:settings:default-scenic-environment",
       "kind": "menu-selection",
       "proofContextDerivation": {
         "host": "explicitOperationContract",

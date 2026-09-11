@@ -84,7 +84,7 @@ def build_docked_episode_switch_scenario() -> tuple[dict[str, Any], list[dict[st
             },
         ),
         op_call(
-            prefix, 5, "operation:presentation.enter-docked-skybox@1",
+            prefix, 5, "operation:presentation.enter-docked-default@1",
             {"deadlineSeconds": 30, "summonControls": True},
         ),
         op_call(
@@ -385,7 +385,7 @@ def build_docked_hlg_audio_scenario() -> tuple[dict[str, Any], list[dict[str, An
         ),
         op_call(prefix, 5, "operation:diagnostics.playback-state@1", {}),
         op_call(
-            prefix, 6, "operation:presentation.enter-docked-skybox@1",
+            prefix, 6, "operation:presentation.enter-docked-default@1",
             {"deadlineSeconds": 30, "summonControls": True},
         ),
         op_call(prefix, 7, "operation:harness.assert-channels@2", {}),
@@ -458,7 +458,7 @@ def build_docked_hlg_audio_scenario() -> tuple[dict[str, Any], list[dict[str, An
     rubrics = [
         {
             "criteria": [
-                "Call 08's fields.audioRendererError equals none (MainView.swift:974, `audioRendererError=\\(output.audioRendererError ?? \"none\")`), read from the docked-resident PlayerUI-playback-state snapshot taken right after presentation.enter-docked-skybox@1 and the harness.assert-channels@2 gate.",
+                "Call 08's fields.audioRendererError equals none (MainView.swift:974, `audioRendererError=\\(output.audioRendererError ?? \"none\")`), read from the docked-resident PlayerUI-playback-state snapshot taken right after presentation.enter-docked-default@1 and the harness.assert-channels@2 gate.",
                 "Call 08's fields.audioRendererSamples (MainView.swift:969, `audioRendererSamples=\\(output.audioRendererSamples)`) is strictly greater than call 05's pre-docked baseline value referenced via relatedResults, and fields.hasAudio (MainView.swift:967) remains true — the exact regression this closes is audio going silent right after entering docked while the picture keeps playing.",
                 "session (MainView.swift:927) and lifecycle (MainView.swift:926) are unchanged between call 05 and call 08, so the two readings are bound to the same playback attempt rather than a relaunch.",
             ],

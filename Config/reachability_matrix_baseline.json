@@ -364,11 +364,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "menu:settings:default-scenic-environment",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "menu:settings:default-speed",
       "verdict": "reachable"
     },
@@ -444,7 +439,7 @@
     },
     {
       "context": "window",
-      "operation": "accessibility:PlayerUI-DockMenu-skybox",
+      "operation": "accessibility:PlayerUI-DockMenu-default",
       "verdict": "reachable"
     },
     {

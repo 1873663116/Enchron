@@ -294,7 +294,6 @@ class DebugMenuEquivalentInventoryTests(unittest.TestCase):
         expected_families = (
             "resume-strategy",
             "end-behavior",
-            "default-scenic-environment",
             "default-speed",
             "controls-auto-hide",
         )
@@ -440,7 +439,7 @@ class ProofContextInventoryTests(unittest.TestCase):
     def test_presentation_entry_controls_belong_to_the_host_that_renders_them(self) -> None:
         for operation_id in (
             "accessibility:PlayerUI-TopAction-dock",
-            "accessibility:PlayerUI-DockMenu-skybox",
+            "accessibility:PlayerUI-DockMenu-default",
             "accessibility:PlayerUI-DockMenu-{$0.rawValue}",
         ):
             with self.subTest(operation_id=operation_id):

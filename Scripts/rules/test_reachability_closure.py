@@ -16,7 +16,7 @@ class ReachabilityClosureTests(unittest.TestCase):
         snippet = text[idx: idx + 8000]
         self.assertIn("playback_failure_scenario", snippet)
         self.assertIn('enter_docked_playback', snippet)
-        self.assertIn('dock_choice="skybox"', snippet)
+        self.assertIn('dock_choice="default"', snippet)
         self.assertIn('sdr-bframe-multiaudio-subtitles-30s.mkv', snippet)
 
     def test_window_environment_delivers_volume(self):

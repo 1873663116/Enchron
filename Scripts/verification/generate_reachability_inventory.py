@@ -18,7 +18,7 @@ PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 LEGACY_TARGET_PRESENTATION_REMAPS = {
-    ("docked", "accessibility:PlayerUI-DockMenu-skybox"): "window",
+    ("docked", "accessibility:PlayerUI-DockMenu-default"): "window",
     ("docked", "accessibility:PlayerUI-DockMenu-{$0.rawValue}"): "window",
     ("docked", "accessibility:PlayerUI-TopAction-dock"): "window",
     ("docked", "accessibility:PlayerUI-TopAction-more"): "window",
@@ -32,7 +32,6 @@ UNINSTANTIATED_RENDER_HOSTS = {
 SETTINGS_MENU_FAMILIES = (
     "resume-strategy",
     "end-behavior",
-    "default-scenic-environment",
     "default-speed",
     "controls-auto-hide",
 )

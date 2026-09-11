@@ -2,8 +2,8 @@
 {
   "schema": "enchron.regression.operation",
   "schemaVersion": 1,
-  "id": "operation:presentation.enter-docked-skybox@1",
-  "title": "Presentation Enter Docked Skybox",
+  "id": "operation:presentation.enter-docked-default@1",
+  "title": "Presentation Enter Docked Default",
   "role": "product-behavior",
   "lanes": [
     "device",
@@ -34,10 +34,10 @@
   "evidenceSchemas": [],
   "implementation": {
     "locator": "Scripts/verification/regression_operation_adapter.py",
-    "digest": "sha256:2456975e7b80869247c08ee37872968ffb324753f564485eb1a1ce523e1bc083"
+    "digest": "sha256:5b6b092840aef8fddbc62e40f3d22652ce7eae27239629567d7f9da66e198fec"
   }
 }
 ---
-# Presentation Enter Docked Skybox
+# Presentation Enter Docked Default
 
 The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.

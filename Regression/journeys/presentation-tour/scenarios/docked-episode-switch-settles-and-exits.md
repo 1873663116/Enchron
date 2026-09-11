@@ -70,7 +70,7 @@
       },
       "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:05",
       "maxInvocations": 1,
-      "operation": "operation:presentation.enter-docked-skybox@1"
+      "operation": "operation:presentation.enter-docked-default@1"
     },
     {
       "arguments": {

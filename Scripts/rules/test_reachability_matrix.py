@@ -1064,8 +1064,9 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
             [
                 "reachability top actions delivered action=dock.open",
                 "reachability top actions delivered action=dock.select"
-                " environment=skybox effect=none",
-                "worldLoad event=completed anchor=PlaybackSurfaceAnchor",
+                " environment=quiet-room effect=none",
+                "worldLoad event=completed anchor=PlaybackSurfaceAnchor"
+                " environment=quiet-room",
             ],
         ])
         run.controller = Mock(return_value={"success": True})
