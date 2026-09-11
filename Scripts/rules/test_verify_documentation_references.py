@@ -84,6 +84,14 @@ class TheCheckItself(unittest.TestCase):
     def test_deleted_tracked_files_are_not_scanned(self) -> None:
         self.assertTrue(all(path.is_file() for path in tracked_text_files()))
 
+    def test_every_configured_root_still_resolves(self) -> None:
+        """A root that matches nothing classifies nothing, and says so to no one."""
+        names = ("INSTRUCTION_ROOTS", "HISTORY_ROOTS", "DIGEST_BOUND_EVIDENCE_ROOTS", "SELF")
+        for name in names:
+            for root in getattr(checker, name):
+                with self.subTest(configuration=name, root=root):
+                    self.assertTrue((REPOSITORY_ROOT / root).exists())
+
 
 class CurrentRepositoryFiles(unittest.TestCase):
     def setUp(self) -> None:

@@ -37,7 +37,7 @@ C tap --identifier PlayerUI-resumeDecision-secondary   # 有服务器进度时�
 | 结构 | 目录内容与观看进度都不落本地盘；图片按 image tag 作键 | `verify_media_byte_stream.py` |
 | 结构 | `Emby-Evidence` 的 `artworkLoads[].alternateTagCacheKey` 与同一条的 `cacheKey` 不等，即证明 image tag 参与落盘键 | 真机／模拟器读 `Emby-Evidence` |
 | 物理 | 详情页从服务器实时取到剧集表；播放后诊断串显示 `lifecycle=Playing` 且截图非纯色 | 真机 |
-| 物理 | 打开耗时（从点击到出画） | 真机，当前实测约 45 秒，阶段三预读的目标 |
+| 物理 | 打开耗时（从点击到出画） | 真机。仓库内没有留存的耗时样本，引用具体秒数之前要先在真机 lane 记录一次；读线程预读是它的改善方向 |
 | 感知 | 不适用 | |
 
 ## 证明的终态

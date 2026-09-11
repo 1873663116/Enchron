@@ -9,8 +9,13 @@
 - **模拟器截图 lane 没有点进模拟器的通道**，想看的那一屏必须在启动时就可达；启动参数因此是到达某一屏的唯一途径。
 - **探针日志 192 KB，Dock 里曾几十秒就把因果链冲掉**（2026-09-08 真机：docked 的 `settlement` 每秒约 10 行、每行 1.5 KB，选集失败的错误类别与音频重开的触发点都只剩证据行）。原因是结算签名没把淡入期间每帧变化的 `surfaceOpacity` 排除，两侧宿主各维护一份排除列表且沉浸侧漏了它；现在两侧共用 `PlaybackSettlementProbeSignature`。压缩策略改为：证据超过压缩目标时按最新保留（LRU）并置 `evidenceOverflowed`，不再整本清空；诊断行在证据之外保有 `compactionTarget / 4` 的保底额度。渲染器所有权（`rendererOwnership.*`）、离场实体释放、空间拓扑写入、attachment 放置、`conversionFailed` 都改为证据级，真机回捞时这些跃迁必在。
 - **应答里的元素读数取两次，因为被作用的那个元素在应答写出来之前就可能已经不在层级里了**。`matchedElement` 是动作之前那一次读数，`elementAfterAction` 是动作之后那一次，元素离开层级时后者为 null。`snapshot` 只读不改，它的 `matchedElement` 直接用动作之后那一次，两次读的是同一个状态。这样一次点掉自己目标的 tap 仍然说得出它点的是什么。判定「该元素当时在不在」看 `matchedElement`，判定「这次动作把它变成了什么」看 `elementAfterAction`。`tapSequence` 按同一条规则处理路径，每一步在 `element.tap()` 之前把该步解析到的元素记进 `routeElements`，否则应答里只剩下标识符字符串，路径上每个元素的 label 无处可取。三个字段都由 `Scripts/verification/regression_operation_adapter.py` 消费。
+- **`matchedElement.frame` 的单位是点，截图是像素，应答里没有任何字段记录屏幕的点尺寸**。帧直接来自 `XCUIElementSnapshot.frame`（`Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift:765`），点到像素的比例因此推不出来，按 `matchedElement` 在截图上裁出对应区域这件事做不了。异常包逐条说明为什么产不出裁切图，而不是按猜的比例裁一块出来配上裁决文字——错的区域配上区域观察文字比不裁更糟。
 - **真机上过渡过程只能靠 runner 内的连拍看清**。真机没有录屏通道，逐条 `snapshot` 每帧都要走一次 devicectl 往返（秒级）。runner 的 `screenshotBurst` 动词在进程内连拍：可选先 tap `--identifier`，随后按 `--count`／`--interval-milliseconds` 连续 `XCUIScreen.main.screenshot()` 写入 `responses/<id>-burst-<序号>-<epochMillis>.png`，响应的 `attachmentRelativePaths` 列出全部帧，控制端一次性拷回 `<output>/<id>-burst/`。真机上每帧约 100–300 ms，文件名里的毫秒时间戳用来与探针对齐。
 - **模拟器的 `simctl io recordVideo` 可用与否取决于宿主授权，不是平台约束**。它和 `screencapture` 一样受 macOS 屏幕录制权限（TCC）管辖，未授权时以 -12204 失败；授权后正常出片（2026-09-10 本机实测：4 秒录得 3840×2160、h264、204 帧、3.4 秒时长的 `.mov`）。因此这条通道的可用性是每台机器各自的状态，换机器要重新确认，不能当作永久结论写进计划。`Scripts/verification/harness/recording.py` 的分段录屏建立在它之上。
+- **分段录屏的形状由 simctl 的四条行为定死**，四条都在已启动的模拟器上核实过。`xcrun` 是 exec 而不是 fork，`Popen` 拿到的 pid 就是 simctl 本身，`SIGINT` 直达录制器；整个录制期间 simctl 只往 stderr 写 131 字节且都在起录时写完，因此不读 stderr 也不会把管道写满；输出文件在开始录制的瞬间就以 0 字节创建、结束时才写入内容，这是不必解析 stderr 的就绪信号；输出路径已存在时 simctl 直接拒绝（`NSPOSIXErrorDomain 17`，`cannot save recorded video output into a file that already exists`），断链的符号链接同样算存在，所以起录前的清理认 `lexists` 而不是 `exists`。
+- **macOS 的 `TMPDIR` 是 per-user 而不是 per-process**。两台设备跑同一个 NodeID 的同一个 attempt 时（fan-out 下 attempt 编号按节点计，两台设备都从 1 开始）会写同一个路径：先起的那个的文件被后起的清理删掉，就绪信号被对方的 0 字节文件满足，两次停止都报成功而证据目录里只有一个文件。段因此落在 `TMPDIR/enchron-segments/<udid>/`，文件名仍然只绑定 NodeID 与 attempt。
+- **ffmpeg 把相对路径中第一个 `/` 之前的冒号读成协议前缀**。在段所在目录下 `ffprobe node:playback:seek-1.mp4` 报 `Protocol not found`，`./node:playback:seek-1.mp4` 与绝对路径正常。NodeID 的形状是 `node:<slug>(:<slug>)*`（`Scripts/regression/core/ids.py`），而抽帧器的调用方是人和 Agent，谁都可能先 `cd` 进证据目录，所以段名把冒号编码成 `--` 而不是 `-`：slug 的形状不含连续连字符，`node:a-b:c` 与 `node:a:b-c` 因此不会塌缩到同一个名字。
+- **`VISUAL_BLACK_YAVG` 与 `VISUAL_BLACK_YMAX`（`Scripts/verification/playback_mode_matrix.py:875-876`）是在 limited-range BT.601 亮度上量的**。那条路径把 RGB 交给 ffmpeg，ffmpeg 按 limited range 转换，纯黑在那里是 16 而不是 0，所以 18.0 是地板加 2，换算到全范围约等于 2.3；把 18.0 直接套在全范围亮度上会宽 7.7 倍，一帧正在播放、菜单完整展开的画面因此被判成全黑。纯标准库解码 PNG 的判读路径先把亮度换算进 limited range 再比（`Scripts/regression/tools/pixel_heuristics.py` 的 `LIMITED_RANGE_OFFSET` 与 `LIMITED_RANGE_SPAN`）。峰值上限 40.0 不是可选装饰：一帧几乎全黑但带一条纯白带的画面均值仍在门槛之下，只有峰值能挡住它。
 
 - **window bar 的关闭按钮不在 app 的可访问性树里，runner 点不到**。DEBUG 测试通道的 `app-command --verb closeMainWindow` 对前台 `windowApplication` scene 调 `requestSceneSessionDestruction`，走与佩戴者关闭相同的 `UIScene.didDisconnectNotification`；探针里应依次出现 `testcmd closeMainWindow`、`mainWindowScene disconnected trigger=wearer`、`mainWindowScene closedByWearer stoppingPlayback`。窗口关掉后 app 没有前台 scene，播放一停就会被系统挂起，测试通道随之失联，验证结果只能从容器里的探针文件读；`Scripts/verification/wearer_close_probe.py` 按这个顺序驱动并出裁决。
 - **渲染器预读只能在真机上量**。DEBUG 测试通道的 `app-command --verb setRendererLeadFrames --arg frames=N` 把 `RendererLeadBudget` 钉在 N 帧，不带 `frames` 回到爬坡；`seekNormalized --arg position=P` 按时长比例 seek。`Scripts/verification/renderer_lead_sweep.py` 按预算序列钉住、保持、seek，再把这段探针里的 `windowSettlement` 行归约成每个预算一格：显示计数速率、最小送帧领先、最大送帧间隔、footprint 与每次 seek 的冲刷时间；显示计数是采样值，只在同一台机器的预算之间比较。
@@ -19,7 +24,7 @@
 - **真机的进程表按可执行文件路径列出进程，bundle id 不出现在其中**。`…/Enchron.app/Enchron` 与 `…/EnchronAppUITests-Runner.app/…` 都含有 `Enchron`，所以 `Scripts/verification/interactive_visionpro_ui.py` 用这一个 marker 同时匹配 app 与 runner。
 - **模拟器上 `launchctl list` 按 bundle id 标注 app，而不是按可执行文件路径**，同一次进程观察的 marker 集合因此随 transport 变化。`Scripts/verification/interactive_visionpro_ui.py` 在模拟器上要在路径 marker 之外再加上 app 与 runner 的 bundle id。
 - **`devicectl device copy` 以目录为单位整体复制**，而 deferred 应答批次就是一个目录。`Scripts/verification/enchron_target.py` 的模拟器分支必须整树复制来对齐这一行为；只复制文件会把每一条批量应答留在模拟器容器里。
-- **`Scripts/verification/enchron_target.py` 里的 `PHYSICAL_DESTINATION` 与 `PHYSICAL_CORE_DEVICE` 最后一次与头显核对是 2026-08-09**。头显更换后以 `xcrun devicectl list devices` 为事实来源重新核对这两个值。
+- **哪一台头显由环境变量指认，仓库里没有核对它们的机制**。`ENCHRON_TARGET_DEVICE` 选 xcodebuild destination，`ENCHRON_CORE_DEVICE` 选 `devicectl` 用的 CoreDevice，两者都经 `Scripts/verification/enchron_target.py` 读取。这两个值是否仍然指向在场的那台设备，仓库无从判断；一次跑通的真机运行是它们当时仍然正确的唯一证据。头显更换后以 `xcrun devicectl list devices` 为事实来源重新取值。
 - **ffmpeg 把纯文本 demux 成 ANSI art 视频，并报出可信的时长与帧率**。暂存的 xcresult 把 runner 的 stdout 与附件放在一起，Staging 扫描会把两者一并递给探针，所以 `Scripts/verification/extract_visionpro_ui_recording.py` 不检查容器格式就会把 app 自己的日志当成录屏取回。
 - **xcresult 里的录屏是 anamorphic 的：2732x2048 像素承载一幅 16:9 画面，且不带 aspect 元数据**，方形像素的查看器会把它纵向拉伸。`Scripts/verification/extract_visionpro_ui_recording.py` 抽帧时归一到 XCUIScreen 截图通道交付的同一 16:9 几何。
 - **麦克风放在头显扬声器一小段距离外时，一次音调清晰可辨的采集落在 -55 dBFS 附近**，把静音阈值设在该电平会把真实采集报成静音。`Scripts/verification/journey_audio_probe.py` 取 -75 dBFS，低于仍然带 25 倍峰值的最安静一次采集；真正把音调与本底分开的是 `dominantPeakRatio`。
@@ -50,7 +55,7 @@
 
 - **超时不是判决，是取证触发器**。每个 runner 动作只有两种终态：带正向证据的成功，或带类型的失败。等待到期本身不说明产品坏了，只说明该去取证了，因此没有任何一条判定以"等够了"结束。
 
-- **失败分两类，分类权分层**。产品失败（product）是有效证据，记录后继续；仪器故障（instrument）宣告后续观测不可信，终止当前段落并进入恢复。runner 报告它能观测到的失败；调用方库只补判 runner 自身死亡的情形——进程崩溃、JSON 不可解码、subprocess 超时——这些天然是仪器故障。产品失败以强类型值返回（`ProductFailure`），仪器故障以异常抛出（`InstrumentFault`）。两份 kind 清单在 `Scripts/verification/harness/failures.py:11-26`：`PRODUCT_KINDS` 两个，`INSTRUMENT_KINDS` 十个。`response-timeout` 属于仪器故障。
+- **失败分两类，分类权分层**。产品失败（product）是有效证据，记录后继续；仪器故障（instrument）宣告后续观测不可信，终止当前段落并进入恢复。runner 报告它能观测到的失败；调用方库只补判 runner 自身死亡的情形——进程崩溃、JSON 不可解码、subprocess 超时——这些天然是仪器故障。产品失败以强类型值返回（`ProductFailure`），仪器故障以异常抛出（`InstrumentFault`）。两份 kind 清单在 `Scripts/verification/harness/failures.py:11-26`：`PRODUCT_KINDS` 两个，`INSTRUMENT_KINDS` 十个。`response-timeout` 属于仪器故障，由 runner 自己在应答死线到期时以 instrument 类发出。
 
 - **人类层的入口条件只认四种超时 kind**：`transport-timeout`、`response-timeout`、`wait-expired`、`provisional-budget-expired`（`Scripts/regression/core/runview.py:112-119` 的 `HARNESS_TIMEOUT_KINDS`）。同一节点连续两次 attempt 都落在这四种之内才允许推迟给人。产品慢不在其中，产品慢是 `Violated`。
 
@@ -76,6 +81,7 @@
 - **无人佩戴的真机上，场景 phase 事件跨场景销毁不触发**：主窗口在播放期间被撤销再重开后，其 `scenePhase` 直接继承 active 而没有 background→active 转换。任何"等到 active 再行动"的门槛必须以布防后的新转换为准，否则会立即放行。
 - **撤销一个窗口可能把整个 app 送进 background 并被系统挂起**（进程存活、命令通道与 AX 全部无响应），即便另一个窗口刚刚 appeared。播放→主窗交还因此把撤销延迟到主窗布防后的下一次 active 转换；等不到就保留双窗，绝不冒挂起风险。
 - **段间复用常驻 runner 省去每段 `ensure-session` 的 115–286 秒建会话与 30–56 秒 `halt`，四段合计 10–20 分钟（device lane 关键路径约 57 分钟的 20–35%）**，段证据对齐由 runner `sessionID`（`ready.json`）改为每段新建的 `evidenceSession`（`evidenceSession=<uuid>`，`reachability evidence session=<uuid>`）。
+- **模拟器 lane 的 `ensure-session` 约 24 秒到 `stage: ready`**，与真机 lane 每段 115–286 秒的建会话不是一个量级。判据是返回的 stage 而不是耗时；`halt` 返回空 `remaining` 才算停净。
 - **一次普通命令往返在设备繁忙时的实测中位数是 2.6 秒**，所以 5 秒的 stop 应答死线会在一个只是正在播放的会话上过期，并让 halt 整个跳过 graceful 路径。`Scripts/verification/interactive_visionpro_ui.py` 取 30 秒，这条死线只有在 runner 真的不应答时才会走完。
 
 ## xcodebuild 的测试选择与执行计数

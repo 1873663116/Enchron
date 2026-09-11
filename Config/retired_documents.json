@@ -204,6 +204,12 @@
       "removed": "2026-09-04",
       "commit": "b8090536",
       "replacement": "无。它是 run_campaign.py 与 harness/campaign.py 的唯一消费者，随两者一起退场。"
+    },
+    {
+      "path": "docs/plans/01-regression-tools/",
+      "removed": "2026-09-11",
+      "commit": "unreleased",
+      "replacement": "docs/archive/plans/01-regression-tools/。十九个阶段已经落地，分册按写成时的样子归档；其中在别处无记录的实测常数与外部约束——分段录屏的 simctl 行为、ffmpeg 的冒号协议前缀、全黑判据的 limited-range 来由、matchedElement 帧的单位、模拟器建会话耗时——已迁入 docs/UI_TEST_HARNESS_CONSTRAINTS.md。它是 90a7fd1a 归档 docs/plans/ 之后由 2fe577af（2026-09-04）在原路径下新建的唯一一册；本次归档之后 docs/plans/ 才再次不存在。"
     }
   ]
 }

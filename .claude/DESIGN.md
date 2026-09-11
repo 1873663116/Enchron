@@ -99,7 +99,7 @@
 
 ### 3.3 Write/Edit 上的一条
 
-`Config/regression/catalog-v2.json` 与 `Config/regression/catalog-root/**` 是 `Scripts/regression/materialize_catalog_v2.py` 的产物。手写改的是字节，不是 obligation 到 summary 与 digest 的绑定，结果是一份能通过自身结构检查、却指向运行产不出的证据的 Catalog——这正是本仓库已经被咬过两次的假绿形状。规则只看路径，不读内容；读取从不拦。
+`Regression/**` 是 `Scripts/regression/materialize_catalog_v2.py` 的产物（`LIVE_CATALOG_ROOT`）；`Config/regression/catalog-root/**` 是它的手写来源（`CATALOG_SOURCE_ROOT`），`Config/regression/catalog-v2.json` 是自签名的 blueprint，`copyDocuments` 的每条 digest 与 `contentDigest` 只能由重新运行物化器算出，不能手写。手写改的是字节，不是 obligation 到 summary 与 digest 的绑定，结果是一份能通过自身结构检查、却指向运行产不出的证据的 Catalog——这正是本仓库已经被咬过两次的假绿形状。规则只看路径，不读内容；读取从不拦。
 
 ### 3.2 Stop 的四条
 

@@ -83,7 +83,7 @@ def executable_text(command: str) -> str:
     every rule below matches literal tokens: a document that quotes a banned
     word to explain why it is banned would otherwise be refused itself. What
     this cannot see is a detacher written into a script that some later command
-    executes; that residual is recorded in DESIGN.md.
+    executes; that residual is recorded in .claude/DESIGN.md.
     """
     lines = command.splitlines()
     kept, index = [], 0

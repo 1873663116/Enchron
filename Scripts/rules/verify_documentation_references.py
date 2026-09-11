@@ -39,7 +39,7 @@ INSTRUCTION_ROOTS = (
     "Scripts",
 )
 
-HISTORY_ROOTS = ("docs/archive", "docs/plans")
+HISTORY_ROOTS = ("docs/archive",)
 
 DIGEST_BOUND_EVIDENCE_ROOTS = ("Regression/reviews",)
 
