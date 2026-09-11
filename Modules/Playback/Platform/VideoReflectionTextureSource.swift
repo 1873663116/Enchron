@@ -17,6 +17,15 @@ final class VideoReflectionTextureSource {
     private var lastBufferIdentity: UInt?
     private(set) var failure: String?
     private(set) var frameCount: UInt64 = 0
+    private(set) var preparation: Preparation?
+    private(set) var lastFormat: OSType?
+    private(set) var lastPlaneCount = 0
+
+    struct Preparation: Equatable {
+        var width: Int
+        var height: Int
+        var pixelFormat: MTLPixelFormat
+    }
 
     struct Conversion {
         var matrix: Int32
@@ -74,6 +83,11 @@ final class VideoReflectionTextureSource {
         textureCache = cache
         lowLevelTexture = texture
         textureResource = try TextureResource(from: texture)
+        preparation = Preparation(
+            width: descriptor.width,
+            height: descriptor.height,
+            pixelFormat: descriptor.pixelFormat
+        )
     }
 
     private func encode(_ pixelBuffer: CVPixelBuffer) throws {
@@ -126,6 +140,8 @@ final class VideoReflectionTextureSource {
         }
         encoder.endEncoding()
         commandBuffer.commit()
+        lastFormat = format
+        lastPlaneCount = planeCount
     }
 
     private static func dispatch(

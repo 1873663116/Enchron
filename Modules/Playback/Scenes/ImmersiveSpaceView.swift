@@ -655,6 +655,10 @@ public struct ImmersiveSpaceView: View {
     @State private var targetRevealState = PortalToPanoramaTargetRevealState()
     @State private var surfaceRefreshTick = 0
     @State private var hasRecordedCollisionShellShelved = false
+    @State private var hasRecordedReflectionPreparation = false
+    @State private var hasRecordedReflectionFrame = false
+    @State private var hasRecordedReflectionFailure = false
+    @State private var hasRecordedReflectionTextureDelivery = false
 #if DEBUG
     @State private var dockedAnchorFrontProbe = Entity()
     @State private var dockedChildFrontProbe = Entity()
@@ -892,7 +896,9 @@ public struct ImmersiveSpaceView: View {
             return
         }
         let hadTexture = reflectionTexture.textureResource != nil
-        guard reflectionTexture.refresh(from: renderer) else { return }
+        let encoded = reflectionTexture.refresh(from: renderer)
+        recordReflectionTextureProbes()
+        guard encoded else { return }
         if hadTexture == false, reflectionTexture.textureResource != nil {
             updateEnvironmentScreen(scene, root: root, pose: pose)
         }
@@ -904,13 +910,50 @@ public struct ImmersiveSpaceView: View {
         root: Entity,
         pose: PlaybackDockedPose
     ) {
+        let texture = reflectionTexture.textureResource
         scene.update(
-            PlaybackSurfacePlacement.screenState(
-                pose: pose,
-                videoTexture: reflectionTexture.textureResource
-            ),
+            PlaybackSurfacePlacement.screenState(pose: pose, videoTexture: texture),
             in: root
         )
+        guard texture != nil, hasRecordedReflectionTextureDelivery == false else { return }
+        hasRecordedReflectionTextureDelivery = true
+        appModel.recordSurfaceInputProbe(
+            "reflectionTextureDelivered scene=\(scene.descriptor.identifier)"
+                + " frameCount=\(reflectionTexture.frameCount)",
+            retention: .evidence
+        )
+    }
+
+    @MainActor
+    private func recordReflectionTextureProbes() {
+        if hasRecordedReflectionPreparation == false,
+           let preparation = reflectionTexture.preparation {
+            hasRecordedReflectionPreparation = true
+            appModel.recordSurfaceInputProbe(
+                "reflectionPipelinePrepared width=\(preparation.width)"
+                    + " height=\(preparation.height)"
+                    + " pixelFormat=\(preparation.pixelFormat.rawValue)",
+                retention: .evidence
+            )
+        }
+        if hasRecordedReflectionFrame == false,
+           reflectionTexture.frameCount > 0,
+           let format = reflectionTexture.lastFormat {
+            hasRecordedReflectionFrame = true
+            appModel.recordSurfaceInputProbe(
+                "reflectionFrameEncoded pixelFormat=\(format)"
+                    + " planeCount=\(reflectionTexture.lastPlaneCount)"
+                    + " frameIndex=\(reflectionTexture.frameCount)",
+                retention: .evidence
+            )
+        }
+        if hasRecordedReflectionFailure == false, let failure = reflectionTexture.failure {
+            hasRecordedReflectionFailure = true
+            appModel.recordSurfaceInputProbe(
+                "reflectionFailure message=\(failure)",
+                retention: .evidence
+            )
+        }
     }
 
     private func installDeveloperOverlay(
