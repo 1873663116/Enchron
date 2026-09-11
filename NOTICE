@@ -1,0 +1,162 @@
+Enchron
+Copyright 2026 1873663116
+
+Licensed under the Apache License, Version 2.0. The full text is in the file
+LICENSE at the root of this repository and at
+http://www.apache.org/licenses/LICENSE-2.0
+
+Enchron links the third-party components below. Each stays under its own
+license, and the app shows this same list under Settings > About >
+Open-source Licenses.
+
+
+Linked into the application binary
+==================================
+
+FFmpeg 9.0.1 - GNU Lesser General Public License, version 2.1 or later
+    https://ffmpeg.org
+    libavformat, libavcodec, libswresample and libavutil, linked statically.
+    Packages/PlaybackCore/Scripts/build_ffmpeg.sh fetches the upstream 9.0.1
+    release and configures it with neither --enable-gpl nor --enable-nonfree.
+    That script modifies the upstream source in two places before building:
+    Packages/PlaybackCore/Vendor/FFmpeg/Patches/0001-mov-preserve-apple-apac-dapa.patch
+    and one substitution in libavcodec/videotoolbox.c that the script applies
+    inline.
+
+libass 0.17.4 - ISC License
+    Copyright (C) 2006-2016 libass contributors
+    https://github.com/libass/libass
+    Linked statically, built by
+    Packages/PlaybackCore/Scripts/build_subtitle_renderer.sh.
+    Full license text:
+    Packages/PlaybackCore/Vendor/SubtitleRenderer/Licenses/libass-COPYING,
+    which is COPYING from the pinned 0.17.4 release archive.
+
+FreeType - The FreeType Project License
+    https://freetype.org
+    Portions of this software are copyright © 2026 The FreeType
+    Project (https://freetype.org).  All rights reserved.
+    This software is based in part of the work of the FreeType Team.
+    Upstream offers FreeType under the FreeType Project License or GPLv2;
+    Enchron takes the FreeType Project License. Version 2.14.3 for macOS,
+    commit c39ca391b34ca8afe2dc3a8fed51be216f77588d for visionOS and the
+    visionOS simulator, where the Apple HVF driver is required to open the
+    system Chinese font. Linked statically, built by
+    Packages/PlaybackCore/Scripts/build_subtitle_renderer.sh.
+    Full license text:
+    Packages/PlaybackCore/Vendor/SubtitleRenderer/Licenses/FreeType-FTL.TXT,
+    which is docs/FTL.TXT from both pinned revisions; the two are
+    byte-identical.
+
+HarfBuzz 14.2.0 - Old MIT License
+    https://harfbuzz.github.io
+    Linked statically, built by
+    Packages/PlaybackCore/Scripts/build_subtitle_renderer.sh.
+    Full license text, with the copyright notices it requires to travel with
+    every copy:
+    Packages/PlaybackCore/Vendor/SubtitleRenderer/Licenses/HarfBuzz-COPYING,
+    which is COPYING from the pinned 14.2.0 release archive.
+
+GNU FriBidi 1.0.16 - GNU Lesser General Public License, version 2.1 or later
+    Copyright (C) 2001, 2002, 2004, 2005 Behdad Esfahbod
+    Copyright (C) 1999, 2000, 2017, 2018, 2019 Dov Grobgeld
+    https://github.com/fribidi/fribidi
+    Linked statically, built by
+    Packages/PlaybackCore/Scripts/build_subtitle_renderer.sh.
+
+AMSMB2 4.0.3 - GNU Lesser General Public License, version 2.1
+    https://github.com/amosavian/AMSMB2
+    Linked dynamically; the package declares its library product as dynamic.
+    The Swift sources of AMSMB2 are offered by their author under the MIT
+    License, and the package as distributed is LGPL 2.1 because it links
+    libsmb2 statically.
+
+libsmb2 - GNU Lesser General Public License, version 2.1 or later
+    https://github.com/sahlberg/libsmb2
+    Carried inside AMSMB2 4.0.3 as Dependencies/libsmb2 and linked with it.
+    The example programs in that source tree are 2-clause BSD and are not
+    built.
+
+RealityKitScripting - MIT License
+    Copyright (c) 2026 Apple Inc.
+    https://github.com/apple/realitykitscripting
+
+
+Used only while building
+========================
+
+swift-syntax 603.0.2 - Apache License 2.0 with the Runtime Library Exception
+    https://github.com/swiftlang/swift-syntax
+    The compiler plugin behind the RealityKitScripting macros. Nothing from it
+    is redistributed in the application binary.
+
+
+The license texts the app prints
+================================
+
+Settings > About > Open-source Licenses prints a full license text for every
+entry above; the texts are embedded in
+Apps/Enchron/Screens/OpenSourceLicenses.swift. Every one of them is
+byte-identical to a document that exists. None is composed from parts,
+abridged or reflowed, and this section records no departures. The byte count
+and digest given for each is of the printed text followed by one newline, the
+form in which the document is stored.
+
+    Apache License 2.0, printed for Enchron itself
+    11358 bytes, sha256
+    cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30
+    LICENSE at the root of this repository, which is itself byte-identical to
+    https://www.apache.org/licenses/LICENSE-2.0.txt
+
+    Apache License 2.0 with the Runtime Library Exception, printed for
+    swift-syntax
+    11751 bytes, sha256
+    770af8291f708538d8ff885a0bbc4e045cd700531741c4f99528d435c14d7f55
+    LICENSE.txt of swift-syntax at revision
+    79e4b74a295b6eb74a8b585e3a39d29e70c1dbd1, the revision Package.resolved
+    pins. Upstream carries the exception inside that one file, under its own
+    heading; the app prints the file whole.
+
+    GNU Lesser General Public License, version 2.1, printed for FFmpeg, GNU
+    FriBidi, AMSMB2 and libsmb2
+    26530 bytes, sha256
+    dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551
+    LICENCE-LGPL-2.1.txt of libsmb2 at commit
+    aff9fa6ba9f41cfd3c15d184554601ec3f6d8d03, the commit AMSMB2 4.0.3 pins for
+    its Dependencies/libsmb2 submodule. This is the revision of the license
+    carrying the Franklin Street address and the Ty Coon signature block. The
+    copy the Free Software Foundation serves today at
+    https://www.gnu.org/licenses/old-licenses/lgpl-2.1.txt is a later revision
+    of the same license, differing in three places: it gives the foundation's
+    address as a URL, directs the reader to that URL instead of to Franklin
+    Street, and renames the signatory of the example disclaimer.
+
+    MIT License, printed for RealityKitScripting
+    1067 bytes, sha256
+    56ae51ce988cac363c02cb3b339b8562bbc43a079c2119376288aad43cd226df
+    LICENSE of realitykitscripting. Three Package.resolved files pin this
+    dependency and they disagree: the root one and
+    Tests/MediaByteStreamConformance/Package.resolved pin
+    860a42d1ef76ce37f89a279a469099600606814d, while the Xcode workspace's
+    pins e0a8a395f3c0. The LICENSE file hashes the same at both revisions, so
+    the text below is correct either way; the disagreement itself is a
+    separate defect and is not resolved here.
+
+    ISC License, printed for libass
+    755 bytes, sha256
+    f7e30699d02798351e7f839e3d3bfeb29ce65e44efa7735c225464c4fd7dfe9c
+    Packages/PlaybackCore/Vendor/SubtitleRenderer/Licenses/libass-COPYING,
+    which is COPYING from the pinned 0.17.4 release archive.
+
+    The FreeType Project License, printed for FreeType
+    6743 bytes, sha256
+    5a5ee54c5001bbad1cdc1a57cc3dd4c42199b2da09d39c7ee41fab002d02967f
+    Packages/PlaybackCore/Vendor/SubtitleRenderer/Licenses/FreeType-FTL.TXT,
+    which is docs/FTL.TXT at both pinned FreeType revisions; the two are
+    byte-identical.
+
+    Old MIT License, printed for HarfBuzz
+    1971 bytes, sha256
+    ba8f810f2455c2f08e2d56bb49b72f37fcf68f1f4fade38977cfd7372050ad64
+    Packages/PlaybackCore/Vendor/SubtitleRenderer/Licenses/HarfBuzz-COPYING,
+    which is COPYING from the pinned 14.2.0 release archive.

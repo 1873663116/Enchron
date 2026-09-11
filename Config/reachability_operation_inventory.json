@@ -3402,6 +3402,32 @@
       "template": "Settings-MainWindow-sidebar"
     },
     {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 16,
+          "path": "Apps/Enchron/Screens/OpenSourceLicenses.swift"
+        }
+      ],
+      "template": "Settings-OpenSourceLicenses-row-{component.id}"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "line": 79,
+          "path": "Apps/Enchron/Screens/OpenSourceLicenses.swift"
+        }
+      ],
+      "template": "Settings-OpenSourceLicenses-{component.id}-text"
+    },
+    {
       "action": null,
       "family": "Settings",
       "role": "observation",
@@ -6456,6 +6482,25 @@
         "portal"
       ],
       "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-OpenSourceLicenses-row-{component.id}",
+      "identifierTemplate": "Settings-OpenSourceLicenses-row-{component.id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "line": 187,
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {

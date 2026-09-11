@@ -1101,6 +1101,11 @@
       "context": "main-window-browser",
       "operation": "accessibility:Settings-toggle-{id}",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-OpenSourceLicenses-row-{component.id}",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

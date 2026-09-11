@@ -97,7 +97,7 @@ struct SettingsScreen: View {
                 }
                 sections(for: selectedCategory)
             }
-            .frame(maxWidth: 820, alignment: .leading)
+            .frame(maxWidth: DesignTokens.Layout.settingsReadingColumnWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, DesignTokens.Spacing.xxxl)
             .levelContent(id: selectedCategoryID)
@@ -406,25 +406,5 @@ struct SettingsScreen: View {
     private func clearProgress() {
         recordActionReachability("clear-progress")
         playbackLauncher.clearViewingStates()
-    }
-}
-
-private struct OpenSourceLicensesView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Text("PlaybackCore — MIT")
-                Text("AMSMB2 — MIT")
-                Text("RealityKitScripting — Apple sample code license")
-            }
-            .navigationTitle("Open-source Licenses")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
     }
 }

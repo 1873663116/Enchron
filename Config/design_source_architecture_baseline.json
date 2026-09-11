@@ -34,12 +34,6 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/Screens/SettingsScreen.swift",
-      "signature": ".frame(maxWidth: 820, alignment: .leading)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
       "path": "Modules/Emby/EmbyScreens.swift",
       "signature": ".font(.system(size: 56, weight: .heavy, design: .default))",
       "count": 1

@@ -274,6 +274,7 @@ public enum DesignTokens {
             playbackMediaInfoHeight + Spacing.sm + Interactive.large + Spacing.xxl
         public static let expandedMediaInformationMaximumHeight: CGFloat = 420
         public static let videoFormatEditorWidth: CGFloat = 520
+        public static let settingsReadingColumnWidth: CGFloat = 820
     }
 
     public enum Typography {
