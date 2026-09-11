@@ -990,17 +990,36 @@ struct PlaybackPresentationStateTests {
         for state in [PlaybackRuntime.PresentationState.hidden, .placeholder, .audioVisible] {
             #expect(PlayerWindowGlassPolicy.showsGlass(
                 presentationState: state,
-                isRevealingPlayerWindow: false
+                isRevealingPlayerWindow: false,
+                hasActiveSession: false
             ))
             #expect(PlayerWindowGlassPolicy.showsGlass(
                 presentationState: state,
-                isRevealingPlayerWindow: true
+                isRevealingPlayerWindow: true,
+                hasActiveSession: false
             ) == false)
         }
         #expect(PlayerWindowGlassPolicy.showsGlass(
             presentationState: .videoVisible,
-            isRevealingPlayerWindow: false
+            isRevealingPlayerWindow: false,
+            hasActiveSession: false
         ) == false)
+    }
+
+    @Test("A session that has not produced a picture yet leaves the gap between two surfaces empty")
+    func playerWindowGlassLeavesTheGapEmptyWhileASessionIsActive() {
+        for state in [PlaybackRuntime.PresentationState.hidden, .placeholder] {
+            #expect(PlayerWindowGlassPolicy.showsGlass(
+                presentationState: state,
+                isRevealingPlayerWindow: false,
+                hasActiveSession: true
+            ) == false)
+        }
+        #expect(PlayerWindowGlassPolicy.showsGlass(
+            presentationState: .audioVisible,
+            isRevealingPlayerWindow: false,
+            hasActiveSession: true
+        ))
     }
 
     @Test("Panorama tap shell follows 180 and 360 degree projection coverage")
