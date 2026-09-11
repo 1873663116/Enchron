@@ -5,8 +5,10 @@
 The lane a run belongs to is a property of the target, not of the runner: the
 same operation units, the same resident XCUITest runner and the same controller
 serve both. Pinning a physical CoreDevice ID as a module constant made that
-untrue in practice, because a simulator UDID had nowhere to enter. These helpers
-are the entry point.
+untrue in practice, because a simulator UDID had nowhere to enter. Pinning it
+also made an unconfigured run drive one particular headset instead of saying it
+had no target. Both identifiers now come from the environment and nowhere else.
+These helpers are the entry point.
 
 `ENCHRON_TARGET_DEVICE` selects the xcodebuild destination the controller drives.
 Set it to a simulator UDID to move a whole regression round onto the simulator
@@ -25,20 +27,62 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-PHYSICAL_DESTINATION = "00008142-001871A11491401C"
-PHYSICAL_CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
-
 _SIMULATOR_UDIDS: set[str] | None = None
 
 
 def target_device() -> str:
-    """The destination the controller drives. A simulator UDID moves the lane."""
-    return os.environ.get("ENCHRON_TARGET_DEVICE") or PHYSICAL_DESTINATION
+    """The destination the controller drives. A simulator UDID moves the lane.
+
+    Empty when `ENCHRON_TARGET_DEVICE` is unset. Several harnesses bind this at
+    import time, so the absence travels as a value and is refused by whichever
+    operation actually needs a target, naming the variable that was missing.
+    """
+    return os.environ.get("ENCHRON_TARGET_DEVICE", "")
 
 
 def core_device() -> str:
-    """The CoreDevice a physical run uses for `devicectl`."""
-    return os.environ.get("ENCHRON_CORE_DEVICE") or PHYSICAL_CORE_DEVICE
+    """The CoreDevice a physical run uses for `devicectl`.
+
+    Empty when `ENCHRON_CORE_DEVICE` is unset, and refused by the devicectl
+    branches rather than passed to `--device` as an empty or `None` argument.
+    """
+    return os.environ.get("ENCHRON_CORE_DEVICE", "")
+
+
+MISSING_TARGET = (
+    "target must not be empty: set ENCHRON_TARGET_DEVICE to the destination to drive"
+)
+MISSING_CORE_DEVICE = (
+    "devicectl needs a CoreDevice identifier: "
+    "pass core_device_identifier or set ENCHRON_CORE_DEVICE"
+)
+
+
+def require_target_device() -> str:
+    """The destination, refusing an unconfigured run instead of picking a lane for it.
+
+    `target_device()` answers `""` when the variable is unset, and
+    `is_simulator("")` is false, so a lane derived straight from it reads as the
+    device lane: an unconfigured run reports itself as a physical-headset run
+    and every later message names a headset that was never selected. Whoever
+    needs a lane rather than a value asks here, and gets a refusal naming the
+    variable that was missing.
+    """
+    device = target_device()
+    if not device:
+        raise SystemExit(MISSING_TARGET)
+    return device
+
+
+def refusal(reason: str) -> subprocess.CompletedProcess[str]:
+    """A failed result carrying why it failed.
+
+    Every caller of these helpers reads `returncode` and records `stderr`;
+    `wake_target_device` in the reachability matrix explicitly tolerates a
+    failed launch and records it as an event. An unconfigured target is that
+    kind of failure, not a reason to abort a round with a traceback.
+    """
+    return subprocess.CompletedProcess([], returncode=1, stdout="", stderr=reason)
 
 
 def developer_directory() -> str:
@@ -106,7 +150,7 @@ def copy_to_container(
     if budget_seconds is not None:
         timeout = budget_seconds
     if not target:
-        raise ValueError("container target must not be empty")
+        return refusal(MISSING_TARGET)
     if is_simulator(target):
         container = simulator_container(target, bundle_id)
         if container is None:
@@ -121,10 +165,13 @@ def copy_to_container(
         else:
             shutil.copyfile(source, into)
         return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+    identifier = core_device_identifier or core_device()
+    if not identifier:
+        return refusal(MISSING_CORE_DEVICE)
     return subprocess.run(
         [
             "xcrun", "devicectl", "device", "copy", "to",
-            "--device", str(core_device_identifier),
+            "--device", identifier,
             "--domain-type", "appDataContainer",
             "--domain-identifier", bundle_id,
             "--source", str(source),
@@ -160,7 +207,7 @@ def truncate_in_container(
     if budget_seconds is not None:
         timeout = budget_seconds
     if not target:
-        raise ValueError("container target must not be empty")
+        return refusal(MISSING_TARGET)
     if is_simulator(target):
         container = simulator_container(target, bundle_id)
         origin = container / source if container else None
@@ -174,10 +221,13 @@ def truncate_in_container(
         return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
     empty = Path(tempfile.gettempdir()) / "enchron-container-truncate.empty"
     empty.write_text("", encoding="utf-8")
+    identifier = core_device_identifier or core_device()
+    if not identifier:
+        return refusal(MISSING_CORE_DEVICE)
     return subprocess.run(
         [
             "xcrun", "devicectl", "device", "copy", "to",
-            "--device", str(core_device_identifier),
+            "--device", identifier,
             "--domain-type", "appDataContainer",
             "--domain-identifier", bundle_id,
             "--source", str(empty),
@@ -209,7 +259,7 @@ def copy_from_container(
     None preserves the historical unbounded read.
     """
     if not target:
-        raise ValueError("container target must not be empty")
+        return refusal(MISSING_TARGET)
     if is_simulator(target):
         container = simulator_container(target, bundle_id)
         origin = container / source if container else None
@@ -226,10 +276,13 @@ def copy_from_container(
         else:
             shutil.copyfile(origin, destination)
         return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+    identifier = core_device_identifier or core_device()
+    if not identifier:
+        return refusal(MISSING_CORE_DEVICE)
     return subprocess.run(
         [
             "xcrun", "devicectl", "device", "copy", "from",
-            "--device", core_device_identifier or core_device(),
+            "--device", identifier,
             "--domain-type", "appDataContainer",
             "--domain-identifier", bundle_id,
             "--source", source,
@@ -251,7 +304,7 @@ def list_container_file(
     budget_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if not target:
-        raise ValueError("container target must not be empty")
+        return refusal(MISSING_TARGET)
     remote = Path(source)
     if is_simulator(target):
         container = simulator_container(target, bundle_id)
@@ -275,9 +328,12 @@ def list_container_file(
             encoding="utf-8",
         )
         return subprocess.CompletedProcess([], returncode=0, stdout="", stderr="")
+    identifier = core_device_identifier or core_device()
+    if not identifier:
+        return refusal(MISSING_CORE_DEVICE)
     command = [
         "xcrun", "devicectl", "device", "info", "files",
-        "--device", str(core_device_identifier or core_device()),
+        "--device", identifier,
         "--domain-type", "appDataContainer",
         "--domain-identifier", bundle_id,
         "--subdirectory", str(remote.parent),
@@ -302,7 +358,7 @@ def launch_app(
     budget_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if not target:
-        raise ValueError("launch target must not be empty")
+        return refusal(MISSING_TARGET)
     if is_simulator(target):
         command = ["xcrun", "simctl", "launch", target, bundle_id]
     else:
@@ -328,7 +384,7 @@ def uninstall_app(
     budget_seconds: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if not target:
-        raise ValueError("uninstall target must not be empty")
+        return refusal(MISSING_TARGET)
     if is_simulator(target):
         command = ["xcrun", "simctl", "uninstall", target, bundle_id]
     else:

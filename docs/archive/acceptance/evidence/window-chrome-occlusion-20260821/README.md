@@ -27,8 +27,8 @@ top chrome plane and the edge emphasis apply it.
 
 ## Evidence
 
-Physical Vision Pro `59E3D57A-0288-53DC-9A7D-B657B6939558`, Xcode destination
-`00008142-001871A11491401C`, test plan `InteractiveDeviceSession`, clip
+Physical Vision Pro `REDACTED`, Xcode destination
+`REDACTED`, test plan `InteractiveDeviceSession`, clip
 `Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4` in Window
 presentation, both frames captured with `showControls` true.
 

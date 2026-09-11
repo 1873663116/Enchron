@@ -8,7 +8,7 @@ struct RemoteAddressScopeTests {
         arguments: [
             ("127.0.0.1", RemoteAddressScope.loopback),
             ("127.255.255.254", .loopback),
-            ("128.0.0.1", .publicAddress),
+            ("128.0.0.0", .publicAddress),
             ("126.255.255.255", .publicAddress),
             ("fe80::1%en0", .linkLocal),
             ("febf::1", .linkLocal),
@@ -28,7 +28,7 @@ struct RemoteAddressScopeTests {
             ("fe80::1", .linkLocal),
             ("100.63.255.255", .publicAddress),
             ("100.64.0.0", .carrierGradeNAT),
-            ("100.108.103.46", .carrierGradeNAT),
+            ("100.100.100.100", .carrierGradeNAT),
             ("100.127.255.255", .carrierGradeNAT),
             ("100.128.0.0", .publicAddress),
             ("fd7a:115c:a1e0::7301:67a9", .privateNetwork),
@@ -38,13 +38,13 @@ struct RemoteAddressScopeTests {
             ("2001:db8::1", .publicAddress),
             ("[fd7a:115c:a1e0::7301:67a9]", .privateNetwork),
             ("::ffff:192.168.5.28", .privateNetwork),
-            ("::ffff:45.78.51.92", .publicAddress),
-            ("45.78.51.92", .publicAddress),
-            ("8.8.8.8", .publicAddress),
+            ("::ffff:203.0.113.92", .publicAddress),
+            ("203.0.113.92", .publicAddress),
+            ("203.0.113.8", .publicAddress),
             ("mac-mini.local", .multicastDNSName),
             ("Mac-mini.LOCAL", .multicastDNSName),
             ("mac-mini", .unqualifiedName),
-            ("mac-mini.tailbbeec7.ts.net", .qualifiedName),
+            ("mac-mini.tailnet.example", .qualifiedName),
             ("myserver.duckdns.org", .qualifiedName)
         ]
     )
@@ -75,12 +75,12 @@ struct CleartextExposurePolicyTests {
         "the decision covers scheme, address scope and a remembered acknowledgement",
         arguments: [
             ("http://192.168.5.28:8096", CleartextExposureDecision.proceed),
-            ("http://100.108.103.46:8096", .proceed),
+            ("http://100.100.100.100:8096", .proceed),
             ("http://mac-mini.local:8096", .proceed),
-            ("https://45.78.51.92:8096", .proceed),
-            ("HTTPS://45.78.51.92:8096", .proceed),
-            ("http://45.78.51.92:8096", .askBeforeSending(host: "45.78.51.92")),
-            ("HTTP://45.78.51.92:8096", .askBeforeSending(host: "45.78.51.92")),
+            ("https://203.0.113.92:8096", .proceed),
+            ("HTTPS://203.0.113.92:8096", .proceed),
+            ("http://203.0.113.92:8096", .askBeforeSending(host: "203.0.113.92")),
+            ("HTTP://203.0.113.92:8096", .askBeforeSending(host: "203.0.113.92")),
             ("http://myserver.duckdns.org", .askBeforeSending(host: "myserver.duckdns.org"))
         ]
     )
@@ -92,11 +92,11 @@ struct CleartextExposurePolicyTests {
     @Test("an acknowledged host stops being asked about, on any port")
     func acknowledgementSilencesTheHost() throws {
         let policy = CleartextExposurePolicy(defaults: try emptyDefaults())
-        let asked = try #require(URL(string: "http://45.78.51.92:8096"))
-        let otherPort = try #require(URL(string: "http://45.78.51.92:8920"))
+        let asked = try #require(URL(string: "http://203.0.113.92:8096"))
+        let otherPort = try #require(URL(string: "http://203.0.113.92:8920"))
 
-        #expect(policy.decision(for: asked) == .askBeforeSending(host: "45.78.51.92"))
-        policy.acknowledge(host: "45.78.51.92")
+        #expect(policy.decision(for: asked) == .askBeforeSending(host: "203.0.113.92"))
+        policy.acknowledge(host: "203.0.113.92")
 
         #expect(policy.decision(for: asked) == .proceed)
         #expect(policy.decision(for: otherPort) == .proceed)
@@ -107,11 +107,11 @@ struct CleartextExposurePolicyTests {
         let policy = CleartextExposurePolicy(defaults: try emptyDefaults())
         let counter = ApprovalCounter(answer: true)
         policy.approvalHandler = { host in await counter.approve(host) }
-        let url = try #require(URL(string: "http://45.78.51.92:8096"))
+        let url = try #require(URL(string: "http://203.0.113.92:8096"))
 
         #expect(await policy.authorize(url))
         #expect(await policy.authorize(url))
-        #expect(await counter.hosts == ["45.78.51.92"])
+        #expect(await counter.hosts == ["203.0.113.92"])
     }
 
     @Test("declining leaves the host unacknowledged so the next attempt asks again")
@@ -119,22 +119,22 @@ struct CleartextExposurePolicyTests {
         let policy = CleartextExposurePolicy(defaults: try emptyDefaults())
         let counter = ApprovalCounter(answer: false)
         policy.approvalHandler = { host in await counter.approve(host) }
-        let url = try #require(URL(string: "http://45.78.51.92:8096"))
+        let url = try #require(URL(string: "http://203.0.113.92:8096"))
 
         #expect(await policy.authorize(url) == false)
         #expect(await policy.authorize(url) == false)
-        #expect(await counter.hosts == ["45.78.51.92", "45.78.51.92"])
+        #expect(await counter.hosts == ["203.0.113.92", "203.0.113.92"])
     }
 
     @Test("an unwired prompt withholds the warning rather than the connection")
     func missingHandlerProceeds() async throws {
         let policy = CleartextExposurePolicy(defaults: try emptyDefaults())
-        let exposed = try #require(URL(string: "http://45.78.51.92:8096"))
+        let exposed = try #require(URL(string: "http://203.0.113.92:8096"))
         let contained = try #require(URL(string: "http://192.168.5.28:8096"))
 
         #expect(await policy.authorize(exposed))
         #expect(await policy.authorize(contained))
-        #expect(policy.decision(for: exposed) == .askBeforeSending(host: "45.78.51.92"))
+        #expect(policy.decision(for: exposed) == .askBeforeSending(host: "203.0.113.92"))
     }
 
     private func emptyDefaults() throws -> UserDefaults {

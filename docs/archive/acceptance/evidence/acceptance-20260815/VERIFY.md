@@ -1,6 +1,6 @@
 # Device acceptance, merged integration branch
 
-Physical Vision Pro `59E3D57A-0288-53DC-9A7D-B657B6939558`, tree `027e8cd6`
+Physical Vision Pro `REDACTED`, tree `027e8cd6`
 (`fix/ui-defects-integration`), clip `180_3D.mp4` imported through the production
 pipeline after `resetState`. Controller output under
 `/Volumes/Cortisol/BuildArtifacts/acceptance-20260815/`.

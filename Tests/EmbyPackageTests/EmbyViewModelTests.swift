@@ -236,7 +236,7 @@ struct EmbyViewModelTests {
             cleartextExposurePolicy: policy
         )
         connection.address = "http://example.test:8096"
-        connection.username = "Cortisol"
+        connection.username = "TestUser"
         connection.password = "secret"
 
         #expect(await connection.connect() == false)
@@ -253,7 +253,7 @@ struct EmbyViewModelTests {
             cleartextExposurePolicy: isolatedCleartextPolicy()
         )
         success.address = "example.test:8096"
-        success.username = "Cortisol"
+        success.username = "TestUser"
         success.password = "secret"
 
         #expect(await success.connect())
@@ -272,7 +272,7 @@ struct EmbyViewModelTests {
             cleartextExposurePolicy: isolatedCleartextPolicy()
         )
         failure.address = "http://example.test:8096"
-        failure.username = "Cortisol"
+        failure.username = "TestUser"
 
         #expect(await failure.connect() == false)
         #expect(failureSession.server == nil)

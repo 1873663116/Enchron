@@ -1,7 +1,7 @@
 # Seek stall on high-pixel-rate media, and playback menus moved to system popovers
 
-Physical Vision Pro `59E3D57A-0288-53DC-9A7D-B657B6939558`, Xcode destination
-`00008142-001871A11491401C`, test plan `InteractiveDeviceSession`.
+Physical Vision Pro `REDACTED`, Xcode destination
+`REDACTED`, test plan `InteractiveDeviceSession`.
 
 ## Seek took seconds on 8K60 and was instant on 720p24
 

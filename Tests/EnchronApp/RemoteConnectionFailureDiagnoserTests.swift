@@ -9,7 +9,7 @@ nonisolated final class RemoteConnectionFailureDiagnoserTests: XCTestCase {
         let diagnoser = MediaSource.RemoteConnectionFailureDiagnoser { endpoint in
             await recorder.probe(endpoint)
         }
-        let url = try XCTUnwrap(URL(string: "http://100.108.103.46:8096"))
+        let url = try XCTUnwrap(URL(string: "http://100.100.100.100:8096"))
 
         let diagnosis = await diagnoser.diagnose(
             URLError(.appTransportSecurityRequiresSecureConnection),
@@ -20,7 +20,7 @@ nonisolated final class RemoteConnectionFailureDiagnoserTests: XCTestCase {
         let probedEndpoints = await recorder.endpoints
         XCTAssertEqual(
             probedEndpoints,
-            [MediaSource.RemoteConnectionEndpoint(host: "100.108.103.46", port: 8_096)]
+            [MediaSource.RemoteConnectionEndpoint(host: "100.100.100.100", port: 8_096)]
         )
     }
 

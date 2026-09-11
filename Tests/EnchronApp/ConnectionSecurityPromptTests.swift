@@ -113,11 +113,11 @@ nonisolated final class ConnectionSecurityQuestionWordingTests: XCTestCase {
 
     @MainActor
     func testTheCleartextQuestionNamesTheHostAndTheRemedy() {
-        let question = ConnectionSecurityQuestion.cleartextCredentials(host: "45.78.51.92")
+        let question = ConnectionSecurityQuestion.cleartextCredentials(host: "203.0.113.92")
 
         XCTAssertEqual(titleOf(question), "这个地址不会加密你的密码")
         let description = messageOf(question)
-        XCTAssertTrue(description.contains("45.78.51.92"))
+        XCTAssertTrue(description.contains("203.0.113.92"))
         XCTAssertTrue(description.contains("https://"))
     }
 }

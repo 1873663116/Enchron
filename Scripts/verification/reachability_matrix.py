@@ -1239,7 +1239,11 @@ class ReachabilityRun:
         self.last_removed_remote_sources: list[str] = []
         self.out_of_context_observations = {}
         self.settings_restorations: list[dict[str, object]] = []
-        self.lane = "simulator" if enchron_target.is_simulator(DEVICE) else "device"
+        self.lane = (
+            "simulator"
+            if enchron_target.is_simulator(enchron_target.require_target_device())
+            else "device"
+        )
         self.budgets = BudgetProvider(output_directory=self.output)
         try:
             self._remember_secrets(*read_webdav_credentials(WEBDAV_ENVIRONMENT_FILE))
@@ -9078,7 +9082,7 @@ def configure_segment(arguments: argparse.Namespace) -> None:
         raise SystemExit(f"Segment plan has no segment named {arguments.segment}")
     process_lane = (
         lane_partition.SIMULATOR
-        if enchron_target.is_simulator(DEVICE)
+        if enchron_target.is_simulator(enchron_target.require_target_device())
         else lane_partition.DEVICE
     )
     planned_lane = str(matching[0]["lane"])

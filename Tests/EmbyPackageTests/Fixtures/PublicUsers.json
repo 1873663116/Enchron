@@ -1,8 +1,8 @@
 [
   {
-    "Name": "Cortisol",
-    "ServerId": "bc0f0fe0e66d41d7894b4ddb493fadb1",
-    "Id": "c37c35575ce544fc9187e4994751ce51",
+    "Name": "TestUser",
+    "ServerId": "0123456789abcdef0123456789abcdef",
+    "Id": "fedcba9876543210fedcba9876543210",
     "HasPassword": true,
     "HasConfiguredPassword": true
   }

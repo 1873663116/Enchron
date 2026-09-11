@@ -18,7 +18,7 @@ The tradeoff is deliberate: the More control now consumes a 60-point layout targ
 
 ## Verification evidence
 
-The toolchain was `/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer`, reporting Xcode 27.0 build `27A5237l`. The physical-device `build-for-testing` used destination `00008142-001871A11491401C`, test plan `InteractiveDeviceSession`, and isolated DerivedData at `/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedData-sidebar-more-menu`. It ended with `** TEST BUILD SUCCEEDED **`.
+The toolchain was `/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer`, reporting Xcode 27.0 build `27A5237l`. The physical-device `build-for-testing` used destination `REDACTED`, test plan `InteractiveDeviceSession`, and isolated DerivedData at `/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedData-sidebar-more-menu`. It ended with `** TEST BUILD SUCCEEDED **`.
 
 `Scripts/verification/check_hover_region_clipping.py` produced:
 

@@ -1,6 +1,6 @@
 # Emby 海报墙 swipeUp 杀会话：定性结论
 
-调查日期 2026-08-20，物理 Vision Pro（CoreDevice `59E3D57A-…`，destination `00008142-001871A11491401C`，visionOS 27.0 / 24M5348b）。
+调查日期 2026-08-20，物理 Vision Pro（CoreDevice `REDACTED`，destination `REDACTED`，visionOS 27.0 / 24M5348b）。
 
 ## 结论
 
@@ -102,4 +102,4 @@ App 存活的正面证据：每次合成失败之后，runner 仍成功取得目
 
 工作树留有一处修改：`Scripts/verification/controller_timings.json`，为控制器每次成功往返自动写入的滚动耗时样本，属该脚本的设计行为，非手工改动；未回滚，以免丢弃本次真实测量。
 
-证据清洗：对 204 个文件扫描 Emby 凭据值、URL 用户信息、鉴权头（`X-Emby-Token`／`X-MediaBrowser-Token`／`Authorization`）与 `api_key`。Emby 地址、主机名、鉴权头、URL 用户信息、api_key 全部零命中。凭据的 username 与 password 字段各有命中，经逐条核对均为子串巧合——username 与卷名 `Cortisol` 相同，命中的是文件路径；password 是代码签名身份中邮箱地址的子串，命中的是 Xcode 构建日志的签名行。二者都不是凭据泄露。后续扫描应使用带边界的匹配，否则这两个短字段会持续产生假阳性。
+证据清洗：对 204 个文件扫描 Emby 凭据值、URL 用户信息、鉴权头（`X-Emby-Token`／`X-MediaBrowser-Token`／`Authorization`）与 `api_key`。Emby 地址、主机名、鉴权头、URL 用户信息、api_key 全部零命中。凭据的 username 与 password 字段各有命中，经逐条核对均为子串巧合——username 与卷名相同，命中的是文件路径；password 是代码签名身份中邮箱地址的子串，命中的是 Xcode 构建日志的签名行。二者都不是凭据泄露。后续扫描应使用带边界的匹配，否则这两个短字段会持续产生假阳性。

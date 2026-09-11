@@ -1,6 +1,6 @@
 # Before state, three UI defects
 
-Physical Vision Pro `59E3D57A-0288-53DC-9A7D-B657B6939558`, session `1DF8AB66-CB96-43B0-9182-5C3AA0F0E13E`,
+Physical Vision Pro `REDACTED`, session `1DF8AB66-CB96-43B0-9182-5C3AA0F0E13E`,
 build at `defaf387`, clip `Patterns_Of_Nature_DoVi_24_P5_UHD_HEVC-10mbps_DD+JOC-768kbps_iOS.mp4`.
 
 ## Window bar gap

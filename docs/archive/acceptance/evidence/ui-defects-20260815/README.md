@@ -1,6 +1,6 @@
 # 四个界面缺陷的前后取证，2026-08-15
 
-物理 Vision Pro `59E3D57A-0288-53DC-9A7D-B657B6939558`。`REPRO.md` 是修复前的复现，`VERIFY.md`
+物理 Vision Pro `REDACTED`。`REPRO.md` 是修复前的复现，`VERIFY.md`
 是同一段片源在合并树上的复验，两者引用同一批坐标与诊断串。四份 `*-report.md` 是各缺陷当时的
 单项调查。
 

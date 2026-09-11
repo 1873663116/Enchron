@@ -73,7 +73,7 @@ struct EmbyClientTests {
         let client = makeClient()
         let authenticated = try await client.authenticate(
             address: URL(string: "http://example.test")!,
-            username: "Cortisol",
+            username: "TestUser",
             password: "secret"
         )
 
@@ -85,7 +85,7 @@ struct EmbyClientTests {
         #expect(request.httpMethod == "POST")
         let body = try #require(request.httpBody)
         let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: String])
-        #expect(json == ["Username": "Cortisol", "Pw": "secret"])
+        #expect(json == ["Username": "TestUser", "Pw": "secret"])
     }
 
     @Test("authentication reports when an HTTP endpoint accepts TLS")
@@ -102,7 +102,7 @@ struct EmbyClientTests {
         await #expect(throws: RemoteConnectionFailure.requiresHTTPS) {
             try await client.authenticate(
                 address: address,
-                username: "Cortisol",
+                username: "TestUser",
                 password: "secret"
             )
         }

@@ -1,6 +1,6 @@
 # After state, four UI defects
 
-Physical Vision Pro `59E3D57A-0288-53DC-9A7D-B657B6939558`, merged tree `1ec490ce`, same clip as the
+Physical Vision Pro `REDACTED`, merged tree `1ec490ce`, same clip as the
 before run. Compare against `REPRO.md`.
 
 ## Window bar gap, verified

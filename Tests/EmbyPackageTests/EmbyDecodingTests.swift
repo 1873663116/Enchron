@@ -21,7 +21,7 @@ struct EmbyDecodingTests {
         let data = try Data(contentsOf: url)
         let users = try JSONDecoder().decode([EmbyPublicUser].self, from: data)
 
-        #expect(users.map(\.name) == ["Cortisol"])
+        #expect(users.map(\.name) == ["TestUser"])
         #expect(!String(decoding: data, as: UTF8.self).localizedCaseInsensitiveContains("token"))
     }
 }

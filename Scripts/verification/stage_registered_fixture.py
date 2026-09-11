@@ -131,6 +131,9 @@ class EnchronStageTransport:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
             return
+        identifier = enchron_target.core_device()
+        if not identifier:
+            raise FixtureStageError(enchron_target.MISSING_CORE_DEVICE)
         environment = {"DEVELOPER_DIR": self.developer_dir, "PATH": "/usr/bin:/bin"}
         try:
             completed = subprocess.run(
@@ -141,7 +144,7 @@ class EnchronStageTransport:
                     "copy",
                     "to",
                     "--device",
-                    enchron_target.core_device(),
+                    identifier,
                     "--domain-type",
                     "appDataContainer",
                     "--domain-identifier",

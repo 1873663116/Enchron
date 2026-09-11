@@ -140,7 +140,7 @@ _instruments_singleton: Instruments | None = None
 def _get_instruments() -> Instruments:
     global _instruments_singleton
     if _instruments_singleton is None:
-        device = enchron_target.target_device()
+        device = enchron_target.require_target_device()
         lane = "simulator" if enchron_target.is_simulator(device) else "device"
         budgets = BudgetProvider()
         _instruments_singleton = Instruments(device=device, core_device=enchron_target.core_device(), developer_dir=enchron_target.developer_directory(), lane=lane, budgets=budgets, tools=LocalToolRunner(lane, budgets=budgets), policy=RecoveryPolicy())

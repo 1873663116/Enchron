@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -144,6 +145,40 @@ class StageRegisteredFixtureTests(unittest.TestCase):
 
         self.assertEqual(transport.target, "LEASE-TARGET")
         process_target.assert_not_called()
+
+    def test_an_unset_core_device_is_refused_before_devicectl_is_assembled(self) -> None:
+        """`--device ""` is a devicectl invocation, not a refusal.
+
+        `core_device()` answers the empty string when `ENCHRON_CORE_DEVICE` is
+        unset, and the device branch used to hand that straight to `--device`,
+        where devicectl reads the next flag as the identifier and fails on
+        something that names neither the variable nor the omission. The
+        environment is emptied of the variable rather than the reader patched
+        out, so the refusal is proved through the same lookup the branch uses,
+        and `subprocess.run` is replaced rather than left to fail: a
+        regression would then show up as a devicectl call recorded here
+        instead of as an error raised somewhere inside it.
+        """
+        with mock.patch.object(staging.enchron_target, "is_simulator", return_value=False):
+            transport = staging.EnchronStageTransport(
+                "device",
+                "DEVICE-TARGET",
+                "com.example.App",
+                "/Applications/Xcode.app/Contents/Developer",
+            )
+
+        source = self.source_root / self.relative
+        with (
+            mock.patch.dict(os.environ),
+            mock.patch.object(staging.subprocess, "run") as run,
+        ):
+            os.environ.pop("ENCHRON_CORE_DEVICE", None)
+            with self.assertRaises(staging.FixtureStageError) as refusal:
+                transport.copy_to_container(source, "Documents/TestMediaInbox/fixture.mp4")
+
+        run.assert_not_called()
+        self.assertEqual(str(refusal.exception), staging.enchron_target.MISSING_CORE_DEVICE)
+        self.assertIn("ENCHRON_CORE_DEVICE", str(refusal.exception))
 
     def test_current_registry_population_is_38_with_37_stageable(self) -> None:
         registry = staging.FixtureRegistry.load(staging.DEFAULT_REGISTRY)
