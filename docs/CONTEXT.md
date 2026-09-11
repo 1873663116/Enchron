@@ -36,7 +36,7 @@
 **Default Environment**：`quiet-room`。它是 Docked 在没有选择时进入的场景，不出现在 Environment Card 里，没有 Environment Effect。
 **Card Environment**：出现在 Environment Card 里、可被佩戴者选择的身份：`ocean` 与三个纯色占位。它们都有 Light Mode 与 Dark Mode。
 **Environment Scene**：由一个独立 Swift Package 交付、实现 `EnvironmentSceneContract` 的场景运行时（Ocean、Quiet Room）。纯色占位没有 Environment Scene。
-**Screen Preview**：场景内名为 `ScreenPreview` 的假屏幕面片，只用于在 Reality Composer Pro 里观察反射，Enchron 加载后禁用。
+**Screen Preview**：场景内名为 `ScreenPreview` 的面片，是屏幕静止位姿的唯一作者来源：它的世界变换给出底边高度、到佩戴者的距离、朝向偏航与屏幕尺寸，场景包在 `load()` 里读成 `restPose` 后禁用它；在 Reality Composer Pro 里它同时用于观察反射。
 **Environment Effect**：同一 Environment 内可变化的视觉表现。它不形成新的 Environment 身份。
 **Environment Context**：当前是否有一个 Environment 处于活动状态，以及该场景当前采用什么 Environment Effect。它不是 Playback Presentation。
 
