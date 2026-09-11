@@ -218,6 +218,9 @@ def main() -> int:
     playback_reality_adapter = read(
         "Modules/Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift"
     )
+    docked_pose_solver = read(
+        "Modules/Playback/Platform/PlaybackDockedPoseSolver.swift"
+    )
     spatial_handoff = read("Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift")
     docked_placement = read("Tests/EnchronAppUI/Spatial/DockedPlacementUITests.swift")
     regression_support = read("Tests/EnchronAppUI/Support/DeviceRegressionSupport.swift")
@@ -929,8 +932,9 @@ def main() -> int:
         "enum PlaybackPanoramaInteractionSurface",
     )
     require(
-        "entity.look(at: position + (position - viewerReference), from: position, relativeTo: nil)"
+        "entity.look(at: pose.lookTarget, from: pose.center, relativeTo: nil)"
         in playback_reality_adapter
+        and "center + (center - viewerReference)" in docked_pose_solver
         and "entity.position = [0, 0, frontOffset]"
         in docked_interaction_surface,
         "the Docked video plane faces the wearer with its local +Z and its interaction collider sits in front of it",
