@@ -1,5 +1,10 @@
 name: verification-nightly
 
+# Both triggers are owner-controlled: a schedule runs only from the default
+# branch of this repository, and `workflow_dispatch` requires write access.
+# No pull request event reaches this workflow, which is what makes it safe to
+# put real credentials inside the checkout below.
+
 on:
   schedule:
     - cron: '0 18 * * *'
@@ -8,6 +13,11 @@ on:
 concurrency:
   group: verification
   cancel-in-progress: false
+
+# The job reads the repository over HTTPS with the run's own token and calls no
+# other GitHub API, so read access to contents is the whole requirement.
+permissions:
+  contents: read
 
 jobs:
   verification:
@@ -29,9 +39,7 @@ jobs:
           AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64)
           git -C "$REPO" -c credential.helper= \
             -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" \
-            fetch --no-tags --force origin \
-              '+refs/heads/*:refs/remotes/origin/*' \
-              '+refs/pull/*/merge:refs/remotes/origin/pull/*/merge'
+            fetch --no-tags --force origin '+refs/heads/*:refs/remotes/origin/*'
           git -C "$REPO" checkout --force --detach "${GITHUB_SHA:-refs/remotes/origin/main}"
           # The build caches are the one thing worth carrying between runs.
           # Deleting the 3.3 GB DerivedData tree the full tier leaves behind
@@ -43,16 +51,22 @@ jobs:
           git -C "$REPO" clean -ffdx \
             -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
           "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
-          cp "$MAIN/.env" "$REPO/.env"
-          # The Emby credentials are a resource of the EmbyTests package target
-          # (Package.swift declares `.process("Fixtures")`), and Bundle.module
-          # only sees files under that directory, so this one file has to exist
-          # inside the checkout. It is gitignored; the main checkout holds it.
-          EMBY_IDENTITY=Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json
-          if [ -f "$MAIN/$EMBY_IDENTITY" ]; then
-            mkdir -p "$REPO/$(dirname "$EMBY_IDENTITY")"
-            cp "$MAIN/$EMBY_IDENTITY" "$REPO/$EMBY_IDENTITY"
-          fi
+          # The full tier runs ensure_test_services.py, which mounts the SMB
+          # share and resolves the WebDAV service through the credentials in
+          # .env, and both readers resolve that path inside their own checkout.
+          # The copy is created readable only by the runner's user and is
+          # removed however this step exits, so the credentials never outlive
+          # the job and never wait in the checkout for the next run's clean.
+          # No Emby credential is copied: the live Emby suite is a SwiftPM test
+          # target that no tier of run_verification.py executes.
+          # A cancelled or timed-out job is signalled rather than returned
+          # from, so the two signal traps turn that into an exit and let the
+          # EXIT trap run. Only a SIGKILL escapes both, and the next run's
+          # `git clean -ffdx` is the backstop for that one case.
+          trap 'rm -f "$REPO/.env"' EXIT
+          trap 'exit 130' INT
+          trap 'exit 143' TERM
+          install -m 600 "$MAIN/.env" "$REPO/.env"
           # A stray .pth left by an unrelated editable install points into
           # ~/Documents, and every interpreter startup under the runner blocked
           # in opendir there for as long as the job was allowed to run. An empty

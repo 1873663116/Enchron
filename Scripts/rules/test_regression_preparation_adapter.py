@@ -96,6 +96,193 @@ EXPECTED_STATE_CONTRACTS = {
 }
 
 
+FAKE_ENVIRONMENT_FILE = "\n".join(
+    (
+        "# COMMENTED_PASSWORD=commented-out-and-never-a-secret",
+        "WEBDAV_USER=not-a-real-user",
+        "WEBDAV_PASSWORD=not-a-real-webdav-password",
+        "EMBY_USER=not-a-real-user",
+        'EMBY_PASSWORD="not-a-real-emby-password"',
+        "SMB_PASSWORD='not-a-real-smb-password'",
+        "REGRESSION_TOKEN=not-a-real-token",
+        "SHARED_SECRET=  not-a-real-secret  ",
+        "EMPTY_PASSWORD=",
+        "MALFORMED_PASSWORD_LINE",
+    )
+) + "\n"
+
+FAKE_ENVIRONMENT_SECRETS = (
+    "not-a-real-webdav-password",
+    "not-a-real-emby-password",
+    "not-a-real-smb-password",
+    "not-a-real-token",
+    "not-a-real-secret",
+)
+
+
+def environment_credential_values(path: Path) -> list[str]:
+    """Return the credential values an environment file assigns.
+
+    A line contributes a value when it assigns to a key naming a password, a
+    token or a secret, is not commented out, and carries a non-empty value once
+    surrounding whitespace and quotes are stripped.
+    """
+    values: list[str] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if "=" not in line or line.lstrip().startswith("#"):
+            continue
+        key, value = line.split("=", 1)
+        if any(word in key.casefold() for word in ("password", "token", "secret")):
+            value = value.strip().strip('"').strip("'")
+            if value:
+                values.append(value)
+    return values
+
+
+CREDENTIAL_KEY_WORDS = (
+    "auth",
+    "credential",
+    "identity",
+    "key",
+    "login",
+    "pass",
+    "pw",
+    "secret",
+    "token",
+    "userinfo",
+)
+"""The key spellings a credential can hide behind.
+
+The traversal was shape-derived and the predicate was not: nine long
+spellings meant a credential bound to `pass`, `pw`, `key`, `auth`, `login`,
+`identity` or `userinfo` was invisible, and those are the short forms a
+configuration file reaches for first. Each word here is a substring test, so
+`pass` subsumes `password` and `passphrase`, `auth` subsumes `authorization`,
+and `key` subsumes `apiKey` in all its punctuations.
+"""
+
+
+def registered_fixture_identifiers() -> tuple[str, ...]:
+    """The fixture ids `Tests/Fixtures/fixture-registry.json` declares stageable.
+
+    A prerequisite identity naming a registered fixture refers to the
+    registry, so the declaration reads the registry rather than restating the
+    adapter's own copy of it.
+    """
+    registry = json.loads(
+        (REPOSITORY_ROOT / "Tests/Fixtures/fixture-registry.json").read_bytes()
+    )
+    return tuple(
+        sorted(
+            item["id"] for item in registry["fixtures"] if "deviceImportPath" in item
+        )
+    )
+
+
+DECLARED_IMPLEMENTATION_PATHS = (
+    "Apps/Enchron/TestCommandChannel.swift",
+    "Modules/Emby/EmbySessionViewModel.swift",
+    "Regression/semantic-authority.json",
+    "Scripts/verification/device_hub_canvas.py",
+    "Scripts/verification/interactive_visionpro_ui.py",
+    "Scripts/verification/regression_emby_source.py",
+    "Scripts/verification/regression_environment_preflight.py",
+    "Scripts/verification/regression_operation_adapter.py",
+    "Scripts/verification/regression_preparation_adapter.py",
+    "Scripts/verification/regression_remote_source.py",
+    "Scripts/verification/regression_smb_source.py",
+    "Scripts/verification/regression_system_import.py",
+    "Tests/Fixtures/fixture-registry.json",
+)
+
+DECLARED_RUNTIME_REFERENCES = (
+    "repo://.build/regression-system-import/literal-lane-target/runtime.json",
+    "repo://Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json",
+    "workspace://test-services/smb/runtime.json",
+    "workspace://test-services/webdav/runtime.json",
+)
+
+DECLARED_FIXED_PREFLIGHTS = (
+    "audio-fixtures",
+    "emby-aggregate",
+    "remote-faults",
+    "smb-aggregate",
+    "system-import-fixtures",
+    "webdav-regression",
+)
+
+DECLARED_STATE_KEYS = tuple(
+    sorted({key for key, _ in EXPECTED_STATE_CONTRACTS.values()})
+)
+
+DECLARED_TEXT_FIELD_NAMES = ("address", "password", "user", "username")
+
+DECLARED_CREDENTIAL_BINDINGS = {
+    "secret": (False, True),
+    "identity": (
+        *DECLARED_IMPLEMENTATION_PATHS,
+        *DECLARED_RUNTIME_REFERENCES,
+        *DECLARED_FIXED_PREFLIGHTS,
+        *registered_fixture_identifiers(),
+    ),
+    "key": DECLARED_STATE_KEYS,
+    "statekey": DECLARED_STATE_KEYS,
+    "textjsonkey": DECLARED_TEXT_FIELD_NAMES,
+}
+"""What each credential-named key in the canonical document legitimately holds.
+
+The wider vocabulary reaches four structural keys besides `secret`:
+`prerequisites[].identity` names what a plan binds itself to, `stateContract.key`
+and the registry's `stateKey` name the state a preparation establishes, and a
+typed-text call's `textJSONKey` names the field the text goes into - so the
+literal `password` there is a field name, not a password. Each is declared
+against the values it may carry, which is why the exemption is a list a reader
+can check rather than a word the vocabulary never reached.
+"""
+
+
+def credential_named_bindings(document: object) -> list[tuple[str, str, object]]:
+    """Return every (path, key, value) bound to a credential-named key.
+
+    A key is credential-named when its casefolded spelling contains one of
+    CREDENTIAL_KEY_WORDS. The walk descends through mappings and sequences, so
+    a credential added at any depth of the canonical document is reported.
+    """
+    bindings: list[tuple[str, str, object]] = []
+
+    def walk(node: object, path: str) -> None:
+        if isinstance(node, dict):
+            for key, value in node.items():
+                name = str(key)
+                child = f"{path}.{name}"
+                if any(word in name.casefold() for word in CREDENTIAL_KEY_WORDS):
+                    bindings.append((child, name, value))
+                walk(value, child)
+        elif isinstance(node, (list, tuple)):
+            for index, value in enumerate(node):
+                walk(value, f"{path}[{index}]")
+
+    walk(document, "$")
+    return bindings
+
+
+def undeclared_credential_bindings(document: object) -> list[str]:
+    """Return the paths at which a credential-named key carries a live value.
+
+    A binding is declared when DECLARED_CREDENTIAL_BINDINGS lists its key and
+    the bound value is one of the values declared for that key. Membership
+    requires the same type as well as the same value, so the integers 0 and 1
+    do not pass as the booleans that mark a field sensitive. Only paths are
+    returned: a failure names where a credential sits without reprinting it.
+    """
+    undeclared: list[str] = []
+    for path, key, value in credential_named_bindings(document):
+        declared = DECLARED_CREDENTIAL_BINDINGS.get(key.casefold(), ())
+        if not any(type(value) is type(item) and value == item for item in declared):
+            undeclared.append(path)
+    return undeclared
+
+
 class FakeBackend:
     def __init__(self) -> None:
         self.calls: list[tuple[str, object, object]] = []
@@ -111,6 +298,21 @@ class PreparationRegistryTests(unittest.TestCase):
             identifier: preparations.build_plan(identifier, lane, target)
             for identifier, lane in EXPECTED_LANES.items()
         }
+
+    def canonical_document(self) -> dict:
+        """Return the canonical registry and plans as a fresh JSON document."""
+        return json.loads(
+            json.dumps(
+                {
+                    "registry": {
+                        key: dict(value)
+                        for key, value in preparations.CANONICAL_REGISTRY.items()
+                    },
+                    "plans": [plan.canonical() for plan in self.plans().values()],
+                },
+                sort_keys=True,
+            )
+        )
 
     def test_registry_is_the_exact_catalog_v2_preparation_set(self) -> None:
         self.assertEqual(set(preparations.PREPARATION_REGISTRY), set(EXPECTED_LANES))
@@ -719,33 +921,142 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                     preparations.validate_plan(malicious)
 
     def test_canonical_registry_and_plans_contain_no_credential_bytes(self) -> None:
-        serialized = json.dumps(
-            {
-                "registry": {
-                    key: dict(value) for key, value in preparations.CANONICAL_REGISTRY.items()
-                },
-                "plans": [plan.canonical() for plan in self.plans().values()],
-            },
-            sort_keys=True,
-        )
+        serialized = json.dumps(self.canonical_document(), sort_keys=True)
         lowered = serialized.casefold()
         self.assertNotIn('"authorization"', lowered)
         self.assertIsNone(re.search(r"(?i)\b(?:basic|bearer)\s+\S+", serialized))
         self.assertIsNone(re.search(r"[a-z][a-z0-9+.-]*://[^/@:\"]+:[^/@\"]+@", serialized))
-        environment_path = REPOSITORY_ROOT / ".env"
-        if environment_path.is_file():
-            secrets = []
-            for line in environment_path.read_text().splitlines():
-                if "=" not in line or line.lstrip().startswith("#"):
-                    continue
-                key, value = line.split("=", 1)
-                if any(word in key.casefold() for word in ("password", "token", "secret")):
-                    value = value.strip().strip('"').strip("'")
-                    if value:
-                        secrets.append(value)
-            self.assertFalse(
-                any(value in serialized for value in secrets),
-                "canonical Preparation data contains a credential value",
+
+    def test_canonical_data_carries_none_of_this_machines_environment_secrets(self) -> None:
+        """The comparison against the real `.env`, in a test that records its absence.
+
+        This layer used to hang off an `if repository_environment.is_file():`
+        inside the byte scan, with no else. On a runner that has no `.env` the
+        whole comparison did nothing and the surrounding test still reported a
+        pass, so the log could not say which tier had run it. A skip says so.
+        """
+        repository_environment = REPOSITORY_ROOT / ".env"
+        if not repository_environment.is_file():
+            self.skipTest(f"{repository_environment} is not on this machine")
+        values = environment_credential_values(repository_environment)
+        if not values:
+            self.skipTest(f"{repository_environment} assigns no credential value")
+        serialized = json.dumps(self.canonical_document(), sort_keys=True)
+        self.assertFalse(
+            any(value in serialized for value in values),
+            "canonical Preparation data contains a credential value",
+        )
+
+    def test_no_credential_named_key_in_the_canonical_document_carries_a_value(self) -> None:
+        document = self.canonical_document()
+        bound = {key for _, key, _ in credential_named_bindings(document)}
+        self.assertEqual(
+            bound, {"identity", "key", "secret", "stateKey", "textJSONKey"}
+        )
+        self.assertEqual(undeclared_credential_bindings(document), [])
+
+    def test_the_credential_walk_reports_an_injected_secret(self) -> None:
+        def add_a_call_argument(document: dict) -> str:
+            document["plans"][0]["calls"][0]["arguments"]["password"] = "injected-call-password"
+            return "$.plans[0].calls[0].arguments.password"
+
+        def add_a_nested_registry_field(document: dict) -> str:
+            identifier = sorted(document["registry"])[0]
+            document["registry"][identifier]["connection"] = {
+                "apiToken": "injected-registry-token"
+            }
+            return f"$.registry.{identifier}.connection.apiToken"
+
+        def add_a_prerequisite_field(document: dict) -> str:
+            document["plans"][0]["prerequisites"][0]["sharedSecret"] = "injected-prerequisite"
+            return "$.plans[0].prerequisites[0].sharedSecret"
+
+        def add_a_list_element(document: dict) -> str:
+            document["plans"][0]["calls"][0]["arguments"]["headers"] = [
+                {"Authorization": "Basic injected-header"}
+            ]
+            return "$.plans[0].calls[0].arguments.headers[0].Authorization"
+
+        def retype_a_declared_secret_flag(document: dict) -> str:
+            for index, plan in enumerate(document["plans"]):
+                for position, call in enumerate(plan["calls"]):
+                    arguments = call["arguments"]
+                    if "secret" in arguments:
+                        arguments["secret"] = "injected-typed-password"
+                        return f"$.plans[{index}].calls[{position}].arguments.secret"
+            raise AssertionError("no call carries a secret flag to retype")
+
+        def substitute_an_integer_for_a_secret_flag(document: dict) -> str:
+            for index, plan in enumerate(document["plans"]):
+                for position, call in enumerate(plan["calls"]):
+                    arguments = call["arguments"]
+                    if "secret" in arguments:
+                        arguments["secret"] = 1
+                        return f"$.plans[{index}].calls[{position}].arguments.secret"
+            raise AssertionError("no call carries a secret flag to substitute")
+
+        def add_a_short_password_spelling(document: dict) -> str:
+            document["plans"][0]["calls"][0]["arguments"]["pw"] = "injected-short-password"
+            return "$.plans[0].calls[0].arguments.pw"
+
+        def add_a_login_field(document: dict) -> str:
+            document["plans"][0]["prerequisites"][0]["login"] = "injected-login"
+            return "$.plans[0].prerequisites[0].login"
+
+        def add_an_authorization_shorthand(document: dict) -> str:
+            document["plans"][0]["calls"][0]["arguments"]["auth"] = "Basic injected-auth"
+            return "$.plans[0].calls[0].arguments.auth"
+
+        def add_url_userinfo(document: dict) -> str:
+            document["plans"][0]["calls"][0]["arguments"]["userinfo"] = "injected:userinfo"
+            return "$.plans[0].calls[0].arguments.userinfo"
+
+        def retype_a_declared_structural_identity(document: dict) -> str:
+            document["plans"][0]["prerequisites"][0]["identity"] = "injected-identity"
+            return "$.plans[0].prerequisites[0].identity"
+
+        def retype_a_declared_state_key(document: dict) -> str:
+            document["plans"][0]["stateContract"]["key"] = "injected-state-key"
+            return "$.plans[0].stateContract.key"
+
+        def retype_a_declared_text_field_name(document: dict) -> str:
+            for index, plan in enumerate(document["plans"]):
+                for position, call in enumerate(plan["calls"]):
+                    arguments = call["arguments"]
+                    if "textJSONKey" in arguments:
+                        arguments["textJSONKey"] = "injected-field-name"
+                        return f"$.plans[{index}].calls[{position}].arguments.textJSONKey"
+            raise AssertionError("no call carries a typed-text field name to retype")
+
+        injections = (
+            add_a_call_argument,
+            add_a_nested_registry_field,
+            add_a_prerequisite_field,
+            add_a_list_element,
+            retype_a_declared_secret_flag,
+            substitute_an_integer_for_a_secret_flag,
+            add_a_short_password_spelling,
+            add_a_login_field,
+            add_an_authorization_shorthand,
+            add_url_userinfo,
+            retype_a_declared_structural_identity,
+            retype_a_declared_state_key,
+            retype_a_declared_text_field_name,
+        )
+        for inject in injections:
+            with self.subTest(injection=inject.__name__):
+                document = self.canonical_document()
+                self.assertEqual(undeclared_credential_bindings(document), [])
+                expected = inject(document)
+                self.assertIn(expected, undeclared_credential_bindings(document))
+
+    def test_environment_credential_values_reads_every_assigned_secret(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="preparation-credential-test-") as directory:
+            fake_environment = Path(directory) / ".env"
+            fake_environment.write_text(FAKE_ENVIRONMENT_FILE, encoding="utf-8")
+            self.assertEqual(
+                environment_credential_values(fake_environment),
+                list(FAKE_ENVIRONMENT_SECRETS),
             )
 
     def test_remote_implementation_identity_and_runtime_reference_are_bound(self) -> None:

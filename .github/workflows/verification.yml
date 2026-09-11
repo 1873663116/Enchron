@@ -1,20 +1,42 @@
 name: verification
 
+# The runner is self-hosted on the maintainer's Mac, so the trigger list is the
+# security boundary: `push` and `workflow_dispatch` can be fired only by an
+# account with write access to this repository. `pull_request` is deliberately
+# absent. A job-level `if:` comparing the head repository cannot substitute for
+# its absence, because for `pull_request` events GitHub Actions reads the
+# workflow definition from the pull request's own merge commit - a fork pull
+# request that deletes the condition runs on this machine anyway. The cost of
+# leaving `pull_request` out is that a pull request from a fork gets no CI; on
+# a solo-owner repository that is the cheaper side of the trade, and the owner
+# runs verification on any branch from the Actions tab on demand.
+#
+# Requiring approval before an outside contributor's workflow runs is a
+# repository setting, not part of this file, and nothing here can assert it.
+# The owner should confirm it under Settings > Actions > General > Fork pull
+# request workflows from outside collaborators, and treat it as a second layer
+# rather than as this boundary.
+
 on:
-  pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
   group: verification
   cancel-in-progress: false
+
+# The job reads the repository over HTTPS with the run's own token and calls no
+# other GitHub API, so read access to contents is the whole requirement.
+permissions:
+  contents: read
 
 jobs:
   verification:
     runs-on: self-hosted
     timeout-minutes: 45
     steps:
-      - name: Run the quick verification at the revision under review
+      - name: Run the quick verification at the pushed revision
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -27,11 +49,17 @@ jobs:
             git -C "$MAIN" worktree add --detach "$REPO" HEAD
           fi
           AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64)
+          # Branch tips and tags are both fetched, because the Actions ref
+          # picker offers tags to `workflow_dispatch` and a tag's commit need
+          # not be reachable from any branch tip. `--no-tags` only turns off
+          # automatic tag following; the explicit refspec still applies. Pull
+          # request merge refs are not fetched because no pull request event
+          # reaches this workflow.
           git -C "$REPO" -c credential.helper= \
             -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" \
             fetch --no-tags --force origin \
               '+refs/heads/*:refs/remotes/origin/*' \
-              '+refs/pull/*/merge:refs/remotes/origin/pull/*/merge'
+              '+refs/tags/*:refs/tags/*'
           git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
           # The build caches are the one thing worth carrying between runs.
           # Deleting the 3.3 GB DerivedData tree the full tier leaves behind
@@ -43,16 +71,10 @@ jobs:
           git -C "$REPO" clean -ffdx \
             -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
           "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
-          cp "$MAIN/.env" "$REPO/.env"
-          # The Emby credentials are a resource of the EmbyTests package target
-          # (Package.swift declares `.process("Fixtures")`), and Bundle.module
-          # only sees files under that directory, so this one file has to exist
-          # inside the checkout. It is gitignored; the main checkout holds it.
-          EMBY_IDENTITY=Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json
-          if [ -f "$MAIN/$EMBY_IDENTITY" ]; then
-            mkdir -p "$REPO/$(dirname "$EMBY_IDENTITY")"
-            cp "$MAIN/$EMBY_IDENTITY" "$REPO/$EMBY_IDENTITY"
-          fi
+          # No credential reaches this checkout. The quick tier needs none:
+          # every check that parses an environment file writes its own fake one
+          # into a temporary directory, and the Emby live suite lives in a
+          # SwiftPM test target no tier of run_verification.py executes.
           # A stray .pth left by an unrelated editable install points into
           # ~/Documents, and every interpreter startup under the runner blocked
           # in opendir there for as long as the job was allowed to run. An empty
