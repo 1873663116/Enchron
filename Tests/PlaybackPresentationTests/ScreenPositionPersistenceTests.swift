@@ -29,31 +29,51 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
         let store = PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)
 
         await store.savePosition(
-            for: "scenic-one",
+            for: "ocean",
             distanceMeters: 2.4,
             elevationDegrees: 12,
             screenScale: 1.3
         )
         await store.savePosition(
-            for: "scenic-two",
+            for: "placeholder-red",
             distanceMeters: 4.8,
             elevationDegrees: -18,
             screenScale: 0.8
         )
 
-        let storedScenicOne = await store.loadPosition(for: "scenic-one")
-        let storedScenicTwo = await store.loadPosition(for: "scenic-two")
-        let scenicOne = try XCTUnwrap(storedScenicOne)
-        let scenicTwo = try XCTUnwrap(storedScenicTwo)
-        XCTAssertEqual(scenicOne.distanceMeters, 2.4)
-        XCTAssertEqual(scenicOne.elevationDegrees, 12)
-        XCTAssertEqual(scenicOne.screenScale, 1.3)
-        XCTAssertEqual(scenicTwo.distanceMeters, 4.8)
-        XCTAssertEqual(scenicTwo.elevationDegrees, -18)
-        XCTAssertEqual(scenicTwo.screenScale, 0.8)
+        let storedOcean = await store.loadPosition(for: "ocean")
+        let storedPlaceholderRed = await store.loadPosition(for: "placeholder-red")
+        let ocean = try XCTUnwrap(storedOcean)
+        let placeholderRed = try XCTUnwrap(storedPlaceholderRed)
+        XCTAssertEqual(ocean.distanceMeters, 2.4)
+        XCTAssertEqual(ocean.elevationDegrees, 12)
+        XCTAssertEqual(ocean.screenScale, 1.3)
+        XCTAssertEqual(placeholderRed.distanceMeters, 4.8)
+        XCTAssertEqual(placeholderRed.elevationDegrees, -18)
+        XCTAssertEqual(placeholderRed.screenScale, 0.8)
     }
 
-    func testLegacyOffsetsDoNotMasqueradeAsUserCenteredPlacement() async throws {
+    func testSavedScreenPositionRoundTripsWithoutClampingIntoAnyEnvironmentsLimits() async throws {
+        let suite = "enchron.tests.screen-position-unclamped.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)
+
+        await store.savePosition(
+            for: "quiet-room",
+            distanceMeters: 200,
+            elevationDegrees: -45,
+            screenScale: 40
+        )
+
+        let loadedPosition = await store.loadPosition(for: "quiet-room")
+        let loaded = try XCTUnwrap(loadedPosition)
+        XCTAssertEqual(loaded.distanceMeters, 200)
+        XCTAssertEqual(loaded.elevationDegrees, -45)
+        XCTAssertEqual(loaded.screenScale, 40)
+    }
+
+    func testMissingFieldsFallBackToPlaybackDockedPlacementLimitsFallback() async throws {
         let suite = "enchron.tests.screen-position-legacy.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -69,8 +89,11 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
         let loaded = await PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)
             .loadPosition(for: "enchron-environment")
         let saved = try XCTUnwrap(loaded)
-        XCTAssertEqual(saved.distanceMeters, PlaybackDockedPlacement.defaultDistance)
-        XCTAssertEqual(saved.elevationDegrees, PlaybackDockedPlacement.defaultElevationDegrees)
-        XCTAssertEqual(saved.screenScale, 1.3)
+        XCTAssertEqual(saved.distanceMeters, PlaybackDockedPlacementLimits.fallback.defaultDistance)
+        XCTAssertEqual(
+            saved.elevationDegrees,
+            PlaybackDockedPlacementLimits.fallback.defaultElevationDegrees
+        )
+        XCTAssertEqual(saved.screenScale, PlaybackDockedPlacementLimits.fallback.defaultScreenHeight)
     }
 }

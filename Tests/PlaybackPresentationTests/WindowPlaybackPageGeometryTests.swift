@@ -546,13 +546,13 @@ struct WindowPlaybackPageGeometryTests {
         state.toggleMenu(.dock)
 
         let requested = state.selectDockTarget(
-            environment: .scenicThree,
+            environment: .placeholderGreen,
             effect: .dark
         )
 
-        #expect(requested.0 == .scenicThree)
+        #expect(requested.0 == .placeholderGreen)
         #expect(requested.1 == .dark)
-        #expect(state.selectedDockEnvironment == .scenicThree)
+        #expect(state.selectedDockEnvironment == .placeholderGreen)
         #expect(state.selectedEffect == .dark)
         #expect(state.presentedMenu == nil)
     }
@@ -572,15 +572,16 @@ struct WindowPlaybackPageGeometryTests {
         #expect(state.presentedMenu == nil)
     }
 
-    @Test("Skybox is a Dock target without a Light or Dark appearance")
-    func selectingSkyboxRecordsNoAppearance() {
+    @Test("Quiet Room is the default Dock target and carries no Light or Dark appearance")
+    func selectingQuietRoomRecordsNoAppearance() {
         var state = PlaybackTopActionsState()
 
-        let requested = state.selectDockTarget(environment: .skybox, effect: nil)
+        let requested = state.selectDockTarget(environment: .defaultEnvironment, effect: nil)
 
-        #expect(requested.0 == .skybox)
+        #expect(requested.0 == .quietRoom)
         #expect(requested.1 == nil)
-        #expect(state.selectedDockEnvironment == .skybox)
+        #expect(state.selectedDockEnvironment == .quietRoom)
         #expect(state.selectedEffect == nil)
+        #expect(state.selectedDockEnvironment.supportsDarkAppearance == false)
     }
 }

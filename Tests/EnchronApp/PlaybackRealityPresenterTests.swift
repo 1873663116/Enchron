@@ -1,17 +1,16 @@
 import AVFoundation
 @testable import Playback
 import RealityKit
-import RealityKitContent
 import XCTest
 @testable import Enchron
 
 nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     @MainActor
-    private func loadAuthoredWorld() async throws -> Entity {
-        try await Entity(
-            named: EnvironmentSceneMapping.worldSceneName,
-            in: realityKitContentBundle
-        )
+    private func loadAuthoredWorld(
+        for environment: SpatialSceneDomain.CinemaEnvironment = .ocean
+    ) async throws -> Entity {
+        let scene = try XCTUnwrap(EnvironmentSceneMapping.scene(for: environment))
+        return try await scene.load()
     }
 
     @MainActor
@@ -26,80 +25,88 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testScenicEnvironmentReplacesSkyboxWithTintedPlaceholder() async throws {
-        let world = try await loadAuthoredWorld()
-        let skybox = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
-        )
-        let playbackAnchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
+    func testPlaceholderEnvironmentsCreateATintedSphereWithTheRequestedBrightness() throws {
+        let world = Entity()
 
-        XCTAssertEqual(
-            EnvironmentSceneAppearanceApplier.apply(
-                environment: .scenicOne,
-                effect: .dark,
-                to: world
-            ),
-            EnvironmentSceneAppearanceApplier.darkSkyboxOpacity
-        )
-        XCTAssertFalse(skybox.isEnabled)
-        XCTAssertNotNil(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
-        )
-        XCTAssertEqual(
-            world.findEntity(
-                named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName
-            )?.components[OpacityComponent.self]?.opacity,
-            EnvironmentSceneAppearanceApplier.darkSkyboxOpacity
-        )
-        XCTAssertNil(playbackAnchor.components[OpacityComponent.self])
-    }
-
-    @MainActor
-    func testSkyboxRestoresTheProductResourceWithoutAnEffect() async throws {
-        let world = try await loadAuthoredWorld()
-        let skybox = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
-        )
-
-        _ = EnvironmentSceneAppearanceApplier.apply(
-            environment: .scenicThree,
-            effect: .light,
+        let darkBrightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .placeholderRed,
+            effect: .dark,
+            scene: nil,
             to: world
         )
 
-        XCTAssertEqual(
-            EnvironmentSceneAppearanceApplier.apply(
-                environment: .skybox,
-                effect: nil,
-                to: world
-            ),
-            1
+        XCTAssertEqual(darkBrightness, 0.5)
+        let placeholder = try XCTUnwrap(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
         )
-        XCTAssertTrue(skybox.isEnabled)
+        XCTAssertTrue(placeholder.isEnabled)
+
+        let lightBrightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .placeholderRed,
+            effect: .light,
+            scene: nil,
+            to: world
+        )
+        XCTAssertEqual(lightBrightness, 1)
+        XCTAssertTrue(placeholder.isEnabled)
+    }
+
+    @MainActor
+    func testApplyingASceneBackedEnvironmentClearsAnyExistingPlaceholder() async throws {
+        let world = try await loadAuthoredWorld()
+        _ = EnvironmentSceneAppearanceApplier.apply(
+            environment: .placeholderRed,
+            effect: .dark,
+            scene: nil,
+            to: world
+        )
+        XCTAssertNotNil(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
+        )
+
+        let brightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .ocean,
+            effect: .light,
+            scene: try XCTUnwrap(EnvironmentSceneMapping.scene(for: .ocean)),
+            to: world
+        )
+
+        XCTAssertEqual(brightness, 1)
         XCTAssertNil(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
         )
     }
 
     @MainActor
-    func testClearingEnvironmentDisablesEveryEnvironmentBackdrop() async throws {
-        let world = try await loadAuthoredWorld()
-        let skybox = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
+    func testQuietRoomIgnoresTheRequestedEffectAndAlwaysReturnsLightBrightness() async throws {
+        let world = try await loadAuthoredWorld(for: .quietRoom)
+
+        let brightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .quietRoom,
+            effect: .dark,
+            scene: try XCTUnwrap(EnvironmentSceneMapping.scene(for: .quietRoom)),
+            to: world
         )
 
+        XCTAssertEqual(brightness, 1)
+    }
+
+    @MainActor
+    func testClearingTheEnvironmentDisablesAnActivePlaceholder() throws {
+        let world = Entity()
         _ = EnvironmentSceneAppearanceApplier.apply(
-            environment: .scenicOne,
+            environment: .placeholderGreen,
             effect: .light,
+            scene: nil,
             to: world
         )
         let placeholder = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
         )
+        XCTAssertTrue(placeholder.isEnabled)
 
         EnvironmentSceneAppearanceApplier.clear(in: world)
 
-        XCTAssertFalse(skybox.isEnabled)
         XCTAssertFalse(placeholder.isEnabled)
     }
 

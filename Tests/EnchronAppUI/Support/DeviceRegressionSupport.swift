@@ -195,56 +195,6 @@ extension XCTestCase {
         return app
     }
 
-    func selectDefaultScenicEnvironment(
-        named title: String,
-        currentTitle: String = "Scenic Environment 1",
-        in app: XCUIApplication
-    ) -> Bool {
-        let settingsTab = app.descendants(matching: .any)[
-            "Navigation-Ornament-tab-settings"
-        ].firstMatch
-        guard requireHittable(settingsTab, named: "Settings") else { return false }
-        settingsTab.tap()
-
-        let playbackCategory = app.descendants(matching: .any)[
-            "Settings-category-playback"
-        ].firstMatch
-        guard playbackCategory.waitForExistence(timeout: 10),
-              playbackCategory.isEnabled else {
-            XCTFail("Playback Settings category did not become available.")
-            return false
-        }
-        if playbackCategory.isSelected == false {
-            playbackCategory.tap()
-        }
-        guard app.descendants(matching: .any)[
-            "Settings-Playback-group"
-        ].firstMatch.waitForExistence(timeout: 10) else {
-            XCTFail("Playback Settings did not become visible.")
-            return false
-        }
-
-        let defaultEnvironmentMenu = app.buttons[currentTitle].firstMatch
-        guard defaultEnvironmentMenu.waitForExistence(timeout: 10),
-              defaultEnvironmentMenu.isEnabled else {
-            XCTFail("Default Scenic Environment menu did not become available.")
-            return false
-        }
-        defaultEnvironmentMenu.tap()
-
-        let option = app.buttons[title].firstMatch
-        guard option.waitForExistence(timeout: 10), option.isEnabled else {
-            XCTFail("Default Scenic Environment option \(title) did not appear.")
-            return false
-        }
-        option.tap()
-        guard app.buttons[title].firstMatch.waitForExistence(timeout: 10) else {
-            XCTFail("Default Scenic Environment did not update to \(title).")
-            return false
-        }
-        return true
-    }
-
     func waitForHittableRegisteredMediaCard(
         identifier: String,
         in app: XCUIApplication,

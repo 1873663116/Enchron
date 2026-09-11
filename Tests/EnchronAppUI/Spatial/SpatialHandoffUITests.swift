@@ -1112,11 +1112,10 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let identifiers = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
         )
-        let activeEnvironmentID = "scenic-two"
-        let defaultEnvironmentID = "scenic-three"
+        let activeEnvironmentID = "placeholder-red"
+        let dockedEnvironmentID = "quiet-room"
         guard let app = launchRegisteredMediaAfterOpeningDarkEnvironment(
             identifiers: identifiers,
-            defaultScenicEnvironmentTitle: "Scenic Environment 3",
             activeEnvironmentID: activeEnvironmentID
         ) else { return }
         let environmentCard = app.descendants(matching: .any)[
@@ -1156,9 +1155,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         ].firstMatch
         guard requireHittable(dock, named: "Dock") else { return }
         dock.tap()
-        let light = app.buttons["PlayerUI-DockMenu-light"].firstMatch
-        guard requireHittable(light, named: "Dock with Light Mode") else { return }
-        light.tap()
+        let quietRoom = app.buttons["PlayerUI-DockMenu-default"].firstMatch
+        guard requireHittable(quietRoom, named: "Dock into Quiet Room") else { return }
+        quietRoom.tap()
         guard requirePresentationRequest(
             in: app,
             windowState: windowState,
@@ -1173,9 +1172,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         )
         XCTAssertEqual(docked.string("session"), session)
         XCTAssertEqual(docked.string("attached"), "docked")
-        XCTAssertEqual(docked.string("environment"), defaultEnvironmentID)
+        XCTAssertEqual(docked.string("environment"), dockedEnvironmentID)
         XCTAssertNotEqual(docked.string("environment"), environmentID)
-        XCTAssertEqual(docked.string("environmentEffect"), "light")
+        XCTAssertEqual(docked.string("environmentEffect"), "none")
         XCTAssertEqual(docked.string("environmentCardResidency"), "closed")
         XCTAssertEqual(docked.bool("surfaceSettled"), true)
         XCTAssertEqual(docked.bool("surfaceRenderingReady"), true)
@@ -1192,8 +1191,8 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             "Environment Card must close before Docked becomes the active presentation."
         )
         try await Task.sleep(for: .seconds(2))
-        attachState(docked, name: "docked-temporary-default-environment-state")
-        attachScreenshot(from: app, name: "docked-temporary-default-environment")
+        attachState(docked, name: "docked-temporary-quiet-room-environment-state")
+        attachScreenshot(from: app, name: "docked-temporary-quiet-room-environment")
 
         let exitSpatial = app.descendants(matching: .any)[
             "PlayerPanel-button-exit-spatial"
@@ -1203,7 +1202,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         try observeTransitionBackToWindow(
             app: app,
             windowSurface: windowState,
-            sourcePresentation: "docked-temporary-default-environment"
+            sourcePresentation: "docked-temporary-quiet-room-environment"
         )
         let restored = try XCTUnwrap(waitForState(
             in: app,
@@ -1236,8 +1235,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
     @MainActor
     private func launchRegisteredMediaAfterOpeningDarkEnvironment(
         identifiers: [String],
-        defaultScenicEnvironmentTitle: String? = nil,
-        activeEnvironmentID: String = "scenic-one"
+        activeEnvironmentID: String = "ocean"
     ) -> XCUIApplication? {
         guard let identifier = identifiers.first else { return nil }
         let app = launchVisionProRegressionApp()
@@ -1271,14 +1269,6 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             to: identifier,
             in: app
         ) else { return nil }
-
-        if let defaultScenicEnvironmentTitle,
-           selectDefaultScenicEnvironment(
-               named: defaultScenicEnvironmentTitle,
-               in: app
-           ) == false {
-            return nil
-        }
 
         let environmentTab = app.descendants(matching: .any)[
             "Navigation-Ornament-tab-environment"

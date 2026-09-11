@@ -74,13 +74,13 @@ private enum PresentationContract {
     ) {
         let (model, _) = try driveThroughDockingRollback()
         let activeEnvironment = EnvironmentContext.active(
-            environment: .scenicTwo,
+            environment: .placeholderRed,
             effect: .dark
         )
-        try model.activateEnvironment(.scenicTwo, effect: .dark)
+        try model.activateEnvironment(.placeholderRed, effect: .dark)
         _ = try model.requestPresentation(
             .docked,
-            environment: .scenicThree,
+            environment: .placeholderGreen,
             effect: .light,
             playbackContext: playingContext
         )
@@ -114,7 +114,7 @@ private enum PresentationContract {
         let model = try driveThroughPanoramaEdges()
         try model.deactivateEnvironment()
         model.setActiveEnvironmentEffect(.dark)
-        try model.requestEnvironmentPreview(environment: .scenicOne, effect: .dark)
+        try model.requestEnvironmentPreview(environment: .ocean, effect: .dark)
         try completePendingEffect(model)
         try model.requestEnvironmentPreviewDismissal()
         try completePendingEffect(model)
@@ -163,20 +163,20 @@ struct SpatialPlaybackPresentationContractTests {
     @Test("docked placement exposes its specified defaults and adjustment steps")
     func dockedPlacementExposesDefaultsAndSteps() {
         #expect(
-            PlaybackDockedPlacement.defaultDistance == 4.0
-                && PlaybackDockedPlacement().distanceMeters == 4.0,
-            "Docked placement defaults must preserve the specified four-meter distance"
+            PlaybackDockedPlacementLimits.fallback.defaultDistance == 12
+                && PlaybackDockedPlacement().distanceMeters == 12,
+            "Docked placement defaults must fall back to the shared placeholder limits when no environment-specific limits are given"
         )
         #expect(
-            PlaybackScreenSize.scaleStep == 0.05,
-            "Docked Screen Size must advance in five-percent steps"
+            PlaybackDockedPlacementLimits.screenHeightStep == 0.25,
+            "Docked Screen Height must advance in quarter-meter steps"
         )
         #expect(
-            PlaybackDockedPlacement.distanceStep == 0.5,
+            PlaybackDockedPlacementLimits.distanceStep == 0.5,
             "Docked Distance must advance in half-meter steps"
         )
         #expect(
-            PlaybackDockedPlacement.elevationStep == 5.0,
+            PlaybackDockedPlacementLimits.elevationStep == 5.0,
             "Docked Elevation must advance in five-degree steps"
         )
     }
@@ -202,7 +202,7 @@ struct SpatialPlaybackPresentationContractTests {
     @Test("capability loss abandons the execution and keeps the product request")
     func capabilityLossAbandonsExecutionAndKeepsRequest() throws {
         let retryModel = PlaybackPresentationModel()
-        try retryModel.requestEnvironmentPreview(environment: .scenicOne, effect: .light)
+        try retryModel.requestEnvironmentPreview(environment: .ocean, effect: .light)
         let retryRequest = try PresentationContract.pendingRequest(retryModel)
         let abandonedExecutionID = UUID()
 
@@ -392,8 +392,9 @@ struct SpatialPlaybackPresentationContractTests {
         )
         #expect(
             requestedDock.targetEnvironment.environment == presentationModel.defaultEnvironment
-                && requestedDock.targetEnvironment.effect == .dark,
-            "Docking without an active Environment Context must use its requested Effect"
+                && presentationModel.defaultEnvironment.supportsDarkAppearance == false
+                && requestedDock.targetEnvironment.effect == nil,
+            "Docking without an active Environment Context must fall to the Default Environment, which carries no Effect whatever the Dock menu requested"
         )
 
         let firstRequest = try PresentationContract.pendingRequest(presentationModel)
@@ -488,29 +489,28 @@ struct SpatialPlaybackPresentationContractTests {
     func activeEnvironmentContextSurvivesDockingAndStop() throws {
         let (presentationModel, firstRequest) =
             try PresentationContract.driveThroughDockingRollback()
-        let defaultEnvironmentBeforeActivation = presentationModel.defaultEnvironment
         let activeEnvironment = EnvironmentContext.active(
-            environment: .scenicTwo,
+            environment: .placeholderRed,
             effect: .dark
         )
 
-        try presentationModel.activateEnvironment(.scenicTwo, effect: .dark)
+        try presentationModel.activateEnvironment(.placeholderRed, effect: .dark)
         #expect(
-            presentationModel.snapshot.environmentContext.environment == .scenicTwo
+            presentationModel.snapshot.environmentContext.environment == .placeholderRed
                 && presentationModel.snapshot.environmentContext.effect == .dark
-                && presentationModel.defaultEnvironment == defaultEnvironmentBeforeActivation,
-            "Environment Context must carry Environment identity and Environment Effect together"
+                && presentationModel.defaultEnvironment == .quietRoom,
+            "Environment Context must carry Environment identity and Environment Effect together, independent of the fixed Default Environment"
         )
 
         let pendingDock = try presentationModel.requestPresentation(
             .docked,
-            environment: .scenicThree,
+            environment: .placeholderGreen,
             effect: .light,
             playbackContext: PresentationContract.playingContext
         )
         #expect(
             pendingDock.targetEnvironment == .active(
-                environment: .scenicThree,
+                environment: .placeholderGreen,
                 effect: .light
             ),
             "Docking must use the environment and appearance selected by the Dock menu"
@@ -554,7 +554,7 @@ struct SpatialPlaybackPresentationContractTests {
         )
         #expect(
             presentationModel.presentation == .docked
-                && presentationModel.defaultEnvironment == defaultEnvironmentBeforeActivation,
+                && presentationModel.defaultEnvironment == .quietRoom,
             "committing Docked must not rewrite Default Environment identity"
         )
 
@@ -658,7 +658,7 @@ struct SpatialPlaybackPresentationContractTests {
             "setting an Effect without an active Environment Context must not create global Effect state"
         )
 
-        try presentationModel.requestEnvironmentPreview(environment: .scenicOne, effect: .dark)
+        try presentationModel.requestEnvironmentPreview(environment: .ocean, effect: .dark)
         #expect(
             try PresentationContract.pendingRequest(presentationModel).effect
                 == .presentEnvironmentPreview,
@@ -668,7 +668,7 @@ struct SpatialPlaybackPresentationContractTests {
         try PresentationContract.completePendingEffect(presentationModel)
         #expect(
             presentationModel.environmentContext == EnvironmentContext.active(
-                environment: .scenicOne,
+                environment: .ocean,
                 effect: .dark
             )
                 && presentationModel.immersiveSpaceResidency == .open,
@@ -705,7 +705,7 @@ struct SpatialPlaybackPresentationContractTests {
 
         do {
             try presentationModel.requestEnvironmentPreview(
-                environment: .scenicOne,
+                environment: .ocean,
                 effect: .light
             )
             Issue.record("a second platform effect must not be emitted while one is pending")
