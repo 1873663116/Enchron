@@ -346,7 +346,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         XCTAssertEqual(docked.string("rendererConsumerEntity"), "present")
         XCTAssertEqual(docked.bool("surfaceRenderingReady"), true)
         XCTAssertEqual(docked.bool("surfaceAnchorMatched"), true)
-        XCTAssertEqual(docked.string("surfaceParent"), "PlaybackSurfaceAnchor")
+        XCTAssertEqual(docked.string("surfaceParent"), "EnchronPlaybackSurfaceAnchor")
         XCTAssertTrue(windowState.waitForNonExistence(timeout: 15))
         attachState(docked, name: "dock-return-03-docked-paused")
 
@@ -1179,7 +1179,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         XCTAssertEqual(docked.bool("surfaceSettled"), true)
         XCTAssertEqual(docked.bool("surfaceRenderingReady"), true)
         XCTAssertEqual(docked.bool("surfaceAnchorMatched"), true)
-        XCTAssertEqual(docked.string("surfaceParent"), "PlaybackSurfaceAnchor")
+        XCTAssertEqual(docked.string("surfaceParent"), "EnchronPlaybackSurfaceAnchor")
         XCTAssertEqual(
             docked.double("immersionAmount") ?? .nan,
             immersionAmount,

@@ -1086,41 +1086,60 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    @Test("Default docked placement lands on the authored surface anchor")
+    private static func restPose(
+        bottomHeight: Float,
+        distance: Float,
+        screenHeight: Float
+    ) -> EnvironmentScreenRestPose {
+        EnvironmentScreenRestPose(
+            center: [0, bottomHeight + screenHeight / 2, -distance],
+            right: [1, 0, 0],
+            up: [0, 1, 0],
+            normal: [0, 0, 1],
+            halfWidth: screenHeight / 2 * 16 / 9,
+            halfHeight: screenHeight / 2
+        )
+    }
+
+    @Test("Default docked placement reproduces the authored ScreenPreview rest pose")
     @MainActor
-    func defaultDockedPlacementLandsOnTheAuthoredAnchor() {
+    func defaultDockedPlacementReproducesTheAuthoredRestPose() {
+        let geometry = EnvironmentSceneGeometry()
+        let limits = PlaybackDockedPlacementLimits(geometry: geometry)
+        let restPose = Self.restPose(
+            bottomHeight: 0.9296054,
+            distance: Float(limits.defaultDistance),
+            screenHeight: Float(limits.defaultScreenHeight)
+        )
         let anchor = Entity()
-        anchor.position = [
-            0,
-            0.9296054,
-            -Float(PlaybackDockedPlacementLimits.fallback.defaultDistance)
-        ]
+        anchor.position = restPose.center
         let screen = Entity()
 
         PlaybackSurfacePlacement.dock(
             screen,
             to: anchor,
             transform: PlaybackSurfaceTransform(
-                distance: PlaybackDockedPlacementLimits.fallback.defaultDistance,
-                elevationDegrees: PlaybackDockedPlacementLimits.fallback.defaultElevationDegrees,
-                scale: 1
+                distance: limits.defaultDistance,
+                elevationDegrees: limits.defaultElevationDegrees,
+                scale: limits.defaultScreenHeight
             ),
-            geometry: EnvironmentSceneGeometry(),
-            anchorWorldPosition: anchor.position(relativeTo: nil)
+            geometry: geometry,
+            restPose: restPose
         )
 
         let placed = screen.position(relativeTo: nil)
-        let authored = anchor.position(relativeTo: nil)
-        #expect(abs(placed.x - authored.x) < 0.001)
-        #expect(abs(placed.y - authored.y) < 0.001)
-        #expect(abs(placed.z - authored.z) < 0.001)
+        #expect(abs(placed.x - restPose.center.x) < 0.001)
+        #expect(abs(placed.y - restPose.center.y) < 0.001)
+        #expect(abs(placed.z - restPose.center.z) < 0.001)
     }
 
-    @Test("Docked elevation swings the screen around the wearer's eye height")
+    @Test("Docked elevation swings the bottom edge around the authored rest height")
     @MainActor
-    func dockedElevationSwingsAroundTheWearerEyeHeight() {
+    func dockedElevationSwingsAroundTheAuthoredRestHeight() {
+        let restBottom: Float = 0.9296054
+        let restPose = Self.restPose(bottomHeight: restBottom, distance: 4, screenHeight: 1)
         let anchor = Entity()
-        anchor.position = [0, 0.9296054, -4]
+        anchor.position = restPose.center
         let screen = Entity()
 
         PlaybackSurfacePlacement.dock(
@@ -1132,20 +1151,25 @@ struct PlaybackPresentationStateTests {
                 scale: 1
             ),
             geometry: EnvironmentSceneGeometry(),
-            anchorWorldPosition: anchor.position(relativeTo: nil)
+            restPose: restPose
         )
 
-        let placed = screen.position(relativeTo: nil)
-        #expect(abs(placed.y - (0.9296054 + 2)) < 0.001)
-        #expect(abs(placed.z - -4 * cos(.pi / 6)) < 0.001)
+        let elevation = Float.pi / 6
+        let up = simd_normalize(screen.convert(direction: [0, 1, 0], to: nil))
+        let bottomEdge = screen.position(relativeTo: nil) - 0.5 * up
+        #expect(abs(bottomEdge.y - (restBottom + 4 * sin(elevation))) < 0.001)
+        #expect(abs(bottomEdge.z - -4 * cos(elevation)) < 0.001)
+        #expect(simd_length(up - SIMD3<Float>(0, cos(elevation), sin(elevation))) < 0.001)
     }
 
-    @Test("Docked placement turns the screen's visible face toward the wearer")
+    @Test("Docked placement turns the screen's visible face toward the bottom-edge pivot")
     @MainActor
-    func dockedPlacementFacesTheWearer() {
+    func dockedPlacementFacesTheBottomEdgePivot() {
         for elevation in [0.0, 30.0, -20.0] {
+            let restBottom: Float = 0.9296054
+            let restPose = Self.restPose(bottomHeight: restBottom, distance: 4, screenHeight: 1)
             let anchor = Entity()
-            anchor.position = [0, 0.9296054, -4]
+            anchor.position = restPose.center
             let screen = Entity()
 
             PlaybackSurfacePlacement.dock(
@@ -1157,14 +1181,14 @@ struct PlaybackPresentationStateTests {
                     scale: 1
                 ),
                 geometry: EnvironmentSceneGeometry(),
-                anchorWorldPosition: anchor.position(relativeTo: nil)
+                restPose: restPose
             )
 
+            let up = simd_normalize(screen.convert(direction: [0, 1, 0], to: nil))
             let visibleFace = simd_normalize(screen.convert(direction: [0, 0, 1], to: nil))
-            let towardWearer = simd_normalize(
-                SIMD3<Float>(0, 0.9296054, 0) - screen.position(relativeTo: nil)
-            )
-            #expect(simd_dot(visibleFace, towardWearer) > 0.999)
+            let bottomEdge = screen.position(relativeTo: nil) - 0.5 * up
+            let towardPivot = simd_normalize(SIMD3<Float>(0, restBottom, 0) - bottomEdge)
+            #expect(simd_dot(visibleFace, towardPivot) > 0.999)
         }
     }
 

@@ -1,6 +1,7 @@
 import AVFoundation
 @testable import Playback
 import RealityKit
+import simd
 import XCTest
 @testable import Enchron
 
@@ -15,13 +16,29 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
     @MainActor
     func testDockingWorldCanLoadFromProductResources() async throws {
-        let world = try await loadAuthoredWorld()
-        let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
+        let scene = try XCTUnwrap(EnvironmentSceneMapping.scene(for: .ocean))
+        let world = try await scene.load()
+        let restPose = try XCTUnwrap(scene.restPose)
 
         XCTAssertFalse(world.name.isEmpty)
-        XCTAssertEqual(anchor.name, PlaybackSurfaceAnchorResolver.canonicalName)
-        XCTAssertNil(anchor.components[ModelComponent.self])
-        XCTAssertTrue(anchor.children.allSatisfy { $0.components[ModelComponent.self] == nil })
+        XCTAssertGreaterThan(restPose.halfWidth, restPose.halfHeight)
+        XCTAssertGreaterThan(restPose.distance, 1)
+        XCTAssertGreaterThan(simd_dot(restPose.normal, -restPose.center), 0)
+        XCTAssertEqual(simd_length(restPose.normal), 1, accuracy: 0.001)
+        XCTAssertEqual(simd_dot(restPose.normal, restPose.up), 0, accuracy: 0.001)
+        XCTAssertEqual(simd_dot(restPose.normal, restPose.right), 0, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testQuietRoomScreenPreviewIsTheAuthoredRestPose() async throws {
+        let scene = try XCTUnwrap(EnvironmentSceneMapping.scene(for: .quietRoom))
+        _ = try await scene.load()
+        let restPose = try XCTUnwrap(scene.restPose)
+
+        XCTAssertEqual(restPose.screenHeight, 4.5, accuracy: 0.01)
+        XCTAssertEqual(restPose.screenWidth, 8, accuracy: 0.01)
+        XCTAssertEqual(restPose.bottomHeight, 0.75, accuracy: 0.01)
+        XCTAssertEqual(restPose.distance, 15.98, accuracy: 0.01)
     }
 
     @MainActor
@@ -108,29 +125,6 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         EnvironmentSceneAppearanceApplier.clear(in: world)
 
         XCTAssertFalse(placeholder.isEnabled)
-    }
-
-    @MainActor
-    func testLegacyPlaybackSurfaceIsMigratedAndStrippedOfGeometry() throws {
-        let world = Entity()
-        let legacy = ModelEntity(
-            mesh: .generatePlane(width: 1, depth: 1),
-            materials: [SimpleMaterial()]
-        )
-        legacy.name = PlaybackSurfaceAnchorResolver.legacyName
-        let legacyChild = ModelEntity(
-            mesh: .generatePlane(width: 1, depth: 1),
-            materials: [SimpleMaterial()]
-        )
-        legacy.addChild(legacyChild)
-        world.addChild(legacy)
-
-        let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
-
-        XCTAssertTrue(anchor === legacy)
-        XCTAssertEqual(anchor.name, PlaybackSurfaceAnchorResolver.canonicalName)
-        XCTAssertNil(anchor.components[ModelComponent.self])
-        XCTAssertNil(legacyChild.components[ModelComponent.self])
     }
 
     @MainActor

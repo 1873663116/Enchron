@@ -80,7 +80,7 @@ nonisolated final class DebugProbeJournalTests: XCTestCase {
             "reachability files delivered action=remote.folder",
             "testcmd selectMenuItem ok",
             "setWindowSize observed=1280x720",
-            "worldLoad event=completed anchor=PlaybackSurfaceAnchor"
+            "worldLoad event=completed anchor=EnchronPlaybackSurfaceAnchor"
         ]
 
         firstJournal.record(requiredFacts[0], retention: .evidenceSession("replay-session"))
