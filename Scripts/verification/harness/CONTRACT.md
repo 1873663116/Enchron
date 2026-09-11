@@ -1,6 +1,6 @@
 # Regression harness 契约
 
-本文件是 harness 重构期间所有实现工作的规范源。实现与本文冲突时，以本文为准；认为本文有误时，向协调者提问，不得自行偏离。重构完成后本文内容将分流进 `ARCHITECTURE.md`、`docs/UI_TEST_HARNESS_CONSTRAINTS.md` 与 `.agents/skills/vp-e2e`，本文件随之删除。
+`Scripts/verification/harness/` 是回归 harness 的失败模型、等待策略、超时预算与恢复策略的唯一归属地，本文件是这个包在用的契约。改动包内实现，或改动调用方使用它的方式，都要先满足本文。实现与本文冲突即为缺陷：同一次改动里要么改实现、要么改本文，不留矛盾；无法自行裁决的矛盾向协调者提问。本文的由来见文末。
 
 ## 背景判定（已敲定，不再讨论）
 
@@ -15,7 +15,7 @@
 
 - `Scripts/verification/harness/`：本包，唯一的等待策略、预算、失败分类、恢复策略归属地。
 - `Scripts/verification/interactive_visionpro_ui.py`：唯一 runner，进程级动作执行者。
-- 五个驱动器（`reachability_matrix`、`playback_mode_matrix`、`measure_controls_flash`、两个 regression adapter）后续逐个迁移为 harness 包的调用方，迁移不在 Wave 1 范围。
+- 五个驱动器已迁移为本包的调用方：`Scripts/verification/reachability_matrix.py`、`Scripts/verification/playback_mode_matrix.py`、`Scripts/verification/measure_controls_flash.py`、`Scripts/verification/regression_operation_adapter.py` 与 `Scripts/regression/tools/op_tool.py`，它们经本包取预算、发动作、判失败。
 
 ## 失败领域模型（harness/failures.py）
 
@@ -33,7 +33,11 @@ class InstrumentFault(Exception):
     budget: Budget | None
 ```
 
-仪器故障 kind 至少包含：`transport-timeout`（subprocess 超时）、`runner-crashed`（非零退出且无可解析 JSON）、`response-undecodable`（JSON 解码失败）、`contract-mismatch`（退出码与 JSON 内 success 字段矛盾）、`wait-expired`（等待原语到期）、`app-not-running`、`session-lost`、`provisional-budget-expired`。产品失败 kind 由判决层定义，Wave 1 只需要 `assertion-mismatch` 与 `app-crashed` 两个内建值。
+两份 kind 清单的权威是 `Scripts/verification/harness/failures.py` 的 `INSTRUMENT_KINDS` 与 `PRODUCT_KINDS`，本文与代码同步列出。
+
+仪器故障 kind 十项：`transport-timeout`（调用方库观测到的 subprocess 超时）、`response-timeout`（runner 自身的应答死线到期，由 runner 以 instrument 类发出）、`runner-crashed`（非零退出且无可解析 JSON）、`response-undecodable`（JSON 解码失败）、`contract-mismatch`（退出码与 JSON 内 success 字段矛盾）、`wait-expired`（等待原语到期）、`app-not-running`、`session-lost`、`provisional-budget-expired`、`evidence-destroyed`（证据作用域内声明了销毁）。产品失败 kind 两项：`assertion-mismatch` 与 `app-crashed`。
+
+`ControllerClient` 原样转抛 runner 给出的 kind，因此 runner 端新增的 kind 会在不进入 `INSTRUMENT_KINDS` 的情况下到达调用方；`runner-gone` 目前就是这样一项（runner 在 `stage == "runnerGone"` 时发出，class 为 instrument，清单里没有它）。按 kind 分支的调用方按此实际取值对账，不要以清单为穷举。
 
 ## Runner 结构化失败输出（interactive_visionpro_ui.py）
 
@@ -49,7 +53,7 @@ runner 输出的 JSON 文档在失败时必须携带：
 
 - 现有 `explain_failure` 的 prose 诊断保留，移入 `evidence.diagnosis`。
 - 现有 `timeout_observations` 的产物移入 `evidence.observations`。
-- kind→class 映射：`app-crashed` 为 product（正向证据是 journal 崩溃记录）；`response-timeout`、`app-not-running`、`session-lost` 为 instrument。
+- kind→class 映射由 runner 的 `_attach_failure` 一处计算：`app-crashed`（正向证据是 journal 崩溃记录）与 `assertion-mismatch` 为 product，其余一律 instrument，`response-timeout`、`app-not-running`、`session-lost` 因此都是 instrument。
 - 退出码契约不变：0 成功、1 未捕获异常、2 `success: false`。
 
 ## 预算（harness/budgets.py）
@@ -63,7 +67,16 @@ runner 输出的 JSON 文档在失败时必须携带：
 
 - `censored: true` 表示该次动作在预算内未完成，`seconds` 记录的是预算值（下界）。成功与失败都记样本；旧代码只记成功的偏差就此修正。
 - `BudgetProvider.budget(lane, verb) -> Budget(seconds, provenance)`。导出规则：非删失与删失样本合并取 p95，乘系数 1.5，夹在 [5s, 600s]。`provenance` 是人读字符串，格式 `p95 <x>s × 1.5, lane=<lane>, n=<n>, censored=<c>`，出现在每条超时报错里。
-- 样本数不足 5 时查临时预算表 `Scripts/verification/harness/provisional_budgets.json`：`{"<verb>": {"seconds": <n>, "expires": "<日期>"}}`。已过期→抛 `InstrumentFault("provisional-budget-expired")`；无条目→抛同类故障。临时表初始内容：`halt` 60s、`ensure-session` 300s、`probe-copy` 120s，到期日一律 2026-10-01。
+- 样本数不足 5 时查临时预算表 `Scripts/verification/harness/provisional_budgets.json`：`{"<verb>": {"seconds": <n>, "expires": "<日期>"}}`。条目可再带 `floorSeconds`：样本足够时导出的预算低于它就抬到它，`Budget.at_floor` 记录这次抬升。已过期→抛 `InstrumentFault("provisional-budget-expired")`；无条目→抛同类故障。
+- 表内还有一个非 verb 的顶层键 `_expiry`，值是说明字符串，内容与下一节一致。`BudgetProvider` 只按 verb 名取条目，取到的值不是对象即按无条目处理，这个键因此不会被当成预算。
+
+### 临时预算的统一到期日
+
+表内 63 个条目共用同一个到期日 `2026-10-01`，没有分批。`BudgetProvider.provisional_budget` 的判据是 `today() >= expires`，2026-10-01 当天条目即为过期。
+
+此后任何在该 lane 实测样本不足 5 条的 verb，一取预算就抛 `InstrumentFault("provisional-budget-expired")`。这是仪器故障，不是产品失败：当前段落的观测整体作废并进入恢复，同一位置同一 kind 连续第二次由 `RecoveryPolicy` 判 `Halt`。截至 2026-09-11，device lane 有 36 个、simulator lane 有 50 个条目的实测样本不足 5 条。
+
+到期日按测量债到期设定。消解方式是把样本测够 5 条，让预算改由测量导出；整体顺延日期不构成消解。
 
 ## 控制器调用（harness/controller.py）
 
@@ -101,14 +114,17 @@ def wait_for(label, probe, budget, observe) -> Evidence
 
 ## 原语门禁（Scripts/rules/）
 
-新增检查器 `harness_primitives_gate.py`：
+检查器 `Scripts/rules/harness_primitives_gate.py`：
 
 - 扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python 文件，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 字样。
-- 豁免：`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`，以及允许清单 `Config/harness_primitives_allowlist.json` 中列出的文件。清单初始内容为五个驱动器与其余现存违例文件；每完成一个迁移就删一行，清单清空后检查器即为无例外强制。
+- 豁免：`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`，以及允许清单 `Config/harness_primitives_allowlist.json` 中列出的文件。清单内容是仍直接持有原语的现存文件；每完成一个迁移就删一行，清单清空后检查器即为无例外强制。
 - 检查器风格、注册方式与测试跟随 `Scripts/rules` 现有惯例；必须自带能证明「会拒绝坏输入」的测试。
 
 ## 通用要求
 
-- 单元测试纯 Python 可跑，不依赖模拟器或真机；跟随仓库现有测试惯例。
+- 单元测试纯 Python 可跑，不依赖模拟器或真机；跟随仓库现有测试惯例。本包的测试是 `Scripts/rules/test_harness_library.py` 与 `Scripts/rules/test_budget_ceiling_timing_samples.py`。
 - 提交信息遵循仓库现有风格（一行祈使句主题）。
-- 不修改本文件。发现矛盾用 ask 上报。
+
+## 由来
+
+本文最初是 harness 重构期间（Wave 1）所有实现工作的规范源，计划在重构完成后分流进 `ARCHITECTURE.md`、`docs/UI_TEST_HARNESS_CONSTRAINTS.md` 与 `.agents/skills/vp-e2e`，本文件随之删除。分流没有发生，包已投入使用，本文就地转为该包的常设契约。重构期的两条规则随之失效：驱动器迁移不再有「不在 Wave 1 范围」的部分；本文件不得修改的冻结令解除，改为与实现同步维护。

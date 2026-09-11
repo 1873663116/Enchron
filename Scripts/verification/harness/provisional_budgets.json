@@ -1,4 +1,5 @@
 {
+  "_expiry": "本表 63 个条目共用同一个到期日 2026-10-01，没有分批。BudgetProvider.provisional_budget 的判据是 today() >= expires，2026-10-01 当天条目即为过期；此后任何在该 lane 实测样本不足 5 条的 verb 一取预算就抛 InstrumentFault(provisional-budget-expired)，属仪器故障，当前段落的观测整体作废并进入恢复。消解方式是把样本测够 5 条、让预算改由测量导出，整体顺延日期不构成消解。本键不是 verb，取预算时不会命中；完整说明见 Scripts/verification/harness/CONTRACT.md。",
   "accessibility-inspect": {
     "expires": "2026-10-01",
     "seconds": 60

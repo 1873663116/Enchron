@@ -10,6 +10,7 @@
 - 播放呈现层的 RealityKit／SwiftUI 平台约束 `docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md`；
 - 浏览、Emby 与来源的外部约束 `docs/BROWSING_AND_SOURCES_CONSTRAINTS.md`；
 - UI 测试通道与 visionOS 自动化的约束 `docs/UI_TEST_HARNESS_CONSTRAINTS.md`；
+- 回归 harness 的失败模型、等待策略与超时预算契约 `Scripts/verification/harness/CONTRACT.md`；
 `docs/archive/` 保存历史材料。
 
 
