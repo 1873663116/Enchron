@@ -25,12 +25,11 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         geometry: EnvironmentSceneGeometry(
             ceilingHeightMeters: nil,
             distanceStrategy: .movesScreen,
-            defaultDistanceMeters: 12,
-            distanceRangeMeters: 6...30,
-            defaultScreenHeightMeters: 4.5,
-            screenHeightRangeMeters: 2...6,
-            elevationRangeDegrees: 0...90,
-            screenRestHeightMeters: 3
+            defaultDistanceMeters: 15,
+            distanceRangeMeters: 8...30,
+            defaultScreenHeightMeters: 9,
+            screenHeightRangeMeters: 4.5...12,
+            elevationRangeDegrees: 0...90
         ),
         supportsDarkAppearance: true
     )
@@ -78,6 +77,8 @@ public final class OceanEnvironmentScene: EnvironmentScene {
 
     private var authoredLighting: AuthoredLighting?
 
+    public private(set) var restPose: EnvironmentScreenRestPose?
+
     public init() {}
 
     public var descriptor: EnvironmentSceneDescriptor { Self.descriptor }
@@ -95,9 +96,10 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             throw EnvironmentSceneLoadingError.resourceMissing(Self.resourceName)
         }
         let root = try await Entity(contentsOf: url)
-        guard root.findEntity(named: EnvironmentSceneEntityName.playbackSurfaceAnchor) != nil else {
-            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.playbackSurfaceAnchor)
+        guard let pose = EnvironmentScreenRestPose.screenPreview(in: root) else {
+            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.screenPreview)
         }
+        restPose = pose
         guard root.findEntity(named: Self.materialSourceEntityName) != nil else {
             throw EnvironmentSceneLoadingError.entityMissing(Self.materialSourceEntityName)
         }

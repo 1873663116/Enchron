@@ -114,7 +114,7 @@ private final class WorldSceneState {
     var playbackSurfaceAnchor: Entity?
     var environment: SpatialSceneDomain.CinemaEnvironment?
     var scene: (any EnvironmentScene)?
-    var anchorAuthoredWorldPosition: SIMD3<Float> = .zero
+    var restPose: EnvironmentScreenRestPose?
     var rootAuthoredPosition: SIMD3<Float> = .zero
     var appliedEnvironment: SpatialSceneDomain.CinemaEnvironment?
     var appliedEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect?
@@ -127,7 +127,7 @@ private final class WorldSceneState {
         playbackSurfaceAnchor = nil
         environment = nil
         scene = nil
-        anchorAuthoredWorldPosition = .zero
+        restPose = nil
         rootAuthoredPosition = .zero
         appliedEnvironment = nil
         appliedEnvironmentEffect = nil
@@ -894,15 +894,23 @@ public struct ImmersiveSpaceView: View {
         let hadTexture = reflectionTexture.textureResource != nil
         guard reflectionTexture.refresh(from: renderer) else { return }
         if hadTexture == false, reflectionTexture.textureResource != nil {
-            scene.update(
-                PlaybackSurfacePlacement.screenState(
-                    of: videoEntity,
-                    pose: pose,
-                    videoTexture: reflectionTexture.textureResource
-                ),
-                in: root
-            )
+            updateEnvironmentScreen(scene, root: root, pose: pose)
         }
+    }
+
+    @MainActor
+    private func updateEnvironmentScreen(
+        _ scene: any EnvironmentScene,
+        root: Entity,
+        pose: PlaybackDockedPose
+    ) {
+        scene.update(
+            PlaybackSurfacePlacement.screenState(
+                pose: pose,
+                videoTexture: reflectionTexture.textureResource
+            ),
+            in: root
+        )
     }
 
     private func installDeveloperOverlay(
@@ -1959,18 +1967,14 @@ public struct ImmersiveSpaceView: View {
                 entity = Self.makePlaceholderWorld(for: environment)
             }
             try Task.checkCancellation()
-            let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: entity)
-            let anchorWorldTransform = anchor.transformMatrix(relativeTo: nil)
+            let restPose = scene?.restPose ?? Self.fallbackRestPose
+            let anchor = Entity()
+            anchor.name = Self.playbackSurfaceAnchorName
             world.rootAuthoredPosition = entity.position
-            world.anchorAuthoredWorldPosition = SIMD3<Float>(
-                anchorWorldTransform.columns.3.x,
-                anchorWorldTransform.columns.3.y,
-                anchorWorldTransform.columns.3.z
-            )
-            anchor.removeFromParent()
+            world.restPose = restPose
             content.add(entity)
             content.add(anchor)
-            anchor.setTransformMatrix(anchorWorldTransform, relativeTo: nil)
+            anchor.position = restPose.center
             world.entity = entity
             world.playbackSurfaceAnchor = anchor
             world.environment = environment
@@ -1978,12 +1982,17 @@ public struct ImmersiveSpaceView: View {
             applyRequestedEnvironmentAppearance(to: entity)
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldReady")
             recordSkyboxActivity(in: entity)
+            recordRestPoseDrift(restPose, for: environment)
             logger.notice("world load completed")
 #if DEBUG
             appModel.recordSurfaceInputProbe(
                 "worldLoad event=completed"
-                    + " anchor=\(PlaybackSurfaceAnchorResolver.canonicalName)"
-                    + " environment=\(environment.rawValue)",
+                    + " anchor=\(Self.playbackSurfaceAnchorName)"
+                    + " environment=\(environment.rawValue)"
+                    + " restBottom=\(restPose.bottomHeight)"
+                    + " restDistance=\(restPose.distance)"
+                    + " restScreenHeight=\(restPose.screenHeight)"
+                    + " restYaw=\(restPose.yawRadians)",
                 retention: .evidence
             )
 #endif
@@ -2027,21 +2036,41 @@ public struct ImmersiveSpaceView: View {
 #endif
     }
 
+    private static let playbackSurfaceAnchorName = "EnchronPlaybackSurfaceAnchor"
+
+    private static let fallbackRestPose = EnvironmentScreenRestPose(
+        center: [0, 3, -12],
+        right: [1, 0, 0],
+        up: [0, 1, 0],
+        normal: [0, 0, 1],
+        halfWidth: 4,
+        halfHeight: 2.25
+    )
+
     private static func makePlaceholderWorld(
         for environment: SpatialSceneDomain.CinemaEnvironment
     ) -> Entity {
         let root = Entity()
         root.name = "EnchronPlaceholderWorld.\(environment.rawValue)"
-        let anchor = Entity()
-        anchor.name = PlaybackSurfaceAnchorResolver.canonicalName
-        let geometry = EnvironmentSceneMapping.geometry(for: environment)
-        anchor.position = [
-            0,
-            geometry.screenRestHeightMeters ?? 0,
-            -Float(geometry.defaultDistanceMeters)
-        ]
-        root.addChild(anchor)
         return root
+    }
+
+    @MainActor
+    private func recordRestPoseDrift(
+        _ restPose: EnvironmentScreenRestPose,
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) {
+        let geometry = EnvironmentSceneMapping.geometry(for: environment)
+        let heightDrift = restPose.screenHeight - Float(geometry.defaultScreenHeightMeters)
+        let distanceDrift = restPose.distance - Float(geometry.defaultDistanceMeters)
+        guard abs(heightDrift) > 0.01 || abs(distanceDrift) > 0.01 else { return }
+        appModel.recordSurfaceInputProbe(
+            "restPoseDrift environment=\(environment.rawValue)"
+                + " authoredScreenHeight=\(restPose.screenHeight)"
+                + " descriptorScreenHeight=\(geometry.defaultScreenHeightMeters)"
+                + " authoredDistance=\(restPose.distance)"
+                + " descriptorDistance=\(geometry.defaultDistanceMeters)"
+        )
     }
 
     @MainActor
@@ -2404,27 +2433,21 @@ public struct ImmersiveSpaceView: View {
     ) {
         let environment = world.environment ?? .defaultEnvironment
         let geometry = EnvironmentSceneMapping.geometry(for: environment)
+        let restPose = world.restPose ?? Self.fallbackRestPose
         let pose = PlaybackSurfacePlacement.dock(
             entity,
             to: anchor,
             transform: transform,
             geometry: geometry,
-            anchorWorldPosition: world.anchorAuthoredWorldPosition
+            restPose: restPose
         )
         if let root = world.entity {
-            let target = world.rootAuthoredPosition + SIMD3<Float>(0, 0, pose.roomOffsetZ)
+            let target = world.rootAuthoredPosition + pose.roomOffset
             if root.position != target {
                 root.position = target
             }
             if let scene = world.scene {
-                scene.update(
-                    PlaybackSurfacePlacement.screenState(
-                        of: entity,
-                        pose: pose,
-                        videoTexture: reflectionTexture.textureResource
-                    ),
-                    in: root
-                )
+                updateEnvironmentScreen(scene, root: root, pose: pose)
             }
         }
         if world.lastDockedPose != pose {
@@ -2434,8 +2457,9 @@ public struct ImmersiveSpaceView: View {
                 "dockedPose center=\(pose.center)"
                     + " distance=\(pose.effectiveDistance)"
                     + " halfSize=\(pose.halfWidth)x\(pose.halfHeight)"
-                    + " roomOffsetZ=\(pose.roomOffsetZ)"
-                    + " ceilingClamped=\(pose.ceilingClamped)"
+                    + " roomOffset=\(pose.roomOffset)"
+                    + " ceilingClamped=\(pose.ceilingClamped)",
+                retention: .evidence
             )
 #endif
         }

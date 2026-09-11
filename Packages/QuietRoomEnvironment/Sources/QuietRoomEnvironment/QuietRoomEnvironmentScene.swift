@@ -17,12 +17,11 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
             ceilingHeightMeters: 6.0,
             ceilingClearanceMeters: 0.05,
             distanceStrategy: .movesViewer,
-            defaultDistanceMeters: 12,
-            distanceRangeMeters: 6...15.5,
+            defaultDistanceMeters: 15.98,
+            distanceRangeMeters: 6...16,
             defaultScreenHeightMeters: 4.5,
             screenHeightRangeMeters: 2...5.5,
-            elevationRangeDegrees: 0...90,
-            screenRestHeightMeters: nil
+            elevationRangeDegrees: 0...90
         ),
         supportsDarkAppearance: false
     )
@@ -35,6 +34,8 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
 
     private var glowSurfaces: [GlowSurface] = []
 
+    public private(set) var restPose: EnvironmentScreenRestPose?
+
     public init() {}
 
     public var descriptor: EnvironmentSceneDescriptor { Self.descriptor }
@@ -44,9 +45,10 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
             throw EnvironmentSceneLoadingError.resourceMissing(Self.resourceName)
         }
         let root = try await Entity(contentsOf: url)
-        guard root.findEntity(named: EnvironmentSceneEntityName.playbackSurfaceAnchor) != nil else {
-            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.playbackSurfaceAnchor)
+        guard let pose = EnvironmentScreenRestPose.screenPreview(in: root) else {
+            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.screenPreview)
         }
+        restPose = pose
         root.disableEnvironmentPreviewScreen()
         glowSurfaces = Self.collectGlowSurfaces(in: root)
         return root

@@ -83,7 +83,10 @@ nonisolated extension SpatialSceneDomain {
 public nonisolated enum EnvironmentSceneMapping {
     public static let placeholderDescriptor = EnvironmentSceneDescriptor(
         identifier: "placeholder",
-        geometry: EnvironmentSceneGeometry(screenRestHeightMeters: 3),
+        geometry: EnvironmentSceneGeometry(
+            defaultDistanceMeters: 12,
+            defaultScreenHeightMeters: 4.5
+        ),
         supportsDarkAppearance: true
     )
 

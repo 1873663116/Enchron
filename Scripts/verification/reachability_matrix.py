@@ -7475,7 +7475,7 @@ class ReachabilityRun:
             and f"environment={environment} effect={effect}" in line
             for line in probe[offset:]
         ) and any(
-            "worldLoad event=completed anchor=PlaybackSurfaceAnchor"
+            "worldLoad event=completed anchor=EnchronPlaybackSurfaceAnchor"
             f" environment={environment}" in line
             for line in probe[offset:]
         )

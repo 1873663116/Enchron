@@ -1065,7 +1065,7 @@ class ReachabilityScenarioSequencingTests(unittest.TestCase):
                 "reachability top actions delivered action=dock.open",
                 "reachability top actions delivered action=dock.select"
                 " environment=quiet-room effect=none",
-                "worldLoad event=completed anchor=PlaybackSurfaceAnchor"
+                "worldLoad event=completed anchor=EnchronPlaybackSurfaceAnchor"
                 " environment=quiet-room",
             ],
         ])
