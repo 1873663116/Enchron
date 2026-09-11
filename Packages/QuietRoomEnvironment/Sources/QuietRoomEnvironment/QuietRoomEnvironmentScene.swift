@@ -8,8 +8,11 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
     public static let screenCenterParameter = "screen_center"
     public static let screenHalfWidthParameter = "screen_half_width"
     public static let screenHalfHeightParameter = "screen_half_height"
+    public static let screenForwardParameter = "screen_forward"
     public static let screenVideoColorParameter = "screen_video_color"
     public static let screenLightGainParameter = "screen_light_gain"
+    public static let tileNamePrefixes = ["Floor_", "Ceil_"]
+    public static let instancedTilesNamePrefix = "QuietRoomTiles"
 
     public nonisolated static let descriptor = EnvironmentSceneDescriptor(
         identifier: "quiet-room",
@@ -32,9 +35,22 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
         let authoredLightGain: Float
     }
 
+    private struct TileGroupKey: Hashable {
+        let kind: String
+        let variant: String
+    }
+
+    private struct TileMember {
+        let entity: Entity
+        let model: ModelComponent
+        let matrix: simd_float4x4
+    }
+
     private var glowSurfaces: [GlowSurface] = []
 
     public private(set) var restPose: EnvironmentScreenRestPose?
+    public private(set) var instancedTileCount = 0
+    public private(set) var instancedTileGroupCount = 0
 
     public init() {}
 
@@ -50,6 +66,9 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
         }
         restPose = pose
         root.disableEnvironmentPreviewScreen()
+        let instancing = Self.instanceTiles(in: root)
+        instancedTileCount = instancing.tiles
+        instancedTileGroupCount = instancing.groups
         glowSurfaces = Self.collectGlowSurfaces(in: root)
         return root
     }
@@ -67,6 +86,7 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
                 try? material.setParameter(name: Self.screenCenterParameter, value: .simd3Float(screen.center))
                 try? material.setParameter(name: Self.screenHalfWidthParameter, value: .float(screen.halfWidth))
                 try? material.setParameter(name: Self.screenHalfHeightParameter, value: .float(screen.halfHeight))
+                try? material.setParameter(name: Self.screenForwardParameter, value: .simd3Float(screen.normal))
                 try? material.setParameter(name: Self.screenLightGainParameter, value: .float(surface.authoredLightGain))
                 if let texture = screen.videoTexture {
                     try? material.setParameter(name: Self.screenVideoColorParameter, value: .textureResource(texture))
@@ -77,6 +97,88 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
             model.materials[surface.materialIndex] = material
             surface.entity.components.set(model)
         }
+    }
+
+    private static func tileKey(for name: String) -> TileGroupKey? {
+        guard tileNamePrefixes.contains(where: { name.hasPrefix($0) }),
+              let first = name.firstIndex(of: "_"),
+              let last = name.lastIndex(of: "_"),
+              first < last else {
+            return nil
+        }
+        return TileGroupKey(kind: String(name[..<first]), variant: String(name[name.index(after: last)...]))
+    }
+
+    private static func firstModelEntity(in entity: Entity) -> Entity? {
+        if entity.components.has(ModelComponent.self) { return entity }
+        for child in entity.children {
+            if let found = firstModelEntity(in: child) { return found }
+        }
+        return nil
+    }
+
+    private static func matrix(of entity: Entity, upTo root: Entity) -> simd_float4x4 {
+        var matrix = entity.transform.matrix
+        var current = entity
+        while current !== root, let parent = current.parent, parent !== root {
+            matrix = parent.transform.matrix * matrix
+            current = parent
+        }
+        return matrix
+    }
+
+    private static func instanceTiles(in root: Entity) -> (tiles: Int, groups: Int) {
+        var tiles: [Entity] = []
+        func visit(_ entity: Entity) {
+            if tileKey(for: entity.name) != nil {
+                tiles.append(entity)
+                return
+            }
+            for child in entity.children { visit(child) }
+        }
+        visit(root)
+        var members: [TileGroupKey: [TileMember]] = [:]
+        var order: [TileGroupKey] = []
+        for tile in tiles {
+            guard let key = tileKey(for: tile.name),
+                  let modelEntity = firstModelEntity(in: tile),
+                  let model = modelEntity.components[ModelComponent.self] else {
+                continue
+            }
+            if members[key] == nil { order.append(key) }
+            members[key, default: []].append(
+                TileMember(entity: tile, model: model, matrix: matrix(of: modelEntity, upTo: root))
+            )
+        }
+        var instanced = 0
+        var groups = 0
+        for key in order {
+            guard let group = members[key], let first = group.first else { continue }
+            do {
+                let data = try LowLevelInstanceData(instanceCount: group.count)
+                data.withMutableTransforms { transforms in
+                    for (index, member) in group.enumerated() {
+                        transforms[index] = member.matrix
+                    }
+                }
+                let component = try MeshInstancesComponent(
+                    mesh: first.model.mesh,
+                    modelID: first.model.mesh.contents.models.first?.id,
+                    instances: data
+                )
+                let host = Entity()
+                host.name = "\(instancedTilesNamePrefix)_\(key.kind)_\(key.variant)"
+                host.components.set(first.model)
+                host.components.set(component)
+                root.addChild(host)
+                for member in group { member.entity.removeFromParent() }
+                instanced += group.count
+                groups += 1
+            } catch {
+                continue
+            }
+        }
+        return (instanced, groups)
     }
 
     private static func collectGlowSurfaces(in root: Entity) -> [GlowSurface] {
