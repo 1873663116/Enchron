@@ -15,7 +15,7 @@ struct EnchronApp: App {
 
     init() {
         do {
-            try RKS.initialize()
+            try RKS.initialize(inputOptions: .all.subtracting(.ar))
         } catch {
             assertionFailure("RealityKitScripting initialization failed: \(error)")
         }

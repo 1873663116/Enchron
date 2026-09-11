@@ -14,6 +14,7 @@
 - **重挂稳定播放 entity 不增删它的 `VideoPlayerComponent`**，所以不保证会有组件事件；attach 处的 active-entity 守卫仍然拦住"非活动目标场景被报告为就绪"。
 - **刚安装的组件在分类期间合法地报告没有 current mode**，而重写同样的 desired 值会重启这次分类。所以先等是对的，但只能等到分类合理完成为止：设备实测一个正在落定的表面约一秒内报出模式，而在转换中途被交给替换技术会话的表面可能**永远**报 nil，没有上界就再也没有东西去重试它。
 - **`realityScripting` 自带一个 targeted `SpatialTapGesture`** 用来给脚本喂 `TapGestureEvent`，它就在这个视图内部。普通的 `.gesture` 会把每一次捏合都输给它，必须同时识别（simultaneously）才能让脚本系统与播放都看到这次点击。
+- **RealityKitScripting 的默认输入提供者在进程的第一个 RealityKit 场景创建时就请求 ARKit 授权**，也就是主窗口出现之时，与沉浸空间是否打开无关。Info.plist 里没有对应的 usage description 时，ARKitCore 在授权回调里抛 `NSInternalInconsistencyException`，app 启动两秒内以 SIGABRT 退出（2026-09-11 真机，崩溃栈 `__ar_session_request_authorization_block_invoke`）。产品不使用手部或世界感知，所以 `RKS.initialize(inputOptions: .all.subtracting(.ar))` 关掉它的 AR 输入提供者，而不是把已删除的 usage description 加回去；tap 与 drag 输入不受影响。
 - **RealityKit 不激活留在编译后环境资源里的空 transform marker**。保留它的稳定身份与 authored 世界变换，但让它成为一个活的 RealityView 根，它的播放子节点才能激活。
 - **给 entity 的 opacity 组件发同一个目标值，不能让正在播放的缓动重新起跑**。`setOpacity` 原先把新请求与组件的当前值比较，而当前值正被动画逐帧改写，于是 `RealityView` 每跑一遍 `update:` 都像收到一个新目标：一次淡入 panorama 的观测记录了十五到二十六次透明度写入，曲线反复经过 0.005、0.017、0.048、0.138、0.402、0.889、0.984、0.9989 这些中间值，而不是一条 0.8 秒的 `easeInOut`（e02335e2）。`PlaybackOpacityDestinationComponent` 把动画目标单独记在 entity 上：请求与它相同就跳过，非动画写入随值一起刷新目标，避免留下陈旧的目标值。
 
