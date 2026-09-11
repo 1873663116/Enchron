@@ -109,9 +109,11 @@ $(SRCROOT)/Modules/Playback/Model/PlaybackSurfacePlacement.swift
 $(SRCROOT)/Modules/Playback/Model/SpatialPlaybackSurfaceSettlementPolicy.swift
 $(SRCROOT)/Modules/Playback/Model/UnmetCapability.swift
 $(SRCROOT)/Modules/Playback/Model/WindowPlaybackPageGeometry.swift
+$(SRCROOT)/Modules/Playback/Platform/PlaybackDockedPoseSolver.swift
 $(SRCROOT)/Modules/Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift
 $(SRCROOT)/Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift
 $(SRCROOT)/Modules/Playback/Platform/SpatialPlatformExecutionLease.swift
+$(SRCROOT)/Modules/Playback/Platform/VideoReflectionTextureSource.swift
 $(SRCROOT)/Modules/Playback/PlaybackAudioSession.swift
 $(SRCROOT)/Modules/Playback/PlaybackLaunchCoordinator.swift
 $(SRCROOT)/Modules/Playback/PlaybackLaunchRequest.swift

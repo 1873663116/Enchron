@@ -1,3 +1,4 @@
+import EnvironmentSceneContract
 import Foundation
 import RealityKit
 
@@ -39,23 +40,43 @@ enum PlaybackSurfacePlacement {
         entity.scale = .one
     }
 
+    @discardableResult
     static func dock(
         _ entity: Entity,
         to anchor: Entity,
-        transform: PlaybackSurfaceTransform
-    ) {
+        transform: PlaybackSurfaceTransform,
+        geometry: EnvironmentSceneGeometry,
+        anchorWorldPosition: SIMD3<Float>
+    ) -> PlaybackDockedPose {
         if entity.parent !== anchor {
             anchor.addChild(entity)
         }
-        let viewerReference = SIMD3<Float>(0, anchor.position(relativeTo: nil).y, 0)
-        let elevation = transform.elevationDegrees * .pi / 180
-        let position = viewerReference + SIMD3<Float>(
-            0,
-            Float(sin(elevation) * transform.distance),
-            Float(-cos(elevation) * transform.distance)
+        let meshSize = entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero
+        let pose = PlaybackDockedPoseSolver.solve(
+            transform: transform,
+            geometry: geometry,
+            anchorWorldPosition: anchorWorldPosition,
+            meshSize: meshSize
         )
-        entity.look(at: position + (position - viewerReference), from: position, relativeTo: nil)
-        entity.scale = .init(repeating: Float(transform.scale))
+        entity.look(at: pose.lookTarget, from: pose.center, relativeTo: nil)
+        entity.scale = .init(repeating: pose.meshScale)
+        return pose
+    }
+
+    static func screenState(
+        of entity: Entity,
+        pose: PlaybackDockedPose,
+        videoTexture: TextureResource?
+    ) -> EnvironmentScreenState {
+        let orientation = entity.orientation(relativeTo: nil)
+        return EnvironmentScreenState(
+            center: entity.position(relativeTo: nil),
+            right: simd_normalize(orientation.act([1, 0, 0])),
+            up: simd_normalize(orientation.act([0, 1, 0])),
+            halfWidth: pose.halfWidth,
+            halfHeight: pose.halfHeight,
+            videoTexture: videoTexture
+        )
     }
 }
 

@@ -9,6 +9,7 @@ public struct FusedPlayerPanelLive {
     var canApplyFormat: Bool
     var screenScale: Double
     var recommendedScreenScale: Double
+    var placementLimits: PlaybackDockedPlacementLimits = .fallback
     var screenDistance: Double
     var screenElevationDegrees: Double
     var projection: PlaybackModel.ProjectionType
@@ -62,6 +63,7 @@ public struct FusedPlayerPanelLive {
         canApplyFormat: Bool,
         screenScale: Double,
         recommendedScreenScale: Double,
+        placementLimits: PlaybackDockedPlacementLimits = .fallback,
         screenDistance: Double,
         screenElevationDegrees: Double,
         projection: PlaybackModel.ProjectionType,
@@ -110,6 +112,7 @@ public struct FusedPlayerPanelLive {
         self.canApplyFormat = canApplyFormat
         self.screenScale = screenScale
         self.recommendedScreenScale = recommendedScreenScale
+        self.placementLimits = placementLimits
         self.screenDistance = screenDistance
         self.screenElevationDegrees = screenElevationDegrees
         self.projection = projection
@@ -747,10 +750,10 @@ public struct FusedPlayerPanel: View {
             DockedPlacementSliderRow(
                 title: "Screen Size",
                 liveValue: live.screenScale,
-                range: PlaybackScreenSize.scaleRange,
-                step: PlaybackScreenSize.scaleStep,
+                range: live.placementLimits.screenHeightRange,
+                step: PlaybackDockedPlacementLimits.screenHeightStep,
                 trackWidth: placementTrackWidth,
-                valueLabel: { "\(Int(($0 * 100).rounded()))%" },
+                valueLabel: { String(format: "%.2f m", $0) },
                 identifier: "ScreenSize",
                 onChange: { value in
                     onInteraction()
@@ -761,8 +764,8 @@ public struct FusedPlayerPanel: View {
             DockedPlacementSliderRow(
                 title: "Distance",
                 liveValue: live.screenDistance,
-                range: PlaybackDockedPlacement.distanceRange,
-                step: PlaybackDockedPlacement.distanceStep,
+                range: live.placementLimits.distanceRange,
+                step: PlaybackDockedPlacementLimits.distanceStep,
                 trackWidth: placementTrackWidth,
                 valueLabel: { String(format: "%.1f m", $0) },
                 identifier: "Distance",
@@ -775,8 +778,8 @@ public struct FusedPlayerPanel: View {
             DockedPlacementSliderRow(
                 title: "Elevation",
                 liveValue: live.screenElevationDegrees,
-                range: PlaybackDockedPlacement.elevationRange,
-                step: PlaybackDockedPlacement.elevationStep,
+                range: live.placementLimits.elevationRange,
+                step: PlaybackDockedPlacementLimits.elevationStep,
                 trackWidth: placementTrackWidth,
                 valueLabel: { "\(Int($0.rounded()))°" },
                 identifier: "Elevation",

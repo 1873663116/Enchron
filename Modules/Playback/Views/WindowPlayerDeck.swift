@@ -61,9 +61,10 @@ public struct WindowPlayerDeckView: View {
             mediaProfile: playbackRuntime.displayMediaProfile,
             canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
             screenScale: appModel.screenScale,
-            recommendedScreenScale: EnvironmentSceneMapping.defaultScreenScale(
+            recommendedScreenScale: EnvironmentSceneMapping.defaultScreenHeightMeters(
                 forEnvironmentID: appModel.currentCinemaEnvironment.rawValue
             ),
+            placementLimits: appModel.dockedPlacementLimits,
             screenDistance: appModel.screenDepthOffset,
             screenElevationDegrees: appModel.screenViewAngle,
             projection: playbackRuntime.effectiveProjectionType,

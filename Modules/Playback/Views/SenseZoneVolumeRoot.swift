@@ -128,7 +128,7 @@ public struct SenseZoneVolumeRoot: View {
                 guard appModel.immersiveSpaceResidency == .closed else { return }
                 try appModel.requestEnvironmentPreview(
                     environment: featured.environment,
-                    effect: featured.environment.isScenic ? effect : nil
+                    effect: featured.environment.supportsDarkAppearance ? effect : nil
                 )
             }
         } catch {

@@ -15,13 +15,17 @@ SWIFT_ROOTS = (
     REPOSITORY_ROOT / "Modules",
     REPOSITORY_ROOT / "Packages/PlaybackCore/Sources",
     REPOSITORY_ROOT / "Packages/PlaybackCore/Tests",
-    REPOSITORY_ROOT / "Packages/RealityKitContent/Sources",
+    REPOSITORY_ROOT / "Packages/EnvironmentSceneContract/Sources",
+    REPOSITORY_ROOT / "Packages/OceanEnvironment/Sources",
+    REPOSITORY_ROOT / "Packages/QuietRoomEnvironment/Sources",
     REPOSITORY_ROOT / "Tests",
 )
 SWIFT_MANIFESTS = (
     REPOSITORY_ROOT / "Package.swift",
     REPOSITORY_ROOT / "Packages/PlaybackCore/Package.swift",
-    REPOSITORY_ROOT / "Packages/RealityKitContent/Package.swift",
+    REPOSITORY_ROOT / "Packages/EnvironmentSceneContract/Package.swift",
+    REPOSITORY_ROOT / "Packages/OceanEnvironment/Package.swift",
+    REPOSITORY_ROOT / "Packages/QuietRoomEnvironment/Package.swift",
     REPOSITORY_ROOT / "Tests/MediaByteStreamConformance/Package.swift",
 )
 C_ROOTS = (

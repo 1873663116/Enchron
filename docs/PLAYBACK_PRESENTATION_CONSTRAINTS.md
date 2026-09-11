@@ -135,7 +135,7 @@
 - **只有产品状态能证明一个 RealityView 永不落定**，经过的墙钟时间不能。首帧慢的表面在活动媒体请求的整个生命周期内保持 attach 资格。
 - **`PlaybackUserVisibleIssue` 只接受有界的产品事实**，`Error` 与任意诊断字符串进不了这个类型，因此呈现代码永远不需要判断一段文本是否可以示人。
 - **ProRes 解码器可用性经 `VTDecompressionSessionCreate` 实测**，不从渲染器的错误文本推断。见 `Tests/EnchronApp/VideoDecoderAvailabilityTests.swift`（真机 lane 专有，模拟器上按构造失败）。
-- **旧构建暴露过一个 Apple 元数据专属的投影选项**，它已不再是用户可选的投影；解码时把它读成普通矩形视频，是为了保住那些偏好里带着旧值的媒体仍能播放。同类的还有把早期那个单一占位环境迁移到第一个稳定的 Scenic 身份（断言见 `EnvironmentSceneMappingTests`），Skybox 有意永不作默认。
+- **旧构建暴露过一个 Apple 元数据专属的投影选项**，它已不再是用户可选的投影；解码时把它读成普通矩形视频，是为了保住那些偏好里带着旧值的媒体仍能播放。环境身份不再做偏好迁移：默认环境固定为 Quiet Room，不可配置，也没有黑夜模式（断言见 `EnvironmentSceneMappingTests`）。
 - **`ViewingStatePolicy.mutation` 删除时长低于 `minimumContentDurationSeconds = 15 * 60` 的条目的观看状态**（`Modules/Playback/Domain/ViewingState.swift:50-56`）。只有长过这个常数的条目，退出后才留下可续播的状态。
 - **local-aggregate 固件集里最长的一条是 120.064 s，整集都落在该常数之下**。`generated-viewing-storage-h264-16m01s-v1` 以 898 KB 承载 961.0 s，是集合里唯一在常数之上的条目，automatic-play-next-resume-policy 依赖它。见 `Scripts/verification/regression_preparation_adapter.py`。
 
@@ -148,3 +148,12 @@
 窗口 ornament 在整个播放请求期间常驻 `.visible`，deck 内容不卸载，控件的显示与隐藏只是 deck 以 `controlsTransition` 改 opacity（Apple TV 的做法）；window bar 与 resize 手柄跟随控件可见性（`PlayerWindowSystemOverlayPolicy`：播放中控件隐藏时 `persistentSystemOverlays(.hidden)`，控件显示时 `.automatic`），佩戴者只能在控件可见时移动或缩放窗口，与 Apple TV 一致。此前的做法——出现时无动画装入、下一轮淡入，消失时淡完再卸载并把 ornament 置 `.hidden`——是为了绕开 ornament 尺寸变化被系统动画成从角落滑入；常驻后 ornament 的可见性在播放中不再翻转，尺寸变化只发生在面板展开，由面板自己的变换承担。控件隐藏时 ornament 仍占位，但 window bar 此时也隐藏，占位把 bar 顶远的问题（2026-09-07 真机）不再出现。
 
 时间轴形态在窗口与沉浸空间统一为两行：第一行返回按钮、逐帧播放控制、缩放滑块（`PrecisionTimelineZoomSlider`，thickMaterial 胶囊），第二行只有胶片视口（`PrecisionTimelineView`，ultraThickMaterial），播放头时码作为胶囊贴在视口顶部中央；不再有整块列表材质、信息栏与 dock 的设置按钮。dock 的设置形态是第一行返回与恢复默认两个圆形按钮、其下三个放置滑块坐在一块 thickMaterial 上；信息栏展开后是左上返回按钮、标题、详情正文（无详情留空）与技术信息行，没有图片与其他按钮。这个次序没有测试覆盖：`Tests/PlaybackPresentationTests/PlaybackPanelExpansionTests.swift` 的 5 个测试只验证 `PlaybackPanelExpansion` 这个 enum 的块切换，不涉及按钮、滑块或内容的排列次序。
+
+## 观影环境场景
+
+- **Reality Composer Pro 3.0（1A196）的 `.reality` 导出会丢掉 `active: false` 的实体**：quiet_room 里禁用的 `Sky` 与 `floor2` 在导出物里不存在，运行时不需要再按名禁用（2026-09-11 用 macOS RealityKit 加载导出物核对）。`ScreenPreview` 是启用状态导出的，由契约的 `disableEnvironmentPreviewScreen()` 按名禁用。
+- **同一版本的 RCP 在无头模式下加载 `OceanProbePlugin.dylib` 即退出**，没有日志、没有崩溃报告，`--load-project` 之后再无输出；不加载插件时 ocean 正常导出，但 `OceanProbeComponent` 被丢弃并打出 `No component registered`。Ocean 场景包因此在 `load()` 里按 `world.tm_entity` 的作者值重新挂上该组件；作者值变化时要同步 `OceanEnvironmentScene.authoredSimulation`。
+- **Ocean 的海面不在 `.reality` 里**：`OceanProbeSystem` 在运行时从 `OceanMaterialSource` 复制材质、生成 `OceanProbeSurface` 网格并跑 512² 四级联 FFT；这个 System 与组件必须在加载前注册（`OceanEnvironmentScene.registerRuntimeIfNeeded()`）。视频反射参数写在 `OceanMaterialSource` 的材质上，System 每帧把变化同步到生成的表面。
+- **`VideoPlayerComponent.playerScreenSize` 是网格的米制尺寸**，Docked 的实体缩放取 `屏幕高度 ÷ playerScreenSize.y`，不假设单位高度；`PlaybackDockedPoseSolver` 在网格尺寸为零时退回 16:9、高 1 m。
+- **屏幕绕佩戴者抬升，天花板只夹住有效距离**：中心 = (0, 基准高度, 0) + 距离 × (0, sin e, −cos e)，屏幕始终朝向佩戴者；有天花板的场景在倾斜矩形的最高点越过 `天花板 − 余量` 时沿视线缩短距离，90° 时屏幕水平贴在天花板下方。基准高度取场景几何的 `screenRestHeightMeters`，没有时取 anchor 的高度。Quiet Room 的距离调节平移场景根节点（`roomOffsetZ = −anchor.z − 距离`），屏幕留在墙面；Ocean 与占位移动屏幕。
+- **反射纹理来自 `AVSampleBufferVideoRenderer.displayedPixelBuffer()`**，经 `CVMetalTextureCache` 零拷贝取平面纹理，一个 compute kernel 缩到 128×72 并把 BT.709／2020、video／full range、PQ／HLG 转成线性光写进 `LowLevelTexture`；每个场景帧只在像素缓冲对象变化时重做，纹理对象只创建一次，场景包在第一次拿到纹理时收到一次 `update`。

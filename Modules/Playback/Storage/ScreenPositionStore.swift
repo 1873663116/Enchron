@@ -13,18 +13,9 @@ public nonisolated struct SavedScreenPosition: Sendable, Equatable {
         screenScale: Double
     ) {
         self.environmentID = environmentID
-        self.distanceMeters = min(max(
-            distanceMeters,
-            PlaybackDockedPlacement.distanceRange.lowerBound
-        ), PlaybackDockedPlacement.distanceRange.upperBound)
-        self.elevationDegrees = min(max(
-            elevationDegrees,
-            PlaybackDockedPlacement.elevationRange.lowerBound
-        ), PlaybackDockedPlacement.elevationRange.upperBound)
-        self.screenScale = min(max(
-            screenScale,
-            PlaybackScreenSize.scaleRange.lowerBound
-        ), PlaybackScreenSize.scaleRange.upperBound)
+        self.distanceMeters = distanceMeters
+        self.elevationDegrees = elevationDegrees
+        self.screenScale = screenScale
     }
 }
 
@@ -70,9 +61,12 @@ nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unchecked S
         }
         return .init(
             environmentID: environmentID,
-            distanceMeters: entry.distanceMeters ?? PlaybackDockedPlacement.defaultDistance,
-            elevationDegrees: entry.elevationDegrees ?? PlaybackDockedPlacement.defaultElevationDegrees,
-            screenScale: entry.screenScale ?? 1.3
+            distanceMeters: entry.distanceMeters
+                ?? PlaybackDockedPlacementLimits.fallback.defaultDistance,
+            elevationDegrees: entry.elevationDegrees
+                ?? PlaybackDockedPlacementLimits.fallback.defaultElevationDegrees,
+            screenScale: entry.screenScale
+                ?? PlaybackDockedPlacementLimits.fallback.defaultScreenHeight
         )
     }
 

@@ -1666,19 +1666,19 @@ final class TestCommandChannel {
         let applied: Double
         switch axis {
         case "screenSize":
-            guard PlaybackScreenSize.scaleRange.contains(value) else {
+            guard playbackSession.dockedPlacementLimits.screenHeightRange.contains(value) else {
                 throw CommandError(message: "screenSize is outside its product range.")
             }
             playbackSession.setScreenScale(value)
             applied = playbackSession.screenScale
         case "distance":
-            guard PlaybackDockedPlacement.distanceRange.contains(value) else {
+            guard playbackSession.dockedPlacementLimits.distanceRange.contains(value) else {
                 throw CommandError(message: "distance is outside its product range.")
             }
             playbackSession.setScreenDistance(value)
             applied = playbackSession.screenDepthOffset
         case "elevation":
-            guard PlaybackDockedPlacement.elevationRange.contains(value) else {
+            guard playbackSession.dockedPlacementLimits.elevationRange.contains(value) else {
                 throw CommandError(message: "elevation is outside its product range.")
             }
             playbackSession.setScreenElevation(value)

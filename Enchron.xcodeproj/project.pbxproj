@@ -11,7 +11,6 @@
 		A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
 		B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
-		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 		D00000300000000000D0A1A1 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = D00000200000000000D0A1A1 /* MediaSource */; };
 		D00000310000000000D0A1A1 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = D00000210000000000D0A1A1 /* Emby */; };
 		D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D00000220000000000D0A1A1 /* MediaLibrary */; };
@@ -77,7 +76,6 @@
 
 /* Begin PBXFileReference section */
 		C3B0F9802F5726B30064596E /* Enchron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchron.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		C3B0F9842F5726B30064596E /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
 		D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronDomainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2E0000200000000DEADBEEF /* EnchronAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1A0000200000000DEADBEEF /* EnchronAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -184,6 +182,8 @@
 				Playback/Model/UnmetCapability.swift,
 				Playback/Model/WindowPlaybackPageGeometry.swift,
 				Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift,
+				Playback/Platform/PlaybackDockedPoseSolver.swift,
+				Playback/Platform/VideoReflectionTextureSource.swift,
 				Playback/Platform/SpatialPlatformEffectExecutor.swift,
 				Playback/Platform/SpatialPlatformExecutionLease.swift,
 				Playback/PlaybackAudioSession.swift,
@@ -301,7 +301,6 @@
 			files = (
 				A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */,
 				B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */,
-				C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */,
 				A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */,
 				E10000052FA1000100E1C001 /* MediaSource in Frameworks */,
 				E10000062FA1000100E1C001 /* PlaybackFeature in Frameworks */,
@@ -377,7 +376,6 @@
 		C3B0F9832F5726B30064596E /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				C3B0F9842F5726B30064596E /* RealityKitContent */,
 			);
 			path = Packages;
 			sourceTree = "<group>";
@@ -409,7 +407,6 @@
 			packageProductDependencies = (
 				A4C19F9E2FD1000100AABBCC /* AMSMB2 */,
 				B1C000022FD3000100C0FFEE /* PlaybackCore */,
-				C3B0F9852F5726B30064596E /* RealityKitContent */,
 				A4C1A00E2FD2000100AABBCC /* RealityKitScripting */,
 				E10000022FA1000100E1C001 /* MediaSource */,
 				E10000032FA1000100E1C001 /* Playback */,
@@ -537,7 +534,6 @@
 			packageReferences = (
 				A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */,
 				B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "Packages/PlaybackCore" */,
-				C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */,
 				E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */,
 				A4C1A00D2FD2000100AABBCC /* XCRemoteSwiftPackageReference "realitykitscripting" */,
 			);
@@ -1075,10 +1071,6 @@
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/PlaybackCore;
 		};
-		C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = Packages/RealityKitContent;
-		};
 		E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = .;
@@ -1119,11 +1111,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "Packages/PlaybackCore" */;
 			productName = PlaybackCore;
-		};
-		C3B0F9852F5726B30064596E /* RealityKitContent */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */;
-			productName = RealityKitContent;
 		};
 		D00000200000000000D0A1A1 /* MediaSource */ = {
 			isa = XCSwiftPackageProductDependency;

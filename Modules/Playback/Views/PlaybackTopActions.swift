@@ -120,8 +120,8 @@ struct PlaybackTopActionsState {
 
     init(
         presentedMenu: PlaybackTopSecondaryMenu? = nil,
-        selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
-        selectedEffect: SpatialSceneDomain.EnvironmentEffect? = .dark,
+        selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultEnvironment,
+        selectedEffect: SpatialSceneDomain.EnvironmentEffect? = nil,
         projection: PlaybackModel.ProjectionType = .flat,
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
         stereoLayout: PlaybackModel.StereoLayout = .mono
@@ -458,7 +458,7 @@ public struct PlaybackTopActions: View {
     private let committedProjection: PlaybackModel.ProjectionType
     private let committedHorizontalFieldOfViewDegrees: Int
     private let committedStereoLayout: PlaybackModel.StereoLayout
-    private let defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment
+    private let cardEnvironment: SpatialSceneDomain.CinemaEnvironment
     private let onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)?
     private let onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)?
     private let onRestoreAutomaticFormat: (() -> Void)?
@@ -477,7 +477,7 @@ public struct PlaybackTopActions: View {
         projection: PlaybackModel.ProjectionType = .flat,
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
         stereoLayout: PlaybackModel.StereoLayout = .mono,
-        defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
+        cardEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean,
         onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
         onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)? = nil,
         onRestoreAutomaticFormat: (() -> Void)? = nil,
@@ -492,9 +492,9 @@ public struct PlaybackTopActions: View {
         self.committedProjection = projection
         self.committedHorizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         self.committedStereoLayout = stereoLayout
-        self.defaultScenicEnvironment = defaultScenicEnvironment.isScenic
-            ? defaultScenicEnvironment
-            : .defaultScenic
+        self.cardEnvironment = cardEnvironment.isCardEnvironment
+            ? cardEnvironment
+            : .ocean
         self.onEnterImmersive = onEnterImmersive
         self.onApplyFormat = onApplyFormat
         self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
@@ -503,7 +503,7 @@ public struct PlaybackTopActions: View {
         _state = State(
                 initialValue: PlaybackTopActionsState(
                     presentedMenu: initialPresentedMenu,
-                    selectedDockEnvironment: defaultScenicEnvironment,
+                    selectedDockEnvironment: .defaultEnvironment,
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
                     stereoLayout: stereoLayout
@@ -590,29 +590,29 @@ public struct PlaybackTopActions: View {
 
     private var dockMenu: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text("View in \(defaultScenicEnvironment.displayName)")
+            Text("View in an environment")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, DesignTokens.Spacing.sm)
 
             dockMenuItem(
-                environment: defaultScenicEnvironment,
-                effect: .dark,
-                thumbnailName: dockThumbnailName(for: .dark)
-            )
-            dockMenuItem(
-                environment: defaultScenicEnvironment,
-                effect: .light,
-                thumbnailName: dockThumbnailName(for: .light)
+                environment: .defaultEnvironment,
+                effect: nil,
+                thumbnailName: FeaturedEnvironment.defaultEnvironmentThumbnailName
             )
 
             Divider()
                 .padding(.vertical, DesignTokens.Spacing.xs)
 
             dockMenuItem(
-                environment: .skybox,
-                effect: nil,
-                thumbnailName: "SceneFeatureCinema"
+                environment: cardEnvironment,
+                effect: .light,
+                thumbnailName: dockThumbnailName(for: .light)
+            )
+            dockMenuItem(
+                environment: cardEnvironment,
+                effect: .dark,
+                thumbnailName: dockThumbnailName(for: .dark)
             )
         }
         .padding(DesignTokens.Spacing.md)
@@ -635,7 +635,7 @@ public struct PlaybackTopActions: View {
     private func dockThumbnailName(
         for effect: SpatialSceneDomain.EnvironmentEffect
     ) -> String {
-        FeaturedEnvironment.catalogEntry(for: defaultScenicEnvironment)?
+        FeaturedEnvironment.catalogEntry(for: cardEnvironment)?
             .imageName(for: effect)
             ?? FeaturedEnvironment.catalog[0].imageName(for: effect)
     }
@@ -706,7 +706,7 @@ public struct PlaybackTopActions: View {
         )
         .accessibilityIdentifier(
             effect.map { "PlayerUI-DockMenu-\($0.rawValue)" }
-                ?? "PlayerUI-DockMenu-skybox"
+                ?? "PlayerUI-DockMenu-default"
         )
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }

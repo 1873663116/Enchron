@@ -167,20 +167,6 @@ struct SettingsScreen: View {
                 ])
             ),
             SettingListGroup.Item(
-                id: "default-scenic-environment",
-                title: "Default Scenic Environment",
-                systemName: "mountain.2",
-                accessory: .menu(
-                    title: defaultScenicEnvironment.displayName,
-                    options: SpatialSceneDomain.CinemaEnvironment.scenicEnvironments.map {
-                        environment in
-                        SettingListGroup.MenuOption(environment.displayName, id: environment.rawValue) {
-                            setDefaultScenicEnvironment(environment)
-                        }
-                    }
-                )
-            ),
-            SettingListGroup.Item(
                 id: "default-speed",
                 title: "Default Speed",
                 systemName: "speedometer",
@@ -308,15 +294,6 @@ struct SettingsScreen: View {
         recordMenuReachability("controls-auto-hide")
     }
 
-    private func setDefaultScenicEnvironment(
-        _ environment: SpatialSceneDomain.CinemaEnvironment
-    ) {
-        guard environment.isScenic else { return }
-        viewModel.update { $0.defaultEnvironmentID = environment.rawValue }
-        playbackSession.configureDefaultEnvironment(environment)
-        recordMenuReachability("default-scenic-environment")
-    }
-
     private func recordMenuReachability(_ family: String) {
 #if DEBUG
         playbackSession.recordSurfaceInputProbe(
@@ -333,12 +310,6 @@ struct SettingsScreen: View {
             retention: .evidence
         )
 #endif
-    }
-
-    private var defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment {
-        SpatialSceneDomain.CinemaEnvironment(
-            preferenceValue: viewModel.preferences.defaultEnvironmentID
-        ) ?? .defaultScenic
     }
 
     private var resumeTitle: String {

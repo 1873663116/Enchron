@@ -250,8 +250,16 @@ public final class PlaybackSessionModel {
         playbackPresentationModel.currentEnvironment
     }
 
-    public var defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment {
+    public var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment {
         playbackPresentationModel.defaultEnvironment
+    }
+
+    public var lastCardEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        playbackPresentationModel.lastCardEnvironment
+    }
+
+    public var dockedPlacementLimits: PlaybackDockedPlacementLimits {
+        playbackPresentationModel.dockedPlacement.limits
     }
 
     public var currentEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect {
@@ -554,12 +562,6 @@ public final class PlaybackSessionModel {
         prepareImmersiveSpaceOpening(initialAmount: immersionAmountBeforePanorama)
     }
 
-    public func configureDefaultEnvironment(
-        _ environment: SpatialSceneDomain.CinemaEnvironment
-    ) {
-        playbackPresentationModel.configureDefaultEnvironment(environment)
-    }
-
     public func setActiveEnvironmentEffect(
         _ effect: SpatialSceneDomain.EnvironmentEffect
     ) {
@@ -726,7 +728,7 @@ public final class PlaybackSessionModel {
 
     public func resetScreenScale() {
         playbackPresentationModel.setScreenScale(
-            EnvironmentSceneMapping.defaultScreenScale(
+            EnvironmentSceneMapping.defaultScreenHeightMeters(
                 forEnvironmentID: currentCinemaEnvironment.rawValue
             )
         )

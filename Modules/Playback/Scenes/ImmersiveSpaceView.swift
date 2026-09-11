@@ -1,9 +1,9 @@
 import AVFoundation
 import DesignSystem
+import EnvironmentSceneContract
 import OSLog
 import PlaybackCore
 import RealityKit
-import RealityKitContent
 import RealityKitScripting
 import SwiftUI
 import UIKit
@@ -11,58 +11,28 @@ import simd
 
 @MainActor
 enum EnvironmentSceneAppearanceApplier {
-    static let skyboxName = "SkyDome"
-    static let scenicPlaceholderName = "EnchronScenicPlaceholder"
-    static let lightSkyboxOpacity: Float = 1
-    static let darkSkyboxOpacity: Float = 0.35
+    static let placeholderName = "EnchronScenicPlaceholder"
 
     @discardableResult
     static func apply(
         environment: SpatialSceneDomain.CinemaEnvironment,
         effect: SpatialSceneDomain.EnvironmentEffect?,
+        scene: (any EnvironmentScene)?,
         to world: Entity,
         emitEnablementWrite: (String) -> Void = { _ in }
-    ) -> Float? {
-        guard let skybox = world.findEntity(named: skyboxName) else {
-            return nil
+    ) -> Float {
+        let resolvedEffect = environment.supportsDarkAppearance
+            ? effect ?? .inactiveFallback
+            : .light
+        let appearance = resolvedEffect.appearance
+        if let scene {
+            scene.apply(appearance, to: world)
+            world.findEntity(named: placeholderName)?.removeFromParent()
+            return appearance.brightness
         }
-
-        if environment == .skybox {
-            let previous = skybox.isEnabled
-            skybox.isEnabled = true
-            if previous != skybox.isEnabled {
-                emitEnablementWrite(
-                    enablementWriteFact(
-                        writer: "EnvironmentSceneAppearanceApplier.apply.skybox",
-                        entity: skybox,
-                        value: true
-                    )
-                )
-            }
-            skybox.components.set(OpacityComponent(opacity: 1))
-            world.findEntity(named: scenicPlaceholderName)?.removeFromParent()
-            return 1
-        }
-
-        let skyboxWasEnabled = skybox.isEnabled
-        skybox.isEnabled = false
-        if skyboxWasEnabled != skybox.isEnabled {
-            emitEnablementWrite(
-                enablementWriteFact(
-                    writer: "EnvironmentSceneAppearanceApplier.apply.skybox",
-                    entity: skybox,
-                    value: false
-                )
-            )
-        }
-        let resolvedEffect = effect ?? .inactiveFallback
-        let opacity = switch resolvedEffect {
-        case .light: lightSkyboxOpacity
-        case .dark: darkSkyboxOpacity
-        }
-        let color = scenicColor(for: environment, effect: resolvedEffect)
+        let color = placeholderColor(for: environment, brightness: appearance.brightness)
         let placeholder: ModelEntity
-        if let existing = world.findEntity(named: scenicPlaceholderName) as? ModelEntity {
+        if let existing = world.findEntity(named: placeholderName) as? ModelEntity {
             placeholder = existing
             placeholder.model?.materials = [placeholderMaterial(color: color)]
         } else {
@@ -70,12 +40,12 @@ enum EnvironmentSceneAppearanceApplier {
                 mesh: .generateSphere(radius: 50),
                 materials: [placeholderMaterial(color: color)]
             )
-            placeholder.name = scenicPlaceholderName
+            placeholder.name = placeholderName
             world.addChild(placeholder)
         }
-        let placeholderWasEnabled = placeholder.isEnabled
+        let wasEnabled = placeholder.isEnabled
         placeholder.isEnabled = true
-        if placeholderWasEnabled != placeholder.isEnabled {
+        if wasEnabled != placeholder.isEnabled {
             emitEnablementWrite(
                 enablementWriteFact(
                     writer: "EnvironmentSceneAppearanceApplier.apply.placeholder",
@@ -84,28 +54,14 @@ enum EnvironmentSceneAppearanceApplier {
                 )
             )
         }
-        placeholder.components.set(OpacityComponent(opacity: opacity))
-        return opacity
+        return appearance.brightness
     }
 
     static func clear(
         in world: Entity,
         emitEnablementWrite: (String) -> Void = { _ in }
     ) {
-        if let skybox = world.findEntity(named: skyboxName) {
-            let previous = skybox.isEnabled
-            skybox.isEnabled = false
-            if previous != skybox.isEnabled {
-                emitEnablementWrite(
-                    enablementWriteFact(
-                        writer: "EnvironmentSceneAppearanceApplier.clear.skybox",
-                        entity: skybox,
-                        value: false
-                    )
-                )
-            }
-        }
-        if let placeholder = world.findEntity(named: scenicPlaceholderName) {
+        if let placeholder = world.findEntity(named: placeholderName) {
             let previous = placeholder.isEnabled
             placeholder.isEnabled = false
             if previous != placeholder.isEnabled {
@@ -132,21 +88,15 @@ enum EnvironmentSceneAppearanceApplier {
             + " activeAfterWrite=\(entity.isActive)"
     }
 
-    private static func scenicColor(
+    static func placeholderColor(
         for environment: SpatialSceneDomain.CinemaEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
+        brightness: Float
     ) -> UIColor {
-        let components: (CGFloat, CGFloat, CGFloat) = switch environment {
-        case .scenicOne: (0.86, 0.48, 0.52)
-        case .scenicTwo: (0.48, 0.78, 0.58)
-        case .scenicThree: (0.46, 0.66, 0.88)
-        case .skybox: (0.46, 0.66, 0.88)
-        }
-        let brightness: CGFloat = effect == .light ? 1 : 0.46
+        let base = environment.placeholderColor ?? [0.5, 0.5, 0.5]
         return UIColor(
-            red: components.0 * brightness,
-            green: components.1 * brightness,
-            blue: components.2 * brightness,
+            red: CGFloat(base.x * brightness),
+            green: CGFloat(base.y * brightness),
+            blue: CGFloat(base.z * brightness),
             alpha: 1
         )
     }
@@ -162,10 +112,28 @@ enum EnvironmentSceneAppearanceApplier {
 private final class WorldSceneState {
     var entity: Entity?
     var playbackSurfaceAnchor: Entity?
+    var environment: SpatialSceneDomain.CinemaEnvironment?
+    var scene: (any EnvironmentScene)?
+    var anchorAuthoredWorldPosition: SIMD3<Float> = .zero
+    var rootAuthoredPosition: SIMD3<Float> = .zero
     var appliedEnvironment: SpatialSceneDomain.CinemaEnvironment?
     var appliedEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect?
+    var lastDockedPose: PlaybackDockedPose?
     var isLoading = false
     var hasFailed = false
+
+    func reset() {
+        entity = nil
+        playbackSurfaceAnchor = nil
+        environment = nil
+        scene = nil
+        anchorAuthoredWorldPosition = .zero
+        rootAuthoredPosition = .zero
+        appliedEnvironment = nil
+        appliedEnvironmentEffect = nil
+        lastDockedPose = nil
+        hasFailed = false
+    }
 }
 
 @MainActor
@@ -682,6 +650,8 @@ public struct ImmersiveSpaceView: View {
     @State private var headPoseSource = HeadPoseSource()
     @State private var developerOverlayFollower = DeveloperOverlayFollower()
     @State private var immersiveSceneTicks = SceneTickSubscriber()
+    @State private var reflectionTicks = SceneTickSubscriber()
+    @State private var reflectionTexture = VideoReflectionTextureSource()
     @State private var targetRevealState = PortalToPanoramaTargetRevealState()
     @State private var surfaceRefreshTick = 0
     @State private var hasRecordedCollisionShellShelved = false
@@ -755,6 +725,7 @@ public struct ImmersiveSpaceView: View {
         RealityView { content, attachments in
             installRealityViewHostMarker(into: content)
             observeImmersiveSceneUpdates(content)
+            observeReflectionUpdates(content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
@@ -762,6 +733,7 @@ public struct ImmersiveSpaceView: View {
         } update: { content, attachments in
             installRealityViewHostMarker(into: content)
             observeImmersiveSceneUpdates(content)
+            observeReflectionUpdates(content)
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
@@ -805,6 +777,7 @@ public struct ImmersiveSpaceView: View {
             controlsAttachmentController.stop()
             developerOverlayFollower.stop()
             immersiveSceneTicks.cancel()
+            reflectionTicks.cancel()
             realityViewUpdateScheduler.cancel()
             surfaceAccessibilityActivation.cancel()
             releaseSpatialSurface()
@@ -896,6 +869,39 @@ public struct ImmersiveSpaceView: View {
                     )
                 }
             }
+        }
+    }
+
+    private func observeReflectionUpdates(_ content: RealityViewContent) {
+        reflectionTicks.subscribe {
+            content.subscribe(to: SceneEvents.Update.self) { _ in
+                MainActor.assumeIsolated {
+                    refreshReflectionTexture()
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func refreshReflectionTexture() {
+        guard requestedPresentation == .docked,
+              let scene = world.scene,
+              let root = world.entity,
+              let pose = world.lastDockedPose,
+              let renderer = playbackRuntime.renderer else {
+            return
+        }
+        let hadTexture = reflectionTexture.textureResource != nil
+        guard reflectionTexture.refresh(from: renderer) else { return }
+        if hadTexture == false, reflectionTexture.textureResource != nil {
+            scene.update(
+                PlaybackSurfacePlacement.screenState(
+                    of: videoEntity,
+                    pose: pose,
+                    videoTexture: reflectionTexture.textureResource
+                ),
+                in: root
+            )
         }
     }
 
@@ -1188,14 +1194,10 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func updateWorld(in content: RealityViewContent) {
         guard needsWorld else {
-            if let entity = world.entity { content.remove(entity) }
-            if let anchor = world.playbackSurfaceAnchor { content.remove(anchor) }
-            world.entity = nil
-            world.playbackSurfaceAnchor = nil
-            world.appliedEnvironment = nil
-            world.appliedEnvironmentEffect = nil
+            if world.entity != nil || world.playbackSurfaceAnchor != nil {
+                unloadWorld(from: content, reason: "worldNotNeeded")
+            }
             world.hasFailed = false
-            appModel.clearEnvironmentSceneEffectObservation()
             return
         }
 
@@ -1932,42 +1934,56 @@ public struct ImmersiveSpaceView: View {
         dockedPlacement: PlaybackSurfaceTransform,
         spatialPresentationOpacity: Double
     ) async {
+        let environment = requestedEnvironmentContext.environment
+            ?? SpatialSceneDomain.CinemaEnvironment.defaultEnvironment
+        if world.entity != nil, world.environment != environment {
+            unloadWorld(from: content, reason: "environmentChanged")
+        }
         guard world.entity == nil, world.isLoading == false, world.hasFailed == false else { return }
         world.isLoading = true
         appModel.recordSpatialPlaybackSurfacePreparationStage("loadingWorld")
         defer { world.isLoading = false }
-        logger.notice("world load started")
+        logger.notice("world load started environment=\(environment.rawValue, privacy: .public)")
 #if DEBUG
         appModel.recordSurfaceInputProbe(
             "worldLoad event=started"
-                + " resource=\(EnvironmentSceneMapping.worldSceneName)"
-                + " bundle=RealityKitContent"
+                + " environment=\(environment.rawValue)"
         )
 #endif
         do {
-            let entity = try await Entity(
-                named: EnvironmentSceneMapping.worldSceneName,
-                in: realityKitContentBundle
-            )
+            let scene = EnvironmentSceneMapping.scene(for: environment)
+            let entity: Entity
+            if let scene {
+                entity = try await scene.load()
+            } else {
+                entity = Self.makePlaceholderWorld(for: environment)
+            }
             try Task.checkCancellation()
             let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: entity)
             let anchorWorldTransform = anchor.transformMatrix(relativeTo: nil)
-            guard applyRequestedEnvironmentAppearance(to: entity) else {
-                throw EnvironmentSceneEffectError.skyboxMissing
-            }
+            world.rootAuthoredPosition = entity.position
+            world.anchorAuthoredWorldPosition = SIMD3<Float>(
+                anchorWorldTransform.columns.3.x,
+                anchorWorldTransform.columns.3.y,
+                anchorWorldTransform.columns.3.z
+            )
             anchor.removeFromParent()
             content.add(entity)
             content.add(anchor)
             anchor.setTransformMatrix(anchorWorldTransform, relativeTo: nil)
             world.entity = entity
             world.playbackSurfaceAnchor = anchor
+            world.environment = environment
+            world.scene = scene
+            applyRequestedEnvironmentAppearance(to: entity)
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldReady")
             recordSkyboxActivity(in: entity)
             logger.notice("world load completed")
 #if DEBUG
             appModel.recordSurfaceInputProbe(
                 "worldLoad event=completed"
-                    + " anchor=\(PlaybackSurfaceAnchorResolver.canonicalName)",
+                    + " anchor=\(PlaybackSurfaceAnchorResolver.canonicalName)"
+                    + " environment=\(environment.rawValue)",
                 retention: .evidence
             )
 #endif
@@ -1998,46 +2014,62 @@ public struct ImmersiveSpaceView: View {
     }
 
     @MainActor
+    private func unloadWorld(from content: RealityViewContent, reason: String) {
+        if let entity = world.entity { content.remove(entity) }
+        if let anchor = world.playbackSurfaceAnchor { content.remove(anchor) }
+        if let scene = world.scene, let entity = world.entity {
+            scene.update(nil, in: entity)
+        }
+        world.reset()
+        appModel.clearEnvironmentSceneEffectObservation()
+#if DEBUG
+        appModel.recordSurfaceInputProbe("worldUnload reason=\(reason)")
+#endif
+    }
+
+    private static func makePlaceholderWorld(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) -> Entity {
+        let root = Entity()
+        root.name = "EnchronPlaceholderWorld.\(environment.rawValue)"
+        let anchor = Entity()
+        anchor.name = PlaybackSurfaceAnchorResolver.canonicalName
+        let geometry = EnvironmentSceneMapping.geometry(for: environment)
+        anchor.position = [
+            0,
+            geometry.screenRestHeightMeters ?? 0,
+            -Float(geometry.defaultDistanceMeters)
+        ]
+        root.addChild(anchor)
+        return root
+    }
+
+    @MainActor
     @discardableResult
     private func applyRequestedEnvironmentAppearance(to entity: Entity) -> Bool {
-        guard let environment = requestedEnvironmentContext.environment else {
-            EnvironmentSceneAppearanceApplier.clear(
-                in: entity,
-                emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
-            )
-            world.appliedEnvironment = nil
-            world.appliedEnvironmentEffect = nil
-            appModel.clearEnvironmentSceneEffectObservation()
-            return true
-        }
+        guard let environment = world.environment else { return false }
         let effect = requestedEnvironmentContext.effect
         if world.appliedEnvironment == environment,
            world.appliedEnvironmentEffect == effect,
            appModel.environmentSkyboxOpacity != nil {
             return true
         }
-        guard let opacity = EnvironmentSceneAppearanceApplier.apply(
+        let brightness = EnvironmentSceneAppearanceApplier.apply(
             environment: environment,
             effect: effect,
+            scene: world.scene,
             to: entity,
             emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
-        ) else {
-            return false
-        }
+        )
         world.appliedEnvironment = environment
         world.appliedEnvironmentEffect = effect
-        appModel.recordEnvironmentSceneEffect(opacity: opacity)
+        appModel.recordEnvironmentSceneEffect(opacity: brightness)
         return true
     }
 
     @MainActor
     private func recordSkyboxActivity(in entity: Entity) {
-        appModel.recordEnvironmentSkyboxIsActive(
-            entity.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)?.isActive == true
-                || entity.findEntity(
-                    named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName
-                )?.isActive == true
-        )
+        appModel.recordEnvironmentSkyboxIsActive(entity.isActive)
     }
 
     @MainActor
@@ -2370,11 +2402,43 @@ public struct ImmersiveSpaceView: View {
         relativeTo anchor: Entity,
         transform: PlaybackSurfaceTransform
     ) {
-        PlaybackSurfacePlacement.dock(
+        let environment = world.environment ?? .defaultEnvironment
+        let geometry = EnvironmentSceneMapping.geometry(for: environment)
+        let pose = PlaybackSurfacePlacement.dock(
             entity,
             to: anchor,
-            transform: transform
+            transform: transform,
+            geometry: geometry,
+            anchorWorldPosition: world.anchorAuthoredWorldPosition
         )
+        if let root = world.entity {
+            let target = world.rootAuthoredPosition + SIMD3<Float>(0, 0, pose.roomOffsetZ)
+            if root.position != target {
+                root.position = target
+            }
+            if let scene = world.scene {
+                scene.update(
+                    PlaybackSurfacePlacement.screenState(
+                        of: entity,
+                        pose: pose,
+                        videoTexture: reflectionTexture.textureResource
+                    ),
+                    in: root
+                )
+            }
+        }
+        if world.lastDockedPose != pose {
+            world.lastDockedPose = pose
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "dockedPose center=\(pose.center)"
+                    + " distance=\(pose.effectiveDistance)"
+                    + " halfSize=\(pose.halfWidth)x\(pose.halfHeight)"
+                    + " roomOffsetZ=\(pose.roomOffsetZ)"
+                    + " ceilingClamped=\(pose.ceilingClamped)"
+            )
+#endif
+        }
     }
 
     private func updateDockedInteractionSurface(
@@ -2549,14 +2613,6 @@ public struct ImmersiveSpaceView: View {
                 "dockedInputTarget entity \(entry)"
             )
         }
-    }
-}
-
-private enum EnvironmentSceneEffectError: LocalizedError {
-    case skyboxMissing
-
-    var errorDescription: String? {
-        "The environment resource does not contain its skybox entity."
     }
 }
 

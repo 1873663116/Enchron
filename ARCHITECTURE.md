@@ -14,7 +14,9 @@ Modules/Emby/                feature：Emby 远程源
 Modules/Playback/            feature：播放的领域、呈现与平台代码
 Modules/DesignSystem/        公共名词：设计 token 与多消费者组件
 Packages/PlaybackCore/       播放引擎，独立 Package
-Packages/RealityKitContent/  RealityKit 内容 Package
+Packages/EnvironmentSceneContract/  观影环境场景的契约：协议、几何与屏幕状态类型
+Packages/OceanEnvironment/   Ocean 场景包：ocean.reality、海面模拟运行时与契约实现
+Packages/QuietRoomEnvironment/  Quiet Room 场景包：quiet_room.reality 与契约实现
 Tests/                       Package 测试、App 测试、UI 测试与检查器自测
 Regression/                  自动回归的 Promise、Journey、Scenario、Operation、Oracle 与 rubric 合同
 Scripts/regression/          可移植的回归编译核心、运行时、Operation／Oracle 适配器与 CLI
@@ -60,7 +62,7 @@ flowchart LR
     App --> PlaybackCore
 ```
 
-图里只画本仓模块之间的边。此外 `MediaLibrary` 依赖 AMSMB2，`Playback` 与 `Enchron` 依赖 RealityKitContent 与 RealityKitScripting，`PlaybackCore` 依赖它自己的两个 vendored xcframework。
+图里只画本仓模块之间的边。此外 `MediaLibrary` 依赖 AMSMB2，`Playback` 依赖 EnvironmentSceneContract、OceanEnvironment、QuietRoomEnvironment 与 RealityKitScripting，`Enchron` 依赖 RealityKitScripting，`PlaybackCore` 依赖它自己的两个 vendored xcframework。场景包只依赖 EnvironmentSceneContract 与 RealityKit，互不依赖，也不依赖本仓模块；Ocean 包内 `Sources/OceanEnvironment/Vendor/OceanProbe` 是从 Xrplay_scene 的 OceanProbePlugin 运行时复制来的海面模拟，去掉了只在 Reality Composer Pro 内有意义的编辑器状态分支。
 
 `MediaSource` 与 `DesignSystem` 不依赖任何本仓模块，是两个公共名词层。`MediaLibrary` 与 `Emby` 互不依赖：Emby 自带完整的浏览与详情实现，不复用 MediaLibrary 的浏览。`Emby` 依赖 `Playback` 是单向的——`EmbyPlaybackBridge` 与 `EmbySessionViewModel` 把 Emby 的播放选择翻成播放启动请求。
 
@@ -72,6 +74,8 @@ flowchart LR
 **它是否只描述来源本身**——地址、凭据、信任、字节读取、媒体身份与版本？属 [`Modules/MediaSource`](Modules/MediaSource)。它不认识库、不认识播放，被所有 feature 依赖。
 
 **它是否是跨 feature 的视觉原语或组件**？属 [`Modules/DesignSystem`](Modules/DesignSystem)。准入门槛是至少两个产品 feature（MediaLibrary、Emby、Playback）在代码里消费它。只有一个 feature 消费的，放进那个 feature；没有 feature 消费而 DesignSystem 自身在用的，降为 internal；两者皆无的，删除。该规则目前由人执行，没有检查器把关；判断消费者数量时必须先剥掉注释与字符串再统计，按名字直接 grep 会把注释里的名字算成消费者。
+
+**它是否是一个观影环境场景本身**——`.reality` 资源、场景内实体名、材质参数名、把屏幕位置与视频纹理写进材质、按亮度压暗自己？属该场景的 Package（[`Packages/OceanEnvironment`](Packages/OceanEnvironment)、[`Packages/QuietRoomEnvironment`](Packages/QuietRoomEnvironment)），并实现 [`Packages/EnvironmentSceneContract`](Packages/EnvironmentSceneContract) 的 `EnvironmentScene`。Enchron 只认契约：身份到场景包的注册表是 `Modules/Playback/Model/CinemaEnvironment.swift` 的 `EnvironmentSceneMapping`，屏幕位姿求解是 `Modules/Playback/Platform/PlaybackDockedPoseSolver.swift`，反射用的低分辨率视频纹理由 `Modules/Playback/Platform/VideoReflectionTextureSource.swift` 从渲染器已显示的像素缓冲生成。纯色占位环境没有场景包，由 `ImmersiveSpaceView` 里的 `EnvironmentSceneAppearanceApplier` 生成球体。
 
 **它是否属于播放**——解码之外的播放状态、策略、呈现模式、播放界面、播放用的 RealityKit 与 Scene 内容？属 [`Modules/Playback`](Modules/Playback)。目录分层：
 

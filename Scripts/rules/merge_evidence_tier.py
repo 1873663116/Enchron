@@ -59,7 +59,9 @@ PATH_RULES = (
     ("Apps/Enchron/", W3),
     ("Apps/Enchron/Screens/", W2),
     ("Modules/Playback/", W3),
-    ("Packages/RealityKitContent/", W3),
+    ("Packages/EnvironmentSceneContract/", W3),
+    ("Packages/OceanEnvironment/", W3),
+    ("Packages/QuietRoomEnvironment/", W3),
 )
 UNCLASSIFIED_RULE = "unclassified"
 UNCLASSIFIED_TIER = W3

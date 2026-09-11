@@ -32,7 +32,11 @@
 
 ## 空间环境
 
-**Environment**：Enchron 提供的一个稳定观影场景身份。它与场景当前采用的视觉变化分离。
+**Environment**：Enchron 提供的一个稳定观影场景身份。它与场景当前采用的视觉变化分离。身份集合是 `quiet-room`、`ocean`、`placeholder-red`、`placeholder-green`、`placeholder-blue`。
+**Default Environment**：`quiet-room`。它是 Docked 在没有选择时进入的场景，不出现在 Environment Card 里，没有 Environment Effect。
+**Card Environment**：出现在 Environment Card 里、可被佩戴者选择的身份：`ocean` 与三个纯色占位。它们都有 Light Mode 与 Dark Mode。
+**Environment Scene**：由一个独立 Swift Package 交付、实现 `EnvironmentSceneContract` 的场景运行时（Ocean、Quiet Room）。纯色占位没有 Environment Scene。
+**Screen Preview**：场景内名为 `ScreenPreview` 的假屏幕面片，只用于在 Reality Composer Pro 里观察反射，Enchron 加载后禁用。
 **Environment Effect**：同一 Environment 内可变化的视觉表现。它不形成新的 Environment 身份。
 **Environment Context**：当前是否有一个 Environment 处于活动状态，以及该场景当前采用什么 Environment Effect。它不是 Playback Presentation。
 
