@@ -5,7 +5,7 @@
   "id": "rubric:emby-server-lifecycle.emby-resume-entry-semantics.o01@1",
   "title": "Emby Resume Entry Semantics",
   "criteria": [
-    "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after Play followed by the Resume choice in the Resume Playback? alert.",
+    "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after the episode detail page's single Play entry followed by the Resume choice in the Resume Playback? alert, which that entry raises only while the Resume Playback preference is Ask Every Time -- its shipped default, which the ordered transcript carries no Settings-menu-resume-strategy activation to have moved.",
     "Play followed by the Play from Start choice in the same alert starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, as witnessed by the inlined second playback.probe fields."
   ],
   "negativeControls": [

@@ -23,8 +23,8 @@
     },
     {
       "id": "promise:emby-library:c03",
-      "title": "单集详情页上的 Resume 与 Play from Beginning。",
-      "statement": "单集详情页上的 Resume 与 Play from Beginning。",
+      "title": "单集详情页上只有一个 Play 入口 `Emby-Detail-Play`，它以服务器回报的进度为续播候选；是否先弹 Resume Playback? alert 由设置页 Resume Playback 一行的偏好决定。",
+      "statement": "单集详情页上只有一个 Play 入口 `Emby-Detail-Play`，它以服务器回报的进度为续播候选；是否先弹 Resume Playback? alert 由设置页 Resume Playback 一行的偏好决定。",
       "automation": {
         "scope": "included"
       }

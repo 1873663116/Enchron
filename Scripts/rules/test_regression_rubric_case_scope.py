@@ -15,7 +15,6 @@ CASE_SCOPED_RUBRICS = {
         "dv-profile-8-hdr10",
         "dv-profile-8-hlg",
         "dv-profile-10",
-        "dv-profile-20",
     ),
     "rubric:dynamic-range-interpretation.hdr10-hlg-interpretation.o01@1": (
         "hdr10",

@@ -19,15 +19,35 @@ GATE = CLAUDE / "hooks/catalog_write_gate.py"
 
 CASES = [
     ("catalog-v2-write", "Write", "Config/regression/catalog-v2.json", 2, "materialize_catalog_v2"),
-    ("catalog-v2-edit", "Edit", "Config/regression/catalog-v2.json", 2, "materialize_catalog_v2"),
+    ("catalog-v2-edit", "Edit", "Config/regression/catalog-v2.json", 2, "contentDigest"),
     ("catalog-v2-absolute", "Write",
      "/Volumes/x/Enchron/Config/regression/catalog-v2.json", 2, "materialize_catalog_v2"),
-    ("catalog-root-member", "Write",
-     "Config/regression/catalog-root/scenarios/playback.json", 2, "digests the materializer"),
+    ("materialized-contract", "Edit",
+     "Regression/journeys/dynamic-range-interpretation/journey.md", 2,
+     "Regression/ is output"),
+    ("materialized-promise", "Write", "Regression/promises/viewing-state.md", 2,
+     "re-materialize"),
+    ("materialized-review-receipt", "Write",
+     "Regression/reviews/reports/sha256/0f.md", 2, "reviewctl"),
+    ("materialized-absolute", "Write", "/Volumes/x/Enchron/Regression/README.md", 2,
+     "Regression/ is output"),
+    ("lane-catalog-root-promise", "Write",
+     "Config/regression/catalog-root/promises/viewing-state.md", 0, ""),
+    ("lane-catalog-root-readme", "Edit",
+     "Config/regression/catalog-root/README.md", 0, ""),
+    ("lane-catalog-root-absolute", "Write",
+     "/Volumes/x/Enchron/Config/regression/catalog-root/facts/a.md", 0, ""),
+    ("lane-catalog-sibling-config", "Write",
+     "Config/regression/known_defects.json", 0, ""),
     ("lane-catalog-source-elsewhere", "Write",
      "Config/reachability_operation_inventory.json", 0, ""),
     ("lane-the-materializer-itself", "Edit",
      "Scripts/regression/materialize_catalog_v2.py", 0, ""),
+    ("lane-lowercase-regression-rule", "Edit",
+     "Scripts/rules/test_regression_core_catalog.py", 0, ""),
+    ("lane-longer-segment-is-not-regression", "Write",
+     ".scratch/DerivedData/VisionProCoreRegression/Build/settings.json", 0, ""),
+    ("lane-device-test-plan", "Edit", "VisionProCoreRegression.xctestplan", 0, ""),
     ("lane-a-note-about-the-catalog", "Write",
      ".scratch/notes/catalog-v2.md", 0, ""),
     ("lane-ordinary-source", "Edit", "Apps/Enchron/MainView.swift", 0, ""),
@@ -56,7 +76,7 @@ def main() -> int:
             else:
                 print(f"OK   {name}")
 
-        code, _ = run(project, "Read", "Config/regression/catalog-v2.json")
+        code, _ = run(project, "Read", "Regression/promises/viewing-state.md")
         if code != 0:
             failures.append("lane-reading-is-never-blocked")
             print(f"FAIL lane-reading-is-never-blocked: exit {code}")
@@ -64,7 +84,7 @@ def main() -> int:
             print("OK   lane-reading-is-never-blocked")
 
         (project / ".claude/hooks-off").write_text("")
-        code, _ = run(project, "Write", "Config/regression/catalog-v2.json")
+        code, _ = run(project, "Write", "Regression/promises/viewing-state.md")
         if code != 0:
             failures.append("hooks-off-switch")
             print(f"FAIL hooks-off-switch: exit {code}")

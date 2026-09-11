@@ -56,7 +56,7 @@ fixture：`Samples/Spatial/MVHEVC-Apple-Official/spatial_lighthouse_flowers_wave
 - **压缩音频直递（AC-3、E-AC-3 含 JOC、APAC）**。桥对这三种编码不解码而直递系统渲染器（`compressed_audio_codec()`；`Packages/PlaybackCore/Sources/PlaybackCore/AudioSampleProvider.swift` 将其标为 FFmpegCompressedAudio），系统侧解码能力从未在模拟器实测——「音频两 lane 等价」的既有表述只对 LPCM 路径成立。已有物理证据都在真机（见 [features/track-selection.md](../features/track-selection.md) 的 AC-3 证据行）。缺：音频版的解码器矩阵探针，或模拟器 lane 对多音轨 fixture 中 ac3 与 eac3 轨的可闻性实测；APAC 更是两侧均无判据，素材也只有上游向量（`TestVectors/Upstream/Apple/Audio/APAC-HLS`）。
 - **P8 兼容层（hvc1 加 dvvC）的 Dolby Vision 解释**。解码本身是 HEVC，两 lane 都行；但 `dvvC` 在场时系统是否施加 DV 解释、模拟器是否忽略 RPU 造成色差，没有实测。缺：同一 fixture 在两 lane 的采帧 A/B 对比（现成阴阳样本 `Samples/DynamicRange/DolbyVision/Experiments/dvvC-ab/furyroad-with-dv.mkv` 与 stripped 版）。
 - **高分辨率与高帧率上限**。8K 级样片（8192×4096 HEVC 的 `HNVR-158_H_4096p_8K_LR_180_clip.mp4`、7680×3840 AV1 的 `insta360.mp4`）只有真机侧 Real 系列用例走过，模拟器的分辨率与帧率上限从未测绘。缺：模拟器 lane 的阶梯实测。
-- **Dolby Vision Profile 20**。DV 与 MV-HEVC 的组合形态，感知层有验收家族与样片（`Samples/DynamicRange/DolbyVision/Profile20/Apple-Streaming-Examples/3D-example.mp4`），自动化判据未注册。缺：testplan 用例或矩阵探针条目。
+- **Dolby Vision Profile 20**。DV 与 MV-HEVC 的组合形态，感知层有验收家族与样片（`Samples/DynamicRange/DolbyVision/Profile20/Apple-Streaming-Examples/3D-example.mp4`），自动化判据未注册。缺口不是 fixture，也不是 testplan 条目：`scenario:dynamic-range-interpretation:dolby-vision-profile-matrix` 2026-09-11 移除了它的 `dv-profile-20` case，当时记下的理由是 AVFoundation 不支持该 profile，而 Apple 的 HLS authoring specification 在 visionOS 修订条款下第 1.9c 条写 “Dolby Vision stereo video MUST be Profile 20 (MV-HEVC) and less than or equal to Level 9.”，第 1.40 条写 “Stereo video MUST be encoded using Dolby Vision Profile 20 (MV-HEVC).”，该理由不成立。缺：本 profile 在真机上的一次实测——同一片源的解码与采帧，以判定平台是否施加 DV 解释；在此之前该 case 的移除没有成立的依据。
 
 ## 执行入口
 

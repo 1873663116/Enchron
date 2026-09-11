@@ -11,10 +11,10 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:b843d14472b306db3f33a1a317ae26ce0ed0fcada006f15f55beccd3fbe568dd",
+  "contentDigest": "sha256:606873e8a64c7a098877123b811f7ebf7dc5bbd873873da2628139ad0ae04851",
   "copyDocuments": [
     {
-      "digest": "sha256:6b034a5ac79a9004f3b23d8e04ebaad21c09b32eb90aaf33148835b6c3b8bfdf",
+      "digest": "sha256:3cddd3e1bd6227b0b62c6323d2a4481e87b786b7716923ef267d6065ce9083c7",
       "path": "README.md"
     },
     {
@@ -22,7 +22,7 @@
       "path": "agent-operability-review-protocol.md"
     },
     {
-      "digest": "sha256:364dcbf6828d764d6371250cb250b782324ff4bf9d50103cd73c610d2db6f4b8",
+      "digest": "sha256:8a75da01a1f9f9613ccc53772213866bcd0da442e8f26c4b0d9763e38e3d81d5",
       "path": "execution-protocol.md"
     },
     {
@@ -30,7 +30,7 @@
       "path": "facts/fixture-approved-high-resolution-180.md"
     },
     {
-      "digest": "sha256:9f6e91d1dc706570c82e37ffd6315e7315a337d6189d527ea9388346f35cea0b",
+      "digest": "sha256:924d2d61042cbf804d546007a46ced3de1306a7e86fe2d32ccee3437adb09604",
       "path": "facts/format-dv10-dv20-have-product-entry.md"
     },
     {
@@ -78,11 +78,11 @@
       "path": "promises/clean-state-playback.md"
     },
     {
-      "digest": "sha256:4faa5a789c8bc62d590ec2fef71ce84eb140b2a84713e5458d13bad198fac0ae",
+      "digest": "sha256:de1edafed9f5c35103e173dd3ff151031805b435057ce8b6649f6d665b05c668",
       "path": "promises/controls-summon.md"
     },
     {
-      "digest": "sha256:09d348df3548e3a220219a1e8395b00ba9da43e977ad2ec8b3d6c2ceba64b67c",
+      "digest": "sha256:55141c5cae7362053c1b7a8123e7197670b902a305a6d8c05bee458f873fb487",
       "path": "promises/emby-library.md"
     },
     {
@@ -102,7 +102,7 @@
       "path": "promises/network-resilience.md"
     },
     {
-      "digest": "sha256:d1d3dafd33f02affcaf98581767fa08a878a58a723425210e9f2d4aefb484408",
+      "digest": "sha256:4f8ca7ca4123a79c825bc05067b1d1102a30c590adde5bb7f72e7f28e936ea50",
       "path": "promises/picture-interpretation.md"
     },
     {
@@ -114,7 +114,7 @@
       "path": "promises/track-selection.md"
     },
     {
-      "digest": "sha256:cb651e3936dd58f7a98a138f3f10c57d8009115d45488320a226b6a21fb202e5",
+      "digest": "sha256:f9b372938a18fb4d1efd2553b19392c4235d76445f7f8ddaf246af616c5f099d",
       "path": "promises/viewing-state.md"
     },
     {
@@ -134,7 +134,7 @@
     "promises": 65,
     "rubrics": 107,
     "scenarios": 70,
-    "staticCases": 120
+    "staticCases": 119
   },
   "journeys": [
     {
@@ -1113,15 +1113,15 @@
     },
     {
       "criteria": [
-        "The bound frame sequence exposes the exact (dolbyVisionProfile, dolbyVisionCrossCompatibilityID, dolbyVisionHasEnhancementLayer) tuple registered for its case: P5=(5,0,false), P7 FEL=(7,6,true), P8.1=(8,1,false), P8.4=(8,4,false), P10=(10,0,false), and P20=(20,0,false). Its sourcePixelFormat and destinationPixelFormat are non-none.",
-        "sourceHasDvcC/sourceHasDvvC identify the real source configuration atoms and rendererHasDvcC/rendererHasDvvC preserve the delivered Dolby Vision configuration, each justified by the same profile's real fallback/delivery branch rather than a Catalog constant. The single-layer cases dv-profile-5, dv-profile-8-hdr10, dv-profile-8-hlg, dv-profile-10 and dv-profile-20 each carry at least one true source atom. dv-profile-7-dual is the reviewed dual-layer exception: its FEL declaration is classified as HEVC dual layer, excluded from the Format Description, and only its HDR10 base layer is delivered, so sourceHasDvcC and sourceHasDvvC are both none and neither renderer atom is true, while criterion 1's (7, 6, true) tuple still reads from the source declaration.",
-        "The bound frame sequence matches the color and fallback expectations registered for its case: P8.1 uses smpte2084/PQ with BT.2020 primaries, bt2020nc matrix, and video range; P8.4 uses arib-std-b67/HLG with the same primaries, matrix, and range; P7 uses the reviewed HDR10/PQ fallback without claiming enhancement-layer delivery; and P5, P10, and P20 retain their exact source tuple and real renderer configuration.",
+        "The bound frame sequence exposes the exact (dolbyVisionProfile, dolbyVisionCrossCompatibilityID, dolbyVisionHasEnhancementLayer) tuple registered for its case: P5=(5,0,false), P7 FEL=(7,6,true), P8.1=(8,1,false), P8.4=(8,4,false), and P10=(10,0,false). Its sourcePixelFormat and destinationPixelFormat are non-none.",
+        "sourceHasDvcC/sourceHasDvvC identify the real source configuration atoms and rendererHasDvcC/rendererHasDvvC preserve the delivered Dolby Vision configuration, each justified by the same profile's real fallback/delivery branch rather than a Catalog constant. The single-layer cases dv-profile-5, dv-profile-8-hdr10, dv-profile-8-hlg and dv-profile-10 each carry at least one true source atom. dv-profile-7-dual is the reviewed dual-layer exception: its FEL declaration is classified as HEVC dual layer, excluded from the Format Description, and only its HDR10 base layer is delivered, so sourceHasDvcC and sourceHasDvvC are both none and neither renderer atom is true, while criterion 1's (7, 6, true) tuple still reads from the source declaration.",
+        "The bound frame sequence matches the color and fallback expectations registered for its case: P8.1 uses smpte2084/PQ with BT.2020 primaries, bt2020nc matrix, and video range; P8.4 uses arib-std-b67/HLG with the same primaries, matrix, and range; P7 uses the reviewed HDR10/PQ fallback without claiming enhancement-layer delivery; and P5 and P10 retain their exact source tuple and real renderer configuration. dv-profile-10 carries sourceYCbCrMatrix and rendererYCbCrMatrix both exactly IPT_C2, the private string the bridge maps the P10.0 base layer's IPT-C2 declaration to, and a different reading on either field fails the case. Its colour is judged on the same terms as every other case.",
         "The bound producer returns exactly three ordered frames separated by at least 1000 ms with stable session/stream epoch, strictly increasing position, pairwise-distinct content attachments, displayed pixels, and no active issue."
       ],
       "filename": "rubric-dynamic-range-interpretation-dolby-vision-profile-matrix-o01-1.md",
       "id": "rubric:dynamic-range-interpretation.dolby-vision-profile-matrix.o01@1",
       "negativeControls": [
-        "A profile/compatibility/enhancement tuple mismatch, missing dvcC/dvvC facts on a single-layer case, a true source or renderer atom on dv-profile-7-dual, source Format Description mutation, invented profile fixture, or treating P7 FEL presence as proof that the renderer consumed the enhancement layer fails the structured matrix.",
+        "A profile/compatibility/enhancement tuple mismatch, missing dvcC/dvvC facts on a single-layer case, a true source or renderer atom on dv-profile-7-dual, source Format Description mutation, invented profile fixture, a dv-profile-10 source or renderer YCbCr matrix reading other than IPT_C2, or treating P7 FEL presence as proof that the renderer consumed the enhancement layer fails the structured matrix.",
         "Missing canonical fields, repeated/blank/pure-color frames, changed session/stream epoch, or non-advancing playback is Indeterminate or failing as specified."
       ],
       "title": "Dolby Vision Profile Matrix"
@@ -1171,7 +1171,7 @@
     },
     {
       "criteria": [
-        "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after Play followed by the Resume choice in the Resume Playback? alert.",
+        "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after the episode detail page's single Play entry followed by the Resume choice in the Resume Playback? alert, which that entry raises only while the Resume Playback preference is Ask Every Time -- its shipped default, which the ordered transcript carries no Settings-menu-resume-strategy activation to have moved.",
         "Play followed by the Play from Start choice in the same alert starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, as witnessed by the inlined second playback.probe fields."
       ],
       "filename": "rubric-emby-server-lifecycle-emby-resume-entry-semantics-o01-1.md",
@@ -1185,7 +1185,7 @@
     },
     {
       "criteria": [
-        "The bound emby.evidence inlines the inspect matchedElement object from episode detail whose identifier field is Emby-Detail-Play, present before the action is opened, and the Play activate response from call 06 that succeeded, after which the Resume Playback? alert offers PlayerUI-resumeDecision-primary and PlayerUI-resumeDecision-secondary.",
+        "The bound emby.evidence inlines the inspect matchedElement object from episode detail whose identifier field is Emby-Detail-Play, present before the action is opened, and the Play activate response from call 06 that succeeded, after which the Resume Playback? alert offers PlayerUI-resumeDecision-primary and PlayerUI-resumeDecision-secondary. Emby-Detail-Play is the episode detail page's only play entry and always opens on the server-reported position as its resume candidate (Modules/Emby/EmbyScreens.swift:1292 and :1410); the two choices are the alert's, not the page's, and the alert is raised only while the Resume Playback preference is Ask Every Time -- its shipped default, which the ordered transcript carries no Settings-menu-resume-strategy activation to have moved.",
         "The bound document inlines the host emby-aggregate report and two playback.probe fields: the Resume choice's position is within the five-second observed-position bound of receipt.catalog.progressTicks, the Play from Start choice's position is from 0 through 5 seconds inclusive, and both probes share the same Emby item identity as that report.",
         "The bound document inlines the same-attempt Resume choice activate's activatedAtMonotonicMillis from call 07, that same attempt's playback.await-window-state elapsedMillis, and the capture-frames list, and it decides HC-018's 45000 ms bound from the one interval this instrument resolves: frames[0].capturedAtMonotonicMillis minus activatedAtMonotonicMillis is at most 45000 ms, and frame 0 itself reports lifecycle Playing with displayedPixel true, so the bound is read against a frame that already carries a picture. That interval is an upper bound on click-to-first-frame and never an understatement, because frame 0 is the first capture taken after the wait has already observed playing: it contains the product's whole open plus the instrument's share, of which the inlined elapsedMillis is the wait and the remainder is the activate's return and one diagnostics.playback-state@1 snapshot, device median 3.91 s in Scripts/verification/controller_timings.json. The changing half of the claim is decided without a time bound: at least one later frame has a screenshotDigest differing from frame 0's and a strictly greater position. No spacing between adjacent frames is read as a product latency, because each capture iteration costs two controller snapshots at that same median, so the spacing is the instrument's. 90000 ms is only the harness liveness deadline."
       ],
@@ -1866,7 +1866,7 @@
       "criteria": [
         "The ordered transcript opens MediaLibrary-grid-video-viewing-storage-16m01s-b.mp4 from an empty viewing-state baseline, reaches playing, requests playback.seek positionMillionths 997000, and observes lifecycle ended before any Back action.",
         "relatedResults inline the ended viewingStorageObservation from call 09: activePlayback.endedNaturally is true for a canonical mediaIdentity and contentRevision. After Back, the inlined persisted snapshot from call 11 has exactly one completed entry for that identity and revision with completed true, status completed, and positionSeconds equal to durationSeconds, with no resumable entry and no invalid record.",
-        "relatedResults inline the PlayerUI-resumeDecision-primary matchedElement from call 13, which is null because no Resume Playback? alert is shown, and the ordered transcript contains no activation of either resume-decision action. Playback reaches playing automatically.",
+        "relatedResults inline the PlayerUI-resumeDecision-primary matchedElement from call 13, which is null because no Resume Playback? alert is shown -- the completed entry leaves no resumable position, so the Ask Every Time arm that would raise the alert is never reached -- and the ordered transcript contains no activation of either resume-decision action. Playback reaches playing automatically.",
         "The producer snapshot's activePlayback has a non-none sessionID different from the naturally ended session, the same mediaIdentity and contentRevision, viewingStateAuthority enchron-persistence, endedNaturally false, and positionSeconds from 0 through 5 inclusive under the observed-position bound decided by HC-021. The store still has no resumable entry. relatedResults also inline the empty baseline snapshot from call 01."
       ],
       "filename": "rubric-viewing-state-and-storage-completed-media-starts-from-beginning-o01-1.md",
@@ -1931,7 +1931,7 @@
     {
       "criteria": [
         "The ordered transcript establishes an empty viewing-state baseline, plays MediaLibrary-grid-video-viewing-storage-16m01s.mp4 beyond 20 seconds with at least 300 seconds remaining, captures its active identity and session, and exits through PlayerUI-InfoBar-button-back. relatedResults inline the persisted viewingStorageObservation from call 10 with exactly one resumable entry for that mediaIdentity and contentRevision.",
-        "relatedResults inline the PlayerUI-resumeDecision-primary matchedElement from call 12, which is present because the Resume Playback? alert is shown, and the PlayerUI-resumeDecision-primary activation response from call 13, which succeeded. Playback then reaches lifecycle playing without a reset, clear, different media open, or content mutation between persistence and reopen.",
+        "relatedResults inline the PlayerUI-resumeDecision-primary matchedElement from call 12, which is present because the Resume Playback? alert is shown -- the saved position raises it only while the Resume Playback preference is Ask Every Time, its shipped default, and the ordered transcript carries no Settings-menu-resume-strategy activation to have moved it -- and the PlayerUI-resumeDecision-primary activation response from call 13, which succeeded. Playback then reaches lifecycle playing without a reset, clear, different media open, or content mutation between persistence and reopen.",
         "The producer activePlayback has a non-none sessionID different from the inlined pre-exit sessionID in call 08's viewingStorageObservation, viewingStateAuthority enchron-persistence, the same mediaIdentity and contentRevision as the inlined persisted entry, and positionSeconds greater than zero and within the five-second observed-position bound of that persisted entry decided by HC-021.",
         "relatedResults also inline the empty baseline from call 01. Every compared viewing entry has authority enchron-persistence and invalidRecordCount is zero."
       ],
@@ -6070,7 +6070,7 @@
           }
         ]
       },
-      "title": "单集 Resume 与 Play from Beginning 入口"
+      "title": "单集详情页的单一 Play 入口与 Resume Playback? alert 的两个选择"
     },
     {
       "applicability": {
@@ -6908,8 +6908,8 @@
         }
       },
       "blockers": [],
-      "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 582000,
+      "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.\n\n## Why Profile 20 is not a case here\n\nThis Scenario carried a sixth case, `dv-profile-20`, until 2026-09-11. It is excluded, and not for want of a fixture: Apple's Profile 20 HLS sample is kept at `TestMedia/Samples/DynamicRange/DolbyVision/Profile20/Apple-Historic-Planet-HLS`, and the case that was removed opened a registered Profile 20 file. The ground recorded for the removal on that date was that AVFoundation does not support Profile 20 and the picture it produces has the wrong colour. That ground does not hold. Apple's HLS authoring specification, under Amended requirements for visionOS, states at 1.9c \"Dolby Vision stereo video MUST be Profile 20 (MV-HEVC) and less than or equal to Level 9.\" and at 1.40 \"Stereo video MUST be encoded using Dolby Vision Profile 20 (MV-HEVC).\", with a 2025-03-25 revision entry reading \"Clarified use of DV20 for Stereo video for VisionOS.\" (`https://developer.apple.com/documentation/http-live-streaming/hls-authoring-specification-for-apple-devices`, read 2026-09-11). A platform that requires Profile 20 for stereo Dolby Vision delivery is not a platform that lacks support for it, and this repository holds no measurement of Profile 20 playback in this product on either lane. So the case stands removed but its stated ground is withdrawn, and the exclusion is open for re-decision rather than settled. Removed with the case: the obligation, its `staticCases` entry and SuccessExpression term, its five calls, and its mentions in the Rubric criteria. The title now names profiles 5, 7, 8 and 10, and so do `promise:picture-interpretation:c02` and the Sub-features line it mirrors verbatim at `.agents/skills/vp-e2e/features/picture-interpretation.md` line 10, both amended on the same date; restoring the case means restoring those two texts as well. Semantic authority decision `HC-007` reads \"Dolby Vision profiles 10 and 20 remain included. Supply them in an admitted MP4 or MKV form; do not add DASH or HLS solely for fixture reachability and do not drop the profiles.\" and is unchanged, so this Catalog now contradicts it: the decision says not to drop the profiles and the Scenario has dropped one. The contradiction is recorded here rather than resolved, because resolving it means revising an approved decision. `Scripts/regression/review_stage.py` lines 633 to 702 admit exactly HC-000 through HC-023 with every `status` equal to `decided` and carry no superseded, amended, or revision field, so revising a decided decision can only be an in-place rewrite of an approved record; `Regression/agent-operability-review-protocol.md` line 38 forbids a reviewing Agent from resolving a HumanCoverage question, and `docs/MERGE_EVIDENCE.md` classes a `regression-contract` change as `HumanReviewRequired`. This Catalog change does not hold that authority, so HC-007 is left as approved.\n\n## What dv-profile-10 rests on\n\nThe case opens `MediaLibrary-grid-video-media-video-dav1-dav1-1.mp4`, the P10.0 sample `Tests/Fixtures/fixture-registry.json` registers as `internal-dolby-vision-p100-av1-v1`. Measured on 2026-09-11 against this repository's vendored FFmpeg 9.0.1 and macOS VideoToolbox: the demuxer identifies the stream; its Dolby Vision configuration record reads profile 10, level 4, rpu_present true, el_present false, bl_present true and cross-compatibility 0, which is the tuple criterion 1 registers for the case; and the bridge's correction of the `dav1` sample entry to AV1 is still required, because raw FFmpeg 9.0.1 classifies that entry as an unknown codec. The vendored FFmpeg then returns no frames for AV1 at all: 60 packets in, zero frames out, ENOSYS, with \"Your platform doesn't support hardware accelerated AV1 decoding\", while an HEVC control on the P8.1 fixture returns 60 of 60. That build's configure line carries --disable-hwaccels and --disable-autodetect (`Packages/PlaybackCore/Scripts/build_ffmpeg.sh`), and its static library exports ff_av1_decoder with no VideoToolbox hwaccel symbol; no counterfactual build was produced, so the configure line is the reading of the cause and not a measurement of it. VideoToolbox decoded the same fixture 48 of 48 frames, hardware accelerated. Since `PBFFmpegModeCompressed` is how PlaybackCore reads this media (`Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift`), Profile 10 playback rests on the platform decoder rather than on FFmpeg.\n\n## The decision on dv-profile-10\n\nThe obligation stays visual -- evidenceType visual.frames, evidenceSchema frame-sequence@2, `oracle:agent-visual@2` -- and it is discharged on the device lane and nowhere else. This Scenario's lane is already `device`, and that is now the reading of the binding rather than a scheduling detail: the visionOS Simulator has no AV1 decoder of any kind, so a simulator attempt could not produce the frame sequence at all. Device coverage for this exact fixture already exists outside this Catalog's own run history, and the earlier reading that none does was formed without surveying it and is withdrawn. `DeviceFixtureImportUITests/testDolbyVisionProfile10AutomaticSourcePlaybackOnVisionPro()` is enrolled in `VisionProCoreRegression.xctestplan` under its Physical Vision Pro configuration; it opens the same `media-video-dav1-dav1-1.mp4`, and asserts the `dav1` provider codec tag, the `av01` sample subtype, the `dvvC` source atom, a position that advances with rising videoSamples and rendererInputs, and displayedPixel true (`Tests/EnchronAppUI/Fixtures/DeviceFixtureImportUITests.swift`). `DeviceFixtureImportUITests/testRealAV1360AcrossWindowDockedAndPanoramaRoundTrips()` carries a 7680x3840 AV1 panorama through window, docked and panorama outside that plan. Both are listed as this capability's device entries in `.agents/skills/vp-e2e/references/device-reserve.md`. What device coverage does not establish is the colour: the decoded pixel buffer carries identical colour attachments with and without the dvvC atom, so the RPU is not consumed at the decompression seam, and this fixture's IPT-C2 base-layer matrix is dropped by VideoToolbox. Perceptual acceptance for Profile 10 stays with the P10 acceptance clip family named in that same reference.\n\n## Where a wrong Profile 10 colour lands\n\nNothing exempts a wrong Profile 10 colour, and the known-defect ledger must not be made to. `Config/regression/known_defects.json` carried one record against this Scenario, recorded 2026-09-11 and withdrawn the same day; its `defects` list is now empty. The record was wider than the thing it described. `RECORD_FIELDS` in `Scripts/regression/tools/known_defects.py` is the closed set scenario, description, match, recorded, expiresWhen, with no obligation or caseKey member, and `matching_defect` selects a record by Scenario id and then by the field reading with nothing narrowing it to a case, so the record covered the whole `ScenarioAttemptNode` (`Scripts/regression/core/plan.py:948`) rather than the dv-profile-10 obligation it was written for. `Scripts/regression/core/fields.py` then resolves rendererYCbCrMatrix by unanchored first-hit lookup over the last completed call's outputs, so the reading the record matched on was not anchored to a named call either. What that combination does to a run is not attribution. `failed(known)` is in `BLOCKING_NODE_STATUSES` (`Scripts/regression/core/runview.py:93`), so the downstream subtree is derived `blockedBy`; but `CLOSED_AS_PASSED` in `Scripts/regression/core/runtime.py:93` holds `passed`, `blockedBy` and `failed(known)` together, and the finalize ladder at `:1238` reaches `RunOutcome.FAILED` only when a plain `failed` is present. A run whose only product failure is `failed(known)`, together with the whole subtree that failure blocked, therefore closes `RunOutcome.PASSED`. The record was a release valve on the run verdict, and it would have opened for any unrelated regression in this Scenario that left the Profile 10 reading in place.\n\nWhat carries the Profile 10 colour expectation instead is rubric criterion 3, which is bound per case through `obligation:dynamic-range-interpretation:dolby-vision-profile-matrix:o01:dv-profile-10` and so cannot reach another case. It registers sourceYCbCrMatrix and rendererYCbCrMatrix both exactly IPT_C2 for dv-profile-10 -- the private string `ycbcr_matrix` in `Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c` maps `AVCOL_SPC_IPT_C2` to, which is what the vendored FFmpeg reads out of the P10.0 fixture's colr box and what `formatSignalingSummary` reports on the compressed renderer input. Two limits of that criterion are part of the contract. It is not a deterministic predicate: `FIELD_VALUES` in `Scripts/regression/rubric_compiler.py` is a closed set of nine field names -- controls, exists, isEnabled, isHittable, isSelected, lifecycle, mediaKind, succeeded, visible -- rendererYCbCrMatrix is not among them, and `compile_rubric` returns zero predicates for all four criteria of this rubric, so every one of them is read by `oracle:agent-visual@2`. And the two matrix fields read the source and renderer Format Descriptions, which sit upstream of the decompression seam, so they establish that the declaration survived to the renderer input and not that the displayed picture is the right colour; the displayed colour is judged by the Agent from the bound frame sequence on the same terms as every other case. On a device run where the Profile 10 colour is wrong, the Agent fails criterion 3, the dv-profile-10 observation is Violated, the Scenario attempt is `failed`, and the run closes `RunOutcome.FAILED`. There is no exemption and no attribution: the gap described above is recorded in this contract as prose, and nothing enforces that a failure carrying it is the known gap rather than a fresh regression.",
+      "estimatedCostMillis": 485000,
       "id": "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
       "journey": "journey:dynamic-range-interpretation",
       "lane": "device",
@@ -6963,16 +6963,6 @@
           "id": "obligation:dynamic-range-interpretation:dolby-vision-profile-matrix:o01:dv-profile-10",
           "oracle": "oracle:agent-visual@2",
           "producedByCall": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:25",
-          "rubric": "rubric:dynamic-range-interpretation.dolby-vision-profile-matrix.o01@1"
-        },
-        {
-          "artifactClass": "coverage",
-          "caseKey": "dv-profile-20",
-          "evidenceSchema": "frame-sequence@2",
-          "evidenceType": "visual.frames",
-          "id": "obligation:dynamic-range-interpretation:dolby-vision-profile-matrix:o01:dv-profile-20",
-          "oracle": "oracle:agent-visual@2",
-          "producedByCall": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:30",
           "rubric": "rubric:dynamic-range-interpretation.dolby-vision-profile-matrix.o01@1"
         }
       ],
@@ -7201,51 +7191,6 @@
           "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:25",
           "maxInvocations": 1,
           "operation": "operation:evidence.capture-frames@1"
-        },
-        {
-          "arguments": {},
-          "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:26",
-          "maxInvocations": 1,
-          "operation": "operation:app.relaunch@1"
-        },
-        {
-          "arguments": {
-            "tab": "files"
-          },
-          "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:27",
-          "maxInvocations": 1,
-          "operation": "operation:navigation.select-tab@1"
-        },
-        {
-          "arguments": {
-            "deadlineSeconds": 45,
-            "expectedLanding": "window",
-            "identifier": "MediaLibrary-grid-video-3D-example.mp4"
-          },
-          "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:28",
-          "maxInvocations": 1,
-          "operation": "operation:media.open@2"
-        },
-        {
-          "arguments": {
-            "controls": "either",
-            "deadlineSeconds": 45,
-            "lifecycle": "playing",
-            "presentation": "window"
-          },
-          "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:29",
-          "maxInvocations": 1,
-          "operation": "operation:playback.await-window-state@1"
-        },
-        {
-          "arguments": {
-            "context": "window",
-            "count": 3,
-            "minimumIntervalMillis": 1000
-          },
-          "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:30",
-          "maxInvocations": 1,
-          "operation": "operation:evidence.capture-frames@1"
         }
       ],
       "prerequisites": [
@@ -7263,8 +7208,7 @@
         "dv-profile-7-dual",
         "dv-profile-8-hdr10",
         "dv-profile-8-hlg",
-        "dv-profile-10",
-        "dv-profile-20"
+        "dv-profile-10"
       ],
       "success": {
         "all": [
@@ -7282,13 +7226,10 @@
           },
           {
             "observation": "obligation:dynamic-range-interpretation:dolby-vision-profile-matrix:o01:dv-profile-10"
-          },
-          {
-            "observation": "obligation:dynamic-range-interpretation:dolby-vision-profile-matrix:o01:dv-profile-20"
           }
         ]
       },
-      "title": "Dolby Vision profile 5、7、8、10 与 20 处理矩阵"
+      "title": "Dolby Vision profile 5、7、8 与 10 处理矩阵"
     },
     {
       "applicability": {

@@ -348,10 +348,10 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "preparations": 18,
                 "journeys": 14,
                 "scenarios": 70,
-                "staticCases": 120,
+                "staticCases": 119,
             },
         )
-        self.assertEqual(report["obligationCount"], 159)
+        self.assertEqual(report["obligationCount"], 158)
         expected_call_count = sum(
             len(
                 preparation_adapter.build_plan(
@@ -424,7 +424,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             )
         )
 
-    def test_rejects_internally_consistent_118_obligation_blueprint(self) -> None:
+    def test_rejects_internally_consistent_157_obligation_blueprint(self) -> None:
         tampered = copy.deepcopy(self.blueprint)
         scenario = next(
             item
@@ -440,7 +440,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(len(item["obligations"]) for item in tampered["scenarios"]),
-            158,
+            157,
         )
         self.assertEqual(
             {term["observation"] for term in scenario["success"]["all"]},
@@ -452,7 +452,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             blueprint_path = self._write_blueprint(root, tampered)
             with self.assertRaisesRegex(
                 MaterializationError,
-                "Catalog must contain exactly 159 globally unique obligations",
+                "Catalog must contain exactly 158 globally unique obligations",
             ):
                 materialize(
                     blueprint_path,

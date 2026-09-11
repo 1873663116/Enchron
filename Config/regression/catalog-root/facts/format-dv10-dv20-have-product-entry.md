@@ -4,7 +4,7 @@
   "schemaVersion": 1,
   "id": "fact:format.dv10-dv20-have-product-entry",
   "title": "Format dv10 dv20 have product entry",
-  "statement": "Current DASH and HLS manifest fixtures have no product discovery route despite the feature commitment naming profiles 10 and 20.",
+  "statement": "Current DASH and HLS manifest fixtures have no product discovery route. The feature commitment named profiles 10 and 20 until 2026-09-11 and now names profile 10; decision HC-007, which this Fact rests on, still names both.",
   "valueType": "boolean",
   "value": false,
   "provenance": {

@@ -391,14 +391,17 @@
     {
       "id": "catalog-write-gate-off",
       "file": "hooks/catalog_write_gate.py",
-      "find": "    for prefix, reason in MATERIALIZED.items():",
-      "replaceWith": "    for prefix, reason in []:",
+      "find": "    for prefix, reason in MATERIALIZED:",
+      "replaceWith": "    for prefix, reason in ():",
       "probe": "catalog",
       "expect": [
         "catalog-v2-write",
         "catalog-v2-edit",
         "catalog-v2-absolute",
-        "catalog-root-member"
+        "materialized-contract",
+        "materialized-promise",
+        "materialized-review-receipt",
+        "materialized-absolute"
       ]
     },
     {

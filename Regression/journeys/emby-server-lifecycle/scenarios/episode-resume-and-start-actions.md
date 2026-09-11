@@ -3,7 +3,7 @@
   "schema": "enchron.regression.scenario",
   "schemaVersion": 1,
   "id": "scenario:emby-server-lifecycle:episode-resume-and-start-actions",
-  "title": "单集 Resume 与 Play from Beginning 入口",
+  "title": "单集详情页的单一 Play 入口与 Resume Playback? alert 的两个选择",
   "journey": "journey:emby-server-lifecycle",
   "promiseRefs": [
     "promise:emby-library:c03"
@@ -226,6 +226,6 @@
   }
 }
 ---
-# 单集 Resume 与 Play from Beginning 入口
+# 单集详情页的单一 Play 入口与 Resume Playback? alert 的两个选择
 
 Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.

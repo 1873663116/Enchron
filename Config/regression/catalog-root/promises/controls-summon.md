@@ -15,8 +15,8 @@
     },
     {
       "id": "promise:controls-summon:c02",
-      "title": "docked 与 panorama：用户注视并捏合各自呈现的产品交互外壳，即可召唤跟随头部姿态的空间内控件。",
-      "statement": "docked 与 panorama：用户注视并捏合各自呈现的产品交互外壳，即可召唤跟随头部姿态的空间内控件。",
+      "title": "docked 与 panorama：用户注视并捏合各自呈现的产品交互外壳，即可召唤空间内控件；控件在每次显现时读一次头部姿态定位，落位之后 world-locked，不随头部继续移动。",
+      "statement": "docked 与 panorama：用户注视并捏合各自呈现的产品交互外壳，即可召唤空间内控件；控件在每次显现时读一次头部姿态定位，落位之后 world-locked，不随头部继续移动。",
       "automation": {
         "scope": "included"
       }

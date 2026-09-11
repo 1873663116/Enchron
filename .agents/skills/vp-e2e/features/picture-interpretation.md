@@ -7,7 +7,7 @@
 ## Sub-features
 
 - HDR10 与 HLG 片源的色彩与亮度解释正确。
-- 对 Dolby Vision profile 5、7 双层、8 单层、10（AV1）、20 各形态的处理。
+- 对 Dolby Vision profile 5、7 双层、8 单层、10（AV1）各形态的处理。
 - 向后兼容的 Dolby Vision 单层片源可以在播放中切换为其声明所对应的 HDR10 或 HLG 解释；Profile 5 不提供这一偏好。
 - 立体片源的左右眼画面正确分离并呈现深度。
 - 180° 与 360° 全景片源按所选覆盖角包裹画面。

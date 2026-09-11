@@ -234,7 +234,7 @@ class MaterializedCatalogTests(unittest.TestCase):
                 "preparations": 18,
                 "journeys": 14,
                 "scenarios": 70,
-                "staticCases": 120,
+                "staticCases": 119,
             },
         )
         self.assertEqual(report["scenarioReadiness"], {"ready": 70})
@@ -253,11 +253,11 @@ class MaterializedCatalogTests(unittest.TestCase):
         )
         self.assertEqual(
             sum(len(scenario.static_cases) for scenario in catalog.scenarios),
-            120,
+            119,
         )
         self.assertEqual(
             sum(len(scenario.obligations) for scenario in catalog.scenarios),
-            159,
+            158,
         )
         self.assertTrue(
             all(
