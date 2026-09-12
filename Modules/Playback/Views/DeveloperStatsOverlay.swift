@@ -34,6 +34,11 @@ public enum DeveloperStatsLine {
                 value: megabytes(metrics.footprintBytes),
                 unit: "MB",
                 denominator: metrics.limitIsReported ? megabytes(metrics.limitBytes) : nil
+            ),
+            DeveloperStatsField(
+                key: "INT",
+                value: megabytes(metrics.internalBytes),
+                unit: "MB"
             )
         ]
         if let graphics = metrics.graphicsFootprintBytes {
@@ -45,10 +50,17 @@ public enum DeveloperStatsLine {
                 )
             )
         }
-        if sessionIsActive, let playback, let pool = videoPoolBytes(playback) {
-            memory.append(
-                DeveloperStatsField(key: "VID≈", value: megabytes(pool), unit: "MB")
-            )
+        for (key, bytes) in [
+            ("IOSF", metrics.ioSurfaceResidentBytes),
+            ("IOAC", metrics.ioAcceleratorResidentBytes),
+            ("CM", metrics.coreMediaResidentBytes),
+            ("VBS", metrics.videoBitstreamResidentBytes)
+        ] as [(String, UInt64?)] {
+            if let bytes, bytes > 0 {
+                memory.append(
+                    DeveloperStatsField(key: key, value: megabytes(bytes), unit: "MB")
+                )
+            }
         }
         result.append(DeveloperStatsGroup(id: "memory", fields: memory))
 
@@ -132,26 +144,6 @@ public enum DeveloperStatsLine {
             .joined(separator: " ")
         }
         .joined(separator: " · ")
-    }
-
-    static func decodedFrameBytes(_ playback: PlaybackDiagnostics) -> UInt64? {
-        let width = playback.videoPixelWidth
-        let height = playback.videoPixelHeight
-        let bytesPerPixel = playback.decodedBytesPerPixel
-        guard width > 0, height > 0, bytesPerPixel > 0 else { return nil }
-        let isPacked = playback.viewPackingKind != "missing" && playback.viewPackingKind != "—"
-        let views = (playback.hasRightStereoEyeView && isPacked == false) ? 2.0 : 1.0
-        let bytes = Double(width) * Double(height) * bytesPerPixel * views
-        guard bytes.isFinite, bytes > 0 else { return nil }
-        return UInt64(bytes)
-    }
-
-    static let displayBufferFrames = 3
-
-    static func videoPoolBytes(_ playback: PlaybackDiagnostics) -> UInt64? {
-        guard let frameBytes = decodedFrameBytes(playback) else { return nil }
-        let depth = displayBufferFrames + max(0, playback.videoReorderDepth)
-        return frameBytes * UInt64(depth)
     }
 
     private static func stallField(_ metrics: DeveloperProcessMetrics) -> DeveloperStatsField {

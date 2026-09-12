@@ -38,6 +38,8 @@
 - **结构化检查的产物要自带一行 `ENCHRON_ASSERTION` JSON**。退出码与 `--filter` 名字只说明进程跑完了，不说明它观测到什么，而判定生命周期、media session 身份与 seek 之后的视频位置要的是读数。`STRUCTURED_ASSERTION_CHECKS`（`Scripts/verification/regression_operation_adapter.py`）列出六项检查，`playback-core-network-resilience` 与五项 `audio-retirement-*`，每项跑一个 Swift 测试并绑定它的 artifact；`_evidence_structural_test_1` 在 stdout 里逐行找这个标记并解析进 `assertionPayloads`，这六项里任何一项不是恰好一行就抛错终止该次 attempt。发这行的测试助手按字段拼接字符串而不走编码器（`Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift` 的 `expectRetiredAudioAllowsSeek`，与 `HTTPMediaSourceRangeTests.swift` 里网络韧性那条），因为每个值都是标识符、UUID 字符串、Bool 或有限 Double，不含需要转义的字符；缺席的视频样本打 `null`，不打无法解析的 infinity。新增字段要守住这条，否则那一行不再是合法 JSON，整次 attempt 被拒收。
 
 - **Settings 里的菜单格子改的是持久化偏好，跑完必须恢复**。`reachability_matrix.py` 的 `settings_menu_scenario` 为了证明投递会给每个 Settings 菜单选一个非当前项（默认倍速选 0.5），这些值写进 `UserDefaults`（`PreferencesStore.swift`），真机上一直留到下一次人手改回；2026-09-08 佩戴者发现每次播放都是 0.5 倍速。现在每个格子在投递证明之后用 `selected_menu_item` 读到的原选项调 `selectMenuItem` 恢复，结果记在结果文档的 `settingsRestorations`。
+- **`The runner did not answer tap within 30 seconds.` 不等于 tap 没落**。2026-09-12 真机上 AX 传输在播放中反复卡住，超时的 tap 有时延迟落到了目标上（`snapshot` 超时同理）。判动作是否生效要看控制面——探针里的 `lifecycle`、PTS 推进、`testcmd` 行——不能只凭 runner 回的错误文本。
+- **探针日志的写入不经过 AX**。`Documents/surface-tap-probe.log` 的控制面行由 app 自己写，AX 卡死期间照常推进，经 `devicectl` 拷容器即可读——2026-09-12 的整轮内存采样（`.scratch/2026-09-12-memory-probe/device/experiment-a.md`）就是在 AX 不通的窗口里由它完成的。
 
 ## XCUITest 与 visionOS 的场景
 
@@ -142,6 +144,8 @@ App 侧测试通道的复位不是"删掉一切"：
 ## 真机会话要先把设备叫醒
 
 真机闲置一段时间后 `devicectl` 仍报 `connected`、仍能装并启动产品 app，但装 UI test runner 会以 `IXRemoteErrorDomain code 6`（Connection interrupted）失败，`ensure-session` 连续两次拿到 transport-timeout 与 runner-crashed。先用 `devicectl device process launch --terminate-existing` 启动一次产品 app，同一条段命令立刻跑通。`ensure_session` 因此在真机 lane 上先做一次 `wake-device`，事件记为 `wakeTargetDevice`。
+
+**自动化之前必须预授权 world-sensing 与 hand-tracking**。RealityKit 的 RKSARProvider 在启动时请求这两项（Info.plist 键的硬需求与崩溃证据见 `docs/PLAYBACK_ENGINE_CONSTRAINTS.md`）；授权弹窗存在期间 AX 通道整段不应答，2026-09-12 真机上它把 tap 与 snapshot 双双打成超时，允许之后才恢复。
 
 ## 段的完整与基线的重新证明
 

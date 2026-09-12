@@ -101,7 +101,35 @@ seek 的代价仍然随持有帧数超线性增长（2026-08-22 在 8K60 上测�
 
 读数条因此不再报呈现帧率。进程内能诚实陈述的只有送帧速率对源帧率（`ENQ 60/59.940`），其余要用 Instruments。
 
-**顺带测到解码帧池深度为 4。** 这是唯一一次直接观察到的池大小，可用于校准 `VID≈` 的深度假设（当前为 3 加重排深度）。
+**顺带测到解码帧池深度为 4。** 这是当时唯一一次直接观察到的池大小；按它校准的静态估计字段 `VID≈` 已被实测取代并删除（见下一节）。
+
+## 2026-09-12 真机测量：窗口播放的显示刷新率与进程内存分解
+
+测量在 RealityDevice17,1（visionOS 27）上完成；内存样本取自容器内 `Documents/surface-tap-probe.log` 的控制面行（AX 不通时仍推进），刷新率取自 `xctrace --instrument 'Display' --all-processes` 的 display-vsyncs-interval 表。原始数据、导出表与截图在 `.scratch/2026-09-12-memory-probe/device/`（`experiment-a.md`、`refresh/`、`crashlogs/`）。
+
+**窗口播放期间显示器跑在 90.00 Hz，与内容帧率、播放路径都无关。** Enchron 窗口播放 24p 的 1822 个 vsync、59.94 fps 的 1823 个 vsync、以及 Safari 经 http.server 播放同一 24p 文件的 1822 个 vsync，间隔全部落在 11.1107–11.1108 ms。「更高刷新率可能被自动采用」的那一档在窗口播放中对自研渲染器与系统播放器都不触发。读数条 `SCENE x/90Hz` 的分母是 CADisplayLink 间隔（`refreshHz`），此前只是进程内读数，现在与 Instruments 地面真值一致，可以采信。
+
+**进程 footprint 完全由 internal 与 graphics 两本账解释**：所有样本里 `residualMB` ≡ 0、`mediaMB` ≡ 0、`compressedMB` ≡ 0。
+
+| 片源 | footprint | internal | graphics | 其余 |
+|---|---|---|---|---|
+| 720p24 HEVC | 135–140 MB | 73–79 MB | 61 MB | |
+| 4K24 十比特 HEVC | 297–302 MB | 78–83 MB | 219 MB | |
+| 4K60 十比特 4:2:2 H.264 573 Mbps | 482–483 MB（播放中）| 262–264 MB | 219 MB | CM 域 75 MB，仅该片播放中；片尾回落 40 MB |
+| 4K60 HDR10 HEVC（窗口）| 363–378 MB | 143–159 MB | 219 MB | CM 域 1–8 MB |
+| 同上（docked）| 305–335 MB | 126–157 MB | 177 MB | CM 域约 7 MB |
+| 8192×4096 59.94 立体 180 | 93–120 MB | 92–120 MB | 约 1 MB | CM 域 0–2 MB；解码表面不进我们的 graphics 账 |
+
+- graphics 账是按分辨率计的解码表面内存：720p 61 MB、平面 4K 窗口 219 MB（帧率、码率、位深、编码都不改变它——4K24 与 4K60 同为 219）、docked 4K 177 MB。8K 立体 180 只计约 1 MB——那条路径的解码表面不挂进我们的 graphics 账。播放结束后它回落到约 41–46 MB 的固定基线并保持。
+- 按 219 − 44 ≈ 175 MB、每帧约 3 B/px 估，4K 池深约 7 帧；支撑它的只有两个平面 4K 点（窗口、docked 各一个），是假说不是实测。
+- internal 承载 demux 与压缩样本缓冲：573 Mbps 片把它从约 80 MB 推到约 264 MB。
+- 此前按「像素 × 池深」静态估计的 `VID≈` 被这组数证伪（720p 实测 61 MB 对估计 13 MB），字段与估计函数一并删除，overlay 改报实测的 GFX；`residualMB` 等字段仍留在 probe 控制面行里。
+
+三条随这次测量定下的运行约束：
+
+- **RealityKit 的 RKSARProvider 在启动即请求 [worldSensing, handTracking] 授权**，`NSWorldSensingUsageDescription` 与 `NSHandsTrackingUsageDescription` 是硬需求：缺失时 app 在 `__ar_session_request_authorization` 的 XPC 应答里抛 NSException、以 SIGABRT 终止（`crashlogs/Enchron-2026-09-12-121643.ips`）。授权弹窗出现期间 AX 通道不应答，自动化运行前必须预授权（见 `docs/UI_TEST_HARNESS_CONSTRAINTS.md`）。
+- **`videoRenderer.firstFrameTimedOut` 的约 5.3 s 停滞是与重开、与片源都无关的偶发故障**：同步器停在 rate 0，渲染器却已缓冲约 5.3 s 的领先帧（`lastVideoPTS≈5.31`）；首开、重开、不同片源都撞到过，恢复手段是 `leavePlayback` 后重开或重启 app，同一片源重试即成功。
+- **xctrace 在 visionOS 上不能 `--attach` 到本进程**——按名与按 pid 都被拒（`Cannot find process matching name: Enchron` 退出码 19、`Cannot find process for provided pid` 退出码 21），只能 `--all-processes` 录全局表。
 
 ## 交付滞后恢复的实测数字
 

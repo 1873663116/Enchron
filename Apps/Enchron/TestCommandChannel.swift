@@ -1236,6 +1236,27 @@ final class TestCommandChannel {
                 detail: "View mode set to \(mode) without a product gesture.",
                 payload: nil
             )
+        case "setDeveloperMode":
+            guard let enabled = request.args["enabled"].flatMap(Bool.init) else {
+                throw CommandError(
+                    message: "setDeveloperMode requires enabled=true or enabled=false."
+                )
+            }
+            settings.update { $0.developerModeEnabled = enabled }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: "Developer mode set to \(enabled) without a product gesture.",
+                payload: nil
+            )
+        case "leavePlayback":
+            await playbackRuntime.leavePlaybackAndWait(reason: .backButton)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: "Left playback without a product gesture.",
+                payload: nil
+            )
         case "resetState":
             await embySession.signOut()
             let references = allReferences

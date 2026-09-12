@@ -13,6 +13,14 @@ public struct DeveloperProcessMetrics: Equatable, Sendable {
     public var mediaUnchargedBytes: Int64?
     public var graphicsFootprintBytes: Int64?
     public var graphicsUnchargedBytes: Int64?
+    public var internalBytes: UInt64 = 0
+    public var compressedBytes: UInt64 = 0
+    public var untaggedResidualBytes: Int64 = 0
+    public var ioSurfaceResidentBytes: UInt64?
+    public var ioAcceleratorResidentBytes: UInt64?
+    public var coreMediaResidentBytes: UInt64?
+    public var videoBitstreamResidentBytes: UInt64?
+    public var mallocResidentBytes: UInt64?
 
     public var refreshHz: Double?
 
@@ -32,6 +40,14 @@ public struct DeveloperProcessMetrics: Equatable, Sendable {
         mediaUnchargedBytes: Int64? = nil,
         graphicsFootprintBytes: Int64? = nil,
         graphicsUnchargedBytes: Int64? = nil,
+        internalBytes: UInt64 = 0,
+        compressedBytes: UInt64 = 0,
+        untaggedResidualBytes: Int64 = 0,
+        ioSurfaceResidentBytes: UInt64? = nil,
+        ioAcceleratorResidentBytes: UInt64? = nil,
+        coreMediaResidentBytes: UInt64? = nil,
+        videoBitstreamResidentBytes: UInt64? = nil,
+        mallocResidentBytes: UInt64? = nil,
         refreshHz: Double? = nil,
         longestStallSeconds: Double = 0,
         missedBeatCount: Int = 0
@@ -42,6 +58,14 @@ public struct DeveloperProcessMetrics: Equatable, Sendable {
         self.mediaUnchargedBytes = mediaUnchargedBytes
         self.graphicsFootprintBytes = graphicsFootprintBytes
         self.graphicsUnchargedBytes = graphicsUnchargedBytes
+        self.internalBytes = internalBytes
+        self.compressedBytes = compressedBytes
+        self.untaggedResidualBytes = untaggedResidualBytes
+        self.ioSurfaceResidentBytes = ioSurfaceResidentBytes
+        self.ioAcceleratorResidentBytes = ioAcceleratorResidentBytes
+        self.coreMediaResidentBytes = coreMediaResidentBytes
+        self.videoBitstreamResidentBytes = videoBitstreamResidentBytes
+        self.mallocResidentBytes = mallocResidentBytes
         self.refreshHz = refreshHz
         self.longestStallSeconds = longestStallSeconds
         self.missedBeatCount = missedBeatCount
@@ -298,6 +322,7 @@ public final class DeveloperMetricsModel {
             )
             return
         }
+        let regions = ProcessMemoryRegions.read()
         metrics = DeveloperProcessMetrics(
             footprintBytes: memory.footprintBytes,
             availableBytes: memory.availableBytes,
@@ -305,6 +330,14 @@ public final class DeveloperMetricsModel {
             mediaUnchargedBytes: memory.mediaUnchargedBytes,
             graphicsFootprintBytes: memory.graphicsFootprintBytes,
             graphicsUnchargedBytes: memory.graphicsUnchargedBytes,
+            internalBytes: memory.internalBytes,
+            compressedBytes: memory.compressedBytes,
+            untaggedResidualBytes: memory.untaggedResidualBytes,
+            ioSurfaceResidentBytes: regions?.resident([ProcessMemoryRegions.ioSurfaceTag]),
+            ioAcceleratorResidentBytes: regions?.resident([ProcessMemoryRegions.ioAcceleratorTag]),
+            coreMediaResidentBytes: regions?.resident(ProcessMemoryRegions.coreMediaTags),
+            videoBitstreamResidentBytes: regions?.resident([ProcessMemoryRegions.videoBitstreamTag]),
+            mallocResidentBytes: regions?.resident(ProcessMemoryRegions.mallocTags),
             refreshHz: cadenceReading.refreshHz,
             longestStallSeconds: cadenceReading.longestStallSeconds,
             missedBeatCount: cadenceReading.missedBeatCount

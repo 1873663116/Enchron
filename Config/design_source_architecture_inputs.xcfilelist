@@ -130,6 +130,7 @@ $(SRCROOT)/Modules/Playback/Session/PlaybackMediaSessionDriver.swift
 $(SRCROOT)/Modules/Playback/Session/PlaybackPresentationChrome.swift
 $(SRCROOT)/Modules/Playback/Session/PlaybackSessionModel.swift
 $(SRCROOT)/Modules/Playback/Session/ProcessMemoryFootprint.swift
+$(SRCROOT)/Modules/Playback/Session/ProcessMemoryRegions.swift
 $(SRCROOT)/Modules/Playback/Session/RendererTransferCoordinator.swift
 $(SRCROOT)/Modules/Playback/Session/SurfaceInputProbes.swift
 $(SRCROOT)/Modules/Playback/Storage/ScreenPositionStore.swift
