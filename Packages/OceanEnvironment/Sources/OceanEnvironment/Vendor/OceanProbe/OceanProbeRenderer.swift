@@ -452,10 +452,12 @@ private struct PublishedSurfaceFields {
     // 512 rather than 1024: a full four-cascade update measured 4.97 ms median
     // on an M4 at 1024 and 1.40 ms at 512, which is 45% of a 90 Hz frame
     // against 13%. The cost tracks texel count; mip depth does not move it.
-    static let resolution = OceanSimulationGrid.resolution
+    // 256 rather than the 512 simulation grid: the publish kernels box-filter
+    // the field down, quartering fragment sample bandwidth and mipmap cost.
+    static let resolution = 256
     static let resolutions = [Int](repeating: resolution, count: 4)
     static let mipLevelCounts = [Int](
-        repeating: OceanSimulationGrid.logResolution + 1,
+        repeating: resolution.trailingZeroBitCount + 1,
         count: 4
     )
     static let textureNames = [
@@ -641,6 +643,7 @@ final class OceanProbeRenderer {
     private var inFlightPresentation: InFlightPresentation?
     private var inFlightInterpolation: InFlightInterpolation?
     private var lastPresentedSequence: UInt64?
+    private var lastPresentedGeneration: UInt64?
     private var lastPresentedSignature: SurfacePresentationSignature?
     private var pendingForcedSimulation = true
     private var nextInternalSequence: UInt64 = 0
@@ -815,7 +818,8 @@ final class OceanProbeRenderer {
         if inFlightPresentation == nil {
             let presentationSignature = SurfacePresentationSignature(parameters)
             if let request = makePresentationRequest(
-                presentationSignature: presentationSignature
+                presentationSignature: presentationSignature,
+                newSequenceStride: simulationMode == .fullRate ? 2 : 1
             ), let lease = snapshotLedger.reservePresentation(
                 sourceSlots: request.sourceSlots
             ) {
@@ -1007,13 +1011,25 @@ final class OceanProbeRenderer {
     }
 
     private func makePresentationRequest(
-        presentationSignature: SurfacePresentationSignature
+        presentationSignature: SurfacePresentationSignature,
+        newSequenceStride: UInt64 = 1
     ) -> PresentationRequest? {
         guard let source = latestCompletedSimulation,
-              source.generation == desiredSpectrumGeneration,
-              lastPresentedSequence != source.sequence
-                || lastPresentedSignature != presentationSignature
+              source.generation == desiredSpectrumGeneration
         else {
+            return nil
+        }
+        let isNewSequence = lastPresentedSequence != source.sequence
+        guard isNewSequence || lastPresentedSignature != presentationSignature
+        else {
+            return nil
+        }
+        if isNewSequence,
+           lastPresentedSignature == presentationSignature,
+           source.generation == lastPresentedGeneration,
+           let lastPresentedSequence,
+           source.sequence - lastPresentedSequence < newSequenceStride
+        {
             return nil
         }
         return PresentationRequest(source: source)
@@ -1167,6 +1183,7 @@ final class OceanProbeRenderer {
                 hasPresentedFrame = true
                 lastPresentedSequence = inFlightPresentation.request.source.sequence
                 lastPresentedSignature = inFlightPresentation.presentationSignature
+                lastPresentedGeneration = inFlightPresentation.request.source.generation
                 var firstFrame: FirstFrameEvidence?
                 if inFlightPresentation.verifiesFirstFrame {
                     let verified = try verifiedSurfaceEvidence()

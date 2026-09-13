@@ -1034,6 +1034,25 @@ enum OceanFFTMetalSource {
             vertices[vertexIndex] = outputVertex;
         }
 
+        // Reads the scale x scale source block covering one output texel.
+        // scale == 1 maps texels one-to-one; scale == 2 box-filters a 2x2
+        // block so the published field is a filtered downsample, not a crop.
+        inline float4 fieldBoxRead(
+            texture2d_array<float, access::read> source,
+            uint2 base,
+            uint scale,
+            uint slice
+        ) {
+            if (scale <= 1u) {
+                return source.read(base, slice);
+            }
+            float4 sum = source.read(base, slice)
+                + source.read(base + uint2(1u, 0u), slice)
+                + source.read(base + uint2(0u, 1u), slice)
+                + source.read(base + uint2(1u, 1u), slice);
+            return sum * 0.25f;
+        }
+
         kernel void publishSurfaceFields(
             texture2d_array<float, access::read> slope [[texture(0)]],
             texture2d_array<float, access::read> displacement [[texture(1)]],
@@ -1048,30 +1067,27 @@ enum OceanFFTMetalSource {
                 || position.y >= uniforms.resolution) {
                 return;
             }
-            uint2 sourcePosition = uint2(
+            uint scale = max(1u, uint(FFT_SIZE) / uniforms.resolution);
+            uint2 base = uint2(
                 position.x,
                 uniforms.resolution - 1u - position.y
-            );
+            ) * scale;
+            float4 s0 = fieldBoxRead(slope, base, scale, 0u);
+            float4 d0 = fieldBoxRead(displacement, base, scale, 0u);
             cascade0.write(float4(
-                slope.read(sourcePosition, 0).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, 0).a,
-                length(displacement.read(sourcePosition, 0).xz)
-            ), position);
+                s0.xy * uniforms.amplitude, d0.a, length(d0.xz)), position);
+            float4 s1 = fieldBoxRead(slope, base, scale, 1u);
+            float4 d1 = fieldBoxRead(displacement, base, scale, 1u);
             cascade1.write(float4(
-                slope.read(sourcePosition, 1).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, 1).a,
-                length(displacement.read(sourcePosition, 1).xz)
-            ), position);
+                s1.xy * uniforms.amplitude, d1.a, length(d1.xz)), position);
+            float4 s2 = fieldBoxRead(slope, base, scale, 2u);
+            float4 d2 = fieldBoxRead(displacement, base, scale, 2u);
             cascade2.write(float4(
-                slope.read(sourcePosition, 2).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, 2).a,
-                length(displacement.read(sourcePosition, 2).xz)
-            ), position);
+                s2.xy * uniforms.amplitude, d2.a, length(d2.xz)), position);
+            float4 s3 = fieldBoxRead(slope, base, scale, 3u);
+            float4 d3 = fieldBoxRead(displacement, base, scale, 3u);
             cascade3.write(float4(
-                slope.read(sourcePosition, 3).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, 3).a,
-                length(displacement.read(sourcePosition, 3).xz)
-            ), position);
+                s3.xy * uniforms.amplitude, d3.a, length(d3.xz)), position);
         }
 
         kernel void publishSurfaceFieldsBlended(
@@ -1090,43 +1106,36 @@ enum OceanFFTMetalSource {
                 || position.y >= uniforms.resolution) {
                 return;
             }
-            uint2 sourcePosition = uint2(
+            uint scale = max(1u, uint(FFT_SIZE) / uniforms.resolution);
+            uint2 base = uint2(
                 position.x,
                 uniforms.resolution - 1u - position.y
-            );
+            ) * scale;
             float w = uniforms.interpolationWeight;
+            float4 s0 = mix(fieldBoxRead(slopeA, base, scale, 0u),
+                            fieldBoxRead(slopeB, base, scale, 0u), w);
+            float4 d0 = mix(fieldBoxRead(displacementA, base, scale, 0u),
+                            fieldBoxRead(displacementB, base, scale, 0u), w);
             cascade0.write(float4(
-                mix(slopeA.read(sourcePosition, 0).xy,
-                    slopeB.read(sourcePosition, 0).xy, w) * uniforms.amplitude,
-                mix(displacementA.read(sourcePosition, 0).a,
-                    displacementB.read(sourcePosition, 0).a, w),
-                length(mix(displacementA.read(sourcePosition, 0).xz,
-                           displacementB.read(sourcePosition, 0).xz, w))
-            ), position);
+                s0.xy * uniforms.amplitude, d0.a, length(d0.xz)), position);
+            float4 s1 = mix(fieldBoxRead(slopeA, base, scale, 1u),
+                            fieldBoxRead(slopeB, base, scale, 1u), w);
+            float4 d1 = mix(fieldBoxRead(displacementA, base, scale, 1u),
+                            fieldBoxRead(displacementB, base, scale, 1u), w);
             cascade1.write(float4(
-                mix(slopeA.read(sourcePosition, 1).xy,
-                    slopeB.read(sourcePosition, 1).xy, w) * uniforms.amplitude,
-                mix(displacementA.read(sourcePosition, 1).a,
-                    displacementB.read(sourcePosition, 1).a, w),
-                length(mix(displacementA.read(sourcePosition, 1).xz,
-                           displacementB.read(sourcePosition, 1).xz, w))
-            ), position);
+                s1.xy * uniforms.amplitude, d1.a, length(d1.xz)), position);
+            float4 s2 = mix(fieldBoxRead(slopeA, base, scale, 2u),
+                            fieldBoxRead(slopeB, base, scale, 2u), w);
+            float4 d2 = mix(fieldBoxRead(displacementA, base, scale, 2u),
+                            fieldBoxRead(displacementB, base, scale, 2u), w);
             cascade2.write(float4(
-                mix(slopeA.read(sourcePosition, 2).xy,
-                    slopeB.read(sourcePosition, 2).xy, w) * uniforms.amplitude,
-                mix(displacementA.read(sourcePosition, 2).a,
-                    displacementB.read(sourcePosition, 2).a, w),
-                length(mix(displacementA.read(sourcePosition, 2).xz,
-                           displacementB.read(sourcePosition, 2).xz, w))
-            ), position);
+                s2.xy * uniforms.amplitude, d2.a, length(d2.xz)), position);
+            float4 s3 = mix(fieldBoxRead(slopeA, base, scale, 3u),
+                            fieldBoxRead(slopeB, base, scale, 3u), w);
+            float4 d3 = mix(fieldBoxRead(displacementA, base, scale, 3u),
+                            fieldBoxRead(displacementB, base, scale, 3u), w);
             cascade3.write(float4(
-                mix(slopeA.read(sourcePosition, 3).xy,
-                    slopeB.read(sourcePosition, 3).xy, w) * uniforms.amplitude,
-                mix(displacementA.read(sourcePosition, 3).a,
-                    displacementB.read(sourcePosition, 3).a, w),
-                length(mix(displacementA.read(sourcePosition, 3).xz,
-                           displacementB.read(sourcePosition, 3).xz, w))
-            ), position);
+                s3.xy * uniforms.amplitude, d3.a, length(d3.xz)), position);
         }
 
         kernel void publishPrimarySurfaceFields(
@@ -1141,22 +1150,21 @@ enum OceanFFTMetalSource {
                 || position.y >= uniforms.resolution) {
                 return;
             }
-            uint2 sourcePosition = uint2(
+            uint scale = max(1u, uint(FFT_SIZE) / uniforms.resolution);
+            uint2 base = uint2(
                 position.x,
                 uniforms.resolution - 1u - position.y
-            );
+            ) * scale;
             uint sourceA = uniforms.cascadeStart;
             uint sourceB = uniforms.cascadeStart + 1u;
+            float4 sA = fieldBoxRead(slope, base, scale, sourceA);
+            float4 dA = fieldBoxRead(displacement, base, scale, sourceA);
             cascade0.write(float4(
-                slope.read(sourcePosition, sourceA).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, sourceA).a,
-                length(displacement.read(sourcePosition, sourceA).xz)
-            ), position);
+                sA.xy * uniforms.amplitude, dA.a, length(dA.xz)), position);
+            float4 sB = fieldBoxRead(slope, base, scale, sourceB);
+            float4 dB = fieldBoxRead(displacement, base, scale, sourceB);
             cascade1.write(float4(
-                slope.read(sourcePosition, sourceB).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, sourceB).a,
-                length(displacement.read(sourcePosition, sourceB).xz)
-            ), position);
+                sB.xy * uniforms.amplitude, dB.a, length(dB.xz)), position);
         }
 
         """#
