@@ -1,5 +1,9 @@
 import OSLog
 import RealityKit
+#if DEBUG
+import Dispatch
+import Foundation
+#endif
 
 struct SimulationTickOffer: Equatable {
     let sequence: UInt64
@@ -7,10 +11,21 @@ struct SimulationTickOffer: Equatable {
 }
 
 struct SimulationClock {
+    /// Simulation ticks are capped below the render rate: each tick costs
+    /// ~6ms of GPU and triggers a ~7.5ms presentation, so running the FFT at
+    /// full display rate exceeds the 90 Hz frame budget once video surfaces
+    /// share the GPU.
+    var minimumTickInterval: Float = 1.0 / 45.0
+    private var lastOfferedSceneTime: Float?
     private var pending: SimulationTickOffer?
     private var nextSequence: UInt64 = 0
 
     mutating func offer(sceneTime: Float) -> SimulationTickOffer? {
+        if let lastOfferedSceneTime,
+           sceneTime - lastOfferedSceneTime < minimumTickInterval {
+            return nil
+        }
+        lastOfferedSceneTime = sceneTime
         pending = SimulationTickOffer(
             sequence: nextSequence,
             sampleTime: sceneTime
@@ -70,6 +85,78 @@ private struct FoamControlSnapshot: Equatable {
         sourceFreeRetentionPerSecond = parameters.foam.sourceFreeRetentionPerSecond
     }
 }
+
+#if DEBUG
+private struct OceanUpdateTimingProbe {
+    private static let sectionNames = [
+        "params", "snap", "sync", "log", "adv", "simGPU", "presGPU", "lerpGPU",
+    ]
+    private static let writeQueue = DispatchQueue(
+        label: "app.enchron.ocean-update-timing"
+    )
+    private static let logURL = FileManager.default
+        .urls(for: .documentDirectory, in: .userDomainMask)
+        .first?
+        .appendingPathComponent("ocean-update-timing.log")
+
+    private var windowStartUptime: UInt64 = 0
+    private var frameCount = 0
+    private var matchedCount = 0
+    private var sections: [String: [Double]] = [:]
+
+    mutating func record(
+        _ values: [(String, UInt64, UInt64)],
+        matched: Int
+    ) {
+        if windowStartUptime == 0 {
+            windowStartUptime = values.first?.1 ?? DispatchTime.now().uptimeNanoseconds
+        }
+        frameCount += 1
+        matchedCount += matched
+        for (name, start, end) in values {
+            sections[name, default: []].append(Double(end - start) / 1_000)
+        }
+        let now = DispatchTime.now().uptimeNanoseconds
+        let elapsed = now - windowStartUptime
+        guard elapsed >= 1_000_000_000 else { return }
+        let seconds = Double(elapsed) / 1_000_000_000
+        var fields = [
+            "oceanTiming f=\(frameCount)",
+            "e=\(matchedCount)",
+            "window=\((seconds * 100).rounded() / 100)s",
+        ]
+        for name in Self.sectionNames {
+            let samples = sections[name] ?? []
+            guard samples.isEmpty == false else { continue }
+            let sorted = samples.sorted()
+            let median = sorted[sorted.count / 2]
+            let p95 = sorted[min(
+                Int(Double(sorted.count - 1) * 0.95), sorted.count - 1
+            )]
+            let maxValue = sorted[sorted.count - 1]
+            fields.append(
+                "\(name)=[\(Int(median)),\(Int(p95)),\(Int(maxValue))]us"
+            )
+        }
+        let line = fields.joined(separator: " ") + "\n"
+        frameCount = 0
+        matchedCount = 0
+        sections.removeAll(keepingCapacity: true)
+        windowStartUptime = now
+        guard let url = Self.logURL,
+              let data = line.data(using: .utf8) else { return }
+        Self.writeQueue.async {
+            if let handle = try? FileHandle(forWritingTo: url) {
+                defer { try? handle.close() }
+                _ = try? handle.seekToEnd()
+                try? handle.write(contentsOf: data)
+            } else {
+                try? data.write(to: url)
+            }
+        }
+    }
+}
+#endif
 
 struct RuntimeDiagnosticsSummary: Equatable {
     let windowSeconds: Double
@@ -182,7 +269,14 @@ public struct OceanProbeSystem: System {
     private var environmentLightingFailureReported = false
     private var lastSpectrumControls: SpectrumControlSnapshot?
     private var lastFoamControls: FoamControlSnapshot?
+    private var syncedEntity: ObjectIdentifier?
+    private var syncedSurface: ObjectIdentifier?
+    private var syncedEpoch: UInt64 = 0
+    private var syncedIblIntensity: Float = .nan
     private var runtimeDiagnostics = RuntimeDiagnostics()
+    #if DEBUG
+    private var timingProbe = OceanUpdateTimingProbe()
+    #endif
 
     public init(scene: Scene) {
         Self.logger.info("OceanProbeSystem initialized in application runtime")
@@ -191,6 +285,14 @@ public struct OceanProbeSystem: System {
     public mutating func update(context: SceneUpdateContext) {
         elapsedTime += Float(context.deltaTime)
 
+        #if DEBUG
+        var matchedEntities = 0
+        var timingValues: [(String, UInt64, UInt64)] = []
+        defer {
+            timingProbe.record(timingValues, matched: matchedEntities)
+        }
+        #endif
+
         for entity in context.entities(
             matching: Self.query,
             updatingSystemWhen: .rendering
@@ -198,6 +300,9 @@ public struct OceanProbeSystem: System {
             guard let component = entity.components[OceanProbeComponent.self] else {
                 continue
             }
+            #if DEBUG
+            matchedEntities += 1
+            #endif
 
             guard component.isEnabled else {
                 simulationClock.suspend()
@@ -206,6 +311,10 @@ public struct OceanProbeSystem: System {
                 entity.findEntity(named: Self.surfaceName)?.isEnabled = false
                 continue
             }
+
+            #if DEBUG
+            let timingT0 = DispatchTime.now().uptimeNanoseconds
+            #endif
 
             let parameters: OceanProbeParameters
             do {
@@ -228,6 +337,10 @@ public struct OceanProbeSystem: System {
             }
             parameterFailureReported = false
 
+            #if DEBUG
+            let timingT1 = DispatchTime.now().uptimeNanoseconds
+            #endif
+
             let activeRenderer: OceanProbeRenderer
             if let renderer {
                 activeRenderer = renderer
@@ -248,55 +361,78 @@ public struct OceanProbeSystem: System {
             let surface = entity.findEntity(named: Self.surfaceName)
                 ?? attachSurface(to: entity, renderer: activeRenderer)
             surface.isEnabled = activeRenderer.hasPresentedFrame
-            if let material = shaderGraphMaterial(from: entity) {
-                do {
-                    let changedNames = try activeRenderer.synchronizeAppearance(
-                        from: material
-                    )
-                    if !changedNames.isEmpty {
-                        Self.logger.notice(
-                            "Hot-updated OceanWater parameters: \(changedNames.joined(separator: ", "), privacy: .public)"
-                        )
-                    }
-                } catch {
-                    Self.logger.error(
-                        "OceanWater parameter synchronization failed: \(error)"
-                    )
-                }
-            }
-
-            do {
-                let lighting = try RuntimeEnvironmentLighting.synchronize(
-                    surface: surface,
-                    to: entity,
-                    sky: SkyAppearance(material: skyMaterial(near: entity)),
-                    intensityExponent: parameters.iblIntensityExponent
-                )
-                if lighting.createdLight {
-                    Self.logger.notice(
-                        "Runtime IBL attached from the procedural sky; intensity exponent \(parameters.iblIntensityExponent, privacy: .public)"
-                    )
-                } else if lighting.rebuiltEnvironment {
-                    Self.logger.notice("Rebuilt the procedural sky environment")
-                } else if lighting.changedIntensity {
-                    Self.logger.notice(
-                        "Hot-updated IBL intensity exponent to \(parameters.iblIntensityExponent, privacy: .public)"
-                    )
-                }
-                environmentLightingFailureReported = false
-            } catch {
-                if !environmentLightingFailureReported {
-                    environmentLightingFailureReported = true
-                    Self.logger.error(
-                        "Runtime IBL initialization failed: \(error.localizedDescription, privacy: .public)"
-                    )
-                }
-            }
 
             let spectrumControls = SpectrumControlSnapshot(
                 component: component,
                 parameters: parameters
             )
+            let foamControls = FoamControlSnapshot(parameters: parameters)
+
+            #if DEBUG
+            let timingT2 = DispatchTime.now().uptimeNanoseconds
+            #endif
+
+            let syncNeeded = syncedEntity != ObjectIdentifier(entity)
+                || syncedSurface != ObjectIdentifier(surface)
+                || syncedEpoch != OceanMaterialSyncEpoch.value
+                || lastSpectrumControls != spectrumControls
+                || lastFoamControls != foamControls
+                || syncedIblIntensity != parameters.iblIntensityExponent
+            if syncNeeded {
+                if let material = shaderGraphMaterial(from: entity) {
+                    let synchronization = activeRenderer.synchronizeAppearance(
+                        from: material
+                    )
+                    if !synchronization.applied.isEmpty {
+                        Self.logger.notice(
+                            "Hot-updated OceanWater parameters: \(synchronization.applied.joined(separator: ", "), privacy: .public)"
+                        )
+                    }
+                    if !synchronization.rejected.isEmpty {
+                        Self.logger.error(
+                            "OceanWater surface rejected parameters: \(synchronization.rejected.joined(separator: ", "), privacy: .public)"
+                        )
+                    }
+                }
+
+                do {
+                    let lighting = try RuntimeEnvironmentLighting.synchronize(
+                        surface: surface,
+                        to: entity,
+                        sky: SkyAppearance(material: skyMaterial(near: entity)),
+                        intensityExponent: parameters.iblIntensityExponent
+                    )
+                    if lighting.createdLight {
+                        Self.logger.notice(
+                            "Runtime IBL attached from the procedural sky; intensity exponent \(parameters.iblIntensityExponent, privacy: .public)"
+                        )
+                    } else if lighting.rebuiltEnvironment {
+                        Self.logger.notice("Rebuilt the procedural sky environment")
+                    } else if lighting.changedIntensity {
+                        Self.logger.notice(
+                            "Hot-updated IBL intensity exponent to \(parameters.iblIntensityExponent, privacy: .public)"
+                        )
+                    }
+                    environmentLightingFailureReported = false
+                } catch {
+                    if !environmentLightingFailureReported {
+                        environmentLightingFailureReported = true
+                        Self.logger.error(
+                            "Runtime IBL initialization failed: \(error.localizedDescription, privacy: .public)"
+                        )
+                    }
+                }
+
+                syncedEntity = ObjectIdentifier(entity)
+                syncedSurface = ObjectIdentifier(surface)
+                syncedEpoch = OceanMaterialSyncEpoch.value
+                syncedIblIntensity = parameters.iblIntensityExponent
+            }
+
+            #if DEBUG
+            let timingT3 = DispatchTime.now().uptimeNanoseconds
+            #endif
+
             if let lastSpectrumControls,
                lastSpectrumControls != spectrumControls
             {
@@ -317,7 +453,6 @@ public struct OceanProbeSystem: System {
             }
             lastSpectrumControls = spectrumControls
 
-            let foamControls = FoamControlSnapshot(parameters: parameters)
             if let lastFoamControls, lastFoamControls != foamControls {
                 Self.logger.notice(
                     "Hot-updated physical foam controls; bias \(foamControls.bias, privacy: .public); power \(foamControls.power, privacy: .public); add per nominal 60 Hz step \(foamControls.amount, privacy: .public); decay \(foamControls.decay, privacy: .public) per second; source-free one-second retention \(foamControls.sourceFreeRetentionPerSecond, privacy: .public)"
@@ -329,6 +464,13 @@ public struct OceanProbeSystem: System {
             }
             lastFoamControls = foamControls
 
+            #if DEBUG
+            let timingT4 = DispatchTime.now().uptimeNanoseconds
+            var simGPUnanoseconds: UInt64?
+            var presentationGPUnanoseconds: UInt64?
+            var interpolationGPUnanoseconds: UInt64?
+            #endif
+
             do {
                 let offeredTick = simulationClock.offer(sceneTime: elapsedTime)
                 let advance = try activeRenderer.advanceFrame(
@@ -337,6 +479,20 @@ public struct OceanProbeSystem: System {
                     offeredTick: offeredTick,
                     parameters: parameters
                 )
+                #if DEBUG
+                if let ms = advance.completedSimulationGPUTimeMilliseconds,
+                   ms.isFinite, ms >= 0 {
+                    simGPUnanoseconds = UInt64(ms * 1_000_000)
+                }
+                if let ms = advance.completedPresentationGPUTimeMilliseconds,
+                   ms.isFinite, ms >= 0 {
+                    presentationGPUnanoseconds = UInt64(ms * 1_000_000)
+                }
+                if let ms = advance.completedInterpolationGPUTimeMilliseconds,
+                   ms.isFinite, ms >= 0 {
+                    interpolationGPUnanoseconds = UInt64(ms * 1_000_000)
+                }
+                #endif
                 if advance.acceptedOfferedTick, let offeredTick {
                     simulationClock.commit(offeredTick)
                 }
@@ -373,6 +529,26 @@ public struct OceanProbeSystem: System {
             } catch {
                 Self.logger.error("Metal probe update failed: \(error)")
             }
+
+            #if DEBUG
+            let timingT5 = DispatchTime.now().uptimeNanoseconds
+            timingValues += [
+                ("params", timingT0, timingT1),
+                ("snap", timingT1, timingT2),
+                ("sync", timingT2, timingT3),
+                ("log", timingT3, timingT4),
+                ("adv", timingT4, timingT5),
+            ]
+            if let simGPUnanoseconds {
+                timingValues.append(("simGPU", 0, simGPUnanoseconds))
+            }
+            if let presentationGPUnanoseconds {
+                timingValues.append(("presGPU", 0, presentationGPUnanoseconds))
+            }
+            if let interpolationGPUnanoseconds {
+                timingValues.append(("lerpGPU", 0, interpolationGPUnanoseconds))
+            }
+            #endif
         }
     }
 

@@ -19,7 +19,8 @@ enum PlaybackSurfacePlacement {
         to anchor: Entity,
         transform: PlaybackSurfaceTransform,
         geometry: EnvironmentSceneGeometry,
-        restPose: EnvironmentScreenRestPose
+        restPose: EnvironmentScreenRestPose,
+        roomOrigin: SIMD3<Float> = .zero
     ) -> PlaybackDockedPose {
         if entity.parent !== anchor {
             anchor.addChild(entity)
@@ -29,7 +30,8 @@ enum PlaybackSurfacePlacement {
             transform: transform,
             geometry: geometry,
             restPose: restPose,
-            meshSize: meshSize
+            meshSize: meshSize,
+            roomOrigin: roomOrigin
         )
         let basis = simd_float3x3(pose.right, pose.up, pose.normal)
         entity.setOrientation(simd_quatf(basis), relativeTo: nil)

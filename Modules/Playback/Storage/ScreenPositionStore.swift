@@ -5,17 +5,20 @@ public nonisolated struct SavedScreenPosition: Sendable, Equatable {
     public let distanceMeters: Double
     public let elevationDegrees: Double
     public let screenScale: Double
+    public let viewerHeightMeters: Double
 
     public init(
         environmentID: String,
         distanceMeters: Double,
         elevationDegrees: Double,
-        screenScale: Double
+        screenScale: Double,
+        viewerHeightMeters: Double = 0
     ) {
         self.environmentID = environmentID
         self.distanceMeters = distanceMeters
         self.elevationDegrees = elevationDegrees
         self.screenScale = screenScale
+        self.viewerHeightMeters = viewerHeightMeters
     }
 }
 
@@ -24,7 +27,8 @@ public nonisolated protocol ScreenPositionStoring: Sendable {
         for environmentID: String,
         distanceMeters: Double,
         elevationDegrees: Double,
-        screenScale: Double
+        screenScale: Double,
+        viewerHeightMeters: Double
     ) async
 
     func loadPosition(for environmentID: String) async -> SavedScreenPosition?
@@ -42,12 +46,14 @@ nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unchecked S
         for environmentID: String,
         distanceMeters: Double,
         elevationDegrees: Double,
-        screenScale: Double
+        screenScale: Double,
+        viewerHeightMeters: Double
     ) async {
         let entry = Entry(
             distanceMeters: distanceMeters,
             elevationDegrees: elevationDegrees,
-            screenScale: screenScale
+            screenScale: screenScale,
+            viewerHeightMeters: viewerHeightMeters
         )
         if let data = try? JSONEncoder().encode(entry) {
             defaults.set(data, forKey: Self.keyPrefix + environmentID)
@@ -66,7 +72,8 @@ nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unchecked S
             elevationDegrees: entry.elevationDegrees
                 ?? PlaybackDockedPlacementLimits.fallback.defaultElevationDegrees,
             screenScale: entry.screenScale
-                ?? PlaybackDockedPlacementLimits.fallback.defaultScreenHeight
+                ?? PlaybackDockedPlacementLimits.fallback.defaultScreenHeight,
+            viewerHeightMeters: entry.verticalOffsetMeters ?? 0
         )
     }
 
@@ -78,12 +85,12 @@ nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unchecked S
         let verticalOffsetMeters: Double?
         let angleDegrees: Double?
 
-        init(distanceMeters: Double, elevationDegrees: Double, screenScale: Double) {
+        init(distanceMeters: Double, elevationDegrees: Double, screenScale: Double, viewerHeightMeters: Double) {
             self.distanceMeters = distanceMeters
             self.elevationDegrees = elevationDegrees
             self.screenScale = screenScale
             depthOffsetMeters = nil
-            verticalOffsetMeters = nil
+            verticalOffsetMeters = viewerHeightMeters
             angleDegrees = nil
         }
     }

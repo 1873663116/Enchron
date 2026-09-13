@@ -14,7 +14,10 @@ public nonisolated struct EnvironmentSceneGeometry: Sendable, Equatable {
     public var distanceRangeMeters: ClosedRange<Double>
     public var defaultScreenHeightMeters: Double
     public var screenHeightRangeMeters: ClosedRange<Double>
+    public var defaultViewerHeightMeters: Double
+    public var viewerHeightRangeMeters: ClosedRange<Double>
     public var elevationRangeDegrees: ClosedRange<Double>
+    public var dimsSurroundings: Bool
 
     public init(
         ceilingHeightMeters: Float? = nil,
@@ -24,7 +27,10 @@ public nonisolated struct EnvironmentSceneGeometry: Sendable, Equatable {
         distanceRangeMeters: ClosedRange<Double> = 6...30,
         defaultScreenHeightMeters: Double = 4.5,
         screenHeightRangeMeters: ClosedRange<Double> = 2...6,
-        elevationRangeDegrees: ClosedRange<Double> = 0...90
+        defaultViewerHeightMeters: Double = 0,
+        viewerHeightRangeMeters: ClosedRange<Double> = -2...2,
+        elevationRangeDegrees: ClosedRange<Double> = 0...90,
+        dimsSurroundings: Bool = false
     ) {
         self.ceilingHeightMeters = ceilingHeightMeters
         self.ceilingClearanceMeters = ceilingClearanceMeters
@@ -33,7 +39,10 @@ public nonisolated struct EnvironmentSceneGeometry: Sendable, Equatable {
         self.distanceRangeMeters = distanceRangeMeters
         self.defaultScreenHeightMeters = defaultScreenHeightMeters
         self.screenHeightRangeMeters = screenHeightRangeMeters
+        self.defaultViewerHeightMeters = defaultViewerHeightMeters
+        self.viewerHeightRangeMeters = viewerHeightRangeMeters
         self.elevationRangeDegrees = elevationRangeDegrees
+        self.dimsSurroundings = dimsSurroundings
     }
 }
 
@@ -81,19 +90,19 @@ public nonisolated struct EnvironmentScreenRestPose: Sendable, Equatable {
         2 * halfWidth
     }
 
-    public init(screenPreviewWorldTransform matrix: simd_float4x4) {
+    public init(dockingRegionWorldTransform matrix: simd_float4x4, width: Float, screenHeight: Float) {
         let axisX = SIMD3<Float>(matrix.columns.0.x, matrix.columns.0.y, matrix.columns.0.z)
         let axisY = SIMD3<Float>(matrix.columns.1.x, matrix.columns.1.y, matrix.columns.1.z)
         let axisZ = SIMD3<Float>(matrix.columns.2.x, matrix.columns.2.y, matrix.columns.2.z)
         let center = SIMD3<Float>(matrix.columns.3.x, matrix.columns.3.y, matrix.columns.3.z)
-        var normal = simd_normalize(axisY)
+        var normal = simd_normalize(axisZ)
         let worldUp = SIMD3<Float>(0, 1, 0)
         let projected = worldUp - simd_dot(worldUp, normal) * normal
         let up: SIMD3<Float>
         if simd_length(projected) > 1e-4 {
             up = simd_normalize(projected)
         } else {
-            let alternate = axisZ - simd_dot(axisZ, normal) * normal
+            let alternate = axisY - simd_dot(axisY, normal) * normal
             up = simd_length(alternate) > 1e-4
                 ? simd_normalize(alternate)
                 : SIMD3<Float>(0, 0, 1)
@@ -108,19 +117,24 @@ public nonisolated struct EnvironmentScreenRestPose: Sendable, Equatable {
             right: right,
             up: up,
             normal: normal,
-            halfWidth: 0.5 * (abs(simd_dot(axisX, right)) + abs(simd_dot(axisZ, right))),
-            halfHeight: 0.5 * (abs(simd_dot(axisX, up)) + abs(simd_dot(axisZ, up)))
+            halfWidth: 0.5 * width * simd_length(axisX),
+            halfHeight: 0.5 * screenHeight
         )
     }
 
-    public static func screenPreview(in root: Entity) -> EnvironmentScreenRestPose? {
-        guard let preview = root.findEntity(named: EnvironmentSceneEntityName.screenPreview) else {
+    #if os(visionOS)
+    public static func dockingRegion(in root: Entity, screenHeight: Float) -> EnvironmentScreenRestPose? {
+        guard let region = root.firstDockingRegion(),
+              let component = region.components[DockingRegionComponent.self] else {
             return nil
         }
         return EnvironmentScreenRestPose(
-            screenPreviewWorldTransform: worldTransform(of: preview, upTo: root)
+            dockingRegionWorldTransform: worldTransform(of: region, upTo: root),
+            width: component.width,
+            screenHeight: screenHeight
         )
     }
+    #endif
 
     private static func worldTransform(of entity: Entity, upTo root: Entity) -> simd_float4x4 {
         var matrix = entity.transform.matrix
@@ -191,6 +205,7 @@ public struct EnvironmentScreenState {
 
 public nonisolated enum EnvironmentSceneEntityName {
     public static let screenPreview = "ScreenPreview"
+    public static let dockingRegion = "DockingRegion"
 }
 
 public protocol EnvironmentScene: AnyObject {
@@ -199,6 +214,11 @@ public protocol EnvironmentScene: AnyObject {
     func load() async throws -> Entity
     func apply(_ appearance: EnvironmentAppearance, to root: Entity)
     func update(_ screen: EnvironmentScreenState?, in root: Entity)
+    func setVideoPlaying(_ isPlaying: Bool, in root: Entity)
+}
+
+extension EnvironmentScene {
+    public func setVideoPlaying(_ isPlaying: Bool, in root: Entity) {}
 }
 
 public enum EnvironmentSceneLoadingError: Error, Equatable {
@@ -210,4 +230,29 @@ extension Entity {
     public func disableEnvironmentPreviewScreen() {
         findEntity(named: EnvironmentSceneEntityName.screenPreview)?.isEnabled = false
     }
+
+    #if os(visionOS)
+    public func alignDockingRegion(to screen: EnvironmentScreenState) {
+        guard let region = firstDockingRegion(),
+              var component = region.components[DockingRegionComponent.self] else {
+            return
+        }
+        region.setOrientation(simd_quatf(simd_float3x3(screen.right, screen.up, screen.normal)), relativeTo: nil)
+        region.setPosition(screen.center, relativeTo: nil)
+        component.width = screen.halfWidth * 2
+        region.components.set(component)
+    }
+
+    func firstDockingRegion() -> Entity? {
+        if components.has(DockingRegionComponent.self) {
+            return self
+        }
+        for child in children {
+            if let region = child.firstDockingRegion() {
+                return region
+            }
+        }
+        return nil
+    }
+    #endif
 }

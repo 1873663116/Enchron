@@ -230,7 +230,9 @@ public final class PlaybackSessionModel {
         playbackPresentationModel.dockedPlacement.distanceMeters
     }
 
-    public var screenVerticalOffset: Double { 0 }
+    public var viewerHeight: Double {
+        playbackPresentationModel.dockedPlacement.viewerHeightMeters
+    }
 
     public var screenViewAngle: Double {
         playbackPresentationModel.dockedPlacement.elevationDegrees
@@ -740,6 +742,10 @@ public final class PlaybackSessionModel {
 
     public func setScreenElevation(_ degrees: Double) {
         playbackPresentationModel.setScreenElevation(degrees)
+    }
+
+    public func setViewerHeight(_ height: Double) {
+        playbackPresentationModel.setViewerHeight(height)
     }
 
     public func resetDockedPlacement() {

@@ -41,11 +41,13 @@ struct EnvironmentSceneMappingTests {
     @Test("each environment identity resolves to the geometry authored for its scene")
     func descriptorGeometryMatchesEachEnvironment() {
         let ocean = EnvironmentSceneMapping.geometry(for: .ocean)
-        #expect(ocean.distanceRangeMeters == 8...30)
+        #expect(ocean.distanceRangeMeters == 9...25)
         #expect(ocean.defaultDistanceMeters == 15)
+        #expect(ocean.viewerHeightRangeMeters == -3...1)
+        #expect(ocean.defaultViewerHeightMeters == -2)
         #expect(ocean.elevationRangeDegrees == 0...90)
-        #expect(ocean.screenHeightRangeMeters == 4.5...12)
-        #expect(ocean.defaultScreenHeightMeters == 9)
+        #expect(ocean.screenHeightRangeMeters == 8...8)
+        #expect(ocean.defaultScreenHeightMeters == 8)
         #expect(ocean.distanceStrategy == .movesScreen)
         #expect(ocean.ceilingHeightMeters == nil)
 
@@ -56,18 +58,19 @@ struct EnvironmentSceneMappingTests {
             #expect(geometry.distanceRangeMeters == 6...30)
             #expect(geometry.defaultDistanceMeters == 12)
             #expect(geometry.elevationRangeDegrees == 0...90)
-            #expect(geometry.screenHeightRangeMeters == 2...6)
-            #expect(geometry.defaultScreenHeightMeters == 4.5)
+            #expect(geometry.screenHeightRangeMeters == 8...8)
+            #expect(geometry.defaultScreenHeightMeters == 8)
         }
 
         let quietRoom = EnvironmentSceneMapping.geometry(for: .quietRoom)
-        #expect(quietRoom.distanceRangeMeters == 6...16)
-        #expect(quietRoom.defaultDistanceMeters == 15.98)
+        #expect(quietRoom.distanceRangeMeters == 5...18)
+        #expect(quietRoom.defaultDistanceMeters == 7.98)
+        #expect(quietRoom.viewerHeightRangeMeters == -1...3)
         #expect(quietRoom.elevationRangeDegrees == 0...90)
-        #expect(quietRoom.screenHeightRangeMeters == 2...5.5)
-        #expect(quietRoom.defaultScreenHeightMeters == 4.5)
+        #expect(quietRoom.screenHeightRangeMeters == 8...8)
+        #expect(quietRoom.defaultScreenHeightMeters == 8)
         #expect(quietRoom.distanceStrategy == .movesViewer)
-        #expect(quietRoom.ceilingHeightMeters == 6)
+        #expect(quietRoom.ceilingHeightMeters == 7.75)
 
         #expect(EnvironmentSceneMapping.descriptor(for: .quietRoom).supportsDarkAppearance == false)
         #expect(EnvironmentSceneMapping.descriptor(for: .ocean).supportsDarkAppearance == true)
@@ -76,25 +79,18 @@ struct EnvironmentSceneMappingTests {
         #expect(EnvironmentSceneMapping.descriptor(for: .placeholderBlue).supportsDarkAppearance == true)
     }
 
-    @Test("the default screen height of an identity is the one its ScreenPreview was authored at")
-    func defaultScreenHeightMetersFollowsTheAuthoredPreview() {
-        let expected: [SpatialSceneDomain.CinemaEnvironment: Double] = [
-            .quietRoom: 4.5,
-            .ocean: 9,
-            .placeholderRed: 4.5,
-            .placeholderGreen: 4.5,
-            .placeholderBlue: 4.5
-        ]
+    @Test("every identity docks a screen fixed at 8 m tall")
+    func defaultScreenHeightMetersIsFixedAtEightMeters() {
         for environment in SpatialSceneDomain.CinemaEnvironment.allCases {
             #expect(
                 EnvironmentSceneMapping.defaultScreenHeightMeters(
                     forEnvironmentID: environment.rawValue
-                ) == expected[environment]
+                ) == 8
             )
         }
         #expect(
             EnvironmentSceneMapping.defaultScreenHeightMeters(forEnvironmentID: "not-a-real-environment")
-                == 4.5
+                == 8
         )
     }
 }

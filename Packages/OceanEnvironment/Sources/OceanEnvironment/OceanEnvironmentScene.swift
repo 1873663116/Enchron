@@ -3,6 +3,15 @@ import Foundation
 import RealityKit
 import simd
 
+/// Bumped whenever app code writes into the ocean material source or sky dome.
+/// OceanProbeSystem uses it to skip parameter synchronization on frames where
+/// nothing changed.
+@MainActor
+enum OceanMaterialSyncEpoch {
+    static var value: UInt64 = 0
+    static func bump() { value &+= 1 }
+}
+
 @MainActor
 public final class OceanEnvironmentScene: EnvironmentScene {
     public static let resourceName = "ocean"
@@ -16,6 +25,8 @@ public final class OceanEnvironmentScene: EnvironmentScene {
     public static let screenCenterZParameter = "ScreenCenterZ"
     public static let screenHalfWidthParameter = "ScreenHalfWidth"
     public static let screenHalfHeightParameter = "ScreenHalfHeight"
+    public static let screenRightXParameter = "ScreenRightX"
+    public static let screenRightZParameter = "ScreenRightZ"
     public static let videoTextureParameter = "VideoTexture"
     public static let reflectionStrengthParameter = "ReflectionStrength"
     public static let areaLightStrengthParameter = "AreaLightStrength"
@@ -26,10 +37,13 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             ceilingHeightMeters: nil,
             distanceStrategy: .movesScreen,
             defaultDistanceMeters: 15,
-            distanceRangeMeters: 8...30,
-            defaultScreenHeightMeters: 9,
-            screenHeightRangeMeters: 4.5...12,
-            elevationRangeDegrees: 0...90
+            distanceRangeMeters: 9...25,
+            defaultScreenHeightMeters: 8,
+            screenHeightRangeMeters: 8...8,
+            defaultViewerHeightMeters: -2,
+            viewerHeightRangeMeters: -3...1,
+            elevationRangeDegrees: 0...90,
+            dimsSurroundings: true
         ),
         supportsDarkAppearance: true
     )
@@ -40,12 +54,12 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         amplitude: 1.1,
         timeScale: 0.5,
         windSpeed: 4,
-        windDirectionDegrees: 75,
+        windDirectionDegrees: 220,
         fetch: 8000,
         windAlignment: 0.75,
         crossSeaAmount: 0.5,
         crossSeaAngleDegrees: 37.242256,
-        swellDirectionDegrees: 75,
+        swellDirectionDegrees: 165,
         swellWavelength: 120,
         swellHeight: 0.4,
         swellSpread: 15,
@@ -75,9 +89,26 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         var areaLightStrength: Float
     }
 
+    private struct MaterialWriteSignature: Equatable {
+        var hasScreen: Bool
+        var center: SIMD3<Float>
+        var halfWidth: Float
+        var halfHeight: Float
+        var right: SIMD2<Float>?
+        var reflectionStrength: Float
+        var areaLightStrength: Float
+        var videoTextureID: ObjectIdentifier?
+    }
+
     private var authoredLighting: AuthoredLighting?
+    private var lastMaterialWrite: MaterialWriteSignature?
+    private var lastMaterialSource: ObjectIdentifier?
 
     public private(set) var restPose: EnvironmentScreenRestPose?
+    private let audio = OceanEnvironmentAudio(
+        swellWavelength: OceanEnvironmentScene.authoredSimulation.swellWavelength,
+        waterDepth: OceanEnvironmentScene.authoredSimulation.waterDepth
+    )
 
     public init() {}
 
@@ -96,10 +127,14 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             throw EnvironmentSceneLoadingError.resourceMissing(Self.resourceName)
         }
         let root = try await Entity(contentsOf: url)
-        guard let pose = EnvironmentScreenRestPose.screenPreview(in: root) else {
-            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.screenPreview)
+        guard let pose = EnvironmentScreenRestPose.dockingRegion(
+            in: root,
+            screenHeight: Float(Self.descriptor.geometry.defaultScreenHeightMeters)
+        ) else {
+            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.dockingRegion)
         }
         restPose = pose
+        await audio.prepare(in: root, restPose: pose, bundle: .module)
         guard root.findEntity(named: Self.materialSourceEntityName) != nil else {
             throw EnvironmentSceneLoadingError.entityMissing(Self.materialSourceEntityName)
         }
@@ -129,14 +164,41 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             component.intensity = authored.lightIntensity * brightness
             light.components.set(component)
         }
+        OceanMaterialSyncEpoch.bump()
     }
 
     public func update(_ screen: EnvironmentScreenState?, in root: Entity) {
         let authored = authoredLighting ?? captureAuthoredLighting(in: root)
         authoredLighting = authored
+        audio.startIfNeeded()
+        if let screen {
+            root.alignDockingRegion(to: screen)
+        }
         guard let source = root.findEntity(named: Self.materialSourceEntityName),
               var model = source.components[ModelComponent.self],
               var material = model.materials.first as? ShaderGraphMaterial else {
+            return
+        }
+        var signature = MaterialWriteSignature(
+            hasScreen: screen != nil,
+            center: screen?.center ?? .zero,
+            halfWidth: screen?.halfWidth ?? 0,
+            halfHeight: screen?.halfHeight ?? 0,
+            right: nil,
+            reflectionStrength: screen != nil ? authored.reflectionStrength : 0,
+            areaLightStrength: screen != nil ? authored.areaLightStrength : 0,
+            videoTextureID: screen?.videoTexture.map { ObjectIdentifier($0) }
+        )
+        var normalizedRight: SIMD2<Float>?
+        if let screen {
+            let horizontalRight = SIMD2<Float>(screen.right.x, screen.right.z)
+            if simd_length(horizontalRight) > 1e-4 {
+                normalizedRight = simd_normalize(horizontalRight)
+            }
+            signature.right = normalizedRight
+        }
+        guard lastMaterialWrite != signature
+            || lastMaterialSource != ObjectIdentifier(source) else {
             return
         }
         if let screen {
@@ -145,6 +207,10 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             try? material.setParameter(name: Self.screenCenterZParameter, value: .float(screen.center.z))
             try? material.setParameter(name: Self.screenHalfWidthParameter, value: .float(screen.halfWidth))
             try? material.setParameter(name: Self.screenHalfHeightParameter, value: .float(screen.halfHeight))
+            if let normalizedRight {
+                try? material.setParameter(name: Self.screenRightXParameter, value: .float(normalizedRight.x))
+                try? material.setParameter(name: Self.screenRightZParameter, value: .float(normalizedRight.y))
+            }
             try? material.setParameter(name: Self.reflectionStrengthParameter, value: .float(authored.reflectionStrength))
             try? material.setParameter(name: Self.areaLightStrengthParameter, value: .float(authored.areaLightStrength))
             if let texture = screen.videoTexture {
@@ -156,6 +222,13 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         }
         model.materials[0] = material
         source.components.set(model)
+        lastMaterialWrite = signature
+        lastMaterialSource = ObjectIdentifier(source)
+        OceanMaterialSyncEpoch.bump()
+    }
+
+    public func setVideoPlaying(_ isPlaying: Bool, in root: Entity) {
+        audio.setVideoPlaying(isPlaying)
     }
 
     private func captureAuthoredLighting(in root: Entity) -> AuthoredLighting {

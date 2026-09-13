@@ -190,6 +190,21 @@ struct SettingsScreen: View {
                     SettingListGroup.MenuOption("15 Seconds", id: "15") { setAutoHide(15) },
                     SettingListGroup.MenuOption("Never", id: "never") { setAutoHide(0) }
                 ])
+            ),
+            SettingListGroup.Item(
+                id: "surroundings-dimming",
+                title: "Dim Surroundings",
+                systemName: "circle.lefthalf.filled",
+                supportingText: "Darken the room around the player window and around"
+                    + " environments that request it, without touching the video.",
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { viewModel.preferences.surroundingsDimmingEnabled },
+                        set: { value in viewModel.update { $0.surroundingsDimmingEnabled = value } }
+                    ),
+                    isEnabled: true,
+                    marker: nil
+                )
             )
         ]
     }

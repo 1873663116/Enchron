@@ -36,8 +36,10 @@ struct SkyAppearance: Equatable {
         SIMD3<Float>(0.3304, 0.3986, 0.1100)
     )
 
-    /// Below the horizon the panorama is the sea, not the sky, and the water
-    /// should not be lit by a reflection of itself.
+    /// Colour of the water body below the horizon. A direction depressed by δ
+    /// sees distant sea that mirrors the sky at elevation δ with Schlick
+    /// Fresnel for incidence cos θ = sin δ, so the panorama falls from the
+    /// horizon sky to this colour without an edge.
     var seaColor = SIMD3<Float>(0.055, 0.070, 0.086)
 
     static func == (a: SkyAppearance, b: SkyAppearance) -> Bool {
@@ -59,15 +61,20 @@ struct SkyAppearance: Equatable {
 
     func color(towards direction: SIMD3<Float>) -> SIMD3<Float> {
         let sine = max(min(direction.y, 1), -1)
-        let sky = SIMD3<Float>(
+        if sine >= 0 {
+            return skyColor(sine: sine)
+        }
+        let depression = -sine
+        let fresnel = 0.02 + 0.98 * pow(1 - depression, 5)
+        return fresnel * skyColor(sine: depression) + (1 - fresnel) * seaColor
+    }
+
+    func skyColor(sine: Float) -> SIMD3<Float> {
+        simd_max(SIMD3<Float>(
             profile.0.x + profile.0.y * sine + profile.0.z * sine * sine,
             profile.1.x + profile.1.y * sine + profile.1.z * sine * sine,
             profile.2.x + profile.2.y * sine + profile.2.z * sine * sine
-        ) * skyGain
-        // The profile is only fitted above the horizon; below it the probe sees
-        // water. A few degrees of blend keeps the transition from ringing in
-        // the low-order terms RealityKit fits to this image.
-        return mix(seaColor, simd_max(sky, .zero), smoothstep(-0.05, 0.02, sine))
+        ) * skyGain, .zero)
     }
 
     func makeEquirectangularImage(width: Int = 128, height: Int = 64) -> CGImage? {

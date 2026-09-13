@@ -12,7 +12,8 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
             for: "enchron-environment",
             distanceMeters: 2.4,
             elevationDegrees: 12,
-            screenScale: 1.3
+            screenScale: 1.3,
+            viewerHeightMeters: 0.7
         )
 
         let loaded = await store.loadPosition(for: "enchron-environment")
@@ -20,6 +21,7 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
         XCTAssertEqual(saved.distanceMeters, 2.4)
         XCTAssertEqual(saved.elevationDegrees, 12)
         XCTAssertEqual(saved.screenScale, 1.3)
+        XCTAssertEqual(saved.viewerHeightMeters, 0.7)
     }
 
     func testDockedPlacementIsStoredIndependentlyForEachEnvironmentIdentity() async throws {
@@ -32,13 +34,15 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
             for: "ocean",
             distanceMeters: 2.4,
             elevationDegrees: 12,
-            screenScale: 1.3
+            screenScale: 1.3,
+            viewerHeightMeters: 0
         )
         await store.savePosition(
             for: "placeholder-red",
             distanceMeters: 4.8,
             elevationDegrees: -18,
-            screenScale: 0.8
+            screenScale: 0.8,
+            viewerHeightMeters: 0
         )
 
         let storedOcean = await store.loadPosition(for: "ocean")
@@ -63,7 +67,8 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
             for: "quiet-room",
             distanceMeters: 200,
             elevationDegrees: -45,
-            screenScale: 40
+            screenScale: 40,
+            viewerHeightMeters: 0
         )
 
         let loadedPosition = await store.loadPosition(for: "quiet-room")

@@ -332,15 +332,15 @@ struct WindowPlaybackPageGeometryTests {
         )
     }
 
-    @Test("immersive controls inherit the wearer's yaw alone when they are placed")
-    func immersiveControlsPlacementKeepsYawOnly() {
-        let yawRadians: Float = .pi / 3
+    @Test("immersive controls inherit the wearer's full head orientation when they are placed")
+    func immersiveControlsPlacementInheritsHeadOrientation() {
         let head = headTransform(
-            yaw: yawRadians,
+            yaw: .pi / 3,
             pitch: -.pi / 5,
             roll: .pi / 6,
             position: [0.4, 1.5, -0.3]
         )
+        let headRotation = simd_quatf(head)
 
         let placement = ImmersivePlaybackControlsPlacementGeometry.transform(
             originFromAnchorTransform: head,
@@ -351,18 +351,12 @@ struct WindowPlaybackPageGeometryTests {
         )
 
         let up = placement.rotation.act(SIMD3<Float>(0, 1, 0))
-        #expect(abs(up.x) < 1e-4)
-        #expect(abs(up.y - 1) < 1e-4)
-        #expect(abs(up.z) < 1e-4)
-
+        #expect(simd_distance(up, headRotation.act(SIMD3<Float>(0, 1, 0))) < 1e-4)
         let forward = placement.rotation.act(SIMD3<Float>(0, 0, -1))
-        #expect(abs(forward.y) < 1e-4)
-        #expect(
-            abs(ImmersivePlaybackControlsPlacementGeometry.headYaw(head) - yawRadians) < 1e-4
-        )
+        #expect(simd_distance(forward, headRotation.act(SIMD3<Float>(0, 0, -1))) < 1e-4)
 
         let expected = SIMD3<Float>(0.4, 1.5, -0.3)
-            + simd_quatf(angle: yawRadians, axis: SIMD3<Float>(0, 1, 0)).act(
+            + headRotation.act(
                 SIMD3<Float>(
                     0,
                     ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters,
@@ -372,10 +366,29 @@ struct WindowPlaybackPageGeometryTests {
         #expect(simd_distance(placement.translation, expected) < 1e-4)
     }
 
+    @Test("immersive controls stay below the wearer's view when looking straight up")
+    func immersiveControlsPlacementFollowsSupineGaze() {
+        let supine = headTransform(yaw: 0, pitch: .pi / 2, roll: 0, position: [0, 0.4, 0])
+        let forwardOffset = ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
+        let verticalOffset = ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters
+
+        let placement = ImmersivePlaybackControlsPlacementGeometry.transform(
+            originFromAnchorTransform: supine,
+            forwardOffsetMeters: forwardOffset,
+            verticalOffsetMeters: verticalOffset
+        )
+
+        // Gaze forward is world-up; view-down is -Z (toward the chin).
+        #expect(abs(placement.translation.x) < 1e-4)
+        #expect(abs(placement.translation.y - (0.4 - forwardOffset)) < 1e-4)
+        #expect(abs(placement.translation.z - verticalOffset) < 1e-4)
+        let panelUp = placement.rotation.act(SIMD3<Float>(0, 1, 0))
+        #expect(abs(panelUp.z - 1) < 1e-4)
+    }
+
     @Test("immersive controls sit below eye level at a fixed world height")
     func immersiveControlsPlacementMeasuresHeightInWorldSpace() {
         let level = headTransform(yaw: 0, pitch: 0, roll: 0, position: [0, 1.5, 0])
-        let raised = headTransform(yaw: 0, pitch: .pi / 4, roll: 0, position: [0, 1.5, 0])
         let forwardOffset = ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
         let verticalOffset = ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters
 
@@ -384,13 +397,7 @@ struct WindowPlaybackPageGeometryTests {
             forwardOffsetMeters: forwardOffset,
             verticalOffsetMeters: verticalOffset
         )
-        let raisedPlacement = ImmersivePlaybackControlsPlacementGeometry.transform(
-            originFromAnchorTransform: raised,
-            forwardOffsetMeters: forwardOffset,
-            verticalOffsetMeters: verticalOffset
-        )
 
-        #expect(simd_distance(levelPlacement.translation, raisedPlacement.translation) < 1e-4)
         #expect(abs(levelPlacement.translation.y - (1.5 + verticalOffset)) < 1e-4)
         #expect(verticalOffset < -0.22)
         #expect(atan(-verticalOffset / -forwardOffset) < 23 * .pi / 180)

@@ -85,7 +85,8 @@ public nonisolated enum EnvironmentSceneMapping {
         identifier: "placeholder",
         geometry: EnvironmentSceneGeometry(
             defaultDistanceMeters: 12,
-            defaultScreenHeightMeters: 4.5
+            defaultScreenHeightMeters: 8,
+            screenHeightRangeMeters: 8...8
         ),
         supportsDarkAppearance: true
     )

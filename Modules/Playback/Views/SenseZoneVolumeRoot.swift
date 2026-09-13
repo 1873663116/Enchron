@@ -25,8 +25,7 @@ public struct SenseZoneVolumeRoot: View {
         .scaleEffect(revealCompleted ? 1 : revealInitialScale)
         .developerStatsOverlay(
             isEnabled: developerMetrics.isRunning,
-            metrics: developerMetrics.metrics,
-            presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond
+            includePlayback: false
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SenseZone-VolumeRoot")

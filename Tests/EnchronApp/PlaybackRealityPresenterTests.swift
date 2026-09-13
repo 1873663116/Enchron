@@ -30,15 +30,15 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testQuietRoomScreenPreviewIsTheAuthoredRestPose() async throws {
+    func testQuietRoomDockingRegionIsTheAuthoredRestPose() async throws {
         let scene = try XCTUnwrap(EnvironmentSceneMapping.scene(for: .quietRoom))
         _ = try await scene.load()
         let restPose = try XCTUnwrap(scene.restPose)
 
-        XCTAssertEqual(restPose.screenHeight, 4.5, accuracy: 0.01)
-        XCTAssertEqual(restPose.screenWidth, 8, accuracy: 0.01)
-        XCTAssertEqual(restPose.bottomHeight, 0.75, accuracy: 0.01)
-        XCTAssertEqual(restPose.distance, 15.98, accuracy: 0.01)
+        XCTAssertEqual(restPose.screenHeight, 8, accuracy: 0.01)
+        XCTAssertEqual(restPose.screenWidth, 14.23, accuracy: 0.01)
+        XCTAssertEqual(restPose.bottomHeight, -0.5, accuracy: 0.01)
+        XCTAssertEqual(restPose.distance, 7.98, accuracy: 0.01)
     }
 
     @MainActor

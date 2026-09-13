@@ -116,6 +116,7 @@ private final class WorldSceneState {
     var scene: (any EnvironmentScene)?
     var restPose: EnvironmentScreenRestPose?
     var rootAuthoredPosition: SIMD3<Float> = .zero
+    var rootAuthoredOrientation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
     var appliedEnvironment: SpatialSceneDomain.CinemaEnvironment?
     var appliedEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect?
     var lastDockedPose: PlaybackDockedPose?
@@ -129,6 +130,7 @@ private final class WorldSceneState {
         scene = nil
         restPose = nil
         rootAuthoredPosition = .zero
+        rootAuthoredOrientation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
         appliedEnvironment = nil
         appliedEnvironmentEffect = nil
         lastDockedPose = nil
@@ -659,6 +661,7 @@ public struct ImmersiveSpaceView: View {
     @State private var hasRecordedReflectionFrame = false
     @State private var hasRecordedReflectionFailure = false
     @State private var hasRecordedReflectionTextureDelivery = false
+    @State private var hasAppliedReflectionTexture = false
 #if DEBUG
     @State private var dockedAnchorFrontProbe = Entity()
     @State private var dockedChildFrontProbe = Entity()
@@ -752,15 +755,7 @@ public struct ImmersiveSpaceView: View {
             }
             Attachment(id: DeveloperOverlayFollower.attachmentID) {
                 if developerMetrics.isRunning {
-                    DeveloperStatsOverlay(
-                        metrics: developerMetrics.metrics,
-                        sceneUpdatesPerSecond: developerMetrics
-                            .sceneUpdatesPerSecond[.immersive],
-                        presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond,
-                        enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
-                        playback: playbackRuntime.diagnostics,
-                        sessionIsActive: playbackRuntime.activeSessionID != nil
-                    )
+                    DeveloperStatsOverlayReader(sceneKey: .immersive)
                 }
             }
             Attachment(id: ImmersivePlaybackStallIndicatorPlacement.attachmentID) {
@@ -820,6 +815,9 @@ public struct ImmersiveSpaceView: View {
                     + " provenance=\(playbackRuntime.activeMediaFormatProvenance.rawValue)"
                     + " lifecycle=\(playbackRuntime.productLifecycle)"
             )
+        }
+        .onChange(of: playbackRuntime.productLifecycle) { _, lifecycle in
+            applyVideoPlaybackToEnvironment(lifecycle)
         }
         .onChange(of: appModel.playbackPresentation) { previous, current in
             appModel.recordSurfaceInputProbe(
@@ -889,22 +887,44 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func refreshReflectionTexture() {
         guard requestedPresentation == .docked,
-              let scene = world.scene,
-              let root = world.entity,
-              let pose = world.lastDockedPose,
               let renderer = playbackRuntime.renderer else {
             return
         }
-        let hadTexture = reflectionTexture.textureResource != nil
-        let encoded = reflectionTexture.refresh(from: renderer)
-        recordReflectionTextureProbes()
-        guard encoded else { return }
-        if hadTexture == false, reflectionTexture.textureResource != nil {
-            updateEnvironmentScreen(scene, root: root, pose: pose)
+        if reflectionTexture.onEvent == nil {
+            reflectionTexture.onEvent = { event in
+                self.handleReflectionTextureEvent(event)
+            }
         }
+        reflectionTexture.refresh(from: renderer)
     }
 
     @MainActor
+    private func handleReflectionTextureEvent(
+        _ event: VideoReflectionTextureSource.Event
+    ) {
+        recordReflectionTextureProbes()
+        guard case .frameEncoded = event,
+              hasAppliedReflectionTexture == false,
+              let scene = world.scene,
+              let root = world.entity,
+              let pose = world.lastDockedPose else { return }
+        hasAppliedReflectionTexture = true
+        updateEnvironmentScreen(scene, root: root, pose: pose)
+    }
+
+    @MainActor
+    private func applyVideoPlaybackToEnvironment(_ lifecycle: ProductPlaybackLifecycle) {
+        guard let scene = world.scene, let root = world.entity else { return }
+        switch lifecycle {
+        case .playing:
+            scene.setVideoPlaying(true, in: root)
+        case .loading:
+            break
+        case .idle, .ready, .paused, .ended, .failed:
+            scene.setVideoPlaying(false, in: root)
+        }
+    }
+
     private func updateEnvironmentScreen(
         _ scene: any EnvironmentScene,
         root: Entity,
@@ -932,6 +952,7 @@ public struct ImmersiveSpaceView: View {
             appModel.recordSurfaceInputProbe(
                 "reflectionPipelinePrepared width=\(preparation.width)"
                     + " height=\(preparation.height)"
+                    + " mipmapLevels=\(preparation.mipmapLevelCount)"
                     + " pixelFormat=\(preparation.pixelFormat.rawValue)",
                 retention: .evidence
             )
@@ -1042,7 +1063,8 @@ public struct ImmersiveSpaceView: View {
         PlaybackSurfaceTransform(
             distance: appModel.screenDepthOffset,
             elevationDegrees: appModel.screenViewAngle,
-            scale: appModel.screenScale
+            scale: appModel.screenScale,
+            viewerHeight: appModel.viewerHeight
         )
     }
 
@@ -2014,6 +2036,7 @@ public struct ImmersiveSpaceView: View {
             let anchor = Entity()
             anchor.name = Self.playbackSurfaceAnchorName
             world.rootAuthoredPosition = entity.position
+            world.rootAuthoredOrientation = entity.orientation
             world.restPose = restPose
             content.add(entity)
             content.add(anchor)
@@ -2023,6 +2046,7 @@ public struct ImmersiveSpaceView: View {
             world.environment = environment
             world.scene = scene
             applyRequestedEnvironmentAppearance(to: entity)
+            applyVideoPlaybackToEnvironment(playbackRuntime.productLifecycle)
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldReady")
             recordSkyboxActivity(in: entity)
             recordRestPoseDrift(restPose, for: environment)
@@ -2482,12 +2506,16 @@ public struct ImmersiveSpaceView: View {
             to: anchor,
             transform: transform,
             geometry: geometry,
-            restPose: restPose
+            restPose: restPose,
+            roomOrigin: world.rootAuthoredPosition
         )
         if let root = world.entity {
-            let target = world.rootAuthoredPosition + pose.roomOffset
-            if root.position != target {
-                root.position = target
+            if root.position != pose.roomPosition {
+                root.position = pose.roomPosition
+            }
+            let targetOrientation = pose.roomRotation * world.rootAuthoredOrientation
+            if root.orientation != targetOrientation {
+                root.orientation = targetOrientation
             }
             if let scene = world.scene {
                 updateEnvironmentScreen(scene, root: root, pose: pose)
@@ -2500,8 +2528,7 @@ public struct ImmersiveSpaceView: View {
                 "dockedPose center=\(pose.center)"
                     + " distance=\(pose.effectiveDistance)"
                     + " halfSize=\(pose.halfWidth)x\(pose.halfHeight)"
-                    + " roomOffset=\(pose.roomOffset)"
-                    + " ceilingClamped=\(pose.ceilingClamped)",
+                    + " roomPosition=\(pose.roomPosition)",
                 retention: .evidence
             )
 #endif

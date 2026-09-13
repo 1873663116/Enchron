@@ -157,6 +157,8 @@ nonisolated public struct PlaybackDockedPlacementLimits: Equatable, Sendable {
     public static let distanceStep = 0.5
     public static let elevationStep = 5.0
     public static let screenHeightStep = 0.25
+    public static let viewerHeightStep = 0.1
+    public static let viewerHeightRangeMeters: ClosedRange<Double> = -2...2
 
     public let distanceRange: ClosedRange<Double>
     public let elevationRange: ClosedRange<Double>
@@ -164,6 +166,8 @@ nonisolated public struct PlaybackDockedPlacementLimits: Equatable, Sendable {
     public let defaultDistance: Double
     public let defaultElevationDegrees: Double
     public let defaultScreenHeight: Double
+    public let viewerHeightRange: ClosedRange<Double>
+    public let defaultViewerHeight: Double
 
     public init(
         distanceRange: ClosedRange<Double>,
@@ -171,7 +175,9 @@ nonisolated public struct PlaybackDockedPlacementLimits: Equatable, Sendable {
         screenHeightRange: ClosedRange<Double>,
         defaultDistance: Double,
         defaultElevationDegrees: Double = 0,
-        defaultScreenHeight: Double
+        defaultScreenHeight: Double,
+        viewerHeightRange: ClosedRange<Double> = PlaybackDockedPlacementLimits.viewerHeightRangeMeters,
+        defaultViewerHeight: Double = 0
     ) {
         self.distanceRange = distanceRange
         self.elevationRange = elevationRange
@@ -179,6 +185,8 @@ nonisolated public struct PlaybackDockedPlacementLimits: Equatable, Sendable {
         self.defaultDistance = defaultDistance
         self.defaultElevationDegrees = defaultElevationDegrees
         self.defaultScreenHeight = defaultScreenHeight
+        self.viewerHeightRange = viewerHeightRange
+        self.defaultViewerHeight = defaultViewerHeight
     }
 
     public init(geometry: EnvironmentSceneGeometry) {
@@ -187,7 +195,9 @@ nonisolated public struct PlaybackDockedPlacementLimits: Equatable, Sendable {
             elevationRange: geometry.elevationRangeDegrees,
             screenHeightRange: geometry.screenHeightRangeMeters,
             defaultDistance: geometry.defaultDistanceMeters,
-            defaultScreenHeight: geometry.defaultScreenHeightMeters
+            defaultScreenHeight: geometry.defaultScreenHeightMeters,
+            viewerHeightRange: geometry.viewerHeightRangeMeters,
+            defaultViewerHeight: geometry.defaultViewerHeightMeters
         )
     }
 
@@ -206,12 +216,14 @@ nonisolated public struct PlaybackDockedPlacement: Equatable, Sendable {
     public let distanceMeters: Double
     public let elevationDegrees: Double
     public let screenScale: Double
+    public let viewerHeightMeters: Double
     public let limits: PlaybackDockedPlacementLimits
 
     public init(
         distanceMeters: Double? = nil,
         elevationDegrees: Double? = nil,
         screenScale: Double? = nil,
+        viewerHeightMeters: Double? = nil,
         limits: PlaybackDockedPlacementLimits = .fallback
     ) {
         self.limits = limits
@@ -229,6 +241,11 @@ nonisolated public struct PlaybackDockedPlacement: Equatable, Sendable {
             screenScale ?? limits.defaultScreenHeight,
             in: limits.screenHeightRange,
             step: PlaybackDockedPlacementLimits.screenHeightStep
+        )
+        self.viewerHeightMeters = Self.snapped(
+            viewerHeightMeters ?? limits.defaultViewerHeight,
+            in: limits.viewerHeightRange,
+            step: PlaybackDockedPlacementLimits.viewerHeightStep
         )
     }
 
@@ -633,7 +650,6 @@ package struct PlaybackPresentationState: Equatable, Sendable {
     ) {
         resetForPlaybackStop()
         presented = family.mainWindowPresentation
-        environment = .none
     }
 
 }
@@ -656,7 +672,13 @@ public struct PlaybackPresentationSnapshot: Equatable, Sendable {
 @MainActor
 @Observable
 public final class PlaybackPresentationModel {
-    private var presentationState = PlaybackPresentationState()
+    private var presentationState = PlaybackPresentationState() {
+        didSet {
+            if presentationState.environment != oldValue.environment {
+                Task { await self.loadDockedPlacement() }
+            }
+        }
+    }
     private var activeSpatialPlatformEffectID: UUID?
     private var activeSpatialPlatformExecutionID: UUID?
     private var environmentContextBeforePreviewRequest: EnvironmentContext?
@@ -1243,6 +1265,7 @@ public final class PlaybackPresentationModel {
             distanceMeters: saved.distanceMeters,
             elevationDegrees: saved.elevationDegrees,
             screenScale: saved.screenScale,
+            viewerHeightMeters: saved.viewerHeightMeters,
             limits: .limits(for: currentEnvironment)
         )
     }
@@ -1252,6 +1275,7 @@ public final class PlaybackPresentationModel {
             distanceMeters: dockedPlacement.distanceMeters,
             elevationDegrees: dockedPlacement.elevationDegrees,
             screenScale: scale,
+            viewerHeightMeters: dockedPlacement.viewerHeightMeters,
             limits: .limits(for: currentEnvironment)
         )
         saveDockedPlacement()
@@ -1262,6 +1286,7 @@ public final class PlaybackPresentationModel {
             distanceMeters: distance,
             elevationDegrees: dockedPlacement.elevationDegrees,
             screenScale: dockedPlacement.screenScale,
+            viewerHeightMeters: dockedPlacement.viewerHeightMeters,
             limits: .limits(for: currentEnvironment)
         )
         saveDockedPlacement()
@@ -1272,6 +1297,18 @@ public final class PlaybackPresentationModel {
             distanceMeters: dockedPlacement.distanceMeters,
             elevationDegrees: elevationDegrees,
             screenScale: dockedPlacement.screenScale,
+            viewerHeightMeters: dockedPlacement.viewerHeightMeters,
+            limits: .limits(for: currentEnvironment)
+        )
+        saveDockedPlacement()
+    }
+
+    public func setViewerHeight(_ height: Double) {
+        dockedPlacement = PlaybackDockedPlacement(
+            distanceMeters: dockedPlacement.distanceMeters,
+            elevationDegrees: dockedPlacement.elevationDegrees,
+            screenScale: dockedPlacement.screenScale,
+            viewerHeightMeters: height,
             limits: .limits(for: currentEnvironment)
         )
         saveDockedPlacement()
@@ -1291,7 +1328,8 @@ public final class PlaybackPresentationModel {
                 for: environmentID,
                 distanceMeters: placement.distanceMeters,
                 elevationDegrees: placement.elevationDegrees,
-                screenScale: placement.screenScale
+                screenScale: placement.screenScale,
+                viewerHeightMeters: placement.viewerHeightMeters
             )
         }
     }

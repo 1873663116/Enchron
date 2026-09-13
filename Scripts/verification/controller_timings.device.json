@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-09T11:06:08+00:00",
+  "updatedAt": "2026-09-13T02:47:37+00:00",
   "verbs": {
     "accessibility-inspect": {
       "samples": [
@@ -2787,141 +2787,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-03T12:49:03.404109+00:00",
-          "censored": false,
-          "seconds": 3.343
-        },
-        {
-          "at": "2026-09-03T12:49:06.951674+00:00",
-          "censored": false,
-          "seconds": 2.534
-        },
-        {
-          "at": "2026-09-03T12:49:10.174639+00:00",
-          "censored": false,
-          "seconds": 2.217
-        },
-        {
-          "at": "2026-09-03T12:49:15.404919+00:00",
-          "censored": false,
-          "seconds": 2.176
-        },
-        {
-          "at": "2026-09-03T12:49:22.148103+00:00",
-          "censored": false,
-          "seconds": 2.62
-        },
-        {
-          "at": "2026-09-03T12:49:44.200018+00:00",
-          "censored": false,
-          "seconds": 2.121
-        },
-        {
-          "at": "2026-09-03T12:49:52.489329+00:00",
-          "censored": false,
-          "seconds": 2.207
-        },
-        {
-          "at": "2026-09-03T12:49:55.667387+00:00",
-          "censored": false,
-          "seconds": 2.165
-        },
-        {
-          "at": "2026-09-03T12:49:58.834213+00:00",
-          "censored": false,
-          "seconds": 2.153
-        },
-        {
-          "at": "2026-09-03T12:50:05.779292+00:00",
-          "censored": false,
-          "seconds": 5.939
-        },
-        {
-          "at": "2026-09-03T12:50:09.410164+00:00",
-          "censored": false,
-          "seconds": 2.618
-        },
-        {
-          "at": "2026-09-03T12:50:13.104114+00:00",
-          "censored": false,
-          "seconds": 2.681
-        },
-        {
-          "at": "2026-09-03T12:50:16.555649+00:00",
-          "censored": false,
-          "seconds": 2.437
-        },
-        {
-          "at": "2026-09-03T12:50:19.808131+00:00",
-          "censored": false,
-          "seconds": 2.24
-        },
-        {
-          "at": "2026-09-03T12:50:22.928944+00:00",
-          "censored": false,
-          "seconds": 2.107
-        },
-        {
-          "at": "2026-09-03T12:50:26.075286+00:00",
-          "censored": false,
-          "seconds": 2.137
-        },
-        {
-          "at": "2026-09-03T12:50:29.415507+00:00",
-          "censored": false,
-          "seconds": 2.328
-        },
-        {
-          "at": "2026-09-03T12:50:32.437796+00:00",
-          "censored": false,
-          "seconds": 2.012
-        },
-        {
-          "at": "2026-09-03T12:50:35.525136+00:00",
-          "censored": false,
-          "seconds": 2.078
-        },
-        {
-          "at": "2026-09-03T12:50:38.656749+00:00",
-          "censored": false,
-          "seconds": 2.118
-        },
-        {
-          "at": "2026-09-03T12:50:41.863822+00:00",
-          "censored": false,
-          "seconds": 2.194
-        },
-        {
-          "at": "2026-09-03T12:50:44.940354+00:00",
-          "censored": false,
-          "seconds": 2.065
-        },
-        {
-          "at": "2026-09-03T12:50:48.151722+00:00",
-          "censored": false,
-          "seconds": 2.198
-        },
-        {
-          "at": "2026-09-03T12:50:51.230179+00:00",
-          "censored": false,
-          "seconds": 2.066
-        },
-        {
-          "at": "2026-09-03T12:50:53.368890+00:00",
-          "censored": false,
-          "seconds": 2.136
-        },
-        {
-          "at": "2026-09-03T12:50:59.758454+00:00",
-          "censored": false,
-          "seconds": 2.252
-        },
-        {
-          "at": "2026-09-03T12:51:23.723809+00:00",
-          "censored": false,
-          "seconds": 2.598
-        },
-        {
           "at": "2026-09-03T12:51:31.583416+00:00",
           "censored": false,
           "seconds": 2.096
@@ -2985,6 +2850,141 @@
           "at": "2026-09-03T12:54:06.381385+00:00",
           "censored": false,
           "seconds": 2.116
+        },
+        {
+          "at": "2026-09-13T01:55:46+00:00",
+          "censored": false,
+          "seconds": 3.4
+        },
+        {
+          "at": "2026-09-13T01:56:10+00:00",
+          "censored": false,
+          "seconds": 2.34
+        },
+        {
+          "at": "2026-09-13T01:56:52+00:00",
+          "censored": false,
+          "seconds": 6.81
+        },
+        {
+          "at": "2026-09-13T01:56:59+00:00",
+          "censored": false,
+          "seconds": 6.7
+        },
+        {
+          "at": "2026-09-13T01:57:06+00:00",
+          "censored": false,
+          "seconds": 6.4
+        },
+        {
+          "at": "2026-09-13T01:57:11+00:00",
+          "censored": false,
+          "seconds": 5.24
+        },
+        {
+          "at": "2026-09-13T01:57:19+00:00",
+          "censored": false,
+          "seconds": 7.74
+        },
+        {
+          "at": "2026-09-13T02:00:51+00:00",
+          "censored": false,
+          "seconds": 2.74
+        },
+        {
+          "at": "2026-09-13T02:00:54+00:00",
+          "censored": false,
+          "seconds": 2.78
+        },
+        {
+          "at": "2026-09-13T02:00:56+00:00",
+          "censored": false,
+          "seconds": 2.26
+        },
+        {
+          "at": "2026-09-13T02:03:17+00:00",
+          "censored": false,
+          "seconds": 8.7
+        },
+        {
+          "at": "2026-09-13T02:03:26+00:00",
+          "censored": false,
+          "seconds": 8.81
+        },
+        {
+          "at": "2026-09-13T02:03:35+00:00",
+          "censored": false,
+          "seconds": 8.81
+        },
+        {
+          "at": "2026-09-13T02:03:44+00:00",
+          "censored": false,
+          "seconds": 8.69
+        },
+        {
+          "at": "2026-09-13T02:41:31+00:00",
+          "censored": false,
+          "seconds": 2.98
+        },
+        {
+          "at": "2026-09-13T02:41:33+00:00",
+          "censored": false,
+          "seconds": 2.13
+        },
+        {
+          "at": "2026-09-13T02:41:35+00:00",
+          "censored": false,
+          "seconds": 2.06
+        },
+        {
+          "at": "2026-09-13T02:44:04+00:00",
+          "censored": false,
+          "seconds": 2.36
+        },
+        {
+          "at": "2026-09-13T02:45:31+00:00",
+          "censored": false,
+          "seconds": 2.91
+        },
+        {
+          "at": "2026-09-13T02:45:34+00:00",
+          "censored": false,
+          "seconds": 2.78
+        },
+        {
+          "at": "2026-09-13T02:45:37+00:00",
+          "censored": false,
+          "seconds": 2.78
+        },
+        {
+          "at": "2026-09-13T02:45:40+00:00",
+          "censored": false,
+          "seconds": 2.76
+        },
+        {
+          "at": "2026-09-13T02:46:21+00:00",
+          "censored": false,
+          "seconds": 2.75
+        },
+        {
+          "at": "2026-09-13T02:46:24+00:00",
+          "censored": false,
+          "seconds": 2.74
+        },
+        {
+          "at": "2026-09-13T02:46:27+00:00",
+          "censored": false,
+          "seconds": 2.76
+        },
+        {
+          "at": "2026-09-13T02:47:14+00:00",
+          "censored": false,
+          "seconds": 2.76
+        },
+        {
+          "at": "2026-09-13T02:47:37+00:00",
+          "censored": false,
+          "seconds": 2.89
         }
       ]
     },

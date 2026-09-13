@@ -331,6 +331,10 @@ class PlaybackMediaSessionDriver {
         controller.hush()
     }
 
+    func interruptInFlightOpen() {
+        controller.interruptActiveSessionSourceReads()
+    }
+
     func close(clearSource: Bool = true) async {
         if let closeTask {
             await closeTask.value

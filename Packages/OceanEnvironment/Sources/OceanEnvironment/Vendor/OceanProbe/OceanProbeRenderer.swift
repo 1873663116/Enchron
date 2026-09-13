@@ -1,4 +1,5 @@
 import Metal
+import OSLog
 import RealityKit
 
 enum OceanProbeRendererError: Error {
@@ -120,11 +121,19 @@ private struct SurfaceUniforms {
     var lengthScales: SIMD4<Float>
     var envelopeAmount: Float
     var envelopeScaleMeters: Float
+    var blendFactor: Float = 0
 }
 
 private struct SurfacePublicationUniforms {
     var resolution: UInt32
     var amplitude: Float
+}
+
+private struct InterpolatedSurfacePublicationUniforms {
+    var resolution: UInt32
+    var amplitude: Float
+    var interpolationWeight: Float
+    var padding: Float = 0
 }
 
 struct SnapshotLeaseLedger {
@@ -472,6 +481,7 @@ private struct CompletedSimulation {
     let cascadePlan: CascadeUpdatePlan
     let parameters: OceanProbeParameters
     let frame: Int
+    var completedSceneTime: Float = 0
 }
 
 private struct InFlightSimulation {
@@ -496,21 +506,32 @@ private struct InFlightPresentation {
     let verifiesFirstFrame: Bool
 }
 
+private struct InFlightInterpolation {
+    let commandBuffer: any MTLCommandBuffer
+    let lease: SnapshotLeaseLedger.PresentationLease
+}
+
 struct FrameAdvanceResult {
     let acceptedOfferedTick: Bool
     let evidence: [RenderEvidence]
     let completedSimulationGPUTimeMilliseconds: Double?
     let completedPresentationGPUTimeMilliseconds: Double?
+    var completedInterpolationGPUTimeMilliseconds: Double?
 }
 
 private struct CompletedCommandEvidence {
     var renderEvidence: [RenderEvidence] = []
     var simulationGPUTimeMilliseconds: Double?
     var presentationGPUTimeMilliseconds: Double?
+    var interpolationGPUTimeMilliseconds: Double?
 }
 
 @MainActor
 final class OceanProbeRenderer {
+    private static let logger = Logger(
+        subsystem: "dev.enchron.ocean-probe",
+        category: "renderer"
+    )
     private static let resolution = OceanSimulationGrid.resolution
     private static let ifftThreadsPerThreadgroup = resolution / 2
     private static let publishedFieldResolution = PublishedSurfaceFields.resolution
@@ -546,6 +567,7 @@ final class OceanProbeRenderer {
     private var snapshotLedger = SnapshotLeaseLedger(slotCount: 2)
     private var inFlightSimulation: InFlightSimulation?
     private var inFlightPresentation: InFlightPresentation?
+    private var inFlightInterpolation: InFlightInterpolation?
     private var lastPresentedSequence: UInt64?
     private var lastPresentedSignature: SurfacePresentationSignature?
     private var pendingForcedSimulation = true
@@ -645,25 +667,39 @@ final class OceanProbeRenderer {
         cascadeUpdateScheduler.requireFullUpdate()
     }
 
+    struct AppearanceSynchronization {
+        var applied: [String] = []
+        var rejected: [String] = []
+    }
+
     func synchronizeAppearance(
         from authoredMaterial: ShaderGraphMaterial
-    ) throws -> [String] {
+    ) -> AppearanceSynchronization {
         let nextAppearance = Self.appearanceParameters(from: authoredMaterial)
         let changedNames = nextAppearance.keys.filter {
             authoredAppearance[$0] != nextAppearance[$0]
         }.sorted()
+        authoredAppearance = nextAppearance
+        var synchronization = AppearanceSynchronization()
         guard !changedNames.isEmpty else {
-            return []
+            return synchronization
         }
 
         var updatedMaterial = surfaceMaterial
-        for (name, value) in nextAppearance {
-            try updatedMaterial.setParameter(name: name, value: value)
+        for name in changedNames {
+            guard let value = nextAppearance[name] else {
+                continue
+            }
+            do {
+                try updatedMaterial.setParameter(name: name, value: value)
+                synchronization.applied.append(name)
+            } catch {
+                synchronization.rejected.append(name)
+            }
         }
         surfaceMaterial = updatedMaterial
         surfaceEntity?.model?.materials = [updatedMaterial]
-        authoredAppearance = nextAppearance
-        return changedNames
+        return synchronization
     }
 
     func advanceFrame(
@@ -672,7 +708,7 @@ final class OceanProbeRenderer {
         offeredTick: SimulationTickOffer?,
         parameters: OceanProbeParameters
     ) throws -> FrameAdvanceResult {
-        let completed = try reapCompletedCommands()
+        let completed = try reapCompletedCommands(sceneTime: sceneTime)
         if let installedFoamParameters,
            installedFoamParameters != parameters.foam
         {
@@ -746,13 +782,34 @@ final class OceanProbeRenderer {
             }
         }
 
+        if inFlightInterpolation == nil,
+           let pair = interpolationPair(),
+           let blendFactor = interpolationFactor(
+               sceneTime: sceneTime,
+               pair: pair
+           ),
+           let lease = snapshotLedger.reservePresentation(
+               sourceSlots: [pair.previous.slot, pair.latest.slot]
+           )
+        {
+            try submitInterpolatedProjection(
+                previous: pair.previous,
+                latest: pair.latest,
+                blendFactor: blendFactor,
+                lease: lease,
+                parameters: parameters
+            )
+        }
+
         return FrameAdvanceResult(
             acceptedOfferedTick: acceptedOfferedTick,
             evidence: completed.renderEvidence,
             completedSimulationGPUTimeMilliseconds:
                 completed.simulationGPUTimeMilliseconds,
             completedPresentationGPUTimeMilliseconds:
-                completed.presentationGPUTimeMilliseconds
+                completed.presentationGPUTimeMilliseconds,
+            completedInterpolationGPUTimeMilliseconds:
+                completed.interpolationGPUTimeMilliseconds
         )
     }
 
@@ -977,7 +1034,9 @@ final class OceanProbeRenderer {
         }
     }
 
-    private func reapCompletedCommands() throws -> CompletedCommandEvidence {
+    private func reapCompletedCommands(
+        sceneTime: Float
+    ) throws -> CompletedCommandEvidence {
         var completed = CompletedCommandEvidence()
         if let inFlightSimulation {
             switch inFlightSimulation.commandBuffer.status {
@@ -986,7 +1045,8 @@ final class OceanProbeRenderer {
                 snapshotLedger.finish(inFlightSimulation.lease)
                 if inFlightSimulation.result.generation == desiredSpectrumGeneration {
                     let commandBuffer = inFlightSimulation.commandBuffer
-                    let result = inFlightSimulation.result
+                    var result = inFlightSimulation.result
+                    result.completedSceneTime = sceneTime
                     latestCompletedSimulation = result
                     completedSimulations.removeAll { $0.slot == result.slot }
                     completedSimulations.append(result)
@@ -1060,7 +1120,170 @@ final class OceanProbeRenderer {
                 break
             }
         }
+
+        if let inFlightInterpolation {
+            switch inFlightInterpolation.commandBuffer.status {
+            case .completed:
+                self.inFlightInterpolation = nil
+                snapshotLedger.finish(inFlightInterpolation.lease)
+                completed.interpolationGPUTimeMilliseconds = (
+                    inFlightInterpolation.commandBuffer.gpuEndTime
+                        - inFlightInterpolation.commandBuffer.gpuStartTime
+                ) * 1_000
+            case .error:
+                self.inFlightInterpolation = nil
+                snapshotLedger.finish(inFlightInterpolation.lease)
+                Self.logger.error(
+                    "Interpolated projection command buffer failed: \(inFlightInterpolation.commandBuffer.error?.localizedDescription ?? "unknown", privacy: .public)"
+                )
+            default:
+                break
+            }
+        }
         return completed
+    }
+
+    private func interpolationPair(
+    ) -> (previous: CompletedSimulation, latest: CompletedSimulation)? {
+        let usable = completedSimulations.filter {
+            $0.generation == desiredSpectrumGeneration
+        }
+        guard usable.count >= 2 else { return nil }
+        return (usable[usable.count - 2], usable[usable.count - 1])
+    }
+
+    private func interpolationFactor(
+        sceneTime: Float,
+        pair: (previous: CompletedSimulation, latest: CompletedSimulation)
+    ) -> Float? {
+        let interval = pair.latest.sampleTime - pair.previous.sampleTime
+        guard interval > 0 else { return nil }
+        let blend = (sceneTime - pair.latest.completedSceneTime) / interval
+        guard blend < 1 else { return nil }
+        return max(0, blend)
+    }
+
+    private func submitInterpolatedProjection(
+        previous: CompletedSimulation,
+        latest: CompletedSimulation,
+        blendFactor: Float,
+        lease: SnapshotLeaseLedger.PresentationLease,
+        parameters: OceanProbeParameters
+    ) throws {
+        guard let commandBuffer = presentationQueue.makeCommandBuffer() else {
+            snapshotLedger.cancelBeforeSubmission(lease)
+            throw OceanProbeRendererError.commandBufferUnavailable
+        }
+        commandBuffer.label = "FFT Ocean Interpolated Projection"
+        do {
+            let vertexBuffer = lowLevelMesh.replace(
+                bufferIndex: 0,
+                using: commandBuffer
+            )
+            var surfaceUniforms = SurfaceUniforms(
+                vertexCount: UInt32(lowLevelMesh.vertexCapacity),
+                resolution: UInt32(Self.resolution),
+                amplitude: parameters.amplitude,
+                lengthScales: parameters.cascades.lengthScales,
+                envelopeAmount: parameters.envelopeAmount,
+                envelopeScaleMeters: parameters.envelopeScaleMeters,
+                blendFactor: blendFactor
+            )
+            let encoder = try makeEncoder(
+                commandBuffer,
+                label: "Project Blended FFT to LowLevelMesh"
+            )
+            encoder.setComputePipelineState(pipelines.projectSurfaceBlended)
+            encoder.setTexture(
+                textures.fields[previous.slot].displacement,
+                index: 0
+            )
+            encoder.setTexture(
+                textures.fields[latest.slot].displacement,
+                index: 1
+            )
+            encoder.setBuffer(vertexBuffer, offset: 0, index: 0)
+            encoder.setBytes(
+                &surfaceUniforms,
+                length: MemoryLayout<SurfaceUniforms>.stride,
+                index: 1
+            )
+            encoder.setBuffer(gridVertexBuffer, offset: 0, index: 2)
+            dispatchLinear(
+                encoder,
+                pipeline: pipelines.projectSurfaceBlended,
+                count: lowLevelMesh.vertexCapacity
+            )
+            encoder.endEncoding()
+
+            let publishedTargets = publishedFields.replace(
+                activeCascadeCount: 4,
+                using: commandBuffer
+            )
+            var publicationUniforms = InterpolatedSurfacePublicationUniforms(
+                resolution: UInt32(Self.publishedFieldResolution),
+                amplitude: parameters.amplitude,
+                interpolationWeight: blendFactor
+            )
+            let publicationEncoder = try makeEncoder(
+                commandBuffer,
+                label: "Publish Blended Ocean Surface Fields"
+            )
+            publicationEncoder.setComputePipelineState(
+                pipelines.publishSurfaceFieldsBlended
+            )
+            publicationEncoder.setTexture(
+                textures.fields[previous.slot].slope,
+                index: 0
+            )
+            publicationEncoder.setTexture(
+                textures.fields[previous.slot].displacement,
+                index: 1
+            )
+            publicationEncoder.setTexture(
+                textures.fields[latest.slot].slope,
+                index: 2
+            )
+            publicationEncoder.setTexture(
+                textures.fields[latest.slot].displacement,
+                index: 3
+            )
+            for cascade in publishedTargets.active.indices {
+                publicationEncoder.setTexture(
+                    publishedTargets.active[cascade],
+                    index: cascade + 4
+                )
+            }
+            publicationEncoder.setBytes(
+                &publicationUniforms,
+                length: MemoryLayout<InterpolatedSurfacePublicationUniforms>.stride,
+                index: 0
+            )
+            dispatchTexture(
+                publicationEncoder,
+                pipeline: pipelines.publishSurfaceFieldsBlended,
+                resolution: Self.publishedFieldResolution
+            )
+            publicationEncoder.endEncoding()
+            try encodePublishedFieldMipmaps(
+                into: commandBuffer,
+                textures: publishedTargets.active
+            )
+            commandBuffer.commit()
+            snapshotLedger.markSubmitted(lease)
+            inFlightInterpolation = InFlightInterpolation(
+                commandBuffer: commandBuffer,
+                lease: lease
+            )
+        } catch {
+            commandBuffer.commit()
+            snapshotLedger.markSubmitted(lease)
+            inFlightInterpolation = InFlightInterpolation(
+                commandBuffer: commandBuffer,
+                lease: lease
+            )
+            throw error
+        }
     }
 
     private func encodeFoamReadback(
@@ -1840,8 +2063,10 @@ private extension OceanProbeRenderer {
         let assembleTextures: any MTLComputePipelineState
         let clearOutputs: any MTLComputePipelineState
         let projectSurface: any MTLComputePipelineState
+        let projectSurfaceBlended: any MTLComputePipelineState
         let publishSurfaceFields: any MTLComputePipelineState
         let publishPrimarySurfaceFields: any MTLComputePipelineState
+        let publishSurfaceFieldsBlended: any MTLComputePipelineState
 
         init(device: any MTLDevice, library: any MTLLibrary) throws {
             func make(_ name: String) throws -> any MTLComputePipelineState {
@@ -1859,8 +2084,10 @@ private extension OceanProbeRenderer {
             assembleTextures = try make("assembleTextures")
             clearOutputs = try make("clearOutputs")
             projectSurface = try make("projectSurface")
+            projectSurfaceBlended = try make("projectSurfaceBlended")
             publishSurfaceFields = try make("publishSurfaceFields")
             publishPrimarySurfaceFields = try make("publishPrimarySurfaceFields")
+            publishSurfaceFieldsBlended = try make("publishSurfaceFieldsBlended")
         }
     }
 

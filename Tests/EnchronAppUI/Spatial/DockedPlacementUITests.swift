@@ -119,8 +119,8 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         guard requireHittable(settings, named: "Docked Settings") else { return }
         settings.tap()
 
-        let size = app.descendants(matching: .any)[
-            "PlayerPanel-ScreenSize-slider"
+        let viewerHeightSlider = app.descendants(matching: .any)[
+            "PlayerPanel-Height-slider"
         ].firstMatch
         let distance = app.descendants(matching: .any)[
             "PlayerPanel-Distance-slider"
@@ -129,18 +129,18 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
             "PlayerPanel-Elevation-slider"
         ].firstMatch
 
-        let initialScale = try XCTUnwrap(initial.double("screenScale"))
+        let initialHeight = try XCTUnwrap(initial.double("viewerHeight"))
         let initialDistance = try XCTUnwrap(initial.double("screenDistance"))
         let initialElevation = try XCTUnwrap(initial.double("screenElevation"))
         dragDetentedSlider(
-            size,
-            from: normalized(initialScale, lower: 2, upper: 6),
+            viewerHeightSlider,
+            from: normalized(initialHeight, lower: -3, upper: 1),
             to: 0.75,
-            named: "Screen Size"
+            named: "Height"
         )
         dragDetentedSlider(
             distance,
-            from: normalized(initialDistance, lower: 6, upper: 30),
+            from: normalized(initialDistance, lower: 9, upper: 25),
             to: 0.75,
             named: "Distance"
         )
@@ -152,7 +152,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         )
 
         let adjusted = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
-            abs(($0.double("screenScale") ?? initialScale) - initialScale) > 0.1
+            abs(($0.double("viewerHeight") ?? initialHeight) - initialHeight) > 0.1
                 && abs(
                     ($0.double("screenDistance") ?? initialDistance)
                         - initialDistance
@@ -167,7 +167,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         attachState(adjusted, name: "docked-placement-adjusted")
         attachScreenshot(from: app, name: "docked-placement-01-adjusted")
 
-        let adjustedScale = try XCTUnwrap(adjusted.double("screenScale"))
+        let adjustedHeight = try XCTUnwrap(adjusted.double("viewerHeight"))
         let adjustedDistance = try XCTUnwrap(adjusted.double("screenDistance"))
         let adjustedElevation = try XCTUnwrap(adjusted.double("screenElevation"))
         let firstSession = try XCTUnwrap(adjusted.string("session"))
@@ -198,7 +198,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         let nextSession = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
             $0.string("presentation") == "docked"
                 && abs(
-                    ($0.double("screenScale") ?? 0) - adjustedScale
+                    ($0.double("viewerHeight") ?? 0) - adjustedHeight
                 ) < 0.001
                 && abs(
                     ($0.double("screenDistance") ?? 0) - adjustedDistance
@@ -227,7 +227,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         let afterProcessRestart = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
             $0.string("presentation") == "docked"
                 && abs(
-                    ($0.double("screenScale") ?? 0) - adjustedScale
+                    ($0.double("viewerHeight") ?? 0) - adjustedHeight
                 ) < 0.001
                 && abs(
                     ($0.double("screenDistance") ?? 0) - adjustedDistance
@@ -252,7 +252,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         reset.tap()
 
         let resetState = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
-            abs(($0.double("screenScale") ?? .nan) - initialScale) < 0.001
+            abs(($0.double("viewerHeight") ?? .nan) - initialHeight) < 0.001
                 && abs(($0.double("screenDistance") ?? .nan) - initialDistance) < 0.001
                 && abs(($0.double("screenElevation") ?? .nan) - initialElevation) < 0.001
         })
@@ -285,7 +285,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
                 && $0.bool("surfaceSettled") == true
                 && $0.bool("surfaceAnchorMatched") == true
         })
-        let initialScale = try XCTUnwrap(initial.double("screenScale"))
+        let initialHeight = try XCTUnwrap(initial.double("viewerHeight"))
         let initialDistance = try XCTUnwrap(initial.double("screenDistance"))
         let initialElevation = try XCTUnwrap(initial.double("screenElevation"))
 
@@ -294,17 +294,17 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         settings.tap()
         dragDetentedSlider(
             app.descendants(matching: .any)[
-                "PlayerPanel-ScreenSize-slider"
+                "PlayerPanel-Height-slider"
             ].firstMatch,
-            from: normalized(initialScale, lower: 2, upper: 6),
-            to: 0.75,
-            named: "Screen Size"
+            from: normalized(initialHeight, lower: -3, upper: 1),
+            to: 0,
+            named: "Height"
         )
         dragDetentedSlider(
             app.descendants(matching: .any)[
                 "PlayerPanel-Distance-slider"
             ].firstMatch,
-            from: normalized(initialDistance, lower: 6, upper: 30),
+            from: normalized(initialDistance, lower: 9, upper: 25),
             to: 0.75,
             named: "Distance"
         )
@@ -318,7 +318,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         )
 
         let adjusted = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
-            abs(($0.double("screenScale") ?? initialScale) - initialScale) > 0.1
+            abs(($0.double("viewerHeight") ?? initialHeight) - initialHeight) > 0.1
                 && abs(
                     ($0.double("screenDistance") ?? initialDistance)
                         - initialDistance
@@ -329,7 +329,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
                 ) > 1
                 && $0.bool("surfaceSettled") == true
         })
-        let adjustedScale = try XCTUnwrap(adjusted.double("screenScale"))
+        let adjustedHeight = try XCTUnwrap(adjusted.double("viewerHeight"))
         let adjustedDistance = try XCTUnwrap(adjusted.double("screenDistance"))
         let adjustedElevation = try XCTUnwrap(adjusted.double("screenElevation"))
         assertSurfaceMatchesPlacement(adjusted)
@@ -342,15 +342,11 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
             $0.string("presentation") == "docked"
                 && $0.string("environment") == "quiet-room"
                 && $0.string("environmentEffect") == "none"
-                && abs(($0.double("screenScale") ?? adjustedScale) - adjustedScale) > 0.1
+                && abs(($0.double("viewerHeight") ?? adjustedHeight) - adjustedHeight) > 0.1
                 && abs(
                     ($0.double("screenDistance") ?? adjustedDistance)
                         - adjustedDistance
                 ) > 0.1
-                && abs(
-                    ($0.double("screenElevation") ?? adjustedElevation)
-                        - adjustedElevation
-                ) > 1
                 && $0.bool("surfaceSettled") == true
         })
         assertSurfaceMatchesPlacement(isolated)
@@ -364,7 +360,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
             $0.string("presentation") == "docked"
                 && $0.string("environment") == "ocean"
                 && $0.string("environmentEffect") == "dark"
-                && abs(($0.double("screenScale") ?? 0) - adjustedScale) < 0.001
+                && abs(($0.double("viewerHeight") ?? 0) - adjustedHeight) < 0.001
                 && abs(
                     ($0.double("screenDistance") ?? 0) - adjustedDistance
                 ) < 0.001

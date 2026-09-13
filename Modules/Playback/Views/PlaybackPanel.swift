@@ -7,8 +7,7 @@ public struct FusedPlayerPanelLive {
     var mediaName: String
     var mediaProfile: PlaybackModel.MediaProfile?
     var canApplyFormat: Bool
-    var screenScale: Double
-    var recommendedScreenScale: Double
+    var viewerHeight: Double
     var placementLimits: PlaybackDockedPlacementLimits = .fallback
     var screenDistance: Double
     var screenElevationDegrees: Double
@@ -38,7 +37,7 @@ public struct FusedPlayerPanelLive {
     var onEnterImmersive: () -> Void
     var onExitSpatial: () -> Void
     var onExitPlayback: () -> Void
-    var onSetScreenScale: @MainActor @Sendable (Double) -> Void
+    var onSetViewerHeight: @MainActor @Sendable (Double) -> Void
     var onSetScreenDistance: @MainActor @Sendable (Double) -> Void
     var onSetScreenElevation: @MainActor @Sendable (Double) -> Void
     var onResetDockedPlacement: () -> Void
@@ -61,8 +60,7 @@ public struct FusedPlayerPanelLive {
         mediaName: String,
         mediaProfile: PlaybackModel.MediaProfile?,
         canApplyFormat: Bool,
-        screenScale: Double,
-        recommendedScreenScale: Double,
+        viewerHeight: Double,
         placementLimits: PlaybackDockedPlacementLimits = .fallback,
         screenDistance: Double,
         screenElevationDegrees: Double,
@@ -92,7 +90,7 @@ public struct FusedPlayerPanelLive {
         onEnterImmersive: @escaping () -> Void,
         onExitSpatial: @escaping () -> Void,
         onExitPlayback: @escaping () -> Void,
-        onSetScreenScale: @escaping @MainActor @Sendable (Double) -> Void,
+        onSetViewerHeight: @escaping @MainActor @Sendable (Double) -> Void,
         onSetScreenDistance: @escaping @MainActor @Sendable (Double) -> Void,
         onSetScreenElevation: @escaping @MainActor @Sendable (Double) -> Void,
         onResetDockedPlacement: @escaping () -> Void,
@@ -110,8 +108,7 @@ public struct FusedPlayerPanelLive {
         self.mediaName = mediaName
         self.mediaProfile = mediaProfile
         self.canApplyFormat = canApplyFormat
-        self.screenScale = screenScale
-        self.recommendedScreenScale = recommendedScreenScale
+        self.viewerHeight = viewerHeight
         self.placementLimits = placementLimits
         self.screenDistance = screenDistance
         self.screenElevationDegrees = screenElevationDegrees
@@ -141,7 +138,7 @@ public struct FusedPlayerPanelLive {
         self.onEnterImmersive = onEnterImmersive
         self.onExitSpatial = onExitSpatial
         self.onExitPlayback = onExitPlayback
-        self.onSetScreenScale = onSetScreenScale
+        self.onSetViewerHeight = onSetViewerHeight
         self.onSetScreenDistance = onSetScreenDistance
         self.onSetScreenElevation = onSetScreenElevation
         self.onResetDockedPlacement = onResetDockedPlacement
@@ -748,17 +745,17 @@ public struct FusedPlayerPanel: View {
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             DockedPlacementSliderRow(
-                title: "Screen Size",
-                liveValue: live.screenScale,
-                range: live.placementLimits.screenHeightRange,
-                step: PlaybackDockedPlacementLimits.screenHeightStep,
+                title: "Height",
+                liveValue: live.viewerHeight,
+                range: live.placementLimits.viewerHeightRange,
+                step: PlaybackDockedPlacementLimits.viewerHeightStep,
                 trackWidth: placementTrackWidth,
-                valueLabel: { String(format: "%.2f m", $0) },
-                identifier: "ScreenSize",
+                valueLabel: { String(format: "%+.1f m", $0) },
+                identifier: "Height",
                 onChange: { value in
                     onInteraction()
-                    live.onReachabilityAction("slider.ScreenSize")
-                    live.onSetScreenScale(value)
+                    live.onReachabilityAction("slider.Height")
+                    live.onSetViewerHeight(value)
                 }
             )
             DockedPlacementSliderRow(

@@ -71,6 +71,7 @@ enum OceanFFTMetalSource {
             float4 lengthScales;
             float envelopeAmount;
             float envelopeScaleMeters;
+            float blendFactor;
         };
 
         struct SurfacePublicationUniforms {
@@ -953,6 +954,70 @@ enum OceanFFTMetalSource {
             vertices[vertexIndex] = outputVertex;
         }
 
+        kernel void projectSurfaceBlended(
+            texture2d_array<float, access::sample> displacementA [[texture(0)]],
+            texture2d_array<float, access::sample> displacementB [[texture(1)]],
+            device OceanVertex *vertices [[buffer(0)]],
+            constant SurfaceUniforms &uniforms [[buffer(1)]],
+            const device OceanVertex *gridVertices [[buffer(2)]],
+            uint vertexIndex [[thread_position_in_grid]]
+        ) {
+            if (vertexIndex >= uniforms.vertexCount) {
+                return;
+            }
+
+            float2 baseXZ = gridVertices[vertexIndex].baseXZ;
+            float3 fieldDisplacement = mix(
+                sampleDisplacement(baseXZ, displacementA, uniforms),
+                sampleDisplacement(baseXZ, displacementB, uniforms),
+                uniforms.blendFactor
+            );
+            if (gridVertices[vertexIndex].stitch.z > 0.5f) {
+                float2 stitchOffset = gridVertices[vertexIndex].stitch.xy;
+                float3 previousDisplacement = mix(
+                    sampleDisplacement(
+                        baseXZ - stitchOffset, displacementA, uniforms
+                    ),
+                    sampleDisplacement(
+                        baseXZ - stitchOffset, displacementB, uniforms
+                    ),
+                    uniforms.blendFactor
+                );
+                float3 nextDisplacement = mix(
+                    sampleDisplacement(
+                        baseXZ + stitchOffset, displacementA, uniforms
+                    ),
+                    sampleDisplacement(
+                        baseXZ + stitchOffset, displacementB, uniforms
+                    ),
+                    uniforms.blendFactor
+                );
+                fieldDisplacement = (previousDisplacement + nextDisplacement)
+                    * 0.5f;
+            }
+            fieldDisplacement *= oceanEnvelope(
+                baseXZ,
+                uniforms.envelopeAmount,
+                uniforms.envelopeScaleMeters
+            );
+
+            float horizonFade = 1.0f - smoothstep(
+                4096.0f,
+                6144.0f,
+                max(abs(baseXZ.x), abs(baseXZ.y))
+            );
+            float displacementScale = uniforms.amplitude * horizonFade;
+            OceanVertex outputVertex;
+            outputVertex.position = float3(baseXZ.x, 0.0f, baseXZ.y)
+                + fieldDisplacement * displacementScale;
+            outputVertex.normal = float3(0.0f, 1.0f, 0.0f);
+            outputVertex.tangent = float4(1.0f, 0.0f, 0.0f, 1.0f);
+            outputVertex.uv = baseXZ;
+            outputVertex.baseXZ = baseXZ;
+            outputVertex.stitch = gridVertices[vertexIndex].stitch;
+            vertices[vertexIndex] = outputVertex;
+        }
+
         kernel void publishSurfaceFields(
             texture2d_array<float, access::read> slope [[texture(0)]],
             texture2d_array<float, access::read> displacement [[texture(1)]],
@@ -990,6 +1055,61 @@ enum OceanFFTMetalSource {
                 slope.read(sourcePosition, 3).xy * uniforms.amplitude,
                 displacement.read(sourcePosition, 3).a,
                 length(displacement.read(sourcePosition, 3).xz)
+            ), position);
+        }
+
+        kernel void publishSurfaceFieldsBlended(
+            texture2d_array<float, access::read> slopeA [[texture(0)]],
+            texture2d_array<float, access::read> displacementA [[texture(1)]],
+            texture2d_array<float, access::read> slopeB [[texture(2)]],
+            texture2d_array<float, access::read> displacementB [[texture(3)]],
+            texture2d<float, access::write> cascade0 [[texture(4)]],
+            texture2d<float, access::write> cascade1 [[texture(5)]],
+            texture2d<float, access::write> cascade2 [[texture(6)]],
+            texture2d<float, access::write> cascade3 [[texture(7)]],
+            constant InterpolatedSurfacePublicationUniforms &uniforms [[buffer(0)]],
+            uint2 position [[thread_position_in_grid]]
+        ) {
+            if (position.x >= uniforms.resolution
+                || position.y >= uniforms.resolution) {
+                return;
+            }
+            uint2 sourcePosition = uint2(
+                position.x,
+                uniforms.resolution - 1u - position.y
+            );
+            float w = uniforms.interpolationWeight;
+            cascade0.write(float4(
+                mix(slopeA.read(sourcePosition, 0).xy,
+                    slopeB.read(sourcePosition, 0).xy, w) * uniforms.amplitude,
+                mix(displacementA.read(sourcePosition, 0).a,
+                    displacementB.read(sourcePosition, 0).a, w),
+                length(mix(displacementA.read(sourcePosition, 0).xz,
+                           displacementB.read(sourcePosition, 0).xz, w))
+            ), position);
+            cascade1.write(float4(
+                mix(slopeA.read(sourcePosition, 1).xy,
+                    slopeB.read(sourcePosition, 1).xy, w) * uniforms.amplitude,
+                mix(displacementA.read(sourcePosition, 1).a,
+                    displacementB.read(sourcePosition, 1).a, w),
+                length(mix(displacementA.read(sourcePosition, 1).xz,
+                           displacementB.read(sourcePosition, 1).xz, w))
+            ), position);
+            cascade2.write(float4(
+                mix(slopeA.read(sourcePosition, 2).xy,
+                    slopeB.read(sourcePosition, 2).xy, w) * uniforms.amplitude,
+                mix(displacementA.read(sourcePosition, 2).a,
+                    displacementB.read(sourcePosition, 2).a, w),
+                length(mix(displacementA.read(sourcePosition, 2).xz,
+                           displacementB.read(sourcePosition, 2).xz, w))
+            ), position);
+            cascade3.write(float4(
+                mix(slopeA.read(sourcePosition, 3).xy,
+                    slopeB.read(sourcePosition, 3).xy, w) * uniforms.amplitude,
+                mix(displacementA.read(sourcePosition, 3).a,
+                    displacementB.read(sourcePosition, 3).a, w),
+                length(mix(displacementA.read(sourcePosition, 3).xz,
+                           displacementB.read(sourcePosition, 3).xz, w))
             ), position);
         }
 

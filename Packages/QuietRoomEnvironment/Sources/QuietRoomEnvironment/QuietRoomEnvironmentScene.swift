@@ -11,19 +11,23 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
     public static let screenForwardParameter = "screen_forward"
     public static let screenVideoColorParameter = "screen_video_color"
     public static let screenLightGainParameter = "screen_light_gain"
+    public static let screenLodNearParameter = "screen_lod_near"
+    public static let screenLodFarParameter = "screen_lod_far"
+    public static let authoredVideoWidth: Float = 1920
     public static let tileNamePrefixes = ["Floor_", "Ceil_"]
     public static let instancedTilesNamePrefix = "QuietRoomTiles"
 
     public nonisolated static let descriptor = EnvironmentSceneDescriptor(
         identifier: "quiet-room",
         geometry: EnvironmentSceneGeometry(
-            ceilingHeightMeters: 6.0,
+            ceilingHeightMeters: 7.75,
             ceilingClearanceMeters: 0.05,
             distanceStrategy: .movesViewer,
-            defaultDistanceMeters: 15.98,
-            distanceRangeMeters: 6...16,
-            defaultScreenHeightMeters: 4.5,
-            screenHeightRangeMeters: 2...5.5,
+            defaultDistanceMeters: 7.98,
+            distanceRangeMeters: 5...18,
+            defaultScreenHeightMeters: 8,
+            screenHeightRangeMeters: 8...8,
+            viewerHeightRangeMeters: -1...3,
             elevationRangeDegrees: 0...90
         ),
         supportsDarkAppearance: false
@@ -33,6 +37,8 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
         let entity: Entity
         let materialIndex: Int
         let authoredLightGain: Float
+        let authoredLodNear: Float
+        let authoredLodFar: Float
     }
 
     private struct TileGroupKey: Hashable {
@@ -61,8 +67,11 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
             throw EnvironmentSceneLoadingError.resourceMissing(Self.resourceName)
         }
         let root = try await Entity(contentsOf: url)
-        guard let pose = EnvironmentScreenRestPose.screenPreview(in: root) else {
-            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.screenPreview)
+        guard let pose = EnvironmentScreenRestPose.dockingRegion(
+            in: root,
+            screenHeight: Float(Self.descriptor.geometry.defaultScreenHeightMeters)
+        ) else {
+            throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.dockingRegion)
         }
         restPose = pose
         root.disableEnvironmentPreviewScreen()
@@ -76,6 +85,9 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
     public func apply(_ appearance: EnvironmentAppearance, to root: Entity) {}
 
     public func update(_ screen: EnvironmentScreenState?, in root: Entity) {
+        if let screen {
+            root.alignDockingRegion(to: screen)
+        }
         for surface in glowSurfaces {
             guard var model = surface.entity.components[ModelComponent.self],
                   surface.materialIndex < model.materials.count,
@@ -89,6 +101,9 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
                 try? material.setParameter(name: Self.screenForwardParameter, value: .simd3Float(screen.normal))
                 try? material.setParameter(name: Self.screenLightGainParameter, value: .float(surface.authoredLightGain))
                 if let texture = screen.videoTexture {
+                    let bias = log2(Self.authoredVideoWidth / Float(max(texture.width, 1)))
+                    try? material.setParameter(name: Self.screenLodNearParameter, value: .float(max(surface.authoredLodNear - bias, 0)))
+                    try? material.setParameter(name: Self.screenLodFarParameter, value: .float(max(surface.authoredLodFar - bias, 0)))
                     try? material.setParameter(name: Self.screenVideoColorParameter, value: .textureResource(texture))
                 }
             } else {
@@ -181,6 +196,13 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
         return (instanced, groups)
     }
 
+    private static func authoredFloat(_ graph: ShaderGraphMaterial, _ name: String, fallback: Float) -> Float {
+        if case .float(let value)? = graph.getParameter(name: name) {
+            return value
+        }
+        return fallback
+    }
+
     private static func collectGlowSurfaces(in root: Entity) -> [GlowSurface] {
         var surfaces: [GlowSurface] = []
         func visit(_ entity: Entity) {
@@ -194,7 +216,13 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
                     } else {
                         gain = 1
                     }
-                    surfaces.append(GlowSurface(entity: entity, materialIndex: index, authoredLightGain: gain))
+                    surfaces.append(GlowSurface(
+                        entity: entity,
+                        materialIndex: index,
+                        authoredLightGain: gain,
+                        authoredLodNear: authoredFloat(graph, screenLodNearParameter, fallback: 6),
+                        authoredLodFar: authoredFloat(graph, screenLodFarParameter, fallback: 7)
+                    ))
                 }
             }
             for child in entity.children { visit(child) }

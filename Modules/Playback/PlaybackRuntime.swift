@@ -1902,6 +1902,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    public func interruptPreparedTechnicalSessionReplacement() {
+        openingTechnicalSessionDriver?.interruptInFlightOpen()
+    }
+
     public func rebuildTechnicalSessionForCurrentPresentation() async throws {
         guard technicalSessionFormatReplacementIsPending else { return }
         guard let presentation = attachedPresentation,

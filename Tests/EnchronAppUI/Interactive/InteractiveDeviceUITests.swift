@@ -22,7 +22,6 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_TEST_CHANNEL"] = "1"
         app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
-        app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         for (name, value) in ProcessInfo.processInfo.environment
         where name.hasPrefix("ENCHRON_") {

@@ -986,6 +986,149 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("A pending platform effect is not claimed while the application is inactive")
+    func effectDrainDefersWhileApplicationIsInactive() {
+        let effects: [SpatialPlatformEffect] = [
+            .enterImmersivePlayback(.flat),
+            .exitImmersivePlayback(.flat, keepsEnvironmentOpen: false),
+            .collapseImmersivePlayback(.flat),
+            .swapWindowPlaybackProjection(to: .panoramic),
+            .presentEnvironmentPreview,
+            .dismissEnvironmentPreview,
+            .presentEnvironmentCard,
+            .normalizeStoppedSpatialPlayback(keepsEnvironmentOpen: false),
+            .normalizeInvalidatedSpatialPlayback(keepsEnvironmentOpen: false)
+        ]
+        for effect in effects {
+            #expect(
+                SpatialPlatformEffectDrainPolicy.shouldClaim(
+                    effect: effect,
+                    applicationIsActive: false
+                ) == false
+            )
+            #expect(
+                SpatialPlatformEffectDrainPolicy.shouldClaim(
+                    effect: effect,
+                    applicationIsActive: true
+                )
+            )
+        }
+    }
+
+    @Test("Collapse-originated presentation failures stay silent while user-initiated exits surface an issue")
+    func collapseFailureHidesUserVisibleIssue() {
+        typealias Policy = SpatialPlatformPresentationFailurePolicy
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .collapseImmersivePlayback(.flat)
+            ) == false
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .collapseImmersivePlayback(.panoramic)
+            ) == false
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .exitImmersivePlayback(
+                    .flat,
+                    keepsEnvironmentOpen: false
+                )
+            )
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .enterImmersivePlayback(.flat)
+            )
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .swapWindowPlaybackProjection(to: .panoramic)
+            )
+        )
+    }
+
+    @Test("The activation watchdog reports a pending effect only when no executor is registered")
+    func activationWatchdogReportsOnlyMissingExecutor() {
+        #expect(
+            SpatialPlatformActivationWatchdogPolicy
+                .shouldReportMissingExecutor(
+                    hasPendingEffect: true,
+                    registeredExecutorCount: 0
+                )
+        )
+        #expect(
+            SpatialPlatformActivationWatchdogPolicy
+                .shouldReportMissingExecutor(
+                    hasPendingEffect: true,
+                    registeredExecutorCount: 1
+                ) == false
+        )
+        #expect(
+            SpatialPlatformActivationWatchdogPolicy
+                .shouldReportMissingExecutor(
+                    hasPendingEffect: false,
+                    registeredExecutorCount: 0
+                ) == false
+        )
+    }
+
+    @Test("Activation restores an absent player window only for established window playback")
+    func activationRestoresAbsentPlayerWindow() {
+        typealias Policy = SpatialPlatformPlaybackHostActivationPolicy
+        for lifecycle in [
+            ProductPlaybackLifecycle.ready,
+            .playing,
+            .paused,
+            .ended,
+            .failed
+        ] {
+            #expect(
+                Policy.shouldRestorePlayerWindow(
+                    residency: .playing(host: .window),
+                    playerWindowState: .absent,
+                    lifecycle: lifecycle
+                )
+            )
+        }
+        for lifecycle in [ProductPlaybackLifecycle.idle, .loading] {
+            #expect(
+                Policy.shouldRestorePlayerWindow(
+                    residency: .playing(host: .window),
+                    playerWindowState: .absent,
+                    lifecycle: lifecycle
+                ) == false
+            )
+        }
+        for state in [
+            SpatialPlatformPlayerWindowState.opening,
+            .open,
+            .closing
+        ] {
+            #expect(
+                Policy.shouldRestorePlayerWindow(
+                    residency: .playing(host: .window),
+                    playerWindowState: state,
+                    lifecycle: .playing
+                ) == false
+            )
+        }
+        #expect(
+            Policy.shouldRestorePlayerWindow(
+                residency: .playing(host: .immersiveSpace),
+                playerWindowState: .absent,
+                lifecycle: .playing
+            ) == false
+        )
+        #expect(
+            Policy.shouldRestorePlayerWindow(
+                residency: .browsing,
+                playerWindowState: .absent,
+                lifecycle: .playing
+            ) == false
+        )
+    }
+
     @Test("The player window keeps its glass until video is visible, except while it returns from a space or hosts a session")
     func playerWindowGlassLeavesOnlyForVisibleVideo() {
         for state in [PlaybackRuntime.PresentationState.hidden, .placeholder, .audioVisible] {

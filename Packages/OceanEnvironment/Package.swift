@@ -21,6 +21,7 @@ let package = Package(
             ],
             resources: [
                 .copy("Resources/ocean.reality"),
+                .copy("Resources/Audio"),
             ]
         ),
     ]
