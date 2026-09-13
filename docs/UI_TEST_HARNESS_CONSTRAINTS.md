@@ -145,7 +145,26 @@ App 侧测试通道的复位不是"删掉一切"：
 
 真机闲置一段时间后 `devicectl` 仍报 `connected`、仍能装并启动产品 app，但装 UI test runner 会以 `IXRemoteErrorDomain code 6`（Connection interrupted）失败，`ensure-session` 连续两次拿到 transport-timeout 与 runner-crashed。先用 `devicectl device process launch --terminate-existing` 启动一次产品 app，同一条段命令立刻跑通。`ensure_session` 因此在真机 lane 上先做一次 `wake-device`，事件记为 `wakeTargetDevice`。
 
-**自动化之前必须预授权 world-sensing 与 hand-tracking**。RealityKit 的 RKSARProvider 在启动时请求这两项（Info.plist 键的硬需求与崩溃证据见 `docs/PLAYBACK_ENGINE_CONSTRAINTS.md`）；授权弹窗存在期间 AX 通道整段不应答，2026-09-12 真机上它把 tap 与 snapshot 双双打成超时，允许之后才恢复。
+**自动化之前必须预授权 world-sensing 与 hand-tracking**。RealityKit 的 RKSARProvider 在启动时请求这两项（Info.plist 键的硬需求与崩溃证据见 `docs/PLAYBACK_ENGINE_CONSTRAINTS.md`）；授权弹窗出现期间 AX 通道整段不应答，2026-09-12 真机上它把 tap 与 snapshot 双双打成超时，允许之后才恢复。
+
+## xctrace 在 visionOS 真机上是不可靠通道，先验活再驱动
+
+xctrace 与 devicectl 走的是**两条不同的设备通道**：devicectl 是控制面（CoreDevice 隧道上的小请求），xctrace 要在设备端拉起 `instruments.remoteserver` 并维持一条持续高带宽的 kdebug/trace 流。前者的 connected/online 状态**不代表**后者可用——2026-09-13 实测：devicectl 全程能装能控能拷文件，xctrace 同时段十几次录制全部在开录约 10 秒后以 `Device got disconnected` 中断，留下只有目录结构、0 行数据的空心 trace（`.scratch/2026-09-12-scene-perf/traces/`）。
+
+这两个故障都是 **Apple 官方论坛记录在案的已知问题，没有文档化规避手段**，重试、换参数、改命令形式都无意义：
+
+- `Waiting for device to boot` 后超时（[Forums #694698](https://developer.apple.com/forums/thread/694698)）：Apple 工程师的答复是抓双侧 sysdiagnose 提 Feedback，重启可能缓解。
+- 录制中途 `Device disconnected`（[Forums #652221](https://developer.apple.com/forums/thread/652221)）：设备端服务与 Instruments 版本的兼容性缺陷。
+
+恢复手段只有设备侧：重启 Vision Pro 并**保持佩戴/亮屏**（摘下后省电路径会先挂起调试服务），或 Xcode → Devices 窗口重连配对。根治方案是 Developer Strap 有线连接——无线 localNetwork 隧道本身就是 Apple 公认的弱环节。
+
+**驱动协议（录 trace 前必须执行）**：
+
+1. `xctrace list devices` 确认设备在 `== Devices ==` 而非 `Devices Offline`；offline 时先 `devicectl device process launch` 启动一次产品 app 唤醒 instruments 服务（实测有效），仍 offline 则停，请用户处理设备。
+2. 录一段 5 秒 `--all-processes --instrument 'Display'` 探针 trace 并立即导出验证非空。**这一步必须先于任何 app 驱动**——通道不通时绝不要花几十分钟把 app 驱进目标状态再发现录不了。
+3. 录制从轻量集开始（`Display` + `RealityKit Metrics`，30 s 内），确认数据活着再补重 instrument；多 instrument + Time Profiler 的 90 s 录制在无线隧道上产生 GB 级流量，是压垮半死通道的负载。
+4. 中途断连的 trace 保留并按 hollow 标注，一次会话内最多重试一次。
+5. `--attach` 在 visionOS 上不可用（按名退出码 19、按 pid 退出码 21），只能 `--all-processes`。
 
 ## 段的完整与基线的重新证明
 
