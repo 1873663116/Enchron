@@ -134,3 +134,46 @@ public nonisolated enum EnvironmentSceneMapping {
         return scene
     }
 }
+
+/// Bridge that lets the app command channel toggle the ocean probe's
+/// simulation strategy without the app target linking OceanEnvironment.
+@MainActor
+public enum OceanSimulationControlBridge {
+    public enum BridgeError: Error {
+        case invalidValue(String, expected: String)
+    }
+
+    public static func applyMode(_ raw: String) throws -> String {
+        switch raw {
+        case "full", "fullRate":
+            OceanSimulationControl.mode = .fullRate
+        case "throttled", "adaptive":
+            OceanSimulationControl.mode = .throttled
+        default:
+            throw BridgeError.invalidValue(
+                raw,
+                expected: "full|throttled"
+            )
+        }
+        return OceanSimulationControl.mode.rawValue
+    }
+
+    public static func applySurfaceEnabled(_ raw: String) throws -> String {
+        switch raw {
+        case "on", "1", "true", "show":
+            OceanSimulationControl.surfaceEnabled = true
+        case "off", "0", "false", "hide":
+            OceanSimulationControl.surfaceEnabled = false
+        default:
+            throw BridgeError.invalidValue(
+                raw,
+                expected: "on|off"
+            )
+        }
+        return OceanSimulationControl.surfaceEnabled ? "on" : "off"
+    }
+
+    public static var currentMode: String {
+        OceanSimulationControl.mode.rawValue
+    }
+}

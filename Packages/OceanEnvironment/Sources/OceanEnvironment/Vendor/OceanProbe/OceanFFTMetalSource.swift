@@ -39,6 +39,7 @@ enum OceanFFTMetalSource {
             float foamDecay;
             uint activeCascadeCount;
             float detailDeltaTime;
+            uint cascadeStart;
         };
 
         struct WindSpectrumParameters {
@@ -77,6 +78,8 @@ enum OceanFFTMetalSource {
         struct SurfacePublicationUniforms {
             uint resolution;
             float amplitude;
+            uint cascadeStart;
+            float padding;
         };
 
         struct InterpolatedSurfacePublicationUniforms {
@@ -367,7 +370,10 @@ enum OceanFFTMetalSource {
             float halfResolution = float(uniforms.resolution) * 0.5f;
             float2 centered = float2(position) - halfResolution;
 
-            for (uint cascade = 0; cascade < uniforms.activeCascadeCount; ++cascade) {
+            uint cascadeEnd = uniforms.cascadeStart
+                + uniforms.activeCascadeCount;
+            for (uint cascade = uniforms.cascadeStart; cascade < cascadeEnd;
+                 ++cascade) {
                 float4 initial = initialSpectrum.read(position, cascade);
                 float2 h0 = initial.xy;
                 float2 h0Conjugate = initial.zw;
@@ -552,8 +558,10 @@ enum OceanFFTMetalSource {
             constexpr uint HALF_FFT_SIZE = FFT_SIZE / 2u;
             threadgroup float4 buffer[FFT_SIZE];
             uint2 upperPosition = position + uint2(HALF_FFT_SIZE, 0u);
-            uint activeSliceCount = uniforms.activeCascadeCount * 2u;
-            for (uint slice = 0; slice < activeSliceCount; ++slice) {
+            uint sliceEnd = (uniforms.cascadeStart
+                + uniforms.activeCascadeCount) * 2u;
+            for (uint slice = uniforms.cascadeStart * 2u; slice < sliceEnd;
+                 ++slice) {
                 float4 lowerOutput;
                 float4 upperOutput;
                 inverseFFTPair(
@@ -579,8 +587,10 @@ enum OceanFFTMetalSource {
             constexpr uint HALF_FFT_SIZE = FFT_SIZE / 2u;
             threadgroup float4 buffer[FFT_SIZE];
             uint2 upperPosition = position + uint2(HALF_FFT_SIZE, 0u);
-            uint activeSliceCount = uniforms.activeCascadeCount * 2u;
-            for (uint slice = 0; slice < activeSliceCount; ++slice) {
+            uint sliceEnd = (uniforms.cascadeStart
+                + uniforms.activeCascadeCount) * 2u;
+            for (uint slice = uniforms.cascadeStart * 2u; slice < sliceEnd;
+                 ++slice) {
                 uint cascade = slice / 2u;
                 bool slopeValue = (slice & 1u) != 0u;
                 float4 lowerInput = float4(half4(evolvedSpectrumValue(
@@ -622,8 +632,10 @@ enum OceanFFTMetalSource {
             threadgroup float4 buffer[FFT_SIZE];
             uint2 lowerPosition = position.yx;
             uint2 upperPosition = lowerPosition + uint2(0u, HALF_FFT_SIZE);
-            uint activeSliceCount = uniforms.activeCascadeCount * 2u;
-            for (uint slice = 0; slice < activeSliceCount; ++slice) {
+            uint sliceEnd = (uniforms.cascadeStart
+                + uniforms.activeCascadeCount) * 2u;
+            for (uint slice = uniforms.cascadeStart * 2u; slice < sliceEnd;
+                 ++slice) {
                 float4 lowerOutput;
                 float4 upperOutput;
                 inverseFFTPair(
@@ -674,7 +686,9 @@ enum OceanFFTMetalSource {
             float sign = checkerboardSign(position);
             float normalization = uniforms.inverseFFTScale * sign;
             for (uint cascade = 0; cascade < CASCADE_COUNT; ++cascade) {
-                if (cascade >= uniforms.activeCascadeCount) {
+                if (cascade < uniforms.cascadeStart
+                    || cascade >= uniforms.cascadeStart
+                        + uniforms.activeCascadeCount) {
                     displacement.write(
                         previousDisplacement.read(position, cascade),
                         position,
@@ -803,7 +817,9 @@ enum OceanFFTMetalSource {
             uint2 lowerPosition = position.yx;
             uint2 upperPosition = lowerPosition + uint2(0u, HALF_FFT_SIZE);
             for (uint cascade = 0; cascade < CASCADE_COUNT; ++cascade) {
-                if (cascade >= uniforms.activeCascadeCount) {
+                if (cascade < uniforms.cascadeStart
+                    || cascade >= uniforms.cascadeStart
+                        + uniforms.activeCascadeCount) {
                     displacement.write(
                         previousDisplacement.read(lowerPosition, cascade),
                         lowerPosition,
@@ -1129,15 +1145,17 @@ enum OceanFFTMetalSource {
                 position.x,
                 uniforms.resolution - 1u - position.y
             );
+            uint sourceA = uniforms.cascadeStart;
+            uint sourceB = uniforms.cascadeStart + 1u;
             cascade0.write(float4(
-                slope.read(sourcePosition, 0).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, 0).a,
-                length(displacement.read(sourcePosition, 0).xz)
+                slope.read(sourcePosition, sourceA).xy * uniforms.amplitude,
+                displacement.read(sourcePosition, sourceA).a,
+                length(displacement.read(sourcePosition, sourceA).xz)
             ), position);
             cascade1.write(float4(
-                slope.read(sourcePosition, 1).xy * uniforms.amplitude,
-                displacement.read(sourcePosition, 1).a,
-                length(displacement.read(sourcePosition, 1).xz)
+                slope.read(sourcePosition, sourceB).xy * uniforms.amplitude,
+                displacement.read(sourcePosition, sourceB).a,
+                length(displacement.read(sourcePosition, sourceB).xz)
             ), position);
         }
 

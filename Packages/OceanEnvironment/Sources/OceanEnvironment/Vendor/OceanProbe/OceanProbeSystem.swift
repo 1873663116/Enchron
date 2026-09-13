@@ -11,10 +11,11 @@ struct SimulationTickOffer: Equatable {
 }
 
 struct SimulationClock {
-    /// Simulation ticks are capped below the render rate: each tick costs
-    /// ~6ms of GPU and triggers a ~7.5ms presentation, so running the FFT at
+    /// Simulation ticks are capped below the render rate in the throttled
+    /// mode: each full tick costs several ms of GPU, so running the FFT at
     /// full display rate exceeds the 90 Hz frame budget once video surfaces
-    /// share the GPU.
+    /// share the GPU. `OceanProbeSystem` rewrites this every update from
+    /// `OceanSimulationControl.mode` (0 in fullRate).
     var minimumTickInterval: Float = 1.0 / 45.0
     private var lastOfferedSceneTime: Float?
     private var pending: SimulationTickOffer?
@@ -472,12 +473,16 @@ public struct OceanProbeSystem: System {
             #endif
 
             do {
+                let simulationMode = OceanSimulationControl.mode
+                simulationClock.minimumTickInterval =
+                    simulationMode == .fullRate ? 0 : 1.0 / 45.0
                 let offeredTick = simulationClock.offer(sceneTime: elapsedTime)
                 let advance = try activeRenderer.advanceFrame(
                     sceneTime: elapsedTime,
                     frameDeltaTime: Float(context.deltaTime),
                     offeredTick: offeredTick,
-                    parameters: parameters
+                    parameters: parameters,
+                    simulationMode: simulationMode
                 )
                 #if DEBUG
                 if let ms = advance.completedSimulationGPUTimeMilliseconds,
@@ -509,6 +514,7 @@ public struct OceanProbeSystem: System {
                     )
                 }
                 surface.isEnabled = activeRenderer.hasPresentedFrame
+                    && OceanSimulationControl.surfaceEnabled
                 for evidence in advance.evidence {
                     if let firstFrame = evidence.firstFrame {
                         Self.logger.notice(

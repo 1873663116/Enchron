@@ -44,10 +44,13 @@ private struct OceanUniforms {
     var foamDecay: Float
     var activeCascadeCount: UInt32
     var detailDeltaTime: Float
+    var cascadeStart: UInt32
 }
 
 struct CascadeUpdatePlan: Equatable {
+    let cascadeStart: UInt32
     let activeCascadeCount: UInt32
+    let primaryFoamElapsed: Float
     let detailFoamElapsed: Float
     fileprivate let nextDetailUpdateIsDue: Bool
     fileprivate let detailUpdateTime: Float?
@@ -60,6 +63,8 @@ struct CascadeUpdatePlan: Equatable {
 struct CascadeUpdateScheduler {
     private var detailUpdateIsDue = true
     private var lastDetailUpdateTime: Float?
+    private var nextCascadePairStart: UInt32 = 0
+    private var lastPairUpdateTimes: [Float?] = [nil, nil]
 
     mutating func requireFullUpdate() {
         detailUpdateIsDue = true
@@ -70,9 +75,18 @@ struct CascadeUpdateScheduler {
         frameDeltaTime: Float,
         forceFullUpdate: Bool,
         resetsFoam: Bool,
-        updatesDetailEveryTick: Bool = false
+        updatesDetailEveryTick: Bool = false,
+        rotatesCascadePairs: Bool = false
     ) -> CascadeUpdatePlan {
         let frameElapsed = Self.clampedFrameDelta(frameDeltaTime)
+        if rotatesCascadePairs {
+            return rotatingPlan(
+                time: time,
+                frameElapsed: frameElapsed,
+                forceFullUpdate: forceFullUpdate,
+                resetsFoam: resetsFoam
+            )
+        }
         let updatesDetail = forceFullUpdate
             || updatesDetailEveryTick
             || detailUpdateIsDue
@@ -90,10 +104,49 @@ struct CascadeUpdateScheduler {
             detailElapsed = frameElapsed
         }
         return CascadeUpdatePlan(
+            cascadeStart: 0,
             activeCascadeCount: updatesDetail ? 4 : 2,
+            primaryFoamElapsed: frameElapsed,
             detailFoamElapsed: detailElapsed,
             nextDetailUpdateIsDue: !updatesDetail,
             detailUpdateTime: updatesDetail ? time : nil
+        )
+    }
+
+    private func rotatingPlan(
+        time: Float,
+        frameElapsed: Float,
+        forceFullUpdate: Bool,
+        resetsFoam: Bool
+    ) -> CascadeUpdatePlan {
+        let pairElapsed: (Int) -> Float = { pair in
+            guard let last = lastPairUpdateTimes[pair] else {
+                return frameElapsed
+            }
+            let elapsed = time - last
+            return Self.clampedDetailElapsed(
+                elapsed.isFinite && elapsed > 0 ? elapsed : frameElapsed
+            )
+        }
+        if forceFullUpdate || resetsFoam || detailUpdateIsDue {
+            return CascadeUpdatePlan(
+                cascadeStart: 0,
+                activeCascadeCount: 4,
+                primaryFoamElapsed: pairElapsed(0),
+                detailFoamElapsed: pairElapsed(1),
+                nextDetailUpdateIsDue: false,
+                detailUpdateTime: time
+            )
+        }
+        let pair = nextCascadePairStart == 0 ? 0 : 1
+        let elapsed = pairElapsed(pair)
+        return CascadeUpdatePlan(
+            cascadeStart: nextCascadePairStart,
+            activeCascadeCount: 2,
+            primaryFoamElapsed: pair == 0 ? elapsed : frameElapsed,
+            detailFoamElapsed: pair == 1 ? elapsed : frameElapsed,
+            nextDetailUpdateIsDue: false,
+            detailUpdateTime: time
         )
     }
 
@@ -101,6 +154,14 @@ struct CascadeUpdateScheduler {
         detailUpdateIsDue = plan.nextDetailUpdateIsDue
         if let detailUpdateTime = plan.detailUpdateTime {
             lastDetailUpdateTime = detailUpdateTime
+            if plan.activeCascadeCount == 4 {
+                lastPairUpdateTimes[0] = detailUpdateTime
+                lastPairUpdateTimes[1] = detailUpdateTime
+            } else {
+                let pair = plan.cascadeStart == 0 ? 0 : 1
+                lastPairUpdateTimes[pair] = detailUpdateTime
+                nextCascadePairStart = plan.cascadeStart == 0 ? 2 : 0
+            }
         }
     }
 
@@ -127,6 +188,8 @@ private struct SurfaceUniforms {
 private struct SurfacePublicationUniforms {
     var resolution: UInt32
     var amplitude: Float
+    var cascadeStart: UInt32 = 0
+    var padding: Float = 0
 }
 
 private struct InterpolatedSurfacePublicationUniforms {
@@ -427,15 +490,24 @@ private struct PublishedSurfaceFields {
     }
 
     func replace(
-        activeCascadeCount: Int,
+        cascadeStart: Int,
+        cascadeCount: Int,
         using commandBuffer: any MTLCommandBuffer
     ) -> PublishedTargets {
-        precondition(activeCascadeCount == 2 || activeCascadeCount == 4)
-        let active = textures.prefix(activeCascadeCount).map {
-            $0.replace(using: commandBuffer)
+        precondition(cascadeCount == 2 || cascadeCount == 4)
+        precondition(cascadeStart >= 0 && cascadeStart + cascadeCount <= 4)
+        var active: [any MTLTexture] = []
+        var all: [any MTLTexture] = []
+        for (index, texture) in textures.enumerated() {
+            if index >= cascadeStart && index < cascadeStart + cascadeCount {
+                let replaced = texture.replace(using: commandBuffer)
+                active.append(replaced)
+                all.append(replaced)
+            } else {
+                all.append(texture.read())
+            }
         }
-        let retained = textures.dropFirst(activeCascadeCount).map { $0.read() }
-        return PublishedTargets(active: active, all: active + retained)
+        return PublishedTargets(active: active, all: all)
     }
 }
 
@@ -648,7 +720,7 @@ final class OceanProbeRenderer {
 
         precondition(MemoryLayout<OceanUniforms>.stride == 112)
         precondition(MemoryLayout<SurfaceUniforms>.stride == 48)
-        precondition(MemoryLayout<SurfacePublicationUniforms>.stride == 8)
+        precondition(MemoryLayout<SurfacePublicationUniforms>.stride == 16)
         precondition(MemoryLayout<WindSpectrumParameters>.stride == 32)
         precondition(MemoryLayout<SwellSpectrumParameters>.stride == 32)
         precondition(MemoryLayout<OceanVertex>.stride == 80)
@@ -706,7 +778,8 @@ final class OceanProbeRenderer {
         sceneTime: Float,
         frameDeltaTime: Float,
         offeredTick: SimulationTickOffer?,
-        parameters: OceanProbeParameters
+        parameters: OceanProbeParameters,
+        simulationMode: OceanSimulationMode = .throttled
     ) throws -> FrameAdvanceResult {
         let completed = try reapCompletedCommands(sceneTime: sceneTime)
         if let installedFoamParameters,
@@ -776,13 +849,15 @@ final class OceanProbeRenderer {
                     lease: lease,
                     signature: signature,
                     generation: desiredSpectrumGeneration,
-                    parameters: parameters
+                    parameters: parameters,
+                    simulationMode: simulationMode
                 )
                 acceptedOfferedTick = acceptedOffer != nil
             }
         }
 
-        if inFlightInterpolation == nil,
+        if simulationMode == .throttled,
+           inFlightInterpolation == nil,
            let pair = interpolationPair(),
            let blendFactor = interpolationFactor(
                sceneTime: sceneTime,
@@ -824,7 +899,8 @@ final class OceanProbeRenderer {
         lease: SnapshotLeaseLedger.SimulationLease,
         signature: SpectrumSignature,
         generation: UInt64,
-        parameters: OceanProbeParameters
+        parameters: OceanProbeParameters,
+        simulationMode: OceanSimulationMode
     ) throws {
         guard let commandBuffer = simulationQueue.makeCommandBuffer() else {
             snapshotLedger.cancelBeforeSubmission(lease)
@@ -845,7 +921,8 @@ final class OceanProbeRenderer {
             frameDeltaTime: simulationElapsed,
             forceFullUpdate: rebuildsSpectrum || pendingForcedSimulation,
             resetsFoam: rebuildsSpectrum,
-            updatesDetailEveryTick: false
+            updatesDetailEveryTick: false,
+            rotatesCascadePairs: simulationMode == .fullRate
         )
         var uniforms = makeUniforms(
             time: sampleTime,
@@ -961,6 +1038,9 @@ final class OceanProbeRenderer {
         commandBuffer.label = "FFT Ocean Presentation"
         let republishesExistingField = lastPresentedSequence
             == request.source.sequence
+        let cascadeStart = republishesExistingField
+            ? 0
+            : Int(request.source.cascadePlan.cascadeStart)
         let activeCascadeCount = republishesExistingField
             ? 4
             : Int(request.source.cascadePlan.activeCascadeCount)
@@ -969,7 +1049,8 @@ final class OceanProbeRenderer {
             using: commandBuffer
         )
         let publishedTargets = publishedFields.replace(
-            activeCascadeCount: activeCascadeCount,
+            cascadeStart: cascadeStart,
+            cascadeCount: activeCascadeCount,
             using: commandBuffer
         )
         do {
@@ -983,7 +1064,8 @@ final class OceanProbeRenderer {
             )
             var publicationUniforms = SurfacePublicationUniforms(
                 resolution: UInt32(Self.publishedFieldResolution),
-                amplitude: parameters.amplitude
+                amplitude: parameters.amplitude,
+                cascadeStart: UInt32(cascadeStart)
             )
             try encodeSurfaceProjection(
                 into: commandBuffer,
@@ -991,7 +1073,7 @@ final class OceanProbeRenderer {
                 vertexBuffer: vertexBuffer,
                 uniforms: &surfaceUniforms,
                 publishedTargets: publishedTargets.active,
-                updatesDetail: activeCascadeCount == 4,
+                cascadeCount: activeCascadeCount,
                 publicationUniforms: &publicationUniforms
             )
             try encodePublishedFieldMipmaps(
@@ -1217,7 +1299,8 @@ final class OceanProbeRenderer {
             encoder.endEncoding()
 
             let publishedTargets = publishedFields.replace(
-                activeCascadeCount: 4,
+                cascadeStart: 0,
+                cascadeCount: 4,
                 using: commandBuffer
             )
             var publicationUniforms = InterpolatedSurfacePublicationUniforms(
@@ -1502,7 +1585,7 @@ final class OceanProbeRenderer {
             depth: parameters.waterDepth,
             gravity: 9.81,
             frameTime: time * parameters.timeScale,
-            deltaTime: CascadeUpdateScheduler.clampedFrameDelta(deltaTime),
+            deltaTime: cascadePlan.primaryFoamElapsed,
             repeatTime: parameters.repeatTime,
             inverseFFTScale: 1,
             lengthScales: parameters.cascades.lengthScales,
@@ -1514,7 +1597,8 @@ final class OceanProbeRenderer {
             foamAdd: parameters.foam.amount,
             foamDecay: parameters.foam.decay,
             activeCascadeCount: cascadePlan.activeCascadeCount,
-            detailDeltaTime: cascadePlan.detailFoamElapsed
+            detailDeltaTime: cascadePlan.detailFoamElapsed,
+            cascadeStart: cascadePlan.cascadeStart
         )
     }
 
@@ -1787,7 +1871,7 @@ final class OceanProbeRenderer {
         vertexBuffer: any MTLBuffer,
         uniforms: inout SurfaceUniforms,
         publishedTargets: [any MTLTexture],
-        updatesDetail: Bool,
+        cascadeCount: Int,
         publicationUniforms: inout SurfacePublicationUniforms
     ) throws {
         let meshEncoder = try makeEncoder(
@@ -1814,7 +1898,7 @@ final class OceanProbeRenderer {
             commandBuffer,
             label: "Publish Ocean Surface Fields"
         )
-        let publicationPipeline = updatesDetail
+        let publicationPipeline = cascadeCount == 4
             ? pipelines.publishSurfaceFields
             : pipelines.publishPrimarySurfaceFields
         publicationEncoder.setComputePipelineState(publicationPipeline)
