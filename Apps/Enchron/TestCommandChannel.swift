@@ -1228,33 +1228,6 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [String(describing: target), entry.id.uuidString]
             )
-        case "setOceanSim":
-            var applied: [String] = []
-            if let rawMode = request.args["mode"], rawMode.isEmpty == false {
-                applied.append(
-                    "mode=" + (try OceanSimulationControlBridge.applyMode(rawMode))
-                )
-            }
-            if let rawSurface = request.args["surface"], rawSurface.isEmpty == false {
-                applied.append(
-                    "surface=" + (try OceanSimulationControlBridge.applySurfaceEnabled(rawSurface))
-                )
-            }
-            guard applied.isEmpty == false else {
-                throw CommandError(
-                    message: "setOceanSim requires mode= or surface=."
-                )
-            }
-            SurfaceInputProbes.record(
-                "testcmd setOceanSim \(applied.joined(separator: " "))",
-                retention: .evidence
-            )
-            return Response(
-                id: request.id,
-                ok: true,
-                detail: nil,
-                payload: applied
-            )
         case "exitSpatial":
             guard let target = playbackSession.playbackPresentation.exitImmersiveTarget else {
                 throw CommandError(message: "exitSpatial requires immersive playback.")
