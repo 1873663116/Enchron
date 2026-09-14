@@ -28,7 +28,6 @@ nonisolated struct ViewingStorageDiagnosticSnapshot: Encodable, Equatable {
             let resumePolicy: String
             let endBehavior: String
             let defaultSpeed: Double
-            let defaultEnvironmentID: String?
             let controlsAutoHideSeconds: Int
         }
 
@@ -239,7 +238,6 @@ private extension ViewingStorageDiagnosticSnapshot.ProtectedState.PlaybackPrefer
         case .playNext: "play-next"
         }
         self.defaultSpeed = preferences.defaultPlaybackSpeed
-        self.defaultEnvironmentID = preferences.defaultEnvironmentID
         self.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
     }
 }

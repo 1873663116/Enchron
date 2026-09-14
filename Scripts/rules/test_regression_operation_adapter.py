@@ -73,7 +73,7 @@ VALID_ARGUMENTS: dict[str, dict[str, object]] = {
         "deadlineSeconds": 30,
     },
     "operation:format.apply@2": {"projection": "flat", "stereoLayout": "mono", "deadlineSeconds": 30},
-    "operation:presentation.enter-docked-skybox@1": {"deadlineSeconds": 30},
+    "operation:presentation.enter-docked-default@1": {"deadlineSeconds": 30},
     "operation:presentation.enter-panorama@1": {"deadlineSeconds": 30},
     "operation:presentation.exit-spatial@1": {"from": "panorama", "deadlineSeconds": 30},
     "operation:transition-trace.arm@1": {},
@@ -6170,7 +6170,7 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
                 return_value=control_plane,
             ),
         ):
-            docked = backend._presentation_enter_docked_skybox_1(
+            docked = backend._presentation_enter_docked_default_1(
                 {"deadlineSeconds": 30}, self.device
             )
             panorama = backend._presentation_enter_panorama_1(

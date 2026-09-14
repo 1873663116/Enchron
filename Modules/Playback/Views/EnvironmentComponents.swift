@@ -26,46 +26,48 @@ public struct FeaturedEnvironment: Identifiable {
         }
     }
 
+    public static let defaultEnvironmentThumbnailName = "EnvironmentQuietRoom"
+
     public static let catalog: [FeaturedEnvironment] = [
         .init(
-            environment: .scenicOne,
-            lightImageName: "SunsetNature",
-            darkImageName: "ScenicEnvironment1Dark",
-            title: "Scenic Environment 1",
+            environment: .ocean,
+            lightImageName: "EnvironmentOcean",
+            darkImageName: "EnvironmentOceanDark",
+            title: "Ocean",
             environmentNumber: "Environment 01",
-            quote: "\"A pale red placeholder for the first scenic identity.\"",
-            mode: "Scenic placeholder",
+            quote: "\"Open water under a slow sky, the screen mirrored in the swell.\"",
+            mode: "Open water",
             atmosphere: "Light Mode / Dark Mode"
         ),
         .init(
-            environment: .scenicTwo,
-            lightImageName: "SceneFeatureForestShrine",
-            darkImageName: "SceneFeatureNeonCity",
-            title: "Scenic Environment 2",
+            environment: .placeholderRed,
+            lightImageName: "EnvironmentPlaceholderRed",
+            darkImageName: "EnvironmentPlaceholderRedDark",
+            title: "Red",
             environmentNumber: "Environment 02",
-            quote: "\"A pale green placeholder for the second scenic identity.\"",
-            mode: "Scenic placeholder",
+            quote: "\"A solid red placeholder for a future environment.\"",
+            mode: "Placeholder",
             atmosphere: "Light Mode / Dark Mode"
         ),
         .init(
-            environment: .scenicThree,
-            lightImageName: "SceneFeatureOceanTemple",
-            darkImageName: "SceneFeatureOrbitalGarden",
-            title: "Scenic Environment 3",
+            environment: .placeholderGreen,
+            lightImageName: "EnvironmentPlaceholderGreen",
+            darkImageName: "EnvironmentPlaceholderGreenDark",
+            title: "Green",
             environmentNumber: "Environment 03",
-            quote: "\"A pale blue placeholder for the third scenic identity.\"",
-            mode: "Scenic placeholder",
+            quote: "\"A solid green placeholder for a future environment.\"",
+            mode: "Placeholder",
             atmosphere: "Light Mode / Dark Mode"
         ),
         .init(
-            environment: .skybox,
-            lightImageName: "SceneFeatureCinema",
-            darkImageName: "SceneFeatureCinema",
-            title: "Skybox",
+            environment: .placeholderBlue,
+            lightImageName: "EnvironmentPlaceholderBlue",
+            darkImageName: "EnvironmentPlaceholderBlueDark",
+            title: "Blue",
             environmentNumber: "Environment 04",
-            quote: "\"The current Skybox remains a fixed independent environment.\"",
-            mode: "Fixed Skybox",
-            atmosphere: "Fixed"
+            quote: "\"A solid blue placeholder for a future environment.\"",
+            mode: "Placeholder",
+            atmosphere: "Light Mode / Dark Mode"
         )
     ]
 }
@@ -139,7 +141,7 @@ public struct EnvironmentCard: View {
     private var topControls: some View {
         VStack {
             HStack(spacing: DesignTokens.Spacing.sm) {
-                if environment.environment.isScenic {
+                if environment.environment.supportsDarkAppearance {
                     AppearanceModeButton(
                         isActive: effect == .dark,
                         accessibilityLabel: effect == .light

@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import CryptoKit
+import EnvironmentSceneContract
 import RealityKitScripting
 import Playback
 import SwiftUI
@@ -9,13 +10,14 @@ import UIKit
 struct EnchronApp: App {
     @Environment(\.scenePhase) private var mainScenePhase
     @State private var application: EnchronApplication
+    @State private var didRetryActiveFailureAfterActivation = false
     @State private var immersionStyle: ImmersionStyle = .progressive(
         SpatialImmersiveSpacePolicy.progressiveImmersionRange
     )
 
     init() {
         do {
-            try RKS.initialize()
+            try RKS.initialize(inputOptions: .all.subtracting(.ar))
         } catch {
             assertionFailure("RealityKitScripting initialization failed: \(error)")
         }
@@ -51,12 +53,26 @@ struct EnchronApp: App {
             }
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
-                guard current == .active else { return }
+                guard current == .active else {
+                    didRetryActiveFailureAfterActivation = false
+                    return
+                }
                 Task { @MainActor in
                     await Task.yield()
                     guard mainScenePhase == .active else { return }
                     application.spatialPlatformEffectCoordinator
-                        .reconcileImmersiveSpaceResidency()
+                        .handleApplicationDidBecomeActive()
+                    guard didRetryActiveFailureAfterActivation == false,
+                          application.playbackRuntime.productLifecycle
+                            == .failed,
+                          application.playbackLauncher
+                            .canRetryActiveFailure else { return }
+                    didRetryActiveFailureAfterActivation = true
+                    SurfaceInputProbes.record(
+                        "activeFailureRetry trigger=activation",
+                        retention: .evidence
+                    )
+                    application.playbackLauncher.retryPlayback()
                 }
             }
             .enchronEnvironment(application)
@@ -99,6 +115,11 @@ struct EnchronApp: App {
                     .background {
                         SpatialPlatformEffectExecutor(windowIdentity: .player)
                     }
+                    .preferredSurroundingsEffect(
+                        application.settingsViewModel.preferences.surroundingsDimmingEnabled
+                            ? .ultraDark
+                            : nil
+                    )
             }
             .enchronEnvironment(application)
         }
@@ -134,6 +155,7 @@ struct EnchronApp: App {
                 .background {
                     SpatialPlatformEffectExecutor()
                 }
+                .preferredSurroundingsEffect(immersiveSurroundingsEffect)
                 .enchronEnvironment(application)
                 .onImmersionChange { _, newImmersion in
                     application.playbackSessionModel.recordImmersionAmount(newImmersion.amount)
@@ -183,6 +205,16 @@ struct EnchronApp: App {
                 initialAmount: application.playbackSessionModel.immersiveSpaceOpeningInitialAmount
             )
         }
+    }
+
+    private var immersiveSurroundingsEffect: SurroundingsEffect? {
+        guard application.settingsViewModel.preferences.surroundingsDimmingEnabled,
+              application.playbackSessionModel.playbackPresentation.usesImmersiveSpace
+        else { return nil }
+        let geometry = EnvironmentSceneMapping.geometry(
+            for: application.playbackSessionModel.currentCinemaEnvironment
+        )
+        return geometry.dimsSurroundings ? .ultraDark : nil
     }
 }
 

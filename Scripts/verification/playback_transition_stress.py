@@ -77,7 +77,7 @@ def build_step(move: str, presentation: str, clip: str) -> Step:
     if move == "enter-docked":
         return Step(
             "enter-docked",
-            (*prefix, "PlayerUI-TopAction-dock", "PlayerUI-DockMenu-skybox"),
+            (*prefix, "PlayerUI-TopAction-dock", "PlayerUI-DockMenu-default"),
             "docked",
         )
     if move == "enter-panorama":

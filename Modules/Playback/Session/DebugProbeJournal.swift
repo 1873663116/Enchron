@@ -74,6 +74,7 @@ public final class DebugProbeJournal {
     }
 
     private let configuration: Configuration
+    private let writeQueue = DispatchQueue(label: "app.enchron.probe-journal")
     private var records: [DebugProbeRecord]
     private var currentSession: String?
     private var nextSequence: UInt64
@@ -179,24 +180,26 @@ public final class DebugProbeJournal {
 
     private func append(_ record: DebugProbeRecord) {
         let data = Data(record.line.utf8)
-        do {
-            try FileManager.default.createDirectory(
-                at: configuration.url.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            if FileManager.default.fileExists(atPath: configuration.url.path) {
-                let handle = try FileHandle(forWritingTo: configuration.url)
-                defer { try? handle.close() }
-                try handle.seekToEnd()
-                try handle.write(contentsOf: data)
-            } else {
-                try data.write(to: configuration.url, options: .atomic)
+        status.fileBytes += data.count
+        status.peakFileBytes = max(status.peakFileBytes, status.fileBytes)
+        let url = configuration.url
+        writeQueue.async { [weak self] in
+            do {
+                try FileManager.default.createDirectory(
+                    at: url.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                if FileManager.default.fileExists(atPath: url.path) {
+                    let handle = try FileHandle(forWritingTo: url)
+                    defer { try? handle.close() }
+                    try handle.seekToEnd()
+                    try handle.write(contentsOf: data)
+                } else {
+                    try data.write(to: url, options: .atomic)
+                }
+            } catch {
+                DispatchQueue.main.async { self?.status.writeFailed = true }
             }
-            status.fileBytes += data.count
-            status.peakFileBytes = max(status.peakFileBytes, status.fileBytes)
-        } catch {
-            records.removeAll { $0.sequence == record.sequence }
-            status.writeFailed = true
         }
     }
 
@@ -238,16 +241,19 @@ public final class DebugProbeJournal {
             status.evidenceOverflowed = true
             return
         }
-        do {
-            try FileManager.default.createDirectory(
-                at: configuration.url.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-            try data.write(to: configuration.url, options: .atomic)
-            status.fileBytes = data.count
-            status.peakFileBytes = max(status.peakFileBytes, data.count)
-        } catch {
-            status.writeFailed = true
+        status.fileBytes = data.count
+        status.peakFileBytes = max(status.peakFileBytes, data.count)
+        let url = configuration.url
+        writeQueue.async { [weak self] in
+            do {
+                try FileManager.default.createDirectory(
+                    at: url.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try data.write(to: url, options: .atomic)
+            } catch {
+                DispatchQueue.main.async { self?.status.writeFailed = true }
+            }
         }
     }
 

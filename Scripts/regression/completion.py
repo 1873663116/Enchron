@@ -108,7 +108,7 @@ EXPECTED_OPERATION_IDS = frozenset(
         "operation:playback.select-subtitle@1",
         "operation:playback.wait-position@2",
         "operation:preparation.local-directory-subtitle-source@1",
-        "operation:presentation.enter-docked-skybox@1",
+        "operation:presentation.enter-docked-default@1",
         "operation:presentation.enter-panorama@1",
         "operation:presentation.exit-spatial@1",
         "operation:storage.clear@1",

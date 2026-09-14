@@ -60,10 +60,8 @@ public struct WindowPlayerDeckView: View {
             mediaName: mediaName,
             mediaProfile: playbackRuntime.displayMediaProfile,
             canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
-            screenScale: appModel.screenScale,
-            recommendedScreenScale: EnvironmentSceneMapping.defaultScreenScale(
-                forEnvironmentID: appModel.currentCinemaEnvironment.rawValue
-            ),
+            viewerHeight: appModel.viewerHeight,
+            placementLimits: appModel.dockedPlacementLimits,
             screenDistance: appModel.screenDepthOffset,
             screenElevationDegrees: appModel.screenViewAngle,
             projection: playbackRuntime.effectiveProjectionType,
@@ -162,9 +160,9 @@ public struct WindowPlayerDeckView: View {
                     self.playbackLauncher.stopPlayback(reason: .backButton)
                 }
             },
-            onSetScreenScale: { scale in
+            onSetViewerHeight: { height in
                 self.register()
-                self.appModel.setScreenScale(scale)
+                self.appModel.setViewerHeight(height)
             },
             onSetScreenDistance: { distance in
                 self.register()

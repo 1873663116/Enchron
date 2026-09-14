@@ -304,6 +304,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         requestPlayback(request)
     }
 
+    public var canRetryActiveFailure: Bool {
+        guard let failure = playbackRuntime.userVisibleIssue?
+            .activePlaybackFailure,
+              let recovery = activeFailureRecovery else { return false }
+        return recovery.failure == failure
+    }
+
     public func retryPlayback() {
         if let failure = playbackRuntime.userVisibleIssue?.activePlaybackFailure {
             guard let recovery = activeFailureRecovery,

@@ -88,7 +88,6 @@ nonisolated final class ViewingStorageDiagnosticsTests: XCTestCase {
             resumePolicy: "always-resume",
             endBehavior: "stop",
             defaultSpeed: 1,
-            defaultEnvironmentID: nil,
             controlsAutoHideSeconds: 8
         )
         let folder = ViewingStorageDiagnosticSnapshot.ProtectedState.Folder(
@@ -193,7 +192,6 @@ nonisolated final class ViewingStorageDiagnosticsTests: XCTestCase {
             resumePolicy: "ask-every-time",
             endBehavior: "play-next",
             defaultSpeed: 1.5,
-            defaultEnvironmentID: "moon",
             controlsAutoHideSeconds: 15
         )
         let folders = [
@@ -240,7 +238,6 @@ nonisolated final class ViewingStorageDiagnosticsTests: XCTestCase {
                 resumePolicy: preferences.resumePolicy,
                 endBehavior: preferences.endBehavior,
                 defaultSpeed: 2,
-                defaultEnvironmentID: preferences.defaultEnvironmentID,
                 controlsAutoHideSeconds: preferences.controlsAutoHideSeconds
             )
         )

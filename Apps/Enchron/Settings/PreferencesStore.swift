@@ -5,11 +5,11 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
     private let defaults: UserDefaults
     private let playbackSpeedOverride: Double?
     private static let resumePolicyKey = "enchron.preferences.resumePolicy"
-    private static let defaultEnvironmentKey = "enchron.preferences.defaultEnvironment"
     private static let endBehaviorKey = "enchron.preferences.endBehavior"
     private static let defaultSpeedKey = "enchron.preferences.defaultSpeed"
     private static let controlsAutoHideKey = "enchron.preferences.controlsAutoHideSeconds"
     private static let developerModeKey = "enchron.preferences.developerMode"
+    private static let surroundingsDimmingKey = "enchron.preferences.surroundingsDimming"
 
     public init(defaults: UserDefaults = .standard, playbackSpeedOverride: Double? = nil) {
         self.defaults = defaults
@@ -40,16 +40,15 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         }
 
         let defaultSpeed = defaults.object(forKey: Self.defaultSpeedKey) as? Double ?? 1.0
-        let envID = defaults.string(forKey: Self.defaultEnvironmentKey)
         let controlsAutoHide = defaults.object(forKey: Self.controlsAutoHideKey) as? Int ?? 8
 
         return UserPreferences(
             resumePolicy: policy,
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
-            defaultEnvironmentID: envID,
             controlsAutoHideSeconds: controlsAutoHide,
-            developerModeEnabled: defaults.bool(forKey: Self.developerModeKey)
+            developerModeEnabled: defaults.bool(forKey: Self.developerModeKey),
+            surroundingsDimmingEnabled: defaults.object(forKey: Self.surroundingsDimmingKey) as? Bool ?? true
         )
     }
 
@@ -76,9 +75,9 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         }
         defaults.set(endBehaviorString, forKey: Self.endBehaviorKey)
         defaults.set(preferences.defaultPlaybackSpeed, forKey: Self.defaultSpeedKey)
-        defaults.set(preferences.defaultEnvironmentID, forKey: Self.defaultEnvironmentKey)
         defaults.set(preferences.controlsAutoHideSeconds, forKey: Self.controlsAutoHideKey)
         defaults.set(preferences.developerModeEnabled, forKey: Self.developerModeKey)
+        defaults.set(preferences.surroundingsDimmingEnabled, forKey: Self.surroundingsDimmingKey)
     }
 
     public func loadPlaybackPreferences() -> PlaybackPreferences {

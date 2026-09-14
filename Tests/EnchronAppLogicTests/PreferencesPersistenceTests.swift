@@ -18,7 +18,6 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         prefs.resumePolicy = .alwaysResume
         prefs.playbackEndBehavior = .playNext
         prefs.defaultPlaybackSpeed = 1.5
-        prefs.defaultEnvironmentID = SpatialSceneDomain.CinemaEnvironment.scenicTwo.rawValue
         prefs.controlsAutoHideSeconds = 15
         store.savePreferences(prefs)
 

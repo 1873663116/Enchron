@@ -645,12 +645,16 @@ extension SampleBufferPlaybackSession {
             lastSourceEventID = sourceEventID
             diagnostics.enqueuedSampleCount += 1
             #if DEBUG
-                recordPlaybackSwitchRendererSample(
-                    trigger: diagnostics.enqueuedSampleCount == 1
-                        ? .firstInputAccepted
-                        : .inputAccepted,
-                    observesDisplayProgress: true
-                )
+                if diagnostics.enqueuedSampleCount == 1
+                    || diagnostics.enqueuedSampleCount % 30 == 0
+                {
+                    recordPlaybackSwitchRendererSample(
+                        trigger: diagnostics.enqueuedSampleCount == 1
+                            ? .firstInputAccepted
+                            : .inputAccepted,
+                        observesDisplayProgress: true
+                    )
+                }
             #endif
             let rendererRecord = RendererInputRecord(
                 mediaSessionID: traceID,

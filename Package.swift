@@ -17,7 +17,9 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/amosavian/AMSMB2.git", from: "4.0.3"),
         .package(path: "Packages/PlaybackCore"),
-        .package(path: "Packages/RealityKitContent"),
+        .package(path: "Packages/EnvironmentSceneContract"),
+        .package(path: "Packages/OceanEnvironment"),
+        .package(path: "Packages/QuietRoomEnvironment"),
         .package(url: "https://github.com/apple/realitykitscripting.git", branch: "main"),
     ],
     targets: [
@@ -49,7 +51,9 @@ let package = Package(
                 "MediaSource",
                 "DesignSystem",
                 .product(name: "PlaybackCore", package: "PlaybackCore"),
-                .product(name: "RealityKitContent", package: "RealityKitContent"),
+                .product(name: "EnvironmentSceneContract", package: "EnvironmentSceneContract"),
+                .product(name: "OceanEnvironment", package: "OceanEnvironment"),
+                .product(name: "QuietRoomEnvironment", package: "QuietRoomEnvironment"),
                 .product(name: "RealityKitScripting", package: "realitykitscripting"),
             ],
             path: "Modules/Playback",

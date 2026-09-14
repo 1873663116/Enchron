@@ -1,3 +1,4 @@
+import EnvironmentSceneContract
 import Foundation
 import Observation
 
@@ -152,42 +153,99 @@ public struct PlaybackTransportAvailability: Equatable, Sendable {
     }
 }
 
-nonisolated public enum PlaybackScreenSize {
-    public static let scaleRange = 0.5...2.5
-    public static let scaleStep = 0.05
+nonisolated public struct PlaybackDockedPlacementLimits: Equatable, Sendable {
+    public static let distanceStep = 0.5
+    public static let elevationStep = 5.0
+    public static let screenHeightStep = 0.25
+    public static let viewerHeightStep = 0.1
+    public static let viewerHeightRangeMeters: ClosedRange<Double> = -2...2
+
+    public let distanceRange: ClosedRange<Double>
+    public let elevationRange: ClosedRange<Double>
+    public let screenHeightRange: ClosedRange<Double>
+    public let defaultDistance: Double
+    public let defaultElevationDegrees: Double
+    public let defaultScreenHeight: Double
+    public let viewerHeightRange: ClosedRange<Double>
+    public let defaultViewerHeight: Double
+
+    public init(
+        distanceRange: ClosedRange<Double>,
+        elevationRange: ClosedRange<Double>,
+        screenHeightRange: ClosedRange<Double>,
+        defaultDistance: Double,
+        defaultElevationDegrees: Double = 0,
+        defaultScreenHeight: Double,
+        viewerHeightRange: ClosedRange<Double> = PlaybackDockedPlacementLimits.viewerHeightRangeMeters,
+        defaultViewerHeight: Double = 0
+    ) {
+        self.distanceRange = distanceRange
+        self.elevationRange = elevationRange
+        self.screenHeightRange = screenHeightRange
+        self.defaultDistance = defaultDistance
+        self.defaultElevationDegrees = defaultElevationDegrees
+        self.defaultScreenHeight = defaultScreenHeight
+        self.viewerHeightRange = viewerHeightRange
+        self.defaultViewerHeight = defaultViewerHeight
+    }
+
+    public init(geometry: EnvironmentSceneGeometry) {
+        self.init(
+            distanceRange: geometry.distanceRangeMeters,
+            elevationRange: geometry.elevationRangeDegrees,
+            screenHeightRange: geometry.screenHeightRangeMeters,
+            defaultDistance: geometry.defaultDistanceMeters,
+            defaultScreenHeight: geometry.defaultScreenHeightMeters,
+            viewerHeightRange: geometry.viewerHeightRangeMeters,
+            defaultViewerHeight: geometry.defaultViewerHeightMeters
+        )
+    }
+
+    public static let fallback = PlaybackDockedPlacementLimits(
+        geometry: EnvironmentSceneMapping.placeholderDescriptor.geometry
+    )
+
+    public static func limits(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) -> PlaybackDockedPlacementLimits {
+        PlaybackDockedPlacementLimits(geometry: EnvironmentSceneMapping.geometry(for: environment))
+    }
 }
 
 nonisolated public struct PlaybackDockedPlacement: Equatable, Sendable {
-    public static let defaultDistance = 4.0
-    public static let defaultElevationDegrees = 0.0
-    public static let distanceRange = 0.5...10.0
-    public static let elevationRange = -80.0...80.0
-    public static let distanceStep = 0.5
-    public static let elevationStep = 5.0
-
     public let distanceMeters: Double
     public let elevationDegrees: Double
     public let screenScale: Double
+    public let viewerHeightMeters: Double
+    public let limits: PlaybackDockedPlacementLimits
 
     public init(
-        distanceMeters: Double = Self.defaultDistance,
-        elevationDegrees: Double = Self.defaultElevationDegrees,
-        screenScale: Double = 1.3
+        distanceMeters: Double? = nil,
+        elevationDegrees: Double? = nil,
+        screenScale: Double? = nil,
+        viewerHeightMeters: Double? = nil,
+        limits: PlaybackDockedPlacementLimits = .fallback
     ) {
+        self.limits = limits
         self.distanceMeters = Self.snapped(
-            distanceMeters,
-            in: Self.distanceRange,
-            step: Self.distanceStep
+            distanceMeters ?? limits.defaultDistance,
+            in: limits.distanceRange,
+            step: PlaybackDockedPlacementLimits.distanceStep
         )
         self.elevationDegrees = Self.snapped(
-            elevationDegrees,
-            in: Self.elevationRange,
-            step: Self.elevationStep
+            elevationDegrees ?? limits.defaultElevationDegrees,
+            in: limits.elevationRange,
+            step: PlaybackDockedPlacementLimits.elevationStep
         )
         self.screenScale = Self.snapped(
-            screenScale,
-            in: PlaybackScreenSize.scaleRange,
-            step: PlaybackScreenSize.scaleStep
+            screenScale ?? limits.defaultScreenHeight,
+            in: limits.screenHeightRange,
+            step: PlaybackDockedPlacementLimits.screenHeightStep
+        )
+        self.viewerHeightMeters = Self.snapped(
+            viewerHeightMeters ?? limits.defaultViewerHeight,
+            in: limits.viewerHeightRange,
+            step: PlaybackDockedPlacementLimits.viewerHeightStep
         )
     }
 
@@ -453,7 +511,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         _ target: PlaybackPresentation,
         environment requestedEnvironment: SpatialSceneDomain.CinemaEnvironment? = nil,
         effect requestedEffect: SpatialSceneDomain.EnvironmentEffect? = nil,
-        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
+        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultEnvironment,
         id: UUID = UUID()
     ) throws -> PlaybackPresentationTransition {
         guard transition == nil else {
@@ -468,7 +526,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
             let dockingEnvironment = requestedEnvironment ?? defaultEnvironment
             targetEnvironment = .active(
                 environment: dockingEnvironment,
-                effect: dockingEnvironment.isScenic
+                effect: dockingEnvironment.supportsDarkAppearance
                     ? requestedEffect ?? .inactiveFallback
                     : nil
             )
@@ -592,7 +650,6 @@ package struct PlaybackPresentationState: Equatable, Sendable {
     ) {
         resetForPlaybackStop()
         presented = family.mainWindowPresentation
-        environment = .none
     }
 
 }
@@ -615,7 +672,13 @@ public struct PlaybackPresentationSnapshot: Equatable, Sendable {
 @MainActor
 @Observable
 public final class PlaybackPresentationModel {
-    private var presentationState = PlaybackPresentationState()
+    private var presentationState = PlaybackPresentationState() {
+        didSet {
+            if presentationState.environment != oldValue.environment {
+                Task { await self.loadDockedPlacement() }
+            }
+        }
+    }
     private var activeSpatialPlatformEffectID: UUID?
     private var activeSpatialPlatformExecutionID: UUID?
     private var environmentContextBeforePreviewRequest: EnvironmentContext?
@@ -623,7 +686,10 @@ public final class PlaybackPresentationModel {
     private var lastSettledPlaybackEffectCorrelation:
         (requestID: UUID, executionID: UUID, mediaSessionID: String)?
 
-    public private(set) var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment
+    public var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        .defaultEnvironment
+    }
+    public private(set) var lastCardEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean
     public private(set) var dockedPlacement: PlaybackDockedPlacement
     public private(set) var pendingSpatialPlatformEffect: SpatialPlatformEffectRequest?
     public private(set) var immersiveSpaceResidency:
@@ -636,18 +702,11 @@ public final class PlaybackPresentationModel {
     private let screenPositionStore: any ScreenPositionStoring
 
     public init(
-        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
         screenPositionStore: any ScreenPositionStoring =
             PlaybackPresentationStorage.makeScreenPositionStore()
     ) {
-        let resolvedDefault = defaultEnvironment.isScenic
-            ? defaultEnvironment
-            : .defaultScenic
-        self.defaultEnvironment = resolvedDefault
         dockedPlacement = PlaybackDockedPlacement(
-            screenScale: EnvironmentSceneMapping.defaultScreenScale(
-                forEnvironmentID: resolvedDefault.rawValue
-            )
+            limits: .limits(for: .defaultEnvironment)
         )
         self.screenPositionStore = screenPositionStore
     }
@@ -733,6 +792,9 @@ public final class PlaybackPresentationModel {
             effect: effect,
             defaultEnvironment: defaultEnvironment
         )
+        if let environment {
+            rememberCardEnvironment(environment)
+        }
         let platformEffect: SpatialPlatformEffect = switch edge {
         case .enterImmersive:
             .enterImmersivePlayback(presentation.contentFamily)
@@ -764,6 +826,14 @@ public final class PlaybackPresentationModel {
         try presentationState.setEnvironment(
             .active(environment: environment, effect: effect)
         )
+        rememberCardEnvironment(environment)
+    }
+
+    private func rememberCardEnvironment(
+        _ environment: SpatialSceneDomain.CinemaEnvironment
+    ) {
+        guard environment.isCardEnvironment else { return }
+        lastCardEnvironment = environment
     }
 
     public func deactivateEnvironment() throws {
@@ -787,6 +857,7 @@ public final class PlaybackPresentationModel {
         try presentationState.setEnvironment(
             .active(environment: environment, effect: effect)
         )
+        rememberCardEnvironment(environment)
         pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
             effect: .presentEnvironmentPreview
         )
@@ -841,22 +912,13 @@ public final class PlaybackPresentationModel {
         }
     }
 
-    public func configureDefaultEnvironment(
-        _ environment: SpatialSceneDomain.CinemaEnvironment
-    ) {
-        guard environment.isScenic else { return }
-        guard transition == nil,
-              pendingSpatialPlatformEffect == nil else { return }
-        defaultEnvironment = environment
-    }
-
     public func setActiveEnvironmentEffect(
         _ effect: SpatialSceneDomain.EnvironmentEffect
     ) {
         guard transition == nil,
               pendingSpatialPlatformEffect == nil,
               let environment = environmentContext.environment,
-              environment.isScenic else { return }
+              environment.supportsDarkAppearance else { return }
         try? presentationState.setEnvironment(
             .active(environment: environment, effect: effect)
         )
@@ -1202,7 +1264,9 @@ public final class PlaybackPresentationModel {
         dockedPlacement = PlaybackDockedPlacement(
             distanceMeters: saved.distanceMeters,
             elevationDegrees: saved.elevationDegrees,
-            screenScale: saved.screenScale
+            screenScale: saved.screenScale,
+            viewerHeightMeters: saved.viewerHeightMeters,
+            limits: .limits(for: currentEnvironment)
         )
     }
 
@@ -1210,7 +1274,9 @@ public final class PlaybackPresentationModel {
         dockedPlacement = PlaybackDockedPlacement(
             distanceMeters: dockedPlacement.distanceMeters,
             elevationDegrees: dockedPlacement.elevationDegrees,
-            screenScale: scale
+            screenScale: scale,
+            viewerHeightMeters: dockedPlacement.viewerHeightMeters,
+            limits: .limits(for: currentEnvironment)
         )
         saveDockedPlacement()
     }
@@ -1219,7 +1285,9 @@ public final class PlaybackPresentationModel {
         dockedPlacement = PlaybackDockedPlacement(
             distanceMeters: distance,
             elevationDegrees: dockedPlacement.elevationDegrees,
-            screenScale: dockedPlacement.screenScale
+            screenScale: dockedPlacement.screenScale,
+            viewerHeightMeters: dockedPlacement.viewerHeightMeters,
+            limits: .limits(for: currentEnvironment)
         )
         saveDockedPlacement()
     }
@@ -1228,7 +1296,20 @@ public final class PlaybackPresentationModel {
         dockedPlacement = PlaybackDockedPlacement(
             distanceMeters: dockedPlacement.distanceMeters,
             elevationDegrees: elevationDegrees,
-            screenScale: dockedPlacement.screenScale
+            screenScale: dockedPlacement.screenScale,
+            viewerHeightMeters: dockedPlacement.viewerHeightMeters,
+            limits: .limits(for: currentEnvironment)
+        )
+        saveDockedPlacement()
+    }
+
+    public func setViewerHeight(_ height: Double) {
+        dockedPlacement = PlaybackDockedPlacement(
+            distanceMeters: dockedPlacement.distanceMeters,
+            elevationDegrees: dockedPlacement.elevationDegrees,
+            screenScale: dockedPlacement.screenScale,
+            viewerHeightMeters: height,
+            limits: .limits(for: currentEnvironment)
         )
         saveDockedPlacement()
     }
@@ -1247,7 +1328,8 @@ public final class PlaybackPresentationModel {
                 for: environmentID,
                 distanceMeters: placement.distanceMeters,
                 elevationDegrees: placement.elevationDegrees,
-                screenScale: placement.screenScale
+                screenScale: placement.screenScale,
+                viewerHeightMeters: placement.viewerHeightMeters
             )
         }
     }
@@ -1255,10 +1337,6 @@ public final class PlaybackPresentationModel {
     private func defaultDockedPlacement(
         for environment: SpatialSceneDomain.CinemaEnvironment
     ) -> PlaybackDockedPlacement {
-        PlaybackDockedPlacement(
-            screenScale: EnvironmentSceneMapping.defaultScreenScale(
-                forEnvironmentID: environment.rawValue
-            )
-        )
+        PlaybackDockedPlacement(limits: .limits(for: environment))
     }
 }

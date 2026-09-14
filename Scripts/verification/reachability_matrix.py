@@ -192,7 +192,6 @@ DEFERRED_MENU_TARGETS = {
     ("emby", "version"): "__firstUnselected",
     ("settings", "resume-strategy"): "askEveryTime",
     ("settings", "end-behavior"): "stop",
-    ("settings", "default-scenic-environment"): "scenic-one",
     ("settings", "default-speed"): "0.5",
     ("settings", "controls-auto-hide"): "8",
 }
@@ -4720,7 +4719,6 @@ class ReachabilityRun:
         for family in (
             "resume-strategy",
             "end-behavior",
-            "default-scenic-environment",
             "default-speed",
             "controls-auto-hide",
         ):
@@ -6480,7 +6478,7 @@ class ReachabilityRun:
         self.resume_decision_scenario()
         self.playback_failure_scenario()
         try:
-            self.enter_docked_playback(dock_choice="skybox")
+            self.enter_docked_playback(dock_choice="default")
         except AttributeError:
             pass
         try:
@@ -7405,7 +7403,7 @@ class ReachabilityRun:
     def enter_docked_playback(
         self,
         *,
-        dock_choice: str = "skybox",
+        dock_choice: str = "default",
         file_name: str | None = None,
         record_route: bool = False,
     ) -> bool:
@@ -7471,23 +7469,26 @@ class ReachabilityRun:
                 "surfaceSettled=true",
             )
         )
+        environment = "quiet-room" if dock_choice == "default" else "ocean"
+        effect = "none" if dock_choice == "default" else dock_choice
         delivered_probe = reachability_action_was_delivered(
             probe, "dock.open", offset=offset
         ) and any(
             "reachability " in line
             and " delivered action=dock.select" in line
-            and f"effect={'none' if dock_choice == 'skybox' else dock_choice}" in line
+            and f"environment={environment} effect={effect}" in line
             for line in probe[offset:]
         ) and any(
-            "worldLoad event=completed anchor=PlaybackSurfaceAnchor" in line
+            "worldLoad event=completed anchor=EnchronPlaybackSurfaceAnchor"
+            f" environment={environment}" in line
             for line in probe[offset:]
         )
         if transition.get("success") is not True or not settled or not delivered_probe:
             return False
 
         route_operations = ["accessibility:PlayerUI-TopAction-dock"]
-        if dock_choice == "skybox":
-            route_operations.append("accessibility:PlayerUI-DockMenu-skybox")
+        if dock_choice == "default":
+            route_operations.append("accessibility:PlayerUI-DockMenu-default")
         else:
             route_operations.append("accessibility:PlayerUI-DockMenu-{$0.rawValue}")
         for operation_id in route_operations:
@@ -7514,7 +7515,7 @@ class ReachabilityRun:
             )
         for operation_id in (
             "accessibility:PlayerUI-TopAction-dock",
-            "accessibility:PlayerUI-DockMenu-skybox",
+            "accessibility:PlayerUI-DockMenu-default",
         ):
             if operation_id in route_operations:
                 self.delivered(
@@ -7896,8 +7897,8 @@ class ReachabilityRun:
         if not self.enter_docked_playback():
             return
         for axis, value in (
-            ("screenSize", "1.4"),
-            ("distance", "3.0"),
+            ("screenSize", "4.0"),
+            ("distance", "8.0"),
             ("elevation", "5.0"),
         ):
             result = self.app_command(
@@ -8085,8 +8086,8 @@ class ReachabilityRun:
         if not self.enter_docked_playback(record_route=True):
             return
         for axis, value in (
-            ("screenSize", "1.4"),
-            ("distance", "3.0"),
+            ("screenSize", "4.0"),
+            ("distance", "8.0"),
             ("elevation", "5.0"),
         ):
             result = self.app_command(
@@ -8846,7 +8847,7 @@ class ReachabilityRun:
                     key[0] == "window"
                     and key[1] in {
                         "accessibility:PlayerUI-TopAction-dock",
-                        "accessibility:PlayerUI-DockMenu-skybox",
+                        "accessibility:PlayerUI-DockMenu-default",
                     }
                     and "docked" not in selected
                 ):

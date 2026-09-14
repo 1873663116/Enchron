@@ -7,8 +7,8 @@ public struct FusedPlayerPanelLive {
     var mediaName: String
     var mediaProfile: PlaybackModel.MediaProfile?
     var canApplyFormat: Bool
-    var screenScale: Double
-    var recommendedScreenScale: Double
+    var viewerHeight: Double
+    var placementLimits: PlaybackDockedPlacementLimits = .fallback
     var screenDistance: Double
     var screenElevationDegrees: Double
     var projection: PlaybackModel.ProjectionType
@@ -37,7 +37,7 @@ public struct FusedPlayerPanelLive {
     var onEnterImmersive: () -> Void
     var onExitSpatial: () -> Void
     var onExitPlayback: () -> Void
-    var onSetScreenScale: @MainActor @Sendable (Double) -> Void
+    var onSetViewerHeight: @MainActor @Sendable (Double) -> Void
     var onSetScreenDistance: @MainActor @Sendable (Double) -> Void
     var onSetScreenElevation: @MainActor @Sendable (Double) -> Void
     var onResetDockedPlacement: () -> Void
@@ -60,8 +60,8 @@ public struct FusedPlayerPanelLive {
         mediaName: String,
         mediaProfile: PlaybackModel.MediaProfile?,
         canApplyFormat: Bool,
-        screenScale: Double,
-        recommendedScreenScale: Double,
+        viewerHeight: Double,
+        placementLimits: PlaybackDockedPlacementLimits = .fallback,
         screenDistance: Double,
         screenElevationDegrees: Double,
         projection: PlaybackModel.ProjectionType,
@@ -90,7 +90,7 @@ public struct FusedPlayerPanelLive {
         onEnterImmersive: @escaping () -> Void,
         onExitSpatial: @escaping () -> Void,
         onExitPlayback: @escaping () -> Void,
-        onSetScreenScale: @escaping @MainActor @Sendable (Double) -> Void,
+        onSetViewerHeight: @escaping @MainActor @Sendable (Double) -> Void,
         onSetScreenDistance: @escaping @MainActor @Sendable (Double) -> Void,
         onSetScreenElevation: @escaping @MainActor @Sendable (Double) -> Void,
         onResetDockedPlacement: @escaping () -> Void,
@@ -108,8 +108,8 @@ public struct FusedPlayerPanelLive {
         self.mediaName = mediaName
         self.mediaProfile = mediaProfile
         self.canApplyFormat = canApplyFormat
-        self.screenScale = screenScale
-        self.recommendedScreenScale = recommendedScreenScale
+        self.viewerHeight = viewerHeight
+        self.placementLimits = placementLimits
         self.screenDistance = screenDistance
         self.screenElevationDegrees = screenElevationDegrees
         self.projection = projection
@@ -138,7 +138,7 @@ public struct FusedPlayerPanelLive {
         self.onEnterImmersive = onEnterImmersive
         self.onExitSpatial = onExitSpatial
         self.onExitPlayback = onExitPlayback
-        self.onSetScreenScale = onSetScreenScale
+        self.onSetViewerHeight = onSetViewerHeight
         self.onSetScreenDistance = onSetScreenDistance
         self.onSetScreenElevation = onSetScreenElevation
         self.onResetDockedPlacement = onResetDockedPlacement
@@ -743,40 +743,42 @@ public struct FusedPlayerPanel: View {
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
+        let viewerHeightRange = live.placementLimits.viewerHeightRange
+        let distanceRange = live.placementLimits.distanceRange
+        return VStack(spacing: DesignTokens.Spacing.sm) {
             DockedPlacementSliderRow(
-                title: "Screen Size",
-                liveValue: live.screenScale,
-                range: PlaybackScreenSize.scaleRange,
-                step: PlaybackScreenSize.scaleStep,
+                title: "Height",
+                liveValue: live.viewerHeight - viewerHeightRange.lowerBound,
+                range: 0...(viewerHeightRange.upperBound - viewerHeightRange.lowerBound),
+                step: PlaybackDockedPlacementLimits.viewerHeightStep,
                 trackWidth: placementTrackWidth,
-                valueLabel: { "\(Int(($0 * 100).rounded()))%" },
-                identifier: "ScreenSize",
+                valueLabel: { String(format: "%.1f m", $0) },
+                identifier: "Height",
                 onChange: { value in
                     onInteraction()
-                    live.onReachabilityAction("slider.ScreenSize")
-                    live.onSetScreenScale(value)
+                    live.onReachabilityAction("slider.Height")
+                    live.onSetViewerHeight(value + viewerHeightRange.lowerBound)
                 }
             )
             DockedPlacementSliderRow(
                 title: "Distance",
-                liveValue: live.screenDistance,
-                range: PlaybackDockedPlacement.distanceRange,
-                step: PlaybackDockedPlacement.distanceStep,
+                liveValue: live.screenDistance - distanceRange.lowerBound,
+                range: 0...(distanceRange.upperBound - distanceRange.lowerBound),
+                step: PlaybackDockedPlacementLimits.distanceStep,
                 trackWidth: placementTrackWidth,
                 valueLabel: { String(format: "%.1f m", $0) },
                 identifier: "Distance",
                 onChange: { value in
                     onInteraction()
                     live.onReachabilityAction("slider.Distance")
-                    live.onSetScreenDistance(value)
+                    live.onSetScreenDistance(value + distanceRange.lowerBound)
                 }
             )
             DockedPlacementSliderRow(
                 title: "Elevation",
                 liveValue: live.screenElevationDegrees,
-                range: PlaybackDockedPlacement.elevationRange,
-                step: PlaybackDockedPlacement.elevationStep,
+                range: live.placementLimits.elevationRange,
+                step: PlaybackDockedPlacementLimits.elevationStep,
                 trackWidth: placementTrackWidth,
                 valueLabel: { "\(Int($0.rounded()))°" },
                 identifier: "Elevation",

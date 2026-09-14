@@ -1141,12 +1141,80 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [String(playbackSession.environmentCardDismissalRequestRevision)]
             )
+        case "previewEnvironment":
+            guard let rawEnvironment = request.args["environment"],
+                  rawEnvironment.isEmpty == false,
+                  let environment = SpatialSceneDomain.CinemaEnvironment(
+                    rawValue: rawEnvironment
+                  ) else {
+                throw CommandError(
+                    message: "previewEnvironment requires a valid environment argument."
+                )
+            }
+            let effect = request.args["effect"].flatMap {
+                SpatialSceneDomain.EnvironmentEffect(rawValue: $0)
+            }
+            try playbackSession.playbackPresentationModel.requestEnvironmentPreview(
+                environment: environment,
+                effect: effect
+            )
+            SurfaceInputProbes.record(
+                "testcmd previewEnvironment environment=\(rawEnvironment)"
+                    + " effect=\(effect?.rawValue ?? "none")",
+                retention: .evidence
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: [rawEnvironment])
+        case "dismissEnvironmentPreview":
+            try playbackSession.playbackPresentationModel
+                .requestEnvironmentPreviewDismissal()
+            SurfaceInputProbes.record(
+                "testcmd dismissEnvironmentPreview",
+                retention: .evidence
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: [])
+        case "playMedia":
+            guard let name = request.args["name"], name.isEmpty == false else {
+                throw CommandError(message: "playMedia requires a name argument.")
+            }
+            guard let reference = allReferences.first(where: { $0.name == name }) else {
+                throw CommandError(
+                    message: "playMedia found no library reference named \(name)."
+                )
+            }
+            mediaLibrary.play(reference)
+            SurfaceInputProbes.record(
+                "testcmd playMedia name=\(name)",
+                retention: .evidence
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: [name])
         case "enterSpatial":
             guard let target = playbackSession.playbackPresentation.enterImmersiveTarget else {
                 throw CommandError(message: "enterSpatial requires window playback.")
             }
+            let environment = try request.args["environment"].map { rawEnvironment in
+                guard let environment = SpatialSceneDomain.CinemaEnvironment(
+                    rawValue: rawEnvironment
+                ) else {
+                    throw CommandError(
+                        message: "enterSpatial environment= must be a valid environment."
+                    )
+                }
+                return environment
+            }
+            let effect = try request.args["effect"].map { rawEffect in
+                guard let effect = SpatialSceneDomain.EnvironmentEffect(
+                    rawValue: rawEffect
+                ) else {
+                    throw CommandError(
+                        message: "enterSpatial effect= must be a valid effect."
+                    )
+                }
+                return effect
+            }
             let entry = try playbackSession.requestPlaybackPresentation(
                 target,
+                environment: environment,
+                effect: effect,
                 mediaSessionID: playbackRuntime.activeSessionID,
                 wasPlaying: playbackRuntime.productLifecycle == .playing
             )
@@ -1178,6 +1246,82 @@ final class TestCommandChannel {
                 ok: true,
                 detail: nil,
                 payload: [String(describing: target), transition.id.uuidString]
+            )
+        case "connectWebDAV":
+            guard let address = request.args["url"], address.isEmpty == false else {
+                throw CommandError(message: "connectWebDAV requires a url argument.")
+            }
+            let sourceName = request.args["name"].flatMap { $0.isEmpty ? nil : $0 } ?? address
+            let connectionInfo = try FileBrowsingDomain.ConnectionInfo.remote(
+                sourceType: .webDAV,
+                address: address
+            )
+            let dataSource = FileBrowsingDomain.DataSource(
+                name: sourceName,
+                sourceType: .webDAV,
+                connectionInfo: connectionInfo
+            )
+            fileBrowser.addDataSource(dataSource)
+            let result = await fileBrowser.connectToDataSource(dataSource)
+            SurfaceInputProbes.record(
+                "testcmd connectWebDAV url=\(address) result=\(String(describing: result))",
+                retention: .evidence
+            )
+            return Response(
+                id: request.id,
+                ok: result == .connected,
+                detail: result == .connected
+                    ? nil
+                    : "connectWebDAV returned \(result).",
+                payload: [
+                    "sourceID=\(dataSource.id.uuidString)",
+                    "result=\(result)"
+                ] + fileBrowser.files.map(\.name)
+            )
+        case "playRemoteFile":
+            guard let name = request.args["name"], name.isEmpty == false else {
+                throw CommandError(message: "playRemoteFile requires a name argument.")
+            }
+            guard let file = fileBrowser.files.first(where: { $0.name == name }) else {
+                throw CommandError(
+                    message: "playRemoteFile found no remote file named \(name)."
+                )
+            }
+            fileBrowser.lastErrorMessage = nil
+            fileBrowser.selectFile(file)
+            SurfaceInputProbes.record(
+                "testcmd playRemoteFile name=\(name)",
+                retention: .evidence
+            )
+            var acceptance = "timeout"
+            for _ in 0..<50 {
+                if fileBrowser.lastErrorMessage != nil {
+                    acceptance = "error"
+                    break
+                }
+                if playbackLauncher.pendingResumeDecision != nil {
+                    acceptance = "pendingResumeDecision"
+                    break
+                }
+                if playbackRuntime.currentLaunchRequest != nil {
+                    acceptance = "launchRequest"
+                    break
+                }
+                try await Task.sleep(for: .milliseconds(400))
+            }
+            SurfaceInputProbes.record(
+                "testcmd playRemoteFile acceptance=\(acceptance)",
+                retention: .evidence
+            )
+            return Response(
+                id: request.id,
+                ok: acceptance == "launchRequest" || acceptance == "pendingResumeDecision",
+                detail: fileBrowser.lastErrorMessage,
+                payload: [
+                    "acceptance=\(acceptance)",
+                    "session=\(playbackRuntime.activeSessionID ?? "none")",
+                    "pendingResume=\(playbackLauncher.pendingResumeDecision != nil)"
+                ]
             )
         case "scrollEmby":
             return try scrollEmby(request)
@@ -1687,19 +1831,19 @@ final class TestCommandChannel {
         let applied: Double
         switch axis {
         case "screenSize":
-            guard PlaybackScreenSize.scaleRange.contains(value) else {
+            guard playbackSession.dockedPlacementLimits.screenHeightRange.contains(value) else {
                 throw CommandError(message: "screenSize is outside its product range.")
             }
             playbackSession.setScreenScale(value)
             applied = playbackSession.screenScale
         case "distance":
-            guard PlaybackDockedPlacement.distanceRange.contains(value) else {
+            guard playbackSession.dockedPlacementLimits.distanceRange.contains(value) else {
                 throw CommandError(message: "distance is outside its product range.")
             }
             playbackSession.setScreenDistance(value)
             applied = playbackSession.screenDepthOffset
         case "elevation":
-            guard PlaybackDockedPlacement.elevationRange.contains(value) else {
+            guard playbackSession.dockedPlacementLimits.elevationRange.contains(value) else {
                 throw CommandError(message: "elevation is outside its product range.")
             }
             playbackSession.setScreenElevation(value)

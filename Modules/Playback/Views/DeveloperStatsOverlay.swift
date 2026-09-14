@@ -257,7 +257,56 @@ public struct DeveloperStatsOverlay: View {
     }
 }
 
+public struct DeveloperStatsOverlayReader: View {
+    @Environment(DeveloperMetricsModel.self) private var developerMetrics
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+    private let sceneKey: DeveloperMetricsModel.SceneKey?
+    private let includePlayback: Bool
+
+    public init(
+        sceneKey: DeveloperMetricsModel.SceneKey? = nil,
+        includePlayback: Bool = true
+    ) {
+        self.sceneKey = sceneKey
+        self.includePlayback = includePlayback
+    }
+
+    public var body: some View {
+        DeveloperStatsOverlay(
+            metrics: developerMetrics.metrics,
+            sceneUpdatesPerSecond: sceneKey.flatMap {
+                developerMetrics.sceneUpdatesPerSecond[$0]
+            },
+            presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond,
+            enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
+            playback: includePlayback ? playbackRuntime.diagnostics : nil,
+            sessionIsActive: includePlayback
+                && playbackRuntime.activeSessionID != nil
+        )
+    }
+}
+
 public extension View {
+    func developerStatsOverlay(
+        isEnabled: Bool,
+        sceneKey: DeveloperMetricsModel.SceneKey? = nil,
+        includePlayback: Bool = true
+    ) -> some View {
+        overlay(alignment: .bottomTrailing) {
+            if isEnabled {
+                DeveloperStatsOverlayReader(
+                    sceneKey: sceneKey,
+                    includePlayback: includePlayback
+                )
+                .enchronSpatialFrame(depth: 0)
+                .enchronSpatialOffset(
+                    z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                )
+                .padding(DesignTokens.Spacing.sm)
+            }
+        }
+    }
+
     func developerStatsOverlay(
         isEnabled: Bool,
         metrics: DeveloperProcessMetrics,

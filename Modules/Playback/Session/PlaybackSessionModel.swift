@@ -230,7 +230,9 @@ public final class PlaybackSessionModel {
         playbackPresentationModel.dockedPlacement.distanceMeters
     }
 
-    public var screenVerticalOffset: Double { 0 }
+    public var viewerHeight: Double {
+        playbackPresentationModel.dockedPlacement.viewerHeightMeters
+    }
 
     public var screenViewAngle: Double {
         playbackPresentationModel.dockedPlacement.elevationDegrees
@@ -250,8 +252,16 @@ public final class PlaybackSessionModel {
         playbackPresentationModel.currentEnvironment
     }
 
-    public var defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment {
+    public var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment {
         playbackPresentationModel.defaultEnvironment
+    }
+
+    public var lastCardEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        playbackPresentationModel.lastCardEnvironment
+    }
+
+    public var dockedPlacementLimits: PlaybackDockedPlacementLimits {
+        playbackPresentationModel.dockedPlacement.limits
     }
 
     public var currentEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect {
@@ -554,12 +564,6 @@ public final class PlaybackSessionModel {
         prepareImmersiveSpaceOpening(initialAmount: immersionAmountBeforePanorama)
     }
 
-    public func configureDefaultEnvironment(
-        _ environment: SpatialSceneDomain.CinemaEnvironment
-    ) {
-        playbackPresentationModel.configureDefaultEnvironment(environment)
-    }
-
     public func setActiveEnvironmentEffect(
         _ effect: SpatialSceneDomain.EnvironmentEffect
     ) {
@@ -726,7 +730,7 @@ public final class PlaybackSessionModel {
 
     public func resetScreenScale() {
         playbackPresentationModel.setScreenScale(
-            EnvironmentSceneMapping.defaultScreenScale(
+            EnvironmentSceneMapping.defaultScreenHeightMeters(
                 forEnvironmentID: currentCinemaEnvironment.rawValue
             )
         )
@@ -738,6 +742,10 @@ public final class PlaybackSessionModel {
 
     public func setScreenElevation(_ degrees: Double) {
         playbackPresentationModel.setScreenElevation(degrees)
+    }
+
+    public func setViewerHeight(_ height: Double) {
+        playbackPresentationModel.setViewerHeight(height)
     }
 
     public func resetDockedPlacement() {

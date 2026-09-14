@@ -3193,7 +3193,7 @@ def _specs() -> tuple[OperationSpec, ...]:
             ),
         ),
         OperationSpec(
-            "operation:presentation.enter-docked-skybox@1",
+            "operation:presentation.enter-docked-default@1",
             LANES,
             (
                 _deadline(),
@@ -5997,7 +5997,6 @@ class ResidentOperationBackend:
                     "controlsAutoHideSeconds",
                 )
             ),
-            frozenset(("defaultEnvironmentID",)),
         )
         if preferences["resumePolicy"] not in {
             "ask-every-time",
@@ -8050,7 +8049,7 @@ class ResidentOperationBackend:
             },
         }
 
-    def _presentation_enter_docked_skybox_1(self, arguments, context):
+    def _presentation_enter_docked_default_1(self, arguments, context):
         summon = self._raise_playback_chrome(
             arguments, context, "docked controls summon"
         )
@@ -8059,7 +8058,7 @@ class ResidentOperationBackend:
             "docked",
             int(arguments["deadlineSeconds"]),
             "PlayerUI-TopAction-dock",
-            "PlayerUI-DockMenu-skybox",
+            "PlayerUI-DockMenu-default",
         )
         return {**result, "summon": summon}
 

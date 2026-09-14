@@ -1,3 +1,4 @@
+import EnvironmentSceneContract
 import Foundation
 import PlaybackCore
 @testable import Playback
@@ -985,7 +986,150 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("The player window keeps its glass until video is visible, except while it returns from a space")
+    @Test("A pending platform effect is not claimed while the application is inactive")
+    func effectDrainDefersWhileApplicationIsInactive() {
+        let effects: [SpatialPlatformEffect] = [
+            .enterImmersivePlayback(.flat),
+            .exitImmersivePlayback(.flat, keepsEnvironmentOpen: false),
+            .collapseImmersivePlayback(.flat),
+            .swapWindowPlaybackProjection(to: .panoramic),
+            .presentEnvironmentPreview,
+            .dismissEnvironmentPreview,
+            .presentEnvironmentCard,
+            .normalizeStoppedSpatialPlayback(keepsEnvironmentOpen: false),
+            .normalizeInvalidatedSpatialPlayback(keepsEnvironmentOpen: false)
+        ]
+        for effect in effects {
+            #expect(
+                SpatialPlatformEffectDrainPolicy.shouldClaim(
+                    effect: effect,
+                    applicationIsActive: false
+                ) == false
+            )
+            #expect(
+                SpatialPlatformEffectDrainPolicy.shouldClaim(
+                    effect: effect,
+                    applicationIsActive: true
+                )
+            )
+        }
+    }
+
+    @Test("Collapse-originated presentation failures stay silent while user-initiated exits surface an issue")
+    func collapseFailureHidesUserVisibleIssue() {
+        typealias Policy = SpatialPlatformPresentationFailurePolicy
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .collapseImmersivePlayback(.flat)
+            ) == false
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .collapseImmersivePlayback(.panoramic)
+            ) == false
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .exitImmersivePlayback(
+                    .flat,
+                    keepsEnvironmentOpen: false
+                )
+            )
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .enterImmersivePlayback(.flat)
+            )
+        )
+        #expect(
+            Policy.showsUserVisibleIssue(
+                effect: .swapWindowPlaybackProjection(to: .panoramic)
+            )
+        )
+    }
+
+    @Test("The activation watchdog reports a pending effect only when no executor is registered")
+    func activationWatchdogReportsOnlyMissingExecutor() {
+        #expect(
+            SpatialPlatformActivationWatchdogPolicy
+                .shouldReportMissingExecutor(
+                    hasPendingEffect: true,
+                    registeredExecutorCount: 0
+                )
+        )
+        #expect(
+            SpatialPlatformActivationWatchdogPolicy
+                .shouldReportMissingExecutor(
+                    hasPendingEffect: true,
+                    registeredExecutorCount: 1
+                ) == false
+        )
+        #expect(
+            SpatialPlatformActivationWatchdogPolicy
+                .shouldReportMissingExecutor(
+                    hasPendingEffect: false,
+                    registeredExecutorCount: 0
+                ) == false
+        )
+    }
+
+    @Test("Activation restores an absent player window only for established window playback")
+    func activationRestoresAbsentPlayerWindow() {
+        typealias Policy = SpatialPlatformPlaybackHostActivationPolicy
+        for lifecycle in [
+            ProductPlaybackLifecycle.ready,
+            .playing,
+            .paused,
+            .ended,
+            .failed
+        ] {
+            #expect(
+                Policy.shouldRestorePlayerWindow(
+                    residency: .playing(host: .window),
+                    playerWindowState: .absent,
+                    lifecycle: lifecycle
+                )
+            )
+        }
+        for lifecycle in [ProductPlaybackLifecycle.idle, .loading] {
+            #expect(
+                Policy.shouldRestorePlayerWindow(
+                    residency: .playing(host: .window),
+                    playerWindowState: .absent,
+                    lifecycle: lifecycle
+                ) == false
+            )
+        }
+        for state in [
+            SpatialPlatformPlayerWindowState.opening,
+            .open,
+            .closing
+        ] {
+            #expect(
+                Policy.shouldRestorePlayerWindow(
+                    residency: .playing(host: .window),
+                    playerWindowState: state,
+                    lifecycle: .playing
+                ) == false
+            )
+        }
+        #expect(
+            Policy.shouldRestorePlayerWindow(
+                residency: .playing(host: .immersiveSpace),
+                playerWindowState: .absent,
+                lifecycle: .playing
+            ) == false
+        )
+        #expect(
+            Policy.shouldRestorePlayerWindow(
+                residency: .browsing,
+                playerWindowState: .absent,
+                lifecycle: .playing
+            ) == false
+        )
+    }
+
+    @Test("The player window keeps its glass until video is visible, except while it returns from a space or hosts a session")
     func playerWindowGlassLeavesOnlyForVisibleVideo() {
         for state in [PlaybackRuntime.PresentationState.hidden, .placeholder, .audioVisible] {
             #expect(PlayerWindowGlassPolicy.showsGlass(
@@ -999,10 +1143,22 @@ struct PlaybackPresentationStateTests {
                 hasActiveSession: false
             ) == false)
         }
+        for state in [PlaybackRuntime.PresentationState.hidden, .placeholder] {
+            #expect(PlayerWindowGlassPolicy.showsGlass(
+                presentationState: state,
+                isRevealingPlayerWindow: false,
+                hasActiveSession: true
+            ) == false)
+        }
+        #expect(PlayerWindowGlassPolicy.showsGlass(
+            presentationState: .audioVisible,
+            isRevealingPlayerWindow: false,
+            hasActiveSession: true
+        ))
         #expect(PlayerWindowGlassPolicy.showsGlass(
             presentationState: .videoVisible,
             isRevealingPlayerWindow: false,
-            hasActiveSession: false
+            hasActiveSession: true
         ) == false)
     }
 
@@ -1089,39 +1245,60 @@ struct PlaybackPresentationStateTests {
         }
     }
 
-    @Test("Default docked placement lands on the authored surface anchor")
+    private static func restPose(
+        bottomHeight: Float,
+        distance: Float,
+        screenHeight: Float
+    ) -> EnvironmentScreenRestPose {
+        EnvironmentScreenRestPose(
+            center: [0, bottomHeight + screenHeight / 2, -distance],
+            right: [1, 0, 0],
+            up: [0, 1, 0],
+            normal: [0, 0, 1],
+            halfWidth: screenHeight / 2 * 16 / 9,
+            halfHeight: screenHeight / 2
+        )
+    }
+
+    @Test("Default docked placement reproduces the authored ScreenPreview rest pose")
     @MainActor
-    func defaultDockedPlacementLandsOnTheAuthoredAnchor() {
+    func defaultDockedPlacementReproducesTheAuthoredRestPose() {
+        let geometry = EnvironmentSceneGeometry()
+        let limits = PlaybackDockedPlacementLimits(geometry: geometry)
+        let restPose = Self.restPose(
+            bottomHeight: 0.9296054,
+            distance: Float(limits.defaultDistance),
+            screenHeight: Float(limits.defaultScreenHeight)
+        )
         let anchor = Entity()
-        anchor.position = [
-            0,
-            0.9296054,
-            -Float(PlaybackDockedPlacement.defaultDistance)
-        ]
+        anchor.position = restPose.center
         let screen = Entity()
 
         PlaybackSurfacePlacement.dock(
             screen,
             to: anchor,
             transform: PlaybackSurfaceTransform(
-                distance: PlaybackDockedPlacement.defaultDistance,
-                elevationDegrees: PlaybackDockedPlacement.defaultElevationDegrees,
-                scale: 1
-            )
+                distance: limits.defaultDistance,
+                elevationDegrees: limits.defaultElevationDegrees,
+                scale: limits.defaultScreenHeight
+            ),
+            geometry: geometry,
+            restPose: restPose
         )
 
         let placed = screen.position(relativeTo: nil)
-        let authored = anchor.position(relativeTo: nil)
-        #expect(abs(placed.x - authored.x) < 0.001)
-        #expect(abs(placed.y - authored.y) < 0.001)
-        #expect(abs(placed.z - authored.z) < 0.001)
+        #expect(abs(placed.x - restPose.center.x) < 0.001)
+        #expect(abs(placed.y - restPose.center.y) < 0.001)
+        #expect(abs(placed.z - restPose.center.z) < 0.001)
     }
 
-    @Test("Docked elevation swings the screen around the wearer's eye height")
+    @Test("Docked elevation swings the bottom edge around the authored rest height")
     @MainActor
-    func dockedElevationSwingsAroundTheWearerEyeHeight() {
+    func dockedElevationSwingsAroundTheAuthoredRestHeight() {
+        let restBottom: Float = 0.9296054
+        let restPose = Self.restPose(bottomHeight: restBottom, distance: 4, screenHeight: 1)
         let anchor = Entity()
-        anchor.position = [0, 0.9296054, -4]
+        anchor.position = restPose.center
         let screen = Entity()
 
         PlaybackSurfacePlacement.dock(
@@ -1131,20 +1308,27 @@ struct PlaybackPresentationStateTests {
                 distance: 4,
                 elevationDegrees: 30,
                 scale: 1
-            )
+            ),
+            geometry: EnvironmentSceneGeometry(),
+            restPose: restPose
         )
 
-        let placed = screen.position(relativeTo: nil)
-        #expect(abs(placed.y - (0.9296054 + 2)) < 0.001)
-        #expect(abs(placed.z - -4 * cos(.pi / 6)) < 0.001)
+        let elevation = Float.pi / 6
+        let up = simd_normalize(screen.convert(direction: [0, 1, 0], to: nil))
+        let bottomEdge = screen.position(relativeTo: nil) - 0.5 * up
+        #expect(abs(bottomEdge.y - (restBottom + 4 * sin(elevation))) < 0.001)
+        #expect(abs(bottomEdge.z - -4 * cos(elevation)) < 0.001)
+        #expect(simd_length(up - SIMD3<Float>(0, cos(elevation), sin(elevation))) < 0.001)
     }
 
-    @Test("Docked placement turns the screen's visible face toward the wearer")
+    @Test("Docked placement turns the screen's visible face toward the bottom-edge pivot")
     @MainActor
-    func dockedPlacementFacesTheWearer() {
+    func dockedPlacementFacesTheBottomEdgePivot() {
         for elevation in [0.0, 30.0, -20.0] {
+            let restBottom: Float = 0.9296054
+            let restPose = Self.restPose(bottomHeight: restBottom, distance: 4, screenHeight: 1)
             let anchor = Entity()
-            anchor.position = [0, 0.9296054, -4]
+            anchor.position = restPose.center
             let screen = Entity()
 
             PlaybackSurfacePlacement.dock(
@@ -1154,14 +1338,16 @@ struct PlaybackPresentationStateTests {
                     distance: 4,
                     elevationDegrees: elevation,
                     scale: 1
-                )
+                ),
+                geometry: EnvironmentSceneGeometry(),
+                restPose: restPose
             )
 
+            let up = simd_normalize(screen.convert(direction: [0, 1, 0], to: nil))
             let visibleFace = simd_normalize(screen.convert(direction: [0, 0, 1], to: nil))
-            let towardWearer = simd_normalize(
-                SIMD3<Float>(0, 0.9296054, 0) - screen.position(relativeTo: nil)
-            )
-            #expect(simd_dot(visibleFace, towardWearer) > 0.999)
+            let bottomEdge = screen.position(relativeTo: nil) - 0.5 * up
+            let towardPivot = simd_normalize(SIMD3<Float>(0, restBottom, 0) - bottomEdge)
+            #expect(simd_dot(visibleFace, towardPivot) > 0.999)
         }
     }
 
@@ -2062,7 +2248,7 @@ struct PlaybackPresentationStateTests {
         let appModel = PlaybackSessionModel()
         appModel.prepareColdPlaybackLaunch(for: .panoramic)
         appModel.recordImmersionAmount(0.62)
-        try appModel.activateEnvironment(.scenicOne, effect: .dark)
+        try appModel.activateEnvironment(.ocean, effect: .dark)
 
         _ = try appModel.requestPlaybackPresentation(
             .panorama,
@@ -3391,11 +3577,11 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func directDockUsesSelectedTarget() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.scenicTwo, effect: .dark)
+        try model.activateEnvironment(.placeholderRed, effect: .dark)
 
         _ = try model.requestPresentation(
             .docked,
-            environment: .scenicThree,
+            environment: .placeholderGreen,
             effect: .light,
             playbackContext: playingContext()
         )
@@ -3406,7 +3592,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.snapshot.presentation == .docked)
         #expect(
             model.snapshot.environmentContext == .active(
-                environment: .scenicThree,
+                environment: .placeholderGreen,
                 effect: .light
             )
         )
@@ -3424,14 +3610,14 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("Skybox is an independent Dock target without an appearance effect")
+    @Test("Quiet Room is an independent Dock target without an appearance effect")
     @MainActor
-    func directDockUsesSkybox() throws {
-        let model = PlaybackPresentationModel(defaultEnvironment: .scenicTwo)
+    func directDockUsesQuietRoom() throws {
+        let model = PlaybackPresentationModel()
 
         _ = try model.requestPresentation(
             .docked,
-            environment: .skybox,
+            environment: .quietRoom,
             playbackContext: playingContext()
         )
         _ = try completePendingEffect(model)
@@ -3439,11 +3625,11 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .docked)
         #expect(
             model.environmentContext == .active(
-                environment: .skybox,
+                environment: .quietRoom,
                 effect: nil
             )
         )
-        #expect(model.defaultEnvironment == .scenicTwo)
+        #expect(model.defaultEnvironment == .quietRoom)
     }
 
     @Test("direct dock opens the default environment when none is active")
@@ -3461,8 +3647,8 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .docked)
         #expect(
             model.environmentContext == .active(
-                environment: .scenicOne,
-                effect: .dark
+                environment: .quietRoom,
+                effect: nil
             )
         )
     }
@@ -3471,10 +3657,10 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func undockKeepsEnvironment() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.scenicTwo, effect: .dark)
+        try model.activateEnvironment(.placeholderRed, effect: .dark)
         _ = try model.requestPresentation(
             .docked,
-            environment: .scenicThree,
+            environment: .placeholderGreen,
             effect: .light,
             playbackContext: playingContext()
         )
@@ -3486,7 +3672,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .scenicTwo,
+                environment: .placeholderRed,
                 effect: .dark
             )
         )
@@ -3534,10 +3720,10 @@ struct PlaybackPresentationStateTests {
         #expect(inactiveModel.environmentContext == .none)
 
         let activeModel = PlaybackPresentationModel()
-        try activeModel.activateEnvironment(.scenicOne, effect: .dark)
+        try activeModel.activateEnvironment(.ocean, effect: .dark)
         _ = try activeModel.requestPresentation(
             .docked,
-            environment: .scenicThree,
+            environment: .placeholderGreen,
             effect: .light,
             playbackContext: playingContext()
         )
@@ -3553,7 +3739,7 @@ struct PlaybackPresentationStateTests {
         #expect(activeModel.presentation == .docked)
         #expect(
             activeModel.environmentContext == .active(
-                environment: .scenicThree,
+                environment: .placeholderGreen,
                 effect: .light
             )
         )
@@ -3565,7 +3751,7 @@ struct PlaybackPresentationStateTests {
         _ = try completePendingEffect(activeModel)
         #expect(
             activeModel.environmentContext == .active(
-                environment: .scenicOne,
+                environment: .ocean,
                 effect: .dark
             )
         )
@@ -3575,7 +3761,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func panoramaRollbackRestoresPreviousState() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.scenicOne, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(
             .portal,
             playbackContext: playingContext()
@@ -3596,7 +3782,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .portal)
         #expect(
             model.environmentContext == .active(
-                environment: .scenicOne,
+                environment: .ocean,
                 effect: .dark
             )
         )
@@ -3608,10 +3794,10 @@ struct PlaybackPresentationStateTests {
     func panoramaSuspendsAndRestoresActiveEnvironment() throws {
         let model = PlaybackPresentationModel()
         let priorEnvironment = EnvironmentContext.active(
-            environment: .scenicOne,
+            environment: .ocean,
             effect: .dark
         )
-        try model.activateEnvironment(.scenicOne, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(
             .portal,
             playbackContext: playingContext()
@@ -3662,10 +3848,10 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func playbackStopRestoresWindow() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.scenicOne, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(
             .docked,
-            environment: .scenicOne,
+            environment: .ocean,
             effect: .dark,
             playbackContext: playingContext()
         )
@@ -3681,7 +3867,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .scenicOne,
+                environment: .ocean,
                 effect: .dark
             )
         )
@@ -3714,7 +3900,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func playbackStopCancelsTransition() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.scenicOne, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(.docked, playbackContext: playingContext())
         let staleRequest = try #require(model.pendingSpatialPlatformEffect)
 
@@ -3724,7 +3910,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .scenicOne,
+                environment: .ocean,
                 effect: .dark
             )
         )
@@ -3749,10 +3935,10 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func dockedPresentationRequiresEnvironment() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.scenicOne, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(
             .docked,
-            environment: .scenicOne,
+            environment: .ocean,
             effect: .dark,
             playbackContext: playingContext()
         )
@@ -3763,7 +3949,7 @@ struct PlaybackPresentationStateTests {
         }
         #expect(
             model.environmentContext == .active(
-                environment: .scenicOne,
+                environment: .ocean,
                 effect: .dark
             )
         )
@@ -3891,7 +4077,7 @@ struct PlaybackPresentationStateTests {
     func systemClosedPanoramaFallsBackToPortal() throws {
         let model = PlaybackPresentationModel()
         let context = playingContext(mediaSessionID: "panorama-collapse-session")
-        try model.activateEnvironment(.scenicOne, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(.portal, playbackContext: context)
         _ = try completePendingEffect(model)
         _ = try model.requestPresentation(.panorama, playbackContext: context)
@@ -3983,7 +4169,7 @@ struct PlaybackPresentationStateTests {
     func appRequestedExitInFlightDoesNotDoubleFire() throws {
         let model = PlaybackPresentationModel()
         let context = playingContext(mediaSessionID: "app-exit-session")
-        try model.activateEnvironment(.scenicOne, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(.docked, playbackContext: context)
         _ = try completePendingEffect(model)
         _ = try model.requestPresentation(.window, playbackContext: context)

@@ -466,10 +466,6 @@ final class EnchronApplication {
         } else {
             playbackSessionModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
         }
-        let configuredEnvironment = SpatialSceneDomain.CinemaEnvironment(
-            preferenceValue: preferences.defaultEnvironmentID
-        ) ?? .defaultScenic
-        playbackSessionModel.configureDefaultEnvironment(configuredEnvironment)
 
         appModel = AppModel()
         self.playbackSessionModel = playbackSessionModel

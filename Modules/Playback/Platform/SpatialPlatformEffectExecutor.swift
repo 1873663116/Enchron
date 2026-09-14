@@ -48,6 +48,84 @@ enum SpatialPlatformPresentationFailurePolicy {
             return false
         }
     }
+
+    static func showsUserVisibleIssue(
+        effect: SpatialPlatformEffect
+    ) -> Bool {
+        switch effect {
+        case .collapseImmersivePlayback:
+            false
+        case .enterImmersivePlayback,
+             .exitImmersivePlayback,
+             .swapWindowPlaybackProjection,
+             .presentEnvironmentPreview,
+             .dismissEnvironmentPreview,
+             .presentEnvironmentCard,
+             .normalizeStoppedSpatialPlayback,
+             .normalizeInvalidatedSpatialPlayback:
+            true
+        }
+    }
+}
+
+enum SpatialPlatformEffectDrainPolicy {
+    static func shouldClaim(
+        effect: SpatialPlatformEffect,
+        applicationIsActive: Bool
+    ) -> Bool {
+        applicationIsActive
+    }
+}
+
+enum SpatialPlatformActivationWatchdogPolicy {
+    static func shouldReportMissingExecutor(
+        hasPendingEffect: Bool,
+        registeredExecutorCount: Int
+    ) -> Bool {
+        hasPendingEffect && registeredExecutorCount == 0
+    }
+}
+
+enum SpatialPlatformPlaybackHostActivationPolicy {
+    static func shouldRestorePlayerWindow(
+        residency: PlaybackResidency,
+        playerWindowState: SpatialPlatformPlayerWindowState,
+        lifecycle: ProductPlaybackLifecycle
+    ) -> Bool {
+        guard residency == .playing(host: .window),
+              playerWindowState == .absent else { return false }
+        switch lifecycle {
+        case .ready, .playing, .paused, .ended, .failed:
+            return true
+        case .idle, .loading:
+            return false
+        }
+    }
+}
+
+extension SpatialPlatformEffect {
+    var probeName: String {
+        switch self {
+        case .enterImmersivePlayback:
+            "enterImmersivePlayback"
+        case .exitImmersivePlayback:
+            "exitImmersivePlayback"
+        case .collapseImmersivePlayback:
+            "collapseImmersivePlayback"
+        case .swapWindowPlaybackProjection:
+            "swapWindowPlaybackProjection"
+        case .presentEnvironmentPreview:
+            "presentEnvironmentPreview"
+        case .dismissEnvironmentPreview:
+            "dismissEnvironmentPreview"
+        case .presentEnvironmentCard:
+            "presentEnvironmentCard"
+        case .normalizeStoppedSpatialPlayback:
+            "normalizeStoppedSpatialPlayback"
+        case .normalizeInvalidatedSpatialPlayback:
+            "normalizeInvalidatedSpatialPlayback"
+        }
+    }
 }
 
 enum SpatialPlatformPlayerWindowClosurePolicy {
@@ -228,6 +306,8 @@ public final class SpatialPlatformEffectCoordinator {
     private static let immersiveSpaceLifecycleConfirmationTimeout =
         Duration.seconds(5)
     private static let windowLifecycleConfirmationTimeout = Duration.seconds(5)
+    private static let technicalSessionReplacementTimeout =
+        Duration.seconds(10)
     public init(
         session: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
@@ -364,8 +444,12 @@ public final class SpatialPlatformEffectCoordinator {
         _ residency: SpatialPlatformImmersiveSpaceResidency
     ) {
         immersiveSpaceObservation.record(residency)
+        let boundPresentation = appModel.presentationTransition?
+            .targetPresentation ?? appModel.playbackPresentation
         playbackRuntime.recordPlaybackHost(
-            residency == .open ? .immersiveSpace : .window
+            residency == .open && boundPresentation.usesImmersiveSpace
+                ? .immersiveSpace
+                : .window
         )
         let residencyDescription = String(describing: residency)
         logger.info(
@@ -423,6 +507,54 @@ public final class SpatialPlatformEffectCoordinator {
             .immersiveSpaceDisappeared(playbackContext)
         )
         requestDrain()
+    }
+
+    public func handleApplicationDidBecomeActive() {
+        reconcileImmersiveSpaceResidency()
+        requestDrain()
+        runActivationWatchdog()
+    }
+
+    private func runActivationWatchdog() {
+        let pendingRequest = appModel.pendingSpatialPlatformEffect
+        if let pendingRequest,
+           SpatialPlatformActivationWatchdogPolicy.shouldReportMissingExecutor(
+            hasPendingEffect: true,
+            registeredExecutorCount: registeredPlatformExecutorCount
+           ) {
+            appModel.recordSurfaceInputProbe(
+                "activationWatchdog"
+                    + " pendingEffect=\(pendingRequest.effect.probeName)"
+                    + " executor=absent",
+                retention: .evidence
+            )
+        }
+        guard pendingRequest == nil,
+              SpatialPlatformPlaybackHostActivationPolicy
+            .shouldRestorePlayerWindow(
+                residency: playbackRuntime.residency,
+                playerWindowState: playerWindowState,
+                lifecycle: playbackRuntime.productLifecycle
+            ) else {
+            return
+        }
+        guard issuePushedWindow(.player) else {
+            appModel.recordSurfaceInputProbe(
+                "activationWatchdog playerWindowRestore failed"
+                    + " action=stoppingPlayback",
+                retention: .evidence
+            )
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await stopPlaybackForFailedPresentationTransfer()
+                appModel.requestStoppedPlaybackCleanup()
+            }
+            return
+        }
+        appModel.recordSurfaceInputProbe(
+            "activationWatchdog playerWindowRestore pushed",
+            retention: .evidence
+        )
     }
 
     public func recordWindowResidency(
@@ -548,11 +680,24 @@ public final class SpatialPlatformEffectCoordinator {
         }
 
         guard activeTask == nil,
-              let request = appModel.pendingSpatialPlatformEffect,
-              let claim = leaseRegistry.claim(
-                requestID: request.id,
-                mediaSessionID: request.playbackTransportPlan?.mediaSessionID
-              ) else {
+              let request = appModel.pendingSpatialPlatformEffect else {
+            return
+        }
+        guard SpatialPlatformEffectDrainPolicy.shouldClaim(
+            effect: request.effect,
+            applicationIsActive: UIApplication.shared.applicationState == .active
+        ) else {
+            appModel.recordSurfaceInputProbe(
+                "effectDrain deferred reason=appNotActive"
+                    + " effect=\(request.effect.probeName)",
+                retention: .evidence
+            )
+            return
+        }
+        guard let claim = leaseRegistry.claim(
+            requestID: request.id,
+            mediaSessionID: request.playbackTransportPlan?.mediaSessionID
+        ) else {
             return
         }
         guard appModel.claimSpatialPlatformEffect(
@@ -959,13 +1104,33 @@ public final class SpatialPlatformEffectCoordinator {
             try await playbackRuntime
                 .prepareTechnicalSessionForPresentationConversion()
         }
+        let replacementTimeoutTask = Task { @MainActor [weak self, playbackRuntime] in
+            try? await Task.sleep(
+                for: Self.technicalSessionReplacementTimeout
+            )
+            guard Task.isCancelled == false else { return }
+            replacementTask.cancel()
+            playbackRuntime.interruptPreparedTechnicalSessionReplacement()
+            self?.lastPlatformOperation =
+                "technical-session-replacement-timed-out"
+        }
         let windowTransition = SpatialPlatformPlaybackWindowPolicy.windowTransition(
             for: execution.request.effect,
             residency: playbackRuntime.residency
         ) ?? .exitImmersivePlayback(family)
         do {
             try await replacementTask.value
+            replacementTimeoutTask.cancel()
         } catch {
+            replacementTimeoutTask.cancel()
+            if replacementTask.isCancelled {
+                appModel.recordSurfaceInputProbe(
+                    "presentationConversionPrepare timedOut"
+                        + " effect=\(execution.request.effect.probeName)",
+                    retention: .evidence
+                )
+            }
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             guard executionIsLive(execution),
                   setRuntimeIssue(
                     .presentationConversionFailed,
@@ -2038,7 +2203,12 @@ public final class SpatialPlatformEffectCoordinator {
             ) {
                 await stopPlaybackForFailedPresentationTransfer()
                 appModel.requestStoppedPlaybackCleanup()
-                playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
+                if SpatialPlatformPresentationFailurePolicy
+                    .showsUserVisibleIssue(effect: execution.request.effect) {
+                    playbackRuntime.setUserVisibleIssue(
+                        .presentationConversionFailed
+                    )
+                }
                 lastExecutionResolution =
                     "\(String(describing: outcome))-playback-stopped"
                 lastExecutionCheckpoint = "presentation-conversion-failed"
@@ -2091,7 +2261,12 @@ public final class SpatialPlatformEffectCoordinator {
             guard restored else {
                 await stopPlaybackForFailedPresentationTransfer()
                 appModel.requestStoppedPlaybackCleanup()
-                playbackRuntime.setUserVisibleIssue(.presentationConversionFailed)
+                if SpatialPlatformPresentationFailurePolicy
+                    .showsUserVisibleIssue(effect: execution.request.effect) {
+                    playbackRuntime.setUserVisibleIssue(
+                        .presentationConversionFailed
+                    )
+                }
                 lastExecutionResolution =
                     "\(String(describing: outcome))-rollback-settlement-failed"
                 lastExecutionCheckpoint = "presentation-rollback-settlement-failed"

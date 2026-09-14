@@ -90,7 +90,7 @@ struct PlaybackDomainContractTests {
 
     @Test("media state store keys viewing state and format by content revision")
     func mediaStateStoreKeysViewingStateAndFormatByContentRevision() async throws {
-        let suiteName = "app.scenicOne.domain-checks.\(UUID().uuidString)"
+        let suiteName = "app.domain-checks.\(UUID().uuidString)"
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
         let panoramicFormat = MediaFormat(projection: .equirectangular360, stereoLayout: .mono)
         let mediaIdentity = MediaIdentity.local(resourceIdentifier: Data([0x01]))

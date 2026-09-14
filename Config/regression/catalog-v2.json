@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:606873e8a64c7a098877123b811f7ebf7dc5bbd873873da2628139ad0ae04851",
+  "contentDigest": "sha256:33710a12acf013d3822c66df648886b211038ec29eeeeab8606c2873e779d598",
   "copyDocuments": [
     {
       "digest": "sha256:3cddd3e1bd6227b0b62c6323d2a4481e87b786b7716923ef267d6065ce9083c7",
@@ -681,8 +681,8 @@
     },
     {
       "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
-      "filename": "presentation-enter-docked-skybox-v1.md",
-      "id": "operation:presentation.enter-docked-skybox@1",
+      "filename": "presentation-enter-docked-default-v1.md",
+      "id": "operation:presentation.enter-docked-default@1",
       "invalidatesTags": [
         "presentation.mode",
         "presentation.state",
@@ -690,7 +690,7 @@
         "ui.state"
       ],
       "role": "product-behavior",
-      "title": "Presentation Enter Docked Skybox"
+      "title": "Presentation Enter Docked Default"
     },
     {
       "contract": "The runtime Operation adapter accepts only its registered arguments and emits only its registered evidence pairs.",
@@ -2376,7 +2376,7 @@
     },
     {
       "criteria": [
-        "Call 08's fields.audioRendererError equals none (MainView.swift:974, `audioRendererError=\\(output.audioRendererError ?? \"none\")`), read from the docked-resident PlayerUI-playback-state snapshot taken right after presentation.enter-docked-skybox@1 and the harness.assert-channels@2 gate.",
+        "Call 08's fields.audioRendererError equals none (MainView.swift:974, `audioRendererError=\\(output.audioRendererError ?? \"none\")`), read from the docked-resident PlayerUI-playback-state snapshot taken right after presentation.enter-docked-default@1 and the harness.assert-channels@2 gate.",
         "Call 08's fields.audioRendererSamples (MainView.swift:969, `audioRendererSamples=\\(output.audioRendererSamples)`) is strictly greater than call 05's pre-docked baseline value referenced via relatedResults, and fields.hasAudio (MainView.swift:967) remains true — the exact regression this closes is audio going silent right after entering docked while the picture keeps playing.",
         "session (MainView.swift:927) and lifecycle (MainView.swift:926) are unchanged between call 05 and call 08, so the two readings are bound to the same playback attempt rather than a relaunch."
       ],
@@ -8354,7 +8354,7 @@
           },
           "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:17",
           "maxInvocations": 1,
-          "operation": "operation:presentation.enter-docked-skybox@1"
+          "operation": "operation:presentation.enter-docked-default@1"
         },
         {
           "arguments": {
@@ -9525,7 +9525,7 @@
           },
           "callId": "call:presentation-tour:window-docked-round-trip:06",
           "maxInvocations": 1,
-          "operation": "operation:presentation.enter-docked-skybox@1"
+          "operation": "operation:presentation.enter-docked-default@1"
         },
         {
           "arguments": {
@@ -10598,7 +10598,7 @@
           },
           "callId": "call:presentation-tour:spatial-controls-summon:06",
           "maxInvocations": 1,
-          "operation": "operation:presentation.enter-docked-skybox@1"
+          "operation": "operation:presentation.enter-docked-default@1"
         },
         {
           "arguments": {},
@@ -10668,7 +10668,7 @@
           },
           "callId": "call:presentation-tour:spatial-controls-summon:14",
           "maxInvocations": 1,
-          "operation": "operation:presentation.enter-docked-skybox@1"
+          "operation": "operation:presentation.enter-docked-default@1"
         },
         {
           "arguments": {},
@@ -17060,7 +17060,7 @@
           },
           "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:05",
           "maxInvocations": 1,
-          "operation": "operation:presentation.enter-docked-skybox@1"
+          "operation": "operation:presentation.enter-docked-default@1"
         },
         {
           "arguments": {
@@ -17396,7 +17396,7 @@
           },
           "callId": "call:dynamic-range-interpretation:docked-hlg-audio-integrity:06",
           "maxInvocations": 1,
-          "operation": "operation:presentation.enter-docked-skybox@1"
+          "operation": "operation:presentation.enter-docked-default@1"
         },
         {
           "arguments": {},

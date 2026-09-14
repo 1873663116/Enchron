@@ -1,129 +1,130 @@
 import AVFoundation
 @testable import Playback
 import RealityKit
-import RealityKitContent
+import simd
 import XCTest
 @testable import Enchron
 
 nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     @MainActor
-    private func loadAuthoredWorld() async throws -> Entity {
-        try await Entity(
-            named: EnvironmentSceneMapping.worldSceneName,
-            in: realityKitContentBundle
-        )
+    private func loadAuthoredWorld(
+        for environment: SpatialSceneDomain.CinemaEnvironment = .ocean
+    ) async throws -> Entity {
+        let scene = try XCTUnwrap(EnvironmentSceneMapping.scene(for: environment))
+        return try await scene.load()
     }
 
     @MainActor
     func testDockingWorldCanLoadFromProductResources() async throws {
-        let world = try await loadAuthoredWorld()
-        let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
+        let scene = try XCTUnwrap(EnvironmentSceneMapping.scene(for: .ocean))
+        let world = try await scene.load()
+        let restPose = try XCTUnwrap(scene.restPose)
 
         XCTAssertFalse(world.name.isEmpty)
-        XCTAssertEqual(anchor.name, PlaybackSurfaceAnchorResolver.canonicalName)
-        XCTAssertNil(anchor.components[ModelComponent.self])
-        XCTAssertTrue(anchor.children.allSatisfy { $0.components[ModelComponent.self] == nil })
+        XCTAssertGreaterThan(restPose.halfWidth, restPose.halfHeight)
+        XCTAssertGreaterThan(restPose.distance, 1)
+        XCTAssertGreaterThan(simd_dot(restPose.normal, -restPose.center), 0)
+        XCTAssertEqual(simd_length(restPose.normal), 1, accuracy: 0.001)
+        XCTAssertEqual(simd_dot(restPose.normal, restPose.up), 0, accuracy: 0.001)
+        XCTAssertEqual(simd_dot(restPose.normal, restPose.right), 0, accuracy: 0.001)
     }
 
     @MainActor
-    func testScenicEnvironmentReplacesSkyboxWithTintedPlaceholder() async throws {
-        let world = try await loadAuthoredWorld()
-        let skybox = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
-        )
-        let playbackAnchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
+    func testQuietRoomDockingRegionIsTheAuthoredRestPose() async throws {
+        let scene = try XCTUnwrap(EnvironmentSceneMapping.scene(for: .quietRoom))
+        _ = try await scene.load()
+        let restPose = try XCTUnwrap(scene.restPose)
 
-        XCTAssertEqual(
-            EnvironmentSceneAppearanceApplier.apply(
-                environment: .scenicOne,
-                effect: .dark,
-                to: world
-            ),
-            EnvironmentSceneAppearanceApplier.darkSkyboxOpacity
-        )
-        XCTAssertFalse(skybox.isEnabled)
-        XCTAssertNotNil(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
-        )
-        XCTAssertEqual(
-            world.findEntity(
-                named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName
-            )?.components[OpacityComponent.self]?.opacity,
-            EnvironmentSceneAppearanceApplier.darkSkyboxOpacity
-        )
-        XCTAssertNil(playbackAnchor.components[OpacityComponent.self])
+        XCTAssertEqual(restPose.screenHeight, 8, accuracy: 0.01)
+        XCTAssertEqual(restPose.screenWidth, 14.23, accuracy: 0.01)
+        XCTAssertEqual(restPose.bottomHeight, -0.5, accuracy: 0.01)
+        XCTAssertEqual(restPose.distance, 7.98, accuracy: 0.01)
     }
 
     @MainActor
-    func testSkyboxRestoresTheProductResourceWithoutAnEffect() async throws {
-        let world = try await loadAuthoredWorld()
-        let skybox = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
-        )
+    func testPlaceholderEnvironmentsCreateATintedSphereWithTheRequestedBrightness() throws {
+        let world = Entity()
 
-        _ = EnvironmentSceneAppearanceApplier.apply(
-            environment: .scenicThree,
-            effect: .light,
+        let darkBrightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .placeholderRed,
+            effect: .dark,
+            scene: nil,
             to: world
         )
 
-        XCTAssertEqual(
-            EnvironmentSceneAppearanceApplier.apply(
-                environment: .skybox,
-                effect: nil,
-                to: world
-            ),
-            1
+        XCTAssertEqual(darkBrightness, 0.5)
+        let placeholder = try XCTUnwrap(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
         )
-        XCTAssertTrue(skybox.isEnabled)
+        XCTAssertTrue(placeholder.isEnabled)
+
+        let lightBrightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .placeholderRed,
+            effect: .light,
+            scene: nil,
+            to: world
+        )
+        XCTAssertEqual(lightBrightness, 1)
+        XCTAssertTrue(placeholder.isEnabled)
+    }
+
+    @MainActor
+    func testApplyingASceneBackedEnvironmentClearsAnyExistingPlaceholder() async throws {
+        let world = try await loadAuthoredWorld()
+        _ = EnvironmentSceneAppearanceApplier.apply(
+            environment: .placeholderRed,
+            effect: .dark,
+            scene: nil,
+            to: world
+        )
+        XCTAssertNotNil(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
+        )
+
+        let brightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .ocean,
+            effect: .light,
+            scene: try XCTUnwrap(EnvironmentSceneMapping.scene(for: .ocean)),
+            to: world
+        )
+
+        XCTAssertEqual(brightness, 1)
         XCTAssertNil(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
         )
     }
 
     @MainActor
-    func testClearingEnvironmentDisablesEveryEnvironmentBackdrop() async throws {
-        let world = try await loadAuthoredWorld()
-        let skybox = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
+    func testQuietRoomIgnoresTheRequestedEffectAndAlwaysReturnsLightBrightness() async throws {
+        let world = try await loadAuthoredWorld(for: .quietRoom)
+
+        let brightness = EnvironmentSceneAppearanceApplier.apply(
+            environment: .quietRoom,
+            effect: .dark,
+            scene: try XCTUnwrap(EnvironmentSceneMapping.scene(for: .quietRoom)),
+            to: world
         )
 
+        XCTAssertEqual(brightness, 1)
+    }
+
+    @MainActor
+    func testClearingTheEnvironmentDisablesAnActivePlaceholder() throws {
+        let world = Entity()
         _ = EnvironmentSceneAppearanceApplier.apply(
-            environment: .scenicOne,
+            environment: .placeholderGreen,
             effect: .light,
+            scene: nil,
             to: world
         )
         let placeholder = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
         )
+        XCTAssertTrue(placeholder.isEnabled)
 
         EnvironmentSceneAppearanceApplier.clear(in: world)
 
-        XCTAssertFalse(skybox.isEnabled)
         XCTAssertFalse(placeholder.isEnabled)
-    }
-
-    @MainActor
-    func testLegacyPlaybackSurfaceIsMigratedAndStrippedOfGeometry() throws {
-        let world = Entity()
-        let legacy = ModelEntity(
-            mesh: .generatePlane(width: 1, depth: 1),
-            materials: [SimpleMaterial()]
-        )
-        legacy.name = PlaybackSurfaceAnchorResolver.legacyName
-        let legacyChild = ModelEntity(
-            mesh: .generatePlane(width: 1, depth: 1),
-            materials: [SimpleMaterial()]
-        )
-        legacy.addChild(legacyChild)
-        world.addChild(legacy)
-
-        let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
-
-        XCTAssertTrue(anchor === legacy)
-        XCTAssertEqual(anchor.name, PlaybackSurfaceAnchorResolver.canonicalName)
-        XCTAssertNil(anchor.components[ModelComponent.self])
-        XCTAssertNil(legacyChild.components[ModelComponent.self])
     }
 
     @MainActor

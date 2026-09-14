@@ -1,32 +1,6 @@
+import EnvironmentSceneContract
 import Foundation
 import RealityKit
-
-@MainActor
-enum PlaybackSurfaceAnchorResolver {
-    static let canonicalName = "PlaybackSurfaceAnchor"
-    static let legacyName = "screen"
-
-    static func resolve(in world: Entity) throws -> Entity {
-        let anchor: Entity
-        if let canonical = world.findEntity(named: canonicalName) {
-            anchor = canonical
-        } else if let legacy = world.findEntity(named: legacyName) {
-            legacy.name = canonicalName
-            anchor = legacy
-        } else {
-            throw PlaybackSurfacePlatformError.missingAnchor
-        }
-        removePlaybackGeometry(from: anchor)
-        return anchor
-    }
-
-    private static func removePlaybackGeometry(from entity: Entity) {
-        entity.components.remove(ModelComponent.self)
-        for child in entity.children {
-            removePlaybackGeometry(from: child)
-        }
-    }
-}
 
 @MainActor
 enum PlaybackSurfacePlacement {
@@ -39,30 +13,44 @@ enum PlaybackSurfacePlacement {
         entity.scale = .one
     }
 
+    @discardableResult
     static func dock(
         _ entity: Entity,
         to anchor: Entity,
-        transform: PlaybackSurfaceTransform
-    ) {
+        transform: PlaybackSurfaceTransform,
+        geometry: EnvironmentSceneGeometry,
+        restPose: EnvironmentScreenRestPose,
+        roomOrigin: SIMD3<Float> = .zero
+    ) -> PlaybackDockedPose {
         if entity.parent !== anchor {
             anchor.addChild(entity)
         }
-        let viewerReference = SIMD3<Float>(0, anchor.position(relativeTo: nil).y, 0)
-        let elevation = transform.elevationDegrees * .pi / 180
-        let position = viewerReference + SIMD3<Float>(
-            0,
-            Float(sin(elevation) * transform.distance),
-            Float(-cos(elevation) * transform.distance)
+        let meshSize = entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero
+        let pose = PlaybackDockedPoseSolver.solve(
+            transform: transform,
+            geometry: geometry,
+            restPose: restPose,
+            meshSize: meshSize,
+            roomOrigin: roomOrigin
         )
-        entity.look(at: position + (position - viewerReference), from: position, relativeTo: nil)
-        entity.scale = .init(repeating: Float(transform.scale))
+        let basis = simd_float3x3(pose.right, pose.up, pose.normal)
+        entity.setOrientation(simd_quatf(basis), relativeTo: nil)
+        entity.setPosition(pose.center, relativeTo: nil)
+        entity.scale = .init(repeating: pose.meshScale)
+        return pose
     }
-}
 
-private enum PlaybackSurfacePlatformError: LocalizedError {
-    case missingAnchor
-
-    var errorDescription: String? {
-        "The selected environment does not contain PlaybackSurfaceAnchor."
+    static func screenState(
+        pose: PlaybackDockedPose,
+        videoTexture: TextureResource?
+    ) -> EnvironmentScreenState {
+        EnvironmentScreenState(
+            center: pose.center,
+            right: pose.right,
+            up: pose.up,
+            halfWidth: pose.halfWidth,
+            halfHeight: pose.halfHeight,
+            videoTexture: videoTexture
+        )
     }
 }

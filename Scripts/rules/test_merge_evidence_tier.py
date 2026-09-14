@@ -52,7 +52,7 @@ class PathTierTests(unittest.TestCase):
             ("Apps/Enchron/Screens/PlayerScreen.swift", tiers.W2),
             ("Modules/Playback/Runtime.swift", tiers.W3),
             ("Packages/PlaybackCore/Sources/Core/A.swift", tiers.W3),
-            ("Packages/RealityKitContent/Package.swift", tiers.W3),
+            ("Packages/OceanEnvironment/Package.swift", tiers.W3),
         ):
             self.assertTier(path, expected)
 

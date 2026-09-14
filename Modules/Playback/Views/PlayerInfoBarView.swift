@@ -52,7 +52,7 @@ public struct PlayerInfoBarView: View {
                     horizontalFieldOfViewDegrees:
                         playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
                     stereoLayout: playbackRuntime.effectiveStereoLayout,
-                    defaultScenicEnvironment: appModel.defaultScenicEnvironment,
+                    cardEnvironment: appModel.lastCardEnvironment,
                     onEnterImmersive: enterImmersive,
                     onApplyFormat: applyFormat,
                     onRestoreAutomaticFormat: restoreAutomaticFormat,

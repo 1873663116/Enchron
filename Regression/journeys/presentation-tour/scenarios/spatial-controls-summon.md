@@ -79,7 +79,7 @@
       },
       "callId": "call:presentation-tour:spatial-controls-summon:06",
       "maxInvocations": 1,
-      "operation": "operation:presentation.enter-docked-skybox@1"
+      "operation": "operation:presentation.enter-docked-default@1"
     },
     {
       "arguments": {},
@@ -149,7 +149,7 @@
       },
       "callId": "call:presentation-tour:spatial-controls-summon:14",
       "maxInvocations": 1,
-      "operation": "operation:presentation.enter-docked-skybox@1"
+      "operation": "operation:presentation.enter-docked-default@1"
     },
     {
       "arguments": {},

@@ -856,6 +856,10 @@ public final class PlaybackCoreController {
         beginPendingCleanup(for: session)
     }
 
+    public func interruptActiveSessionSourceReads() {
+        activeSession?.interruptSourceReadsForClose()
+    }
+
     public func closeAndWait(clearSource: Bool = true) async {
         failedCleanupTask?.cancel()
         failedCleanupTask = nil

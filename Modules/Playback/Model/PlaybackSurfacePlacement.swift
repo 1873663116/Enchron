@@ -142,10 +142,12 @@ public struct PlaybackSurfaceTransform: Equatable, Sendable {
     public let distance: Double
     public let elevationDegrees: Double
     public let scale: Double
+    public let viewerHeight: Double
 
-    public init(distance: Double, elevationDegrees: Double, scale: Double) {
+    public init(distance: Double, elevationDegrees: Double, scale: Double, viewerHeight: Double = 0) {
         self.distance = distance
         self.elevationDegrees = elevationDegrees
         self.scale = scale
+        self.viewerHeight = viewerHeight
     }
 }

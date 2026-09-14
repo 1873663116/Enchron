@@ -119,8 +119,8 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         guard requireHittable(settings, named: "Docked Settings") else { return }
         settings.tap()
 
-        let size = app.descendants(matching: .any)[
-            "PlayerPanel-ScreenSize-slider"
+        let viewerHeightSlider = app.descendants(matching: .any)[
+            "PlayerPanel-Height-slider"
         ].firstMatch
         let distance = app.descendants(matching: .any)[
             "PlayerPanel-Distance-slider"
@@ -129,30 +129,30 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
             "PlayerPanel-Elevation-slider"
         ].firstMatch
 
-        let initialScale = try XCTUnwrap(initial.double("screenScale"))
+        let initialHeight = try XCTUnwrap(initial.double("viewerHeight"))
         let initialDistance = try XCTUnwrap(initial.double("screenDistance"))
         let initialElevation = try XCTUnwrap(initial.double("screenElevation"))
         dragDetentedSlider(
-            size,
-            from: normalized(initialScale, lower: 0.5, upper: 2.5),
+            viewerHeightSlider,
+            from: normalized(initialHeight, lower: -3, upper: 1),
             to: 0.75,
-            named: "Screen Size"
+            named: "Height"
         )
         dragDetentedSlider(
             distance,
-            from: normalized(initialDistance, lower: 0.5, upper: 10),
-            to: 0.25,
+            from: normalized(initialDistance, lower: 9, upper: 25),
+            to: 0.75,
             named: "Distance"
         )
         dragDetentedSlider(
             elevation,
-            from: normalized(initialElevation, lower: -80, upper: 80),
+            from: normalized(initialElevation, lower: 0, upper: 90),
             to: 0.75,
             named: "Elevation"
         )
 
         let adjusted = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
-            abs(($0.double("screenScale") ?? initialScale) - initialScale) > 0.1
+            abs(($0.double("viewerHeight") ?? initialHeight) - initialHeight) > 0.1
                 && abs(
                     ($0.double("screenDistance") ?? initialDistance)
                         - initialDistance
@@ -167,7 +167,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         attachState(adjusted, name: "docked-placement-adjusted")
         attachScreenshot(from: app, name: "docked-placement-01-adjusted")
 
-        let adjustedScale = try XCTUnwrap(adjusted.double("screenScale"))
+        let adjustedHeight = try XCTUnwrap(adjusted.double("viewerHeight"))
         let adjustedDistance = try XCTUnwrap(adjusted.double("screenDistance"))
         let adjustedElevation = try XCTUnwrap(adjusted.double("screenElevation"))
         let firstSession = try XCTUnwrap(adjusted.string("session"))
@@ -198,7 +198,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         let nextSession = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
             $0.string("presentation") == "docked"
                 && abs(
-                    ($0.double("screenScale") ?? 0) - adjustedScale
+                    ($0.double("viewerHeight") ?? 0) - adjustedHeight
                 ) < 0.001
                 && abs(
                     ($0.double("screenDistance") ?? 0) - adjustedDistance
@@ -227,7 +227,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         let afterProcessRestart = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
             $0.string("presentation") == "docked"
                 && abs(
-                    ($0.double("screenScale") ?? 0) - adjustedScale
+                    ($0.double("viewerHeight") ?? 0) - adjustedHeight
                 ) < 0.001
                 && abs(
                     ($0.double("screenDistance") ?? 0) - adjustedDistance
@@ -252,7 +252,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         reset.tap()
 
         let resetState = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
-            abs(($0.double("screenScale") ?? .nan) - initialScale) < 0.001
+            abs(($0.double("viewerHeight") ?? .nan) - initialHeight) < 0.001
                 && abs(($0.double("screenDistance") ?? .nan) - initialDistance) < 0.001
                 && abs(($0.double("screenElevation") ?? .nan) - initialElevation) < 0.001
         })
@@ -280,12 +280,12 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         ].firstMatch
         let initial = try XCTUnwrap(waitForState(spatialState, timeout: 30) {
             $0.string("presentation") == "docked"
-                && $0.string("environment") == "scenic-one"
+                && $0.string("environment") == "ocean"
                 && $0.string("environmentEffect") == "light"
                 && $0.bool("surfaceSettled") == true
                 && $0.bool("surfaceAnchorMatched") == true
         })
-        let initialScale = try XCTUnwrap(initial.double("screenScale"))
+        let initialHeight = try XCTUnwrap(initial.double("viewerHeight"))
         let initialDistance = try XCTUnwrap(initial.double("screenDistance"))
         let initialElevation = try XCTUnwrap(initial.double("screenElevation"))
 
@@ -294,31 +294,31 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         settings.tap()
         dragDetentedSlider(
             app.descendants(matching: .any)[
-                "PlayerPanel-ScreenSize-slider"
+                "PlayerPanel-Height-slider"
             ].firstMatch,
-            from: normalized(initialScale, lower: 0.5, upper: 2.5),
-            to: 0.75,
-            named: "Screen Size"
+            from: normalized(initialHeight, lower: -3, upper: 1),
+            to: 0,
+            named: "Height"
         )
         dragDetentedSlider(
             app.descendants(matching: .any)[
                 "PlayerPanel-Distance-slider"
             ].firstMatch,
-            from: normalized(initialDistance, lower: 0.5, upper: 10),
-            to: 0.25,
+            from: normalized(initialDistance, lower: 9, upper: 25),
+            to: 0.75,
             named: "Distance"
         )
         dragDetentedSlider(
             app.descendants(matching: .any)[
                 "PlayerPanel-Elevation-slider"
             ].firstMatch,
-            from: normalized(initialElevation, lower: -80, upper: 80),
+            from: normalized(initialElevation, lower: 0, upper: 90),
             to: 0.75,
             named: "Elevation"
         )
 
         let adjusted = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
-            abs(($0.double("screenScale") ?? initialScale) - initialScale) > 0.1
+            abs(($0.double("viewerHeight") ?? initialHeight) - initialHeight) > 0.1
                 && abs(
                     ($0.double("screenDistance") ?? initialDistance)
                         - initialDistance
@@ -329,54 +329,38 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
                 ) > 1
                 && $0.bool("surfaceSettled") == true
         })
-        let adjustedScale = try XCTUnwrap(adjusted.double("screenScale"))
+        let adjustedHeight = try XCTUnwrap(adjusted.double("viewerHeight"))
         let adjustedDistance = try XCTUnwrap(adjusted.double("screenDistance"))
         let adjustedElevation = try XCTUnwrap(adjusted.double("screenElevation"))
         assertSurfaceMatchesPlacement(adjusted)
-        attachState(adjusted, name: "docked-placement-scenic-one-light-adjusted")
+        attachState(adjusted, name: "docked-placement-ocean-light-adjusted")
 
         guard returnToWindow(in: app),
-              closeMediaAndSelectDefaultEnvironment(
-                  named: "Scenic Environment 2",
-                  currentTitle: "Scenic Environment 1",
-                  in: app
-              ),
-              openRegisteredMedia(identifier: identifier, in: app),
-              enterDocked(in: app, effect: "dark") else { return }
+              enterDocked(in: app, effect: "default") else { return }
 
         let isolated = try XCTUnwrap(waitForState(spatialState, timeout: 60) {
             $0.string("presentation") == "docked"
-                && $0.string("environment") == "scenic-two"
-                && $0.string("environmentEffect") == "dark"
-                && abs(($0.double("screenScale") ?? adjustedScale) - adjustedScale) > 0.1
+                && $0.string("environment") == "quiet-room"
+                && $0.string("environmentEffect") == "none"
+                && abs(($0.double("viewerHeight") ?? adjustedHeight) - adjustedHeight) > 0.1
                 && abs(
                     ($0.double("screenDistance") ?? adjustedDistance)
                         - adjustedDistance
                 ) > 0.1
-                && abs(
-                    ($0.double("screenElevation") ?? adjustedElevation)
-                        - adjustedElevation
-                ) > 1
                 && $0.bool("surfaceSettled") == true
         })
         assertSurfaceMatchesPlacement(isolated)
-        attachState(isolated, name: "docked-placement-scenic-two-isolated")
-        attachScreenshot(from: app, name: "docked-placement-04-scenic-two-isolated")
+        attachState(isolated, name: "docked-placement-quiet-room-isolated")
+        attachScreenshot(from: app, name: "docked-placement-04-quiet-room-isolated")
 
         guard returnToWindow(in: app),
-              closeMediaAndSelectDefaultEnvironment(
-                  named: "Scenic Environment 1",
-                  currentTitle: "Scenic Environment 2",
-                  in: app
-              ),
-              openRegisteredMedia(identifier: identifier, in: app),
               enterDocked(in: app, effect: "dark") else { return }
 
         let sharedAcrossEffects = try XCTUnwrap(waitForState(spatialState, timeout: 60) {
             $0.string("presentation") == "docked"
-                && $0.string("environment") == "scenic-one"
+                && $0.string("environment") == "ocean"
                 && $0.string("environmentEffect") == "dark"
-                && abs(($0.double("screenScale") ?? 0) - adjustedScale) < 0.001
+                && abs(($0.double("viewerHeight") ?? 0) - adjustedHeight) < 0.001
                 && abs(
                     ($0.double("screenDistance") ?? 0) - adjustedDistance
                 ) < 0.001
@@ -388,14 +372,14 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         assertSurfaceMatchesPlacement(sharedAcrossEffects)
         attachState(
             sharedAcrossEffects,
-            name: "docked-placement-scenic-one-dark-restored"
+            name: "docked-placement-ocean-dark-restored"
         )
         attachScreenshot(
             from: app,
-            name: "docked-placement-05-scenic-one-dark-restored"
+            name: "docked-placement-05-ocean-dark-restored"
         )
         attachHumanReviewBoundary(
-            "Review the Scenic Environment 1 Light Mode adjustment, Scenic Environment 2 isolation, and Scenic Environment 1 Dark Mode restoration segments for actual spatial placement changes.",
+            "Review the Ocean Light Mode adjustment, Quiet Room isolation, and Ocean Dark Mode restoration segments for actual spatial placement changes.",
             name: "docked-placement-environment-isolation-human-review"
         )
     }
@@ -447,47 +431,6 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         attachScreenshot(from: app, name: "docked-entry-failure")
         XCTFail("Docked playback and its attached controls did not become usable.")
         return false
-    }
-
-    @MainActor
-    private func closeMediaAndSelectDefaultEnvironment(
-        named title: String,
-        currentTitle: String,
-        in app: XCUIApplication
-    ) -> Bool {
-        let back = app.buttons["PlayerUI-InfoBar-button-back"].firstMatch
-        guard requireHittable(back, named: "Back to Media Library") else {
-            return false
-        }
-        back.tap()
-        return selectDefaultScenicEnvironment(
-            named: title,
-            currentTitle: currentTitle,
-            in: app
-        )
-    }
-
-    @MainActor
-    private func openRegisteredMedia(
-        identifier: String,
-        in app: XCUIApplication
-    ) -> Bool {
-        let filesTab = app.descendants(matching: .any)[
-            "Navigation-Ornament-tab-files"
-        ].firstMatch
-        guard requireHittable(filesTab, named: "Files") else { return false }
-        filesTab.tap()
-        guard let card = waitForHittableRegisteredMediaCard(
-            identifier: identifier,
-            in: app,
-            timeout: 30
-        ) else {
-            XCTFail("Registered media was unavailable after changing Settings.")
-            return false
-        }
-        card.tap()
-        resolveResumeDecisionIfNeeded(in: app)
-        return true
     }
 
     @MainActor

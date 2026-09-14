@@ -31,12 +31,7 @@ public struct MainView: View {
         .enchronWindowGlassBackground(.always)
         .developerStatsOverlay(
             isEnabled: settingsViewModel.preferences.developerModeEnabled,
-            metrics: developerMetrics.metrics,
-            sceneUpdatesPerSecond: developerMetrics.sceneUpdatesPerSecond[.window],
-            presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond,
-            enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
-            playback: playbackRuntime.diagnostics,
-            sessionIsActive: playbackRuntime.activeSessionID != nil
+            sceneKey: .window
         )
         .onChange(
             of: settingsViewModel.preferences.developerModeEnabled,

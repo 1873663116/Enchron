@@ -75,7 +75,7 @@
       },
       "callId": "call:presentation-tour:window-docked-round-trip:06",
       "maxInvocations": 1,
-      "operation": "operation:presentation.enter-docked-skybox@1"
+      "operation": "operation:presentation.enter-docked-default@1"
     },
     {
       "arguments": {

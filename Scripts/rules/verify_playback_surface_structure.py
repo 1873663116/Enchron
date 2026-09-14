@@ -218,6 +218,9 @@ def main() -> int:
     playback_reality_adapter = read(
         "Modules/Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift"
     )
+    docked_pose_solver = read(
+        "Modules/Playback/Platform/PlaybackDockedPoseSolver.swift"
+    )
     spatial_handoff = read("Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift")
     docked_placement = read("Tests/EnchronAppUI/Spatial/DockedPlacementUITests.swift")
     regression_support = read("Tests/EnchronAppUI/Support/DeviceRegressionSupport.swift")
@@ -929,11 +932,19 @@ def main() -> int:
         "enum PlaybackPanoramaInteractionSurface",
     )
     require(
-        "entity.look(at: position + (position - viewerReference), from: position, relativeTo: nil)"
+        "let basis = simd_float3x3(pose.right, pose.up, pose.normal)"
         in playback_reality_adapter
+        and "entity.setOrientation(simd_quatf(basis), relativeTo: nil)"
+        in playback_reality_adapter
+        and "entity.setPosition(pose.center, relativeTo: nil)"
+        in playback_reality_adapter
+        and "entity.look(" not in playback_reality_adapter
+        and "let bottomEdge = SIMD3<Float>(0, restBottom, 0)" in docked_pose_solver
+        and "let center = yaw.act(bottomEdge + halfHeight * planarUp)"
+        in docked_pose_solver
         and "entity.position = [0, 0, frontOffset]"
         in docked_interaction_surface,
-        "the Docked video plane faces the wearer with its local +Z and its interaction collider sits in front of it",
+        "the Docked video plane takes its orientation from the solved bottom-edge basis and its interaction collider sits in front of it",
     )
     production_immersive = without_debug_blocks(immersive)
     require(

@@ -25,8 +25,7 @@ public struct SenseZoneVolumeRoot: View {
         .scaleEffect(revealCompleted ? 1 : revealInitialScale)
         .developerStatsOverlay(
             isEnabled: developerMetrics.isRunning,
-            metrics: developerMetrics.metrics,
-            presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond
+            includePlayback: false
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SenseZone-VolumeRoot")
@@ -128,7 +127,7 @@ public struct SenseZoneVolumeRoot: View {
                 guard appModel.immersiveSpaceResidency == .closed else { return }
                 try appModel.requestEnvironmentPreview(
                     environment: featured.environment,
-                    effect: featured.environment.isScenic ? effect : nil
+                    effect: featured.environment.supportsDarkAppearance ? effect : nil
                 )
             }
         } catch {

@@ -197,6 +197,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
             "screenScale=\(String(format: "%.4f", appModel.screenScale))",
+            "viewerHeight=\(String(format: "%.4f", appModel.viewerHeight))",
             "screenDistance=\(String(format: "%.4f", appModel.screenDepthOffset))",
             "screenElevation=\(String(format: "%.4f", appModel.screenViewAngle))",
             "registeredPlatformExecutorCount=\(spatialPlatformEffectCoordinator.registeredPlatformExecutorCount)",

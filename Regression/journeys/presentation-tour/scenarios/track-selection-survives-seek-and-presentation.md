@@ -226,7 +226,7 @@
       },
       "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:17",
       "maxInvocations": 1,
-      "operation": "operation:presentation.enter-docked-skybox@1"
+      "operation": "operation:presentation.enter-docked-default@1"
     },
     {
       "arguments": {
