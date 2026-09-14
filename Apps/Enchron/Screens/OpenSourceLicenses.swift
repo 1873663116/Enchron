@@ -128,7 +128,7 @@ private struct OpenSourceSection: Identifiable {
                     name: "FFmpeg",
                     version: "9.0.1",
                     license: "GNU Lesser General Public License, version 2.1 or later",
-                    usage: "Demuxing, decoding and resampling. Linked statically,"
+                    usage: "Demuxing, decoding and resampling. Linked dynamically,"
                         + " configured without --enable-gpl and without --enable-nonfree,"
                         + " and modified in two places by"
                         + " Packages/PlaybackCore/Scripts/build_ffmpeg.sh: a patch that"

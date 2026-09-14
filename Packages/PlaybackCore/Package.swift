@@ -31,6 +31,7 @@ let package = Package(
             publicHeadersPath: "include",
             cSettings: [
                 .unsafeFlags(["-O2"], .when(configuration: .debug)),
+                .headerSearchPath("ffmpeg-headers"),
             ],
             linkerSettings: [
                 .linkedFramework("AudioToolbox"),
