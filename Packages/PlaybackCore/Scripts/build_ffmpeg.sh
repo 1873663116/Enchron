@@ -133,6 +133,13 @@ build_slice() {
 </plist>
 PLIST
 
+  local minimum_os_key="MinimumOSVersion"
+  if [[ "$sdk" == "macosx" ]]; then
+    minimum_os_key="LSMinimumSystemVersion"
+  fi
+  /usr/libexec/PlistBuddy -c "Add :$minimum_os_key string 27.0" \
+    "$framework/PlaybackFFmpeg.framework/Info.plist"
+
   cat > "$framework/PlaybackFFmpeg.framework/Modules/module.modulemap" <<'MODULEMAP'
 framework module PlaybackFFmpeg {
   umbrella "Headers"

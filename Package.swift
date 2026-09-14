@@ -20,7 +20,7 @@ let package = Package(
         .package(path: "Packages/EnvironmentSceneContract"),
         .package(path: "Packages/OceanEnvironment"),
         .package(path: "Packages/QuietRoomEnvironment"),
-        .package(url: "https://github.com/apple/realitykitscripting.git", branch: "main"),
+        .package(url: "https://github.com/apple/realitykitscripting.git", exact: "1.4.0"),
     ],
     targets: [
         .target(

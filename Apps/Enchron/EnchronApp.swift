@@ -16,11 +16,7 @@ struct EnchronApp: App {
     )
 
     init() {
-        do {
-            try RKS.initialize(inputOptions: .all.subtracting(.ar))
-        } catch {
-            assertionFailure("RealityKitScripting initialization failed: \(error)")
-        }
+        ScriptingRuntime.setup(inputOptions: .all.subtracting(.ar))
         _application = State(initialValue: EnchronApplication())
     }
 

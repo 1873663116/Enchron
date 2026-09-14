@@ -769,7 +769,7 @@ public struct ImmersiveSpaceView: View {
                 }
             }
         }
-        .realityScripting()
+        .enableRealityKitScriptingInput()
         .simultaneousGesture(spatialSurfaceTapGesture)
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {

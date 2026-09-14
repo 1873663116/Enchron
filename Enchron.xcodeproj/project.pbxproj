@@ -1091,8 +1091,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/realitykitscripting.git";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = exactVersion;
+				version = 1.4.0;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
