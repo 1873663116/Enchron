@@ -59,7 +59,7 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         windAlignment: 0.75,
         crossSeaAmount: 0.5,
         crossSeaAngleDegrees: 37.242256,
-        swellDirectionDegrees: 165,
+        swellDirectionDegrees: 180,
         swellWavelength: 120,
         swellHeight: 0.4,
         swellSpread: 15,
