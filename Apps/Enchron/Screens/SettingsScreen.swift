@@ -255,7 +255,7 @@ struct SettingsScreen: View {
                 keyValueDetail: [
                     .init(key: "Local Files", value: "Read on device"),
                     .init(key: "Remote Credentials", value: "Stored in Keychain"),
-                    .init(key: "Diagnostics", value: "Remain on device")
+                    .init(key: "Diagnostics", value: "No analytics or tracking")
                 ]
             )
         ]
@@ -354,7 +354,7 @@ struct SettingsScreen: View {
         speed == speed.rounded() ? "\(Int(speed))×" : "\(String(format: "%g", speed))×"
     }
 
-    private let feedbackEmail = "feedback@enchron.app"
+    private let feedbackEmail = "xzp1873663116@icloud.com"
     private var appVersion: String {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "0.0.0"
