@@ -1076,6 +1076,16 @@ enum PlaybackRealityPresenter {
         entity.components.remove(InputTargetComponent.self)
         entity.components.remove(CollisionComponent.self)
         entity.components.remove(AccessibilityComponent.self)
+        if presentation == .docked {
+            let spatialAudio = SpatialAudioComponent(
+                distanceAttenuation: .rolloff(factor: 0.35)
+            )
+            if entity.components[SpatialAudioComponent.self] != spatialAudio {
+                entity.components.set(spatialAudio)
+            }
+        } else {
+            entity.components.remove(SpatialAudioComponent.self)
+        }
         return write
     }
 
