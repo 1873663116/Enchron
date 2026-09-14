@@ -41,14 +41,14 @@ struct EnvironmentSceneMappingTests {
     @Test("each environment identity resolves to the geometry authored for its scene")
     func descriptorGeometryMatchesEachEnvironment() {
         let ocean = EnvironmentSceneMapping.geometry(for: .ocean)
-        #expect(ocean.distanceRangeMeters == 9...25)
-        #expect(ocean.defaultDistanceMeters == 15)
-        #expect(ocean.viewerHeightRangeMeters == -3...1)
+        #expect(ocean.distanceRangeMeters == 12...47)
+        #expect(ocean.defaultDistanceMeters == 13)
+        #expect(ocean.viewerHeightRangeMeters == -3...5)
         #expect(ocean.defaultViewerHeightMeters == -2)
         #expect(ocean.elevationRangeDegrees == 0...90)
-        #expect(ocean.screenHeightRangeMeters == 8...8)
-        #expect(ocean.defaultScreenHeightMeters == 8)
-        #expect(ocean.distanceStrategy == .movesScreen)
+        #expect(ocean.screenHeightRangeMeters == 20...20)
+        #expect(ocean.defaultScreenHeightMeters == 20)
+        #expect(ocean.distanceStrategy == .movesViewer)
         #expect(ocean.ceilingHeightMeters == nil)
 
         for placeholder: SpatialSceneDomain.CinemaEnvironment in [
@@ -79,13 +79,13 @@ struct EnvironmentSceneMappingTests {
         #expect(EnvironmentSceneMapping.descriptor(for: .placeholderBlue).supportsDarkAppearance == true)
     }
 
-    @Test("every identity docks a screen fixed at 8 m tall")
-    func defaultScreenHeightMetersIsFixedAtEightMeters() {
+    @Test("environment IDs resolve their screen heights with the placeholder fallback")
+    func environmentIDsResolveScreenHeights() {
         for environment in SpatialSceneDomain.CinemaEnvironment.allCases {
             #expect(
                 EnvironmentSceneMapping.defaultScreenHeightMeters(
                     forEnvironmentID: environment.rawValue
-                ) == 8
+                ) == (environment == .ocean ? 20 : 8)
             )
         }
         #expect(

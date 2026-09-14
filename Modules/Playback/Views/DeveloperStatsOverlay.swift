@@ -21,7 +21,6 @@ public enum DeveloperStatsLine {
     static func groups(
         metrics: DeveloperProcessMetrics,
         sceneUpdatesPerSecond: Double?,
-        presentedFramesPerSecond: Double?,
         enqueuedSamplesPerSecond: Double?,
         playback: PlaybackDiagnostics?,
         sessionIsActive: Bool
@@ -120,7 +119,6 @@ public enum DeveloperStatsLine {
     public static func text(
         metrics: DeveloperProcessMetrics,
         sceneUpdatesPerSecond: Double?,
-        presentedFramesPerSecond: Double?,
         enqueuedSamplesPerSecond: Double?,
         playback: PlaybackDiagnostics?,
         sessionIsActive: Bool
@@ -128,7 +126,6 @@ public enum DeveloperStatsLine {
         groups(
             metrics: metrics,
             sceneUpdatesPerSecond: sceneUpdatesPerSecond,
-            presentedFramesPerSecond: presentedFramesPerSecond,
             enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
             playback: playback,
             sessionIsActive: sessionIsActive
@@ -166,7 +163,6 @@ public enum DeveloperStatsLine {
 public struct DeveloperStatsOverlay: View {
     private let metrics: DeveloperProcessMetrics
     private let sceneUpdatesPerSecond: Double?
-    private let presentedFramesPerSecond: Double?
     private let enqueuedSamplesPerSecond: Double?
     private let playback: PlaybackDiagnostics?
     private let sessionIsActive: Bool
@@ -174,14 +170,12 @@ public struct DeveloperStatsOverlay: View {
     public init(
         metrics: DeveloperProcessMetrics,
         sceneUpdatesPerSecond: Double? = nil,
-        presentedFramesPerSecond: Double? = nil,
         enqueuedSamplesPerSecond: Double? = nil,
         playback: PlaybackDiagnostics? = nil,
         sessionIsActive: Bool = false
     ) {
         self.metrics = metrics
         self.sceneUpdatesPerSecond = sceneUpdatesPerSecond
-        self.presentedFramesPerSecond = presentedFramesPerSecond
         self.enqueuedSamplesPerSecond = enqueuedSamplesPerSecond
         self.playback = playback
         self.sessionIsActive = sessionIsActive
@@ -191,7 +185,6 @@ public struct DeveloperStatsOverlay: View {
         DeveloperStatsLine.groups(
             metrics: metrics,
             sceneUpdatesPerSecond: sceneUpdatesPerSecond,
-            presentedFramesPerSecond: presentedFramesPerSecond,
             enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
             playback: playback,
             sessionIsActive: sessionIsActive
@@ -221,7 +214,6 @@ public struct DeveloperStatsOverlay: View {
             DeveloperStatsLine.text(
                 metrics: metrics,
                 sceneUpdatesPerSecond: sceneUpdatesPerSecond,
-                presentedFramesPerSecond: presentedFramesPerSecond,
                 enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
                 playback: playback,
                 sessionIsActive: sessionIsActive
@@ -277,7 +269,6 @@ public struct DeveloperStatsOverlayReader: View {
             sceneUpdatesPerSecond: sceneKey.flatMap {
                 developerMetrics.sceneUpdatesPerSecond[$0]
             },
-            presentedFramesPerSecond: developerMetrics.presentedFramesPerSecond,
             enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
             playback: includePlayback ? playbackRuntime.diagnostics : nil,
             sessionIsActive: includePlayback
@@ -311,7 +302,6 @@ public extension View {
         isEnabled: Bool,
         metrics: DeveloperProcessMetrics,
         sceneUpdatesPerSecond: Double? = nil,
-        presentedFramesPerSecond: Double? = nil,
         enqueuedSamplesPerSecond: Double? = nil,
         playback: PlaybackDiagnostics? = nil,
         sessionIsActive: Bool = false
@@ -321,7 +311,6 @@ public extension View {
                 DeveloperStatsOverlay(
                     metrics: metrics,
                     sceneUpdatesPerSecond: sceneUpdatesPerSecond,
-                    presentedFramesPerSecond: presentedFramesPerSecond,
                     enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
                     playback: playback,
                     sessionIsActive: sessionIsActive

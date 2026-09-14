@@ -1,7 +1,7 @@
 import Darwin
 import Foundation
 
-enum ProcessMemoryRegions {
+nonisolated enum ProcessMemoryRegions {
     struct Summary: Equatable, Sendable {
         var residentBytesByTag: [UInt32: UInt64]
         var dirtyBytesByTag: [UInt32: UInt64]
@@ -23,7 +23,7 @@ enum ProcessMemoryRegions {
     static let coreMediaTags: Set<UInt32> = [92, 93, 94, 95, 96, 101, 106]
     static let mallocTags: Set<UInt32> = Set(1...13)
 
-    nonisolated(unsafe) private(set) static var lastSummary: Summary?
+    @MainActor static var lastSummary: Summary?
 
     private static let infoCount = mach_msg_type_number_t(
         MemoryLayout<vm_region_submap_info_data_64_t>.size / MemoryLayout<natural_t>.size
@@ -36,9 +36,7 @@ enum ProcessMemoryRegions {
     }
 
     static func read() -> Summary? {
-        let summary = walk()
-        lastSummary = summary
-        return summary
+        walk()
     }
 
     private static func walk() -> Summary? {
@@ -53,9 +51,9 @@ enum ProcessMemoryRegions {
 
         let maxDepth: natural_t = 32
         let maxRegions = 1 << 22
+        var depth: natural_t = 0
         while summary.regionCount < maxRegions {
             var size: vm_size_t = 0
-            var depth: natural_t = 0
             var info = vm_region_submap_info_data_64_t()
 
             while true {

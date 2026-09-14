@@ -1371,6 +1371,10 @@
   ],
   "externalSubject": [
     {
+      "check": "check_memory_region_walk.py",
+      "reason": "判定对象是 Swift 程序实际分配并触碰的 Mach 内存页及扫描结果；需要编译运行，属于 W1 运行验证。"
+    },
+    {
       "check": "check_disc_image_format.py",
       "reason": "判定对象是 TestMedia 里的真实碟片镜像，坏样本要改的是那个媒体文件，不是仓库文本。"
     },

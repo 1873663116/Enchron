@@ -1,4 +1,5 @@
 @preconcurrency import AVFoundation
+import AudioToolbox
 import Foundation
 import OSLog
 
@@ -444,6 +445,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         initialSynchronizer.delaysRateChangeUntilHasSufficientMediaData = false
         initialAudioRenderer.audioTimePitchAlgorithm = .timeDomain
         initialAudioRenderer.allowedAudioSpatializationFormats = .monoStereoAndMultichannel
+        #if os(visionOS)
+        initialSynchronizer.intendedSpatialAudioExperience = .headTracked(
+            .front,
+            soundStageSize: .large
+        )
+        #endif
         audioRenderer = initialAudioRenderer
         synchronizer = initialSynchronizer
         videoRendererGraph = VideoRendererGraph(

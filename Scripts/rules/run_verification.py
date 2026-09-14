@@ -105,6 +105,7 @@ STRUCTURE_CHECKS = (
         "verify_regression_core_layering.py",
     ),
     StructureCheck("recording-extractor", "check_recording_extractor.py"),
+    StructureCheck("memory-region-walk", "check_memory_region_walk.py"),
     StructureCheck(
         "playback-issue-ownership",
         "verify_playback_issue_ownership.py",

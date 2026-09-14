@@ -38,8 +38,8 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             distanceStrategy: .movesViewer,
             defaultDistanceMeters: 13,
             distanceRangeMeters: 12...47,
-            defaultScreenHeightMeters: 16,
-            screenHeightRangeMeters: 16...16,
+            defaultScreenHeightMeters: 20,
+            screenHeightRangeMeters: 20...20,
             defaultViewerHeightMeters: -2,
             viewerHeightRangeMeters: -3...5,
             elevationRangeDegrees: 0...90,
@@ -81,6 +81,7 @@ public final class OceanEnvironmentScene: EnvironmentScene {
     )
 
     private static var runtimeIsRegistered = false
+    private static let authoredScreenHeightMeters: Float = 16
 
     private struct AuthoredLighting {
         var skyGain: Float
@@ -127,12 +128,16 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             throw EnvironmentSceneLoadingError.resourceMissing(Self.resourceName)
         }
         let root = try await Entity(contentsOf: url)
-        guard let pose = EnvironmentScreenRestPose.dockingRegion(
+        guard var pose = EnvironmentScreenRestPose.dockingRegion(
             in: root,
-            screenHeight: Float(Self.descriptor.geometry.defaultScreenHeightMeters)
+            screenHeight: Self.authoredScreenHeightMeters
         ) else {
             throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.dockingRegion)
         }
+        let halfHeight = Float(Self.descriptor.geometry.defaultScreenHeightMeters) / 2
+        pose.center.y += halfHeight - pose.halfHeight
+        pose.halfWidth *= halfHeight / pose.halfHeight
+        pose.halfHeight = halfHeight
         restPose = pose
         await audio.prepare(in: root, restPose: pose, bundle: .module)
         guard root.findEntity(named: Self.materialSourceEntityName) != nil else {

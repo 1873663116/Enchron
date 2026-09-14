@@ -1,9 +1,6 @@
 import Foundation
 import Observation
 import QuartzCore
-import AVFoundation
-import CoreVideo
-import IOSurface
 import RealityKit
 
 public struct DeveloperProcessMetrics: Equatable, Sendable {
@@ -151,15 +148,6 @@ final class MainThreadCadenceMonitor {
 }
 
 @MainActor
-public func presentedSurfaceIdentity(of renderer: AVSampleBufferVideoRenderer?) -> UInt64? {
-    guard let pixelBuffer = renderer?.displayedPixelBuffer() else { return nil }
-    if let surface = CVPixelBufferGetIOSurface(pixelBuffer) {
-        return UInt64(IOSurfaceGetID(surface.takeUnretainedValue()))
-    }
-    return UInt64(CFHash(pixelBuffer))
-}
-
-@MainActor
 public final class SceneTickSubscriber {
     private var subscription: EventSubscription?
 
@@ -189,7 +177,6 @@ public final class DeveloperMetricsModel {
     public private(set) var metrics = DeveloperProcessMetrics()
     public private(set) var isRunning = false
     public private(set) var sceneUpdatesPerSecond: [SceneKey: Double] = [:]
-    public private(set) var presentedFramesPerSecond: Double?
 
     public private(set) var enqueuedSamplesPerSecond: Double?
 
@@ -201,10 +188,14 @@ public final class DeveloperMetricsModel {
 
     @ObservationIgnored private let cadence = MainThreadCadenceMonitor()
     @ObservationIgnored private var timer: Timer?
+    @ObservationIgnored private let regionScanQueue = DispatchQueue(
+        label: "app.enchron.developer-metrics.region-scan",
+        qos: .utility
+    )
+    @ObservationIgnored private var regionScanInFlight = false
+    @ObservationIgnored private var regionScanEpoch: UInt64 = 0
     @ObservationIgnored private var sceneTicks: [SceneKey: Int] = [:]
     @ObservationIgnored private var sceneWindowStart = CACurrentMediaTime()
-    @ObservationIgnored private var presentedFrameCount = 0
-    @ObservationIgnored private var lastPresentedSurfaceIdentity: UInt64?
     @ObservationIgnored private var lastEnqueuedSampleCount: Int?
     @ObservationIgnored private var lastEnqueuedSampleAt: CFTimeInterval?
     @ObservationIgnored private var lastDroppedFrameCount: Int?
@@ -215,13 +206,6 @@ public final class DeveloperMetricsModel {
     public func recordSceneTick(_ key: SceneKey) {
         guard isRunning else { return }
         sceneTicks[key, default: 0] += 1
-    }
-
-    public func recordPresentedSurface(_ identity: UInt64?) {
-        guard isRunning, let identity else { return }
-        guard identity != lastPresentedSurfaceIdentity else { return }
-        lastPresentedSurfaceIdentity = identity
-        presentedFrameCount += 1
     }
 
     public func start() {
@@ -239,6 +223,8 @@ public final class DeveloperMetricsModel {
     public func stop() {
         guard isRunning else { return }
         isRunning = false
+        regionScanEpoch &+= 1
+        ProcessMemoryRegions.lastSummary = nil
         timer?.invalidate()
         timer = nil
         cadence.stop()
@@ -248,9 +234,6 @@ public final class DeveloperMetricsModel {
         droppedFramesPerSecond = nil
         lastDroppedFrameCount = nil
         lastDroppedSampleAt = nil
-        presentedFramesPerSecond = nil
-        presentedFrameCount = 0
-        lastPresentedSurfaceIdentity = nil
         enqueuedSamplesPerSecond = nil
         lastEnqueuedSampleCount = nil
         lastEnqueuedSampleAt = nil
@@ -305,8 +288,6 @@ public final class DeveloperMetricsModel {
         guard elapsed > 0 else { return }
         sceneUpdatesPerSecond = sceneTicks.mapValues { Double($0) / elapsed }
         sceneTicks = [:]
-        presentedFramesPerSecond = Double(presentedFrameCount) / elapsed
-        presentedFrameCount = 0
     }
 
     private func sample() {
@@ -314,6 +295,8 @@ public final class DeveloperMetricsModel {
         drainEnqueuedSamples()
         drainDroppedFrames()
         let cadenceReading = cadence.drain()
+        let regions = ProcessMemoryRegions.lastSummary
+        scanRegionsIfNeeded()
         guard let memory = ProcessMemoryFootprint.read() else {
             metrics = DeveloperProcessMetrics(
                 refreshHz: cadenceReading.refreshHz,
@@ -322,7 +305,6 @@ public final class DeveloperMetricsModel {
             )
             return
         }
-        let regions = ProcessMemoryRegions.read()
         metrics = DeveloperProcessMetrics(
             footprintBytes: memory.footprintBytes,
             availableBytes: memory.availableBytes,
@@ -342,5 +324,20 @@ public final class DeveloperMetricsModel {
             longestStallSeconds: cadenceReading.longestStallSeconds,
             missedBeatCount: cadenceReading.missedBeatCount
         )
+    }
+
+    private func scanRegionsIfNeeded() {
+        guard regionScanInFlight == false else { return }
+        regionScanInFlight = true
+        let epoch = regionScanEpoch
+        regionScanQueue.async { [weak self] in
+            let summary = ProcessMemoryRegions.read()
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.regionScanInFlight = false
+                guard self.isRunning, self.regionScanEpoch == epoch else { return }
+                ProcessMemoryRegions.lastSummary = summary
+            }
+        }
     }
 }

@@ -22,7 +22,6 @@ struct DeveloperStatsLineTests {
         let text = DeveloperStatsLine.text(
             metrics: metrics,
             sceneUpdatesPerSecond: nil,
-            presentedFramesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: nil,
             sessionIsActive: false
@@ -48,7 +47,6 @@ struct DeveloperStatsLineTests {
         let text = DeveloperStatsLine.text(
             metrics: metrics,
             sceneUpdatesPerSecond: nil,
-            presentedFramesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: nil,
             sessionIsActive: false
@@ -74,7 +72,6 @@ struct DeveloperStatsLineTests {
         let text = DeveloperStatsLine.text(
             metrics: metrics,
             sceneUpdatesPerSecond: nil,
-            presentedFramesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: nil,
             sessionIsActive: false
@@ -104,7 +101,6 @@ struct DeveloperStatsLineTests {
         let text = DeveloperStatsLine.text(
             metrics: metrics,
             sceneUpdatesPerSecond: nil,
-            presentedFramesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: playback,
             sessionIsActive: true

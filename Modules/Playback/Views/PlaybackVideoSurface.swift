@@ -321,11 +321,6 @@ public struct PlaybackVideoSurface: View {
             content.subscribe(to: SceneEvents.Update.self) { _ in
                 MainActor.assumeIsolated {
                     developerMetrics.recordSceneTick(.window)
-                    developerMetrics.recordPresentedSurface(
-                        presentedSurfaceIdentity(
-                            of: videoEntity.components[VideoPlayerComponent.self]?.videoRenderer
-                        )
-                    )
                 }
             }
         }

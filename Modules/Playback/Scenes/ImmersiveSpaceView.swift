@@ -864,11 +864,6 @@ public struct ImmersiveSpaceView: View {
             content.subscribe(to: SceneEvents.Update.self) { _ in
                 MainActor.assumeIsolated {
                     developerMetrics.recordSceneTick(.immersive)
-                    developerMetrics.recordPresentedSurface(
-                        presentedSurfaceIdentity(
-                            of: videoEntity.components[VideoPlayerComponent.self]?.videoRenderer
-                        )
-                    )
                 }
             }
         }
