@@ -37,7 +37,7 @@ public final class OceanEnvironmentScene: EnvironmentScene {
             ceilingHeightMeters: nil,
             distanceStrategy: .movesViewer,
             defaultDistanceMeters: 13,
-            distanceRangeMeters: 12...37,
+            distanceRangeMeters: 12...47,
             defaultScreenHeightMeters: 16,
             screenHeightRangeMeters: 16...16,
             defaultViewerHeightMeters: -2,
