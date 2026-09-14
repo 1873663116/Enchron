@@ -332,38 +332,48 @@ struct WindowPlaybackPageGeometryTests {
         )
     }
 
-    @Test("immersive controls inherit the wearer's full head orientation when they are placed")
-    func immersiveControlsPlacementInheritsHeadOrientation() {
-        let head = headTransform(
-            yaw: .pi / 3,
-            pitch: -.pi / 5,
-            roll: .pi / 6,
-            position: [0.4, 1.5, -0.3]
-        )
-        let headRotation = simd_quatf(head)
+    @Test("immersive controls keep their bottom edge horizontal without moving the summon position")
+    func immersiveControlsPlacementRemovesRoll() {
+        let yaws: [Float] = [-.pi, -.pi / 3, 0, .pi / 3, .pi]
+        let pitches: [Float] = [-.pi / 2, -.pi / 2 + 1e-6, -.pi / 5, 0,
+                                .pi / 5, .pi / 2 - 1e-6, .pi / 2]
+        for yaw in yaws {
+            for pitch in pitches {
+                for roll: Float in [-.pi / 2, -.pi / 6, 0, .pi / 6, .pi / 2] {
+                    let head = headTransform(
+                        yaw: yaw,
+                        pitch: pitch,
+                        roll: roll,
+                        position: [0.4, 1.5, -0.3]
+                    )
+                    let headRotation = simd_quatf(head)
 
-        let placement = ImmersivePlaybackControlsPlacementGeometry.transform(
-            originFromAnchorTransform: head,
-            forwardOffsetMeters: ImmersivePlaybackControlsAttachmentController
-                .forwardOffsetMeters,
-            verticalOffsetMeters: ImmersivePlaybackControlsAttachmentController
-                .verticalOffsetMeters
-        )
+                    let placement = ImmersivePlaybackControlsPlacementGeometry.transform(
+                        originFromAnchorTransform: head,
+                        forwardOffsetMeters: ImmersivePlaybackControlsAttachmentController
+                            .forwardOffsetMeters,
+                        verticalOffsetMeters: ImmersivePlaybackControlsAttachmentController
+                            .verticalOffsetMeters
+                    )
 
-        let up = placement.rotation.act(SIMD3<Float>(0, 1, 0))
-        #expect(simd_distance(up, headRotation.act(SIMD3<Float>(0, 1, 0))) < 1e-4)
-        let forward = placement.rotation.act(SIMD3<Float>(0, 0, -1))
-        #expect(simd_distance(forward, headRotation.act(SIMD3<Float>(0, 0, -1))) < 1e-4)
+                    let right = placement.rotation.act(SIMD3<Float>(1, 0, 0))
+                    #expect(abs(right.y) < 1e-4)
+                    #expect(abs(simd_length(right) - 1) < 1e-4)
+                    let forward = placement.rotation.act(SIMD3<Float>(0, 0, -1))
+                    #expect(simd_distance(forward, headRotation.act(SIMD3<Float>(0, 0, -1))) < 1e-4)
 
-        let expected = SIMD3<Float>(0.4, 1.5, -0.3)
-            + headRotation.act(
-                SIMD3<Float>(
-                    0,
-                    ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters,
-                    ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
-                )
-            )
-        #expect(simd_distance(placement.translation, expected) < 1e-4)
+                    let expected = SIMD3<Float>(0.4, 1.5, -0.3)
+                        + headRotation.act(
+                            SIMD3<Float>(
+                                0,
+                                ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters,
+                                ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
+                            )
+                        )
+                    #expect(simd_distance(placement.translation, expected) < 1e-4)
+                }
+            }
+        }
     }
 
     @Test("immersive controls stay below the wearer's view when looking straight up")

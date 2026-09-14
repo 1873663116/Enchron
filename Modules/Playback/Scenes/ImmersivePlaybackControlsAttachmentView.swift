@@ -27,7 +27,6 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             presentationOverride: presentation,
             onExitPlayback: { Task { await stopSpatialPlayback() } }
         )
-        .opacity(controlsAcceptInput ? 1 : 0)
         .allowsHitTesting(controlsAcceptInput)
         .accessibilityHidden(controlsAcceptInput == false)
         .disabled(isStoppingPlayback)

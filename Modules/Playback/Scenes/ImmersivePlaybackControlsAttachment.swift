@@ -1,4 +1,6 @@
+import DesignSystem
 import RealityKit
+import SwiftUI
 import simd
 
 @MainActor
@@ -71,9 +73,20 @@ enum ImmersivePlaybackControlsPlacementGeometry {
         let offset = rotation.act(
             SIMD3<Float>(0, verticalOffsetMeters, forwardOffsetMeters)
         )
+        let back = rotation.act(SIMD3<Float>(0, 0, 1))
+        var right = simd_cross(SIMD3<Float>(0, 1, 0), back)
+        if simd_length(right) < 1e-4 {
+            right = rotation.act(SIMD3<Float>(1, 0, 0))
+            right.y = 0
+        }
+        right = simd_normalize(right)
+        let up = simd_normalize(simd_cross(back, right))
+        let panelRotation = simd_quatf(simd_float3x3(
+            columns: (right, up, simd_cross(right, up))
+        ))
         return Transform(
             scale: SIMD3<Float>(repeating: 1),
-            rotation: rotation,
+            rotation: panelRotation,
             translation: head + offset
         )
     }
@@ -154,9 +167,7 @@ final class ImmersivePlaybackControlsAttachmentController {
             placeForPendingVisibilityRiseIfPossible()
         case let .hide(lastPlacementRevision):
             lockedTransform = nil
-            hideAttachment(
-                writer: "ImmersivePlaybackControlsAttachmentController.setVisible.hide"
-            )
+            fadeOutAttachment(revision: lastPlacementRevision)
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment placementStopped"
                     + " revision=\(lastPlacementRevision) reason=hidden",
@@ -261,12 +272,31 @@ final class ImmersivePlaybackControlsAttachmentController {
 
     private func applyLockedTransform(_ transform: Transform, to entity: Entity) {
         entity.transform = transform
-        entity.components.set(OpacityComponent(opacity: 1))
         setEnabled(
             true,
             on: entity,
             writer: "ImmersivePlaybackControlsAttachmentController.applyLockedTransform"
         )
+        Entity.animate(DesignTokens.AnimationToken.controlsTransition) {
+            entity.components[OpacityComponent.self]?.opacity = 1
+        }
+    }
+
+    private func fadeOutAttachment(revision: UInt64) {
+        guard let entity = attachmentEntity else { return }
+        Entity.animate(DesignTokens.AnimationToken.controlsTransition) {
+            entity.components[OpacityComponent.self]?.opacity = 0
+        } completion: { [weak self, weak entity] in
+            guard let self, let entity,
+                  self.attachmentEntity === entity,
+                  self.placementState.isVisible == false,
+                  self.placementState.placementRevision == revision else { return }
+            self.setEnabled(
+                false,
+                on: entity,
+                writer: "ImmersivePlaybackControlsAttachmentController.fadeOutAttachment"
+            )
+        }
     }
 
     private func hideAttachment(writer: String) {
