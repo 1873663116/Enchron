@@ -1,3 +1,4 @@
+import AVFAudio
 import EnvironmentSceneContract
 import Foundation
 import RealityKit
@@ -11,7 +12,8 @@ final class OceanEnvironmentAudio {
     static let bandDistances: [ClosedRange<Float>] = [6...14, 14...35, 35...80]
     static let bandWeights: [Float] = [0.3, 0.4, 0.3]
     static let fadeDuration: TimeInterval = 1.5
-    static let ambientGainDecibels: Double = 6
+    // AudioPlaybackController.gain clamps at 0 dB; loudness lives in the file.
+    static let ambientGainDecibels: Double = 0
     static let sourceCount = 6
     static let periodJitter: ClosedRange<Double> = 0.8...1.2
     static let secondSwellChance: Float = 0.3
@@ -30,6 +32,7 @@ final class OceanEnvironmentAudio {
     private var pauseTask: Task<Void, Never>?
     private var isVideoPlaying = false
     private var isStarted = false
+    private var interruptionObserver: NSObjectProtocol?
     private var generator = SystemRandomNumberGenerator()
 
     init(swellWavelength: Float, waterDepth: Float) {
@@ -61,6 +64,7 @@ final class OceanEnvironmentAudio {
         let ambient = Self.firstAmbientEntity(in: root) ?? Self.makeAmbientEntity(in: root)
         ambient.setOrientation(simd_quatf(angle: restPose.yawRadians, axis: [0, 1, 0]), relativeTo: nil)
         ambientEntity = ambient
+        installInterruptionObserver()
         guard let directory = bundle.url(forResource: Self.audioDirectoryName, withExtension: nil) else { return }
         let files = ((try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? [])
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
@@ -141,6 +145,34 @@ final class OceanEnvironmentAudio {
         entity.components.set(AmbientAudioComponent())
         root.addChild(entity)
         return entity
+    }
+
+    /// visionOS interrupts the app's audio when its last window closes even
+    /// though the immersive space keeps running; re-arm the ambient loop once
+    /// the interruption ends.
+    private func installInterruptionObserver() {
+        guard interruptionObserver == nil else { return }
+        interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            guard let rawType = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+                  AVAudioSession.InterruptionType(rawValue: rawType) == .ended
+            else { return }
+            Task { @MainActor in
+                self?.resumeAmbientAfterInterruption()
+            }
+        }
+    }
+
+    private func resumeAmbientAfterInterruption() {
+        guard isStarted, !isVideoPlaying, let ambientController else { return }
+        if !ambientController.isPlaying {
+            ambientController.gain = -.infinity
+        }
+        ambientController.play()
+        ambientController.fade(to: Self.ambientGainDecibels, duration: Self.fadeDuration)
     }
 
     private func fadeIn() {
