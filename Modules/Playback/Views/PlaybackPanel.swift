@@ -743,25 +743,27 @@ public struct FusedPlayerPanel: View {
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
+        let viewerHeightRange = live.placementLimits.viewerHeightRange
+        let distanceRange = live.placementLimits.distanceRange
+        return VStack(spacing: DesignTokens.Spacing.sm) {
             DockedPlacementSliderRow(
                 title: "Height",
-                liveValue: live.viewerHeight,
-                range: live.placementLimits.viewerHeightRange,
+                liveValue: live.viewerHeight - viewerHeightRange.lowerBound,
+                range: 0...(viewerHeightRange.upperBound - viewerHeightRange.lowerBound),
                 step: PlaybackDockedPlacementLimits.viewerHeightStep,
                 trackWidth: placementTrackWidth,
-                valueLabel: { String(format: "%+.1f m", $0) },
+                valueLabel: { String(format: "%.1f m", $0) },
                 identifier: "Height",
                 onChange: { value in
                     onInteraction()
                     live.onReachabilityAction("slider.Height")
-                    live.onSetViewerHeight(value)
+                    live.onSetViewerHeight(value + viewerHeightRange.lowerBound)
                 }
             )
             DockedPlacementSliderRow(
                 title: "Distance",
-                liveValue: live.screenDistance,
-                range: live.placementLimits.distanceRange,
+                liveValue: live.screenDistance - distanceRange.lowerBound,
+                range: 0...(distanceRange.upperBound - distanceRange.lowerBound),
                 step: PlaybackDockedPlacementLimits.distanceStep,
                 trackWidth: placementTrackWidth,
                 valueLabel: { String(format: "%.1f m", $0) },
@@ -769,7 +771,7 @@ public struct FusedPlayerPanel: View {
                 onChange: { value in
                     onInteraction()
                     live.onReachabilityAction("slider.Distance")
-                    live.onSetScreenDistance(value)
+                    live.onSetScreenDistance(value + distanceRange.lowerBound)
                 }
             )
             DockedPlacementSliderRow(
