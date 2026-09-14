@@ -1,5 +1,6 @@
 import AVFAudio
 import OSLog
+import PlaybackCore
 
 public struct PlaybackAudioSessionObservation: Codable, Equatable, Sendable {
     public var category: String
@@ -62,8 +63,10 @@ final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
 
     func activateForMoviePlayback() async throws {
         try session.setCategory(.playback, mode: .moviePlayback)
+        PlaybackTrace.event("audioSession.activate.call")
         let activated: Bool = try await withCheckedThrowingContinuation { continuation in
             session.activate(options: []) { activated, error in
+                PlaybackTrace.event("audioSession.activate.callback ok=\(error == nil)")
                 if let error {
                     continuation.resume(throwing: error)
                 } else {
@@ -75,8 +78,10 @@ final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
     }
 
     func deactivate() async throws {
+        PlaybackTrace.event("audioSession.deactivate.call")
         let deactivated: Bool = try await withCheckedThrowingContinuation { continuation in
             session.deactivate(options: [.notifyOthersOnDeactivation]) { deactivated, error in
+                PlaybackTrace.event("audioSession.deactivate.callback ok=\(error == nil)")
                 if let error {
                     continuation.resume(throwing: error)
                 } else {

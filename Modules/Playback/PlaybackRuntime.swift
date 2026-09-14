@@ -624,6 +624,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 request.source.byteStreamHandle?.discardContainerIndex()
                 throw error
             }
+            PlaybackTrace.event("runtime.open.driverOpened")
             let sourceSnapshot = openResult.debugSnapshot
             let sessionResource = openResult.resource
             #if DEBUG
@@ -644,6 +645,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 return
             }
             try rendererTransferCoordinator.installActive(sessionResource)
+            PlaybackTrace.event("runtime.open.rendererInstalled")
             activeSourceReadFailureSequence = request.source.byteStreamHandle?
                 .latestReadFailure()?.sequence ?? 0
             if openingTechnicalSessionDriver === driver {
@@ -677,11 +679,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             currentSubtitleTrackID = driver.selectedSubtitleTrackID
             activeSubtitleCues = driver.activeSubtitleCues
             activeSubtitleFrame = driver.activeSubtitleFrame
+            PlaybackTrace.event(
+                "runtime.open.subtitleSources.begin count=\(request.externalSubtitleSources.count)"
+            )
             await addAutomaticExternalSubtitleSources(
                 request.externalSubtitleSources,
                 mediaSessionID: sessionResource.sessionID,
                 openGeneration: openGeneration
             )
+            PlaybackTrace.event("runtime.open.subtitleSources.end")
             guard generation == openGeneration,
                   activeSessionID == sessionResource.sessionID,
                   rendererTransferCoordinator.isActive(driver) else {
@@ -689,9 +695,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 releaseSourceAccessIfUnowned(request.sourceAccess)
                 return
             }
+            PlaybackTrace.event(
+                "runtime.open.audioActivate.begin tracks=\(availableAudioTracks.count)"
+            )
             try await audioSessionLifecycle.activateIfNeeded(
                 hasAudio: !availableAudioTracks.isEmpty
             )
+            PlaybackTrace.event("runtime.open.audioActivate.end")
             guard generation == openGeneration,
                   activeSessionID == sessionResource.sessionID,
                   rendererTransferCoordinator.isActive(driver) else {
