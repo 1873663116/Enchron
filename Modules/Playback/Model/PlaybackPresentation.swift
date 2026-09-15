@@ -631,7 +631,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         return next
     }
 
-    package mutating func resetForPlaybackStop() {
+    package mutating func resetForPlaybackStop(closesEnvironment: Bool = false) {
         if let transition {
             rollback(transition.id)
         }
@@ -641,6 +641,9 @@ package struct PlaybackPresentationState: Equatable, Sendable {
             environment = environmentBeforePanoramaPresentation ?? .none
         }
         presented = .window
+        if closesEnvironment {
+            environment = .none
+        }
         environmentBeforeDockedPresentation = nil
         environmentBeforePanoramaPresentation = nil
     }
@@ -924,12 +927,12 @@ public final class PlaybackPresentationModel {
         )
     }
 
-    package func resetForStoppedPlayback() {
-        presentationState.resetForPlaybackStop()
+    package func resetForStoppedPlayback(closesEnvironment: Bool = false) {
+        presentationState.resetForPlaybackStop(closesEnvironment: closesEnvironment)
         environmentCardEntryPending = false
     }
 
-    public func requestStoppedPlaybackCleanup() {
+    public func requestStoppedPlaybackCleanup(closesEnvironment: Bool = false) {
         pendingSpatialPlatformEffect = nil
         activeSpatialPlatformEffectID = nil
         activeSpatialPlatformExecutionID = nil
@@ -937,7 +940,7 @@ public final class PlaybackPresentationModel {
         environmentCardResidencyBeforeRequest = nil
         lastSettledPlaybackEffectCorrelation = nil
         lastPlaybackTransportFailure = nil
-        resetForStoppedPlayback()
+        resetForStoppedPlayback(closesEnvironment: closesEnvironment)
         pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
             effect: .normalizeStoppedSpatialPlayback(
                 keepsEnvironmentOpen: environmentContext.environment != nil

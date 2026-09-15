@@ -394,12 +394,15 @@ public final class PlaybackSessionModel {
     }
 
     public func requestStoppedPlaybackCleanup(
+        closesEnvironment: Bool = false,
         origin: String = #fileID,
         line: Int = #line
     ) {
         SurfaceInputProbes.record("stoppedPlaybackCleanup origin=\(origin):\(line)")
         resetPresentationTransitionAppearance()
-        playbackPresentationModel.requestStoppedPlaybackCleanup()
+        playbackPresentationModel.requestStoppedPlaybackCleanup(
+            closesEnvironment: closesEnvironment
+        )
         spatialPlatformEffectReplacementHandler?()
         logger.notice("playback stopped; spatial platform cleanup requested")
     }

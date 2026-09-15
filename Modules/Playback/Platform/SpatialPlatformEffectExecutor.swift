@@ -73,7 +73,8 @@ enum SpatialPlatformEffectDrainPolicy {
         effect: SpatialPlatformEffect,
         applicationIsActive: Bool
     ) -> Bool {
-        applicationIsActive
+        if case .normalizeStoppedSpatialPlayback = effect { return true }
+        return applicationIsActive
     }
 }
 
@@ -875,13 +876,13 @@ public final class SpatialPlatformEffectCoordinator {
             ) else { return }
             _ = await complete(execution, outcome: .succeeded)
         case .normalizeStoppedSpatialPlayback(let keepsEnvironmentOpen):
+            if keepsEnvironmentOpen == false {
+                guard await dismissImmersiveSpace(execution: execution) else { return }
+            }
             guard await restorePlaybackWindow(
                 for: normalizeWindowTransition,
                 execution: execution
             ) else { return }
-            if keepsEnvironmentOpen == false {
-                guard await dismissImmersiveSpace(execution: execution) else { return }
-            }
             _ = await complete(execution, outcome: .succeeded)
         case .normalizeInvalidatedSpatialPlayback(let keepsEnvironmentOpen):
             await normalizeInvalidatedSpatialPlayback(
@@ -1938,7 +1939,15 @@ public final class SpatialPlatformEffectCoordinator {
                 }
                 let observationRevision = self.immersiveSpaceObservation.revision
                 self.markVisibleSpatialSideEffect(execution)
+                self.appModel.recordSurfaceInputProbe(
+                    "immersiveDismiss requested appState=\(UIApplication.shared.applicationState.rawValue)",
+                    retention: .evidence
+                )
                 await actions.dismissImmersiveSpace()
+                self.appModel.recordSurfaceInputProbe(
+                    "immersiveDismiss returned appState=\(UIApplication.shared.applicationState.rawValue)",
+                    retention: .evidence
+                )
                 guard self.executionIsLive(execution) else { return false }
 
                 if self.immersiveSpaceObservation.confirms(

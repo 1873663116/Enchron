@@ -8,6 +8,7 @@ public enum PlaybackHost: String, Equatable, Sendable {
 public enum PlaybackLeaveReason: String, Equatable, Sendable {
     case backButton
     case windowClosedByWearer
+    case applicationBackgrounded
     case failure
 }
 

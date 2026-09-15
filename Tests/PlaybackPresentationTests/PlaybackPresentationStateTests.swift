@@ -986,7 +986,7 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("A pending platform effect is not claimed while the application is inactive")
+    @Test("Only stopped playback cleanup can run while the application is inactive")
     func effectDrainDefersWhileApplicationIsInactive() {
         let effects: [SpatialPlatformEffect] = [
             .enterImmersivePlayback(.flat),
@@ -1004,7 +1004,7 @@ struct PlaybackPresentationStateTests {
                 SpatialPlatformEffectDrainPolicy.shouldClaim(
                     effect: effect,
                     applicationIsActive: false
-                ) == false
+                ) == (effect == .normalizeStoppedSpatialPlayback(keepsEnvironmentOpen: false))
             )
             #expect(
                 SpatialPlatformEffectDrainPolicy.shouldClaim(
@@ -3872,6 +3872,32 @@ struct PlaybackPresentationStateTests {
             )
         )
         #expect(model.transition == nil)
+    }
+
+    @Test("background cleanup closes the environment and cancels spatial transitions", arguments: [false, true])
+    func backgroundPlaybackStopClosesEnvironment(transitionInFlight: Bool) throws {
+        let model = PlaybackPresentationModel()
+        try model.activateEnvironment(.ocean, effect: .dark)
+        _ = try model.requestPresentation(
+            .docked,
+            playbackContext: playingContext()
+        )
+        if !transitionInFlight {
+            _ = try completePendingEffect(model)
+        }
+
+        model.requestStoppedPlaybackCleanup(closesEnvironment: true)
+
+        #expect(model.presentation == .window)
+        #expect(model.environmentContext == .none)
+        #expect(model.transition == nil)
+        #expect(
+            model.pendingSpatialPlatformEffect?.effect
+                == .normalizeStoppedSpatialPlayback(keepsEnvironmentOpen: false)
+        )
+        _ = try completePendingEffect(model)
+        #expect(model.presentation == .window)
+        #expect(model.environmentContext == .none)
     }
 
     @Test("stopping Docked playback closes a temporary Default Environment")

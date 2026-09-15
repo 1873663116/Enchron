@@ -10,7 +10,6 @@ import UIKit
 struct EnchronApp: App {
     @Environment(\.scenePhase) private var mainScenePhase
     @State private var application: EnchronApplication
-    @State private var didRetryActiveFailureAfterActivation = false
     @State private var immersionStyle: ImmersionStyle = .progressive(
         SpatialImmersiveSpacePolicy.progressiveImmersionRange
     )
@@ -49,26 +48,35 @@ struct EnchronApp: App {
             }
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
-                guard current == .active else {
-                    didRetryActiveFailureAfterActivation = false
+                if current == .background {
+                    SurfaceInputProbes.record(
+                        "backgroundPlaybackStop requested lifecycle=\(application.playbackRuntime.productLifecycle.rawValue)"
+                            + " position=\(application.playbackRuntime.playbackPosition.seconds)"
+                            + " presentation=\(application.playbackSessionModel.playbackPresentation.rawValue)",
+                        retention: .evidence
+                    )
+                    let hadPlayback = application.playbackRuntime.currentLaunchRequest != nil
+                        || application.playbackRuntime.residency != .browsing
+                    application.playbackLauncher.stopPlayback(
+                        reason: .applicationBackgrounded
+                    )
+                    if hadPlayback {
+                        application.playbackSessionModel.requestStoppedPlaybackCleanup(
+                            closesEnvironment: true
+                        )
+                    }
+                    SurfaceInputProbes.record(
+                        "backgroundPlaybackStop cleanupRequested",
+                        retention: .evidence
+                    )
                     return
                 }
+                guard current == .active else { return }
                 Task { @MainActor in
                     await Task.yield()
                     guard mainScenePhase == .active else { return }
                     application.spatialPlatformEffectCoordinator
                         .handleApplicationDidBecomeActive()
-                    guard didRetryActiveFailureAfterActivation == false,
-                          application.playbackRuntime.productLifecycle
-                            == .failed,
-                          application.playbackLauncher
-                            .canRetryActiveFailure else { return }
-                    didRetryActiveFailureAfterActivation = true
-                    SurfaceInputProbes.record(
-                        "activeFailureRetry trigger=activation",
-                        retention: .evidence
-                    )
-                    application.playbackLauncher.retryPlayback()
                 }
             }
             .enchronEnvironment(application)
