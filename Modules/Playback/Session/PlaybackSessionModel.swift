@@ -256,8 +256,12 @@ public final class PlaybackSessionModel {
         playbackPresentationModel.defaultEnvironment
     }
 
-    public var lastCardEnvironment: SpatialSceneDomain.CinemaEnvironment {
-        playbackPresentationModel.lastCardEnvironment
+    public var defaultCardEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        playbackPresentationModel.defaultCardEnvironment
+    }
+
+    public func setDefaultCardEnvironment(_ environment: SpatialSceneDomain.CinemaEnvironment) {
+        playbackPresentationModel.setDefaultCardEnvironment(environment)
     }
 
     public var dockedPlacementLimits: PlaybackDockedPlacementLimits {

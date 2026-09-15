@@ -23,10 +23,11 @@ public final class QuietRoomEnvironmentScene: EnvironmentScene {
             ceilingHeightMeters: 7.75,
             ceilingClearanceMeters: 0.05,
             distanceStrategy: .movesViewer,
-            defaultDistanceMeters: 7.98,
+            defaultDistanceMeters: 8,
             distanceRangeMeters: 5...18,
             defaultScreenHeightMeters: 8,
             screenHeightRangeMeters: 8...8,
+            defaultViewerHeightMeters: 1.5,
             viewerHeightRangeMeters: -1...3,
             elevationRangeDegrees: 0...90
         ),

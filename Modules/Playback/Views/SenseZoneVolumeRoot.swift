@@ -17,6 +17,9 @@ public struct SenseZoneVolumeRoot: View {
     public var body: some View {
         EnvironmentCardCarousel(
             activeEnvironment: appModel.environmentContext.environment,
+            defaultEnvironment: appModel.defaultCardEnvironment,
+            isPresented: appModel.environmentCardResidency != .closed,
+            onSetDefault: appModel.setDefaultCardEnvironment,
             defaultEffect: appModel.currentEnvironmentEffect,
             onEffectChange: updateEnvironmentEffect,
             onExpand: toggleEnvironment

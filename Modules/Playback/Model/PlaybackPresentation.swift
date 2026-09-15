@@ -692,7 +692,9 @@ public final class PlaybackPresentationModel {
     public var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment {
         .defaultEnvironment
     }
-    public private(set) var lastCardEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean
+    public private(set) var defaultCardEnvironment: SpatialSceneDomain.CinemaEnvironment
+
+    @ObservationIgnored private let environmentDefaults: UserDefaults
     public private(set) var dockedPlacement: PlaybackDockedPlacement
     public private(set) var pendingSpatialPlatformEffect: SpatialPlatformEffectRequest?
     public private(set) var immersiveSpaceResidency:
@@ -706,12 +708,17 @@ public final class PlaybackPresentationModel {
 
     public init(
         screenPositionStore: any ScreenPositionStoring =
-            PlaybackPresentationStorage.makeScreenPositionStore()
+            PlaybackPresentationStorage.makeScreenPositionStore(),
+        environmentDefaults: UserDefaults = .standard
     ) {
         dockedPlacement = PlaybackDockedPlacement(
             limits: .limits(for: .defaultEnvironment)
         )
         self.screenPositionStore = screenPositionStore
+        self.environmentDefaults = environmentDefaults
+        let savedEnvironment = environmentDefaults.string(forKey: "defaultCardEnvironment")
+            .flatMap(SpatialSceneDomain.CinemaEnvironment.init(rawValue:))
+        defaultCardEnvironment = savedEnvironment.flatMap { $0.isCardEnvironment ? $0 : nil } ?? .ocean
     }
 
     public var snapshot: PlaybackPresentationSnapshot {
@@ -795,9 +802,6 @@ public final class PlaybackPresentationModel {
             effect: effect,
             defaultEnvironment: defaultEnvironment
         )
-        if let environment {
-            rememberCardEnvironment(environment)
-        }
         let platformEffect: SpatialPlatformEffect = switch edge {
         case .enterImmersive:
             .enterImmersivePlayback(presentation.contentFamily)
@@ -829,14 +833,14 @@ public final class PlaybackPresentationModel {
         try presentationState.setEnvironment(
             .active(environment: environment, effect: effect)
         )
-        rememberCardEnvironment(environment)
     }
 
-    private func rememberCardEnvironment(
+    public func setDefaultCardEnvironment(
         _ environment: SpatialSceneDomain.CinemaEnvironment
     ) {
         guard environment.isCardEnvironment else { return }
-        lastCardEnvironment = environment
+        defaultCardEnvironment = environment
+        environmentDefaults.set(environment.rawValue, forKey: "defaultCardEnvironment")
     }
 
     public func deactivateEnvironment() throws {
@@ -860,7 +864,6 @@ public final class PlaybackPresentationModel {
         try presentationState.setEnvironment(
             .active(environment: environment, effect: effect)
         )
-        rememberCardEnvironment(environment)
         pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
             effect: .presentEnvironmentPreview
         )

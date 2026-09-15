@@ -36,11 +36,11 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         geometry: EnvironmentSceneGeometry(
             ceilingHeightMeters: nil,
             distanceStrategy: .movesViewer,
-            defaultDistanceMeters: 13,
+            defaultDistanceMeters: 20,
             distanceRangeMeters: 12...47,
             defaultScreenHeightMeters: 20,
             screenHeightRangeMeters: 20...20,
-            defaultViewerHeightMeters: -2,
+            defaultViewerHeightMeters: 0,
             viewerHeightRangeMeters: -3...5,
             elevationRangeDegrees: 0...90,
             dimsSurroundings: true

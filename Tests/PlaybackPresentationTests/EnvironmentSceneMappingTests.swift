@@ -48,9 +48,9 @@ struct EnvironmentSceneMappingTests {
     func descriptorGeometryMatchesEachEnvironment() {
         let ocean = EnvironmentSceneMapping.geometry(for: .ocean)
         #expect(ocean.distanceRangeMeters == 12...47)
-        #expect(ocean.defaultDistanceMeters == 13)
+        #expect(ocean.defaultDistanceMeters == 20)
         #expect(ocean.viewerHeightRangeMeters == -3...5)
-        #expect(ocean.defaultViewerHeightMeters == -2)
+        #expect(ocean.defaultViewerHeightMeters == 0)
         #expect(ocean.elevationRangeDegrees == 0...90)
         #expect(ocean.screenHeightRangeMeters == 20...20)
         #expect(ocean.defaultScreenHeightMeters == 20)
@@ -70,7 +70,8 @@ struct EnvironmentSceneMappingTests {
 
         let quietRoom = EnvironmentSceneMapping.geometry(for: .quietRoom)
         #expect(quietRoom.distanceRangeMeters == 5...18)
-        #expect(quietRoom.defaultDistanceMeters == 7.98)
+        #expect(quietRoom.defaultDistanceMeters == 8)
+        #expect(quietRoom.defaultViewerHeightMeters == 1.5)
         #expect(quietRoom.viewerHeightRangeMeters == -1...3)
         #expect(quietRoom.elevationRangeDegrees == 0...90)
         #expect(quietRoom.screenHeightRangeMeters == 8...8)
@@ -98,6 +99,50 @@ struct EnvironmentSceneMappingTests {
             EnvironmentSceneMapping.defaultScreenHeightMeters(forEnvironmentID: "not-a-real-environment")
                 == 8
         )
+    }
+}
+
+@MainActor
+struct DefaultCardEnvironmentTests {
+    @Test("default card persists without changing the active environment or opening a space")
+    func persistsWithoutPresentationSideEffects() throws {
+        let suite = "DefaultCardEnvironmentTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = PlaybackPresentationModel(environmentDefaults: defaults)
+        try model.activateEnvironment(.ocean, effect: .dark)
+        let before = model.snapshot
+        model.setDefaultCardEnvironment(.placeholderGreen)
+        #expect(model.defaultCardEnvironment == .placeholderGreen)
+        #expect(model.environmentContext == before.environmentContext)
+        #expect(model.presentation == before.presentation)
+        #expect(model.pendingSpatialPlatformEffect == nil)
+        let reopened = PlaybackPresentationModel(environmentDefaults: defaults)
+        #expect(reopened.defaultCardEnvironment == .placeholderGreen)
+        try model.activateEnvironment(.placeholderBlue, effect: .light)
+        #expect(model.defaultCardEnvironment == .placeholderGreen)
+        #expect(PlaybackPresentationModel(environmentDefaults: defaults).defaultCardEnvironment == .placeholderGreen)
+        let position = EnvironmentCarouselLayout.initialPosition(
+            environments: FeaturedEnvironment.catalog,
+            defaultEnvironment: reopened.defaultCardEnvironment
+        )
+        let centered = EnvironmentCarouselLayout.renderSlots(
+            environmentCount: FeaturedEnvironment.catalog.count,
+            scrollPosition: position,
+            maximumDistance: 2
+        ).filter { $0.visualPosition == 0 }
+        #expect(centered.map(\.environmentIndex) == [2])
+    }
+
+    @Test("unsupported saved card preferences use Ocean")
+    func invalidSavedPreference() throws {
+        let suite = "DefaultCardEnvironmentTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for value in ["removed-environment", "quiet-room"] {
+            defaults.set(value, forKey: "defaultCardEnvironment")
+            #expect(PlaybackPresentationModel(environmentDefaults: defaults).defaultCardEnvironment == .ocean)
+        }
     }
 }
 

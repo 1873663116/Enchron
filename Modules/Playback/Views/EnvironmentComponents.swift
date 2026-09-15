@@ -80,7 +80,8 @@ public struct EnvironmentCard: View {
     var atmosphericFade: CGFloat = 0
     var onEffectChange: (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in }
     var onExpand: () -> Void = {}
-    var onMore: () -> Void = {}
+    var isDefault = false
+    var onSetDefault: () -> Void = {}
 
     public var body: some View {
         let shape = RoundedRectangle(
@@ -210,14 +211,24 @@ public struct EnvironmentCard: View {
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text("Mode: \(environment.mode)")
-                Text("Atmosphere: \(environment.atmosphere)")
+            HStack(alignment: .bottom, spacing: DesignTokens.Spacing.sm) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                    Text("Mode: \(environment.mode)")
+                    Text("Atmosphere: \(environment.atmosphere)")
+                }
+                .foregroundStyle(
+                    .white.opacity(DesignTokens.EnvironmentCard.secondaryTextOpacity)
+                )
+                Spacer(minLength: 0)
+                Button(action: onSetDefault) {
+                    Label(isDefault ? "Default" : "Set as default",
+                          systemImage: isDefault ? "checkmark.circle.fill" : "circle")
+                }
+                .fixedSize()
+                .disabled(isDefault)
+                .accessibilityIdentifier("EnvironmentCard-default-\(environment.id)")
             }
             .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(
-                .white.opacity(DesignTokens.EnvironmentCard.secondaryTextOpacity)
-            )
         }
         .padding(.horizontal, DesignTokens.EnvironmentCard.informationPaddingH)
         .padding(.top, DesignTokens.EnvironmentCard.informationPaddingTop)
@@ -269,7 +280,8 @@ public struct EnvironmentCard: View {
         atmosphericFade: CGFloat = 0,
         onEffectChange: @escaping (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in },
         onExpand: @escaping () -> Void = {},
-        onMore: @escaping () -> Void = {}
+        isDefault: Bool = false,
+        onSetDefault: @escaping () -> Void = {}
     ) {
         self.environment = environment
         self.effect = effect
@@ -278,7 +290,8 @@ public struct EnvironmentCard: View {
         self.atmosphericFade = atmosphericFade
         self.onEffectChange = onEffectChange
         self.onExpand = onExpand
-        self.onMore = onMore
+        self.isDefault = isDefault
+        self.onSetDefault = onSetDefault
     }
 }
 
@@ -294,6 +307,13 @@ struct EnvironmentCarouselRenderSlot: Identifiable, Equatable {
 }
 
 enum EnvironmentCarouselLayout {
+    static func initialPosition(
+        environments: [FeaturedEnvironment],
+        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment
+    ) -> CGFloat {
+        CGFloat(environments.firstIndex { $0.environment == defaultEnvironment } ?? 0)
+    }
+
     static func renderSlots(
         environmentCount: Int,
         scrollPosition: CGFloat,
@@ -332,6 +352,9 @@ enum EnvironmentCarouselLayout {
 struct EnvironmentCardCarousel: View {
     var environments: [FeaturedEnvironment] = FeaturedEnvironment.catalog
     var activeEnvironment: SpatialSceneDomain.CinemaEnvironment?
+    var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean
+    var isPresented = true
+    var onSetDefault: (SpatialSceneDomain.CinemaEnvironment) -> Void = { _ in }
     var defaultEffect: SpatialSceneDomain.EnvironmentEffect = .inactiveFallback
     var onEffectChange:
         (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
@@ -378,7 +401,8 @@ struct EnvironmentCardCarousel: View {
                                 selectedEffect(for: item.environment)
                             )
                         },
-                        onMore: {}
+                        isDefault: item.environment.environment == defaultEnvironment,
+                        onSetDefault: { onSetDefault(item.environment.environment) }
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
                     .opacity(Double(cardOpacity(for: item.visualPosition)))
@@ -393,6 +417,22 @@ struct EnvironmentCardCarousel: View {
         .enchronSpatialFrame(depth: Metrics.stageDepth)
         .contentShape(Rectangle())
         .gesture(dragGesture)
+        .onAppear(perform: centerDefaultEnvironment)
+        .onChange(of: isPresented) { _, presented in
+            if presented { centerDefaultEnvironment() }
+        }
+    }
+
+    private func centerDefaultEnvironment() {
+        motionGeneration += 1
+        detailRevealTask?.cancel()
+        dragTranslation = 0
+        isDragging = false
+        isSettling = false
+        detailsVisible = true
+        scrollPosition = EnvironmentCarouselLayout.initialPosition(
+            environments: environments, defaultEnvironment: defaultEnvironment
+        )
     }
 
     private func selectedEffect(
