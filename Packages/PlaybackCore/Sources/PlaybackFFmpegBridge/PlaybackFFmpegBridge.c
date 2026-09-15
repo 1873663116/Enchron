@@ -5110,6 +5110,10 @@ static PBFFmpegReadResult copy_compressed_sample(
             );
         }
         if (status == noErr) {
+            if (packet->dts != AV_NOPTS_VALUE) {
+                CMSetAttachment(*sampleOut, CFSTR("PBFFmpegExplicitDecodeTime"),
+                    kCFBooleanTrue, kCMAttachmentMode_ShouldNotPropagate);
+            }
             CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(*sampleOut, true);
             if (!(packet->flags & AV_PKT_FLAG_KEY) &&
                 attachments && CFArrayGetCount(attachments) > 0) {
@@ -5129,6 +5133,13 @@ static PBFFmpegReadResult copy_compressed_sample(
         }
         return PBFFmpegReadResultSample;
     }
+}
+
+CMTime PBFFmpegSampleGetPresentationTimeLowerBound(CMSampleBufferRef sample) {
+    if (!sample || CMGetAttachment(sample, CFSTR("PBFFmpegExplicitDecodeTime"), NULL) != kCFBooleanTrue) {
+        return kCMTimeInvalid;
+    }
+    return CMSampleBufferGetDecodeTimeStamp(sample);
 }
 
 PBFFmpegReadResult PBFFmpegReaderCopyNextSample(

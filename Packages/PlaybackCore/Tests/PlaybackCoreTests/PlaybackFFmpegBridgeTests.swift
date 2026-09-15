@@ -2977,3 +2977,63 @@ private func firstCompressedAudioSample(relativePath: String) throws -> CMSample
     #expect(reader == nil)
     #expect(cString(error).localizedCaseInsensitiveContains("unsupported codec"))
 }
+
+
+@Test func ffmpegPresentationLowerBoundRequiresExplicitDecodeTimestamp() throws {
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString {
+        PBFFmpegReaderCreate($0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader)
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var output: Unmanaged<CMSampleBuffer>?
+    #expect(PBFFmpegReaderCopyNextSample(activeReader, &output, &error, error.count) == PBFFmpegReadResultSample)
+    let sample = try #require(output).takeRetainedValue()
+    #expect(abs(PBFFmpegSampleGetPresentationTimeLowerBound(sample).seconds + 2.0 / 30) < 0.000001)
+    CMRemoveAllAttachments(sample)
+    #expect(CMSampleBufferGetDecodeTimeStamp(sample).isNumeric)
+    #expect(!PBFFmpegSampleGetPresentationTimeLowerBound(sample).isValid)
+}
+
+@Test(arguments: [
+    "sdr-bframe-video-only-15s.mp4",
+    "sdr-bframe-multiaudio-subtitles-30s.mkv",
+    "pq-hevc-10bit-avsync-10s.mp4",
+    "hlg-hevc-10bit-avsync-10s.mp4"
+], [0.0, 3.5])
+func ffmpegPresentationLowerBoundsPermitEveryFollowingSample(
+    fixtureName: String,
+    startTime: Double
+) throws {
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/\(fixtureName)"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString {
+        PBFFmpegReaderCreate($0, PBFFmpegModeCompressed, startTime, &error, error.count)
+    }
+    let activeReader = try #require(reader)
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var greatestPromisedTime = -Double.infinity
+    var sampleCount = 0
+    var promiseCount = 0
+    while true {
+        var output: Unmanaged<CMSampleBuffer>?
+        let result = PBFFmpegReaderCopyNextSample(activeReader, &output, &error, error.count)
+        if result == PBFFmpegReadResultEnd { break }
+        try #require(result == PBFFmpegReadResultSample)
+        let sample = try #require(output).takeRetainedValue()
+        let lowerBound = PBFFmpegSampleGetPresentationTimeLowerBound(sample)
+        if lowerBound.isNumeric {
+            greatestPromisedTime = max(greatestPromisedTime, lowerBound.seconds)
+            promiseCount += 1
+        }
+        #expect(CMSampleBufferGetPresentationTimeStamp(sample).seconds >= greatestPromisedTime)
+        sampleCount += 1
+    }
+    #expect(sampleCount > 0)
+    #expect(promiseCount > 0)
+}

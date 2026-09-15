@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 import OSLog
+import PlaybackFFmpegBridge
 
 extension SampleBufferPlaybackSession {
     func close() {
@@ -409,6 +410,10 @@ extension SampleBufferPlaybackSession {
                 dumpVideoSampleIfRequested(formatSignaledSample)
             }
             let decodeTime = CMSampleBufferGetDecodeTimeStamp(formatSignaledSample)
+            let presentationLowerBound = PBFFmpegSampleGetPresentationTimeLowerBound(sourceSample)
+            if presentationLowerBound.isNumeric {
+                renderer.presentationTimeExpectation = .minimumUpcoming(presentationLowerBound)
+            }
             let decoderBootstrapTarget = targetTimelineTime(fallback: presentationTime)
             let requiresImmediateDecoderBootstrap =
                 !decoderBootstrapLock.withLock { decoderBootstrapComplete }

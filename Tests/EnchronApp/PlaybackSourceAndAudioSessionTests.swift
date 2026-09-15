@@ -819,6 +819,54 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testWindowSeekPreservesSteadyVideoDelivery() async throws {
+        let fixture = URL.documentsDirectory.appending(path: "seek-probe.mp4")
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("Copy the source-preserving seek probe into app Documents first.")
+        }
+        let runtime = PlaybackRuntime()
+        addTeardownBlock { @MainActor in
+            await runtime.leavePlaybackAndWait(reason: .backButton)
+            try FileManager.default.removeItem(at: fixture)
+        }
+        try await runtime.open(PlaybackLaunchRequest(url: fixture, displayName: "seek-probe.mp4"))
+        let session = try XCTUnwrap(runtime.activeSessionForVerification())
+        let entity = Entity()
+        PlaybackRealityPresenter.configure(
+            entity, renderer: try XCTUnwrap(runtime.renderer), presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+        let host = try PlaybackRealityViewTestHost(entity: entity)
+        defer { host.close() }
+        try await host.waitUntilReady()
+        try runtime.attach(entityID: "drop-probe", realityViewID: "drop-probe-view", presentation: .window)
+        try runtime.claimRendererConsumer(presentation: .window, entityID: "drop-probe")
+        runtime.videoRendererTargetDidBind(revision: runtime.videoComponentRevision, entityID: "drop-probe")
+        try await runtime.beginPlaybackForPresentationSettlement(mediaSessionID: try XCTUnwrap(runtime.activeSessionID))
+        _ = try await waitUntilPlaybackAdvances(runtime, session, beyond: .zero)
+        for phase in ["initial", "seek"] {
+            if phase == "seek" {
+                let target = 17.6135
+                runtime.seek(to: target, event: .progressBar)
+                try await waitUntilSeekCompletes(runtime)
+            }
+            var settledDropCount: Int?
+            for tick in 0..<20 {
+                try await Task.sleep(for: .seconds(1))
+                let d = runtime.diagnostics
+                if tick == 3 { settledDropCount = try XCTUnwrap(d.rendererDroppedFrameCount) }
+                if tick == 19 {
+                    let increase = try XCTUnwrap(d.rendererDroppedFrameCount) - (try XCTUnwrap(settledDropCount))
+                    XCTAssertLessThanOrEqual(increase, 2, "Sustained frame loss in \(phase)")
+                }
+                print("DROP_PROBE phase=\(phase) tick=\(tick) position=\(d.currentSeconds) dropped=\(d.rendererDroppedFrameCount ?? -1) total=\(d.rendererTotalFrameCount ?? -1) lead=\(d.videoEnqueueLeadMinSeconds ?? -999) late=\(d.lateVideoEnqueueCount) gap=\(d.videoEnqueueGapMaxSeconds ?? -999)")
+            }
+        }
+        XCTAssertGreaterThan(runtime.playbackPosition.seconds, 15)
+        XCTAssertNil(runtime.userVisibleIssue)
+    }
+
+    @MainActor
     func testSeekAndFrameStepPublishTheRequestedPositionUntilTheyLand() async throws {
         let fixture = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
