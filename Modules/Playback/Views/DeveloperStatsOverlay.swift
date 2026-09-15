@@ -23,19 +23,22 @@ public enum DeveloperStatsLine {
         sceneUpdatesPerSecond: Double?,
         enqueuedSamplesPerSecond: Double?,
         playback: PlaybackDiagnostics?,
-        sessionIsActive: Bool
+        sessionIsActive: Bool,
+        requestedRefreshHz: Float? = nil,
+        requestStatus: String = "Not requested",
+        showsDetails: Bool = false
     ) -> [DeveloperStatsGroup] {
         var result: [DeveloperStatsGroup] = []
 
         var memory: [DeveloperStatsField] = [
             DeveloperStatsField(
-                key: "MEM",
+                key: "Memory",
                 value: megabytes(metrics.footprintBytes),
                 unit: "MB",
                 denominator: metrics.limitIsReported ? megabytes(metrics.limitBytes) : nil
             ),
             DeveloperStatsField(
-                key: "INT",
+                key: "Internal",
                 value: megabytes(metrics.internalBytes),
                 unit: "MB"
             )
@@ -43,17 +46,17 @@ public enum DeveloperStatsLine {
         if let graphics = metrics.graphicsFootprintBytes {
             memory.append(
                 DeveloperStatsField(
-                    key: "GFX",
+                    key: "Graphics",
                     value: megabytes(UInt64(max(graphics, 0))),
                     unit: "MB"
                 )
             )
         }
         for (key, bytes) in [
-            ("IOSF", metrics.ioSurfaceResidentBytes),
-            ("IOAC", metrics.ioAcceleratorResidentBytes),
-            ("CM", metrics.coreMediaResidentBytes),
-            ("VBS", metrics.videoBitstreamResidentBytes)
+            ("IOSurface", metrics.ioSurfaceResidentBytes),
+            ("GPU buffers", metrics.ioAcceleratorResidentBytes),
+            ("CoreMedia", metrics.coreMediaResidentBytes),
+            ("Bitstream", metrics.videoBitstreamResidentBytes)
         ] as [(String, UInt64?)] {
             if let bytes, bytes > 0 {
                 memory.append(
@@ -61,28 +64,45 @@ public enum DeveloperStatsLine {
                 )
             }
         }
-        result.append(DeveloperStatsGroup(id: "memory", fields: memory))
+        let memoryDetails = Array(memory.dropFirst())
+        memory = [memory[0]]
 
-        var cadence: [DeveloperStatsField] = []
+        var cadence: [DeveloperStatsField] = [
+            DeveloperStatsField(
+                key: "Video",
+                value: playback.flatMap { $0.nominalFrameRate > 0 ? String(format: "%.3f", $0.nominalFrameRate) : nil } ?? "—",
+                unit: "fps"
+            )
+        ]
         if let sceneUpdatesPerSecond {
-            cadence.append(
+            memory.append(
                 DeveloperStatsField(
-                    key: "SCENE",
+                    key: "Scene updates",
                     value: String(Int(sceneUpdatesPerSecond.rounded())),
-                    unit: "Hz",
-                    denominator: metrics.refreshHz.map { String(Int($0.rounded())) }
+                    unit: "Hz"
                 )
             )
         }
-        cadence.append(stallField(metrics))
+        cadence.append(DeveloperStatsField(
+            key: "Requested",
+            value: requestedRefreshHz.map { String(format: "%.0f", $0) } ?? requestStatus,
+            unit: requestedRefreshHz == nil ? nil : "Hz"
+        ))
+        cadence.append(DeveloperStatsField(
+            key: "DisplayLink",
+            value: metrics.refreshHz.map { String(format: "%.3f", $0) } ?? "—",
+            unit: "Hz",
+            suffix: "(app updates)"
+        ))
+        memory.append(stallField(metrics))
         result.append(DeveloperStatsGroup(id: "cadence", fields: cadence))
 
         if sessionIsActive, let playback {
             var session: [DeveloperStatsField] = []
-            if let lead = playback.videoLeadFramesBudget {
+            if showsDetails, let lead = playback.videoLeadFramesBudget {
                 session.append(
                     DeveloperStatsField(
-                        key: "LEAD",
+                        key: "Queued ahead",
                         value: String(lead),
                         denominator: playback.videoLeadFramesCeiling.map(String.init)
                     )
@@ -91,7 +111,7 @@ public enum DeveloperStatsLine {
             if let buffer = playback.demuxBuffer, buffer.forwardLimitBytes > 0 {
                 session.append(
                     DeveloperStatsField(
-                        key: "DEMUX",
+                        key: "Buffer",
                         value: megabytes(UInt64(max(buffer.forwardBufferedBytes, 0))),
                         unit: "MB",
                         denominator: megabytes(UInt64(max(buffer.forwardLimitBytes, 0)))
@@ -101,18 +121,31 @@ public enum DeveloperStatsLine {
             if playback.nominalFrameRate > 0 {
                 session.append(
                     DeveloperStatsField(
-                        key: "ENQ",
-                        value: enqueuedSamplesPerSecond.map { String(Int($0.rounded())) } ?? "?",
-                        unit: "/s",
-                        denominator: String(format: "%.3f", playback.nominalFrameRate)
+                        key: "Enqueued",
+                        value: enqueuedSamplesPerSecond.map { String(format: "%.2f", $0) } ?? "—",
+                        unit: " frames/s"
                     )
                 )
             }
+            session.append(DeveloperStatsField(
+                key: "Dropped",
+                value: playback.rendererDroppedFrameCount.map(String.init) ?? "—",
+                unit: " frames"
+            ))
             if session.isEmpty == false {
                 result.append(DeveloperStatsGroup(id: "session", fields: session))
             }
         }
 
+        result.append(DeveloperStatsGroup(id: "application", fields: memory))
+        if showsDetails {
+            for start in stride(from: 0, to: memoryDetails.count, by: 3) {
+                result.append(DeveloperStatsGroup(
+                    id: "memory-details-\(start)",
+                    fields: Array(memoryDetails[start..<min(start + 3, memoryDetails.count)])
+                ))
+            }
+        }
         return result
     }
 
@@ -121,14 +154,20 @@ public enum DeveloperStatsLine {
         sceneUpdatesPerSecond: Double?,
         enqueuedSamplesPerSecond: Double?,
         playback: PlaybackDiagnostics?,
-        sessionIsActive: Bool
+        sessionIsActive: Bool,
+        requestedRefreshHz: Float? = nil,
+        requestStatus: String = "Not requested",
+        showsDetails: Bool = false
     ) -> String {
         groups(
             metrics: metrics,
             sceneUpdatesPerSecond: sceneUpdatesPerSecond,
             enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
             playback: playback,
-            sessionIsActive: sessionIsActive
+            sessionIsActive: sessionIsActive,
+            requestedRefreshHz: requestedRefreshHz,
+            requestStatus: requestStatus,
+            showsDetails: showsDetails
         )
         .map { group in
             group.fields.map { field in
@@ -145,10 +184,10 @@ public enum DeveloperStatsLine {
 
     private static func stallField(_ metrics: DeveloperProcessMetrics) -> DeveloperStatsField {
         guard metrics.missedBeatCount > 0 else {
-            return DeveloperStatsField(key: "STALL", value: "0")
+            return DeveloperStatsField(key: "Main-thread stall", value: "0", unit: "ms")
         }
         return DeveloperStatsField(
-            key: "STALL",
+            key: "Main-thread stall",
             value: String(Int((metrics.longestStallSeconds * 1000).rounded())),
             unit: "ms",
             suffix: "×\(metrics.missedBeatCount)"
@@ -166,19 +205,28 @@ public struct DeveloperStatsOverlay: View {
     private let enqueuedSamplesPerSecond: Double?
     private let playback: PlaybackDiagnostics?
     private let sessionIsActive: Bool
+    private let requestedRefreshHz: Float?
+    private let requestStatus: String
+    private let showsDetails: Bool
 
     public init(
         metrics: DeveloperProcessMetrics,
         sceneUpdatesPerSecond: Double? = nil,
         enqueuedSamplesPerSecond: Double? = nil,
         playback: PlaybackDiagnostics? = nil,
-        sessionIsActive: Bool = false
+        sessionIsActive: Bool = false,
+        requestedRefreshHz: Float? = nil,
+        requestStatus: String = "Not requested",
+        showsDetails: Bool = false
     ) {
         self.metrics = metrics
         self.sceneUpdatesPerSecond = sceneUpdatesPerSecond
         self.enqueuedSamplesPerSecond = enqueuedSamplesPerSecond
         self.playback = playback
         self.sessionIsActive = sessionIsActive
+        self.requestedRefreshHz = requestedRefreshHz
+        self.requestStatus = requestStatus
+        self.showsDetails = showsDetails
     }
 
     private var groups: [DeveloperStatsGroup] {
@@ -187,12 +235,15 @@ public struct DeveloperStatsOverlay: View {
             sceneUpdatesPerSecond: sceneUpdatesPerSecond,
             enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
             playback: playback,
-            sessionIsActive: sessionIsActive
+            sessionIsActive: sessionIsActive,
+            requestedRefreshHz: requestedRefreshHz,
+            requestStatus: requestStatus,
+            showsDetails: showsDetails
         )
     }
 
     public var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xxs) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
             ForEach(groups) { group in
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     ForEach(group.fields) { field in
@@ -216,7 +267,10 @@ public struct DeveloperStatsOverlay: View {
                 sceneUpdatesPerSecond: sceneUpdatesPerSecond,
                 enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
                 playback: playback,
-                sessionIsActive: sessionIsActive
+                sessionIsActive: sessionIsActive,
+                requestedRefreshHz: requestedRefreshHz,
+                requestStatus: requestStatus,
+                showsDetails: showsDetails
             )
         )
         .allowsHitTesting(false)
@@ -272,7 +326,10 @@ public struct DeveloperStatsOverlayReader: View {
             enqueuedSamplesPerSecond: developerMetrics.enqueuedSamplesPerSecond,
             playback: includePlayback ? playbackRuntime.diagnostics : nil,
             sessionIsActive: includePlayback
-                && playbackRuntime.activeSessionID != nil
+                && playbackRuntime.activeSessionID != nil,
+            requestedRefreshHz: playbackRuntime.displayCriteria.requestedHz,
+            requestStatus: playbackRuntime.displayCriteria.statusText,
+            showsDetails: developerMetrics.showsDetailedMetrics
         )
     }
 }
@@ -283,7 +340,7 @@ public extension View {
         sceneKey: DeveloperMetricsModel.SceneKey? = nil,
         includePlayback: Bool = true
     ) -> some View {
-        overlay(alignment: .bottomTrailing) {
+        developerStatsPlacement(aboveWindow: sceneKey == .window, isEnabled: isEnabled) {
             if isEnabled {
                 DeveloperStatsOverlayReader(
                     sceneKey: sceneKey,
@@ -304,21 +361,52 @@ public extension View {
         sceneUpdatesPerSecond: Double? = nil,
         enqueuedSamplesPerSecond: Double? = nil,
         playback: PlaybackDiagnostics? = nil,
-        sessionIsActive: Bool = false
+        sessionIsActive: Bool = false,
+        requestedRefreshHz: Float? = nil,
+        requestStatus: String = "Not requested",
+        showsDetails: Bool = false
     ) -> some View {
-        overlay(alignment: .bottomTrailing) {
+        developerStatsPlacement(aboveWindow: true, isEnabled: isEnabled) {
             if isEnabled {
                 DeveloperStatsOverlay(
                     metrics: metrics,
                     sceneUpdatesPerSecond: sceneUpdatesPerSecond,
                     enqueuedSamplesPerSecond: enqueuedSamplesPerSecond,
                     playback: playback,
-                    sessionIsActive: sessionIsActive
+                    sessionIsActive: sessionIsActive,
+                    requestedRefreshHz: requestedRefreshHz,
+                    requestStatus: requestStatus,
+                    showsDetails: showsDetails
                 )
                 .enchronSpatialFrame(depth: 0)
                 .enchronSpatialOffset(z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth)
                 .padding(DesignTokens.Spacing.sm)
             }
         }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func developerStatsPlacement<Content: View>(
+        aboveWindow: Bool,
+        isEnabled: Bool,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+#if os(visionOS)
+        if aboveWindow {
+            ornament(
+                visibility: isEnabled ? .visible : .hidden,
+                attachmentAnchor: .scene(.top),
+                contentAlignment: .bottom
+            ) {
+                content().padding(.bottom, DesignTokens.Spacing.xl)
+            }
+        } else {
+            overlay(alignment: .bottomTrailing, content: content)
+        }
+#else
+        overlay(alignment: .bottomTrailing, content: content)
+#endif
     }
 }

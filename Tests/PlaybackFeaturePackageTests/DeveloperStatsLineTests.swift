@@ -24,10 +24,10 @@ struct DeveloperStatsLineTests {
             sceneUpdatesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: nil,
-            sessionIsActive: false
+            sessionIsActive: false, showsDetails: true
         )
 
-        let tokens = ["MEM 300MB", "INT 120MB", "GFX 7MB", "IOSF 150MB", "CM 30MB"]
+        let tokens = ["Memory 300MB", "Internal 120MB", "Graphics 7MB", "IOSurface 150MB", "CoreMedia 30MB"]
         for token in tokens {
             #expect(text.contains(token))
         }
@@ -49,10 +49,10 @@ struct DeveloperStatsLineTests {
             sceneUpdatesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: nil,
-            sessionIsActive: false
+            sessionIsActive: false, showsDetails: true
         )
 
-        for token in ["IOSF", "IOAC", "CM", "VBS"] {
+        for token in ["IOSurface", "GPU buffers", "CoreMedia", "Bitstream"] {
             #expect(text.contains(token) == false)
         }
     }
@@ -74,13 +74,13 @@ struct DeveloperStatsLineTests {
             sceneUpdatesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: nil,
-            sessionIsActive: false
+            sessionIsActive: false, showsDetails: true
         )
 
-        for token in ["IOSF", "IOAC", "CM", "VBS"] {
+        for token in ["IOSurface", "GPU buffers", "CoreMedia", "Bitstream"] {
             #expect(text.contains(token) == false)
         }
-        #expect(text.contains("GFX 61MB"))
+        #expect(text.contains("Graphics 61MB"))
     }
 
     @Test("the overlay no longer carries a residual or a decoded-pool estimate")
@@ -103,7 +103,7 @@ struct DeveloperStatsLineTests {
             sceneUpdatesPerSecond: nil,
             enqueuedSamplesPerSecond: nil,
             playback: playback,
-            sessionIsActive: true
+            sessionIsActive: true, showsDetails: true
         )
 
         #expect(text.contains("VID") == false)
@@ -137,4 +137,25 @@ struct DeveloperStatsLineTests {
         #expect((summary?.regionCount ?? 0) > 0)
         #expect(summary?.resident(ProcessMemoryRegions.mallocTags) ?? 0 > 0)
     }
+
+    @Test("basic overlay has three rows and hides memory internals")
+    func basicOverlayGroupsAndRequestStatus() {
+        var playback = PlaybackDiagnostics()
+        playback.nominalFrameRate = 25.00073007621996
+        let metrics = DeveloperProcessMetrics(footprintBytes: 300 * Self.mib, internalBytes: 120 * Self.mib)
+        let groups = DeveloperStatsLine.groups(
+            metrics: metrics, sceneUpdatesPerSecond: 90, enqueuedSamplesPerSecond: 25,
+            playback: playback, sessionIsActive: true, requestedRefreshHz: 100
+        )
+        #expect(groups.map(\.id) == ["cadence", "session", "application"])
+        #expect(groups[0].fields.map(\.key) == ["Video", "Requested", "DisplayLink"])
+        #expect(groups.flatMap(\.fields).contains { $0.key == "Internal" } == false)
+        let disabled = DeveloperStatsLine.text(
+            metrics: metrics, sceneUpdatesPerSecond: nil, enqueuedSamplesPerSecond: nil,
+            playback: nil, sessionIsActive: false, requestStatus: "Off"
+        )
+        #expect(disabled.contains("Requested Off"))
+        #expect(disabled.contains("OffHz") == false)
+    }
+
 }

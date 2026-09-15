@@ -7,6 +7,7 @@ final class DeveloperOverlayFollower {
     static let attachmentID = "developerStatsOverlay"
 
     static let distanceMeters: Float = 0.7
+    static let verticalOffsetMeters: Float = 0.10
     static let declinationRadians: Float = 30 * .pi / 180
 
     let root: Entity = {
@@ -23,7 +24,7 @@ final class DeveloperOverlayFollower {
     static var localPlacement: SIMD3<Float> {
         [
             0,
-            -distanceMeters * tan(declinationRadians),
+            -distanceMeters * tan(declinationRadians) + verticalOffsetMeters,
             -distanceMeters
         ]
     }

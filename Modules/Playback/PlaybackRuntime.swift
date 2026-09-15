@@ -141,7 +141,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    public private(set) var residency: PlaybackResidency = .browsing
+    public private(set) var residency: PlaybackResidency = .browsing {
+        didSet { refreshDisplayCriteria() }
+    }
     public private(set) var lifecycle: PlaybackStatus = .idle
     public private(set) var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 0)
     public private(set) var currentPlaybackSpeed = PlaybackModel.PlaybackSpeed.default
@@ -151,6 +153,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var overview: String? { prefetchedMetadata?.overview }
     public private(set) var presentationState: PresentationState = .hidden
     public private(set) var loadingState = PlaybackLoadingState.none
+    public let displayCriteria = PlaybackDisplayCriteria()
     public private(set) var diagnostics = PlaybackDiagnostics()
     public private(set) var availableAudioTracks: [PlaybackModel.AudioTrack] = []
     public private(set) var currentAudioTrackID: String?
@@ -2043,6 +2046,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         leaveReason: PlaybackLeaveReason?,
         releasingSourceAccess: Bool
     ) -> Task<Void, Never>? {
+        displayCriteria.clear()
         if let leaveReason {
             switch residency {
             case .browsing:
@@ -3011,7 +3015,20 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
+    private func refreshDisplayCriteria() {
+        if case .playing(let host) = residency, let driver = rendererTransferCoordinator.activeDriver {
+            displayCriteria.update(
+                frameRate: driver.diagnostics.nominalFrameRate,
+                format: driver.acceptedVideoFormatDescription,
+                host: host
+            )
+        } else {
+            displayCriteria.clear()
+        }
+    }
+
     private func receive(_ diagnostics: PlaybackDiagnostics) {
+        refreshDisplayCriteria()
         recordActualPlayback(until: diagnostics.currentSeconds)
         self.diagnostics = diagnostics
         if let cutover = currentCutoverSnapshot(),

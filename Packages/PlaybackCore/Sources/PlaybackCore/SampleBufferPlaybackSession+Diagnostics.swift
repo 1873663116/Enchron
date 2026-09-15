@@ -265,6 +265,7 @@ extension SampleBufferPlaybackSession {
 
     func updateCompressedDiagnostics(sample: CMSampleBuffer) {
         guard !didRecordFormat, let format = CMSampleBufferGetFormatDescription(sample) else { return }
+        acceptedVideoFormatDescription = format
         didRecordFormat = true
         let extensions = CMFormatDescriptionGetExtensions(format) as? [String: Any] ?? [:]
         let dimensions = CMVideoFormatDescriptionGetDimensions(format)

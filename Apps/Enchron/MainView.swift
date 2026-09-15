@@ -30,7 +30,8 @@ public struct MainView: View {
         }
         .enchronWindowGlassBackground(.always)
         .developerStatsOverlay(
-            isEnabled: settingsViewModel.preferences.developerModeEnabled,
+            isEnabled: settingsViewModel.preferences.developerModeEnabled
+                && playbackSession.immersiveSpaceResidency == .closed,
             sceneKey: .window
         )
         .onChange(

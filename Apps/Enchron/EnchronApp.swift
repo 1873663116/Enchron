@@ -119,6 +119,7 @@ struct EnchronApp: App {
         ) {
             WindowSceneGate(window: .player) {
                 PlayerView()
+                    .playbackDisplayCriteriaHost(application.playbackRuntime.displayCriteria)
                     .background {
                         SpatialPlatformEffectExecutor(windowIdentity: .player)
                     }
@@ -159,6 +160,7 @@ struct EnchronApp: App {
 
         ImmersiveSpace(id: application.playbackSessionModel.immersiveSpaceID) {
             ImmersiveSpaceView()
+                .playbackDisplayCriteriaHost(application.playbackRuntime.displayCriteria, immersive: true)
                 .background {
                     SpatialPlatformEffectExecutor()
                 }

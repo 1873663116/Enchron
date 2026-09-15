@@ -92,6 +92,10 @@ class PlaybackMediaSessionDriver {
         bindControllerCallbacks()
     }
 
+    var acceptedVideoFormatDescription: CMFormatDescription? {
+        attachedSession?.acceptedVideoFormatDescription
+    }
+
     var sessionID: String? {
         attachedSession?.traceID
     }

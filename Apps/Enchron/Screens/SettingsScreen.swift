@@ -6,6 +6,8 @@ import SwiftUI
 import UIKit
 
 struct SettingsScreen: View {
+    @Environment(DeveloperMetricsModel.self) private var developerMetrics
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SettingsViewModel.self) private var viewModel
@@ -119,6 +121,25 @@ struct SettingsScreen: View {
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
         case .developer:
             SettingListGroup(accessibilityIdentifier: "Settings-Developer-group", items: developerItems)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                Text("Video and display")
+                    .font(DesignTokens.Typography.sectionHeader)
+                Text("Video is the source frame rate. Requested is a preference submitted to the system, "
+                    + "not confirmation of a mode switch. DisplayLink measures app display updates, "
+                    + "not the physical panel refresh rate. Verify the panel’s current refresh rate "
+                    + "using the Display timeline in Apple Instruments; DisplayLink alone does not "
+                    + "confirm whether the requested display mode was applied.")
+                Text("Playback")
+                    .font(DesignTokens.Typography.sectionHeader)
+                Text("Enqueued counts video samples sent to the renderer each second. Dropped is the current video renderer’s cumulative count; replacing the renderer can reset it. Buffer is queued source data.")
+                Text("App performance")
+                    .font(DesignTokens.Typography.sectionHeader)
+                Text("Memory is the app footprint. Scene updates measures RealityKit updates. "
+                    + "Main-thread stall is the longest delay in the sampling interval. "
+                    + "Detailed metrics add memory categories and queued video frames.")
+            }
+            .font(DesignTokens.Typography.metadata)
+            .foregroundStyle(DesignTokens.Surface.supportingText)
         case .about:
             SettingListGroup(accessibilityIdentifier: "Settings-About-group", items: aboutItems)
         }
@@ -127,11 +148,36 @@ struct SettingsScreen: View {
     private var developerItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
+                id: "display-refresh-request",
+                title: "Request Video Refresh Rate",
+                systemName: "display",
+                supportingText: "Request a display mode matching the video. Disable to compare system defaults.",
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { playbackRuntime.displayCriteria.isEnabled },
+                        set: { playbackRuntime.displayCriteria.isEnabled = $0 }
+                    ),
+                    isEnabled: true, marker: nil
+                )
+            ),
+            SettingListGroup.Item(
+                id: "developer-details",
+                title: "Detailed Metrics",
+                systemName: "list.bullet",
+                supportingText: "Include memory categories and queued video frames.",
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { developerMetrics.showsDetailedMetrics },
+                        set: { developerMetrics.showsDetailedMetrics = $0 }
+                    ),
+                    isEnabled: true, marker: nil
+                )
+            ),
+            SettingListGroup.Item(
                 id: "developer-overlay",
                 title: "Performance Overlay",
                 systemName: "gauge.with.dots.needle.bottom.50percent",
-                supportingText: "One line of live memory, cadence, and playback figures,"
-                    + " pinned in every window and in the immersive space.",
+                supportingText: "Video and display, playback, and app performance in separate rows.",
                 accessory: .boundToggle(
                     isOn: Binding(
                         get: { viewModel.preferences.developerModeEnabled },

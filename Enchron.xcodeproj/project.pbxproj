@@ -205,6 +205,7 @@
 				Playback/Session/ProcessMemoryFootprint.swift,
 				Playback/Session/ProcessMemoryRegions.swift,
 				Playback/Session/DeveloperMetrics.swift,
+				Playback/Platform/PlaybackDisplayCriteria.swift,
 				Playback/Session/RendererTransferCoordinator.swift,
 				Playback/Session/PlaybackSessionModel.swift,
 				Playback/Session/SurfaceInputProbes.swift,

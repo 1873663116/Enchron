@@ -308,6 +308,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var closeCompletions: [@Sendable () -> Void] = []
     var diagnostics = PlaybackDiagnostics()
     var lastDiagnosticsSecond = -1
+    private let acceptedVideoFormatLock = NSLock()
+    private var acceptedVideoFormatStorage: CMFormatDescription?
+    public internal(set) var acceptedVideoFormatDescription: CMFormatDescription? {
+        get { acceptedVideoFormatLock.withLock { acceptedVideoFormatStorage } }
+        set { acceptedVideoFormatLock.withLock { acceptedVideoFormatStorage = newValue } }
+    }
     var didRecordFormat = false
     var timelineStartRate: Float = 1
     public private(set) var preferredPlaybackRate: Float = 1

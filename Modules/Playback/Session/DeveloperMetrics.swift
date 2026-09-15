@@ -174,6 +174,7 @@ public final class DeveloperMetricsModel {
         case immersive
     }
 
+    public var showsDetailedMetrics = false
     public private(set) var metrics = DeveloperProcessMetrics()
     public private(set) var isRunning = false
     public private(set) var sceneUpdatesPerSecond: [SceneKey: Double] = [:]
@@ -196,6 +197,7 @@ public final class DeveloperMetricsModel {
     @ObservationIgnored private var regionScanEpoch: UInt64 = 0
     @ObservationIgnored private var sceneTicks: [SceneKey: Int] = [:]
     @ObservationIgnored private var sceneWindowStart = CACurrentMediaTime()
+    @ObservationIgnored private var lastCadenceLogTime: CFTimeInterval = 0
     @ObservationIgnored private var lastEnqueuedSampleCount: Int?
     @ObservationIgnored private var lastEnqueuedSampleAt: CFTimeInterval?
     @ObservationIgnored private var lastDroppedFrameCount: Int?
@@ -295,6 +297,14 @@ public final class DeveloperMetricsModel {
         drainEnqueuedSamples()
         drainDroppedFrames()
         let cadenceReading = cadence.drain()
+        let now = CACurrentMediaTime()
+        if now - lastCadenceLogTime >= 5, let hz = cadenceReading.refreshHz {
+            lastCadenceLogTime = now
+            SurfaceInputProbes.record(
+                "displayCadence displayLinkHz=\(String(format: "%.6f", hz))",
+                retention: .evidence
+            )
+        }
         let regions = ProcessMemoryRegions.lastSummary
         scanRegionsIfNeeded()
         guard let memory = ProcessMemoryFootprint.read() else {

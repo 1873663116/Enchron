@@ -128,7 +128,8 @@ public struct PlayerView: View {
     public var body: some View {
         platformContent
             .developerStatsOverlay(
-                isEnabled: settingsViewModel.preferences.developerModeEnabled,
+                isEnabled: settingsViewModel.preferences.developerModeEnabled
+                    && playbackSession.immersiveSpaceResidency == .closed,
                 sceneKey: .window
             )
             .onChange(of: playbackRuntime.residency) { _, residency in
