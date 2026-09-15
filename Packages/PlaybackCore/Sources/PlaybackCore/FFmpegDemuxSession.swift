@@ -70,7 +70,9 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             }
             PlaybackTrace.event("demux.open.end ok=\(opened != nil)")
             guard let opened else {
-                throw FFmpegDemuxSessionError.open(ffmpegErrorMessage(error))
+                let message = ffmpegErrorMessage(error)
+                PlaybackTrace.event("demux.open.failed error=\(message)")
+                throw FFmpegDemuxSessionError.open(message)
             }
             sourceLock.withLock { source = opened }
             sourceArgument = argument

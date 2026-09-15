@@ -927,6 +927,14 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         preferredBufferDepth: MediaByteBufferDepth = .none
     ) async throws -> MediaByteStreamHandle {
         let port = try await ensureStarted()
+        #if DEBUG
+            let listenerState = lock.withLock {
+                listener.map { String(describing: $0.state) } ?? "none"
+            }
+            MediaSourceDebugTrace.event(
+                "bytestream.register.endpoint port=\(port.rawValue) listener=\(listenerState)"
+            )
+        #endif
         let token = UUID().uuidString
         let registration = Registration(source: source, filename: filename, token: token)
         lock.withLock { registrations[token] = registration }
@@ -968,7 +976,15 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     #endif
 
+    public func stop() {
+        _ = stopTransfers()
+    }
+
     public func stopAndWait() async {
+        for task in stopTransfers() { await task.value }
+    }
+
+    private func stopTransfers() -> [Task<Void, Never>] {
         let work = lock.withLock { () -> (NWListener?, ListenerTeardown) in
             let work = (
                 listener,
@@ -991,7 +1007,8 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         work.1.connections.forEach { $0.cancel() }
         work.1.transfers.forEach { $0.cancel() }
         work.1.waiters.forEach { $0.resume(throwing: ServerError.listenerStopped) }
-        for task in work.1.transfers { await task.value }
+        MediaSourceDebugTrace.event("bytestream.stopped listenerReleased=true")
+        return work.1.transfers
     }
 
     #if DEBUG

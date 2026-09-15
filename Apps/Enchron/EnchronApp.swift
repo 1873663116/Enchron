@@ -3,6 +3,7 @@ import CryptoKit
 import EnvironmentSceneContract
 import RealityKitScripting
 import Playback
+import MediaSource
 import SwiftUI
 import UIKit
 
@@ -60,6 +61,7 @@ struct EnchronApp: App {
                     application.playbackLauncher.stopPlayback(
                         reason: .applicationBackgrounded
                     )
+                    MediaByteStreamServer.shared.stop()
                     if hadPlayback {
                         application.playbackSessionModel.requestStoppedPlaybackCleanup(
                             closesEnvironment: true
