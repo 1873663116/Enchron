@@ -285,8 +285,41 @@ struct EmbyClientTests {
 
         let url = try #require(recorder.requests.first?.url)
         let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        #expect(query.first { $0.name == "ParentId" }?.value == "series-1")
+        #expect(url.path == "/emby/Shows/series-1/Seasons")
+        #expect(query.first { $0.name == "UserId" }?.value == "user-1")
+        #expect(query.contains { $0.name == "SortBy" } == false)
         #expect(query.first { $0.name == "IncludeItemTypes" }?.value == "Season")
+    }
+
+    @Test("episodes without index metadata retain the show's server order")
+    func episodeServerOrder() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.setHandler { request in
+            recorder.record(request)
+            guard request.url?.path == "/emby/Shows/series-1/Episodes" else {
+                return try response(request, status: 404, json: "{}")
+            }
+            return try response(request, status: 200, json: """
+            {"Items":[
+              {"Id":"ep-2","Name":"第2话","Type":"Episode","SeriesId":"series-1","SeasonId":"season-1"},
+              {"Id":"ep-10","Name":"第10话","Type":"Episode","SeriesId":"series-1","SeasonId":"season-1"}
+            ],"TotalRecordCount":2}
+            """)
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let season = EmbyLibraryItem.season(EmbySeason(
+            metadata: metadata(id: "season-1"),
+            seriesID: EmbyItemID(rawValue: "series-1"),
+            indexNumber: nil
+        ))
+        let page = try await makeClient().children(of: season, on: server)
+        #expect(page.items.map(\.metadata.id.rawValue) == ["ep-2", "ep-10"])
+        #expect(page.items.compactMap(\.episode).allSatisfy { $0.episodeNumber == nil })
+        let url = try #require(recorder.requests.first?.url)
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(query.first { $0.name == "SeasonId" }?.value == "season-1")
+        #expect(query.first { $0.name == "UserId" }?.value == "user-1")
+        #expect(query.contains { $0.name == "SortBy" } == false)
     }
 
     @Test("views, resume, next up, and search use their Emby 4.9 routes")

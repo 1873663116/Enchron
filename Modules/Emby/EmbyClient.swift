@@ -160,26 +160,35 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     public func children(
         of parent: EmbyLibraryItem,
         on server: EmbyAuthenticatedServer,
-        query: EmbyItemQuery = EmbyItemQuery()
+        query: EmbyItemQuery = EmbyItemQuery(sortBy: [])
     ) async throws -> EmbyItemPage {
+        let path: String
         let itemTypes: String
+        let parentQuery: [URLQueryItem]
         switch parent {
         case .series:
+            path = "/Shows/\(parent.metadata.id.rawValue)/Seasons"
             itemTypes = "Season"
-        case .season:
+            parentQuery = [URLQueryItem(name: "UserId", value: server.userID.rawValue)]
+        case .season(let season):
+            path = "/Shows/\(season.seriesID.rawValue)/Episodes"
             itemTypes = "Episode"
+            parentQuery = [
+                URLQueryItem(name: "UserId", value: server.userID.rawValue),
+                URLQueryItem(name: "SeasonId", value: season.metadata.id.rawValue)
+            ]
         case .boxSet:
+            path = "/Users/\(server.userID.rawValue)/Items"
             itemTypes = "Movie,Series,BoxSet"
+            parentQuery = [URLQueryItem(name: "ParentId", value: parent.metadata.id.rawValue)]
         case .movie, .episode:
             throw EmbyError.childrenUnavailable(parent.metadata.id)
         }
         return try await itemPage(
-            path: "/Users/\(server.userID.rawValue)/Items",
+            path: path,
             server: server,
             query: query,
-            additionalQueryItems: [
-                URLQueryItem(name: "ParentId", value: parent.metadata.id.rawValue)
-            ],
+            additionalQueryItems: parentQuery,
             forcedItemTypes: itemTypes
         )
     }

@@ -429,7 +429,7 @@ public final class EmbyDetailViewModel {
         case .movie, .episode:
             return .none
         case .series:
-            let seasons = try await childPage(of: item, on: server, sortBy: [.indexNumber])
+            let seasons = try await childPage(of: item, on: server, sortBy: [])
                 .items
                 .compactMap(\.season)
             guard let selected = seasons.first(where: { $0.metadata.id == children.selectedSeasonID })
@@ -452,7 +452,7 @@ public final class EmbyDetailViewModel {
         of season: EmbyLibraryItem,
         on server: EmbyAuthenticatedServer
     ) async throws -> [EmbyEpisode] {
-        try await childPage(of: season, on: server, sortBy: [.indexNumber])
+        try await childPage(of: season, on: server, sortBy: [])
             .items
             .compactMap(\.episode)
     }
