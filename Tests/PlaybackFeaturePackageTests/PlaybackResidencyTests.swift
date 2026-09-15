@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 import PlaybackCore
 import Testing
 
@@ -7,6 +8,35 @@ import Testing
 @MainActor
 @Suite("Playback residency", .serialized)
 struct PlaybackResidencyTests {
+    @Test("remote playback exits and reopens through a fresh stream while old requests remain retained")
+    func remotePlaybackReopensAfterExit() async throws {
+        let fixture = try Self.audioFixture(named: "residency-remote-reopen")
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let source = ReopenByteSource(payload: try Data(contentsOf: fixture))
+        let runtime = PlaybackRuntime(
+            controller: PlaybackCoreController(),
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(session: SettledAudioSession())
+        )
+        let firstHandle = try await MediaByteStreamServer().register(source: source, filename: "first.wav")
+        let first = PlaybackLaunchRequest(source: PlaybackAddress(byteStreamHandle: firstHandle), displayName: "first")
+        try await runtime.open(first)
+        let firstSession = runtime.activeSessionID
+        #expect(firstSession != nil)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+        #expect(runtime.residency == .browsing)
+
+        let nextHandle = try await MediaByteStreamServer().register(source: source, filename: "next.wav")
+        let next = PlaybackLaunchRequest(source: PlaybackAddress(byteStreamHandle: nextHandle), displayName: "next")
+        firstHandle.release()
+        try await runtime.open(next)
+        #expect(runtime.residency == .playing(host: .window))
+        #expect(runtime.activeSessionID != nil)
+        #expect(runtime.activeSessionID != firstSession)
+        #expect(runtime.userVisibleIssue == nil)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+        withExtendedLifetime(first) {}
+    }
+
     @Test("leaving playback lands in browsing with no session behind it")
     func leavingPlaybackReachesBrowsingWithNoSession() async throws {
         let fixture = try Self.audioFixture(named: "residency-leave")
@@ -110,6 +140,35 @@ struct PlaybackResidencyTests {
 
         #expect(runtime.residency == .playing(host: .window))
         #expect(runtime.activeSessionID != nil)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
+    @Test("a late driver close cannot deactivate the next session's audio")
+    func lateCloseCannotDeactivateNextSession() async throws {
+        let fixture = try Self.audioFixture(named: "residency-late-close")
+        defer { try? FileManager.default.removeItem(at: fixture) }
+        let driver = StalledCloseMediaSessionDriver()
+        defer { driver.releaseClose() }
+        let audio = SettledAudioSession()
+        let runtime = PlaybackRuntime(
+            openingDriver: driver,
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(session: audio)
+        )
+        let trace = TraceRecorder()
+        trace.install()
+        defer { trace.uninstall() }
+        try await runtime.open(try Self.request(for: fixture))
+        runtime.leavePlayback(reason: .backButton)
+        #expect(await Self.wait(until: { runtime.residency == .browsing }))
+        try await runtime.open(try Self.request(for: fixture))
+        let nextSessionID = runtime.activeSessionID
+        let deactivations = audio.deactivationCount
+        driver.releaseClose()
+        #expect(await Self.wait(until: {
+            trace.events.contains { $0.contains("runtime.close.lateSettled") }
+        }))
+        #expect(audio.deactivationCount == deactivations)
+        #expect(runtime.activeSessionID == nextSessionID)
         await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 
@@ -381,5 +440,22 @@ private final class TraceRecorder: @unchecked Sendable {
 
     func uninstall() {
         PlaybackTrace.installSink(nil)
+    }
+}
+
+private final class ReopenByteSource: MediaByteRangeSource {
+    let payload: Data
+    init(payload: Data) { self.payload = payload }
+    var byteStreamAttributes: MediaByteStreamAttributes {
+        .init(contentLength: Int64(payload.count), supportsSeeking: true, isLive: false)
+    }
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        let lower = min(max(0, range.lowerBound), Int64(payload.count))
+        let upper = min(max(lower, range.upperBound), Int64(payload.count))
+        return .init(
+            data: Data(payload[Int(lower)..<Int(upper)]),
+            contentLength: Int64(payload.count),
+            supportsSeeking: true
+        )
     }
 }

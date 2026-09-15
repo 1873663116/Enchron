@@ -1047,7 +1047,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
                 XCTAssertFalse(local.subtitleTracks.isEmpty, name)
             }
 
-            let shareHandle = try await MediaByteStreamServer.shared.register(
+            let shareHandle = try await MediaByteStreamServer().register(
                 source: ParityFileByteRangeSource(fileURL: fixture, length: size),
                 filename: name,
                 preferredBufferDepth: .automatic
@@ -1061,7 +1061,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
 
             ParityEmbyURLProtocol.serve(fixture, token: "parity-token")
             defer { ParityEmbyURLProtocol.serve(nil, token: "") }
-            let embyHandle = try await MediaByteStreamServer.shared.register(
+            let embyHandle = try await MediaByteStreamServer().register(
                 source: EmbyMediaByteSource(
                     streamURL: try XCTUnwrap(URL(
                         string: "https://emby.parity.test/emby/Videos/1/stream?Static=true&MediaSourceId=source"

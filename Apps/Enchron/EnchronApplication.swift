@@ -410,6 +410,8 @@ final class EnchronApplication {
         let mediaLibrary = mediaLibraryFeature.library
         mediaLibrary.diagnosticProbe = { SurfaceInputProbes.record($0) }
         let browser = mediaLibraryFeature.browser
+        mediaLibrary.playbackPreparation = launcher.preparation
+        browser.playbackPreparation = launcher.preparation
 
         launcher.nextFileProvider = {
             [weak embySession, weak mediaLibrary, weak browser, weak playbackRuntime] in

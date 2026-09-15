@@ -57,8 +57,8 @@ def main() -> int:
         require(property_name in endpoint, f"MediaByteStreamAttributes lacks {property_name}")
     require("func read(in range: Range<Int64>)" in endpoint, "ranged read is missing")
     require(
-        "public static let shared = MediaByteStreamServer()" in endpoint,
-        "byte-stream server is not shared",
+        "static let shared = MediaByteStreamServer()" not in endpoint,
+        "byte-stream server must be owned by source handles, not a process singleton",
     )
     require(
         "public final class MediaByteStreamHandle" in endpoint,
@@ -78,8 +78,8 @@ def main() -> int:
     for name, adapter in (("SMB", smb), ("WebDAV", webdav)):
         require(": MediaByteRangeSource" in adapter, f"{name} has no byte-range source adapter")
         require(
-            "MediaByteStreamServer.shared.register(" in adapter,
-            f"{name} does not use the shared byte-stream server",
+            "MediaByteStreamServer().register(" in adapter,
+            f"{name} does not create a source-owned byte-stream server",
         )
 
     require("MediaByteStreamServer" not in local, "local files enter the loopback server")
@@ -92,8 +92,9 @@ def main() -> int:
         "Emby lacks a byte-range source",
     )
     require(
-        "MediaByteStreamServer.shared.register(" in emby,
-        "Emby playback does not use the shared byte-stream server",
+        "let byteStreamServer = MediaByteStreamServer()" in emby
+        and "byteStreamServer.register(" in emby,
+        "Emby playback does not own its video and subtitle byte-stream server",
     )
     require(
         "source: PlaybackAddress(byteStreamHandle: byteStreamHandle)" in emby

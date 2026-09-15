@@ -576,6 +576,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 closingTask = nil
             }
             PlaybackTrace.event("runtime.open.closeSettled")
+            guard generation == openGeneration, !Task.isCancelled else { return }
             guard request.sourceAccess?.ensureActive() != false else {
                 throw RuntimeError.sourceAccessUnavailable
             }
@@ -2067,6 +2068,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let sourceAccess = releasingSourceAccess
             ? currentLaunchRequest?.sourceAccess
             : nil
+        if releasingSourceAccess {
+            currentLaunchRequest?.source.byteStreamHandle?.release()
+            for subtitle in currentLaunchRequest?.externalSubtitleSources ?? [] {
+                subtitle.byteStreamHandle?.release()
+            }
+        }
         let externalSubtitleAccesses = Array(externalSubtitleAccessBySourceID.values)
         externalSubtitleAccessBySourceID = [:]
         externalSubtitleSourceIDByURL = [:]
@@ -2078,8 +2085,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
         let closeStartedAt = ContinuousClock.now
+        let closeGeneration = generation
         let settlement = CloseSettlement()
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
             PlaybackTrace.event(
                 "runtime.close.begin previous=\(previousClosingTask != nil)"
                     + " renderer=\(rendererCloseTask != nil)"
@@ -2092,7 +2100,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             PlaybackTrace.event("runtime.close.rendererSettled")
             await openingDriver?.close(clearSource: hadActiveDriver == false)
             PlaybackTrace.event("runtime.close.driverSettled")
-            await audioSessionLifecycle.deactivate()
+            if self?.generation == closeGeneration {
+                await audioSessionLifecycle.deactivate()
+            }
             if settlement.isSettled {
                 PlaybackTrace.event(
                     "runtime.close.lateSettled elapsed="

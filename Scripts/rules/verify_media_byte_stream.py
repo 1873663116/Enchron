@@ -30,7 +30,7 @@ def main() -> int:
     media_library = ROOT / "Modules/MediaLibrary"
 
     require("protocol MediaByteRangeSource" in byte_stream, "M1: byte source protocol is missing")
-    require("static let shared = MediaByteStreamServer()" in byte_stream, "M2: App singleton is missing")
+    require("static let shared = MediaByteStreamServer()" not in byte_stream, "M2: playback byte streams must not use an App singleton")
     require(
         not any("HTTPRangeStreamingServer" in path.read_text() for path in media_library.rglob("*.swift")),
         "M2: MediaLibrary still owns an HTTP range server",

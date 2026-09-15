@@ -214,11 +214,11 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
     public let url: URL
     public let preferredBufferDepth: MediaByteBufferDepth
 
-    private weak var server: MediaByteStreamServer?
+    private var serverStorage: MediaByteStreamServer?
+    private var server: MediaByteStreamServer? { lock.withLock { serverStorage } }
     private let token: String
     private let readFailureState: MediaSourceReadFailureState
     private let lock = NSLock()
-    private var isReleased = false
 
     fileprivate init(
         url: URL,
@@ -231,7 +231,7 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
         self.preferredBufferDepth = preferredBufferDepth
         self.token = token
         self.readFailureState = readFailureState
-        self.server = server
+        self.serverStorage = server
     }
 
     public func latestReadFailure() -> MediaSourceReadFailureObservation? {
@@ -257,12 +257,12 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
     #endif
 
     public func release() {
-        let shouldRelease = lock.withLock {
-            guard isReleased == false else { return false }
-            isReleased = true
-            return true
+        let owner = lock.withLock {
+            let owner = serverStorage
+            serverStorage = nil
+            return owner
         }
-        if shouldRelease { server?.unregister(token: token) }
+        owner?.unregister(token: token)
     }
 
     deinit {
@@ -886,8 +886,6 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     }
 
-    public static let shared = MediaByteStreamServer()
-
     private let readChunkSize: Int64
     private let containerIndexCache: ContainerIndexCache
     private let queue = DispatchQueue(label: "app.enchron.media-byte-stream")
@@ -921,12 +919,21 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     #endif
 
+    deinit {
+        listener?.cancel()
+        connections.values.forEach { $0.cancel() }
+        transferTasks.values.forEach { $0.cancel() }
+    }
+
     public func register(
         source: any MediaByteRangeSource,
         filename: String,
         preferredBufferDepth: MediaByteBufferDepth = .none
     ) async throws -> MediaByteStreamHandle {
+        try Task.checkCancellation()
+        try MediaSourcePreparationResources.current?.hold(self)
         let port = try await ensureStarted()
+        try Task.checkCancellation()
         #if DEBUG
             let listenerState = lock.withLock {
                 listener.map { String(describing: $0.state) } ?? "none"
@@ -944,13 +951,15 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             unregister(token: token)
             throw ServerError.listenerFailed("Invalid loopback URL.")
         }
-        return MediaByteStreamHandle(
+        let handle = MediaByteStreamHandle(
             url: url,
             preferredBufferDepth: preferredBufferDepth,
             token: token,
             readFailureState: registration.readFailureState,
             server: self
         )
+        try MediaSourcePreparationResources.current?.hold(handle)
+        return handle
     }
 
     public func snapshot() -> Statistics {

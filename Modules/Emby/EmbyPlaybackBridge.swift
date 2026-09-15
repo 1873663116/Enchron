@@ -362,6 +362,7 @@ public actor EmbyPlaybackBridge {
             startAction: selection.startAction,
             collectionOrigin: selection.seasonEpisodes == nil ? .standalone : .mediaServer
         )
+        try Task.checkCancellation()
         if let seasonEpisodes = selection.seasonEpisodes {
             try installQueue(seasonEpisodes, currentItemID: selection.item.metadata.id)
         } else {
@@ -401,6 +402,7 @@ public actor EmbyPlaybackBridge {
                 startAction: .resume,
                 collectionOrigin: .mediaServer
             )
+            try Task.checkCancellation()
             currentQueueID = queued.id
             return request
         } catch EmbyError.httpStatus(401) {
@@ -432,6 +434,8 @@ public actor EmbyPlaybackBridge {
             }
             source = firstSource
         }
+        try Task.checkCancellation()
+        let byteStreamServer = MediaByteStreamServer()
         var subtitles: [ResolvedExternalSubtitleSource] = []
         for stream in source.mediaStreams where stream.kind == .subtitle && stream.isExternal {
             let sourceID = Self.externalSubtitleSourceID(for: stream.index)
@@ -441,7 +445,7 @@ public actor EmbyPlaybackBridge {
             } catch EmbyError.externalSubtitleUnavailable {
                 continue
             }
-            let subtitleHandle = try await MediaByteStreamServer.shared.register(
+            let subtitleHandle = try await byteStreamServer.register(
                 source: EmbyByteRangeSource(url: subtitleURL, reportedContentLength: nil),
                 filename: stream.displayTitle ?? "Subtitle \(stream.index)"
             )
@@ -481,7 +485,7 @@ public actor EmbyPlaybackBridge {
             accessToken: server.accessToken,
             contentLength: source.sizeInBytes ?? freshItem.metadata.sizeInBytes
         )
-        let byteStreamHandle = try await MediaByteStreamServer.shared.register(
+        let byteStreamHandle = try await byteStreamServer.register(
             source: byteSource,
             filename: source.displayName,
             preferredBufferDepth: .automatic

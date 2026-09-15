@@ -148,6 +148,8 @@ final class MediaReferenceResolver {
 @Observable
 public final class MediaLibraryViewModel {
     private let logger = Logger(subsystem: "app.enchron", category: "MediaLibrary")
+    public var playbackPreparation = MediaSourcePreparation()
+
     public private(set) var library: FileBrowsingDomain.MediaLibrary
     public private(set) var currentFolderID: UUID?
     public private(set) var folderPath: [UUID] = []
@@ -362,11 +364,15 @@ public final class MediaLibraryViewModel {
         playbackCollection = Self.naturalPlaybackCollection(from: references)
         Task {
             do {
-                let request = try await playbackItem(for: reference)
+                let request = try await playbackPreparation.resolve {
+                    try await self.playbackItem(for: reference)
+                }
                 diagnosticProbe?("libraryResolved name=\(reference.name)")
                 currentReferenceID = reference.id
                 onPlay(request)
                 diagnosticProbe?("libraryOnPlayReturned name=\(reference.name)")
+            } catch is CancellationError {
+                return
             } catch {
                 diagnosticProbe?("libraryPlayFailed name=\(reference.name) error=\(error.localizedDescription)")
                 lastErrorMessage = error.localizedDescription

@@ -12,6 +12,9 @@ public protocol PlaybackLaunching: AnyObject {
 @MainActor
 @Observable
 public final class PlaybackLaunchCoordinator: PlaybackLaunching {
+    public let preparation = MediaSourcePreparation()
+    private var pendingLaunchRequest: PlaybackLaunchRequest?
+
     public struct ResumeDecision {
         enum Outcome {
             case launch(
@@ -170,6 +173,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         _ request: PlaybackLaunchRequest,
         origin: PlaybackRequestOrigin
     ) {
+        preparation.cancel()
+        releasePendingLaunch(excluding: request)
+        pendingLaunchRequest = request
         activeFailureRecovery = nil
         activeFailureRetry = nil
         playbackRuntime.setUserVisibleIssue(nil)
@@ -260,7 +266,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func cancelPendingResumeDecision() {
+        guard pendingResumeDecision != nil else { return }
         pendingResumeDecision = nil
+        releasePendingLaunch()
+        generation += 1
     }
 
     public func decideResume(
@@ -341,7 +350,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     public func selectPlaybackQueueItem(_ id: UUID) {
         Task { [weak self] in
-            guard let self, let request = await queueSelectionProvider?(id) else { return }
+            guard let self else { return }
+            guard let request = try? await preparation.resolve({
+                await self.queueSelectionProvider?(id)
+            }) else { return }
             requestPlayback(request)
         }
     }
@@ -364,6 +376,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         trackSelectionPreference: TrackSelectionPreference?,
         retrying recovery: ActiveFailureRecovery? = nil
     ) {
+        pendingLaunchRequest = nil
         onPlaybackIntentStarted?()
         if recovery == nil {
             activeFailureRecovery = nil
@@ -388,8 +401,11 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         persistCurrentSession()
         launchTask?.cancel()
         metadataTask?.cancel()
-        let reusesSourceAccess = request.sourceAccess != nil
-            && playbackRuntime.currentLaunchRequest?.sourceAccess === request.sourceAccess
+        let reusesSourceAccess = (request.sourceAccess != nil
+            && playbackRuntime.currentLaunchRequest?.sourceAccess === request.sourceAccess)
+            || (request.source.byteStreamHandle != nil
+                && playbackRuntime.currentLaunchRequest?.source.byteStreamHandle
+                    === request.source.byteStreamHandle)
         playbackRuntime.stopForNextRequest(
             releasingSourceAccess: reusesSourceAccess == false
         )
@@ -626,6 +642,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     private func cancelPlaybackLaunchAndPersistProgress() {
+        preparation.cancel()
+        releasePendingLaunch()
         generation += 1
         launchTask?.cancel()
         metadataTask?.cancel()
@@ -634,6 +652,33 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         pendingResumeDecision = nil
         saveCurrentArtwork()
         persistCurrentSession()
+    }
+
+    private func releasePendingLaunch(excluding next: PlaybackLaunchRequest? = nil) {
+        guard let pending = pendingLaunchRequest else { return }
+        pendingLaunchRequest = nil
+        let current = playbackRuntime.currentLaunchRequest
+        if let access = pending.sourceAccess,
+           access !== current?.sourceAccess, access !== next?.sourceAccess {
+            access.release()
+        }
+        let retained = [current, next].compactMap { $0 }
+        let retainedHandles = retained.flatMap {
+            [$0.source.byteStreamHandle].compactMap { $0 }
+                + $0.externalSubtitleSources.compactMap(\.byteStreamHandle)
+        }
+        let pendingHandles = [pending.source.byteStreamHandle].compactMap { $0 }
+            + pending.externalSubtitleSources.compactMap(\.byteStreamHandle)
+        for handle in pendingHandles where !retainedHandles.contains(where: { $0 === handle }) {
+            handle.release()
+        }
+        let retainedSubtitleAccess = retained.flatMap {
+            $0.externalSubtitleSources.compactMap(\.accessLease)
+        }
+        for access in pending.externalSubtitleSources.compactMap(\.accessLease)
+            where !retainedSubtitleAccess.contains(where: { $0 === access }) {
+            access.release()
+        }
     }
 
     private func saveCurrentArtwork() {
@@ -670,7 +715,11 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         case .playNext:
             Task { [weak self] in
                 guard let self else { return }
-                if let next = await nextFileProvider?() {
+                let next: PlaybackLaunchRequest?
+                do {
+                    next = try await preparation.resolve { await self.nextFileProvider?() }
+                } catch { return }
+                if let next {
                     requestPlayback(next, origin: .automaticContinuation)
                 } else {
                     onFallbackShowControls?()

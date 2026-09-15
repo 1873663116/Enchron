@@ -218,7 +218,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
             session: session
         )
         do {
-            let handle = try await MediaByteStreamServer.shared.register(
+            let handle = try await MediaByteStreamServer().register(
                 source: source,
                 filename: file.name,
                 preferredBufferDepth: .automatic

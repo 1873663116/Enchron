@@ -100,9 +100,13 @@ public struct MainView: View {
 
     private func launchEmbySelection(_ selection: EmbyPlaybackSelection) async {
         do {
-            let request = try await embySession.playbackRequest(for: selection)
+            let request = try await playbackLauncher.preparation.resolve {
+                try await embySession.playbackRequest(for: selection)
+            }
             SurfaceInputProbes.record("openRequestForwarded")
             playbackLauncher.requestPlayback(request)
+        } catch is CancellationError {
+            return
         } catch {
             logger.error(
                 "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"

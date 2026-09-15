@@ -209,7 +209,7 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
                 path: remotePath,
                 reportedContentLength: file.sizeInBytes
             )
-            let handle = try await MediaByteStreamServer.shared.register(
+            let handle = try await MediaByteStreamServer().register(
                 source: source,
                 filename: file.name,
                 preferredBufferDepth: .automatic

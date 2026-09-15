@@ -6,6 +6,8 @@ import OSLog
 @MainActor
 @Observable
 public final class FileBrowsingViewModel {
+    public var playbackPreparation = MediaSourcePreparation()
+
     public var files: [FileBrowsingDomain.MediaFile] = []
     public var folders: [FileBrowsingDomain.MediaFolder] = []
     public var isLoading: Bool = false
@@ -457,9 +459,11 @@ public final class FileBrowsingViewModel {
         currentPlaybackFileID = file.id
         Task { [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: .milliseconds(20))
             do {
-                let request = try await playbackItem(for: file)
+                let request = try await playbackPreparation.resolve {
+                    try await Task.sleep(for: .milliseconds(20))
+                    return try await self.playbackItem(for: file)
+                }
                 logger.info("file selected name=\(file.name, privacy: .public)")
                 if let onPrepareFile {
                     self.detailNavigationRequest = request
@@ -467,6 +471,8 @@ public final class FileBrowsingViewModel {
                 } else {
                     onPlayFile(request)
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
                 logger.error("file selection failed name=\(file.name, privacy: .public) error=\(error.localizedDescription, privacy: .public)")

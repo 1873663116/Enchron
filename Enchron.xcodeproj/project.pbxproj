@@ -150,6 +150,8 @@
 				MediaSource/KeychainStore.swift,
 				MediaSource/MediaAccessLease.swift,
 				MediaSource/MediaByteStream.swift,
+				MediaSource/MediaSourcePreparationResources.swift,
+				MediaSource/MediaSourcePreparation.swift,
 				MediaSource/NaturalMediaNameOrder.swift,
 				MediaSource/NetworkMonitor.swift,
 				MediaSource/RemoteAddressScope.swift,

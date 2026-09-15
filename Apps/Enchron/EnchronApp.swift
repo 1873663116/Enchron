@@ -50,6 +50,7 @@ struct EnchronApp: App {
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
                 if current == .background {
+                    application.playbackLauncher.preparation.suspend()
                     SurfaceInputProbes.record(
                         "backgroundPlaybackStop requested lifecycle=\(application.playbackRuntime.productLifecycle.rawValue)"
                             + " position=\(application.playbackRuntime.playbackPosition.seconds)"
@@ -61,7 +62,6 @@ struct EnchronApp: App {
                     application.playbackLauncher.stopPlayback(
                         reason: .applicationBackgrounded
                     )
-                    MediaByteStreamServer.shared.stop()
                     if hadPlayback {
                         application.playbackSessionModel.requestStoppedPlaybackCleanup(
                             closesEnvironment: true
@@ -74,6 +74,7 @@ struct EnchronApp: App {
                     return
                 }
                 guard current == .active else { return }
+                application.playbackLauncher.preparation.resume()
                 Task { @MainActor in
                     await Task.yield()
                     guard mainScenePhase == .active else { return }

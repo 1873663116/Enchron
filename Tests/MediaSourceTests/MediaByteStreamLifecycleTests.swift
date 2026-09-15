@@ -5,6 +5,59 @@ import Testing
 #if DEBUG
 @Suite(.serialized)
 struct MediaByteStreamLifecycleTests {
+    @Test("retiring one playback stream leaves other streams readable")
+    func independentStreamsSurviveRetirement() async throws {
+        let source = LifecycleByteRangeSource()
+        let first = try await MediaByteStreamServer(readChunkSize: 4)
+            .register(source: source, filename: "first.bin")
+        let second = try await MediaByteStreamServer(readChunkSize: 4)
+            .register(source: source, filename: "second.bin")
+        #expect(try await fetchRange("bytes=2-6", from: first.url).body == Data("23456".utf8))
+        first.release()
+        #expect(try await fetchRange("bytes=2-6", from: second.url).body == Data("23456".utf8))
+        second.release()
+    }
+
+    @MainActor
+    @Test("cancelling preparation releases its streams without touching unrelated content")
+    func preparationRetiresOnlyOwnedStreams() async throws {
+        let source = LifecycleByteRangeSource()
+        let unrelatedServer = MediaByteStreamServer(readChunkSize: 4)
+        let unrelated = try await unrelatedServer.register(source: source, filename: "image.bin")
+        let preparation = MediaSourcePreparation()
+        let playbackServer = MediaByteStreamServer(readChunkSize: 4)
+        var resume: CheckedContinuation<Void, Never>?
+        var retiredURLs: [URL] = []
+        let old = Task {
+            try await preparation.resolve {
+                let video = try await playbackServer.register(source: source, filename: "video.bin")
+                let subtitle = try await playbackServer.register(source: source, filename: "subtitle.bin")
+                retiredURLs = [video.url, subtitle.url]
+                await withCheckedContinuation { resume = $0 }
+                return [video, subtitle]
+            }
+        }
+        while resume == nil { await Task.yield() }
+        preparation.cancel()
+        resume?.resume()
+        do {
+            _ = try await old.value
+            Issue.record("A retired preparation returned its streams")
+        } catch { #expect(error is CancellationError) }
+        for url in retiredURLs {
+            do {
+                _ = try await fetchRange("bytes=2-6", from: url)
+                Issue.record("The retired playback listener still accepts requests")
+            } catch {
+                #expect((error as? URLError)?.code == .cannotConnectToHost)
+            }
+        }
+        #expect(try await fetchRange("bytes=2-6", from: unrelated.url).body == Data("23456".utf8))
+        unrelated.release()
+        await playbackServer.stopAndWait()
+        await unrelatedServer.stopAndWait()
+    }
+
     @Test("background teardown permits immediate reopen before old handles release")
     func backgroundTeardownPermitsImmediateReopen() async throws {
         let source = LifecycleByteRangeSource()
@@ -26,7 +79,6 @@ struct MediaByteStreamLifecycleTests {
         after.release()
         await server.stopAndWait()
     }
-
 
 }
 

@@ -79,6 +79,8 @@ $(SRCROOT)/Modules/MediaSource/ArtworkStore.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 $(SRCROOT)/Modules/MediaSource/MediaByteStream.swift
+$(SRCROOT)/Modules/MediaSource/MediaSourcePreparation.swift
+$(SRCROOT)/Modules/MediaSource/MediaSourcePreparationResources.swift
 $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift
 $(SRCROOT)/Modules/MediaSource/NetworkMonitor.swift
 $(SRCROOT)/Modules/MediaSource/RemoteAddressScope.swift

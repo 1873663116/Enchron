@@ -60,18 +60,18 @@
       }
     },
     {
-      "id": "media-byte-stream-rejects-missing-app-singleton",
+      "id": "media-byte-stream-rejects-app-singleton",
       "guard": "Scripts/rules/verify_media_byte_stream.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/MediaSource/MediaByteStream.swift",
-        "find": "static let shared = MediaByteStreamServer()",
-        "replaceWith": "static let instance = MediaByteStreamServer()"
+        "find": "public final class MediaByteStreamServer: @unchecked Sendable {",
+        "replaceWith": "public final class MediaByteStreamServer : @unchecked Sendable {\n    public static let shared = MediaByteStreamServer()"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "M2: App singleton is missing"
+          "M2: playback byte streams must not use an App singleton"
         ]
       }
     },
