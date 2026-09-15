@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-14T11:29:34+00:00",
+  "updatedAt": "2026-09-15T05:43:28+00:00",
   "verbs": {
     "accessibility-inspect": {
       "samples": [
@@ -371,101 +371,6 @@
     "app-command": {
       "samples": [
         {
-          "at": "2026-09-03T12:43:50.411081+00:00",
-          "censored": false,
-          "seconds": 1.616
-        },
-        {
-          "at": "2026-09-03T12:43:55.855836+00:00",
-          "censored": false,
-          "seconds": 1.582
-        },
-        {
-          "at": "2026-09-03T12:43:57.542702+00:00",
-          "censored": false,
-          "seconds": 1.686
-        },
-        {
-          "at": "2026-09-03T12:43:59.114283+00:00",
-          "censored": false,
-          "seconds": 1.57
-        },
-        {
-          "at": "2026-09-03T12:44:00.708510+00:00",
-          "censored": false,
-          "seconds": 1.592
-        },
-        {
-          "at": "2026-09-03T12:44:05.558927+00:00",
-          "censored": false,
-          "seconds": 1.545
-        },
-        {
-          "at": "2026-09-03T12:44:22.950225+00:00",
-          "censored": false,
-          "seconds": 1.707
-        },
-        {
-          "at": "2026-09-03T12:44:37.275732+00:00",
-          "censored": false,
-          "seconds": 1.602
-        },
-        {
-          "at": "2026-09-03T12:44:42.098290+00:00",
-          "censored": false,
-          "seconds": 1.58
-        },
-        {
-          "at": "2026-09-03T12:44:43.695156+00:00",
-          "censored": false,
-          "seconds": 1.596
-        },
-        {
-          "at": "2026-09-03T12:44:45.261526+00:00",
-          "censored": false,
-          "seconds": 1.565
-        },
-        {
-          "at": "2026-09-03T12:44:46.833628+00:00",
-          "censored": false,
-          "seconds": 1.57
-        },
-        {
-          "at": "2026-09-03T12:44:50.079975+00:00",
-          "censored": false,
-          "seconds": 1.52
-        },
-        {
-          "at": "2026-09-03T12:44:53.267831+00:00",
-          "censored": false,
-          "seconds": 1.547
-        },
-        {
-          "at": "2026-09-03T12:45:09.261056+00:00",
-          "censored": false,
-          "seconds": 1.784
-        },
-        {
-          "at": "2026-09-03T12:47:25.914518+00:00",
-          "censored": false,
-          "seconds": 1.751
-        },
-        {
-          "at": "2026-09-03T12:48:03.322185+00:00",
-          "censored": false,
-          "seconds": 3.123
-        },
-        {
-          "at": "2026-09-03T12:48:05.045284+00:00",
-          "censored": false,
-          "seconds": 1.722
-        },
-        {
-          "at": "2026-09-03T12:49:23.902336+00:00",
-          "censored": false,
-          "seconds": 1.752
-        },
-        {
           "at": "2026-09-03T12:49:39.179339+00:00",
           "censored": false,
           "seconds": 1.828
@@ -569,6 +474,101 @@
           "at": "2026-09-03T12:54:15.823973+00:00",
           "censored": false,
           "seconds": 1.709
+        },
+        {
+          "at": "2026-09-15T05:29:35+00:00",
+          "censored": false,
+          "seconds": 4.22
+        },
+        {
+          "at": "2026-09-15T05:29:37+00:00",
+          "censored": false,
+          "seconds": 0.93
+        },
+        {
+          "at": "2026-09-15T05:29:43+00:00",
+          "censored": false,
+          "seconds": 3.05
+        },
+        {
+          "at": "2026-09-15T05:30:14+00:00",
+          "censored": false,
+          "seconds": 1.76
+        },
+        {
+          "at": "2026-09-15T05:31:56+00:00",
+          "censored": false,
+          "seconds": 1.73
+        },
+        {
+          "at": "2026-09-15T05:32:37+00:00",
+          "censored": false,
+          "seconds": 1.18
+        },
+        {
+          "at": "2026-09-15T05:32:41+00:00",
+          "censored": false,
+          "seconds": 1.9
+        },
+        {
+          "at": "2026-09-15T05:32:47+00:00",
+          "censored": false,
+          "seconds": 2.82
+        },
+        {
+          "at": "2026-09-15T05:33:27+00:00",
+          "censored": false,
+          "seconds": 1.21
+        },
+        {
+          "at": "2026-09-15T05:34:00+00:00",
+          "censored": false,
+          "seconds": 1.75
+        },
+        {
+          "at": "2026-09-15T05:34:49+00:00",
+          "censored": false,
+          "seconds": 4.77
+        },
+        {
+          "at": "2026-09-15T05:36:20+00:00",
+          "censored": false,
+          "seconds": 2.7
+        },
+        {
+          "at": "2026-09-15T05:36:23+00:00",
+          "censored": false,
+          "seconds": 2.39
+        },
+        {
+          "at": "2026-09-15T05:36:56+00:00",
+          "censored": false,
+          "seconds": 1.06
+        },
+        {
+          "at": "2026-09-15T05:38:44+00:00",
+          "censored": false,
+          "seconds": 2.88
+        },
+        {
+          "at": "2026-09-15T05:38:45+00:00",
+          "censored": false,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-15T05:39:46+00:00",
+          "censored": true,
+          "seconds": 20.0
+        },
+        {
+          "at": "2026-09-15T05:41:06+00:00",
+          "censored": true,
+          "seconds": 20.0
+        },
+        {
+          "at": "2026-09-15T05:41:45+00:00",
+          "censored": true,
+          "seconds": 20.0
         }
       ]
     },
@@ -1397,6 +1397,16 @@
           "at": "2026-09-14T11:29:34+00:00",
           "censored": false,
           "seconds": 20.41
+        },
+        {
+          "at": "2026-09-15T05:25:47+00:00",
+          "censored": false,
+          "seconds": 2.67
+        },
+        {
+          "at": "2026-09-15T05:43:28+00:00",
+          "censored": false,
+          "seconds": 3.76
         }
       ]
     },
@@ -2792,11 +2802,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-03T12:51:31.583416+00:00",
-          "censored": false,
-          "seconds": 2.096
-        },
-        {
           "at": "2026-09-03T12:51:43.071078+00:00",
           "censored": false,
           "seconds": 3.079
@@ -2990,6 +2995,11 @@
           "at": "2026-09-13T02:47:37+00:00",
           "censored": false,
           "seconds": 2.89
+        },
+        {
+          "at": "2026-09-15T05:42:58+00:00",
+          "censored": false,
+          "seconds": 2.19
         }
       ]
     },
