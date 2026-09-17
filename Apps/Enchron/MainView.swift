@@ -121,7 +121,24 @@ public struct MainView: View {
     private var browserPrimaryContent: some View {
         ZStack {
             browser
+            if playbackLauncher.isResolvingPlaybackRequest {
+                VStack(spacing: DesignTokens.Spacing.lg) {
+                    LoadingSpinner()
+                    Text("Connecting…")
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(DesignTokens.Spacing.xl)
+                .enchronGlassBackground(in: DesignTokens.ShapeToken.card)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("PlayerUI-requestResolution-spinner")
+                .transition(.opacity)
+            }
         }
+        .animation(
+            DesignTokens.AnimationToken.fadeIn,
+            value: playbackLauncher.isResolvingPlaybackRequest
+        )
         .alert(
             "Resume Playback?",
             isPresented: Binding(

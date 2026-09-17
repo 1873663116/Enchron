@@ -463,6 +463,70 @@ struct PlaybackActiveFailureTests {
         #expect(runtime.openCalls.isEmpty)
     }
 
+    @Test("A hung request resolution times out into a retryable connection issue")
+    func hungRequestResolutionTimesOutIntoRetryableIssue() async throws {
+        let suiteName = "app.enchron.tests.request-timeout.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let runtime = ActiveFailureRuntime()
+        let coordinator = PlaybackLaunchCoordinator(
+            playbackRuntime: runtime,
+            mediaStateSuiteName: suiteName,
+            preferencesProvider: ActiveFailurePreferences(),
+            requestResolutionTimeout: .milliseconds(200)
+        )
+
+        coordinator.requestPlayback {
+            try await Task.sleep(for: .seconds(60))
+            return Self.request(named: "movie-a")
+        }
+        #expect(coordinator.isResolvingPlaybackRequest)
+
+        try await runtime.waitUntilIssue(.connectionFailed)
+        try await waitUntilResolutionFlagClears(on: coordinator)
+        #expect(runtime.openCalls.isEmpty)
+    }
+
+    @Test("Retry after a resolution timeout reruns the resolution")
+    func retryAfterResolutionTimeoutRerunsResolution() async throws {
+        let suiteName = "app.enchron.tests.request-timeout-retry.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let runtime = ActiveFailureRuntime()
+        let coordinator = PlaybackLaunchCoordinator(
+            playbackRuntime: runtime,
+            mediaStateSuiteName: suiteName,
+            preferencesProvider: ActiveFailurePreferences(),
+            requestResolutionTimeout: .milliseconds(200)
+        )
+        let request = Self.request(named: "movie-a")
+        var attempts = 0
+
+        coordinator.requestPlayback {
+            attempts += 1
+            if attempts == 1 {
+                try await Task.sleep(for: .seconds(60))
+            }
+            return request
+        }
+        try await runtime.waitUntilIssue(.connectionFailed)
+
+        coordinator.retryPlayback()
+        try await runtime.waitUntilOpenCount(1, issueIsCleared: true)
+
+        #expect(attempts == 2)
+        #expect(runtime.openCalls.last?.request == request)
+    }
+
+    private func waitUntilResolutionFlagClears(
+        on coordinator: PlaybackLaunchCoordinator
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while coordinator.isResolvingPlaybackRequest,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(coordinator.isResolvingPlaybackRequest == false)
+    }
+
     @Test("Request resolution errors classify network failures separately")
     func requestResolutionClassification() {
         #expect(

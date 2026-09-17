@@ -86,6 +86,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private let preferencesProvider: PlaybackPreferencesProviding
     private let metadataService: PlaybackMediaMetadataService
     private let networkMonitor: any NetworkConnectivityWaiting
+    private let requestResolutionTimeout: Duration
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackLaunch")
 
     public var nextFileProvider: (@MainActor @Sendable () async -> PlaybackLaunchRequest?)?
@@ -101,6 +102,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public var onPlaybackIntentStarted: (@MainActor () -> Void)?
     public var onPlaybackStopRequested: (@MainActor () -> Void)?
     public private(set) var pendingResumeDecision: ResumeDecision?
+    public private(set) var isResolvingPlaybackRequest = false
     public private(set) var resumePromptPresentationCount = 0
     public private(set) var automaticResumeBypassCount = 0
 
@@ -119,13 +121,15 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public init(
         playbackRuntime: any PlaybackRuntimeControlling,
         mediaStateSuiteName: String? = nil,
-        preferencesProvider: PlaybackPreferencesProviding = DefaultPlaybackPreferencesProvider()
+        preferencesProvider: PlaybackPreferencesProviding = DefaultPlaybackPreferencesProvider(),
+        requestResolutionTimeout: Duration = .seconds(15)
     ) {
         self.playbackRuntime = playbackRuntime
         self.mediaStateStore = MediaStateStore(suiteName: mediaStateSuiteName)
         self.preferencesProvider = preferencesProvider
         self.metadataService = PlaybackMediaMetadataService()
         self.networkMonitor = MediaSourceServices.makeNetworkConnectivityWaiter()
+        self.requestResolutionTimeout = requestResolutionTimeout
 
         playbackRuntime.onMediaProfileResolved = { [weak self] request, profile in
             guard let self else { return }
@@ -175,10 +179,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         resolving resolve: @escaping @MainActor () async throws -> PlaybackLaunchRequest
     ) {
         pendingRequestResolution = resolve
+        isResolvingPlaybackRequest = true
         Task { [weak self] in
             guard let self else { return }
+            defer { self.isResolvingPlaybackRequest = false }
             do {
-                let request = try await preparation.resolve(resolve)
+                let request = try await preparation.resolve {
+                    try await self.resolveRequestWithTimeout(resolve)
+                }
                 self.requestPlayback(request)
             } catch is CancellationError {
                 return
@@ -198,6 +206,23 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             return .connectionFailed
         }
         return .mediaRequestFailed
+    }
+
+    private func resolveRequestWithTimeout(
+        _ resolve: @escaping @MainActor () async throws -> PlaybackLaunchRequest
+    ) async throws -> PlaybackLaunchRequest {
+        try await withThrowingTaskGroup(of: PlaybackLaunchRequest.self) { group in
+            group.addTask { try await resolve() }
+            group.addTask {
+                try await Task.sleep(for: self.requestResolutionTimeout)
+                throw URLError(.timedOut)
+            }
+            guard let request = try await group.next() else {
+                throw CancellationError()
+            }
+            group.cancelAll()
+            return request
+        }
     }
 
     private func requestPlayback(
