@@ -733,7 +733,18 @@ extension SampleBufferPlaybackSession {
                 PlaybackBufferingPolicy.deliveryLagRecoveryTriggerSeconds else {
             return
         }
+        beginDeliveryLagRecovery(
+            at: timelineTime,
+            presentationEnd: presentationEnd,
+            capturedVideoDeliveryGeneration: generation
+        )
+    }
 
+    private func beginDeliveryLagRecovery(
+        at timelineTime: CMTime,
+        presentationEnd: CMTime,
+        capturedVideoDeliveryGeneration: UInt64?
+    ) {
         let requirement = PlaybackBufferingPolicy.deliveryLagRecoveryRequirement(
             timelineTime: timelineTime,
             durationSeconds: diagnostics.durationSeconds,
@@ -751,7 +762,7 @@ extension SampleBufferPlaybackSession {
         setTimelineStopped(
             at: timelineTime,
             reason: .deliveryLagRecovery,
-            capturedVideoDeliveryGeneration: generation
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration
         )
         recordTimelineControlState()
         let mediaState = deliveryContinuityMediaState()
@@ -1432,7 +1443,42 @@ extension SampleBufferPlaybackSession {
             publishDeliveryContinuity(continuity)
         }
         handleTimelineProgressDecision(result.decision)
+        #if os(visionOS)
+            if case .none = result.decision {
+                observeWatchdogDeliveryLagIfNeeded(run: run, reading: reading)
+            }
+        #endif
     }
+
+    #if os(visionOS)
+        private func observeWatchdogDeliveryLagIfNeeded(
+            run: PlaybackTimelineProgressRun,
+            reading: PlaybackTimelineClockReading
+        ) {
+            guard timelineProgressWatchdogIsEligible,
+                  mediaKind == .video,
+                  !isPrerolling,
+                  diagnostics.nominalFrameRate > 0,
+                  reading.directRate > 0,
+                  reading.effectiveRate > 0,
+                  timelineProgressRecoveryLock.withLock({
+                      timelineProgressRecovery.matches(run)
+                  })
+            else { return }
+            let mediaState = deliveryContinuityMediaState()
+            guard let trigger = mediaState.starvationTrigger(
+                mediaTime: reading.mediaTime,
+                mediaKindIsAudioOnly: mediaKind == .audioOnly,
+                triggerSeconds: PlaybackBufferingPolicy
+                    .deliveryLagRecoveryTriggerSeconds
+            ), trigger.lane == .video else { return }
+            beginDeliveryLagRecovery(
+                at: reading.mediaTime,
+                presentationEnd: trigger.presentationEnd,
+                capturedVideoDeliveryGeneration: nil
+            )
+        }
+    #endif
 
     func timelineClockReading() -> PlaybackTimelineClockReading {
         var mediaTime = CMTime.invalid
