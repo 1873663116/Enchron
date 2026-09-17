@@ -200,6 +200,85 @@ import Testing
     #expect(recovery?.evidence?.recoveredPresentationEndSeconds == ["audio": 8])
   }
 
+  @Test func starvationTriggerFiresOnVideoLaneWhenTheClockRunsPastDelivery() throws {
+    let trigger = playbackDeliveryMediaState(
+      videoEnd: 14.6,
+      audioEnd: 20
+    ).starvationTrigger(
+      mediaTime: CMTime(seconds: 15.2, preferredTimescale: 600),
+      mediaKindIsAudioOnly: false,
+      triggerSeconds: 0.5
+    )
+
+    let observed = try #require(trigger)
+    #expect(observed.lane == .video)
+    #expect(observed.presentationEnd.seconds == 14.6)
+  }
+
+  @Test func starvationTriggerStaysQuietWhileDeliveryKeepsUp() {
+    #expect(playbackDeliveryMediaState(
+      videoEnd: 14.6,
+      audioEnd: 20
+    ).starvationTrigger(
+      mediaTime: CMTime(seconds: 14.9, preferredTimescale: 600),
+      mediaKindIsAudioOnly: false,
+      triggerSeconds: 0.5
+    ) == nil)
+    #expect(playbackDeliveryMediaState(
+      videoEnd: 20,
+      audioEnd: 14.0
+    ).starvationTrigger(
+      mediaTime: CMTime(seconds: 15.2, preferredTimescale: 600),
+      mediaKindIsAudioOnly: false,
+      triggerSeconds: 0.5
+    ) == nil)
+  }
+
+  @Test func starvationTriggerIgnoresLanesWhoseProviderEnded() throws {
+    let trigger = playbackDeliveryMediaState(
+      videoEnd: 5,
+      audioEnd: 14.0,
+      providerEndedLanes: [.video]
+    ).starvationTrigger(
+      mediaTime: CMTime(seconds: 15.2, preferredTimescale: 600),
+      mediaKindIsAudioOnly: false,
+      triggerSeconds: 0.5
+    )
+
+    let observed = try #require(trigger)
+    #expect(observed.lane == .audio)
+    #expect(observed.presentationEnd.seconds == 14.0)
+  }
+
+  @Test func starvationTriggerUsesAudioForAudioOnlyMedia() throws {
+    let mediaState = PlaybackDeliveryContinuityMediaState(
+      requiredLanes: [.audio],
+      providerEndedLanes: [],
+      presentationEndByLane: [
+        .audio: CMTime(seconds: 14.0, preferredTimescale: 600),
+      ]
+    )
+
+    let trigger = try #require(mediaState.starvationTrigger(
+      mediaTime: CMTime(seconds: 15.2, preferredTimescale: 600),
+      mediaKindIsAudioOnly: true,
+      triggerSeconds: 0.5
+    ))
+    #expect(trigger.lane == .audio)
+  }
+
+  @Test func starvationTriggerStaysQuietWhenEveryProviderEnded() {
+    #expect(playbackDeliveryMediaState(
+      videoEnd: 5,
+      audioEnd: 5,
+      providerEndedLanes: [.video, .audio]
+    ).starvationTrigger(
+      mediaTime: CMTime(seconds: 30, preferredTimescale: 600),
+      mediaKindIsAudioOnly: false,
+      triggerSeconds: 0.5
+    ) == nil)
+  }
+
   @Test func deliveryContinuitySurvivesDebugSnapshotCoding() throws {
     let run = playbackDeliveryRun()
     var continuity = PlaybackDeliveryContinuity()

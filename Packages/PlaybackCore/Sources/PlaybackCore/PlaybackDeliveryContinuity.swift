@@ -73,6 +73,23 @@ struct PlaybackDeliveryContinuityMediaState: Equatable, Sendable {
     var requiredLanes: Set<PlaybackDeliveryLane>
     var providerEndedLanes: Set<PlaybackDeliveryLane>
     var presentationEndByLane: [PlaybackDeliveryLane: CMTime]
+
+    func starvationTrigger(
+        mediaTime: CMTime,
+        mediaKindIsAudioOnly: Bool,
+        triggerSeconds: Double
+    ) -> (lane: PlaybackDeliveryLane, presentationEnd: CMTime)? {
+        guard mediaTime.isNumeric else { return nil }
+        let activeLanes = requiredLanes.subtracting(providerEndedLanes)
+        let lane: PlaybackDeliveryLane =
+            !mediaKindIsAudioOnly && activeLanes.contains(.video) ? .video : .audio
+        guard activeLanes.contains(lane),
+              let presentationEnd = presentationEndByLane[lane],
+              presentationEnd.isNumeric,
+              mediaTime.seconds - presentationEnd.seconds >= triggerSeconds
+        else { return nil }
+        return (lane, presentationEnd)
+    }
 }
 
 struct PlaybackDeliveryContinuity: Sendable {
