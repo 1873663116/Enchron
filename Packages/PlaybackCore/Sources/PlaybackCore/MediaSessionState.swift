@@ -6,10 +6,74 @@ public enum PlaybackEndReason: String, Codable, Equatable, Sendable {
     case seekToEnd
 }
 
+public struct PlaybackEndReceipt: Equatable, Sendable {
+    public enum Provenance: String, Equatable, Sendable {
+        case naturalCompletion
+        case seekToEnd
+        case restored
+    }
+
+    public let reason: PlaybackEndReason
+    public let deliveredEndSeconds: Double?
+    let provenance: Provenance
+
+    private init(
+        reason: PlaybackEndReason,
+        deliveredEndSeconds: Double?,
+        provenance: Provenance
+    ) {
+        self.reason = reason
+        self.deliveredEndSeconds = deliveredEndSeconds
+        self.provenance = provenance
+    }
+
+    static func completion(
+        reason: PlaybackEndReason,
+        deliveredEndSeconds: Double?,
+        declaredDurationSeconds: Double?
+    ) -> PlaybackEndReceipt? {
+        if let duration = declaredDurationSeconds, duration.isFinite, duration > 0 {
+            guard let deliveredEndSeconds,
+                  deliveredEndSeconds >= duration
+                      - PlaybackBufferingPolicy.endOfMediaToleranceSeconds
+            else { return nil }
+        }
+        return PlaybackEndReceipt(
+            reason: reason,
+            deliveredEndSeconds: deliveredEndSeconds,
+            provenance: reason == .seekToEnd ? .seekToEnd : .naturalCompletion
+        )
+    }
+
+    static func seekToEnd(endSeconds: Double) -> PlaybackEndReceipt {
+        PlaybackEndReceipt(
+            reason: .seekToEnd,
+            deliveredEndSeconds: endSeconds,
+            provenance: .seekToEnd
+        )
+    }
+
+    public init(restoring continuity: PlaybackEndedContinuity) {
+        self.init(
+            reason: continuity.reason,
+            deliveredEndSeconds: continuity.finalVideoPresentationTime.isNumeric
+                ? continuity.finalVideoPresentationTime.seconds
+                : nil,
+            provenance: .restored
+        )
+    }
+}
+
 public struct PlaybackEndedContinuity: Equatable, Sendable {
     public let reason: PlaybackEndReason
     public let logicalPosition: CMTime
     public let finalVideoPresentationTime: CMTime
+}
+
+enum PlaybackEndClaim: Equatable, Sendable {
+    case pending
+    case completed(PlaybackEndReceipt)
+    case truncated(deliveredEndSeconds: Double?, declaredDurationSeconds: Double)
 }
 
 public enum PlaybackStatus: Equatable, Sendable {
@@ -18,7 +82,7 @@ public enum PlaybackStatus: Equatable, Sendable {
     case ready
     case playing
     case paused
-    case ended(PlaybackEndReason)
+    case ended(PlaybackEndReceipt)
     case failed(String)
 
     public var label: String {

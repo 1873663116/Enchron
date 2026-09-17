@@ -33,6 +33,8 @@ enum PlaybackBufferingPolicy {
 
     static let deliveryLagRecoveryLeadSeconds = 1.0
 
+    static let endOfMediaToleranceSeconds = 1.0
+
     #if os(visionOS)
         static let opportunisticAudioMaximumLeadSeconds = 6.0
     #else

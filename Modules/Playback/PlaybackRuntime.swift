@@ -2520,7 +2520,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) {
         guard cutoverIsCurrent(cutover) else { return }
         invalidatePendingDisplayedImageClear()
-        lifecycle = .ended(continuity.reason)
+        lifecycle = .ended(PlaybackEndReceipt(restoring: continuity))
         didEndNaturally = continuity.reason == .naturalCompletion
         playbackPosition = .init(
             seconds: continuity.logicalPosition.seconds,
@@ -2889,9 +2889,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case .paused:
             didEndNaturally = false
             updateLoadingState { $0.clearStarvation() }
-        case .ended(let reason):
+        case .ended(let receipt):
             updateLoadingState { $0.clear() }
-            didEndNaturally = reason == .naturalCompletion
+            didEndNaturally = receipt.reason == .naturalCompletion
             let endedSessionID = activeSessionID
             Task { @MainActor [weak self] in
                 guard let self,
@@ -2912,7 +2912,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     forMediaSessionID: endedSessionID
                 )
             }
-            if reason == .naturalCompletion {
+            if receipt.reason == .naturalCompletion {
                 onPlaybackEnded?()
             }
         case .failed(let message):

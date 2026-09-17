@@ -22,16 +22,25 @@ extension SampleBufferPlaybackSession {
         recordSubtitleState(at: time)
         publishSubtitleCues(at: time)
         publishDiagnostics(at: time)
-        guard claimEndIfReady(at: time) else { return }
-        setTimelineStopped(reason: .playbackEnded)
-        updateLifecycle(.ended)
-        debugStore.emit(
-            mediaSessionID: traceID,
-            node: .rendererInputCoordination,
-            kind: "timeline.ended",
-            outcome: .succeeded
-        )
-        onStatusChange?(.ended(.naturalCompletion))
+        switch claimEndIfReady(at: time) {
+        case .completed(let receipt):
+            setTimelineStopped(reason: .playbackEnded)
+            updateLifecycle(.ended)
+            debugStore.emit(
+                mediaSessionID: traceID,
+                node: .rendererInputCoordination,
+                kind: "timeline.ended",
+                outcome: .succeeded
+            )
+            onStatusChange?(.ended(receipt))
+        case .truncated(let deliveredEndSeconds, let declaredDurationSeconds):
+            reportTruncatedInputEnd(
+                deliveredEndSeconds: deliveredEndSeconds,
+                declaredDurationSeconds: declaredDurationSeconds
+            )
+        case .pending:
+            break
+        }
     }
 
     func publishDiagnostics(at time: CMTime, force: Bool = false) {

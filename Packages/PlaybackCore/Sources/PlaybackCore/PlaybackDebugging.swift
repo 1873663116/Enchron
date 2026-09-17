@@ -120,6 +120,7 @@ public enum PlaybackTimelineControlReason: String, Codable, Equatable, Sendable 
     case deliveryLagRecovery
     case firstSample
     case initialTimelineAnchor
+    case inputTruncated
     case pause
     case play
     case playbackEnded

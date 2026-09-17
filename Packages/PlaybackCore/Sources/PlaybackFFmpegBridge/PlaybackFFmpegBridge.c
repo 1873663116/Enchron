@@ -573,7 +573,9 @@ static int64_t packet_duration_microseconds(
 static bool demux_source_reached_known_end(const PBFFmpegDemuxSource *source) {
     if (!source || source->knownByteLength <= 0 || !source->formatContext ||
         !source->formatContext->pb) return false;
-    return source->formatContext->pb->error >= 0;
+    AVIOContext *byteContext = source->formatContext->pb;
+    if (byteContext->error < 0) return false;
+    return byteContext->pos >= source->knownByteLength;
 }
 
 static bool wait_for_reconnect_backoff(

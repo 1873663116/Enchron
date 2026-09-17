@@ -51,7 +51,7 @@ public final class PlaybackCoreController {
     public private(set) var pendingCleanupAbandonmentCount = 0
 
     public var endedContinuity: PlaybackEndedContinuity? {
-        guard case .ended(let reason) = status,
+        guard case .ended(let receipt) = status,
               let activeSession,
               let finalVideoPresentationTime =
                 activeSession.finalDisplayableVideoPresentationTime,
@@ -60,7 +60,7 @@ public final class PlaybackCoreController {
             return nil
         }
         return PlaybackEndedContinuity(
-            reason: reason,
+            reason: receipt.reason,
             logicalPosition: CMTime(
                 seconds: diagnostics.durationSeconds,
                 preferredTimescale: 60_000
@@ -389,7 +389,7 @@ public final class PlaybackCoreController {
                 mediaSessionID: activeSession.traceID
             )
             diagnostics.currentSeconds = continuity.logicalPosition.seconds
-            setStatus(.ended(continuity.reason))
+            setStatus(.ended(PlaybackEndReceipt(restoring: continuity)))
         } catch {
             if self.activeSession === activeSession {
                 activeSession.startVideoDelivery()

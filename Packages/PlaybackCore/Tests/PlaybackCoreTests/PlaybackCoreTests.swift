@@ -1193,7 +1193,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(session.debugSnapshot().lastCompletedOperation?.targetTimeSeconds == 5)
 }
 
-@Test func seekPastTheDeliveredVideoEndsPlaybackInsteadOfFailing() async throws {
+@Test func seekPastTheDeliveredVideoFailsWhenInputIsTruncated() async throws {
     for expectedLastPTS in [1.0, nil] as [Double?] {
         let events: [VideoSampleProviderEvent]
         if let expectedLastPTS {
@@ -1224,18 +1224,15 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         statuses.withLock { $0.removeAll() }
 
         let startedAt = ContinuousClock.now
-        try await session.seek(
+        try? await session.seek(
             to: CMTime(seconds: 5, preferredTimescale: 600),
             startsPaused: false
         )
 
-        #expect(startedAt.duration(to: .now) < .seconds(1))
+        #expect(startedAt.duration(to: .now) < .seconds(10))
         let snapshot = session.debugSnapshot()
-        #expect(snapshot.lifecycle == .ended)
-        #expect(snapshot.lastCompletedOperation?.kind == .seek)
-        #expect(snapshot.lastCompletedOperation?.state == .completed)
-        #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
-        #expect(abs(session.currentTime().seconds - 10) < 0.001)
+        #expect(snapshot.lifecycle == .failed)
+        #expect(statuses.withLock { $0 }.map(playbackEndReason).allSatisfy { $0 == nil })
         await session.closeAndWait()
     }
 }
@@ -2791,7 +2788,7 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
 
     #expect(provider.startCount == startCount)
     #expect(session.debugSnapshot().lifecycle == .ended)
-    #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
+    #expect(statuses.withLock { $0 }.map(playbackEndReason) == [.seekToEnd])
     #expect(session.renderer.displayedPixelBuffer() == nil)
 }
 
@@ -2830,7 +2827,7 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
 
     #expect(provider.startCount == startCount)
     #expect(session.debugSnapshot().lifecycle == .ended)
-    #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
+    #expect(statuses.withLock { $0 }.map(playbackEndReason) == [.seekToEnd])
     #expect(abs(session.currentTime().seconds - 10) < 0.001)
 }
 
@@ -2868,7 +2865,7 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     }
 
     #expect(session.debugSnapshot().lifecycle == .ended)
-    #expect(statuses.withLock { $0 } == [.ended(.seekToEnd)])
+    #expect(statuses.withLock { $0 }.map(playbackEndReason) == [.seekToEnd])
     #expect(session.debugSnapshot().lastError == nil)
     #expect(abs(session.currentTime().seconds - 1.5) < 0.001)
     #expect(abs(session.diagnostics.currentSeconds - 1.5) < 0.001)
@@ -3826,7 +3823,10 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     let audioSample = try makeAudioSample(durationSeconds: 0.75)
     let session = SampleBufferPlaybackSession(
         traceID: "longer-audio-session",
-        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
+        provider: FakeVideoSampleProvider(
+            events: [.sample(videoSample), .end],
+            durationSeconds: 0.75
+        ),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
         rendererSink: FakeRendererInputSink()
     )
@@ -3853,11 +3853,99 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(session.debugSnapshot().lifecycle == .ended)
 }
 
+@MainActor
+@Test func providerEndBeforeDeclaredDurationFailsInsteadOfEnding() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 0.05)
+    let session = SampleBufferPlaybackSession(
+        traceID: "truncated-input-session",
+        provider: FakeVideoSampleProvider(
+            events: [.sample(videoSample), .end],
+            durationSeconds: 60
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/truncated.mp4"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline,
+          session.debugSnapshot().lifecycle != .failed {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(session.debugSnapshot().lifecycle == .failed)
+}
+
+@Test func playbackEndReceiptRequiresDeliveredEndToReachDeclaredDuration() {
+    #expect(PlaybackEndReceipt.completion(
+        reason: .naturalCompletion,
+        deliveredEndSeconds: 60,
+        declaredDurationSeconds: 60
+    ) != nil)
+    #expect(PlaybackEndReceipt.completion(
+        reason: .naturalCompletion,
+        deliveredEndSeconds: 5,
+        declaredDurationSeconds: 60
+    ) == nil)
+    #expect(PlaybackEndReceipt.completion(
+        reason: .naturalCompletion,
+        deliveredEndSeconds: nil,
+        declaredDurationSeconds: 60
+    ) == nil)
+    #expect(PlaybackEndReceipt.completion(
+        reason: .naturalCompletion,
+        deliveredEndSeconds: 5,
+        declaredDurationSeconds: nil
+    ) != nil)
+    #expect(PlaybackEndReceipt.seekToEnd(endSeconds: 60).reason == .seekToEnd)
+}
+
+@MainActor
+@Test func inputEndingBeforeActivationFailsWhenShortOfDeclaredDuration() async throws {
+    let videoSample = try makeCompressedH264Sample(
+        presentationTimeSeconds: 0,
+        durationSeconds: 0.05
+    )
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [.sample(videoSample), .end],
+                durationSeconds: 60
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/truncated-open.mp4"),
+        startTime: CMTime(seconds: 30, preferredTimescale: 600)
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    try controller.start()
+
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline,
+          session.debugSnapshot().lifecycle != .failed {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(session.debugSnapshot().lifecycle == .failed)
+    #expect(statuses.withLock { $0 }.map(playbackEndReason).allSatisfy { $0 == nil })
+}
+
 @Test func endedUsesVideoPresentationEndWhenNoAudioIsSelected() async throws {
     let videoSample = try makeCompressedH264Sample(durationSeconds: 0.05)
     let session = SampleBufferPlaybackSession(
         traceID: "video-only-end-session",
-        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
+        provider: FakeVideoSampleProvider(
+            events: [.sample(videoSample), .end],
+            durationSeconds: 0.05
+        ),
         rendererSink: FakeRendererInputSink()
     )
     defer { session.close() }
@@ -4858,6 +4946,11 @@ func repeatedSessionStartDoesNotRestartThePreparedProvider() async throws {
 enum FailedCleanupRecovery: CaseIterable {
     case open
     case reopen
+}
+
+private func playbackEndReason(of status: PlaybackStatus) -> PlaybackEndReason? {
+    guard case .ended(let receipt) = status else { return nil }
+    return receipt.reason
 }
 
 private func fixtureSource(_ name: String) -> MediaSourceRecord {

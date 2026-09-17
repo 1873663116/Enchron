@@ -2466,14 +2466,32 @@ extension SampleBufferPlaybackSession {
         observeDeliveryContinuityAfterMediaDelivery()
     }
 
-    func endPlaybackWhenInputEndsBeforeActivation() {
+    fileprivate func endPlaybackWhenInputEndsBeforeActivation() {
         guard isPrerolling, timelineStartRate > 0, requestedTimelineStart.isNumeric else { return }
         let nothingLeftToPlay = maximumAcceptedVideoPresentationTime
             .map { $0.seconds <= requestedTimelineStart.seconds } ?? true
         guard nothingLeftToPlay, claimEndReport() else { return }
-        let endSeconds = diagnostics.durationSeconds > 0
-            ? diagnostics.durationSeconds
-            : (acceptedVideoPresentationEndSeconds ?? requestedTimelineStart.seconds)
+        let declaredDuration = diagnostics.durationSeconds
+        let deliveredEndSeconds = mediaKind == .audioOnly
+            ? deliveredAudioPresentationEndSeconds
+            : acceptedVideoPresentationEndSeconds
+        guard let receipt = PlaybackEndReceipt.completion(
+            reason: .seekToEnd,
+            deliveredEndSeconds: deliveredEndSeconds ?? requestedTimelineStart.seconds,
+            declaredDurationSeconds: declaredDuration > 0 ? declaredDuration : nil
+        ) else {
+            isPrerolling = false
+            timelineStartRate = 0
+            clearPrerollRequirement()
+            reportTruncatedInputEnd(
+                deliveredEndSeconds: deliveredEndSeconds,
+                declaredDurationSeconds: declaredDuration
+            )
+            return
+        }
+        let endSeconds = declaredDuration > 0
+            ? declaredDuration
+            : (deliveredEndSeconds ?? requestedTimelineStart.seconds)
         let endTime = CMTime(seconds: endSeconds, preferredTimescale: 60_000)
         isPrerolling = false
         timelineStartRate = 0
@@ -2494,7 +2512,25 @@ extension SampleBufferPlaybackSession {
                 "endSeconds": String(endSeconds)
             ]
         )
-        onStatusChange?(.ended(.seekToEnd))
+        onStatusChange?(.ended(receipt))
+    }
+
+    func reportTruncatedInputEnd(
+        deliveredEndSeconds: Double?,
+        declaredDurationSeconds: Double
+    ) {
+        let error = CorePlaybackError.mediaInputTruncated(
+            deliveredEndSeconds: deliveredEndSeconds,
+            declaredDurationSeconds: declaredDurationSeconds
+        )
+        setTimelineStopped(reason: .inputTruncated)
+        recordTimelineControlState()
+        recordFailure(
+            error,
+            node: .rendererInputCoordination,
+            kind: "timeline.truncated"
+        )
+        publishFailureStatus(error, context: .sourceRead(.mediaDataCorrupt))
     }
 
     func claimEndReport() -> Bool {
@@ -2527,6 +2563,12 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    var deliveredAudioPresentationEndSeconds: Double? {
+        endStateLock.withLock {
+            endState.audioPresentationEnd.flatMap { $0.isNumeric ? $0.seconds : nil }
+        }
+    }
+
     var audioProviderHasEnded: Bool {
         endStateLock.withLock { endState.audioProviderEnded }
     }
@@ -2544,14 +2586,14 @@ extension SampleBufferPlaybackSession {
         observeDeliveryContinuityAfterMediaDelivery()
     }
 
-    func markVideoProviderEnded() {
+    fileprivate func markVideoProviderEnded() {
         endStateLock.withLock {
             guard !endState.isClosed else { return }
             endState.videoProviderEnded = true
         }
     }
 
-    func markAudioProviderEnded() {
+    fileprivate func markAudioProviderEnded() {
         endStateLock.withLock {
             guard !endState.isClosed else { return }
             endState.audioProviderEnded = true
@@ -2562,36 +2604,63 @@ extension SampleBufferPlaybackSession {
         endStateLock.withLock { endState.videoProviderEnded }
     }
 
-    func claimEndIfReady(at time: CMTime) -> Bool {
-        guard time.isNumeric else { return false }
+    func claimEndIfReady(at time: CMTime) -> PlaybackEndClaim {
+        guard time.isNumeric else { return .pending }
         return endStateLock.withLock {
+            let declaredDuration = diagnostics.durationSeconds
+            let validDeclaredDuration = declaredDuration.isFinite && declaredDuration > 0
+                ? declaredDuration
+                : nil
             if mediaKind == .audioOnly {
                 guard !endState.isClosed,
                       !endState.didReportEnd,
                       endState.audioProviderEnded,
                       let presentationEnd = endState.audioPresentationEnd,
                       CMTimeCompare(time, presentationEnd) >= 0 else {
-                    return false
+                    return .pending
                 }
                 endState.didReportEnd = true
-                return true
+                return endClaim(
+                    forDeliveredEndSeconds: presentationEnd.seconds,
+                    declaredDurationSeconds: validDeclaredDuration
+                )
             }
             guard !endState.isClosed,
                   !endState.didReportEnd,
                   endState.videoProviderEnded,
                   !endState.requiresAudio || endState.audioProviderEnded,
                   var presentationEnd = endState.videoPresentationEnd else {
-                return false
+                return .pending
             }
             if endState.requiresAudio,
                let audioPresentationEnd = endState.audioPresentationEnd,
                CMTimeCompare(audioPresentationEnd, presentationEnd) > 0 {
                 presentationEnd = audioPresentationEnd
             }
-            guard CMTimeCompare(time, presentationEnd) >= 0 else { return false }
+            guard CMTimeCompare(time, presentationEnd) >= 0 else { return .pending }
             endState.didReportEnd = true
-            return true
+            return endClaim(
+                forDeliveredEndSeconds: presentationEnd.seconds,
+                declaredDurationSeconds: validDeclaredDuration
+            )
         }
+    }
+
+    func endClaim(
+        forDeliveredEndSeconds deliveredEndSeconds: Double,
+        declaredDurationSeconds: Double?
+    ) -> PlaybackEndClaim {
+        if let receipt = PlaybackEndReceipt.completion(
+            reason: .naturalCompletion,
+            deliveredEndSeconds: deliveredEndSeconds,
+            declaredDurationSeconds: declaredDurationSeconds
+        ) {
+            return .completed(receipt)
+        }
+        return .truncated(
+            deliveredEndSeconds: deliveredEndSeconds,
+            declaredDurationSeconds: declaredDurationSeconds ?? 0
+        )
     }
 
 }

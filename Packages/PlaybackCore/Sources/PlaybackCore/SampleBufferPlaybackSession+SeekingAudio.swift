@@ -436,7 +436,9 @@ extension SampleBufferPlaybackSession {
             publishDiagnostics(at: endTime, force: true)
             completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
             finishActiveOperation(.completed)
-            onStatusChange?(.ended(.seekToEnd))
+            onStatusChange?(.ended(PlaybackEndReceipt.seekToEnd(
+                endSeconds: diagnostics.durationSeconds
+            )))
             return
         }
 
@@ -562,19 +564,36 @@ extension SampleBufferPlaybackSession {
             : (acceptedVideoPresentationEndSeconds ?? target)
         let endTime = CMTime(seconds: endSeconds, preferredTimescale: 60_000)
         let reportsEnd = claimEndReport()
+        var reportedTruncation = false
         if reportsEnd {
-            deliveryQueue.sync {
-                timelineStartRate = 0
-                requestedTimelineStart = endTime
-                hasStartedTimeline = true
-                isPrerolling = false
-                isResetting = false
+            let deliveredEndSeconds = acceptedVideoPresentationEndSeconds
+            if let receipt = PlaybackEndReceipt.completion(
+                reason: .seekToEnd,
+                deliveredEndSeconds: deliveredEndSeconds ?? target,
+                declaredDurationSeconds: diagnostics.durationSeconds > 0
+                    ? diagnostics.durationSeconds
+                    : nil
+            ) {
+                deliveryQueue.sync {
+                    timelineStartRate = 0
+                    requestedTimelineStart = endTime
+                    hasStartedTimeline = true
+                    isPrerolling = false
+                    isResetting = false
+                }
+                setTimelineStopped(at: endTime, reason: .seekToEnd)
+                diagnostics.currentSeconds = endSeconds
+                updateLifecycle(.ended)
+                recordRendererState(at: endTime)
+                publishDiagnostics(at: endTime, force: true)
+                onStatusChange?(.ended(receipt))
+            } else {
+                reportedTruncation = true
+                reportTruncatedInputEnd(
+                    deliveredEndSeconds: deliveredEndSeconds,
+                    declaredDurationSeconds: diagnostics.durationSeconds
+                )
             }
-            setTimelineStopped(at: endTime, reason: .seekToEnd)
-            diagnostics.currentSeconds = endSeconds
-            updateLifecycle(.ended)
-            recordRendererState(at: endTime)
-            publishDiagnostics(at: endTime, force: true)
         }
         completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
         debugStore.emit(
@@ -587,12 +606,12 @@ extension SampleBufferPlaybackSession {
                 "endSeconds": String(endSeconds),
                 "streamEpoch": String(streamEpoch),
                 "endReason": PlaybackEndReason.seekToEnd.rawValue,
-                "reportedEnd": String(reportsEnd)
+                "reportedEnd": String(reportsEnd),
+                "reportedTruncation": String(reportedTruncation)
             ]
         )
-        finishActiveOperation(.completed)
-        if reportsEnd {
-            onStatusChange?(.ended(.seekToEnd))
+        if !reportedTruncation {
+            finishActiveOperation(.completed)
         }
     }
 

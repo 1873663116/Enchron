@@ -19,7 +19,11 @@ import Testing
     )
     #expect(
         PlaybackAfterSeekBehavior.preserveCurrentPauseState.resolvesStartsPaused(
-            for: .ended(.naturalCompletion)
+            for: .ended(PlaybackEndReceipt.completion(
+                reason: .naturalCompletion,
+                deliveredEndSeconds: 10,
+                declaredDurationSeconds: 10
+            )!)
         )
     )
 }

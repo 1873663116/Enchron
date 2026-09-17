@@ -8,6 +8,7 @@ struct AudioRendererRetirementError: LocalizedError {
 
 enum CorePlaybackError: LocalizedError {
     case noPlayableMediaStream
+    case mediaInputTruncated(deliveredEndSeconds: Double?, declaredDurationSeconds: Double)
     case audioPrerollTimedOut(Double)
     case firstVideoFrameTimedOut(Double, rendererError: String?)
     case seekTimedOut(Double)
@@ -23,6 +24,11 @@ enum CorePlaybackError: LocalizedError {
         switch self {
         case .noPlayableMediaStream:
             "The selected source has no playable audio or video stream."
+        case .mediaInputTruncated(let deliveredEndSeconds, let declaredDurationSeconds):
+            "Media input ended at "
+                + "\(deliveredEndSeconds.map { $0.formatted(.number.precision(.fractionLength(0...3))) } ?? "unknown") "
+                + "seconds, before the declared duration of "
+                + "\(declaredDurationSeconds.formatted(.number.precision(.fractionLength(0...3)))) seconds."
         case .audioPrerollTimedOut(let seconds):
             "Audio did not preroll through the timeline start at \(seconds) seconds."
         case .firstVideoFrameTimedOut(let seconds, let rendererError):
