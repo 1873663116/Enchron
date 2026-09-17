@@ -26,6 +26,7 @@
 | 模拟器 | Device Hub 画布上的点击既不产生探针行，也不产生任何界面反应，但视角或窗口几何发生了变化 | 画布输入模式停在「移动相机」一档，点击被相机操作吞掉 | 切到画布底部工具栏第二组的第一个按钮（指针）。`device_hub_canvas.py` 的 `gaze`/`pinch`/`enlarge` 每次都会先按它，无需手工处理。 |
 | 模拟器 | Device Hub 画布上的 cliclick 全部返回成功，而应用侧探针一行不增 | Device Hub 不在前台，合成事件落到了别的应用，没有任何报错 | 用 `Scripts/verification/device_hub_canvas.py` 驱动，它在每次指针动作前断言前台应用并拒绝空发。手工发命令时，任何 `osascript activate` 或人手点终端都会夺焦，必须重新前置。 |
 | 两条 | `pgrep -x smbd` 无结果，而 `sharing -l` 显示共享点配置正确 | 无信息。macOS 的 smbd 由 launchd 按连接拉起，无客户端连接时本就不存在，与文件共享是否开启无关 | 改用 `Scripts/verification/journey_preflight.py smb`：它探 445 端口并真正挂载一次，读到片源才算就绪。不要据进程表判断 SMB 可用性。 |
+| 真机 | 远程来源全部不可达：IP 字面量秒报 `serverUnreachable`，`*.local` 主机名约 60 秒超时，服务端请求日志零到达，而设备与 Mac 同网段、ping 互通（2026-09-17 定性） | 设备侧拦截，不是服务端故障。最常见是「本地网络」隐私权限未授予该 App；也可能有系统权限弹窗压在画面上等待佩戴者 | 先截图看当前画面，不要猜测归因：权限弹窗可见则交由佩戴者确认；无弹窗则请佩戴者检查 设置 → 隐私与安全性 → 本地网络 中该 App 的开关。 |
 | 两条 | 内容条件被判为「全库找不到某类样片」 | 多半是扫描范围或判据不对，而不是样片不存在 | 用 `Scripts/verification/journey_preflight.py audio-fixtures` 这类确定性检查复核后再落判决。2026-08-26 的 J08 就是漏扫了 `TestMedia/TestVectors/` 而误记 voided，纯音频与带封面样片一直都在。 |
 | 模拟器 | `tap --identifier` 报「无匹配元素」，而该元素本应在播放器 chrome 上 | 控件已自动隐藏并退出层级 | 以 App 命令通道的 `toggleControls` 召唤，其应答直接给出召唤后的可见状态。 |
 | 画布宽高比自检报出远大于 1.78 的值，或画布明显小于窗格 | Device Hub 工具栏缩放停在 1:1，画布不随窗口长大 | 切到 fit 挡位；画布从 850 点变为 1729 点，指点容错同步放大 |
