@@ -752,6 +752,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         let lock = NSLock()
         var indexSession: ContainerIndexSession?
         var authoritativeContentLength: Int64?
+        var degradedReadMode = false
         #if DEBUG
             var containerIndexDebugState: MediaByteStreamContainerIndexDebugState
         #endif
@@ -887,6 +888,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     }
 
     private let readChunkSize: Int64
+    private let silentReadTimeout: Duration
+    private let silentReadRetryLimit: Int
+    private let degradedReadTimeout: Duration
     private let containerIndexCache: ContainerIndexCache
     private let queue = DispatchQueue(label: "app.enchron.media-byte-stream")
     private let lock = NSLock()
@@ -904,17 +908,31 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         )
     #endif
 
-    public init(readChunkSize: Int64 = 1_048_576) {
+    public init(
+        readChunkSize: Int64 = 1_048_576,
+        silentReadTimeout: Duration = .seconds(30),
+        silentReadRetryLimit: Int = 1,
+        degradedReadTimeout: Duration = .seconds(10)
+    ) {
         self.readChunkSize = max(1, readChunkSize)
+        self.silentReadTimeout = silentReadTimeout
+        self.silentReadRetryLimit = max(0, silentReadRetryLimit)
+        self.degradedReadTimeout = degradedReadTimeout
         self.containerIndexCache = .shared
     }
 
     #if DEBUG
         init(
             readChunkSize: Int64 = 1_048_576,
+            silentReadTimeout: Duration = .seconds(30),
+            silentReadRetryLimit: Int = 1,
+            degradedReadTimeout: Duration = .seconds(10),
             debugContainerIndexCache: ContainerIndexCache
         ) {
             self.readChunkSize = max(1, readChunkSize)
+            self.silentReadTimeout = silentReadTimeout
+            self.silentReadRetryLimit = max(0, silentReadRetryLimit)
+            self.degradedReadTimeout = degradedReadTimeout
             self.containerIndexCache = debugContainerIndexCache
         }
     #endif
@@ -1471,7 +1489,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                     try await Task.sleep(for: .milliseconds(delay))
                 }
             #endif
-            result = try await registration.source.read(in: range)
+            result = try await readSourceWithSilenceRetry(range, registration: registration)
         } catch {
             if let failure = MediaSourceReadFailure(classifying: error) {
                 registration.readFailureState.record(failure)
@@ -1517,6 +1535,124 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             )
         #endif
         return result
+    }
+
+    private struct SourceReadSilenceTimeout: Error {}
+
+    private final class SourceReadRace: @unchecked Sendable {
+        private let lock = NSLock()
+        private var finished = false
+        private var storedResult: Result<MediaByteRangeRead, any Error>?
+        private var continuation:
+            CheckedContinuation<MediaByteRangeRead, any Error>?
+
+        func finish(with result: Result<MediaByteRangeRead, any Error>) {
+            let pending = lock.withLock {
+                () -> CheckedContinuation<MediaByteRangeRead, any Error>? in
+                guard !finished else { return nil }
+                finished = true
+                if let continuation {
+                    self.continuation = nil
+                    return continuation
+                }
+                storedResult = result
+                return nil
+            }
+            pending?.resume(with: result)
+        }
+
+        func attach(
+            _ continuation: CheckedContinuation<MediaByteRangeRead, any Error>
+        ) {
+            let result = lock.withLock { () -> Result<MediaByteRangeRead, any Error>? in
+                if finished {
+                    let stored = storedResult
+                    storedResult = nil
+                    return stored
+                }
+                self.continuation = continuation
+                return nil
+            }
+            if let result { continuation.resume(with: result) }
+        }
+    }
+
+    // A source read that produces nothing for `timeout` is cancelled and
+    // retried. After the retry budget is spent the registration enters
+    // degraded mode: subsequent reads use a shorter timeout and no retries,
+    // so demux reconnects fail fast instead of each waiting a full window.
+    // Any successful read restores normal mode.
+    private func readSourceWithSilenceRetry(
+        _ range: Range<Int64>,
+        registration: Registration
+    ) async throws -> MediaByteRangeRead {
+        let degraded = registration.lock.withLock { registration.degradedReadMode }
+        let timeout = degraded ? degradedReadTimeout : silentReadTimeout
+        let retryLimit = degraded ? 0 : silentReadRetryLimit
+        var attempt = 0
+        while true {
+            do {
+                let result = try await readSourceWithTimeout(
+                    range,
+                    timeout: timeout,
+                    registration: registration
+                )
+                registration.lock.withLock { registration.degradedReadMode = false }
+                return result
+            } catch is SourceReadSilenceTimeout {
+                attempt += 1
+                if attempt > retryLimit {
+                    registration.lock.withLock {
+                        registration.degradedReadMode = true
+                    }
+                    MediaSourceDebugTrace.event(
+                        "bytestream.read.exhausted"
+                            + " token=\(registration.token.prefix(8))"
+                            + " offset=\(range.lowerBound)"
+                    )
+                    throw MediaSourceReadFailure.transportInterrupted
+                }
+                MediaSourceDebugTrace.event(
+                    "bytestream.read.retry"
+                        + " token=\(registration.token.prefix(8))"
+                        + " offset=\(range.lowerBound) attempt=\(attempt + 1)"
+                )
+            }
+        }
+    }
+
+    private func readSourceWithTimeout(
+        _ range: Range<Int64>,
+        timeout: Duration,
+        registration: Registration
+    ) async throws -> MediaByteRangeRead {
+        let race = SourceReadRace()
+        let readTask = Task {
+            let result: Result<MediaByteRangeRead, any Error>
+            do {
+                result = .success(try await registration.source.read(in: range))
+            } catch {
+                result = .failure(error)
+            }
+            race.finish(with: result)
+        }
+        let timerTask = Task {
+            try? await Task.sleep(for: timeout)
+            race.finish(with: .failure(SourceReadSilenceTimeout()))
+        }
+        defer {
+            readTask.cancel()
+            timerTask.cancel()
+        }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                race.attach(continuation)
+            }
+        } onCancel: {
+            race.finish(with: .failure(CancellationError()))
+            readTask.cancel()
+            timerTask.cancel()
+        }
     }
 
     private func sendChunked(

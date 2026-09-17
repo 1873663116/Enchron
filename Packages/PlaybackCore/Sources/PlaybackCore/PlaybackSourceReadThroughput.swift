@@ -4,10 +4,16 @@ import PlaybackFFmpegBridge
 public struct PlaybackSourceReadObservation: Codable, Equatable, Sendable {
     public let totalBytesRead: UInt64
     public let bytesPerSecond: UInt64
+    public let pendingReadSeconds: Double
 
-    public init(totalBytesRead: UInt64, bytesPerSecond: UInt64) {
+    public init(
+        totalBytesRead: UInt64,
+        bytesPerSecond: UInt64,
+        pendingReadSeconds: Double = 0
+    ) {
         self.totalBytesRead = totalBytesRead
         self.bytesPerSecond = bytesPerSecond
+        self.pendingReadSeconds = pendingReadSeconds
     }
 }
 
@@ -67,5 +73,17 @@ final class PlaybackSourceReadMeter: @unchecked Sendable {
 
     var totalBytesRead: UInt64 {
         PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+    }
+
+    var pendingReadCount: Int {
+        Int(PBFFmpegSourceReadMonitorGetPendingReadCount(monitor))
+    }
+
+    var pendingReadUptimeMilliseconds: UInt64 {
+        PBFFmpegSourceReadMonitorGetPendingReadUptimeMilliseconds(monitor)
+    }
+
+    var hasPendingSourceRead: Bool {
+        pendingReadCount > 0
     }
 }

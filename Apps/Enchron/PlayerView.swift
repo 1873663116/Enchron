@@ -356,9 +356,16 @@ public struct PlayerView: View {
             #endif
 
             if showsLoadingChrome, playbackLauncher.pendingResumeDecision == nil {
-                LoadingSpinner(sourceReadBytesPerSecond: {
-                    playbackRuntime.outputObservation().sourceReadBytesPerSecond
-                })
+                LoadingSpinner(
+                    sourceReadBytesPerSecond: {
+                        playbackRuntime.outputObservation()
+                            .sourceReadBytesPerSecond
+                    },
+                    sourceReadPendingSeconds: {
+                        playbackRuntime.outputObservation()
+                            .sourceReadPendingSeconds
+                    }
+                )
                     .enchronSpatialFrame(depth: 0)
                     .enchronSpatialOffset(
                         z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth

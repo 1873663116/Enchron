@@ -1803,8 +1803,10 @@ extension SampleBufferPlaybackSession {
         after timelineStart: CMTime
     ) async throws {
         guard hasAudio, requiredEnd.isNumeric, timelineStart.isNumeric else { return }
-        let deadline = ContinuousClock.now + PlaybackBufferingPolicy.audioPrerollTimeout
-        while ContinuousClock.now < deadline {
+        let waitStarted = ContinuousClock.now
+        let deadline = waitStarted + PlaybackBufferingPolicy.audioPrerollTimeout
+        let hardLimit = waitStarted + PlaybackBufferingPolicy.transportBoundStallLimit
+        while true {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
             guard hasAudio else { return }
@@ -1836,9 +1838,13 @@ extension SampleBufferPlaybackSession {
             if debugStore.snapshot().lifecycle == .failed {
                 throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
             }
+            let now = ContinuousClock.now
+            if (now >= deadline && sourceReadPending == false)
+                || now >= hardLimit {
+                throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
+            }
             try await Task.sleep(for: PlaybackBufferingPolicy.audioPrerollPollInterval)
         }
-        throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
     }
 
     func retireAudio(
@@ -1895,16 +1901,23 @@ extension SampleBufferPlaybackSession {
         let task = firstVideoFrameLock.withLock {
             let task = firstVideoFrameDeadlineTask
             firstVideoFrameDeadlineTask = nil
+            firstVideoFrameWaitStartedAt = nil
             return task
         }
         task?.cancel()
     }
 
     func armFirstVideoFrameDeadline() {
-        let deadline = firstVideoFrameDeadline
+        firstVideoFrameLock.withLock {
+            firstVideoFrameWaitStartedAt = ContinuousClock.now
+        }
+        scheduleFirstVideoFrameDeadline(after: firstVideoFrameDeadline)
+    }
+
+    private func scheduleFirstVideoFrameDeadline(after interval: Duration) {
         let task = Task.detached { [weak self] in
             do {
-                try await Task.sleep(for: deadline)
+                try await Task.sleep(for: interval)
             } catch {
                 return
             }
@@ -1943,6 +1956,17 @@ extension SampleBufferPlaybackSession {
         let displayedFrame = firstVideoFrameObservation?()
             ?? (renderer.displayedPixelBuffer() != nil)
         guard displayedFrame == false else { return }
+        let waitStarted = firstVideoFrameLock.withLock {
+            firstVideoFrameWaitStartedAt
+        } ?? ContinuousClock.now
+        if sourceReadPending,
+           ContinuousClock.now - waitStarted
+            < PlaybackBufferingPolicy.transportBoundStallLimit {
+            scheduleFirstVideoFrameDeadline(
+                after: PlaybackBufferingPolicy.pendingReadPollInterval
+            )
+            return
+        }
         provider.cancel()
         stopVideoDelivery()
         stopAudioDelivery()

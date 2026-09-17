@@ -45,6 +45,12 @@ enum PlaybackBufferingPolicy {
     static let audioPrerollPollInterval: Duration = .milliseconds(5)
 
     static let seekProgressStallTimeout: Duration = .seconds(5)
+    // Absolute bound for a stall that keeps a source read in flight. A live
+    // transport resolves earlier (bytes arrive or the read errors); this only
+    // catches a pending-read flag that never clears.
+    static let transportBoundStallLimit: Duration = .seconds(120)
+
+    static let pendingReadPollInterval: Duration = .seconds(1)
 
     static func seekRequirement(
         target: CMTime,
@@ -258,6 +264,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let subtitleProvider: SubtitleProvider
     let mediaSourceInformationLoader: (any MediaSourceInformationLoading)?
     let sourceReadMeter: PlaybackSourceReadMeter?
+
+    var sourceReadPending: Bool {
+        sourceReadMeter?.hasPendingSourceRead ?? false
+    }
     let demuxSession: FFmpegDemuxSession?
     let sourceReadObservationLock = NSLock()
     var sourceReadRateSampler: PlaybackSourceReadRateSampler
@@ -284,6 +294,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var videoSampleDeliverySuspended = false
     var audioDeliveryTask: Task<Void, Never>?
     let firstVideoFrameDeadline: Duration
+
+    var firstVideoFrameWaitStartedAt: ContinuousClock.Instant?
     let firstVideoFrameObservation: (@Sendable () -> Bool)?
     let firstVideoFrameLock = NSLock()
     var firstVideoFrameDeadlineTask: Task<Void, Never>?

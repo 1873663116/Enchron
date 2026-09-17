@@ -30,6 +30,8 @@
 struct PBFFmpegSourceReadMonitor {
     atomic_uint_fast64_t totalBytesRead;
     atomic_bool interrupted;
+    atomic_int pendingReadCount;
+    atomic_uint_fast64_t pendingReadBeganUptimeMillis;
 };
 
 struct PBFFmpegReadCancellation {
@@ -359,7 +361,103 @@ PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void) {
     if (!monitor) return NULL;
     atomic_init(&monitor->totalBytesRead, 0);
     atomic_init(&monitor->interrupted, false);
+    atomic_init(&monitor->pendingReadCount, 0);
+    atomic_init(&monitor->pendingReadBeganUptimeMillis, 0);
     return monitor;
+}
+
+static void source_read_monitor_note_read_begin(
+    PBFFmpegSourceReadMonitor *monitor
+) {
+    if (!monitor) return;
+    int previous = atomic_fetch_add_explicit(
+        &monitor->pendingReadCount,
+        1,
+        memory_order_relaxed
+    );
+    if (previous == 0) {
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        atomic_store_explicit(
+            &monitor->pendingReadBeganUptimeMillis,
+            (uint64_t)now.tv_sec * 1000 + (uint64_t)now.tv_nsec / 1000000,
+            memory_order_relaxed
+        );
+    }
+}
+
+static void source_read_monitor_note_read_end(
+    PBFFmpegSourceReadMonitor *monitor
+) {
+    if (!monitor) return;
+    if (atomic_fetch_sub_explicit(
+            &monitor->pendingReadCount,
+            1,
+            memory_order_relaxed
+        ) <= 1) {
+        atomic_store_explicit(
+            &monitor->pendingReadBeganUptimeMillis,
+            0,
+            memory_order_relaxed
+        );
+    }
+}
+
+static int monitored_av_read_frame(
+    PBFFmpegSourceReadMonitor *monitor,
+    AVFormatContext *context,
+    AVPacket *packet
+) {
+    source_read_monitor_note_read_begin(monitor);
+    int result = av_read_frame(context, packet);
+    source_read_monitor_note_read_end(monitor);
+    return result;
+}
+
+static int monitored_avformat_open_input(
+    PBFFmpegSourceReadMonitor *monitor,
+    AVFormatContext **context,
+    const char *path,
+    const AVInputFormat *format,
+    AVDictionary **options
+) {
+    source_read_monitor_note_read_begin(monitor);
+    int result = avformat_open_input(context, path, format, options);
+    source_read_monitor_note_read_end(monitor);
+    return result;
+}
+
+static int monitored_avformat_find_stream_info(
+    PBFFmpegSourceReadMonitor *monitor,
+    AVFormatContext *context,
+    AVDictionary **options
+) {
+    source_read_monitor_note_read_begin(monitor);
+    int result = avformat_find_stream_info(context, options);
+    source_read_monitor_note_read_end(monitor);
+    return result;
+}
+
+static int monitored_avformat_seek_file(
+    PBFFmpegSourceReadMonitor *monitor,
+    AVFormatContext *context,
+    int streamIndex,
+    int64_t minTimestamp,
+    int64_t timestamp,
+    int64_t maxTimestamp,
+    int flags
+) {
+    source_read_monitor_note_read_begin(monitor);
+    int result = avformat_seek_file(
+        context,
+        streamIndex,
+        minTimestamp,
+        timestamp,
+        maxTimestamp,
+        flags
+    );
+    source_read_monitor_note_read_end(monitor);
+    return result;
 }
 
 void PBFFmpegSourceReadMonitorInterrupt(PBFFmpegSourceReadMonitor *monitor) {
@@ -377,6 +475,30 @@ uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     return monitor
         ? atomic_load_explicit(&monitor->totalBytesRead, memory_order_relaxed)
         : 0;
+}
+
+int PBFFmpegSourceReadMonitorGetPendingReadCount(
+    const PBFFmpegSourceReadMonitor *monitor
+) {
+    return monitor
+        ? atomic_load_explicit(&monitor->pendingReadCount, memory_order_relaxed)
+        : 0;
+}
+
+uint64_t PBFFmpegSourceReadMonitorGetPendingReadUptimeMilliseconds(
+    const PBFFmpegSourceReadMonitor *monitor
+) {
+    if (!monitor) return 0;
+    uint64_t began = atomic_load_explicit(
+        &monitor->pendingReadBeganUptimeMillis,
+        memory_order_relaxed
+    );
+    if (began == 0) return 0;
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    uint64_t nowMillis =
+        (uint64_t)now.tv_sec * 1000 + (uint64_t)now.tv_nsec / 1000000;
+    return nowMillis > began ? nowMillis - began : 0;
 }
 
 static PBFFmpegPacketNode *take_packet_node(PBFFmpegDemuxSource *source) {
@@ -701,7 +823,14 @@ static void *demux_source_read_loop(void *opaque) {
         pthread_mutex_unlock(&source->lock);
         if (stop) break;
 
-        int result = av_read_frame(source->formatContext, packet);
+        PBFFmpegSourceReadMonitor *readMonitor = source->sourceReadContext
+            ? source->sourceReadContext->monitor
+            : NULL;
+        int result = monitored_av_read_frame(
+            readMonitor,
+            source->formatContext,
+            packet
+        );
         publish_source_bytes(source->sourceReadContext);
 
         pthread_mutex_lock(&source->lock);
@@ -729,7 +858,13 @@ static void *demux_source_read_loop(void *opaque) {
                     source->reconnectAttemptCount++;
                     pthread_mutex_unlock(&source->lock);
                     if (!wait_for_reconnect_backoff(source, backoff)) break;
+                    PBFFmpegSourceReadMonitor *reconnectMonitor =
+                        source->sourceReadContext
+                            ? source->sourceReadContext->monitor
+                            : NULL;
+                    source_read_monitor_note_read_begin(reconnectMonitor);
                     int reconnectResult = reopen_demux_source(source);
+                    source_read_monitor_note_read_end(reconnectMonitor);
                     if (reconnectResult >= 0) {
                         reconnected = true;
                         break;
@@ -1233,7 +1368,10 @@ static bool fill_aac_parameters_from_adts(AVStream *stream, const AVPacket *pack
     return false;
 }
 
-static void probe_delayed_audio_parameters(AVFormatContext *context) {
+static void probe_delayed_audio_parameters(
+    AVFormatContext *context,
+    PBFFmpegSourceReadMonitor *monitor
+) {
     int unresolved = 0;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         if (audio_stream_needs_more_probe(context->streams[index])) unresolved++;
@@ -1245,7 +1383,7 @@ static void probe_delayed_audio_parameters(AVFormatContext *context) {
     int packetCount = 0;
     int64_t byteCount = 0;
     while (unresolved > 0 && packetCount < 100000 && byteCount < 100LL * 1024 * 1024) {
-        int result = av_read_frame(context, packet);
+        int result = monitored_av_read_frame(monitor, context, packet);
         if (result < 0) break;
         packetCount++;
         byteCount += packet->size;
@@ -1262,8 +1400,9 @@ static void probe_delayed_audio_parameters(AVFormatContext *context) {
     av_packet_free(&packet);
 
     if (context->pb && (context->pb->seekable & AVIO_SEEKABLE_NORMAL)) {
-        if (avformat_seek_file(
-                context, -1, INT64_MIN, 0, INT64_MAX, AVSEEK_FLAG_BACKWARD
+        if (monitored_avformat_seek_file(
+                monitor, context, -1, INT64_MIN, 0, INT64_MAX,
+                AVSEEK_FLAG_BACKWARD
             ) >= 0) {
             avformat_flush(context);
         }
@@ -1384,7 +1523,11 @@ static int finalize_stream_information(
     bool probesStreamInformation
 ) {
     int result = probesStreamInformation
-        ? avformat_find_stream_info(context, NULL)
+        ? monitored_avformat_find_stream_info(
+            sourceReadContext ? sourceReadContext->monitor : NULL,
+            context,
+            NULL
+        )
         : 0;
     if (probesStreamInformation) publish_source_bytes(sourceReadContext);
     normalize_mov_codec_ids(context);
@@ -1436,7 +1579,13 @@ static int open_media_source(
     if (format) {
         av_dict_set_int(&options, "resync_size", PB_DISC_IMAGE_RESYNC_SIZE, 0);
     }
-    result = avformat_open_input(context, path, format, &options);
+    result = monitored_avformat_open_input(
+        sourceReadContext ? sourceReadContext->monitor : NULL,
+        context,
+        path,
+        format,
+        &options
+    );
     av_dict_free(&options);
     if (sourceReadContext) {
         sourceReadContext->formatContext = result >= 0 ? *context : NULL;
@@ -1543,7 +1692,7 @@ static bool probe_extended_audio_parameters(
     if (result >= 0) result = read_stream_information(context, &readContext, NULL);
     bool resolved = false;
     if (result >= 0 && !cancellation_requested(cancelled)) {
-        probe_delayed_audio_parameters(context);
+        probe_delayed_audio_parameters(context, readContext.monitor);
         if (stream->index >= 0 && stream->index < (int)context->nb_streams) {
             resolved = adopt_probed_audio_parameters(
                 stream,
@@ -1612,7 +1761,7 @@ static int open_media_source_for_audio(
                 return result;
             }
         }
-        probe_delayed_audio_parameters(context);
+        probe_delayed_audio_parameters(context, sourceReadContext->monitor);
         publish_source_bytes(sourceReadContext);
         if (cancellation_requested(cancelled)) {
             close_media_source(&context, sourceReadContext);
@@ -1641,7 +1790,7 @@ static int open_media_source_for_audio(
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    probe_delayed_audio_parameters(context);
+    probe_delayed_audio_parameters(context, sourceReadContext->monitor);
     publish_source_bytes(sourceReadContext);
     if (cancellation_requested(cancelled)) {
         close_media_source(&context, sourceReadContext);
@@ -3058,7 +3207,11 @@ static int bootstrap_video_extradata(
                 &reader->cancelled,
                 input
             )
-            : av_read_frame(reader->formatContext, input);
+            : monitored_av_read_frame(
+                reader->sourceReadContext.monitor,
+                reader->formatContext,
+                input
+            );
         if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         if (result < 0) break;
         if (input->stream_index != reader->videoStreamIndex) {
@@ -3819,7 +3972,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         }
     }
     if (needsAudioProbe) {
-        probe_delayed_audio_parameters(context);
+        probe_delayed_audio_parameters(context, sourceReadContext.monitor);
         publish_source_bytes(&sourceReadContext);
     }
 
@@ -3923,9 +4076,13 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         }
     }
     if (needsAudioProbe) {
-        probe_delayed_audio_parameters(source->formatContext);
+        probe_delayed_audio_parameters(
+            source->formatContext,
+            source->sourceReadContext->monitor
+        );
         publish_source_bytes(source->sourceReadContext);
-        result = avformat_seek_file(
+        result = monitored_avformat_seek_file(
+            source->sourceReadContext->monitor,
             source->formatContext,
             -1,
             INT64_MIN,
@@ -4065,7 +4222,8 @@ bool PBFFmpegDemuxSourceSeek(
     source->prebuffersAudio = true;
     pthread_mutex_unlock(&source->lock);
     int64_t timestamp = (int64_t)llround(seconds * AV_TIME_BASE);
-    int result = avformat_seek_file(
+    int result = monitored_avformat_seek_file(
+        source->sourceReadContext->monitor,
         source->formatContext,
         -1,
         INT64_MIN,
@@ -4552,7 +4710,8 @@ static bool configure_video_reader(
     if (seeksContext && startSeconds > 0) {
         int64_t timestamp = reader->startTimestamp +
             (int64_t)(startSeconds / av_q2d(reader->timeBase));
-        result = avformat_seek_file(
+        result = monitored_avformat_seek_file(
+            reader->sourceReadContext.monitor,
             reader->formatContext,
             reader->videoStreamIndex,
             INT64_MIN,
@@ -4819,7 +4978,11 @@ static int read_next_source_video_packet(PBFFmpegReader *reader) {
                     &reader->cancelled,
                     packet
                 )
-                : av_read_frame(reader->formatContext, packet);
+                : monitored_av_read_frame(
+                    reader->sourceReadContext.monitor,
+                    reader->formatContext,
+                    packet
+                );
             if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         }
         if (result < 0) return result;
@@ -5410,7 +5573,8 @@ static bool configure_audio_reader(
     if (seeksContext && startSeconds > 0) {
         int64_t timestamp = reader->startTimestamp +
             (int64_t)(startSeconds / av_q2d(reader->timeBase));
-        result = avformat_seek_file(
+        result = monitored_avformat_seek_file(
+            reader->sourceReadContext.monitor,
             reader->formatContext,
             reader->audioStreamIndex,
             INT64_MIN,
@@ -5579,7 +5743,11 @@ static int read_next_audio_packet(
             &reader->consumedDemuxPacketBatch,
             packet
         )
-        : av_read_frame(reader->formatContext, packet);
+        : monitored_av_read_frame(
+            reader->sourceReadContext.monitor,
+            reader->formatContext,
+            packet
+        );
     if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
     return result;
 }
@@ -6957,7 +7125,11 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
                 NULL,
                 reader->packet
             )
-            : av_read_frame(reader->formatContext, reader->packet)) >= 0) {
+            : monitored_av_read_frame(
+                reader->sourceReadContext.monitor,
+                reader->formatContext,
+                reader->packet
+            )) >= 0) {
         if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         if (reader->packet->stream_index != reader->subtitleStreamIndex) {
             av_packet_unref(reader->packet);

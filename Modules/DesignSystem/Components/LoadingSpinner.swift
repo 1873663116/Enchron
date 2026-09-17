@@ -96,20 +96,25 @@ private enum MaterialCircularIndeterminateAdvance {
 }
 
 public struct LoadingSpinner: View {
+    static let reconnectNoticeThresholdSeconds: Double = 3
+
     var size: CGFloat = 56
     var showBorder = true
     var sourceReadBytesPerSecond: (@MainActor () -> UInt64)?
+    var sourceReadPendingSeconds: (@MainActor () -> Double)?
 
     @State private var cycleAnchor = Date()
 
     public init(
         size: CGFloat = 56,
         showBorder: Bool = true,
-        sourceReadBytesPerSecond: (@MainActor () -> UInt64)? = nil
+        sourceReadBytesPerSecond: (@MainActor () -> UInt64)? = nil,
+        sourceReadPendingSeconds: (@MainActor () -> Double)? = nil
     ) {
         self.size = size
         self.showBorder = showBorder
         self.sourceReadBytesPerSecond = sourceReadBytesPerSecond
+        self.sourceReadPendingSeconds = sourceReadPendingSeconds
     }
 
     public var body: some View {
@@ -165,6 +170,21 @@ public struct LoadingSpinner: View {
             }
             .clipShape(Circle())
             .background(DesignTokens.Surface.elevated, in: Circle())
+
+            if let sourceReadPendingSeconds {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    let pendingSeconds = sourceReadPendingSeconds()
+                    if pendingSeconds >= Self.reconnectNoticeThresholdSeconds {
+                        Text("Reconnecting…")
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                            .accessibilityIdentifier(
+                                "LoadingSpinner-reconnect-notice"
+                            )
+                    }
+                }
+            }
 
             if let sourceReadBytesPerSecond {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in

@@ -71,7 +71,10 @@ extension SampleBufferPlaybackSession {
                 bytesPerSecond: sourceReadRateSampler.observe(
                     totalBytesRead: totalBytesRead,
                     at: uptime
-                )
+                ),
+                pendingReadSeconds: Double(
+                    sourceReadMeter.pendingReadUptimeMilliseconds
+                ) / 1000
             )
         }
     }

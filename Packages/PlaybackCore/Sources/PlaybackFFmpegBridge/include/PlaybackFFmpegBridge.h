@@ -102,6 +102,12 @@ void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor);
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     const PBFFmpegSourceReadMonitor *monitor
 );
+int PBFFmpegSourceReadMonitorGetPendingReadCount(
+    const PBFFmpegSourceReadMonitor *monitor
+);
+uint64_t PBFFmpegSourceReadMonitorGetPendingReadUptimeMilliseconds(
+    const PBFFmpegSourceReadMonitor *monitor
+);
 void PBFFmpegSourceReadMonitorInterrupt(PBFFmpegSourceReadMonitor *monitor);
 
 PBFFmpegReadCancellation *PBFFmpegReadCancellationCreate(void);

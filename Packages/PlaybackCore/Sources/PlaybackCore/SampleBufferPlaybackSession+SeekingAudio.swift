@@ -323,8 +323,12 @@ extension SampleBufferPlaybackSession {
                     lastProgress = progress
                     lastProgressAt = now
                 }
-                if now - lastProgressAt
-                    >= PlaybackBufferingPolicy.seekProgressStallTimeout {
+                let flatDuration = now - lastProgressAt
+                if flatDuration
+                    >= PlaybackBufferingPolicy.transportBoundStallLimit ||
+                    (flatDuration
+                        >= PlaybackBufferingPolicy.seekProgressStallTimeout
+                        && sourceReadPending == false) {
                     break
                 }
                 if stallWasTraced == false,
@@ -489,14 +493,21 @@ extension SampleBufferPlaybackSession {
                 finishActiveOperation(.completed)
                 return
             }
+            if let error = snapshot.lastError {
+                throw PlaybackProviderError.ffmpeg(error)
+            }
             let progress = seekProgressSignal(snapshot)
             let now = ContinuousClock.now
             if progress != lastProgress {
                 lastProgress = progress
                 lastProgressAt = now
             }
-            if now - lastProgressAt
-                >= PlaybackBufferingPolicy.seekProgressStallTimeout {
+            let flatDuration = now - lastProgressAt
+            if flatDuration
+                >= PlaybackBufferingPolicy.transportBoundStallLimit ||
+                (flatDuration
+                    >= PlaybackBufferingPolicy.seekProgressStallTimeout
+                    && sourceReadPending == false) {
                 break
             }
             if stallWasTraced == false,

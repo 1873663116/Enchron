@@ -2672,6 +2672,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             audioSessionOutputPortTypes: audioSession.outputPortTypes,
             systemOutputVolume: audioSession.outputVolume,
             sourceReadBytesPerSecond: sourceReadObservation?.bytesPerSecond ?? 0,
+            sourceReadPendingSeconds: sourceReadObservation?.pendingReadSeconds ?? 0,
             loadingVisibility: loadingState.visibility,
             loadingStage: loadingState.stage,
             loadingCausalEvidence: loadingState.causalEvidence

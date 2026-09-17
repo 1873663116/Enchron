@@ -157,6 +157,159 @@ import Testing
     #expect(audioSeconds >= 5)
 }
 
+private final class LockedDemuxSourceBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: OpaquePointer?
+    private var storedError = [CChar](repeating: 0, count: 512)
+
+    var value: OpaquePointer? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
+
+    var error: [CChar] {
+        get { lock.withLock { storedError } }
+        set { lock.withLock { storedError = newValue } }
+    }
+}
+
+private func waitForCondition(
+    timeout: TimeInterval,
+    _ predicate: @escaping () -> Bool
+) -> Bool {
+    let deadline = Date().addingTimeInterval(timeout)
+    while Date() < deadline {
+        if predicate() { return true }
+        Thread.sleep(forTimeInterval: 0.01)
+    }
+    return predicate()
+}
+
+@Test func sourceReadMonitorReportsPendingWhileRemoteOpenStalls() throws {
+    let fixture = playbackSourceReadTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv"
+    )
+    let server = try RecordingRangeServer(
+        serving: try Data(contentsOf: fixture),
+        reusingConnections: true
+    )
+    defer { server.stop() }
+    let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
+    defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
+
+    server.stallNextRangeResponse()
+    let box = LockedDemuxSourceBox()
+    let created = DispatchSemaphore(value: 0)
+    let path = server.url.absoluteString
+    let monitorAddress = Int(bitPattern: monitor)
+    DispatchQueue.global().async {
+        var error = [CChar](repeating: 0, count: 512)
+        box.value = path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                true,
+                PBFFmpegDemuxBufferConfigurationMake(
+                    PBFFmpegDemuxBufferModeAutomatic,
+                    0
+                ),
+                OpaquePointer(bitPattern: monitorAddress),
+                &error,
+                error.count
+            )
+        }
+        box.error = error
+        created.signal()
+    }
+
+    try #require(server.waitForStalledResponse(timeout: .now() + 5))
+    #expect(PBFFmpegSourceReadMonitorGetPendingReadCount(monitor) > 0)
+    #expect(waitForCondition(timeout: 3) {
+        PBFFmpegSourceReadMonitorGetPendingReadUptimeMilliseconds(monitor) > 20
+    })
+
+    PBFFmpegSourceReadMonitorInterrupt(monitor)
+    server.stop()
+    #expect(created.wait(timeout: .now() + 15) == .success)
+    #expect(waitForCondition(timeout: 3) {
+        PBFFmpegSourceReadMonitorGetPendingReadCount(monitor) == 0
+    })
+    if let openedSource = box.value {
+        PBFFmpegDemuxSourceDestroy(openedSource)
+    }
+}
+
+@Test func sourceReadMonitorReportsPendingWhileRemoteSeekStalls() throws {
+    let fixture = playbackSourceReadTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv"
+    )
+    let server = try RecordingRangeServer(
+        serving: try Data(contentsOf: fixture),
+        reusingConnections: true
+    )
+    defer { server.stop() }
+    let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
+    defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
+    var error = [CChar](repeating: 0, count: 512)
+
+    let source: OpaquePointer? = server.url.absoluteString.withCString { path in
+        PBFFmpegDemuxSourceCreate(
+            path,
+            true,
+            PBFFmpegDemuxBufferConfigurationMake(
+                PBFFmpegDemuxBufferModeAutomatic,
+                0
+            ),
+            monitor,
+            &error,
+            error.count
+        )
+    }
+    let openError = pendingReadErrorText(error)
+    guard let openedSource = source else {
+        Issue.record(Comment(rawValue: "demux source open failed: \(openError)"))
+        return
+    }
+    defer { PBFFmpegDemuxSourceDestroy(openedSource) }
+
+    // Let the read thread settle (drain to EOF) so only the seek is pending.
+    #expect(waitForCondition(timeout: 10) {
+        PBFFmpegSourceReadMonitorGetPendingReadCount(monitor) == 0
+    })
+
+    server.stallNextRangeResponse()
+    // Seek back to the start; after the EOF drain this always misses the
+    // buffer and issues a fresh range request, which the server stalls.
+    let seekFinished = DispatchSemaphore(value: 0)
+    let sourceAddress = Int(bitPattern: openedSource)
+    DispatchQueue.global().async {
+        var seekError = [CChar](repeating: 0, count: 512)
+        _ = PBFFmpegDemuxSourceSeek(
+            OpaquePointer(bitPattern: sourceAddress),
+            0,
+            &seekError,
+            seekError.count
+        )
+        seekFinished.signal()
+    }
+
+    try #require(server.waitForStalledResponse(timeout: .now() + 5))
+    #expect(PBFFmpegSourceReadMonitorGetPendingReadCount(monitor) > 0)
+
+    PBFFmpegDemuxSourceInterrupt(openedSource)
+    server.stop()
+    #expect(seekFinished.wait(timeout: .now() + 15) == .success)
+    #expect(waitForCondition(timeout: 3) {
+        PBFFmpegSourceReadMonitorGetPendingReadCount(monitor) == 0
+    })
+}
+
+private func pendingReadErrorText(_ buffer: [CChar]) -> String {
+    String(
+        decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+        as: UTF8.self
+    )
+}
+
 private let playbackSourceReadTestMedia = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
