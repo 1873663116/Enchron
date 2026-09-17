@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:33710a12acf013d3822c66df648886b211038ec29eeeeab8606c2873e779d598",
+  "contentDigest": "sha256:0b37685f87877ed354ee77c937563aa2bb9bc36074ca0ca8bd2e89b4c893fcf0",
   "copyDocuments": [
     {
       "digest": "sha256:3cddd3e1bd6227b0b62c6323d2a4481e87b786b7716923ef267d6065ce9083c7",
@@ -114,7 +114,7 @@
       "path": "promises/track-selection.md"
     },
     {
-      "digest": "sha256:f9b372938a18fb4d1efd2553b19392c4235d76445f7f8ddaf246af616c5f099d",
+      "digest": "sha256:106dd9d3950eac6ee75b3fa3700b86f8eea94eb93981b8ad2822896a26d03ce9",
       "path": "promises/viewing-state.md"
     },
     {
@@ -122,7 +122,7 @@
       "path": "review-policy.md"
     },
     {
-      "digest": "sha256:36a2761ca6598a9fef3b9d94b6e39cebcb32d35e5fbb1e868b1c1cd877f08226",
+      "digest": "sha256:6afc98abb328d73ed58c2f8d022b8ec7b37abf5413f2c4bd817ef24a53b58cbc",
       "path": "semantic-authority.json"
     }
   ],
@@ -1079,8 +1079,8 @@
       "feature": "playback-queue",
       "featureTitle": "Playback queue",
       "id": "promise:playback-queue:c01",
-      "statement": "Automatic Play Next continues from stored position according to the queue action without an Ask Every Time resume prompt.",
-      "title": "Automatic Play Next resume policy"
+      "statement": "The ended-state Play Next affordance continues from the stored position according to the queue action without an Ask Every Time resume prompt; reaching end of media never launches the next item by itself.",
+      "title": "Ended Play Next resume policy"
     }
   ],
   "rubrics": [
@@ -1130,7 +1130,7 @@
       "criteria": [
         "The bound frame sequence exposes the transfer-function atom set registered for its case: generated-pq-hevc10-avsync-10s-v1 uses the closed 2084/PQ set, and generated-hlg-hevc10-avsync-10s-v1 uses the closed HLG/B67/2100 set. sourceTransferFunction, sampleTransferFunction, and rendererTransferFunction each match that registered set.",
         "The bound case's sourceColorPrimaries/sampleColorPrimaries/rendererColorPrimaries match the reviewed 2020 atom, sourceYCbCrMatrix/sampleYCbCrMatrix/rendererYCbCrMatrix match the reviewed 2020 matrix atom, and sourceRange/sampleRange/rendererRange match the reviewed video/TV range atom. sourceMasteringDisplayMetadata and sourceContentLightLevelMetadata are preserved unchanged through sample and renderer, and sourcePixelFormat/destinationPixelFormat are non-none.",
-        "The producer requests exactly three frames at minimumIntervalMillis=1000; indices are 0, 1 and 2, adjacent capture timestamps differ by at least 1000 ms, and every frame is valid -- its structured playback state available, its screenshot record content-bound, its session and streamEpoch non-none and unchanged across the sequence, and no issue active. The first frame is taken immediately after playback.await-window-state@1 settles on playing, so it reports lifecycle Playing at a position inside the media. The second and third frames are required only to be valid and to hold that same identity; their attachment digests may repeat and their positions need not advance, because both registered fixtures run 10.0 s -- generated-pq-hevc10-avsync-10s-v1 and generated-hlg-hevc10-avsync-10s-v1 in Tests/Fixtures/fixture-registry.json -- while three device-lane frames cost about 23 s, two controller round trips each, so under the default endBehavior .stop a correct product has reached end of media before they are taken."
+        "The producer requests exactly three frames at minimumIntervalMillis=1000; indices are 0, 1 and 2, adjacent capture timestamps differ by at least 1000 ms, and every frame is valid -- its structured playback state available, its screenshot record content-bound, its session and streamEpoch non-none and unchanged across the sequence, and no issue active. The first frame is taken immediately after playback.await-window-state@1 settles on playing, so it reports lifecycle Playing at a position inside the media. The second and third frames are required only to be valid and to hold that same identity; their attachment digests may repeat and their positions need not advance, because both registered fixtures run 10.0 s -- generated-pq-hevc10-avsync-10s-v1 and generated-hlg-hevc10-avsync-10s-v1 in Tests/Fixtures/fixture-registry.json -- while three device-lane frames cost about 23 s, two controller round trips each, so under the default endBehavior, which now ends playback and waits for the ended-state transport affordance instead of auto-repeating, a correct product has reached end of media before they are taken."
       ],
       "filename": "rubric-dynamic-range-interpretation-hdr10-hlg-interpretation-o01-1.md",
       "id": "rubric:dynamic-range-interpretation.hdr10-hlg-interpretation.o01@1",
@@ -1442,15 +1442,15 @@
     },
     {
       "criteria": [
-        "The terminal playback probe has mediaName=viewing-storage-16m01s.mp4, position at least 20 seconds, at least 300 seconds remaining, and session different from relatedResults[0], which is the first-item diagnostics.playback-state@1 session captured before automatic Play Next. That fixture runs 961.0 s -- generated-viewing-storage-h264-16m01s-v1 in Tests/Fixtures/fixture-registry.json -- so it is above ViewingStatePolicy.minimumContentDurationSeconds of 900 and its exit actually retains a resumable status for the reopen and the automatic continuation to find; the 30-second item that ends naturally is below that constant and correctly retains nothing.",
-        "The terminal playback probe has resumePromptPresentations=1, automaticResumeBypasses=1, and pendingResumePrompt=false: the one direct reopen presented Ask Every Time, while automatic Play Next resumed without a second prompt. Both counters increment only on the seconds > 0 arms of requestPlayback, which the 961-second fixture's saved position supplies."
+        "The terminal playback probe has mediaName=viewing-storage-16m01s.mp4, position at least 20 seconds, at least 300 seconds remaining, and session different from relatedResults[0], which is the first-item diagnostics.playback-state@1 session captured before the ended Play Next tap. That fixture runs 961.0 s -- generated-viewing-storage-h264-16m01s-v1 in Tests/Fixtures/fixture-registry.json -- so it is above ViewingStatePolicy.minimumContentDurationSeconds of 900 and its exit actually retains a resumable status for the reopen and the ended continuation to find; the 30-second item that ends naturally is below that constant and correctly retains nothing.",
+        "The terminal playback probe has resumePromptPresentations=1, automaticResumeBypasses=1, and pendingResumePrompt=false: the one direct reopen presented Ask Every Time, while the ended Play Next continuation resumed without a second prompt. Both counters increment only on the seconds > 0 arms of requestPlayback, which the 961-second fixture's saved position supplies."
       ],
       "filename": "rubric-local-media-lifecycle-automatic-play-next-resume-policy-o01-1.md",
       "id": "rubric:local-media-lifecycle.automatic-play-next-resume-policy.o01@1",
       "negativeControls": [
-        "A missing direct-open prompt, any automatic-continuation prompt, a terminal position below the saved range, session equal to relatedResults[0], or a mediaName other than viewing-storage-16m01s.mp4 violates HC-013."
+        "A missing direct-open prompt, a resume prompt on the ended Play Next path, a terminal position below the saved range, session equal to relatedResults[0], or a mediaName other than viewing-storage-16m01s.mp4 violates HC-013. The next item playing without the intervening await-window-state@1 ended observation and the PlayerPanel-button-play activation means the product still advances by itself and fails the claim."
       ],
-      "title": "Automatic Play Next resume policy"
+      "title": "Ended Play Next resume policy"
     },
     {
       "criteria": [
@@ -1789,7 +1789,7 @@
         "The media is opened without a later format.apply or seek, presentation.enter-panorama requests deadlineSeconds 45, the panorama-resident probe is read by exactly one accessibility.inspect@2 of PlayerUI-spatial-state with context panorama, summonControls true, requireMatchedElement true and deadlineSeconds 20, and the bound producer requests exactly context panorama, count 3, minimumIntervalMillis 1000, and relatedResults naming that inspect's matchedElement and response in that order.",
         "The producer returns exactly three indexed frames; every playbackState is available, presentationObservation is expected and observed panorama, each record has a content-bound screenshot attachment, and adjacent capture times differ by at least 1000 ms.",
         "relatedResults[0] is the PlayerUI-spatial-state matchedElement read in settled panorama, and its semicolon-separated value establishes the source declaration and the delivered graph: sourceFormatProvenance and formatProvenance name the source rather than a user override; providerProjectionKind, sampleProjectionKind and rendererProjectionKind carry the same Apple Immersive projection signal with effectiveContentIsPanoramic true and sourceContentKind naming immersive content; stereoLayout and rendererViewPackingKind carry multiview stereo; mvHEVC and rendererInputIsMultiview are true; providerCodecTag is hvc1 and providerCodecConfiguration lists both hvcC and lhvC; sampleHasLhvC and rendererHasLhvC are true. In every frame playbackState.fields independently repeats providerProjectionKind, sampleProjectionKind, rendererProjectionKind, rendererViewPackingKind and sourceFormatProvenance with the same values; a disagreement between the two channels is Indeterminate, not Satisfied.",
-        "Across all three frames session and streamEpoch are non-none and unchanged, presentation is panorama, error is none, and no screenshot is blank, pure-colour or undecodable. Frame 0 additionally reports lifecycle Playing with displayedPixel true and nonblank Beach imagery, and at least one later frame has a screenshotDigest differing from frame 0's. Liveness is not demanded of frames 1 and 2: internal-apple-immersive-video-beach-v1 runs 29.355729 s (Tests/Fixtures/fixture-registry.json) and it is the only fixture in the corpus whose projection is appleImmersiveVideo with AIME signalling, while the route from the call 05 Playing observation to the last frame costs enter-panorama's tap and tapSequence at device medians 4.30 s and 7.59 s, the settled panorama probe, and four PlayerUI-playback-state snapshots at a 3.91 s median (Scripts/verification/controller_timings.json), which leaves under two seconds of margin. With the default endBehavior .stop a correct product can therefore reach end of media inside the capture, and the sibling stereo-view-separation case was moved onto a longer fixture instead precisely because one existed there. relatedResults[0] reports the same session and streamEpoch and, for the settled panorama geometry, actualViewingMode stereo and actualImmersiveMode progressive with a displayed pixel buffer."
+        "Across all three frames session and streamEpoch are non-none and unchanged, presentation is panorama, error is none, and no screenshot is blank, pure-colour or undecodable. Frame 0 additionally reports lifecycle Playing with displayedPixel true and nonblank Beach imagery, and at least one later frame has a screenshotDigest differing from frame 0's. Liveness is not demanded of frames 1 and 2: internal-apple-immersive-video-beach-v1 runs 29.355729 s (Tests/Fixtures/fixture-registry.json) and it is the only fixture in the corpus whose projection is appleImmersiveVideo with AIME signalling, while the route from the call 05 Playing observation to the last frame costs enter-panorama's tap and tapSequence at device medians 4.30 s and 7.59 s, the settled panorama probe, and four PlayerUI-playback-state snapshots at a 3.91 s median (Scripts/verification/controller_timings.json), which leaves under two seconds of margin. With the default endBehavior, which now ends playback and waits for the ended-state transport affordance instead of auto-repeating, a correct product can therefore reach end of media inside the capture, and the sibling stereo-view-separation case was moved onto a longer fixture instead precisely because one existed there. relatedResults[0] reports the same session and streamEpoch and, for the settled panorama geometry, actualViewingMode stereo and actualImmersiveMode progressive with a displayed pixel buffer."
       ],
       "filename": "rubric-projection-and-stereo-apple-immersive-projection-o01-1.md",
       "id": "rubric:projection-and-stereo.apple-immersive-projection.o01@1",
@@ -16687,7 +16687,7 @@
       },
       "blockers": [],
       "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 435000,
+      "estimatedCostMillis": 480000,
       "id": "scenario:local-media-lifecycle:automatic-play-next-resume-policy",
       "journey": "journey:local-media-lifecycle",
       "lane": "device",
@@ -16700,7 +16700,7 @@
           "evidenceType": "playback.probe",
           "id": "obligation:local-media-lifecycle:automatic-play-next-resume-policy:o01:default",
           "oracle": "oracle:agent-structured-playback-probe@1",
-          "producedByCall": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
+          "producedByCall": "call:local-media-lifecycle:automatic-play-next-resume-policy:28",
           "rubric": "rubric:local-media-lifecycle.automatic-play-next-resume-policy.o01@1"
         }
       ],
@@ -16942,13 +16942,36 @@
         },
         {
           "arguments": {
+            "controls": "shown",
+            "deadlineSeconds": 45,
+            "lifecycle": "ended",
+            "presentation": "window"
+          },
+          "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:25",
+          "maxInvocations": 1,
+          "operation": "operation:playback.await-window-state@1"
+        },
+        {
+          "arguments": {
+            "context": "window",
+            "identifiers": [
+              "PlayerPanel-button-play"
+            ],
+            "summonControls": true
+          },
+          "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
+          "maxInvocations": 1,
+          "operation": "operation:accessibility.activate@2"
+        },
+        {
+          "arguments": {
             "deadlineSeconds": 90,
             "differentSessionFrom": "result://call:local-media-lifecycle:automatic-play-next-resume-policy:24/session",
             "expectedMediaName": "viewing-storage-16m01s.mp4",
             "minimumPositionMillis": 20000,
             "minimumRemainingMillis": 300000
           },
-          "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:25",
+          "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:27",
           "maxInvocations": 1,
           "operation": "operation:playback.wait-position@2"
         },
@@ -16958,7 +16981,7 @@
               "result://call:local-media-lifecycle:automatic-play-next-resume-policy:24/session"
             ]
           },
-          "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
+          "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:28",
           "maxInvocations": 1,
           "operation": "operation:diagnostics.playback-state@1"
         }
@@ -16979,7 +17002,7 @@
       "success": {
         "observation": "obligation:local-media-lifecycle:automatic-play-next-resume-policy:o01:default"
       },
-      "title": "Automatic Play Next resume policy"
+      "title": "Ended Play Next resume policy"
     },
     {
       "applicability": {

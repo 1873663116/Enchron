@@ -1,5 +1,4 @@
 nonisolated public enum PlaybackEndBehavior: Sendable, Hashable {
-    case stop
     case repeatOne
     case playNext
 }
@@ -17,7 +16,7 @@ public struct PlaybackPreferences: Sendable, Equatable {
 
     public init(
         resumePolicy: ResumePolicy = .askEveryTime,
-        endBehavior: PlaybackEndBehavior = .stop,
+        endBehavior: PlaybackEndBehavior = .repeatOne,
         defaultSpeed: Double = 1
     ) {
         self.resumePolicy = resumePolicy
@@ -30,18 +29,14 @@ public protocol PlaybackPreferencesProviding: Sendable {
     func loadPlaybackPreferences() -> PlaybackPreferences
 }
 
-public enum PlaybackEndAction: Equatable, Sendable {
-    case stayEnded
-    case repeatCurrent
-    case playNext
-}
-
 public enum PlaybackEndPolicy {
-    public static func action(for behavior: PlaybackEndBehavior) -> PlaybackEndAction {
+    public static func affordance(
+        for behavior: PlaybackEndBehavior,
+        nextAvailable: Bool
+    ) -> PlaybackEndedAffordance {
         switch behavior {
-        case .stop: .stayEnded
-        case .repeatOne: .repeatCurrent
-        case .playNext: .playNext
+        case .repeatOne: .replay
+        case .playNext: .playNext(available: nextAvailable)
         }
     }
 }

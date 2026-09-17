@@ -19,8 +19,8 @@ public struct FusedPlayerPanelLive {
     var unmetCapabilities: [UnmetCapability] = []
     var mediaFormatProvenance: MediaFormatProvenance
     var sourceMediaFormatSummary: String
-    var isPlaying: Bool
-    var showsReplay: Bool
+    var primaryAction: PlaybackPrimaryTransportAction
+    var primaryActionEnabled: Bool
     var canSkipForward: Bool
     var canStepForward: Bool
     var progress: CGFloat
@@ -72,8 +72,8 @@ public struct FusedPlayerPanelLive {
         unmetCapabilities: [UnmetCapability] = [],
         mediaFormatProvenance: MediaFormatProvenance,
         sourceMediaFormatSummary: String,
-        isPlaying: Bool,
-        showsReplay: Bool,
+        primaryAction: PlaybackPrimaryTransportAction,
+        primaryActionEnabled: Bool,
         canSkipForward: Bool,
         canStepForward: Bool,
         progress: CGFloat,
@@ -120,8 +120,8 @@ public struct FusedPlayerPanelLive {
         self.unmetCapabilities = unmetCapabilities
         self.mediaFormatProvenance = mediaFormatProvenance
         self.sourceMediaFormatSummary = sourceMediaFormatSummary
-        self.isPlaying = isPlaying
-        self.showsReplay = showsReplay
+        self.primaryAction = primaryAction
+        self.primaryActionEnabled = primaryActionEnabled
         self.canSkipForward = canSkipForward
         self.canStepForward = canStepForward
         self.progress = progress
@@ -1191,6 +1191,7 @@ public struct FusedPlayerPanel: View {
             iconTier: .standard
         )
         .keyboardShortcut(.space, modifiers: [])
+        .disabled(live?.primaryActionEnabled == false)
     }
 
     private var rewindButton: some View {
@@ -1330,18 +1331,25 @@ public struct FusedPlayerPanel: View {
             iconTier: .standard
         )
         .keyboardShortcut(.space, modifiers: [])
+        .disabled(live?.primaryActionEnabled == false)
     }
 
     private var primaryPlayIcon: String {
-        guard let live else { return "play.fill" }
-        if live.showsReplay { return "arrow.counterclockwise" }
-        return live.isPlaying ? "pause.fill" : "play.fill"
+        switch live?.primaryAction {
+        case .pause: "pause.fill"
+        case .replay: "arrow.counterclockwise"
+        case .playNext: "forward.end.fill"
+        case .play, nil: "play.fill"
+        }
     }
 
     private var primaryPlayLabel: String {
-        guard let live else { return "Play" }
-        if live.showsReplay { return "Replay" }
-        return live.isPlaying ? "Pause" : "Play"
+        switch live?.primaryAction {
+        case .pause: "Pause"
+        case .replay: "Replay"
+        case .playNext: "Play Next"
+        case .play, nil: "Play"
+        }
     }
 
     @ViewBuilder

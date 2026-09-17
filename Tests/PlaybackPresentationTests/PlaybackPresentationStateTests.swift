@@ -3225,14 +3225,30 @@ struct PlaybackPresentationStateTests {
         #expect(registry.isLive(mainClaim.lease))
     }
 
-    @Test("ended transport exposes Replay and disables forward movement")
+    @Test("ended transport exposes the configured affordance and disables forward movement")
     func endedTransportContract() {
-        let transport = PlaybackTransportAvailability(lifecycle: .ended)
+        let replayTransport = PlaybackTransportAvailability(lifecycle: .ended)
 
-        #expect(transport.primaryAction == .replay)
-        #expect(!transport.canSkipForward)
-        #expect(!transport.canStepForward)
-        #expect(PlaybackEndPolicy.action(for: .stop) == .stayEnded)
+        #expect(replayTransport.primaryAction == .replay)
+        #expect(replayTransport.primaryActionEnabled)
+        #expect(!replayTransport.canSkipForward)
+        #expect(!replayTransport.canStepForward)
+
+        let playNextTransport = PlaybackTransportAvailability(
+            lifecycle: .ended,
+            endedAffordance: .playNext(available: true)
+        )
+        #expect(playNextTransport.primaryAction == .playNext)
+        #expect(playNextTransport.primaryActionEnabled)
+        #expect(!playNextTransport.canSkipForward)
+        #expect(!playNextTransport.canStepForward)
+
+        let unavailableNextTransport = PlaybackTransportAvailability(
+            lifecycle: .ended,
+            endedAffordance: .playNext(available: false)
+        )
+        #expect(unavailableNextTransport.primaryAction == .playNext)
+        #expect(!unavailableNextTransport.primaryActionEnabled)
     }
 
     @Test("seek events preserve the specified lifecycle intent")

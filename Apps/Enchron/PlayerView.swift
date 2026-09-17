@@ -828,6 +828,10 @@ private struct PlaybackAutomationStateProbe: View {
             current: output
         )
         let demuxBuffer = playbackRuntime.diagnostics.demuxBuffer
+        let transport = PlaybackTransportAvailability(
+            lifecycle: playbackRuntime.productLifecycle,
+            endedAffordance: playbackLauncher.endedAffordance
+        )
         var fields = [
             "presentation=\(playbackSession.playbackPresentation.rawValue)",
             "hosted=\(hostedPresentation.rawValue)",
@@ -909,6 +913,8 @@ private struct PlaybackAutomationStateProbe: View {
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
             "subtitleFrame=\(playbackRuntime.activeSubtitleFrame?.kind.rawValue ?? "none")",
             "controls=\(playbackSession.showControls ? "shown" : "hidden")",
+            "primaryAction=\(transport.primaryAction.rawValue)",
+            "primaryActionEnabled=\(transport.primaryActionEnabled)",
             "error=\(playbackRuntime.userVisibleIssue?.category.rawValue ?? "none")"
         ]
         fields.append(contentsOf: PlaybackStateAccessibility.rendererPerformanceAccessibilityFields(

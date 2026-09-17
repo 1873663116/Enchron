@@ -54,12 +54,8 @@ public struct MainView: View {
         }
         .onAppear {
             playbackRuntime.onPlaybackEnded = {
-                let showControls = playbackLauncher.handlePlaybackEnded {
-                    playbackSession.showControls = true
-                }
-                if showControls {
-                    playbackSession.showControls = true
-                }
+                playbackLauncher.handlePlaybackEnded()
+                playbackSession.showControls = true
             }
         }
         .onChange(of: playbackRuntime.residency, initial: true) { _, residency in

@@ -3,7 +3,7 @@
   "schema": "enchron.regression.scenario",
   "schemaVersion": 1,
   "id": "scenario:local-media-lifecycle:automatic-play-next-resume-policy",
-  "title": "Automatic Play Next resume policy",
+  "title": "Ended Play Next resume policy",
   "journey": "journey:local-media-lifecycle",
   "promiseRefs": [
     "promise:playback-queue:c01"
@@ -12,7 +12,7 @@
     "constant": true
   },
   "lane": "device",
-  "estimatedCostMillis": 435000,
+  "estimatedCostMillis": 480000,
   "staticCases": [
     "default"
   ],
@@ -262,13 +262,36 @@
     },
     {
       "arguments": {
+        "controls": "shown",
+        "deadlineSeconds": 45,
+        "lifecycle": "ended",
+        "presentation": "window"
+      },
+      "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:25",
+      "maxInvocations": 1,
+      "operation": "operation:playback.await-window-state@1"
+    },
+    {
+      "arguments": {
+        "context": "window",
+        "identifiers": [
+          "PlayerPanel-button-play"
+        ],
+        "summonControls": true
+      },
+      "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
         "deadlineSeconds": 90,
         "differentSessionFrom": "result://call:local-media-lifecycle:automatic-play-next-resume-policy:24/session",
         "expectedMediaName": "viewing-storage-16m01s.mp4",
         "minimumPositionMillis": 20000,
         "minimumRemainingMillis": 300000
       },
-      "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:25",
+      "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:27",
       "maxInvocations": 1,
       "operation": "operation:playback.wait-position@2"
     },
@@ -278,7 +301,7 @@
           "result://call:local-media-lifecycle:automatic-play-next-resume-policy:24/session"
         ]
       },
-      "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
+      "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:28",
       "maxInvocations": 1,
       "operation": "operation:diagnostics.playback-state@1"
     }
@@ -291,7 +314,7 @@
       "evidenceType": "playback.probe",
       "id": "obligation:local-media-lifecycle:automatic-play-next-resume-policy:o01:default",
       "oracle": "oracle:agent-structured-playback-probe@1",
-      "producedByCall": "call:local-media-lifecycle:automatic-play-next-resume-policy:26",
+      "producedByCall": "call:local-media-lifecycle:automatic-play-next-resume-policy:28",
       "rubric": "rubric:local-media-lifecycle.automatic-play-next-resume-policy.o01@1"
     }
   ],
@@ -300,6 +323,6 @@
   }
 }
 ---
-# Automatic Play Next resume policy
+# Ended Play Next resume policy
 
 Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.

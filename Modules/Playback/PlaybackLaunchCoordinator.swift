@@ -754,41 +754,48 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }
     }
 
-    public func handlePlaybackEnded(onFallbackShowControls: (@MainActor () -> Void)? = nil) -> Bool {
+    public private(set) var endedContinuation: PlaybackLaunchRequest?
+    private var endedContinuationGeneration: Int?
+
+    public var endedAffordance: PlaybackEndedAffordance {
+        PlaybackEndPolicy.affordance(
+            for: preferencesProvider.loadPlaybackPreferences().endBehavior,
+            nextAvailable: endedContinuation != nil
+        )
+    }
+
+    public func handlePlaybackEnded() {
         persistCurrentSession(endedNaturally: true)
-        switch PlaybackEndPolicy.action(
-            for: preferencesProvider.loadPlaybackPreferences().endBehavior
-        ) {
-        case .stayEnded:
-            return false
-        case .repeatCurrent:
-            if let request = playbackRuntime.currentLaunchRequest {
-                switch request.viewingStateAuthority {
-                case .enchronPersistence:
-                    break
-                case .mediaServer:
-                    armMediaServerReportingSession(
-                        for: request,
-                        generation: generation
-                    )
-                }
-            }
-            playbackRuntime.replay()
-            return false
-        case .playNext:
-            Task { [weak self] in
-                guard let self else { return }
-                let next: PlaybackLaunchRequest?
-                do {
-                    next = try await preparation.resolve { await self.nextFileProvider?() }
-                } catch { return }
-                if let next {
-                    requestPlayback(next, origin: .automaticContinuation)
-                } else {
-                    onFallbackShowControls?()
-                }
-            }
-            return false
+    }
+
+    public func refreshEndedContinuation() {
+        updateEndedContinuation(playbackRuntime.productLifecycle)
+    }
+
+    public func playEndedContinuation() {
+        guard playbackRuntime.productLifecycle == .ended,
+              let request = endedContinuation else { return }
+        requestPlayback(request, origin: .automaticContinuation)
+    }
+
+    private func updateEndedContinuation(_ lifecycle: ProductPlaybackLifecycle) {
+        guard lifecycle == .ended,
+              preferencesProvider.loadPlaybackPreferences().endBehavior == .playNext
+        else {
+            endedContinuation = nil
+            endedContinuationGeneration = nil
+            return
+        }
+        guard endedContinuationGeneration != generation else { return }
+        let resolutionGeneration = generation
+        endedContinuationGeneration = resolutionGeneration
+        endedContinuation = nil
+        Task { [weak self] in
+            guard let self else { return }
+            let next = try? await preparation.resolve { await self.nextFileProvider?() }
+            guard self.endedContinuationGeneration == resolutionGeneration,
+                  self.playbackRuntime.productLifecycle == .ended else { return }
+            self.endedContinuation = next
         }
     }
 
@@ -866,6 +873,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     private func receivePlaybackObservation(_ observation: PlaybackRuntimeObservation) {
+        if case .lifecycle(let lifecycle) = observation.event,
+           observation.generation == playbackRuntime.observationGeneration {
+            updateEndedContinuation(lifecycle)
+        }
         if case .activeFailure(let failure) = observation.event {
             receiveActiveFailure(failure, observationGeneration: observation.generation)
             return

@@ -187,7 +187,11 @@ struct SpatialPlaybackPresentationContractTests {
 
         #expect(
             endedTransport.primaryAction == .replay,
-            "Ended must expose Replay as the primary action"
+            "Ended must expose Replay as the primary action under the replay affordance"
+        )
+        #expect(
+            endedTransport.primaryActionEnabled,
+            "Replay must remain tappable at the media end"
         )
         #expect(
             !endedTransport.canSkipForward,

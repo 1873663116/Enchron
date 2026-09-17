@@ -28,15 +28,12 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
             policy = .askEveryTime
         }
 
-        let endBehaviorRaw = defaults.string(forKey: Self.endBehaviorKey) ?? "stop"
         let endBehavior: PlaybackEndBehavior
-        switch endBehaviorRaw {
-        case "repeatOne":
-            endBehavior = .repeatOne
+        switch defaults.string(forKey: Self.endBehaviorKey) {
         case "playNext":
             endBehavior = .playNext
         default:
-            endBehavior = .stop
+            endBehavior = .repeatOne
         }
 
         let defaultSpeed = defaults.object(forKey: Self.defaultSpeedKey) as? Double ?? 1.0
@@ -66,8 +63,6 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
 
         let endBehaviorString: String
         switch preferences.playbackEndBehavior {
-        case .stop:
-            endBehaviorString = "stop"
         case .repeatOne:
             endBehaviorString = "repeatOne"
         case .playNext:

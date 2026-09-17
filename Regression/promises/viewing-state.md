@@ -31,8 +31,8 @@
     },
     {
       "id": "promise:viewing-state:c04",
-      "title": "存在历史进度且由用户主动打开时，本地与 Emby 走同一个决定：设置页 Resume Playback 为 Ask Every Time 时弹出 Resume Playback? alert，Resume 尊重进度，Play from Start 从零开始；为 Always Resume 或 Always Start Over 时不弹 alert，直接按该偏好开播。自动续播（Play Next）不在此列。",
-      "statement": "存在历史进度且由用户主动打开时，本地与 Emby 走同一个决定：设置页 Resume Playback 为 Ask Every Time 时弹出 Resume Playback? alert，Resume 尊重进度，Play from Start 从零开始；为 Always Resume 或 Always Start Over 时不弹 alert，直接按该偏好开播。自动续播（Play Next）不在此列：它在 Ask Every Time 下也不弹 alert，直接按保存的进度续播。",
+      "title": "存在历史进度且由用户主动打开时，本地与 Emby 走同一个决定：设置页 Resume Playback 为 Ask Every Time 时弹出 Resume Playback? alert，Resume 尊重进度，Play from Start 从零开始；为 Always Resume 或 Always Start Over 时不弹 alert，直接按该偏好开播。末尾 Play Next 续播不在此列。",
+      "statement": "存在历史进度且由用户主动打开时，本地与 Emby 走同一个决定：设置页 Resume Playback 为 Ask Every Time 时弹出 Resume Playback? alert，Resume 尊重进度，Play from Start 从零开始；为 Always Resume 或 Always Start Over 时不弹 alert，直接按该偏好开播。末尾 Play Next 续播不在此列：它在 Ask Every Time 下也不弹 alert，直接按保存的进度续播。",
       "automation": {
         "scope": "included"
       }
@@ -76,7 +76,7 @@ The Promise covers only the commitment stated in front matter. Scenario evidence
 
 Proposal `PR-VS-C04` comes from `.agents/skills/vp-e2e/features/viewing-state.md` at line 10, section Sub-features, source ordinal 4.
 
-打开的来源决定这条承诺是否适用。`Modules/Playback/PlaybackLaunchCoordinator.swift:198` 的 `(.askEveryTime, .userInitiated)` 分支在保存位置大于零时才登记 `pendingResumeDecision`，也就是弹出 alert；`:217` 的 `(.askEveryTime, .automaticContinuation)` 分支在同一偏好下直接按保存位置续播，并记一次 `automaticResumeBypasses`。`.automaticContinuation` 的唯一来源是 Play Next（`:667`）。Emby 走 `decideResume(fromSeconds:onChoice:)`（`:266`），该入口没有 origin 参数，因而总是用户主动打开这一侧。两条计数由 `scenario:local-media-lifecycle:automatic-play-next-resume-policy` 的 rubric 以 `resumePromptPresentations=1` 与 `automaticResumeBypasses=1` 同时读出。
+打开的来源决定这条承诺是否适用。`Modules/Playback/PlaybackLaunchCoordinator.swift:260` 的 `(.askEveryTime, .userInitiated)` 分支在保存位置大于零时才登记 `pendingResumeDecision`，也就是弹出 alert；`:279` 的 `(.askEveryTime, .automaticContinuation)` 分支在同一偏好下直接按保存位置续播，并记一次 `automaticResumeBypasses`。`.automaticContinuation` 的唯一来源是末尾 Play Next 主按钮触发的 `playEndedContinuation`（`:778`）。Emby 走 `decideResume(fromSeconds:onChoice:)`（`:331`），该入口没有 origin 参数，因而总是用户主动打开这一侧。两条计数由 `scenario:local-media-lifecycle:automatic-play-next-resume-policy` 的 rubric 以 `resumePromptPresentations=1` 与 `automaticResumeBypasses=1` 同时读出。
 
 The Promise covers only the commitment stated in front matter. Scenario evidence for another commitment cannot substitute for it.
 
