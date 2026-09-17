@@ -111,6 +111,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private var mediaFormatRequestID: UInt64 = 0
     private var generation = 0
     private var lastResolvedLaunch: ResolvedLaunch?
+    private var pendingRequestResolution: (@MainActor () async throws -> PlaybackLaunchRequest)?
     private var activeFailureRecovery: ActiveFailureRecovery?
     private var activeFailureRetry: ActiveFailureRetry?
     private var mediaServerReportingSession: MediaServerReportingSession?
@@ -166,7 +167,37 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     #endif
 
     public func requestPlayback(_ request: PlaybackLaunchRequest) {
+        pendingRequestResolution = nil
         requestPlayback(request, origin: .userInitiated)
+    }
+
+    public func requestPlayback(
+        resolving resolve: @escaping @MainActor () async throws -> PlaybackLaunchRequest
+    ) {
+        pendingRequestResolution = resolve
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                let request = try await preparation.resolve(resolve)
+                self.requestPlayback(request)
+            } catch is CancellationError {
+                return
+            } catch {
+                logger.error(
+                    "playback request resolution failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                self.playbackRuntime.setUserVisibleIssue(
+                    Self.requestResolutionIssue(for: error)
+                )
+            }
+        }
+    }
+
+    static func requestResolutionIssue(for error: Error) -> PlaybackUserVisibleIssue {
+        if error is URLError || (error as NSError).domain == NSURLErrorDomain {
+            return .connectionFailed
+        }
+        return .mediaRequestFailed
     }
 
     private func requestPlayback(
@@ -321,6 +352,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func retryPlayback() {
+        if playbackRuntime.userVisibleIssue == .connectionFailed,
+           let resolve = pendingRequestResolution {
+            playbackRuntime.setUserVisibleIssue(nil)
+            requestPlayback(resolving: resolve)
+            return
+        }
         if let failure = playbackRuntime.userVisibleIssue?.activePlaybackFailure {
             guard let recovery = activeFailureRecovery,
                   recovery.failure == failure else { return }
@@ -638,6 +675,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         activeFailureRecovery = nil
         activeFailureRetry = nil
         lastResolvedLaunch = nil
+        pendingRequestResolution = nil
         playbackRuntime.setUserVisibleIssue(nil)
     }
 

@@ -8,6 +8,7 @@ public enum PlaybackUserVisibleIssueCategory: String, CaseIterable, Sendable, Eq
     case playbackFailed
     case serverCertificateChanged = "server-certificate-changed"
     case connectionInterrupted = "connection-interrupted"
+    case connectionFailed = "connection-failed"
     case sourceFileMissing = "source-file-missing"
     case sourceAccessDenied = "source-access-denied"
     case mediaDataCorrupt = "media-data-corrupt"
@@ -140,6 +141,7 @@ public struct PlaybackActiveFailure: Sendable, Equatable {
 public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     case mediaOpeningFailed
     case mediaRequestFailed
+    case connectionFailed
     case unsupportedVideoCodec(PlaybackUnsupportedVideoCodec)
     case sourceAccessUnavailable
     case playbackFailed
@@ -160,6 +162,7 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
         switch self {
         case .mediaOpeningFailed: .mediaOpeningFailed
         case .mediaRequestFailed: .mediaRequestFailed
+        case .connectionFailed: .connectionFailed
         case .unsupportedVideoCodec: .unsupportedVideoCodec
         case .sourceAccessUnavailable: .sourceAccessUnavailable
         case .playbackFailed: .playbackFailed
@@ -195,6 +198,8 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
             "Unable to open this file."
         case .mediaRequestFailed:
             "This item could not be prepared for playback."
+        case .connectionFailed:
+            "Could not connect to the media source. Check the network and try again."
         case .unsupportedVideoCodec(let codec):
             if let productName = codec.productName {
                 "This video uses \(productName), which Enchron does not support."
@@ -288,6 +293,14 @@ public extension PlaybackUserVisibleIssueCategory {
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.close],
                 presentationLocations: [.mainWindow, .mediaLibrary],
+                interruptsPlayback: true
+            )
+        case .connectionFailed:
+            .init(
+                title: "Connection Failed",
+                messageStrategy: .fixedProductCopy,
+                allowedActions: [.retry, .close],
+                presentationLocations: [.mainWindow, .mediaLibrary, .immersiveSpace],
                 interruptsPlayback: true
             )
         case .unsupportedVideoCodec:

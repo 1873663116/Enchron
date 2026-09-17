@@ -93,6 +93,15 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
         locations: [.mainWindow, .immersiveSpace]
     ),
     .init(
+        issue: .connectionFailed,
+        category: .connectionFailed,
+        title: "Connection Failed",
+        message: "Could not connect to the media source. Check the network and try again.",
+        messageStrategy: .fixedProductCopy,
+        actions: [.retry, .close],
+        locations: [.mainWindow, .mediaLibrary, .immersiveSpace]
+    ),
+    .init(
         issue: activeFailureIssue(.sourceFileMissing),
         category: .sourceFileMissing,
         title: "Playback Error",

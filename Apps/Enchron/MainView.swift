@@ -99,21 +99,22 @@ public struct MainView: View {
         }
     }
 
-    private func launchEmbySelection(_ selection: EmbyPlaybackSelection) async {
-        do {
-            let request = try await playbackLauncher.preparation.resolve {
-                try await embySession.playbackRequest(for: selection)
+    private func launchEmbySelection(_ selection: EmbyPlaybackSelection) {
+        playbackLauncher.requestPlayback {
+            do {
+                let request = try await embySession.playbackRequest(for: selection)
+                SurfaceInputProbes.record("openRequestForwarded")
+                return request
+            } catch {
+                logger.error(
+                    "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                SurfaceInputProbes.record(
+                    "emby playback request failed error=\(error)",
+                    retention: .evidence
+                )
+                throw error
             }
-            SurfaceInputProbes.record("openRequestForwarded")
-            playbackLauncher.requestPlayback(request)
-        } catch is CancellationError {
-            return
-        } catch {
-            logger.error(
-                "Emby playback request failed error=\(error.localizedDescription, privacy: .public)"
-            )
-            SurfaceInputProbes.record("emby playback request failed error=\(error)", retention: .evidence)
-            playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
         }
     }
 
@@ -152,7 +153,7 @@ public struct MainView: View {
         } message: { decision in
             Text("Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.")
         }
-        .playbackIssueAlert(at: .mediaLibrary)
+        .playbackIssueAlert(at: .mediaLibrary, onRetry: playbackLauncher.retryPlayback)
     }
 
     private var browser: some View {
@@ -171,11 +172,9 @@ public struct MainView: View {
                         return
                     }
                     playbackLauncher.decideResume(fromSeconds: selection.resumeCandidateSeconds) { resume in
-                        Task {
-                            await launchEmbySelection(
-                                selection.replacingStartAction(resume ? .resume : .fromBeginning)
-                            )
-                        }
+                        launchEmbySelection(
+                            selection.replacingStartAction(resume ? .resume : .fromBeginning)
+                        )
                     }
                 }
                 .enchronScreenAppearance()
