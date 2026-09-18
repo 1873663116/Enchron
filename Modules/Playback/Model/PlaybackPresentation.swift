@@ -124,29 +124,48 @@ public enum PlaybackPresentationAvailability {
     }
 }
 
-public enum PlaybackPrimaryTransportAction: Equatable, Sendable {
+public enum PlaybackPrimaryTransportAction: String, Equatable, Sendable {
     case play
     case pause
     case replay
+    case playNext
+}
+
+public enum PlaybackEndedAffordance: Equatable, Sendable {
+    case replay
+    case playNext(available: Bool)
 }
 
 public struct PlaybackTransportAvailability: Equatable, Sendable {
     public let primaryAction: PlaybackPrimaryTransportAction
+    public let primaryActionEnabled: Bool
     public let canSkipForward: Bool
     public let canStepForward: Bool
 
-    public init(lifecycle: ProductPlaybackLifecycle) {
+    public init(
+        lifecycle: ProductPlaybackLifecycle,
+        endedAffordance: PlaybackEndedAffordance = .replay
+    ) {
         switch lifecycle {
         case .playing:
             primaryAction = .pause
+            primaryActionEnabled = true
             canSkipForward = true
             canStepForward = true
         case .ended:
-            primaryAction = .replay
+            switch endedAffordance {
+            case .replay:
+                primaryAction = .replay
+                primaryActionEnabled = true
+            case .playNext(let available):
+                primaryAction = .playNext
+                primaryActionEnabled = available
+            }
             canSkipForward = false
             canStepForward = false
         case .idle, .loading, .ready, .paused, .failed:
             primaryAction = .play
+            primaryActionEnabled = true
             canSkipForward = true
             canStepForward = true
         }

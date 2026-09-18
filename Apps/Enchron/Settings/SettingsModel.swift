@@ -12,7 +12,7 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
 
     public init(
         resumePolicy: ResumePolicy = .askEveryTime,
-        playbackEndBehavior: PlaybackEndBehavior = .stop,
+        playbackEndBehavior: PlaybackEndBehavior = .repeatOne,
         defaultPlaybackSpeed: Double = 1.0,
         controlsAutoHideSeconds: Int = 8,
         developerModeEnabled: Bool = false,

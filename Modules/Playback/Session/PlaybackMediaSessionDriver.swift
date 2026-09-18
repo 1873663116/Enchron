@@ -226,9 +226,10 @@ class PlaybackMediaSessionDriver {
         try controller.playWithExternallyManagedFirstVideoFrameDeadline()
     }
 
-    func playAndVerifyRendererGraphContinuity() async throws
-        -> RendererGraphPlaybackContinuity {
-        try await controller.playAndVerifyRendererGraphContinuity()
+    func playAndVerifyRendererGraphContinuity(
+        timeout: Duration = .seconds(3)
+    ) async throws -> RendererGraphPlaybackContinuity {
+        try await controller.playAndVerifyRendererGraphContinuity(timeout: timeout)
     }
 
     func pause() throws {

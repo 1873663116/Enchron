@@ -654,6 +654,12 @@ public final class EmbySessionViewModel {
         }
     }
 
+    public var hasNextPlaybackRequest: Bool {
+        guard let index = playbackQueue.entries.firstIndex(where: { $0.isCurrent })
+        else { return false }
+        return playbackQueue.entries.indices.contains(index + 1)
+    }
+
     public func nextPlaybackRequest() async -> PlaybackLaunchRequest? {
         let request = await playbackBridge.nextRequest()
         playbackQueue = await playbackBridge.queueSnapshot

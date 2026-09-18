@@ -373,7 +373,7 @@ struct TrackSelectionPreferenceTests {
         #expect(resumeRuntime.lastStartTimeSeconds == 120)
     }
 
-    @Test("Play Next resumes saved progress without presenting an Ask Every Time decision")
+    @Test("Ended Play Next continuation resumes saved progress without presenting an Ask Every Time decision")
     func playNextBypassesAskEveryTimeAndResumesSavedProgress() async throws {
         let suiteName = "app.enchron.tests.play-next-resume.\(UUID().uuidString)"
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
@@ -411,8 +411,13 @@ struct TrackSelectionPreferenceTests {
         try await runtime.waitUntilOpened()
         let currentSessionID = runtime.activeSessionID
         coordinator.nextFileProvider = { nextRequest }
+        coordinator.hasNextPlaybackItemProvider = { true }
 
-        _ = coordinator.handlePlaybackEnded()
+        runtime.emitLifecycle(.ended)
+        #expect(runtime.currentLaunchRequest == currentRequest)
+        #expect(coordinator.endedAffordance == .playNext(available: true))
+
+        coordinator.playEndedContinuation()
         try await runtime.waitUntilCurrentMediaIs(
             nextRequest,
             replacing: currentSessionID

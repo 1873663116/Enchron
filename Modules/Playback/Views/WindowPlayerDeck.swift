@@ -53,7 +53,8 @@ public struct WindowPlayerDeckView: View {
         let position = playbackRuntime.playbackPosition
         let duration = position.duration
         let transport = PlaybackTransportAvailability(
-            lifecycle: playbackRuntime.productLifecycle
+            lifecycle: playbackRuntime.productLifecycle,
+            endedAffordance: playbackLauncher.endedAffordance
         )
         return FusedPlayerPanelLive(
             presentation: resolvedPresentation,
@@ -74,8 +75,8 @@ public struct WindowPlayerDeckView: View {
             unmetCapabilities: playbackRuntime.unmetCapabilities,
             mediaFormatProvenance: playbackRuntime.activeMediaFormatProvenance,
             sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
-            isPlaying: transport.primaryAction == .pause,
-            showsReplay: transport.primaryAction == .replay,
+            primaryAction: transport.primaryAction,
+            primaryActionEnabled: transport.primaryActionEnabled,
             canSkipForward: transport.canSkipForward,
             canStepForward: transport.canStepForward && playbackRuntime.mediaKind == .video,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
@@ -297,9 +298,11 @@ public struct WindowPlayerDeckView: View {
     private func togglePlayPause() {
         PlaybackTrace.event("ui.playPause.request lifecycle=\(playbackRuntime.lifecycle.label)")
         switch PlaybackTransportAvailability(
-            lifecycle: playbackRuntime.productLifecycle
+            lifecycle: playbackRuntime.productLifecycle,
+            endedAffordance: playbackLauncher.endedAffordance
         ).primaryAction {
         case .replay: playbackRuntime.replay()
+        case .playNext: playbackLauncher.playEndedContinuation()
         case .pause: playbackRuntime.pause()
         case .play: playbackRuntime.resume()
         }

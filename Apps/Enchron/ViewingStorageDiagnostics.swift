@@ -233,7 +233,6 @@ private extension ViewingStorageDiagnosticSnapshot.ProtectedState.PlaybackPrefer
         case .alwaysStartFromBeginning: "always-start-from-beginning"
         }
         self.endBehavior = switch preferences.playbackEndBehavior {
-        case .stop: "stop"
         case .repeatOne: "repeat-one"
         case .playNext: "play-next"
         }

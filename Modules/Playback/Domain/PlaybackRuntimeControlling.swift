@@ -16,6 +16,7 @@ public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
 public enum PlaybackLoadingStage: String, CaseIterable, Codable, Sendable, Equatable {
     case opening
     case seeking
+    case recovering
     case starved
 }
 
@@ -79,9 +80,26 @@ public struct PlaybackStarvationEvidence: Codable, Sendable, Equatable {
     }
 }
 
+public struct PlaybackRecoveryEvidence: Codable, Sendable, Equatable {
+    public var runtimeGeneration: UInt64
+    public var technicalSessionID: String
+    public var startedAtMillis: UInt64
+
+    public init(
+        runtimeGeneration: UInt64,
+        technicalSessionID: String,
+        startedAtMillis: UInt64
+    ) {
+        self.runtimeGeneration = runtimeGeneration
+        self.technicalSessionID = technicalSessionID
+        self.startedAtMillis = startedAtMillis
+    }
+}
+
 public enum PlaybackLoadingCausalEvidence: Codable, Sendable, Equatable {
     case opening(PlaybackOpeningEvidence)
     case seeking(PlaybackSeekingEvidence)
+    case recovering(PlaybackRecoveryEvidence)
     case starved(PlaybackStarvationEvidence)
 
     public var stage: PlaybackLoadingStage {
@@ -90,6 +108,8 @@ public enum PlaybackLoadingCausalEvidence: Codable, Sendable, Equatable {
             .opening
         case .seeking:
             .seeking
+        case .recovering:
+            .recovering
         case .starved:
             .starved
         }
@@ -180,6 +200,29 @@ struct PlaybackLoadingStateMachine {
         state = .none
     }
 
+    mutating func beginRecovery(
+        technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID else { return }
+        state = .loading(.recovering(PlaybackRecoveryEvidence(
+            runtimeGeneration: runtimeGeneration,
+            technicalSessionID: technicalSessionID,
+            startedAtMillis: DispatchTime.now().uptimeNanoseconds / 1_000_000
+        )))
+    }
+
+    mutating func endRecovery(
+        technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID,
+              state.stage == .recovering else { return }
+        state = .none
+    }
+
     mutating func presentationBecameUsable(
         technicalSessionID: String,
         runtimeGeneration: UInt64
@@ -209,18 +252,26 @@ struct PlaybackLoadingStateMachine {
                 deliveryContinuity: evidence
             )))
         case .recovered:
+            if case .loading(.recovering) = state {
+                state = .none
+                return
+            }
             guard case .loading(.starved(let current)) = state,
                   current.technicalSessionID == technicalSessionID,
                   current.deliveryContinuity.incidentID
                     == observation.evidence?.incidentID else { return }
             state = .none
         case .inactive:
-            clearStarvation()
+            clearTransientLoading()
         }
     }
 
-    mutating func clearStarvation() {
-        guard state.stage == .starved else { return }
+    mutating func clearTransientLoading() {
+        guard state.stage == .starved || state.stage == .recovering else { return }
+        state = .none
+    }
+
+    mutating func clearStage() {
         state = .none
     }
 

@@ -7,8 +7,8 @@
   "promises": [
     {
       "id": "promise:playback-queue:c01",
-      "title": "Automatic Play Next resume policy",
-      "statement": "Automatic Play Next continues from stored position according to the queue action without an Ask Every Time resume prompt.",
+      "title": "Ended Play Next resume policy",
+      "statement": "The ended-state Play Next affordance continues from the stored position according to the queue action without an Ask Every Time resume prompt; reaching end of media never launches the next item by itself.",
       "automation": {
         "scope": "included"
       }

@@ -64,11 +64,22 @@ struct PlaybackDomainContractTests {
         )
     }
 
-    @Test("stop end behaviour resolves to no automatic action")
-    func stopEndBehaviourResolvesToNoAutomaticAction() {
+    @Test("end behaviour resolves the ended primary affordance")
+    func endBehaviourResolvesEndedAffordance() {
         #expect(
-            PlaybackEndPolicy.action(for: .stop) == .stayEnded,
-            "Stop end behavior must retain the ended session without an automatic action"
+            PlaybackEndPolicy.affordance(for: .repeatOne, nextAvailable: false)
+                == .replay,
+            "Replay end behavior must expose the replay affordance"
+        )
+        #expect(
+            PlaybackEndPolicy.affordance(for: .playNext, nextAvailable: true)
+                == .playNext(available: true),
+            "Play Next end behavior must expose an enabled affordance when a successor exists"
+        )
+        #expect(
+            PlaybackEndPolicy.affordance(for: .playNext, nextAvailable: false)
+                == .playNext(available: false),
+            "Play Next end behavior must expose a disabled affordance without a successor"
         )
     }
 

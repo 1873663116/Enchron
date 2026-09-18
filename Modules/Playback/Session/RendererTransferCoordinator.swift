@@ -1246,9 +1246,11 @@ extension RendererTransferCoordinator {
         try requireActiveDriver().playWithExternallyManagedFirstVideoFrameDeadline()
     }
 
-    func playAndVerifyRendererGraphContinuity() async throws
-        -> RendererGraphPlaybackContinuity {
-        try await requireActiveDriver().playAndVerifyRendererGraphContinuity()
+    func playAndVerifyRendererGraphContinuity(
+        timeout: Duration = .seconds(3)
+    ) async throws -> RendererGraphPlaybackContinuity {
+        try await requireActiveDriver()
+            .playAndVerifyRendererGraphContinuity(timeout: timeout)
     }
 
     func waitUntilTimelineReadyForControl() async throws {

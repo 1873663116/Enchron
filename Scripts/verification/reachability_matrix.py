@@ -191,7 +191,7 @@ DEFERRED_MENU_TARGETS = {
     ("emby", "season"): "__firstUnselected",
     ("emby", "version"): "__firstUnselected",
     ("settings", "resume-strategy"): "askEveryTime",
-    ("settings", "end-behavior"): "stop",
+    ("settings", "end-behavior"): "playNext",
     ("settings", "default-speed"): "0.5",
     ("settings", "controls-auto-hide"): "8",
 }

@@ -6002,7 +6002,7 @@ class ResidentOperationBackend:
             "ask-every-time",
             "always-resume",
             "always-start-from-beginning",
-        } or preferences["endBehavior"] not in {"stop", "repeat-one", "play-next"}:
+        } or preferences["endBehavior"] not in {"repeat-one", "play-next"}:
             raise OperationAdapterError("protected playback preferences are not closed")
         if nonnegative_number(preferences["defaultSpeed"], "defaultSpeed") <= 0:
             raise OperationAdapterError("defaultSpeed must be positive")

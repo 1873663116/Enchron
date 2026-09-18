@@ -90,6 +90,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackLaunch")
 
     public var nextFileProvider: (@MainActor @Sendable () async -> PlaybackLaunchRequest?)?
+    public var hasNextPlaybackItemProvider: (@MainActor @Sendable () -> Bool)?
     public var playbackQueueProvider: (@MainActor () -> PlaybackQueueSnapshot)?
     public var queueSelectionProvider: (@MainActor @Sendable (UUID) async -> PlaybackLaunchRequest?)?
     public var onEffectiveMediaFormatApplied: (
@@ -780,41 +781,26 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }
     }
 
-    public func handlePlaybackEnded(onFallbackShowControls: (@MainActor () -> Void)? = nil) -> Bool {
+    public var endedAffordance: PlaybackEndedAffordance {
+        PlaybackEndPolicy.affordance(
+            for: preferencesProvider.loadPlaybackPreferences().endBehavior,
+            nextAvailable: hasNextPlaybackItemProvider?() ?? false
+        )
+    }
+
+    public func handlePlaybackEnded() {
         persistCurrentSession(endedNaturally: true)
-        switch PlaybackEndPolicy.action(
-            for: preferencesProvider.loadPlaybackPreferences().endBehavior
-        ) {
-        case .stayEnded:
-            return false
-        case .repeatCurrent:
-            if let request = playbackRuntime.currentLaunchRequest {
-                switch request.viewingStateAuthority {
-                case .enchronPersistence:
-                    break
-                case .mediaServer:
-                    armMediaServerReportingSession(
-                        for: request,
-                        generation: generation
-                    )
-                }
-            }
-            playbackRuntime.replay()
-            return false
-        case .playNext:
-            Task { [weak self] in
-                guard let self else { return }
-                let next: PlaybackLaunchRequest?
-                do {
-                    next = try await preparation.resolve { await self.nextFileProvider?() }
-                } catch { return }
-                if let next {
-                    requestPlayback(next, origin: .automaticContinuation)
-                } else {
-                    onFallbackShowControls?()
-                }
-            }
-            return false
+    }
+
+    public func playEndedContinuation() {
+        guard playbackRuntime.productLifecycle == .ended else { return }
+        Task { [weak self] in
+            guard let self,
+                  let request = try? await self.preparation.resolve({
+                      await self.nextFileProvider?()
+                  }),
+                  self.playbackRuntime.productLifecycle == .ended else { return }
+            self.requestPlayback(request, origin: .automaticContinuation)
         }
     }
 

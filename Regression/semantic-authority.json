@@ -5,7 +5,7 @@
     "equivalentDerivedHumanCoverageAuthorized": true,
     "runtimeHumanActorAllowed": false,
     "source": "Config/regression/semantic-authority-decisions.tsv",
-    "sourceDigest": "sha256:64987532750001e87261084638ec55d72e089282359fa85b212990007154fc8e"
+    "sourceDigest": "sha256:d0410e9324eb2beac241b781403003c50ba2075874fe3e73d3024164eeb7f1cd"
   },
   "decisions": [
     {
@@ -116,8 +116,8 @@
       "id": "HC-013",
       "status": "decided",
       "policy": "Play Next under Ask Every Time does not interrupt continuous playback with a resume prompt. It continues from the stored position according to the queue action.",
-      "applicability": "Automatic end-of-media Play Next only; a direct user open still honors Ask Every Time.",
-      "evidence": ["Modules/Playback/PlaybackLaunchCoordinator.swift#handlePlaybackEnded"],
+      "applicability": "Ended-state Play Next only: reaching end of media surfaces the affordance and the user's tap launches it; a direct user open still honors Ask Every Time.",
+      "evidence": ["Modules/Playback/PlaybackLaunchCoordinator.swift#playEndedContinuation"],
       "requiredWork": ["bypass-resume-prompt-for-automatic-play-next", "add-playback-queue-promise-scenario"]
     },
     {

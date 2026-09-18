@@ -207,8 +207,7 @@ struct SettingsScreen: View {
                 title: "End of Playback",
                 systemName: "flag.checkered",
                 accessory: .menu(title: endBehaviorTitle, options: [
-                    SettingListGroup.MenuOption("Stop", id: "stop") { setEnd(.stop) },
-                    SettingListGroup.MenuOption("Loop Single Episode", id: "repeatOne") { setEnd(.repeatOne) },
+                    SettingListGroup.MenuOption("Replay", id: "repeatOne") { setEnd(.repeatOne) },
                     SettingListGroup.MenuOption("Play Next", id: "playNext") { setEnd(.playNext) }
                 ])
             ),
@@ -383,8 +382,7 @@ struct SettingsScreen: View {
 
     private var endBehaviorTitle: String {
         switch viewModel.preferences.playbackEndBehavior {
-        case .stop: "Stop"
-        case .repeatOne: "Loop Single Episode"
+        case .repeatOne: "Replay"
         case .playNext: "Play Next"
         }
     }
