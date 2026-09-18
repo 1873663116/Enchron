@@ -605,11 +605,15 @@ private final class InteractiveDeviceUIChannel {
     }
 
     private func capturedScreenPNG() -> Data {
+#if targetEnvironment(simulator)
+        return app.screenshot().pngRepresentation
+#else
         let screen = XCUIScreen.main.screenshot()
         if screen.image.size.width > 1, screen.image.size.height > 1 {
             return screen.pngRepresentation
         }
         return app.screenshot().pngRepresentation
+#endif
     }
 
     private func publish(

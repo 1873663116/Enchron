@@ -1335,6 +1335,8 @@ final class TestCommandChannel {
             return try seekNormalized(request)
         case "frameStep":
             return try frameStep(request)
+        case "primaryTransport":
+            return try primaryTransport(request)
         case "setDockedPlacement":
             return try setDockedPlacement(request)
         case "listMenuItems":
@@ -1776,6 +1778,37 @@ final class TestCommandChannel {
             ok: true,
             detail: nil,
             payload: [String(position), String(seconds)]
+        )
+    }
+
+    private func primaryTransport(_ request: Request) throws -> Response {
+        let transport = PlaybackTransportAvailability(
+            lifecycle: playbackRuntime.productLifecycle,
+            endedAffordance: playbackLauncher.endedAffordance
+        )
+        if request.args["perform"].flatMap(Bool.init) == true {
+            switch transport.primaryAction {
+            case .replay:
+                playbackRuntime.replay()
+            case .playNext:
+                playbackLauncher.playEndedContinuation()
+            case .pause:
+                playbackRuntime.pause()
+            case .play:
+                playbackRuntime.resume()
+            }
+        }
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [
+                "primaryAction=\(transport.primaryAction.rawValue)",
+                "enabled=\(transport.primaryActionEnabled)",
+                "lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+                "loadingVisibility=\(playbackRuntime.loadingState.visibility.rawValue)",
+                "loadingStage=\(playbackRuntime.loadingState.stage?.rawValue ?? "none")",
+            ]
         )
     }
 

@@ -2714,7 +2714,8 @@ enum ImmersivePlaybackStallIndicatorPlacement {
         presentation: PlaybackPresentation,
         transitionIsActive: Bool
     ) -> Bool {
-        (loadingStage == .starved || loadingStage == .seeking)
+        (loadingStage == .starved || loadingStage == .seeking
+            || loadingStage == .recovering || loadingStage == .opening)
             && presentation.usesImmersiveSpace
             && transitionIsActive == false
     }

@@ -90,6 +90,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackLaunch")
 
     public var nextFileProvider: (@MainActor @Sendable () async -> PlaybackLaunchRequest?)?
+    public var hasNextPlaybackItemProvider: (@MainActor @Sendable () -> Bool)?
     public var playbackQueueProvider: (@MainActor () -> PlaybackQueueSnapshot)?
     public var queueSelectionProvider: (@MainActor @Sendable (UUID) async -> PlaybackLaunchRequest?)?
     public var onEffectiveMediaFormatApplied: (
@@ -754,13 +755,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }
     }
 
-    public private(set) var endedContinuation: PlaybackLaunchRequest?
-    private var endedContinuationGeneration: Int?
-
     public var endedAffordance: PlaybackEndedAffordance {
         PlaybackEndPolicy.affordance(
             for: preferencesProvider.loadPlaybackPreferences().endBehavior,
-            nextAvailable: endedContinuation != nil
+            nextAvailable: hasNextPlaybackItemProvider?() ?? false
         )
     }
 
@@ -768,34 +766,15 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         persistCurrentSession(endedNaturally: true)
     }
 
-    public func refreshEndedContinuation() {
-        updateEndedContinuation(playbackRuntime.productLifecycle)
-    }
-
     public func playEndedContinuation() {
-        guard playbackRuntime.productLifecycle == .ended,
-              let request = endedContinuation else { return }
-        requestPlayback(request, origin: .automaticContinuation)
-    }
-
-    private func updateEndedContinuation(_ lifecycle: ProductPlaybackLifecycle) {
-        guard lifecycle == .ended,
-              preferencesProvider.loadPlaybackPreferences().endBehavior == .playNext
-        else {
-            endedContinuation = nil
-            endedContinuationGeneration = nil
-            return
-        }
-        guard endedContinuationGeneration != generation else { return }
-        let resolutionGeneration = generation
-        endedContinuationGeneration = resolutionGeneration
-        endedContinuation = nil
+        guard playbackRuntime.productLifecycle == .ended else { return }
         Task { [weak self] in
-            guard let self else { return }
-            let next = try? await preparation.resolve { await self.nextFileProvider?() }
-            guard self.endedContinuationGeneration == resolutionGeneration,
+            guard let self,
+                  let request = try? await self.preparation.resolve({
+                      await self.nextFileProvider?()
+                  }),
                   self.playbackRuntime.productLifecycle == .ended else { return }
-            self.endedContinuation = next
+            self.requestPlayback(request, origin: .automaticContinuation)
         }
     }
 
@@ -873,10 +852,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     private func receivePlaybackObservation(_ observation: PlaybackRuntimeObservation) {
-        if case .lifecycle(let lifecycle) = observation.event,
-           observation.generation == playbackRuntime.observationGeneration {
-            updateEndedContinuation(lifecycle)
-        }
         if case .activeFailure(let failure) = observation.event {
             receiveActiveFailure(failure, observationGeneration: observation.generation)
             return

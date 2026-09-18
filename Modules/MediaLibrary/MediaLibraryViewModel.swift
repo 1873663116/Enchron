@@ -380,6 +380,13 @@ public final class MediaLibraryViewModel {
         }
     }
 
+    public var hasNextPlaybackItem: Bool {
+        guard let currentReferenceID,
+              let index = playbackCollection.firstIndex(where: { $0.id == currentReferenceID })
+        else { return false }
+        return playbackCollection.indices.contains(index + 1)
+    }
+
     public func nextPlaybackItem() async -> MediaPlaybackItem? {
         guard let currentReferenceID,
               let currentIndex = playbackCollection.firstIndex(where: { $0.id == currentReferenceID }),

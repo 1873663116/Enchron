@@ -636,6 +636,13 @@ public final class FileBrowsingViewModel {
         return .localPathFallback(canonicalPath: file.url.absoluteString)
     }
 
+    public var hasNextPlaybackItem: Bool {
+        guard let currentPlaybackFileID,
+              let index = playbackCollection.firstIndex(where: { $0.id == currentPlaybackFileID })
+        else { return false }
+        return playbackCollection.indices.contains(index + 1)
+    }
+
     public func nextPlaybackItem() async -> MediaPlaybackItem? {
         guard let currentPlaybackFileID,
               let index = playbackCollection.firstIndex(where: { $0.id == currentPlaybackFileID }),

@@ -122,7 +122,7 @@ import Testing
             lifecycle: .playing
         )
 
-        stateMachine.clearStarvation()
+        stateMachine.clearTransientLoading()
 
         #expect(stateMachine.state == .none)
     }
@@ -242,7 +242,7 @@ import Testing
         defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
         let gate = HeldSeek()
         runtime.debugSetSeekGate { await gate.wait() }
-        runtime.seekIndicationDelay = .milliseconds(400)
+        runtime.seekIndicationDelay = .seconds(2)
 
         runtime.seek(to: 0.1)
         var observedSeeking = false
@@ -312,6 +312,48 @@ import Testing
         await waitUntilSeekSettles(runtime)
     }
 
+    @Test("a seek back from ended still enters the seeking stage")
+    func endedSeekBackEntersSeekingStage() async throws {
+        let runtime = try await openedAudioRuntime()
+        defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
+
+        let durationDeadline = ContinuousClock.now + .seconds(10)
+        while runtime.playbackPosition.duration <= 0,
+              ContinuousClock.now < durationDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(runtime.playbackPosition.duration > 0)
+
+        runtime.resume()
+        let playingDeadline = ContinuousClock.now + .seconds(10)
+        while runtime.productLifecycle != .playing,
+              ContinuousClock.now < playingDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(runtime.productLifecycle == .playing)
+
+        runtime.seek(to: runtime.playbackPosition.duration)
+        let endedDeadline = ContinuousClock.now + .seconds(10)
+        while runtime.productLifecycle != .ended, ContinuousClock.now < endedDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(runtime.productLifecycle == .ended)
+        #expect(runtime.loadingState == .none)
+
+        let gate = HeldSeek()
+        runtime.debugSetSeekGate { await gate.wait() }
+        runtime.seekIndicationDelay = .milliseconds(50)
+
+        runtime.seek(to: runtime.playbackPosition.duration / 2)
+        #expect(runtime.productLifecycle == .paused)
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(runtime.loadingState.stage == .seeking)
+
+        gate.release()
+        await waitUntilSeekSettles(runtime)
+        #expect(runtime.loadingState == .none)
+    }
+
     @Test("runtime integrates opening, continuity, recovery, pause, and stale callbacks")
     func runtimeIntegration() async throws {
         let controller = PlaybackCoreController()
@@ -370,6 +412,67 @@ import Testing
         #expect(runtime.loadingState.stage == .opening)
 
         await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
+    @Test("ended clears the stage but keeps the session binding for recovery indications")
+    func endedKeepsLoadingBindingForSeekBack() {
+        var stateMachine = activeLoadingStateMachine()
+
+        stateMachine.clearStage()
+        #expect(stateMachine.state == .none)
+
+        stateMachine.beginSeek(
+            targetSeconds: 4,
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        #expect(stateMachine.state.stage == .seeking)
+
+        stateMachine.endSeek(
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        stateMachine.beginRecovery(
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        #expect(stateMachine.state.stage == .recovering)
+
+        stateMachine.endRecovery(
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        stateMachine.receive(
+            deliveryContinuityObservation(.starved, incidentID: 30),
+            technicalSessionID: "session",
+            runtimeGeneration: 1,
+            lifecycle: .playing
+        )
+        #expect(stateMachine.state.stage == .starved)
+    }
+
+    @Test("session teardown unbinds the machine so stale indications cannot attach")
+    func teardownUnbindsLoadingMachine() {
+        var stateMachine = activeLoadingStateMachine()
+
+        stateMachine.clear()
+
+        stateMachine.beginSeek(
+            targetSeconds: 4,
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        stateMachine.beginRecovery(
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        stateMachine.receive(
+            deliveryContinuityObservation(.starved, incidentID: 31),
+            technicalSessionID: "session",
+            runtimeGeneration: 1,
+            lifecycle: .playing
+        )
+        #expect(stateMachine.state == .none)
     }
 }
 

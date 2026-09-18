@@ -411,14 +411,9 @@ struct TrackSelectionPreferenceTests {
         try await runtime.waitUntilOpened()
         let currentSessionID = runtime.activeSessionID
         coordinator.nextFileProvider = { nextRequest }
+        coordinator.hasNextPlaybackItemProvider = { true }
 
         runtime.emitLifecycle(.ended)
-        let continuationDeadline = ContinuousClock.now + .seconds(2)
-        while coordinator.endedContinuation == nil,
-              ContinuousClock.now < continuationDeadline {
-            try await Task.sleep(for: .milliseconds(10))
-        }
-        #expect(coordinator.endedContinuation == nextRequest)
         #expect(runtime.currentLaunchRequest == currentRequest)
         #expect(coordinator.endedAffordance == .playNext(available: true))
 

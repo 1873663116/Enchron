@@ -426,6 +426,19 @@ final class EnchronApplication {
                 return nil
             }
         }
+        launcher.hasNextPlaybackItemProvider = {
+            [weak embySession, weak mediaLibrary, weak browser, weak playbackRuntime] in
+            switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {
+            case .mediaLibrary:
+                return mediaLibrary?.hasNextPlaybackItem ?? false
+            case .mediaServer:
+                return embySession?.hasNextPlaybackRequest ?? false
+            case .sourceDirectory:
+                return browser?.hasNextPlaybackItem ?? false
+            case .standalone, nil:
+                return false
+            }
+        }
         launcher.playbackQueueProvider = {
             [weak embySession, weak mediaLibrary, weak browser, weak playbackRuntime] in
             switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {

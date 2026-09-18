@@ -345,7 +345,6 @@ struct SettingsScreen: View {
 
     private func setEnd(_ value: PlaybackEndBehavior) {
         viewModel.update { $0.playbackEndBehavior = value }
-        playbackLauncher.refreshEndedContinuation()
         recordMenuReachability("end-behavior")
     }
 

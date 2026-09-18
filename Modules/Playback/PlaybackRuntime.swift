@@ -228,7 +228,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case .ready: .ready
         case .playing: .playing
         case .paused: .paused
-        case .ended: .ended
+        case .ended: endedRecoveryInFlight ? .paused : .ended
         case .failed: .failed
         }
     }
@@ -324,6 +324,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var sourceMediaFormatIsCaptured = false
     private var usesSourceFormat = true
     private var displayedImageGeneration = 0
+    private var endedRecoveryInFlight = false
     private var lastResolvedProfile: PlaybackModel.MediaProfile?
     private var closingTask: Task<Void, Never>?
     private var closingSettlement: CloseSettlement?
@@ -341,6 +342,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var loadingStateMachine = PlaybackLoadingStateMachine()
     @ObservationIgnored
     var seekIndicationDelay = PlaybackSeekIndicationDelay.duration
+    static let recoveryVerificationTimeout: Duration = .seconds(12)
     @ObservationIgnored
     private var seekIndicationTask: Task<Void, Never>?
 
@@ -990,7 +992,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func pause() {
-        updateLoadingState { $0.clearStarvation() }
+        updateLoadingState { $0.clearTransientLoading() }
         PlaybackTrace.event("runtime.pause.request lifecycle=\(lifecycle.label)")
         guard let activeSessionID else {
             fail(RuntimeError.noSession)
@@ -1036,7 +1038,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
         switch intent {
         case .pause:
-            updateLoadingState { $0.clearStarvation() }
+            updateLoadingState { $0.clearTransientLoading() }
             if productLifecycle == .paused { return }
             guard productLifecycle == .playing else {
                 throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
@@ -1063,8 +1065,24 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 PlaybackTrace.event("runtime.resume.completed kind=audioOnly")
                 return
             }
-            let continuity = try await rendererTransferCoordinator
+            var continuity = try await rendererTransferCoordinator
                 .playAndVerifyRendererGraphContinuity()
+            if continuity.explicitPlayMayContinue == false {
+                beginRecoveryIndication()
+                SurfaceInputProbes.record(
+                    "playbackRecovery began condition=\(continuity.rawValue)",
+                    retention: .evidence
+                )
+                defer { endRecoveryIndication() }
+                continuity = try await rendererTransferCoordinator
+                    .playAndVerifyRendererGraphContinuity(
+                        timeout: Self.recoveryVerificationTimeout
+                    )
+                SurfaceInputProbes.record(
+                    "playbackRecovery resolved condition=\(continuity.rawValue)",
+                    retention: .evidence
+                )
+            }
             guard continuity.explicitPlayMayContinue else {
                 try? rendererTransferCoordinator.pause()
                 throw RuntimeError.rendererGraphPlaybackDidNotAdvance(continuity)
@@ -1120,7 +1138,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         to seconds: Double,
         event: PlaybackSeekEvent = .progressBar
     ) {
-        updateLoadingState { $0.clearStarvation() }
+        updateLoadingState { $0.clearTransientLoading() }
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
         let nonnegativeTarget = max(0, seconds)
@@ -1136,6 +1154,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             lifecycle: productLifecycle,
             targetBoundary: targetBoundary
         )
+        beginEndedRecoveryIfNeeded(targetBoundary: targetBoundary)
         seekIntentGeneration &+= 1
         let seekGeneration = seekIntentGeneration
         let playbackObservationGeneration = observationGeneration
@@ -1176,7 +1195,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func skip(by delta: Double) {
-        updateLoadingState { $0.clearStarvation() }
+        updateLoadingState { $0.clearTransientLoading() }
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
         let intent = PlaybackSeekPolicy.intent(
@@ -1189,6 +1208,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             playbackPosition.duration > 0
                 ? min(playbackPosition.duration, playbackPosition.seconds + delta)
                 : playbackPosition.seconds + delta
+        )
+        beginEndedRecoveryIfNeeded(
+            targetBoundary: playbackPosition.duration > 0
+                && target >= playbackPosition.duration
+                ? .end
+                : .beforeEnd
         )
         seekIntentGeneration &+= 1
         let seekGeneration = seekIntentGeneration
@@ -1487,9 +1512,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 throw runtimeError(for: error)
             }
             technicalSessionReplacementStage = .installingRenderer
+            beginOpeningForActiveTechnicalSession()
             return
         }
         technicalSessionReplacementStage = .openingReplacement
+        beginOpeningForActiveTechnicalSession()
 
         generation += 1
         let replacementGeneration = generation
@@ -2520,6 +2547,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) {
         guard cutoverIsCurrent(cutover) else { return }
         invalidatePendingDisplayedImageClear()
+        endedRecoveryInFlight = false
         lifecycle = .ended(PlaybackEndReceipt(restoring: continuity))
         didEndNaturally = continuity.reason == .naturalCompletion
         playbackPosition = .init(
@@ -2723,8 +2751,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         holdPosition(
             at: (heldPositionSeconds ?? playbackPosition.seconds) + direction * frameSeconds
         )
+        if direction < 0 {
+            beginEndedRecoveryIfNeeded(targetBoundary: .beforeEnd)
+        }
         guard frameStepTask == nil else { return }
-        updateLoadingState { $0.clearStarvation() }
+        updateLoadingState { $0.clearTransientLoading() }
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
         let playbackObservationGeneration = observationGeneration
@@ -2757,12 +2788,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 }
             }
         }
+        beginFrameStepIndication(generation: generation)
     }
 
     private func finishFrameStepping(generation: UInt64) {
         guard frameStepGeneration == generation else { return }
         frameStepTask = nil
         pendingFrameStepDelta = 0
+        endFrameStepIndication()
         releasePositionHoldIfIdle()
     }
 
@@ -2772,6 +2805,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         frameStepTask = nil
         pendingFrameStepDelta = 0
         heldPositionSeconds = nil
+        cancelSeekIndication()
     }
 
     private func holdPosition(at seconds: Double) {
@@ -2788,6 +2822,40 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             seconds: diagnostics.currentSeconds,
             duration: playbackPosition.duration
         )
+    }
+
+    private func beginEndedRecoveryIfNeeded(
+        targetBoundary: PlaybackSeekTargetBoundary
+    ) {
+        guard targetBoundary == .beforeEnd,
+              case .ended = lifecycle,
+              endedRecoveryInFlight == false else { return }
+        endedRecoveryInFlight = true
+        emitPlaybackObservation(.lifecycle(productLifecycle))
+        SurfaceInputProbes.record(
+            "endedRecovery began targetSeconds=\(playbackPosition.seconds)",
+            retention: .evidence
+        )
+    }
+
+    private func beginRecoveryIndication() {
+        guard let activeTechnicalSessionID else { return }
+        updateLoadingState { stateMachine in
+            stateMachine.beginRecovery(
+                technicalSessionID: activeTechnicalSessionID,
+                runtimeGeneration: observationGeneration
+            )
+        }
+    }
+
+    private func endRecoveryIndication() {
+        guard let activeTechnicalSessionID else { return }
+        updateLoadingState { stateMachine in
+            stateMachine.endRecovery(
+                technicalSessionID: activeTechnicalSessionID,
+                runtimeGeneration: observationGeneration
+            )
+        }
     }
 
     private func beginSeekIndication(targetSeconds: Double, seekGeneration: UInt64) {
@@ -2821,6 +2889,38 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    private func beginFrameStepIndication(generation: UInt64) {
+        seekIndicationTask?.cancel()
+        let delay = seekIndicationDelay
+        seekIndicationTask = Task { [weak self] in
+            try? await Task.sleep(for: delay)
+            guard Task.isCancelled == false, let self else { return }
+            guard self.frameStepGeneration == generation,
+                  self.frameStepTask != nil,
+                  let activeTechnicalSessionID else { return }
+            self.updateLoadingState { stateMachine in
+                stateMachine.beginSeek(
+                    targetSeconds: self.heldPositionSeconds
+                        ?? self.playbackPosition.seconds,
+                    technicalSessionID: activeTechnicalSessionID,
+                    runtimeGeneration: self.observationGeneration
+                )
+            }
+        }
+    }
+
+    private func endFrameStepIndication() {
+        cancelSeekIndication()
+        guard seekIsInProgress == false,
+              let activeTechnicalSessionID else { return }
+        updateLoadingState { stateMachine in
+            stateMachine.endSeek(
+                technicalSessionID: activeTechnicalSessionID,
+                runtimeGeneration: observationGeneration
+            )
+        }
+    }
+
     private func cancelSeekIndication() {
         seekIndicationTask?.cancel()
         seekIndicationTask = nil
@@ -2829,8 +2929,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func updateLoadingState(
         _ update: (inout PlaybackLoadingStateMachine) -> Void
     ) {
+        let previousStage = loadingStateMachine.state.stage
         update(&loadingStateMachine)
         loadingState = loadingStateMachine.state
+        if loadingState.stage != previousStage {
+            SurfaceInputProbes.record(
+                "loadingStage \(previousStage?.rawValue ?? "none")"
+                    + " -> \(loadingState.stage?.rawValue ?? "none")"
+                    + " lifecycle=\(lifecycle.label)",
+                retention: .evidence
+            )
+        }
     }
 
     private func beginOpeningForActiveTechnicalSession() {
@@ -2878,6 +2987,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) {
         guard openingTechnicalSessionDriver === driver
                 || rendererTransferCoordinator.isActive(driver) else { return }
+        endedRecoveryInFlight = false
         if receiveReplacementStatus(status) { return }
         let previousLifecycle = lifecycle
         lifecycle = status
@@ -2889,9 +2999,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             didEndNaturally = false
         case .paused:
             didEndNaturally = false
-            updateLoadingState { $0.clearStarvation() }
+            updateLoadingState { $0.clearTransientLoading() }
         case .ended(let receipt):
-            updateLoadingState { $0.clear() }
+            updateLoadingState { $0.clearStage() }
             didEndNaturally = receipt.reason == .naturalCompletion
             let endedSessionID = activeSessionID
             Task { @MainActor [weak self] in
@@ -2917,7 +3027,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 onPlaybackEnded?()
             }
         case .failed(let message):
-            updateLoadingState { $0.clear() }
+            updateLoadingState { $0.clearStage() }
             let failedSessionID = activeSessionID
             Task { @MainActor [weak self] in
                 guard let self,
@@ -3121,19 +3231,47 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         _ error: Error,
         issue: PlaybackUserVisibleIssue = .playbackControlFailed
     ) {
-        if case PlaybackControlError.timelineNotReady = error {
-            switch lifecycle {
-            case .ready, .playing, .paused:
-                logger.notice(
-                    "stale timeline control failure ignored lifecycle=\(self.lifecycle.label, privacy: .public)"
-                )
-                return
-            case .idle, .loading, .ended, .failed:
-                break
-            }
+        if controlRejectionIsBenign(error) {
+            SurfaceInputProbes.record(
+                "controlRejected error=\(error.localizedDescription)"
+                    + " lifecycle=\(lifecycle.label)",
+                retention: .evidence
+            )
+            logger.notice(
+                "runtime control rejected error=\(error.localizedDescription, privacy: .public)"
+            )
+            return
         }
+        endedRecoveryInFlight = false
+        updateLoadingState { $0.clearStage() }
         setUserVisibleIssue(issue)
         logger.error("runtime operation failed error=\(error.localizedDescription, privacy: .public)")
+    }
+
+    private func controlRejectionIsBenign(_ error: Error) -> Bool {
+        if let error = error as? PlaybackControlError {
+            switch error {
+            case .operationInProgress, .timelineNotReady, .seekSuperseded,
+                 .noActiveMediaSession, .mediaSessionClosed,
+                 .openTerminatedByCleanup, .invalidSeekTime,
+                 .invalidRate, .invalidVolume:
+                return true
+            default:
+                return false
+            }
+        }
+        if let error = error as? RuntimeError {
+            switch error {
+            case .noSession, .mediaSessionChanged, .rendererTransferPending,
+                 .rendererConsumerBusy, .spatialPlaybackTransportUnavailable:
+                return true
+            case .rendererGraphPlaybackDidNotAdvance(let continuity):
+                return continuity == .supersededByPause
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     public func setUserVisibleIssue(_ issue: PlaybackUserVisibleIssue?) {
