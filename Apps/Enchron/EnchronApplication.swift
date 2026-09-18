@@ -118,6 +118,11 @@ final class EnchronApplication {
     let modalPresentationCoordinator: AppModalPresentationCoordinator
     let connectionSecurityPrompt: ConnectionSecurityPrompt
     let developerMetrics = DeveloperMetricsModel()
+    private let suspensionWatchdog = ApplicationSuspensionWatchdog()
+    private var applicationBackgroundedAt: Date?
+    private var suspendedPlaybackPresentation: PlaybackPresentation?
+    private var suspendedRestoreTask: Task<Void, Never>?
+    private var suspendedPauseTask: Task<Void, Never>?
     private let certificateChangePlaybackBoundary: ServerCertificateChangePlaybackBoundary
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
     #if DEBUG
@@ -539,6 +544,232 @@ final class EnchronApplication {
                 )
             }
         #endif
+        spatialPlatformEffectCoordinator.onImmersiveSpaceScenePhaseChanged = {
+            [weak self] previous, current in
+            self?.handleImmersiveSpaceScenePhaseTransition(
+                from: previous,
+                to: current
+            )
+        }
+        suspensionWatchdog.onResumeFromSuspension = { [weak self] gap in
+            self?.handleResumeFromSuspension(gap: gap)
+        }
+        suspensionWatchdog.start()
+    }
+
+    func handleScenePhaseTransition(to current: ScenePhase) {
+        if current == .background {
+            playbackLauncher.preparation.suspend()
+            applicationBackgroundedAt = Date()
+            suspendedPlaybackPresentation = playbackSessionModel
+                .playbackPresentation
+            let wasPlaying = playbackRuntime.productLifecycle == .playing
+            if wasPlaying {
+                playbackRuntime.pause()
+            }
+            SurfaceInputProbes.record(
+                "applicationBackgrounded lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+                    + " position=\(playbackRuntime.playbackPosition.seconds)"
+                    + " presentation=\(playbackSessionModel.playbackPresentation.rawValue)"
+                    + " pauseRequested=\(wasPlaying)",
+                retention: .evidence
+            )
+            return
+        }
+        guard current == .active else { return }
+        playbackLauncher.preparation.resume()
+        let backgroundDuration = applicationBackgroundedAt
+            .map { Date().timeIntervalSince($0) }
+        if let backgroundDuration {
+            applicationBackgroundedAt = nil
+            SurfaceInputProbes.record(
+                "backgroundReturnDetected"
+                    + " duration=\(String(format: "%.1f", backgroundDuration))"
+                    + " presentation=\(playbackSessionModel.playbackPresentation.rawValue)"
+                    + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+                retention: .evidence
+            )
+            evaluateResumedPlayback(origin: "active")
+        }
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            await spatialPlatformEffectCoordinator
+                .flushStaleImmersiveSpaceRecord()
+            spatialPlatformEffectCoordinator.handleApplicationDidBecomeActive()
+        }
+    }
+
+    private func handleResumeFromSuspension(gap: TimeInterval) {
+        SurfaceInputProbes.record(
+            "suspensionResumeDetected"
+                + " gap=\(String(format: "%.1f", gap))"
+                + " presentation=\(playbackSessionModel.playbackPresentation.rawValue)"
+                + " immersiveResidency=\(playbackSessionModel.immersiveSpaceResidency)"
+                + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+            retention: .evidence
+        )
+        playbackLauncher.preparation.resume()
+        evaluateResumedPlayback(origin: "suspensionWatchdog")
+        Task { @MainActor [weak self] in
+            await self?.spatialPlatformEffectCoordinator
+                .flushStaleImmersiveSpaceRecord()
+            self?.spatialPlatformEffectCoordinator
+                .handleApplicationDidBecomeActive()
+        }
+    }
+
+    private func handleImmersiveSpaceScenePhaseTransition(
+        from previous: ScenePhase,
+        to current: ScenePhase
+    ) {
+        guard current == .active else { return }
+        playbackLauncher.preparation.resume()
+        Task { @MainActor [weak self] in
+            await Task.yield()
+            await self?.spatialPlatformEffectCoordinator
+                .flushStaleImmersiveSpaceRecord()
+            self?.spatialPlatformEffectCoordinator
+                .handleApplicationDidBecomeActive()
+        }
+    }
+
+    private func evaluateResumedPlayback(origin: String) {
+        switch playbackRuntime.productLifecycle {
+        case .playing:
+            playbackRuntime.pause()
+        case .loading, .ready:
+            pauseSuspendedPlaybackWhenPlayable()
+        case .paused, .ended:
+            break
+        case .idle:
+            guard playbackRuntime.currentLaunchRequest != nil else { break }
+            attemptSuspendedPlaybackRestore(origin: origin)
+        case .failed:
+            attemptSuspendedPlaybackRestore(origin: origin)
+        }
+    }
+
+    private func pauseSuspendedPlaybackWhenPlayable() {
+        suspendedPauseTask?.cancel()
+        suspendedPauseTask = Task { @MainActor [weak self] in
+            for _ in 0..<30 {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard let self, Task.isCancelled == false else { return }
+                if playbackRuntime.productLifecycle == .playing {
+                    playbackRuntime.pause()
+                    return
+                }
+                if playbackRuntime.productLifecycle != .loading,
+                   playbackRuntime.productLifecycle != .ready {
+                    return
+                }
+            }
+        }
+    }
+
+    private func attemptSuspendedPlaybackRestore(origin: String) {
+        let targetPresentation = suspendedPlaybackPresentation
+            ?? playbackSessionModel.playbackPresentation
+        let position = playbackRuntime.playbackPosition.seconds
+        let resumeAt = position.isFinite && position > 0 ? position : nil
+        guard playbackLauncher.relaunchLastResolvedPlayback(
+            resumeAt: resumeAt,
+            playbackMode: targetPresentation == .panorama
+                ? .panorama
+                : .window
+        ) else {
+            finishSuspendedPlaybackRestore(
+                outcome: "relaunchRejected",
+                origin: origin
+            )
+            return
+        }
+        playbackRuntime.setUserVisibleIssue(nil)
+        SurfaceInputProbes.record(
+            "suspendedPlaybackRestore origin=\(origin)"
+                + " presentation=\(targetPresentation.rawValue)"
+                + " resumeAt=\(String(describing: resumeAt))",
+            retention: .evidence
+        )
+        suspendedRestoreTask?.cancel()
+        suspendedRestoreTask = Task { @MainActor [weak self] in
+            await self?.watchSuspendedPlaybackRestore(
+                targetPresentation: targetPresentation,
+                origin: origin
+            )
+        }
+    }
+
+    private func watchSuspendedPlaybackRestore(
+        targetPresentation: PlaybackPresentation,
+        origin: String
+    ) async {
+        var presentationRestored = targetPresentation
+            .usesImmersiveSpace == false
+        restoreLoop: for _ in 0..<90 {
+            guard Task.isCancelled == false else { return }
+            if playbackRuntime.userVisibleIssue == .playbackFailed {
+                playbackRuntime.setUserVisibleIssue(nil)
+            }
+            if let issue = playbackRuntime.userVisibleIssue,
+               issue.interruptsPlayback {
+                break
+            }
+            switch playbackRuntime.productLifecycle {
+            case .playing:
+                playbackRuntime.pause()
+            case .paused:
+                if presentationRestored {
+                    SurfaceInputProbes.record(
+                        "suspendedPlaybackRestoreCompleted origin=\(origin)",
+                        retention: .evidence
+                    )
+                    suspendedRestoreTask = nil
+                    return
+                }
+                guard let mediaSessionID = playbackRuntime.activeSessionID,
+                      mediaSessionID.isEmpty == false else { break restoreLoop }
+                do {
+                    _ = try playbackSessionModel.requestPlaybackPresentation(
+                        targetPresentation,
+                        mediaSessionID: mediaSessionID,
+                        wasPlaying: false
+                    )
+                    presentationRestored = true
+                } catch {
+                    break restoreLoop
+                }
+            case .idle:
+                if playbackRuntime.currentLaunchRequest == nil {
+                    break restoreLoop
+                }
+            default:
+                break
+            }
+            try? await Task.sleep(for: .seconds(1))
+        }
+        finishSuspendedPlaybackRestore(
+            outcome: "unrecoverable",
+            origin: origin
+        )
+    }
+
+    private func finishSuspendedPlaybackRestore(
+        outcome: String,
+        origin: String
+    ) {
+        SurfaceInputProbes.record(
+            "suspendedPlaybackRestoreFallback origin=\(origin)"
+                + " outcome=\(outcome)"
+                + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+            retention: .evidence
+        )
+        suspendedRestoreTask = nil
+        playbackLauncher.stopPlayback(reason: .backButton)
+        playbackSessionModel.requestStoppedPlaybackCleanup(
+            closesEnvironment: true
+        )
     }
 
     static func mediaStateSuiteName(

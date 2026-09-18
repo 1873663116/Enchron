@@ -25,6 +25,28 @@ struct PlaybackActiveFailureTests {
         await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 
+    @Test("A terminal lifecycle always emits the failed lifecycle observation")
+    func terminalFailureEmitsLifecycleObservation() async throws {
+        let controller = PlaybackCoreController()
+        let runtime = PlaybackRuntime(controller: controller)
+        let request = PlaybackLaunchRequest(
+            source: try PlaybackAddress(
+                localFileURL: URL(fileURLWithPath: "/tests/lifecycle-observation.mp4")
+            ),
+            displayName: "lifecycle-observation.mp4"
+        )
+        runtime.prepareForPlayback(request)
+        var events: [PlaybackRuntimeObservation.Event] = []
+        runtime.onPlaybackObservation = { events.append($0.event) }
+
+        controller.onStatusChange?(.playing)
+        controller.onStatusChange?(.failed("renderer lost during suspension"))
+
+        #expect(events.contains(.lifecycle(.playing)))
+        #expect(events.contains(.lifecycle(.failed)))
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
     @Test("A repeated terminal failure retains a specific active diagnosis")
     func repeatedTerminalFailureRetainsSpecificDiagnosis() async throws {
         let controller = PlaybackCoreController()

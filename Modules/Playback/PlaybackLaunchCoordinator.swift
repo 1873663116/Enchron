@@ -383,17 +383,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             requestPlayback(resolving: resolve)
             return
         }
-        if let failure = playbackRuntime.userVisibleIssue?.activePlaybackFailure {
-            guard let recovery = activeFailureRecovery,
-                  recovery.failure == failure else { return }
-            launchResolvedPlayback(
-                recovery.resolvedLaunch.request,
-                resumeAt: failure.causalPosition.seconds,
-                savedFormat: recovery.resolvedLaunch.savedFormat,
-                playbackMode: recovery.resolvedLaunch.playbackMode,
-                trackSelectionPreference: recovery.resolvedLaunch.trackSelectionPreference,
-                retrying: recovery
-            )
+        if playbackRuntime.userVisibleIssue?.activePlaybackFailure != nil {
+            retryActiveFailure()
             return
         }
         guard let lastResolvedLaunch else { return }
@@ -404,6 +395,41 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             playbackMode: lastResolvedLaunch.playbackMode,
             trackSelectionPreference: lastResolvedLaunch.trackSelectionPreference
         )
+    }
+
+    @discardableResult
+    public func relaunchLastResolvedPlayback(
+        resumeAt seconds: Double?,
+        playbackMode: PersistedPlaybackMode
+    ) -> Bool {
+        guard let lastResolvedLaunch else { return false }
+        launchResolvedPlayback(
+            lastResolvedLaunch.request,
+            resumeAt: seconds,
+            savedFormat: lastResolvedLaunch.savedFormat,
+            playbackMode: playbackMode,
+            trackSelectionPreference: lastResolvedLaunch.trackSelectionPreference
+        )
+        return true
+    }
+
+    @discardableResult
+    public func retryActiveFailure(
+        playbackMode overrideMode: PersistedPlaybackMode? = nil
+    ) -> Bool {
+        guard let failure = playbackRuntime.userVisibleIssue?
+            .activePlaybackFailure,
+              let recovery = activeFailureRecovery,
+              recovery.failure == failure else { return false }
+        launchResolvedPlayback(
+            recovery.resolvedLaunch.request,
+            resumeAt: failure.causalPosition.seconds,
+            savedFormat: recovery.resolvedLaunch.savedFormat,
+            playbackMode: overrideMode ?? recovery.resolvedLaunch.playbackMode,
+            trackSelectionPreference: recovery.resolvedLaunch.trackSelectionPreference,
+            retrying: recovery
+        )
+        return true
     }
 
     public var playbackQueue: PlaybackQueueSnapshot {

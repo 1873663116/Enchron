@@ -176,4 +176,44 @@ struct SpatialPlatformExecutionLeaseTests {
         provenance.clear(requestID: preexistingRequestID)
         #expect(provenance.provenance(for: UUID(), observingOpenSpace: false) == nil)
     }
+
+    @Test("an open confirmed after the baseline reports confirmed")
+    func confirmedOpenReportsConfirmed() {
+        var observation = SpatialPlatformImmersiveSpaceObservation()
+        let baseline = observation.revision
+        observation.record(.open)
+        #expect(
+            observation.openWaitOutcome(after: baseline) == .confirmed
+        )
+    }
+
+    @Test("a space opened then immediately revoked reports revoked")
+    func revokedOpenReportsRevoked() {
+        var observation = SpatialPlatformImmersiveSpaceObservation()
+        let baseline = observation.revision
+        observation.record(.open)
+        observation.record(.closed)
+        #expect(
+            observation.openWaitOutcome(after: baseline) == .revoked
+        )
+    }
+
+    @Test("a stale closed residency without new observation stays pending")
+    func staleClosedStaysPending() {
+        var observation = SpatialPlatformImmersiveSpaceObservation()
+        observation.record(.closed)
+        let baseline = observation.revision
+        #expect(
+            observation.openWaitOutcome(after: baseline) == .pending
+        )
+    }
+
+    @Test("no observation after the baseline stays pending")
+    func silenceStaysPending() {
+        let observation = SpatialPlatformImmersiveSpaceObservation()
+        #expect(
+            observation.openWaitOutcome(after: observation.revision)
+                == .pending
+        )
+    }
 }

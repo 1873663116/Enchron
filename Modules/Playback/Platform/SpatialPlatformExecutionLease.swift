@@ -232,6 +232,14 @@ struct SpatialPlatformImmersiveRequestProvenanceRegistry {
     }
 }
 
+enum SpatialPlatformImmersiveOpenWaitOutcome: Equatable, Sendable {
+    case pending
+    case confirmed
+    case revoked
+    case timedOut
+    case openActionRejected
+}
+
 struct SpatialPlatformImmersiveSpaceObservation {
     private(set) var residency: SpatialPlatformImmersiveSpaceResidency?
     private(set) var revision: UInt64 = 0
@@ -246,6 +254,16 @@ struct SpatialPlatformImmersiveSpaceObservation {
         after revision: UInt64
     ) -> Bool {
         self.revision > revision && self.residency == residency
+    }
+
+    func openWaitOutcome(
+        after revision: UInt64
+    ) -> SpatialPlatformImmersiveOpenWaitOutcome {
+        if confirms(.open, after: revision) { return .confirmed }
+        if self.revision > revision, residency == .closed {
+            return .revoked
+        }
+        return .pending
     }
 }
 

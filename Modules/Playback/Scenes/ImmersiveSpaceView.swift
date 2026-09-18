@@ -627,8 +627,11 @@ public struct ImmersiveSpaceView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(DeveloperMetricsModel.self) private var developerMetrics
+    @Environment(SpatialPlatformEffectCoordinator.self)
+    private var spatialPlatformEffectCoordinator
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var realityViewHostIdentity = PlaybackRealityViewHostIdentity()
     @State private var realityViewHostMarker: Entity = {
@@ -792,6 +795,12 @@ public struct ImmersiveSpaceView: View {
         }
         .onChange(of: playbackRuntime.activeSubtitleFrame?.changeIdentifier) {
             refreshSubtitleSurface()
+        }
+        .onChange(of: scenePhase) { previous, current in
+            spatialPlatformEffectCoordinator.immersiveSpaceScenePhaseChanged(
+                from: previous,
+                to: current
+            )
         }
         .onChange(of: spatialPresentationAcceptsInput, initial: true) { _, accepts in
             appModel.recordSurfaceInputProbe("acceptsInput=\(accepts)")

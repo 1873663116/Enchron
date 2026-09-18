@@ -284,6 +284,9 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     public var onPlayerWindowClosedByWearer: (@MainActor () -> Void)?
     @ObservationIgnored
+    public var onImmersiveSpaceScenePhaseChanged:
+        (@MainActor (ScenePhase, ScenePhase) -> Void)?
+    @ObservationIgnored
     private var windowCapabilityIDs: [SpatialPlatformWindowIdentity: UUID] = [:]
     @ObservationIgnored
     private var playerWindowState = SpatialPlatformPlayerWindowState.absent
@@ -460,6 +463,17 @@ public final class SpatialPlatformEffectCoordinator {
             revision=\(self.immersiveSpaceObservation.revision, privacy: .public)
             """
         )
+    }
+
+    public func immersiveSpaceScenePhaseChanged(
+        from previous: ScenePhase,
+        to current: ScenePhase
+    ) {
+        appModel.recordSurfaceInputProbe(
+            "immersiveScenePhase \(previous) -> \(current)",
+            retention: .evidence
+        )
+        onImmersiveSpaceScenePhaseChanged?(previous, current)
     }
 
     public func reconcileImmersiveSpaceResidency() {
@@ -1876,19 +1890,25 @@ public final class SpatialPlatformEffectCoordinator {
                 guard let actions = self.leaseRegistry.currentCapability else {
                     return .unavailable
                 }
-                let observationRevision = self.immersiveSpaceObservation.revision
-                self.markVisibleSpatialSideEffect(execution)
-                let result = await actions.openImmersiveSpace(
-                    id: self.appModel.immersiveSpaceID
-                )
-                guard case .opened = result else {
-                    return .unavailable
-                }
-                guard await self.waitForImmersiveSpaceLifecycleObservation(
-                    .open,
-                    after: observationRevision,
+                var outcome = await self.openAndConfirmImmersiveSpace(
+                    actions: actions,
                     execution: execution
-                ) else {
+                )
+                if outcome == .revoked {
+                    self.appModel.recordSurfaceInputProbe(
+                        "immersiveOpenRetry reason=revoked",
+                        retention: .evidence
+                    )
+                    outcome = await self.openAndConfirmImmersiveSpace(
+                        actions: actions,
+                        execution: execution
+                    )
+                    self.appModel.recordSurfaceInputProbe(
+                        "immersiveOpenRetry outcome=\(outcome)",
+                        retention: .evidence
+                    )
+                }
+                guard outcome == .confirmed else {
                     return .unavailable
                 }
                 if self.appModel.pendingSpatialPlatformEffect?.id
@@ -1905,6 +1925,40 @@ public final class SpatialPlatformEffectCoordinator {
         }
         guard executionIsLive(execution) else { return nil }
         return disposition
+    }
+
+    public func flushStaleImmersiveSpaceRecord() async {
+        let residency = immersiveSpaceObservation.residency
+            ?? appModel.immersiveSpaceResidency
+        guard residency != .open,
+              let actions = leaseRegistry.currentCapability else { return }
+        appModel.recordSurfaceInputProbe(
+            "immersiveStaleFlush requested",
+            retention: .evidence
+        )
+        await actions.dismissImmersiveSpace()
+        appModel.recordSurfaceInputProbe(
+            "immersiveStaleFlush returned",
+            retention: .evidence
+        )
+    }
+
+    private func openAndConfirmImmersiveSpace(
+        actions: SceneActions,
+        execution: Execution
+    ) async -> SpatialPlatformImmersiveOpenWaitOutcome {
+        let observationRevision = immersiveSpaceObservation.revision
+        markVisibleSpatialSideEffect(execution)
+        let result = await actions.openImmersiveSpace(
+            id: appModel.immersiveSpaceID
+        )
+        guard case .opened = result else {
+            return .openActionRejected
+        }
+        return await waitForImmersiveSpaceOpenConfirmation(
+            after: observationRevision,
+            execution: execution
+        )
     }
 
     private func immersiveSpaceOpeningContext(
@@ -1977,45 +2031,52 @@ public final class SpatialPlatformEffectCoordinator {
         )
     }
 
-    private func waitForImmersiveSpaceLifecycleObservation(
-        _ residency: SpatialPlatformImmersiveSpaceResidency,
+    private func waitForImmersiveSpaceOpenConfirmation(
         after revision: UInt64,
         execution: Execution
-    ) async -> Bool {
+    ) async -> SpatialPlatformImmersiveOpenWaitOutcome {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(
             by: Self.immersiveSpaceLifecycleConfirmationTimeout
         )
         while clock.now < deadline {
-            guard executionIsLive(execution) else { return false }
-            if immersiveSpaceObservation.confirms(
-                residency,
+            guard executionIsLive(execution) else { return .timedOut }
+            switch immersiveSpaceObservation.openWaitOutcome(
                 after: revision
             ) {
-                return true
+            case .confirmed:
+                return .confirmed
+            case .revoked:
+                appModel.recordSurfaceInputProbe(
+                    "immersiveOpenRevoked"
+                        + " baselineRevision=\(revision)"
+                        + " currentRevision=\(immersiveSpaceObservation.revision)",
+                    retention: .evidence
+                )
+                return .revoked
+            case .pending, .timedOut, .openActionRejected:
+                break
             }
             do {
                 try await Task.sleep(for: .milliseconds(25))
             } catch {
-                return false
+                return .timedOut
             }
         }
-        let expectedResidency = String(describing: residency)
         let observedResidency = String(describing: immersiveSpaceObservation.residency)
         logger.error(
             """
-            Immersive Space lifecycle confirmation timed out \
-            expected=\(expectedResidency, privacy: .public) \
+            Immersive Space open confirmation timed out \
             observed=\(observedResidency, privacy: .public)
             """
         )
         appModel.recordSurfaceInputProbe(
-            "immersiveConfirmTimeout expected=\(expectedResidency)"
+            "immersiveConfirmTimeout expected=open"
                 + " observed=\(observedResidency)"
                 + " baselineRevision=\(revision)"
                 + " currentRevision=\(immersiveSpaceObservation.revision)"
         )
-        return false
+        return .timedOut
     }
 
     private func waitForImmersiveActionLane(execution: Execution) async -> Bool {
@@ -2213,7 +2274,9 @@ public final class SpatialPlatformEffectCoordinator {
                 await stopPlaybackForFailedPresentationTransfer()
                 appModel.requestStoppedPlaybackCleanup()
                 if SpatialPlatformPresentationFailurePolicy
-                    .showsUserVisibleIssue(effect: execution.request.effect) {
+                    .showsUserVisibleIssue(effect: execution.request.effect),
+                   playbackRuntime.userVisibleIssue?
+                       .activePlaybackFailure == nil {
                     playbackRuntime.setUserVisibleIssue(
                         .presentationConversionFailed
                     )
@@ -2271,7 +2334,9 @@ public final class SpatialPlatformEffectCoordinator {
                 await stopPlaybackForFailedPresentationTransfer()
                 appModel.requestStoppedPlaybackCleanup()
                 if SpatialPlatformPresentationFailurePolicy
-                    .showsUserVisibleIssue(effect: execution.request.effect) {
+                    .showsUserVisibleIssue(effect: execution.request.effect),
+                   playbackRuntime.userVisibleIssue?
+                       .activePlaybackFailure == nil {
                     playbackRuntime.setUserVisibleIssue(
                         .presentationConversionFailed
                     )

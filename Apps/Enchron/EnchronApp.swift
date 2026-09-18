@@ -49,38 +49,7 @@ struct EnchronApp: App {
             }
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
-                if current == .background {
-                    application.playbackLauncher.preparation.suspend()
-                    SurfaceInputProbes.record(
-                        "backgroundPlaybackStop requested lifecycle=\(application.playbackRuntime.productLifecycle.rawValue)"
-                            + " position=\(application.playbackRuntime.playbackPosition.seconds)"
-                            + " presentation=\(application.playbackSessionModel.playbackPresentation.rawValue)",
-                        retention: .evidence
-                    )
-                    let hadPlayback = application.playbackRuntime.currentLaunchRequest != nil
-                        || application.playbackRuntime.residency != .browsing
-                    application.playbackLauncher.stopPlayback(
-                        reason: .applicationBackgrounded
-                    )
-                    if hadPlayback {
-                        application.playbackSessionModel.requestStoppedPlaybackCleanup(
-                            closesEnvironment: true
-                        )
-                    }
-                    SurfaceInputProbes.record(
-                        "backgroundPlaybackStop cleanupRequested",
-                        retention: .evidence
-                    )
-                    return
-                }
-                guard current == .active else { return }
-                application.playbackLauncher.preparation.resume()
-                Task { @MainActor in
-                    await Task.yield()
-                    guard mainScenePhase == .active else { return }
-                    application.spatialPlatformEffectCoordinator
-                        .handleApplicationDidBecomeActive()
-                }
+                application.handleScenePhaseTransition(to: current)
             }
             .enchronEnvironment(application)
             .onAppear {
@@ -231,6 +200,7 @@ private struct WindowSceneGate<Content: View>: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @State private var ownSessionIdentifier: String?
+    @State private var ownWindowScene: UIWindowScene?
     private let window: SpatialPlatformWindowIdentity
     private let content: () -> Content
 
@@ -267,6 +237,7 @@ private struct WindowSceneGate<Content: View>: View {
         }
         .browserWindowContentVisibility(browserVisibility)
         .windowSceneReporting { windowScene in
+            ownWindowScene = windowScene
             if let identifier = windowScene?.session.persistentIdentifier {
                 ownSessionIdentifier = identifier
             }
@@ -279,6 +250,18 @@ private struct WindowSceneGate<Content: View>: View {
                     + " session=\(ownSessionIdentifier ?? "none")",
                 retention: .evidence
             )
+            guard let session = ownWindowScene?.session else { return }
+            let windowName = window.rawValue
+            UIApplication.shared.requestSceneSessionDestruction(
+                session,
+                options: nil
+            ) { error in
+                SurfaceInputProbes.record(
+                    "windowScene orphanDestroyFailed window=\(windowName)"
+                        + " error=\(error.localizedDescription)",
+                    retention: .evidence
+                )
+            }
         }
         .onAppear {
             guard isOrphaned == false else { return }
