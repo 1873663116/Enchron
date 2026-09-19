@@ -811,6 +811,28 @@ struct TrackSelectionPreferenceTests {
         #expect(persisted.playbackModePreference == .window)
     }
 
+    @Test("background progress keeps the media server session open and paused")
+    func backgroundProgressKeepsMediaServerSessionOpen() async throws {
+        let suiteName = "app.enchron.tests.background-reporting.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let reporter = RecordingPlaybackSessionReporter()
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        coordinator.beginPlayback(Self.request(
+            revision: "revision-a", authority: .mediaServer, reporter: reporter
+        ))
+        try await runtime.waitUntilConfigured()
+        runtime.emitLifecycle(.playing, positionSeconds: 42)
+
+        coordinator.flushViewingProgress()
+
+        #expect(reporter.stoppedCount == 0)
+        #expect(reporter.calls.last?.progressedReport?.positionSeconds == 42)
+        #expect(reporter.calls.last?.progressedReport?.isPaused == true)
+        coordinator.stopPlayback(reason: .backButton)
+        #expect(reporter.stoppedCount == 1)
+    }
+
     @Test("media server reporting preserves cadence and immediate state")
     func mediaServerReportingPreservesCadenceAndImmediateState() async throws {
         let suiteName = "app.enchron.tests.server-reporting.\(UUID().uuidString)"

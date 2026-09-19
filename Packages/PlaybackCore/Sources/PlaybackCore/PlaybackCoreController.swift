@@ -402,8 +402,16 @@ public final class PlaybackCoreController {
         timeout: Duration = .seconds(3)
     ) async throws -> RendererGraphPlaybackContinuity {
         guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
-        let baseline = activeSession.rendererGraphPlaybackObservation()
+        var recoveredRenderer = false
+        if activeSession.needsVideoRendererRecovery {
+            try await recoverVideoRendererForResume(activeSession)
+            recoveredRenderer = true
+        }
+        var baseline = activeSession.rendererGraphPlaybackObservation()
         try play()
+        if recoveredRenderer {
+            activeSession.emitRendererRecoveryState("afterPlay")
+        }
         guard self.activeSession === activeSession else {
             throw PlaybackControlError.openTerminatedByCleanup
         }
@@ -411,6 +419,16 @@ public final class PlaybackCoreController {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
         while clock.now < deadline {
+            guard self.activeSession === activeSession else {
+                throw PlaybackControlError.openTerminatedByCleanup
+            }
+            if activeSession.needsVideoRendererRecovery {
+                guard !recoveredRenderer else { throw PlaybackControlError.timelineNotReady }
+                try await recoverVideoRendererForResume(activeSession)
+                recoveredRenderer = true
+                baseline = activeSession.rendererGraphPlaybackObservation()
+                try play()
+            }
             let result = RendererGraphPlaybackContinuity.evaluate(
                 baseline: baseline,
                 current: activeSession.rendererGraphPlaybackObservation(),
@@ -425,6 +443,48 @@ public final class PlaybackCoreController {
             baseline: baseline,
             current: activeSession.rendererGraphPlaybackObservation(),
             requiredGraphRevision: baseline.graphRevision
+        )
+    }
+
+    private func recoverVideoRendererForResume(_ session: SampleBufferPlaybackSession) async throws {
+        let position = session.currentTime()
+        session.debugStore.emit(
+            mediaSessionID: session.traceID,
+            kind: "videoRenderer.resumeRecovery.started",
+            outcome: .succeeded,
+            details: ["positionSeconds": String(position.seconds)]
+        )
+        try await session.prepareForRendererRecovery()
+        try await seek(
+            to: position, after: .pause,
+            removingDisplayedImage: false, requiresAudioTarget: true
+        )
+        guard activeSession === session else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+        guard !session.needsVideoRendererRecovery else {
+            throw PlaybackControlError.timelineNotReady
+        }
+        session.debugStore.emit(
+            mediaSessionID: session.traceID,
+            kind: "videoRenderer.resumeRecovery.completed",
+            outcome: .succeeded,
+            details: ["positionSeconds": String(position.seconds)]
+        )
+    }
+
+    /// Best effort, run while the app is back in the foreground and nothing is
+    /// playing yet, so a later tap on play does not pay for stopping the reader.
+    /// The reopen itself is left to the play path, which can tell the user when
+    /// the source has died.
+    public func prepareVideoRendererForResume() async {
+        guard let activeSession, activeSession.needsVideoRendererRecovery else { return }
+        try? await activeSession.prepareForRendererRecovery()
+        activeSession.debugStore.emit(
+            mediaSessionID: activeSession.traceID,
+            kind: "videoRenderer.foregroundStop",
+            outcome: .succeeded,
+            details: ["positionSeconds": String(activeSession.currentTime().seconds)]
         )
     }
 
@@ -1141,7 +1201,13 @@ public final class PlaybackCoreController {
         debugRecorder = nil
         activeSession = nil
         onSessionChange?(nil)
+        let lastPosition = diagnostics.currentSeconds
+        let lastDuration = diagnostics.durationSeconds
         diagnostics = PlaybackDiagnostics()
+        if case .failed = statusWhileClosing {
+            diagnostics.currentSeconds = lastPosition
+            diagnostics.durationSeconds = lastDuration
+        }
         onDiagnosticsChange?(diagnostics)
         deliveryContinuity = nil
         switch statusWhileClosing {

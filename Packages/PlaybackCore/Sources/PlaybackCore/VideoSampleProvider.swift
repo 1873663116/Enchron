@@ -339,10 +339,17 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         cancel()
         let operationGeneration = readerLock.withLock { generation }
         let source = FFmpegSourceLocator.argument(for: url)
+        PlaybackTrace.event(
+            "provider.prepare.begin host=\(url.host ?? "?") port=\(url.port ?? 0)"
+                + " generation=\(operationGeneration)"
+        )
         try await withTaskCancellationHandler {
             let openedSourceInformation = try await withCheckedThrowingContinuation {
                 (continuation: CheckedContinuation<MediaSourceInformation?, any Error>) in
                 readerQueue.async { [self] in
+                    PlaybackTrace.event(
+                        "provider.prepare.block.enter generation=\(operationGeneration)"
+                    )
                     guard isCurrent(operationGeneration) else {
                         continuation.resume(throwing: CancellationError())
                         return
@@ -488,7 +495,11 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                         return
                     }
                     do {
+                        PlaybackTrace.event(
+                            "provider.read.block.enter generation=\(operation.1)"
+                        )
                         let outcome = try operations.copyNextSample(from: operation.0)
+                        PlaybackTrace.event("provider.read.block.exit")
                         guard isCurrent(operation.1, reader: operation.0) else {
                             continuation.resume(throwing: CancellationError())
                             return

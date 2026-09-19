@@ -1187,9 +1187,11 @@ public final class PlaybackPresentationModel {
         failure: SpatialPlatformEffectFailure
     ) -> SpatialPlatformEffectResolution {
         switch request.effect {
+        case .collapseImmersivePlayback:
+            immersiveSpaceResidency = .closed
+            return commitPendingPresentation()
         case .enterImmersivePlayback,
              .exitImmersivePlayback,
-             .collapseImmersivePlayback,
              .swapWindowPlaybackProjection:
             if let transition {
                 presentationState.rollback(transition.id)

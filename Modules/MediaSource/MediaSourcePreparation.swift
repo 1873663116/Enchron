@@ -9,15 +9,20 @@ public final class MediaSourcePreparation {
     public init() {}
 
     public func suspend() {
+        MediaSourceDebugTrace.event("preparation.suspend suspended=\(isSuspended)")
         isSuspended = true
         cancel()
     }
 
     public func resume() {
+        MediaSourceDebugTrace.event("preparation.resume")
         isSuspended = false
     }
 
     public func cancel() {
+        MediaSourceDebugTrace.event(
+            "preparation.cancel hadWork=\(currentID != nil) suspended=\(isSuspended)"
+        )
         currentID = nil
         cancelTask?()
         cancelTask = nil
@@ -26,6 +31,9 @@ public final class MediaSourcePreparation {
     public func resolve<Value: Sendable>(
         _ operation: @escaping @MainActor () async throws -> Value
     ) async throws -> Value {
+        MediaSourceDebugTrace.event(
+            "preparation.resolve cancelledPrevious=\(currentID != nil) suspended=\(isSuspended)"
+        )
         guard !isSuspended else { throw CancellationError() }
         cancel()
         let id = UUID()

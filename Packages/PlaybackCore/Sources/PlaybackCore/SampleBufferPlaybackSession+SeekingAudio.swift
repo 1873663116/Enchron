@@ -66,6 +66,7 @@ extension SampleBufferPlaybackSession {
         }
         let audioProviderCancelled = ContinuousClock.now
         await rendererSink.flush(removingDisplayedImage: removingDisplayedImage)
+        clearRendererFlushRecovery()
         discardVideoFramesInFlight()
         let rendererFlushed = ContinuousClock.now
         debugStore.emit(

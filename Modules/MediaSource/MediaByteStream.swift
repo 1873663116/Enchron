@@ -238,6 +238,24 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
         readFailureState.snapshot()
     }
 
+    public static func refreshing(
+        _ handles: [MediaByteStreamHandle],
+        restartingListeners: Bool
+    ) async throws -> [MediaByteStreamHandle] {
+        var restarted = Set<ObjectIdentifier>()
+        var result: [MediaByteStreamHandle] = []
+        for handle in handles {
+            guard let server = handle.server else {
+                throw MediaByteStreamServer.ServerError.listenerStopped
+            }
+            if restartingListeners, restarted.insert(ObjectIdentifier(server)).inserted {
+                _ = server.stopTransfers(preservingRegistrations: true)
+            }
+            result.append(try await server.refreshedHandle(for: handle.token))
+        }
+        return result
+    }
+
     public func useContainerIndex(for revision: ContentRevision?) {
         server?.configureContainerIndex(token: token, revision: revision)
     }
@@ -728,11 +746,13 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     public enum ServerError: LocalizedError {
         case listenerFailed(String)
         case listenerStopped
+        case unknownRegistration
 
         public var errorDescription: String? {
             switch self {
             case .listenerFailed(let message): "Unable to start the private media stream: \(message)"
             case .listenerStopped: "The private media stream stopped before it became ready."
+            case .unknownRegistration: "The private media stream no longer holds the requested media."
             }
         }
     }
@@ -748,6 +768,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         let source: any MediaByteRangeSource
         let filename: String
         let token: String
+        let preferredBufferDepth: MediaByteBufferDepth
         let readFailureState = MediaSourceReadFailureState()
         let lock = NSLock()
         var indexSession: ContainerIndexSession?
@@ -757,10 +778,16 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             var containerIndexDebugState: MediaByteStreamContainerIndexDebugState
         #endif
 
-        init(source: any MediaByteRangeSource, filename: String, token: String) {
+        init(
+            source: any MediaByteRangeSource,
+            filename: String,
+            token: String,
+            preferredBufferDepth: MediaByteBufferDepth
+        ) {
             self.source = source
             self.filename = filename
             self.token = token
+            self.preferredBufferDepth = preferredBufferDepth
             #if DEBUG
                 containerIndexDebugState = MediaByteStreamContainerIndexDebugState(
                     scope: "media-byte-stream:\(token.lowercased())"
@@ -961,7 +988,12 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             )
         #endif
         let token = UUID().uuidString
-        let registration = Registration(source: source, filename: filename, token: token)
+        let registration = Registration(
+            source: source,
+            filename: filename,
+            token: token,
+            preferredBufferDepth: preferredBufferDepth
+        )
         lock.withLock { registrations[token] = registration }
         MediaSourceDebugTrace.event("bytestream.register token=\(token.prefix(8)) name=\(filename)")
         let escapedName = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "media"
@@ -982,6 +1014,41 @@ public final class MediaByteStreamServer: @unchecked Sendable {
 
     public func snapshot() -> Statistics {
         lock.withLock { statistics }
+    }
+
+    public func refreshedHandle(for token: String) async throws -> MediaByteStreamHandle {
+        let port = try await ensureStarted()
+        try Task.checkCancellation()
+        let registration = lock.withLock { registrations[token] }
+        guard let registration else { throw ServerError.unknownRegistration }
+        let refreshedToken = UUID().uuidString
+        let refreshed = Registration(
+            source: registration.source,
+            filename: registration.filename,
+            token: refreshedToken,
+            preferredBufferDepth: registration.preferredBufferDepth
+        )
+        lock.withLock { registrations[refreshedToken] = refreshed }
+        MediaSourceDebugTrace.event(
+            "bytestream.register refreshed token=\(refreshedToken.prefix(8))"
+                + " name=\(registration.filename) port=\(port.rawValue)"
+        )
+        let escapedName = registration.filename.addingPercentEncoding(
+            withAllowedCharacters: .urlPathAllowed
+        ) ?? "media"
+        guard let url = URL(
+            string: "http://127.0.0.1:\(port.rawValue)/\(refreshedToken)/\(escapedName)"
+        ) else {
+            _ = lock.withLock { registrations.removeValue(forKey: refreshedToken) }
+            throw ServerError.listenerFailed("Invalid loopback URL.")
+        }
+        return MediaByteStreamHandle(
+            url: url,
+            preferredBufferDepth: refreshed.preferredBufferDepth,
+            token: refreshedToken,
+            readFailureState: refreshed.readFailureState,
+            server: self
+        )
     }
 
     #if DEBUG
@@ -1011,7 +1078,10 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         for task in stopTransfers() { await task.value }
     }
 
-    private func stopTransfers() -> [Task<Void, Never>] {
+    fileprivate func stopTransfers(preservingRegistrations: Bool = false) -> [Task<Void, Never>] {
+        MediaSourceDebugTrace.event(
+            "bytestream.stopTransfers preservingRegistrations=\(preservingRegistrations)"
+        )
         let work = lock.withLock { () -> (NWListener?, ListenerTeardown) in
             let work = (
                 listener,
@@ -1024,7 +1094,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             listener = nil
             port = nil
             startupWaiters.removeAll()
-            registrations.removeAll()
+            if !preservingRegistrations { registrations.removeAll() }
             connections.removeAll()
             transferTasks.removeAll()
             transferTokens.removeAll()
@@ -1229,6 +1299,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 counters.acceptedConnectionCount &+= 1
             }
         #endif
+        MediaSourceDebugTrace.event("bytestream.connection.accepted connection=\(id.hashValue)")
         connection.stateUpdateHandler = { [weak self, weak connection] state in
             if case .failed = state { self?.connectionDidEnd(id, connection: connection) }
             if case .cancelled = state { self?.connectionDidEnd(id, connection: connection) }

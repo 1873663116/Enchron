@@ -145,6 +145,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         didSet { refreshDisplayCriteria() }
     }
     public private(set) var lifecycle: PlaybackStatus = .idle
+
+    /// Bumped on every return to the foreground. The system can tear the
+    /// presentation surface down while the app is away and rebuild it on
+    /// return; a view that owns the surface has to re-attach to the rebuilt one,
+    /// and nothing else observable changes when that happens.
+    public private(set) var foregroundReturnRevision: UInt64 = 0
+
+    public func noteForegroundReturn() {
+        foregroundReturnRevision &+= 1
+    }
     public private(set) var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 0)
     public private(set) var currentPlaybackSpeed = PlaybackModel.PlaybackSpeed.default
     public private(set) var currentLaunchRequest: PlaybackLaunchRequest?
@@ -196,11 +206,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public var onPlaybackEnded: (() -> Void)?
+    public var onResumeHealingRequired: (@MainActor () -> Bool)?
+
+    /// Awaited before a resume touches the source. The bridge that serves it is
+    /// rebuilt after the app comes back from suspension, and a resume that runs
+    /// first reads the bridge that was torn down while the app was away.
+    public var onAwaitSourceReady: (@MainActor () async -> Void)?
     public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
     public var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)?
     public private(set) var observationGeneration: UInt64 = 0
     @ObservationIgnored
     private var sessionLifecycleHandler: ((SessionLifecycleEvent) -> Void)?
+    @ObservationIgnored
+    private var resumeTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var resumeHealingArmed = false
     @ObservationIgnored
     private var externalSubtitleSourceIDByURL: [URL: String] = [:]
     @ObservationIgnored
@@ -407,6 +427,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
+        resumeHealingArmed = false
         SurfaceInputProbes.record(
             "rendererOwnership.prepareForPlayback source=\(request.displayName)"
                 + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
@@ -546,11 +567,41 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     #endif
 
+    public func preparePaused(
+        _ request: PlaybackLaunchRequest,
+        startTimeSeconds: Double,
+        initialFormat: MediaFormat? = nil
+    ) async throws {
+        try await openSession(
+            request,
+            startTimeSeconds: startTimeSeconds,
+            initialSpeed: .default,
+            initialFormat: initialFormat,
+            startsPaused: true
+        )
+    }
+
     public func open(
         _ request: PlaybackLaunchRequest,
         startTimeSeconds: Double = 0,
         initialSpeed: PlaybackModel.PlaybackSpeed = .default,
         initialFormat: MediaFormat? = nil
+    ) async throws {
+        try await openSession(
+            request,
+            startTimeSeconds: startTimeSeconds,
+            initialSpeed: initialSpeed,
+            initialFormat: initialFormat,
+            startsPaused: false
+        )
+    }
+
+    private func openSession(
+        _ request: PlaybackLaunchRequest,
+        startTimeSeconds: Double,
+        initialSpeed: PlaybackModel.PlaybackSpeed,
+        initialFormat: MediaFormat?,
+        startsPaused: Bool
     ) async throws {
         let interval = signposter.beginInterval("OpenPlayback")
         defer { signposter.endInterval("OpenPlayback", interval) }
@@ -603,6 +654,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                             seconds: startTimeSeconds,
                             preferredTimescale: 60_000
                         ),
+                        startsPaused: startsPaused,
                         initialRate: Float(initialSpeed.value),
                         sourceTransport: request.source.playbackCoreTransport,
                         stereoOverride: initialFormat.map {
@@ -993,6 +1045,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public func pause() {
         updateLoadingState { $0.clearTransientLoading() }
+        resumeHealingArmed = false
         PlaybackTrace.event("runtime.pause.request lifecycle=\(lifecycle.label)")
         guard let activeSessionID else {
             fail(RuntimeError.noSession)
@@ -1010,22 +1063,66 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    /// Off the play path: refresh a renderer the system flushed while the app
+    /// was away, so a later tap on play does not pay for it. Silent by design —
+    /// the play path still owns telling the user that something failed.
+    public func prepareRendererForResume() {
+        guard productLifecycle == .paused else { return }
+        Task { @MainActor [weak self] in
+            await self?.rendererTransferCoordinator.prepareVideoRendererForResume()
+        }
+    }
+
     public func resume() {
+        if productLifecycle == .failed, onResumeHealingRequired?() == true { return }
         PlaybackTrace.event("runtime.resume.request lifecycle=\(lifecycle.label)")
+        SurfaceInputProbes.record(
+            "resumeCalled lifecycle=\(lifecycle.label) armed=\(resumeHealingArmed)",
+            retention: .evidence
+        )
         guard let activeSessionID else {
             fail(RuntimeError.noSession)
             return
         }
-        Task { @MainActor [weak self] in
+        guard resumeTask == nil else {
+            SurfaceInputProbes.record(
+                "resumeDeduped lifecycle=\(lifecycle.label)",
+                retention: .evidence
+            )
+            return
+        }
+        resumeHealingArmed = true
+        let resumeGeneration = generation
+        resumeTask = Task { @MainActor [weak self] in
+            defer { self?.resumeTask = nil }
             guard let self else { return }
+            await self.onAwaitSourceReady?()
+            guard generation == resumeGeneration else { return }
             do {
                 try await performSpatialPlaybackTransport(
                     .resume(mediaSessionID: activeSessionID)
                 )
+                resumeHealingArmed = false
             } catch {
+                guard generation == resumeGeneration else { return }
+                if resumeHealingArmed, !controlRejectionIsBenign(error),
+                   onResumeHealingRequired?() == true {
+                    resumeHealingArmed = false
+                    return
+                }
                 fail(error)
             }
         }
+    }
+
+    private func consumeResumeHealing() -> Bool {
+        guard resumeHealingArmed else { return false }
+        resumeHealingArmed = false
+        SurfaceInputProbes.record(
+            "resumeHealingBegan kind=driverFailure",
+            retention: .evidence
+        )
+        return onResumeHealingRequired?() ?? false
     }
 
     public func performSpatialPlaybackTransport(
@@ -3038,14 +3135,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             if unmetCapabilities.contains(where: \.preventsPlayback) {
                 setUserVisibleIssue(.capabilityUnavailable(.videoDecoderUnavailable))
-            } else if let failure = activePlaybackFailure(
-                from: driver,
-                previousLifecycle: previousLifecycle
-            ) {
-                setUserVisibleIssue(.activePlaybackFailure(failure))
-                emitPlaybackObservation(.activeFailure(failure))
-            } else if userVisibleIssue?.interruptsPlayback != true {
-                setUserVisibleIssue(.playbackFailed)
+            } else {
+                if let failure = activePlaybackFailure(
+                    from: driver,
+                    previousLifecycle: previousLifecycle
+                ) {
+                    setUserVisibleIssue(.activePlaybackFailure(failure))
+                    emitPlaybackObservation(.activeFailure(failure))
+                } else if userVisibleIssue?.interruptsPlayback != true {
+                    setUserVisibleIssue(.playbackFailed)
+                }
+                if consumeResumeHealing() { return }
             }
             logger.error("playback failed message=\(message, privacy: .public)")
         }
@@ -3244,6 +3344,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         endedRecoveryInFlight = false
         updateLoadingState { $0.clearStage() }
+        if controlRejectionIsBenign(error) == false {
+            resumeHealingArmed = false
+        }
         setUserVisibleIssue(issue)
         logger.error("runtime operation failed error=\(error.localizedDescription, privacy: .public)")
     }

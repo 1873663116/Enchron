@@ -80,6 +80,37 @@ struct MediaByteStreamLifecycleTests {
         await server.stopAndWait()
     }
 
+    @Test("an active playback endpoint bundle moves to one fresh listener generation")
+    func activeEndpointBundleRefreshesTogether() async throws {
+        let source = LifecycleByteRangeSource()
+        let server = MediaByteStreamServer(readChunkSize: 4)
+        let video = try await server.register(source: source, filename: "video.bin")
+        let subtitle = try await server.register(source: source, filename: "subtitle.vtt")
+
+        let refreshed = try await MediaByteStreamHandle.refreshing(
+            [video, subtitle],
+            restartingListeners: true
+        )
+        #expect(refreshed.count == 2)
+        #expect(refreshed[0].url != video.url)
+        #expect(refreshed[1].url != subtitle.url)
+
+        video.release()
+        subtitle.release()
+
+        #expect(
+            try await fetchRange("bytes=2-6", from: refreshed[0].url).body
+                == Data("23456".utf8)
+        )
+        #expect(
+            try await fetchRange("bytes=2-6", from: refreshed[1].url).body
+                == Data("23456".utf8)
+        )
+
+        refreshed.forEach { $0.release() }
+        await server.stopAndWait()
+    }
+
 }
 
 private final class LifecycleByteRangeSource: MediaByteRangeSource, @unchecked Sendable {

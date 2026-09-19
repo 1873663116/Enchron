@@ -108,6 +108,35 @@ public nonisolated struct PlaybackAddress: @unchecked Sendable, Equatable {
 }
 
 public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable, Identifiable {
+    func refreshedLoopbackEndpoints() async -> PlaybackLaunchRequest? {
+        guard let mainHandle = source.byteStreamHandle else { return nil }
+        let handles = [mainHandle] + externalSubtitleSources.compactMap(\.byteStreamHandle)
+        guard let refreshed = try? await MediaByteStreamHandle.refreshing(
+            handles, restartingListeners: true
+        ) else { return nil }
+        var subtitleIndex = 1
+        let subtitles = externalSubtitleSources.map { subtitle in
+            guard subtitle.byteStreamHandle != nil else { return subtitle }
+            let handle = refreshed[subtitleIndex]
+            subtitleIndex += 1
+            return ResolvedExternalSubtitleSource(
+                id: subtitle.id, url: handle.url, displayName: subtitle.displayName,
+                versionedIdentity: subtitle.versionedIdentity,
+                accessLease: subtitle.accessLease, byteStreamHandle: handle
+            )
+        }
+        return PlaybackLaunchRequest(
+            source: PlaybackAddress(byteStreamHandle: refreshed[0]),
+            displayName: displayName, fileIdentifier: fileIdentifier,
+            initialMetadata: initialMetadata, collectionOrigin: collectionOrigin,
+            versionedIdentity: versionedIdentity, sourceAccess: sourceAccess,
+            externalSubtitleSources: subtitles,
+            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
+            viewingStateAuthority: viewingStateAuthority,
+            startPositionSeconds: startPositionSeconds, sessionReporter: sessionReporter
+        )
+    }
+
     public let id: URL
     public let source: PlaybackAddress
     public var url: URL { source.url }

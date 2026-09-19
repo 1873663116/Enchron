@@ -121,6 +121,8 @@ final class EnchronApplication {
     private let suspensionWatchdog = ApplicationSuspensionWatchdog()
     private var applicationBackgroundedAt: Date?
     private var suspendedPlaybackPresentation: PlaybackPresentation?
+    private var suspendedPlaybackPositionSeconds: Double?
+    private var lastForegroundRecoveryAt: Date?
     private var suspendedRestoreTask: Task<Void, Never>?
     private var suspendedPauseTask: Task<Void, Never>?
     private let certificateChangePlaybackBoundary: ServerCertificateChangePlaybackBoundary
@@ -523,6 +525,20 @@ final class EnchronApplication {
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in
             spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)
         }
+        playbackRuntime.onResumeHealingRequired = { [weak playbackRuntime, weak launcher, weak playbackSessionModel] in
+            guard let playbackRuntime, let launcher, let playbackSessionModel else { return false }
+            var presentation = playbackSessionModel.playbackPresentation
+            if presentation.usesImmersiveSpace,
+               playbackSessionModel.immersiveSpaceResidency != .open {
+                presentation = .window
+            }
+            let position = playbackRuntime.playbackPosition.seconds
+            let resumeAt = position.isFinite && position > 0 ? position : nil
+            return launcher.healResumeAtBackendFailure(
+                resumeAt: resumeAt,
+                playbackMode: presentation == .panorama ? .panorama : .window
+            )
+        }
         fileBrowsingViewModel = browser
         mediaLibraryViewModel = mediaLibrary
         mediaLibraryUIState = mediaLibraryFeature.uiState
@@ -564,18 +580,47 @@ final class EnchronApplication {
                 to: current
             )
         }
+        spatialPlatformEffectCoordinator.onSuspendedPlaybackRecoveryRequired = { [weak self] in
+            self?.attemptSuspendedPlaybackRestore(origin: "immersiveCollapse")
+        }
         suspensionWatchdog.onResumeFromSuspension = { [weak self] gap in
             self?.handleResumeFromSuspension(gap: gap)
         }
         suspensionWatchdog.start()
     }
 
+    /// Whether a playback session is holding the source stream. A suspended
+    /// preparation tears that stream down and `resume()` does not rebuild it,
+    /// so these states must not be suspended away.
+    private var holdsLivePlaybackSession: Bool {
+        guard playbackRuntime.hasActivePlaybackRequest else { return false }
+        switch playbackRuntime.productLifecycle {
+        case .playing, .paused, .ready:
+            return true
+        case .idle, .loading, .failed, .ended:
+            return false
+        }
+    }
+
     func handleScenePhaseTransition(to current: ScenePhase) {
         if current == .background {
-            playbackLauncher.preparation.suspend()
+            // Suspending cancels the source resolution, and cancelling that
+            // tears down the stream it handed the player. A paused player still
+            // owns that stream: resume() only clears a flag and restarts
+            // nothing, so suspending here leaves the source dead and the next
+            // reopen fails with "Connection refused". Suspend only when no
+            // session is holding it.
+            if !holdsLivePlaybackSession {
+                playbackLauncher.preparation.suspend()
+            }
             applicationBackgroundedAt = Date()
+            lastForegroundRecoveryAt = nil
             suspendedPlaybackPresentation = playbackSessionModel
                 .playbackPresentation
+            let livePosition = playbackRuntime.playbackPosition.seconds
+            suspendedPlaybackPositionSeconds =
+                livePosition.isFinite && livePosition > 0 ? livePosition : nil
+            playbackLauncher.flushViewingProgress()
             let wasPlaying = playbackRuntime.productLifecycle == .playing
             if wasPlaying {
                 playbackRuntime.pause()
@@ -602,7 +647,7 @@ final class EnchronApplication {
                     + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
                 retention: .evidence
             )
-            evaluateResumedPlayback(origin: "active")
+            handleReturnToForeground(origin: "active")
         }
         Task { @MainActor [weak self] in
             await Task.yield()
@@ -623,13 +668,24 @@ final class EnchronApplication {
             retention: .evidence
         )
         playbackLauncher.preparation.resume()
-        evaluateResumedPlayback(origin: "suspensionWatchdog")
+        handleReturnToForeground(origin: "suspensionWatchdog")
         Task { @MainActor [weak self] in
             await self?.spatialPlatformEffectCoordinator
                 .flushStaleImmersiveSpaceRecord()
             self?.spatialPlatformEffectCoordinator
                 .handleApplicationDidBecomeActive()
         }
+    }
+
+    private func handleReturnToForeground(origin: String) {
+        let now = Date()
+        if let lastForegroundRecoveryAt,
+           now.timeIntervalSince(lastForegroundRecoveryAt) < 2 {
+            return
+        }
+        lastForegroundRecoveryAt = now
+        playbackRuntime.noteForegroundReturn()
+        evaluateResumedPlayback(origin: origin)
     }
 
     private func handleImmersiveSpaceScenePhaseTransition(
@@ -653,7 +709,10 @@ final class EnchronApplication {
             playbackRuntime.pause()
         case .loading, .ready:
             pauseSuspendedPlaybackWhenPlayable()
-        case .paused, .ended:
+        case .paused:
+            preparePlaybackForResume(origin: origin)
+            playbackRuntime.prepareRendererForResume()
+        case .ended:
             break
         case .idle:
             guard playbackRuntime.currentLaunchRequest != nil else { break }
@@ -661,6 +720,34 @@ final class EnchronApplication {
         case .failed:
             attemptSuspendedPlaybackRestore(origin: origin)
         }
+    }
+
+    /// The loopback bridge that serves a network source loses its listeners
+    /// while the app is away. A session still holding the old endpoints reads
+    /// into a bridge that is gone: the reopen stalls for as long as it takes to
+    /// time out, the resume is failed, and the app reloads the whole session.
+    /// Rebuild the bridge on the way back and hand the session its new URL.
+    /// Makes the coming tap on play cost nothing. The bridge that serves a
+    /// network source does not survive the app being suspended, and the session
+    /// holding its old endpoints cannot be resumed, so the session is
+    /// re-established here — while the app is active and nobody is waiting —
+    /// at its position and left paused. Whether the user then plays is theirs
+    /// to decide; the app's part is to have it ready.
+    private func preparePlaybackForResume(origin: String) {
+        guard playbackLauncher.isLoopbackBridged else { return }
+        let position = playbackRuntime.playbackPosition.seconds
+        let resumeAt = position.isFinite && position > 0 ? position : nil
+        let presentation = suspendedPlaybackPresentation
+            ?? playbackSessionModel.playbackPresentation
+        guard playbackLauncher.preparePausedPlaybackForResume(
+            resumeAt: resumeAt,
+            playbackMode: presentation == .panorama ? .panorama : .window
+        ) else { return }
+        SurfaceInputProbes.record(
+            "resumePreparation.requested origin=\(origin)"
+                + " resumeAt=\(String(describing: resumeAt))",
+            retention: .evidence
+        )
     }
 
     private func pauseSuspendedPlaybackWhenPlayable() {
@@ -682,11 +769,18 @@ final class EnchronApplication {
     }
 
     private func attemptSuspendedPlaybackRestore(origin: String) {
-        let targetPresentation = suspendedPlaybackPresentation
+        var targetPresentation = suspendedPlaybackPresentation
             ?? playbackSessionModel.playbackPresentation
-        let position = playbackRuntime.playbackPosition.seconds
-        let resumeAt = position.isFinite && position > 0 ? position : nil
-        guard playbackLauncher.relaunchLastResolvedPlayback(
+        if targetPresentation.usesImmersiveSpace,
+           playbackSessionModel.immersiveSpaceResidency != .open {
+            targetPresentation = .window
+        }
+        let livePosition = playbackRuntime.playbackPosition.seconds
+        let snapshotPosition = suspendedPlaybackPositionSeconds
+        let resumePosition = snapshotPosition ?? livePosition
+        let resumeAt = resumePosition.isFinite && resumePosition > 0
+            ? resumePosition : nil
+        guard playbackLauncher.healResumeAtBackendFailure(
             resumeAt: resumeAt,
             playbackMode: targetPresentation == .panorama
                 ? .panorama
@@ -722,12 +816,20 @@ final class EnchronApplication {
             .usesImmersiveSpace == false
         restoreLoop: for _ in 0..<90 {
             guard Task.isCancelled == false else { return }
-            if playbackRuntime.userVisibleIssue == .playbackFailed {
+            if let stale = playbackRuntime.userVisibleIssue?.activePlaybackFailure,
+               stale.requestID != playbackRuntime.currentLaunchRequest?.id {
                 playbackRuntime.setUserVisibleIssue(nil)
             }
             if let issue = playbackRuntime.userVisibleIssue,
                issue.interruptsPlayback {
-                break
+                SurfaceInputProbes.record(
+                    "suspendedPlaybackRestoreYieldedToIssue origin=\(origin)"
+                        + " issue=\(issue.category.rawValue)"
+                        + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+                    retention: .evidence
+                )
+                suspendedRestoreTask = nil
+                return
             }
             switch playbackRuntime.productLifecycle {
             case .playing:
@@ -751,7 +853,15 @@ final class EnchronApplication {
                     )
                     presentationRestored = true
                 } catch {
-                    break restoreLoop
+                    SurfaceInputProbes.record(
+                        "suspendedPlaybackRestorePresentationRequestFailed"
+                            + " origin=\(origin)"
+                            + " presentation=\(targetPresentation.rawValue)"
+                            + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
+                        retention: .evidence
+                    )
+                    suspendedRestoreTask = nil
+                    return
                 }
             case .idle:
                 if playbackRuntime.currentLaunchRequest == nil {
@@ -779,10 +889,9 @@ final class EnchronApplication {
             retention: .evidence
         )
         suspendedRestoreTask = nil
-        playbackLauncher.stopPlayback(reason: .backButton)
-        playbackSessionModel.requestStoppedPlaybackCleanup(
-            closesEnvironment: true
-        )
+        if playbackRuntime.userVisibleIssue == nil {
+            playbackRuntime.setUserVisibleIssue(.playbackFailed)
+        }
     }
 
     static func mediaStateSuiteName(

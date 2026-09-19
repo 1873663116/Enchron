@@ -14,6 +14,7 @@ public protocol PlaybackLaunching: AnyObject {
 public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public let preparation = MediaSourcePreparation()
     private var pendingLaunchRequest: PlaybackLaunchRequest?
+    private var bridgeHealingInProgress = false
 
     public struct ResumeDecision {
         enum Outcome {
@@ -384,6 +385,23 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             requestPlayback(resolving: resolve)
             return
         }
+        if isLoopbackBridged {
+            var resumeAt: Double?
+            if let failure = playbackRuntime.userVisibleIssue?.activePlaybackFailure,
+               let recovery = activeFailureRecovery,
+               recovery.failure == failure {
+                let causal = failure.causalPosition.seconds
+                resumeAt = causal.isFinite && causal > 0 ? causal : nil
+            } else {
+                let position = playbackRuntime.playbackPosition.seconds
+                resumeAt = position.isFinite && position > 0 ? position : nil
+            }
+            healLoopbackBridge(
+                resumeAt: resumeAt,
+                playbackMode: lastResolvedLaunch?.playbackMode ?? .window
+            )
+            return
+        }
         if playbackRuntime.userVisibleIssue?.activePlaybackFailure != nil {
             retryActiveFailure()
             return
@@ -412,6 +430,137 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             trackSelectionPreference: lastResolvedLaunch.trackSelectionPreference
         )
         return true
+    }
+
+    @discardableResult
+    public func healResumeAtBackendFailure(
+        resumeAt seconds: Double?,
+        playbackMode: PersistedPlaybackMode
+    ) -> Bool {
+        if isLoopbackBridged {
+            healLoopbackBridge(resumeAt: seconds, playbackMode: playbackMode)
+            return true
+        }
+        if playbackRuntime.userVisibleIssue?.activePlaybackFailure != nil,
+           retryActiveFailure(playbackMode: playbackMode) {
+            playbackRuntime.setUserVisibleIssue(nil)
+            SurfaceInputProbes.record(
+                "resumeHealingBegan kind=retryActiveFailure",
+                retention: .evidence
+            )
+            return true
+        }
+        playbackRuntime.setUserVisibleIssue(nil)
+        let started = relaunchLastResolvedPlayback(
+            resumeAt: seconds,
+            playbackMode: playbackMode
+        )
+        SurfaceInputProbes.record(
+            "resumeHealingBegan kind=relaunch started=\(started)"
+                + " resumeAt=\(String(describing: seconds))",
+            retention: .evidence
+        )
+        return started
+    }
+
+    public var isLoopbackBridged: Bool {
+        guard let host = lastResolvedLaunch?.request.url.host?.lowercased()
+        else { return false }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+
+    /// Re-establishes the session at its current position and leaves it paused,
+    /// so that a later tap on play is only a tap. The bridge that serves a
+    /// network source does not survive the app being suspended, and a session
+    /// left holding its old endpoints cannot be resumed; re-establishing it
+    /// belongs here, while the app is active and the user is not waiting.
+    @discardableResult
+    public func preparePausedPlaybackForResume(
+        resumeAt seconds: Double?,
+        playbackMode: PersistedPlaybackMode
+    ) -> Bool {
+        guard isLoopbackBridged, !bridgeHealingInProgress else { return false }
+        bridgeHealingInProgress = true
+        let recoveryGeneration = generation
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.bridgeHealingInProgress = false }
+            guard let refreshed = await self.refreshedLoopbackRequest() else { return }
+            guard self.generation == recoveryGeneration else { return }
+            SurfaceInputProbes.record(
+                "resumePreparation.begin resumeAt=\(String(describing: seconds))",
+                retention: .evidence
+            )
+            self.launchResolvedPlayback(
+                refreshed,
+                resumeAt: seconds,
+                savedFormat: self.lastResolvedLaunch?.savedFormat,
+                playbackMode: playbackMode,
+                trackSelectionPreference: self.lastResolvedLaunch?
+                    .trackSelectionPreference,
+                startsPaused: true
+            )
+        }
+        return true
+    }
+
+    private func healLoopbackBridge(
+        resumeAt seconds: Double?,
+        playbackMode: PersistedPlaybackMode
+    ) {
+        guard !bridgeHealingInProgress else { return }
+        bridgeHealingInProgress = true
+        let recoveryGeneration = generation
+        SurfaceInputProbes.record(
+            "resumeHealingBegan kind=freshResolve",
+            retention: .evidence
+        )
+        playbackRuntime.setUserVisibleIssue(nil)
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.bridgeHealingInProgress = false }
+            if let refreshed = await self.refreshedLoopbackRequest() {
+                guard self.generation == recoveryGeneration else { return }
+                SurfaceInputProbes.record(
+                    "resumeHealingBegan kind=endpointRefresh",
+                    retention: .evidence
+                )
+                self.launchResolvedPlayback(
+                    refreshed,
+                    resumeAt: seconds,
+                    savedFormat: self.lastResolvedLaunch?.savedFormat,
+                    playbackMode: playbackMode,
+                    trackSelectionPreference: self.lastResolvedLaunch?
+                        .trackSelectionPreference
+                )
+                return
+            }
+            if let fresh = await self.resolveCurrentQueueRequest() {
+                guard self.generation == recoveryGeneration else { return }
+                self.launchResolvedPlayback(
+                    fresh,
+                    resumeAt: seconds,
+                    savedFormat: self.lastResolvedLaunch?.savedFormat,
+                    playbackMode: playbackMode,
+                    trackSelectionPreference: self.lastResolvedLaunch?
+                        .trackSelectionPreference
+                )
+            } else {
+                guard self.generation == recoveryGeneration else { return }
+                self.playbackRuntime.setUserVisibleIssue(.connectionFailed)
+            }
+        }
+    }
+
+    private func refreshedLoopbackRequest() async -> PlaybackLaunchRequest? {
+        await lastResolvedLaunch?.request.refreshedLoopbackEndpoints()
+    }
+
+    private func resolveCurrentQueueRequest() async -> PlaybackLaunchRequest? {
+        guard let id = playbackQueueProvider?().entries.first(where: {
+            $0.isCurrent
+        })?.id else { return nil }
+        return await queueSelectionProvider?(id)
     }
 
     @discardableResult
@@ -463,7 +612,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         savedFormat: MediaFormat?,
         playbackMode: PersistedPlaybackMode,
         trackSelectionPreference: TrackSelectionPreference?,
-        retrying recovery: ActiveFailureRecovery? = nil
+        retrying recovery: ActiveFailureRecovery? = nil,
+        startsPaused: Bool = false
     ) {
         pendingLaunchRequest = nil
         onPlaybackIntentStarted?()
@@ -531,12 +681,20 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 let initialSpeed = PlaybackModel.PlaybackSpeed(
                     preferencesProvider.loadPlaybackPreferences().defaultSpeed
                 )
-                try await playbackRuntime.open(
-                    preparedRequest,
-                    startTimeSeconds: seconds ?? 0,
-                    initialSpeed: initialSpeed,
-                    initialFormat: savedFormat
-                )
+                if startsPaused {
+                    try await playbackRuntime.preparePaused(
+                        preparedRequest,
+                        startTimeSeconds: seconds ?? 0,
+                        initialFormat: savedFormat
+                    )
+                } else {
+                    try await playbackRuntime.open(
+                        preparedRequest,
+                        startTimeSeconds: seconds ?? 0,
+                        initialSpeed: initialSpeed,
+                        initialFormat: savedFormat
+                    )
+                }
                 guard generation == launchGeneration else { return }
                 guard try await applyLaunchConfiguration(
                     for: preparedRequest,
@@ -579,6 +737,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 }
                 logger.error(
                     "playback launch failed error=\(error.localizedDescription, privacy: .public)"
+                )
+                SurfaceInputProbes.record(
+                    "playbackLaunchFailed error=\(error.localizedDescription)"
+                        + " generation=\(launchGeneration)"
+                        + " remote=\(preparedRequest.source.isRemote)",
+                    retention: .evidence
                 )
                 if let recovery {
                     if playbackRuntime.userVisibleIssue == nil {
@@ -721,6 +885,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         await playbackRuntime.leavePlaybackAndWait(reason: reason)
     }
 
+    public func flushViewingProgress() {
+        persistCurrentSession(finishesMediaServerSession: false)
+    }
+
     private func prepareToLeavePlayback() {
         cancelPlaybackLaunchAndPersistProgress()
         onPlaybackStopRequested?()
@@ -804,7 +972,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }
     }
 
-    private func persistCurrentSession(endedNaturally: Bool = false) {
+    private func persistCurrentSession(
+        endedNaturally: Bool = false,
+        finishesMediaServerSession: Bool = true
+    ) {
         guard let request = playbackRuntime.currentLaunchRequest else { return }
         switch request.viewingStateAuthority {
         case .enchronPersistence:
@@ -829,7 +1000,11 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 }
             }
         case .mediaServer:
-            finishMediaServerReportingSession()
+            if finishesMediaServerSession {
+                finishMediaServerReportingSession()
+            } else {
+                reportImmediateMediaServerProgress(isPaused: true)
+            }
             switch playbackRuntime.productLifecycle {
             case .ready, .playing, .paused, .ended:
                 break
@@ -1022,12 +1197,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         )
     }
 
-    private func reportImmediateMediaServerProgress(positionSeconds: Double? = nil) {
+    private func reportImmediateMediaServerProgress(
+        positionSeconds: Double? = nil, isPaused: Bool? = nil
+    ) {
         guard var session = mediaServerReportingSession,
               session.generation == generation,
               session.runtimeGeneration == playbackRuntime.observationGeneration,
               case .active = session.phase else { return }
-        let report = currentPlaybackSessionReport(positionSeconds: positionSeconds)
+        let report = currentPlaybackSessionReport(positionSeconds: positionSeconds, isPaused: isPaused)
         session.lastReport = report
         mediaServerReportingSession = session
         session.reporter.playbackProgressed(report)

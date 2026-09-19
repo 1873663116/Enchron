@@ -52,6 +52,10 @@ enum PlaybackBufferingPolicy {
 
     static let pendingReadPollInterval: Duration = .seconds(1)
 
+    // Bounds the resume-time source liveness probe. A live transport answers
+    // well inside this; a dead one is abandoned here and the caller reopens.
+    static let rendererFlushProbeBudget: Duration = .milliseconds(250)
+
     static func seekRequirement(
         target: CMTime,
         durationSeconds: Double
@@ -275,6 +279,32 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var rendererFailureMonitor: RendererFailureMonitoring?
     let rendererFailureLock = NSLock()
     var acceptsRendererFailure = true
+
+    /// Set once the system has flushed the video decoder, cleared when the
+    /// reopen has restored it. A second report while it is set is ignored, so
+    /// delivery is not stopped twice for one flush.
+    let rendererFlushLock = NSLock()
+    var rendererFlushPending = false
+
+    func beginRendererFlushRecovery() -> Bool {
+        rendererFlushLock.withLock {
+            guard rendererFlushPending == false else { return false }
+            rendererFlushPending = true
+            return true
+        }
+    }
+
+    func clearRendererFlushRecovery() {
+        rendererFlushLock.withLock { rendererFlushPending = false }
+    }
+
+    let rendererRecoveryLock = NSLock()
+    var rendererRecoveryTask: Task<Void, Error>?
+
+    var needsVideoRendererRecovery: Bool {
+        renderer.requiresFlushToResumeDecoding
+            || rendererFlushLock.withLock { rendererFlushPending }
+    }
     let videoTrackID: String
     let deliveryQueue = DispatchQueue(label: "PlaybackCore.sample-delivery")
     let audioDeliveryQueue = DispatchQueue(label: "PlaybackCore.audio-sample-delivery")
@@ -1094,6 +1124,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         beginOperation(.pause, targetRate: 0)
         timelineStartRate = 0
         setTimelineStopped(reason: .pause)
+        // A paused session is no longer waiting for a first frame, and the
+        // displayed image can go with the presentation surface. Leaving the
+        // deadline armed fails a session that was only ever paused; playing
+        // again arms a fresh one.
+        cancelFirstVideoFrameDeadline()
         updateLifecycle(.paused)
         recordRendererState(at: currentTime())
         debugStore.emit(

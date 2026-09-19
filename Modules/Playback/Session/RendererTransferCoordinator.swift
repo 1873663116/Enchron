@@ -1257,6 +1257,10 @@ extension RendererTransferCoordinator {
         try await requireActiveDriver().waitUntilTimelineReadyForControl()
     }
 
+    func prepareVideoRendererForResume() async {
+        await activeDriver?.prepareVideoRendererForResume()
+    }
+
     func seek(
         to time: CMTime,
         after intent: PlaybackAfterSeekIntent

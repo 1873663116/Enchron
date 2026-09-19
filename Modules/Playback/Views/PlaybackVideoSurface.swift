@@ -227,6 +227,9 @@ public struct PlaybackVideoSurface: View {
     @State private var sceneTicks = SceneTickSubscriber()
     @State private var componentRevision = 0
     @State private var surfaceRefreshTick = 0
+    @State private var lastSurfaceAttachmentProbe: String?
+    @State private var reattachRequired = false
+    @State private var lastObservedHostMarkerActive: Bool?
     @State private var validVisionLayoutViewportRefreshRevision: UInt64?
     @State private var surfaceVerticalFill: Float = 1
     @State private var hostRoot = PlaybackSurfaceHostRoot()
@@ -284,6 +287,9 @@ public struct PlaybackVideoSurface: View {
         .frame(depth: realityViewDepth)
         .task(id: surfaceReadinessKey) {
             await retrySurfaceAttachment()
+        }
+        .onChange(of: playbackRuntime.foregroundReturnRevision) {
+            surfaceRefreshTick &+= 1
         }
         .onChange(of: playbackRuntime.videoComponentRevision) {
             surfaceRefreshTick &+= 1
@@ -386,6 +392,13 @@ public struct PlaybackVideoSurface: View {
         return [
             presentation.rawValue,
             isActive ? "active" : "inactive",
+            // The host marker is what actually flips when the presentation
+            // surface is torn down and rebuilt; `isActive` can stay true across
+            // the whole round trip, so on its own it never re-arms the
+            // attachment. Without this the surface is left un-attached after the
+            // rebuild and both playback and recovery stall on no pictures.
+            realityViewHostMarker.isActive ? "hostActive" : "hostInactive",
+            String(playbackRuntime.foregroundReturnRevision),
             playbackRuntime.hasActivePlaybackRequest ? "requestActive" : "requestNone",
             playbackRuntime.productLifecycle.rawValue,
             playbackRuntime.mediaFormatIsKnown ? "formatReady" : "formatPending",
@@ -403,18 +416,80 @@ public struct PlaybackVideoSurface: View {
 
     @MainActor
     private func retrySurfaceAttachment() async {
+        recordSurfaceAttachmentFacts(reason: "enter")
         while surfaceAttachmentCanStillSettle {
             guard Task.isCancelled == false else { return }
-            if playbackRuntime.attachedPresentation == presentation,
-               playbackRuntime.rendererConsumerEntityID == entityID,
-               videoEntity.isActive,
-               presentationPhase == .settled {
+            // The host marker is what flips when the presentation surface is
+            // torn down and rebuilt, and the four attachment conditions can all
+            // read as satisfied straight through that rebuild. A flip therefore
+            // demands one real re-attach before the surface counts as settled.
+            // Every other change to the readiness key is left to the
+            // bookkeeping, which is accurate when nothing was rebuilt.
+            if lastObservedHostMarkerActive != realityViewHostMarker.isActive {
+                lastObservedHostMarkerActive = realityViewHostMarker.isActive
+                reattachRequired = true
+            }
+            let facts = surfaceAttachmentFacts()
+            if facts.isSatisfied, reattachRequired == false {
+                recordSurfaceAttachmentFacts(reason: "settled", facts: facts)
                 return
             }
+            reattachRequired = false
+            recordSurfaceAttachmentFacts(reason: "reattaching", facts: facts)
             surfaceRefreshTick &+= 1
             surfaceActivation.requestRetry()
             try? await Task.sleep(for: PlaybackSurfaceActivation.retryIntervalForView)
         }
+        recordSurfaceAttachmentFacts(reason: "unsatisfiable")
+    }
+
+    /// The four conditions that let the surface stop re-attaching, recorded
+    /// individually: after the surface is torn down and rebuilt they can keep
+    /// claiming the attachment is fine while nothing is being presented.
+    private struct SurfaceAttachmentFacts {
+        let presentationMatches: Bool
+        let entityMatches: Bool
+        let entityIsActive: Bool
+        let phaseIsSettled: Bool
+
+        var isSatisfied: Bool {
+            presentationMatches && entityMatches && entityIsActive && phaseIsSettled
+        }
+
+        var summary: String {
+            "presentationMatch=\(presentationMatches)"
+                + " entityMatch=\(entityMatches)"
+                + " entityActive=\(entityIsActive)"
+                + " phaseSettled=\(phaseIsSettled)"
+        }
+    }
+
+    private func surfaceAttachmentFacts() -> SurfaceAttachmentFacts {
+        SurfaceAttachmentFacts(
+            presentationMatches: playbackRuntime.attachedPresentation == presentation,
+            entityMatches: playbackRuntime.rendererConsumerEntityID == entityID,
+            entityIsActive: videoEntity.isActive,
+            phaseIsSettled: presentationPhase == .settled
+        )
+    }
+
+    private func recordSurfaceAttachmentFacts(
+        reason: String,
+        facts: SurfaceAttachmentFacts? = nil
+    ) {
+        let facts = facts ?? surfaceAttachmentFacts()
+        let line = "surfaceAttachment \(reason) \(facts.summary)"
+            + " isActive=\(isActive)"
+            + " request=\(playbackRuntime.hasActivePlaybackRequest)"
+            + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+            + " attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")"
+            + " presentation=\(presentation.rawValue)"
+            + " consumerEntity=\(playbackRuntime.rendererConsumerEntityID ?? "none")"
+            + " viewEntity=\(entityID)"
+            + " canStillSettle=\(surfaceAttachmentCanStillSettle)"
+        guard line != lastSurfaceAttachmentProbe else { return }
+        lastSurfaceAttachmentProbe = line
+        SurfaceInputProbes.record(line, retention: .evidence)
     }
 
     private var surfaceAttachmentCanStillSettle: Bool {
@@ -441,6 +516,7 @@ public struct PlaybackVideoSurface: View {
         )
         logSurfaceFacts(reason: "prepareCheck")
         guard isActive else {
+            recordSurfaceAttachmentFacts(reason: "prepareSurfaceInactive")
             if preservesDepartingSurfaceForFade {
                 releaseRendererOwnershipWhileKeepingVisibleSurface()
             } else {

@@ -236,6 +236,10 @@ class PlaybackMediaSessionDriver {
         try controller.pause()
     }
 
+    func prepareVideoRendererForResume() async {
+        await controller.prepareVideoRendererForResume()
+    }
+
     func waitUntilTimelineReadyForControl() async throws {
         try await controller.waitUntilTimelineReadyForControl()
     }

@@ -73,6 +73,32 @@ struct PlaybackActiveFailureTests {
         await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 
+    @Test("Play on a terminal session delegates to recovery")
+    func playOnTerminalSessionDelegatesToRecovery() async throws {
+        let controller = PlaybackCoreController()
+        let runtime = PlaybackRuntime(controller: controller)
+        let request = PlaybackLaunchRequest(
+            source: try PlaybackAddress(
+                localFileURL: URL(fileURLWithPath: "/tests/terminal-resume.mkv")
+            ),
+            displayName: "terminal-resume.mkv"
+        )
+        runtime.prepareForPlayback(request)
+        controller.onStatusChange?(.failed("renderer died while suspended"))
+        var recoveryRequests = 0
+        runtime.onResumeHealingRequired = {
+            recoveryRequests += 1
+            return true
+        }
+
+        runtime.resume()
+        await Task.yield()
+
+        #expect(recoveryRequests == 1)
+        #expect(runtime.userVisibleIssue == .playbackFailed)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
     @Test("connection interruption maps from URL HTTP and POSIX boundaries")
     func connectionInterruptionMapsFromExternalBoundaries() {
         #expect(
