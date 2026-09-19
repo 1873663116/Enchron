@@ -106,7 +106,7 @@ private struct OpenSourceSection: Identifiable {
     static let all: [OpenSourceSection] = [
         OpenSourceSection(
             id: "this-app",
-            title: "This App",
+            title: String(localized: "This App"),
             components: [
                 OpenSourceComponent(
                     id: "enchron",
@@ -121,7 +121,7 @@ private struct OpenSourceSection: Identifiable {
         ),
         OpenSourceSection(
             id: "linked-into-the-app",
-            title: "Linked Into The App",
+            title: String(localized: "Linked Into The App"),
             components: [
                 OpenSourceComponent(
                     id: "ffmpeg",
@@ -208,7 +208,7 @@ private struct OpenSourceSection: Identifiable {
         ),
         OpenSourceSection(
             id: "used-while-building",
-            title: "Used While Building",
+            title: String(localized: "Used While Building"),
             components: [
                 OpenSourceComponent(
                     id: "swift-syntax",

@@ -23,7 +23,7 @@ public struct PlayerInfoBarView: View {
     public var body: some View {
         WindowPlaybackTopChrome {
             CircleIconButton.back(
-                accessibilityLabel: "Back",
+                accessibilityLabel: String(localized: "Back"),
                 action: {
 #if DEBUG
                     appModel.recordSurfaceInputProbe(

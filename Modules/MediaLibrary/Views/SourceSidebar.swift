@@ -209,7 +209,7 @@ public struct SourceSidebar: View {
     private var sourceMoreMenu: some View {
         CircleIconMenu(
             systemName: "ellipsis",
-            accessibilityLabel: "More source actions",
+            accessibilityLabel: String(localized: "More source actions"),
             accessibilityIdentifier: "\(identifierPrefix)-sourceMore",
             iconColor: .secondary
         ) {
@@ -278,13 +278,13 @@ public struct SourceSidebar: View {
                 items: [
                     DebugMenuSelectionItem(
                         id: "webDAV",
-                        title: "WebDAV",
+                        title: String(localized: "WebDAV"),
                         isSelected: false,
                         select: { performAddSource(.webDAV) }
                     ),
                     DebugMenuSelectionItem(
                         id: "smb",
-                        title: "SMB",
+                        title: String(localized: "SMB"),
                         isSelected: false,
                         select: { performAddSource(.smb) }
                     )
@@ -294,7 +294,7 @@ public struct SourceSidebar: View {
             var items = [
                 DebugMenuSelectionItem(
                     id: "refresh",
-                    title: "Refresh",
+                    title: String(localized: "Refresh"),
                     isSelected: false,
                     select: { performRefresh() }
                 )
@@ -303,7 +303,7 @@ public struct SourceSidebar: View {
                 items.append(
                     DebugMenuSelectionItem(
                         id: "delete",
-                        title: "Delete",
+                        title: String(localized: "Delete"),
                         isSelected: isSelectingSidebarItems,
                         select: { performDeleteSelection() }
                     )
@@ -335,7 +335,7 @@ public struct SourceSidebar: View {
             if selectedDeletableCount > 0 {
                 sidebarSelectionButton(
                     systemName: "trash.fill",
-                    accessibilityLabel: "Delete selected sources",
+                    accessibilityLabel: String(localized: "Delete selected sources"),
                     tint: .red,
                     action: deleteSelectedSources
                 )
@@ -343,7 +343,7 @@ public struct SourceSidebar: View {
 
             sidebarSelectionButton(
                 systemName: "checkmark",
-                accessibilityLabel: "Finish selecting",
+                accessibilityLabel: String(localized: "Finish selecting"),
                 action: toggleSidebarSelectionMode
             )
         }

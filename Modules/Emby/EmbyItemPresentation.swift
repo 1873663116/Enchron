@@ -82,19 +82,19 @@ public struct EmbyAboutSections: Equatable, Sendable {
     public init(metadata: EmbyItemMetadata, sources: [EmbyMediaSourceDescription]) {
         var information: [Entry] = []
         if let year = metadata.productionYear {
-            information.append(Entry(label: "Released", value: String(year)))
+            information.append(Entry(label: String(localized: "Released"), value: String(year)))
         }
         if let rating = metadata.officialRating, rating.isEmpty == false {
-            information.append(Entry(label: "Rated", value: rating))
+            information.append(Entry(label: String(localized: "Rated"), value: rating))
         }
         if metadata.studios.isEmpty == false {
             information.append(
-                Entry(label: "Studios", value: metadata.studios.map(\.name).joined(separator: ", "))
+                Entry(label: String(localized: "Studios"), value: metadata.studios.map(\.name).joined(separator: ", "))
             )
         }
         if metadata.productionLocations.isEmpty == false {
             information.append(
-                Entry(label: "Region", value: metadata.productionLocations.joined(separator: ", "))
+                Entry(label: String(localized: "Region"), value: metadata.productionLocations.joined(separator: ", "))
             )
         }
         self.information = information
@@ -106,16 +106,16 @@ public struct EmbyAboutSections: Equatable, Sendable {
         var languages: [Entry] = []
         if let original = audioStreams.first(where: \.isDefault) ?? audioStreams.first,
            let name = Self.languageName(original) {
-            languages.append(Entry(label: "Original Audio", value: name))
+            languages.append(Entry(label: String(localized: "Original Audio"), value: name))
         }
         if audioStreams.isEmpty == false {
             languages.append(
-                Entry(label: "Audio", value: Self.joined(audioStreams.compactMap(Self.languageName)))
+                Entry(label: String(localized: "Audio"), value: Self.joined(audioStreams.compactMap(Self.languageName)))
             )
         }
         if subtitleStreams.isEmpty == false {
             languages.append(
-                Entry(label: "Subtitles", value: Self.joined(subtitleStreams.compactMap(Self.languageName)))
+                Entry(label: String(localized: "Subtitles"), value: Self.joined(subtitleStreams.compactMap(Self.languageName)))
             )
         }
         self.languages = languages
@@ -123,13 +123,13 @@ public struct EmbyAboutSections: Equatable, Sendable {
         var accessibility: [Entry] = []
         if subtitleStreams.contains(where: \.isHearingImpaired) {
             accessibility.append(Entry(
-                label: "SDH",
+                label: String(localized: "SDH"),
                 value: "Subtitles for the deaf and hard of hearing describe sounds beyond dialogue."
             ))
         }
         if audioStreams.contains(where: Self.isAudioDescription) {
             accessibility.append(Entry(
-                label: "AD",
+                label: String(localized: "AD"),
                 value: "Audio description narrates what happens on screen between lines of dialogue."
             ))
         }
@@ -178,19 +178,19 @@ public struct EmbyAboutSections: Equatable, Sendable {
         var entries: [Entry] = []
         let containers = joined(sources.compactMap { $0.container?.nonEmptyValue.map { $0.uppercased() } })
         if containers.isEmpty == false {
-            entries.append(Entry(label: "Container", value: containers))
+            entries.append(Entry(label: String(localized: "Container"), value: containers))
         }
         guard sources.count == 1, let source = sources.first else {
-            entries.append(Entry(label: "Files", value: "\(sources.count)"))
+            entries.append(Entry(label: String(localized: "Files"), value: "\(sources.count)"))
             return entries
         }
         if let size = source.sizeInBytes {
-            entries.append(Entry(label: "Size", value: size.formatted(.byteCount(style: .file))))
+            entries.append(Entry(label: String(localized: "Size"), value: size.formatted(.byteCount(style: .file))))
         }
         if let rate = source.bitrate {
-            entries.append(Entry(label: "Total Bitrate", value: bitrate(rate)))
+            entries.append(Entry(label: String(localized: "Total Bitrate"), value: bitrate(rate)))
         }
-        entries.append(Entry(label: "Version", value: source.displayName))
+        entries.append(Entry(label: String(localized: "Version"), value: source.displayName))
         return entries
     }
 

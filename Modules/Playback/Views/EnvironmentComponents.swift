@@ -33,11 +33,11 @@ public struct FeaturedEnvironment: Identifiable {
             environment: .ocean,
             lightImageName: "EnvironmentOcean",
             darkImageName: "EnvironmentOceanDark",
-            title: "Ocean",
-            environmentNumber: "Environment 01",
-            quote: "\"Open water under a slow sky, the screen mirrored in the swell.\"",
-            mode: "Open water",
-            atmosphere: "Light Mode / Dark Mode"
+            title: String(localized: "Ocean"),
+            environmentNumber: String(localized: "Environment 01"),
+            quote: String(localized: "\"Open water under a slow sky, the screen mirrored in the swell.\""),
+            mode: String(localized: "Open water"),
+            atmosphere: String(localized: "Light Mode / Dark Mode")
         ),
         .init(
             environment: .placeholderRed,

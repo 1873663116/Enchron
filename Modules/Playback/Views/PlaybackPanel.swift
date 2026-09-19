@@ -657,7 +657,7 @@ public struct FusedPlayerPanel: View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
                 CircleIconButton.back(
-                    accessibilityLabel: "Close Timeline",
+                    accessibilityLabel: String(localized: "Close Timeline"),
                     action: closeTimeline,
                     accessibilityIdentifier: "PlayerPanel-precision-timeline-back"
                 )
@@ -687,7 +687,7 @@ public struct FusedPlayerPanel: View {
             VStack(spacing: DesignTokens.Spacing.sm) {
                 HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
                     CircleIconButton.back(
-                        accessibilityLabel: "Close Advanced Settings",
+                        accessibilityLabel: String(localized: "Close Advanced Settings"),
                         action: toggleSettings,
                         accessibilityIdentifier: "PlayerPanel-DockedPlacement-back"
                     )
@@ -696,7 +696,7 @@ public struct FusedPlayerPanel: View {
                     if showsPlacementControls {
                         CircleIconButton(
                             systemName: "arrow.counterclockwise",
-                            accessibilityLabel: "Restore Defaults",
+                            accessibilityLabel: String(localized: "Restore Defaults"),
                             action: {
                                 onInteraction()
                                 live.onReachabilityAction("dockedPlacement.reset")
@@ -747,7 +747,7 @@ public struct FusedPlayerPanel: View {
         let distanceRange = live.placementLimits.distanceRange
         return VStack(spacing: DesignTokens.Spacing.sm) {
             DockedPlacementSliderRow(
-                title: "Height",
+                title: String(localized: "Height"),
                 liveValue: live.viewerHeight - viewerHeightRange.lowerBound,
                 range: 0...(viewerHeightRange.upperBound - viewerHeightRange.lowerBound),
                 step: PlaybackDockedPlacementLimits.viewerHeightStep,
@@ -761,7 +761,7 @@ public struct FusedPlayerPanel: View {
                 }
             )
             DockedPlacementSliderRow(
-                title: "Distance",
+                title: String(localized: "Distance"),
                 liveValue: live.screenDistance - distanceRange.lowerBound,
                 range: 0...(distanceRange.upperBound - distanceRange.lowerBound),
                 step: PlaybackDockedPlacementLimits.distanceStep,
@@ -775,7 +775,7 @@ public struct FusedPlayerPanel: View {
                 }
             )
             DockedPlacementSliderRow(
-                title: "Elevation",
+                title: String(localized: "Elevation"),
                 liveValue: live.screenElevationDegrees,
                 range: live.placementLimits.elevationRange,
                 step: PlaybackDockedPlacementLimits.elevationStep,
@@ -1006,7 +1006,7 @@ public struct FusedPlayerPanel: View {
     private var expandedMediaInformation: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             CircleIconButton.back(
-                accessibilityLabel: "Back",
+                accessibilityLabel: String(localized: "Back"),
                 action: toggleMediaInformation,
                 accessibilityIdentifier: "PlayerPanel-media-information-close"
             )
@@ -1027,8 +1027,7 @@ public struct FusedPlayerPanel: View {
 
                     ForEach(persistentCapabilities) { capability in
                         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                            Label(
-                                "\(capability.requested). \(capability.delivered).",
+                            Label("\(capability.requested). \(capability.delivered).",
                                 systemImage: "exclamationmark.circle"
                             )
                             .font(DesignTokens.Typography.metadata)
@@ -1127,14 +1126,14 @@ public struct FusedPlayerPanel: View {
     private func returnToWindowButton(_ live: FusedPlayerPanelLive) -> some View {
         if live.presentation == .panorama {
             CircleIconButton.collapseVertically(
-                accessibilityLabel: "Return to Portal",
+                accessibilityLabel: String(localized: "Return to Portal"),
                 action: live.onExitSpatial,
                 accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
             )
             .keyboardShortcut(.escape, modifiers: [])
         } else if live.presentation == .docked {
             CircleIconButton.collapse(
-                accessibilityLabel: "Return to Window",
+                accessibilityLabel: String(localized: "Return to Window"),
                 action: live.onExitSpatial,
                 accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
             )
@@ -1287,7 +1286,7 @@ public struct FusedPlayerPanel: View {
     private var moreMenu: some View {
         CircleIconMenu(
             systemName: "ellipsis",
-            accessibilityLabel: "More",
+            accessibilityLabel: String(localized: "More"),
             accessibilityIdentifier: "PlayerPanel-menu-more"
         ) {
             if let live {
@@ -1585,7 +1584,7 @@ public struct FusedPlayerPanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-progress")
         .accessibilityLabel("Playback position")
-        .accessibilityValue("\(displayedElapsedLabel) of \(live?.durationLabel ?? "14:15")")
+        .accessibilityValue(String(localized: "\(displayedElapsedLabel) of \(live?.durationLabel ?? "14:15")"))
         .accessibilityAdjustableAction { direction in
             adjustProgressForAccessibility(direction)
         }

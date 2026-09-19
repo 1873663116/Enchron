@@ -205,8 +205,7 @@ public struct ConnectionFormPanel: View {
                         "Username",
                         accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-username"
                     ) {
-                        TextField(
-                            "Username",
+                        TextField("Username",
                             text: $username,
                             prompt: Text("Username")
                         )
@@ -215,8 +214,7 @@ public struct ConnectionFormPanel: View {
                         "Password",
                         accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-password"
                     ) {
-                        SecureField(
-                            "Password",
+                        SecureField("Password",
                             text: $password,
                             prompt: Text("Password")
                         )
@@ -306,16 +304,16 @@ public struct ConnectionFormPanel: View {
         HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
             Spacer(minLength: 0)
             GlassCapsuleIconLabelButton(
-                title: "Cancel",
+                title: String(localized: "Cancel"),
                 systemName: "xmark",
-                accessibilityLabel: "Cancel",
+                accessibilityLabel: String(localized: "Cancel"),
                 action: cancel,
                 accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-cancel"
             )
             GlassCapsuleIconLabelButton(
-                title: "Connect",
+                title: String(localized: "Connect"),
                 systemName: "link",
-                accessibilityLabel: "Connect",
+                accessibilityLabel: String(localized: "Connect"),
                 action: connect,
                 accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-connect"
             )

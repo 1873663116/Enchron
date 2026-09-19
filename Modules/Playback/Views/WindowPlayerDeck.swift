@@ -326,7 +326,7 @@ public struct WindowPlayerDeckView: View {
             }
         }
         items.append(
-            DeckMenuItem(id: "off", title: "Off", isSelected: current == nil) {
+            DeckMenuItem(id: "off", title: String(localized: "Off"), isSelected: current == nil) {
                 self.register()
                 Task {
                     do {
@@ -404,7 +404,7 @@ struct ProductionPlaybackMoreMenu: View {
     var body: some View {
         CircleIconMenu(
             systemName: "ellipsis",
-            accessibilityLabel: "More",
+            accessibilityLabel: String(localized: "More"),
             accessibilityIdentifier: "PlayerUI-TopAction-more"
         ) {
             Group {
@@ -556,7 +556,7 @@ struct ProductionPlaybackMoreMenu: View {
             }
         }
         items.append(
-            DeckMenuItem(id: "off", title: "Off", isSelected: current == nil) {
+            DeckMenuItem(id: "off", title: String(localized: "Off"), isSelected: current == nil) {
                 register()
                 Task {
                     do {

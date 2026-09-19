@@ -106,14 +106,14 @@ public final class EmbyHomeViewModel {
             if continueWatching.isEmpty == false {
                 loadedShelves.append(EmbyHomeShelf(
                     kind: .continueWatching,
-                    title: "Continue Watching",
+                    title: String(localized: "Continue Watching"),
                     items: continueWatching
                 ))
             }
             if nextUp.isEmpty == false {
                 loadedShelves.append(EmbyHomeShelf(
                     kind: .nextUp,
-                    title: "Next Up",
+                    title: String(localized: "Next Up"),
                     items: nextUp
                 ))
             }
@@ -126,7 +126,7 @@ public final class EmbyHomeViewModel {
                 if latest.isEmpty == false {
                     loadedShelves.append(EmbyHomeShelf(
                         kind: .recentlyAdded(library.id),
-                        title: "Recently Added in \(library.name)",
+                        title: String(localized: "Recently Added in \(library.name)"),
                         items: latest
                     ))
                 }

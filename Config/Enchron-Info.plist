@@ -76,5 +76,7 @@
 		<key>UISceneConfigurations</key>
 		<dict/>
 	</dict>
+	<key>UIPrefersShowingLanguageSettings</key>
+	<true/>
 </dict>
 </plist>

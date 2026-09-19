@@ -1,0 +1,314 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "Advanced SubStation Alpha subtitle": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced SubStation Alpha-Untertitel"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous-titres Advanced SubStation Alpha"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced SubStation Alpha 字幕"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced SubStation Alpha 자막"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Субтитры Advanced SubStation Alpha"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced SubStation Alpha 字幕"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Advanced SubStation Alpha 字幕"
+          }
+        }
+      }
+    },
+    "CFBundleName": {
+      "comment": "Bundle name",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Enchron"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron"
+          }
+        }
+      }
+    },
+    "NSHandsTrackingUsageDescription": {
+      "comment": "Config/Enchron-Info.plist",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron verwendet Hand-Tracking für räumliche Wiedergabesteuerung in immersiven Umgebungen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron uses hand tracking for spatial playback controls in immersive environments."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron utilise le suivi des mains pour les commandes de lecture spatiale dans les environnements immersifs."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron は、没入環境での空間的な再生操作のためにハンドトラッキングを使用します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron은 몰입 환경에서 공간 재생 컨트롤을 위해 손 추적을 사용해요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron использует отслеживание рук для пространственного управления воспроизведением в иммерсивных средах."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron 在沉浸环境中使用手部追踪提供空间播放控制。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron 會使用手部追蹤，在沉浸式環境中提供空間播放控制項目。"
+          }
+        }
+      }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "comment": "Config/Enchron-Info.plist",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron verbindet sich mit Medienservern in deinem lokalen Netzwerk, um Videos zu durchsuchen und zu streamen."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron connects to media servers on your local network to browse and stream videos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron se connecte aux serveurs multimédias de votre réseau local pour parcourir et diffuser des vidéos."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron は、ビデオを閲覧・ストリーミングするためにローカルネットワーク上のメディアサーバーに接続します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron은 로컬 네트워크의 미디어 서버에 연결해 비디오를 탐색하고 스트리밍해요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron подключается к медиасерверам в вашей локальной сети, чтобы искать видео и воспроизводить их потоком."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron 会连接本地网络内的媒体服务器，以浏览和流式播放视频。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron 會連線到區域網路上的媒體伺服器，以瀏覽及串流影片。"
+          }
+        }
+      }
+    },
+    "NSWorldSensingUsageDescription": {
+      "comment": "Config/Enchron-Info.plist",
+      "extractionState": "manual",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron verwendet Umwelterkennung, um die Kinoumgebung und den Bildschirm um dich herum zu platzieren."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron uses world sensing to place the cinema environment and screen around you."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron utilise la détection de l'environnement pour placer la salle de projection et l'écran autour de vous."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron は、シアター環境と画面を周囲に配置するためにワールドセンシングを使用します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron은 주변에 시네마 환경과 화면을 배치하기 위해 공간 감지를 사용해요."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron использует распознавание окружения, чтобы разместить кинозал и экран вокруг вас."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron 使用周围环境感知在你身边放置影院环境和屏幕。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enchron 會使用空間感知，將影院環境與螢幕放置在你的周圍。"
+          }
+        }
+      }
+    },
+    "SubRip subtitle": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SubRip-Untertitel"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sous-titres SubRip"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SubRip 字幕"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SubRip 자막"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Субтитры SubRip"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SubRip 字幕"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SubRip 字幕"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

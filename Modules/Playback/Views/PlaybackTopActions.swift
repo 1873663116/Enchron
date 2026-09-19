@@ -242,7 +242,7 @@ struct PlaybackVideoFormatEditor: View {
             Divider()
 
             formatPicker(
-                title: "Projection",
+                title: String(localized: "Projection"),
                 selection: presetProjectionSelection,
                 options: [
                     PlaybackModel.ProjectionType.flat,
@@ -255,7 +255,7 @@ struct PlaybackVideoFormatEditor: View {
             customAngleRow
 
             formatPicker(
-                title: "Stereo Layout",
+                title: String(localized: "Stereo Layout"),
                 selection: stereoLayoutSelection,
                 options: PlaybackModel.StereoLayout.userSelectableCases,
                 label: stereoTitle
@@ -296,7 +296,7 @@ struct PlaybackVideoFormatEditor: View {
                 items: PanoramaHorizontalCoverage.selectableAngles.map { degrees in
                     DebugMenuSelectionItem(
                         id: String(degrees),
-                        title: "\(degrees)°",
+                        title: String(localized: "\(degrees)°"),
                         isSelected: projection == .customAngle
                             && horizontalFieldOfViewDegrees == degrees,
                         select: { customAngleSelection.wrappedValue = Double(degrees) }
@@ -327,8 +327,8 @@ struct PlaybackVideoFormatEditor: View {
                 range: Double(PanoramaHorizontalCoverage.range.lowerBound)
                     ... Double(PanoramaHorizontalCoverage.range.upperBound),
                 step: Double(PanoramaHorizontalCoverage.step),
-                accessibilityLabel: "Custom Angle",
-                accessibilityValue: "\(horizontalFieldOfViewDegrees)°",
+                accessibilityLabel: String(localized: "Custom Angle"),
+                accessibilityValue: String(localized: "\(horizontalFieldOfViewDegrees)°"),
                 accessibilityIdentifier: "\(identifierPrefix)-CustomAngle",
                 trackWidth: contentWidth
             )
@@ -537,7 +537,7 @@ public struct PlaybackTopActions: View {
         WindowPlaybackSpatialActions {
             if topActionsComposition.showsPanoramaEntry {
                 CircleIconButton.expandVertically(
-                    accessibilityLabel: "Enter Panorama",
+                    accessibilityLabel: String(localized: "Enter Panorama"),
                     action: {
                         onReachabilityAction("enterPanorama")
                         onEnterImmersive?(nil, nil)
@@ -547,7 +547,7 @@ public struct PlaybackTopActions: View {
             } else if topActionsComposition.showsDock {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "mountain.2.fill",
-                    accessibilityLabel: "Dock",
+                    accessibilityLabel: String(localized: "Dock"),
                     action: {
                         onReachabilityAction("dock.open")
                         toggle(.dock)
@@ -566,7 +566,7 @@ public struct PlaybackTopActions: View {
             if topActionsComposition.showsVideoFormat {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "gear",
-                    accessibilityLabel: "Video Format",
+                    accessibilityLabel: String(localized: "Video Format"),
                     action: {
                         onReachabilityAction("videoFormat.open")
                         toggle(.videoFormat)

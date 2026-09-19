@@ -21,6 +21,7 @@ public struct MainView: View {
     @Environment(SettingsViewModel.self) private var settingsViewModel
     @Environment(DeveloperMetricsModel.self) private var developerMetrics
 
+
     public init() {}
 
     public var body: some View {
@@ -70,27 +71,27 @@ public struct MainView: View {
         ) {
             switch connectionSecurityPrompt.question {
             case .cleartextCredentials:
-                Button("仍然连接", role: .destructive) {
+                Button("Connect Anyway", role: .destructive) {
                     connectionSecurityPrompt.resolve(approved: true)
                 }
                 .accessibilityIdentifier("FileBrowsing-CleartextExposure-proceed")
-                Button("取消", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     connectionSecurityPrompt.resolve(approved: false)
                 }
                 .accessibilityIdentifier("FileBrowsing-CleartextExposure-cancel")
             case .unverifiedCertificate, .none:
-                Button("信任", role: .destructive) {
+                Button("Trust", role: .destructive) {
                     connectionSecurityPrompt.resolve(approved: true)
                 }
                 .accessibilityIdentifier("FileBrowsing-CertificateTrust-trust")
-                Button("取消", role: .cancel) {
+                Button("Cancel", role: .cancel) {
                     connectionSecurityPrompt.resolve(approved: false)
                 }
                 .accessibilityIdentifier("FileBrowsing-CertificateTrust-cancel")
             }
         } message: {
             if let question = connectionSecurityPrompt.question {
-                Text(question.message)
+                question.message
             }
         }
     }
@@ -135,8 +136,7 @@ public struct MainView: View {
             DesignTokens.AnimationToken.fadeIn,
             value: playbackLauncher.isResolvingPlaybackRequest
         )
-        .alert(
-            "Resume Playback?",
+        .alert("Resume Playback?",
             isPresented: Binding(
                 get: { playbackLauncher.pendingResumeDecision != nil },
                 set: { if $0 == false { playbackLauncher.cancelPendingResumeDecision() } }
@@ -202,8 +202,7 @@ public struct MainView: View {
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-settings")
 
-            Tab(
-                "Environments",
+            Tab("Environments",
                 systemImage: "mountain.2",
                 value: AppModel.NavigationTab.environment
             ) {

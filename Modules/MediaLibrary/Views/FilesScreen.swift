@@ -270,8 +270,7 @@ public struct FilesScreen: View {
             }
         )
         .alert("New Library Folder", isPresented: $state.isCreatingFolder) {
-            TextField(
-                "Folder name",
+            TextField("Folder name",
                 text: newFolderNameBinding
             )
                 .accessibilityIdentifier("MediaLibrary-NewFolder-name")
@@ -287,15 +286,13 @@ public struct FilesScreen: View {
             }
             .accessibilityIdentifier("MediaLibrary-NewFolder-create")
         }
-        .alert(
-            "Rename Library Folder",
+        .alert("Rename Library Folder",
             isPresented: Binding(
                 get: { folderToRename != nil },
                 set: { if !$0 { folderToRename = nil } }
             )
         ) {
-            TextField(
-                "Folder name",
+            TextField("Folder name",
                 text: renamedFolderNameBinding
             )
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-name")
@@ -329,8 +326,7 @@ public struct FilesScreen: View {
             }
             Button("Cancel", role: .cancel) { folderToRemove = nil }
         }
-        .confirmationDialog(
-            "Remove \(selectedMediaReferenceIDs.count) selected items from the Media Library? Original media will not be changed.",
+        .confirmationDialog("Remove \(selectedMediaReferenceIDs.count) selected items from the Media Library? Original media will not be changed.",
             isPresented: $state.isBatchRemoveConfirmationPresented,
             titleVisibility: .visible
         ) {
@@ -361,8 +357,7 @@ public struct FilesScreen: View {
                 viewModel.dismissCurrentError()
             }
         )
-        .alert(
-            "Media Library Error",
+        .alert("Media Library Error",
             isPresented: Binding(
                 get: { mediaLibrary.lastErrorMessage != nil },
                 set: { if !$0 { mediaLibrary.lastErrorMessage = nil } }
@@ -384,7 +379,7 @@ public struct FilesScreen: View {
     private var sidebar: some View {
         SourceSidebar(
             items: $state.sourceItems,
-            title: "Library & Sources",
+            title: String(localized: "Media Library"),
             containerIdentifier: "FileBrowsing-MainWindow-sidebar",
             identifierPrefix: "FileBrowsing-SourcesSidebar",
             onSelectSource: { id in
@@ -411,7 +406,7 @@ public struct FilesScreen: View {
             SidebarSourceItem(
                 id: mediaLibrarySourceID,
                 icon: "rectangle.stack.fill",
-                title: "Media Library",
+                title: String(localized: "Local Files"),
                 isSelected: sourceSelection == .mediaLibrary,
                 isActiveSource: false,
                 isDeletable: false
@@ -732,7 +727,7 @@ public struct FilesScreen: View {
                             viewModel.searchText = $0
                         }
                     ),
-                    placeholder: "Search media...",
+                    placeholder: String(localized: "Search media..."),
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-search"
                 )
             }
@@ -744,7 +739,7 @@ public struct FilesScreen: View {
         if !isBrowsingSource {
             let folders = mediaLibrary.breadcrumbFolders
             return PathBreadcrumbMenu(
-                path: ["Media Library"] + folders.map(\.name),
+                path: [String(localized: "Local Files")] + folders.map(\.name),
                 onSelectLevel: { position in
                     recordReachability(.breadcrumb(.mediaLibrary))
                     if position == 0 {
@@ -812,7 +807,7 @@ public struct FilesScreen: View {
         } label: {
             CircleIconLabel(
                 systemName: "ellipsis",
-                accessibilityLabel: "Manage media library",
+                accessibilityLabel: String(localized: "Manage media library"),
                 iconColor: .secondary
             )
         }
@@ -830,7 +825,7 @@ public struct FilesScreen: View {
                 .accessibilityIdentifier("MediaLibrary-MultiSelect-count")
 
             Menu {
-                Button("Media Library") {
+                Button("Local Files") {
                     selectMoveDestination(nil)
                 }
                 ForEach(mediaLibrary.allFolders) { folder in
@@ -1201,7 +1196,7 @@ public struct FilesScreen: View {
             guard mediaReferenceSelectionIsActive else { return }
             let root = DebugMenuSelectionItem(
                 id: "root",
-                title: "Media Library",
+                title: String(localized: "Local Files"),
                 isSelected: false,
                 select: { selectMoveDestination(nil) }
             )
@@ -1222,14 +1217,14 @@ public struct FilesScreen: View {
             let items = displayedLibraryReferences.flatMap { reference in
                 let root = DebugMenuSelectionItem(
                     id: "\(reference.id.uuidString):root",
-                    title: "\(reference.name) → Media Library",
+                    title: String(localized: "\(reference.name) → Media Library"),
                     isSelected: false,
                     select: { moveReference(reference, to: nil) }
                 )
                 let folders = mediaLibrary.allFolders.map { folder in
                     DebugMenuSelectionItem(
                         id: "\(reference.id.uuidString):\(folder.id.uuidString)",
-                        title: "\(reference.name) → \(folder.name)",
+                        title: String(localized: "\(reference.name) → \(folder.name)"),
                         isSelected: false,
                         select: { moveReference(reference, to: folder.id) }
                     )
@@ -1256,7 +1251,7 @@ public struct FilesScreen: View {
     @ViewBuilder
     private func libraryReferenceActions(_ reference: FileBrowsingDomain.MediaReference) -> some View {
         Menu("Move to", systemImage: "folder") {
-            Button("Media Library") { moveReference(reference, to: nil) }
+            Button("Local Files") { moveReference(reference, to: nil) }
             ForEach(mediaLibrary.allFolders) { folder in
                 Button(folder.name) { moveReference(reference, to: folder.id) }
             }
@@ -1286,9 +1281,9 @@ public struct FilesScreen: View {
         _ folder: FileBrowsingDomain.LibraryFolder
     ) -> [FileListGroup.Item.ContextAction] {
         [
-            .init(title: "Rename", systemName: "pencil", action: { beginRenaming(folder) }),
+            .init(title: String(localized: "Rename"), systemName: "pencil", action: { beginRenaming(folder) }),
             .init(
-                title: "Remove from Library",
+                title: String(localized: "Remove from Library"),
                 systemName: "trash",
                 role: .destructive,
                 action: { folderToRemove = folder }
@@ -1300,19 +1295,19 @@ public struct FilesScreen: View {
         _ reference: FileBrowsingDomain.MediaReference
     ) -> [FileListGroup.Item.ContextAction] {
         var actions = [FileListGroup.Item.ContextAction(
-            title: "Move to Media Library",
+            title: String(localized: "Move to Media Library"),
             systemName: "folder",
             action: { mediaLibrary.move(reference, to: nil) }
         )]
         actions += mediaLibrary.allFolders.map { folder in
             .init(
-                title: "Move to \(folder.name)",
+                title: String(localized: "Move to \(folder.name)"),
                 systemName: "folder",
                 action: { mediaLibrary.move(reference, to: folder.id) }
             )
         }
         actions.append(.init(
-            title: "Remove from Library",
+            title: String(localized: "Remove from Library"),
             systemName: "trash",
             role: .destructive,
             action: { mediaLibrary.remove(reference) }
@@ -1325,7 +1320,7 @@ public struct FilesScreen: View {
     ) -> [FileListGroup.Item.ContextAction] {
         guard let source = viewModel.activeDataSource else { return [] }
         return [.init(
-            title: "Add to Media Library",
+            title: String(localized: "Add to Media Library"),
             systemName: "plus.rectangle.on.folder",
             action: {
                 mediaLibrary.addSourceFile(

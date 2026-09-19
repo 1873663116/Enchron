@@ -281,7 +281,7 @@ public extension PlaybackUserVisibleIssueCategory {
         switch self {
         case .mediaOpeningFailed:
             .init(
-                title: "Failed to Load",
+                title: String(localized: "Failed to Load"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.retry, .close],
                 presentationLocations: [.mainWindow, .immersiveSpace],
@@ -289,7 +289,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .mediaRequestFailed:
             .init(
-                title: "Unable to Play",
+                title: String(localized: "Unable to Play"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.close],
                 presentationLocations: [.mainWindow, .mediaLibrary],
@@ -297,7 +297,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .connectionFailed:
             .init(
-                title: "Connection Failed",
+                title: String(localized: "Connection Failed"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.retry, .close],
                 presentationLocations: [.mainWindow, .mediaLibrary, .immersiveSpace],
@@ -305,7 +305,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .unsupportedVideoCodec:
             .init(
-                title: "Unable to Play",
+                title: String(localized: "Unable to Play"),
                 messageStrategy: .unsupportedVideoCodecFact,
                 allowedActions: [.close],
                 presentationLocations: [.mainWindow, .mediaLibrary],
@@ -313,7 +313,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .sourceAccessUnavailable:
             .init(
-                title: "Playback Error",
+                title: String(localized: "Playback Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.retry, .close],
                 presentationLocations: [.mainWindow, .immersiveSpace],
@@ -321,7 +321,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .serverCertificateChanged:
             .init(
-                title: "Server Certificate Changed",
+                title: String(localized: "Server Certificate Changed"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.close],
                 presentationLocations: [.mainWindow, .immersiveSpace],
@@ -331,7 +331,7 @@ public extension PlaybackUserVisibleIssueCategory {
              .sourceAccessDenied, .mediaDataCorrupt, .rendererRequiresFlush,
              .mediaServicesReset, .rendererFailed:
             .init(
-                title: "Playback Error",
+                title: String(localized: "Playback Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.retry, .close],
                 presentationLocations: [.mainWindow, .immersiveSpace],
@@ -339,7 +339,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .playbackControlFailed:
             .init(
-                title: "Playback Error",
+                title: String(localized: "Playback Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.confirm],
                 presentationLocations: [.mainWindow, .immersiveSpace],
@@ -347,7 +347,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .mediaFormatChangeFailed:
             .init(
-                title: "Unable to Change Format",
+                title: String(localized: "Unable to Change Format"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.confirm],
                 presentationLocations: [.playerDeck],
@@ -355,7 +355,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .audioTrackSelectionFailed:
             .init(
-                title: "Audio Error",
+                title: String(localized: "Audio Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.confirm],
                 presentationLocations: [.playerDeck],
@@ -363,7 +363,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .subtitleTrackSelectionFailed:
             .init(
-                title: "Subtitle Error",
+                title: String(localized: "Subtitle Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.confirm],
                 presentationLocations: [.playerDeck],
@@ -371,7 +371,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .externalSubtitleFailed:
             .init(
-                title: "Subtitle Error",
+                title: String(localized: "Subtitle Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.confirm],
                 presentationLocations: [.playerDeck],
@@ -379,7 +379,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .presentationTransitionFailed:
             .init(
-                title: "Unable to Change Display",
+                title: String(localized: "Unable to Change Display"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.confirm],
                 presentationLocations: [.playerDeck],
@@ -387,7 +387,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .presentationConversionFailed:
             .init(
-                title: "Conversion Failed",
+                title: String(localized: "Conversion Failed"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.confirm],
                 presentationLocations: [.mediaLibrary],
@@ -395,7 +395,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .surfaceAttachmentFailed:
             .init(
-                title: "Playback Error",
+                title: String(localized: "Playback Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.retry, .close],
                 presentationLocations: [.mainWindow, .immersiveSpace],
@@ -403,7 +403,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .environmentLoadingFailed:
             .init(
-                title: "Playback Error",
+                title: String(localized: "Playback Error"),
                 messageStrategy: .fixedProductCopy,
                 allowedActions: [.retry, .close],
                 presentationLocations: [.immersiveSpace],
@@ -411,7 +411,7 @@ public extension PlaybackUserVisibleIssueCategory {
             )
         case .capabilityUnavailable:
             .init(
-                title: "Unable to Play",
+                title: String(localized: "Unable to Play"),
                 messageStrategy: .blockingCapabilityFact,
                 allowedActions: [.confirm],
                 presentationLocations: [.playerDeck],

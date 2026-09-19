@@ -1,0 +1,39 @@
+{
+  "_note": [
+    "excludedFiles: whole files whose strings never reach users.",
+    "excludedKeys: individual keys that are developer diagnostics or bare numeric constants.",
+    "Strings inside #Preview blocks and keys carrying no letters are dropped automatically."
+  ],
+  "excludedFiles": [],
+  "pluralKeys": [
+    "%lld items",
+    "%lld selected",
+    "Remove %lld selected items from the Media Library? Original media will not be changed."
+  ],
+  "excludedKeys": [
+    "1.2 TB / 4 TB",
+    "997 Hz / 1499 Hz",
+    "Acoustic Calibration",
+    "Acoustic Calibration Status",
+    "Application playback state",
+    "Blackout Probe",
+    "Emby evidence",
+    "Emby product evidence",
+    "Enchron",
+    "Engine diagnostics",
+    "Mixer tap envelope",
+    "Mixer tap envelope hash",
+    "NAS-01 (SMB)",
+    "Playback diagnostic evidence",
+    "Renderer diagnostics",
+    "Runtime timeline",
+    "SMB",
+    "Sample Buffer Acoustic Calibration",
+    "Sample Buffer Acoustic Calibration Status",
+    "Source evidence",
+    "Spatial playback state",
+    "Start Calibration",
+    "Tone manifest",
+    "WebDAV"
+  ]
+}

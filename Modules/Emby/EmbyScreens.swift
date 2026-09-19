@@ -485,7 +485,7 @@ public struct EmbyScreen: View {
                 .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 
             VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
-                sidebarRow(icon: "house.fill", title: "Home", destination: .home)
+                sidebarRow(icon: "house.fill", title: String(localized: "Home"), destination: .home)
 
                 ForEach(home.libraries, id: \.id) { library in
                     sidebarRow(
@@ -495,7 +495,7 @@ public struct EmbyScreen: View {
                     )
                 }
 
-                sidebarRow(icon: "magnifyingglass", title: "Search", destination: .search)
+                sidebarRow(icon: "magnifyingglass", title: String(localized: "Search"), destination: .search)
             }
             .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
 
@@ -503,7 +503,7 @@ public struct EmbyScreen: View {
 
             EditableSourceSidebarRow(
                 icon: "rectangle.portrait.and.arrow.right",
-                title: "Sign Out",
+                title: String(localized: "Sign Out"),
                 isSelected: false,
                 isEnabled: true,
                 isActiveSource: false,
@@ -708,7 +708,7 @@ private struct EmbyHomeScreen: View {
         .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
         .embyPageBounds()
         .overlay(alignment: .top) {
-            EmbyPageHeader(title: "Home", sidebarIsVisible: sidebarIsVisible) { EmptyView() }
+            EmbyPageHeader(title: String(localized: "Home"), sidebarIsVisible: sidebarIsVisible) { EmptyView() }
         }
         .task {
             initialRefreshCompleted = false
@@ -817,10 +817,10 @@ private struct EmbySearchScreen: View {
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
             .overlay(alignment: .top) {
-                EmbyPageHeader(title: "Search", sidebarIsVisible: sidebarIsVisible) {
+                EmbyPageHeader(title: String(localized: "Search"), sidebarIsVisible: sidebarIsVisible) {
                     GlassSearchField(
                         text: $viewModel.query,
-                        placeholder: "Search Emby",
+                        placeholder: String(localized: "Search Emby"),
                         accessibilityIdentifier: "Emby-Search-Field"
                     )
                     .frame(width: 360)
@@ -992,9 +992,9 @@ private struct EmbyDetailScreen: View {
                     if revealed {
                         childrenContent
                             .transition(entrance(5))
-                        posterShelf(title: "Special Features", items: viewModel.specialFeatures)
+                        posterShelf(title: String(localized: "Special Features"), items: viewModel.specialFeatures)
                             .transition(entrance(6))
-                        posterShelf(title: "Related", items: viewModel.relatedItems)
+                        posterShelf(title: String(localized: "Related"), items: viewModel.relatedItems)
                             .transition(entrance(7))
                         castAndCrew(item.metadata.people)
                             .transition(entrance(8))
@@ -1248,7 +1248,7 @@ private struct EmbyDetailScreen: View {
                     .lineLimit(overviewIsExpanded ? nil : 3)
                     .frame(maxWidth: DesignTokens.EmbyDetail.overviewMaxWidth, alignment: .leading)
                 if overview.count > 140 {
-                    Button(overviewIsExpanded ? "Less" : "More") {
+                    Button(overviewIsExpanded ? "Show Less" : "Show More") {
 #if DEBUG
                         session.recordReachability("detail.overview.toggle")
 #endif
@@ -1432,9 +1432,9 @@ private struct EmbyDetailScreen: View {
                 )
             }
         case let .episodes(episodes):
-            episodeShelf(episodes, title: "Episodes")
+            episodeShelf(episodes, title: String(localized: "Episodes"))
         case let .collection(members):
-            posterShelf(title: "In This Collection", items: members)
+            posterShelf(title: String(localized: "In This Collection"), items: members)
         }
     }
 

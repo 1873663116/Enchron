@@ -26,7 +26,7 @@ struct CollapsibleBlock<Content: View>: View {
             if overflows {
                 Button { isPresenting = true } label: { collapsed }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(title), more")
+                    .accessibilityLabel("\(title), show more")
                     .popover(isPresented: $isPresenting) { expanded }
             } else {
                 content
@@ -42,7 +42,7 @@ struct CollapsibleBlock<Content: View>: View {
                 .frame(height: collapsedHeight, alignment: .top)
                 .clipped()
 
-            Text("More")
+            Text("Show More")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
         }

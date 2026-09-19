@@ -42,7 +42,7 @@ public struct SortMenuButton: View {
     public var body: some View {
         CircleIconMenu(
             systemName: "arrow.up.arrow.down",
-            accessibilityLabel: "Sort",
+            accessibilityLabel: String(localized: "Sort"),
             accessibilityIdentifier: accessibilityIdentifier,
             iconColor: iconColor
         ) {
@@ -92,13 +92,13 @@ public struct SortMenuButton: View {
                     items: [
                         DebugMenuSelectionItem(
                             id: "ascending",
-                            title: "Ascending",
+                            title: String(localized: "Ascending"),
                             isSelected: sortOrder == .ascending,
                             select: { sortOrder = .ascending }
                         ),
                         DebugMenuSelectionItem(
                             id: "descending",
-                            title: "Descending",
+                            title: String(localized: "Descending"),
                             isSelected: sortOrder == .descending,
                             select: { sortOrder = .descending }
                         )

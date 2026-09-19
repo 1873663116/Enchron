@@ -32,7 +32,7 @@ public struct SenseZoneVolumeRoot: View {
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SenseZone-VolumeRoot")
-        .accessibilityLabel("SenseZone environments")
+        .accessibilityLabel("Environments")
         .animation(revealAnimation, value: revealCompleted)
         .onAppear {
             appModel.receiveSpatialPlatformResult(.environmentCardAppeared)
