@@ -402,7 +402,7 @@ struct ProductionPlaybackMoreMenu: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var body: some View {
-        CircleIconMenu(
+        PlaybackChromeGlassMenuButton(
             systemName: "ellipsis",
             accessibilityLabel: String(localized: "More"),
             accessibilityIdentifier: "PlayerUI-TopAction-more"

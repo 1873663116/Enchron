@@ -22,7 +22,8 @@ public struct PlayerInfoBarView: View {
 
     public var body: some View {
         WindowPlaybackTopChrome {
-            CircleIconButton.back(
+            PlaybackChromeGlassButton(
+                systemName: "chevron.left",
                 accessibilityLabel: String(localized: "Back"),
                 action: {
 #if DEBUG

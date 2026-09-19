@@ -98,6 +98,7 @@
 				DesignSystem/Components/LoadingSpinner.swift,
 				DesignSystem/Components/MenuSelectionRow.swift,
 				DesignSystem/Components/FlowGridLayout.swift,
+				DesignSystem/Components/PlaybackChromeGlassButton.swift,
 				DesignSystem/Components/SettingsComponents.swift,
 				DesignSystem/Components/SidebarSplitLayout.swift,
 				DesignSystem/Components/SidebarRow.swift,

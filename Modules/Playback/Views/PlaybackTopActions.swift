@@ -536,7 +536,8 @@ public struct PlaybackTopActions: View {
     private var topButtonRow: some View {
         WindowPlaybackSpatialActions {
             if topActionsComposition.showsPanoramaEntry {
-                CircleIconButton.expandVertically(
+                PlaybackChromeGlassButton(
+                    systemName: "rectangle.arrowtriangle.2.outward",
                     accessibilityLabel: String(localized: "Enter Panorama"),
                     action: {
                         onReachabilityAction("enterPanorama")
@@ -545,7 +546,7 @@ public struct PlaybackTopActions: View {
                     accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
                 )
             } else if topActionsComposition.showsDock {
-                PlaybackTopSecondaryPanelButton(
+                PlaybackChromeGlassButton(
                     systemName: "mountain.2.fill",
                     accessibilityLabel: String(localized: "Dock"),
                     action: {
@@ -564,7 +565,7 @@ public struct PlaybackTopActions: View {
             }
         } formatControl: {
             if topActionsComposition.showsVideoFormat {
-                PlaybackTopSecondaryPanelButton(
+                PlaybackChromeGlassButton(
                     systemName: "gear",
                     accessibilityLabel: String(localized: "Video Format"),
                     action: {
@@ -784,39 +785,3 @@ public struct PlaybackTopActions: View {
 
 }
 
-private struct PlaybackTopSecondaryPanelButton: View {
-    let systemName: String
-    let accessibilityLabel: String
-    let action: () -> Void
-    let accessibilityIdentifier: String
-    var iconTier: ButtonIconTier = .standard
-
-    var body: some View {
-        Button(action: action) {
-            CircleIconLabel(
-                systemName: systemName,
-                accessibilityLabel: accessibilityLabel,
-                iconTier: iconTier
-            )
-            .accessibilityHidden(true)
-            .frame(
-                width: DesignTokens.Interactive.large,
-                height: DesignTokens.Interactive.large
-            )
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .contentShape(Circle())
-        .enchronHoverContentShape(
-            Circle(),
-            insets: EdgeInsets(
-                top: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
-                leading: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
-                bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
-                trailing: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
-            )
-        )
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityIdentifier(accessibilityIdentifier)
-    }
-}
