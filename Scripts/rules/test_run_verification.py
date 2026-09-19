@@ -227,6 +227,64 @@ class InterpreterFloorTests(unittest.TestCase):
 
 
 
+class PrePushHookTests(unittest.TestCase):
+    def run_hook(self, stdin: str) -> tuple[subprocess.CompletedProcess, Path]:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        root = Path(scratch.name)
+        subprocess.run(
+            ["git", "init", "-q"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        )
+        rules = root / "Scripts" / "rules"
+        rules.mkdir(parents=True)
+        marker = root / "verification-ran"
+        script = rules / "run_verification.py"
+        script.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
+        script.chmod(0o755)
+        hook = Path(__file__).resolve().parents[2] / ".githooks" / "pre-push"
+        result = subprocess.run(
+            ["/bin/zsh", str(hook), "origin", "git@example.com:repo.git"],
+            cwd=root,
+            input=stdin,
+            capture_output=True,
+            text=True,
+        )
+        return result, marker
+
+    def test_a_push_of_only_deletions_skips_verification(self) -> None:
+        zero = "0" * 40
+        oid = "a" * 40
+        stdin = (
+            f"(delete) {zero} refs/heads/old-branch {oid}\n"
+            f"(delete) {zero} refs/tags/old-tag {oid}\n"
+        )
+        result, marker = self.run_hook(stdin)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(marker.exists())
+
+    def test_a_branch_update_runs_verification(self) -> None:
+        zero = "0" * 40
+        oid = "b" * 40
+        stdin = f"refs/heads/main {oid} refs/heads/main {zero}\n"
+        result, marker = self.run_hook(stdin)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker.exists())
+
+    def test_a_mixed_push_still_runs_verification(self) -> None:
+        zero = "0" * 40
+        oid = "c" * 40
+        stdin = (
+            f"(delete) {zero} refs/heads/old-branch {oid}\n"
+            f"refs/heads/main {oid} refs/heads/main {zero}\n"
+        )
+        result, marker = self.run_hook(stdin)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(marker.exists())
+
+
 class TreeHygieneTests(unittest.TestCase):
     def test_an_unchanged_worktree_passes(self) -> None:
         before = {"Scripts/verification/controller_timings.device.json": "abc"}
