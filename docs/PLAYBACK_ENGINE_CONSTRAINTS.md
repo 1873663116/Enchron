@@ -271,7 +271,9 @@ visionOS 上 CoreText 为汉字回退选出的系统字体是 `PingFangUI.ttc`�
 
 ## 宿主上的 C 探针照抄桥接层的判据，不调用它
 
-`Scripts/verification` 下的三个 C 探针链接 `PlaybackFFmpeg.xcframework/macos-arm64` 并在宿主上运行，而桥接层编译成 visionOS 目标，两者不在同一个平台上。探针因此把要验证的判据抄一份：`disc_image_probe.c` 的 `disc_image_input_format` 抄自同名函数，`dolby_vision_premise_probe.c` 的 `declarable` 抄的是 `has_usable_dovi_configuration` 的条件。由此得到的界限是，这两道检查只回答抄本对真实媒体是否成立，不回答产品代码与抄本是否仍然一致；两边一起改成同一个错误答案时，检查照样通过。
+检查驱动的宿主 C 探针有两个：`disc_image_probe.c` 与 `dolby_vision_premise_probe.c`（第三个 `remote_open_accounting_probe.c` 只被 `docs/archive/` 里的研究记录引用，没有检查构建它）。两者链接 `PlaybackFFmpeg.xcframework/macos-arm64/PlaybackFFmpeg.framework` 并在宿主上运行，而桥接层编译成 visionOS 目标，两者不在同一个平台上。探针因此把要验证的判据抄一份：前者的 `disc_image_input_format` 抄自同名函数，后者的 `declarable` 抄的是 `has_usable_dovi_configuration` 的条件。由此得到的界限是，这两道检查只回答抄本对真实媒体是否成立，不回答产品代码与抄本是否仍然一致；两边一起改成同一个错误答案时，检查照样通过。
+
+那个 framework 是动态库，构建时用 `-F <macos-arm64> -framework PlaybackFFmpeg`，运行时靠 `DYLD_FRAMEWORK_PATH` 指向同一目录——vendored 树不是 dyld 会自己搜的位置。FFmpeg 从静态库改成内嵌 framework 时这两个检查没有跟着改，它们链接的 `Headers/` 与 `libPlaybackFFmpeg.a` 已不存在，于是长期停在编译步骤失败。
 
 ## 连续播放证明与用户暂停
 

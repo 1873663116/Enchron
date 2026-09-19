@@ -65,6 +65,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -83,6 +84,8 @@ VENDORED_FFMPEG = (
     REPOSITORY_ROOT
     / "Packages/PlaybackCore/Vendor/FFmpeg/PlaybackFFmpeg.xcframework/macos-arm64"
 )
+FRAMEWORK = VENDORED_FFMPEG / "PlaybackFFmpeg.framework"
+FRAMEWORK_NAME = FRAMEWORK.stem
 SAMPLE_ROOT = Path(
     "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia/Samples/DynamicRange/DolbyVision"
 )
@@ -143,7 +146,7 @@ def build_probe(source: Path, quiet: bool) -> Path:
     clang = shutil.which("clang")
     if clang is None:
         raise SystemExit("clang is not on PATH; the premise probe cannot be built.")
-    library = VENDORED_FFMPEG / "libPlaybackFFmpeg.a"
+    library = FRAMEWORK / FRAMEWORK_NAME
     source_path_fingerprint = hashlib.sha256(
         str(source.resolve()).encode()
     ).hexdigest()[:12]
@@ -158,9 +161,9 @@ def build_probe(source: Path, quiet: bool) -> Path:
         clang,
         "-O1",
         "-Wall",
-        "-I", str(VENDORED_FFMPEG / "Headers"),
+        "-I", str(FRAMEWORK / "Headers"),
         str(source),
-        str(library),
+        "-F", str(VENDORED_FFMPEG), "-framework", FRAMEWORK_NAME,
         *LINK_FLAGS,
         "-o", str(binary),
     ]
@@ -178,7 +181,11 @@ def measure(binary: Path, media: Path) -> dict[str, object]:
     if not media.is_file():
         raise SystemExit(f"the fixture this check reads is missing: {media}")
     completed = subprocess.run(
-        [str(binary), str(media)], check=False, text=True, capture_output=True
+        [str(binary), str(media)],
+        check=False,
+        text=True,
+        capture_output=True,
+        env={**os.environ, "DYLD_FRAMEWORK_PATH": str(VENDORED_FFMPEG)},
     )
     if completed.returncode != 0:
         raise SystemExit(

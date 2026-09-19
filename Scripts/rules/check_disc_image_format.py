@@ -27,6 +27,7 @@ check is seen failing rather than trusted to.
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -42,6 +43,8 @@ VENDOR = (
     REPOSITORY
     / "Packages/PlaybackCore/Vendor/FFmpeg/PlaybackFFmpeg.xcframework/macos-arm64"
 )
+FRAMEWORK = VENDOR / "PlaybackFFmpeg.framework"
+FRAMEWORK_NAME = FRAMEWORK.stem
 MEDIA = Path(
     "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia"
     "/Samples/DynamicRange/DolbyVision/Profile7.6"
@@ -74,7 +77,8 @@ def build_probe(reads_nothing: bool, without_resync: bool = False) -> Path:
     binary = scratch_directory("disc-image-check") / name
     command = [
         clang, "-o", str(binary), str(source),
-        "-I", str(VENDOR / "Headers"), str(VENDOR / "libPlaybackFFmpeg.a"),
+        "-I", str(FRAMEWORK / "Headers"),
+        "-F", str(VENDOR), "-framework", FRAMEWORK_NAME,
         *LINK_FLAGS,
     ]
     if reads_nothing:
@@ -84,9 +88,18 @@ def build_probe(reads_nothing: bool, without_resync: bool = False) -> Path:
     subprocess.run([str(part) for part in command], check=True)
     return binary
 
+def framework_environment() -> dict[str, str]:
+    """The probe links PlaybackFFmpeg as a framework, and the vendored tree is
+    not a location dyld searches on its own."""
+    return {**os.environ, "DYLD_FRAMEWORK_PATH": str(VENDOR)}
+
 def measure(binary: Path, media: Path) -> dict[str, dict[str, str]]:
     completed = subprocess.run(
-        [str(binary), str(media)], capture_output=True, text=True, check=True
+        [str(binary), str(media)],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=framework_environment(),
     )
     readings: dict[str, dict[str, str]] = {}
     for line in completed.stdout.splitlines():
