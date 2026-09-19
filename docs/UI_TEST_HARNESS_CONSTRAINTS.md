@@ -61,7 +61,7 @@
 
 - **人类层的入口条件只认四种超时 kind**：`transport-timeout`、`response-timeout`、`wait-expired`、`provisional-budget-expired`（`Scripts/regression/core/runview.py:112-119` 的 `HARNESS_TIMEOUT_KINDS`）。同一节点连续两次 attempt 都落在这四种之内才允许推迟给人。产品慢不在其中，产品慢是 `Violated`。
 
-- **超时预算一律由测量导出，禁止手写字面量**。这条由 `Scripts/rules/harness_primitives_gate.py` 强制：它扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 五个记号。豁免只有三类——`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`——以及 `Config/harness_primitives_allowlist.json` 里逐条列出的既有违例文件。该清单当前 29 条，每完成一次迁移删一行，清空后这道门即为无例外强制。清单本身就是迁移进度表，不是永久豁免。
+- **超时预算一律由测量导出，禁止手写字面量**。这条由 `Scripts/rules/harness_primitives_gate.py` 强制：它扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 五个记号。豁免只有三类——`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`——以及 `Config/harness_primitives_allowlist.json` 里逐条列出的既有违例文件。每完成一次迁移删一行，清空后这道门即为无例外强制。清单本身就是迁移进度表，不是永久豁免。
 
 - **`harness/` 包内不写注释**。14 个 Python 文件当前注释行为零。无法用代码表达的约束写进本文，断言信息与日志字符串承担行内文档职责。这与 `Scripts/rules/verify_product_source_comments.py` 对全仓 Swift 与 Python 的要求是同一条规则，此处记录的是它对 harness 的具体含义：读者要找"为什么"，只能来本文，不要指望源文件。
 
