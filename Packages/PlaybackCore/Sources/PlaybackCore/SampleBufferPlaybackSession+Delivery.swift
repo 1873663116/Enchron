@@ -148,7 +148,8 @@ extension SampleBufferPlaybackSession {
         if shouldCancel { task.cancel() }
     }
 
-    func stopVideoDelivery(caller: String = #function) {
+    @discardableResult
+    func stopVideoDelivery(caller: String = #function) -> Task<Void, Never>? {
         let task = deliveryTaskLock.withLock {
             videoDeliveryGeneration &+= 1
             let task = videoDeliveryTask
@@ -157,6 +158,7 @@ extension SampleBufferPlaybackSession {
         }
         PlaybackTrace.event("session.videoDelivery.stop id=\(traceID) by=\(caller) hadTask=\(task != nil)")
         task?.cancel()
+        return task
     }
 
     var videoSampleDeliveryIsSuspended: Bool {
@@ -651,8 +653,7 @@ extension SampleBufferPlaybackSession {
             diagnostics.enqueuedSampleCount += 1
             #if DEBUG
                 if diagnostics.enqueuedSampleCount == 1
-                    || diagnostics.enqueuedSampleCount % 30 == 0
-                {
+                    || diagnostics.enqueuedSampleCount % 30 == 0 {
                     recordPlaybackSwitchRendererSample(
                         trigger: diagnostics.enqueuedSampleCount == 1
                             ? .firstInputAccepted

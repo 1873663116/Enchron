@@ -558,7 +558,9 @@ def main() -> int:
         and 'id: "main"' in app_scene
         and '"Playback"' not in app_scene
         and "UIApplicationDelegateAdaptor" not in app_scene
-        and "requestSceneSessionDestruction" not in app_scene,
+        and app_scene.count("requestSceneSessionDestruction") == 1
+        and app_scene.find("requestSceneSessionDestruction")
+        > app_scene.find("onChange(of: isOrphaned)"),
         "the browser is no longer the app's single regular Window, so a second "
         "UIKit scene can reach the same Window and trap SwiftUI",
     )
@@ -847,10 +849,10 @@ def main() -> int:
         order(
             apply_locked_controls_transform,
             "entity.transform = transform",
-            "OpacityComponent(opacity: 1)",
             "setEnabled(",
             "true,",
         )
+        and "opacity = 1" in apply_locked_controls_transform
         and 'writer: "ImmersivePlaybackControlsAttachmentController.applyLockedTransform"'
         in apply_locked_controls_transform,
         "immersive controls can become enabled before their locked transform applies",
@@ -939,7 +941,9 @@ def main() -> int:
         and "entity.setPosition(pose.center, relativeTo: nil)"
         in playback_reality_adapter
         and "entity.look(" not in playback_reality_adapter
-        and "let bottomEdge = SIMD3<Float>(0, restBottom, 0)" in docked_pose_solver
+        and "let pivot = SIMD3<Float>(0, restBottom, 0)" in docked_pose_solver
+        and "let bottomEdge = pivot + distance * SIMD3<Float>(0, sinE, -cosE)"
+        in docked_pose_solver
         and "let center = yaw.act(bottomEdge + halfHeight * planarUp)"
         in docked_pose_solver
         and "entity.position = [0, 0, frontOffset]"

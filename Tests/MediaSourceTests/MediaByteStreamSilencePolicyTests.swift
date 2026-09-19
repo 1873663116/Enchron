@@ -91,8 +91,10 @@ struct MediaByteStreamSilencePolicyTests {
         source.setStallAll(true)
         let stalledAgain = try await fetchRange("bytes=4-7", from: stream.url)
         #expect(stalledAgain.statusCode == 502)
-        // Normal mode restored: two full-window attempts, not one degraded read.
-        #expect(source.readCount == 5)
+        #expect(
+            source.readCount == 5,
+            "normal mode restored: two full-window attempts, not one degraded read"
+        )
         await server.stopAndWait()
     }
 
@@ -146,7 +148,6 @@ private final class GatedByteRangeSource: MediaByteRangeSource, @unchecked Senda
             return (stalls, state.responseDelayNanoseconds)
         }
         if stalls {
-            // Cancelled by the silence timeout; this sleep never completes.
             try await Task.sleep(nanoseconds: 600_000_000_000)
         }
         if delay > 0 {

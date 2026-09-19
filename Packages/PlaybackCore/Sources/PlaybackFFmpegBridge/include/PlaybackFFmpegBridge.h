@@ -302,7 +302,6 @@ OSStatus PBFFmpegVideoFormatDescriptionCreate(
     CMVideoFormatDescriptionRef *formatOut
 );
 
-// Invalid when the demuxer did not provide an explicit decode timestamp.
 CMTime PBFFmpegSampleGetPresentationTimeLowerBound(CMSampleBufferRef sample);
 
 PBFFmpegReadResult PBFFmpegReaderCopyNextSample(

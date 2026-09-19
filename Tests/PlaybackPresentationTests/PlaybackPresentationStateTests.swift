@@ -1388,6 +1388,19 @@ struct PlaybackPresentationStateTests {
     func confirmedPresentationRestorationUsesRollbackPolicy() {
         #expect(
             SpatialPlatformPresentationFailurePolicy.shouldStopPlayback(
+                effect: .collapseImmersivePlayback(.flat),
+                recovery: .unavailable
+            ) == false
+        )
+        #expect(
+            SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(
+                hasActivePlaybackRequest: true,
+                playerWindowStateBeforeDisconnect: .open,
+                applicationIsActive: false
+            ) == false
+        )
+        #expect(
+            SpatialPlatformPresentationFailurePolicy.shouldStopPlayback(
                 effect: .enterImmersivePlayback(.panoramic),
                 recovery: .previousPresentationRestored
             ) == false
@@ -2560,7 +2573,7 @@ struct PlaybackPresentationStateTests {
     @Test("The immersive indicator shows for starvation, recovery, opening, and seeking")
     func immersiveStallIndicatorShowsStarvationAndSeeking() {
         let visibleStages: [PlaybackLoadingStage] = [
-            .starved, .seeking, .recovering, .opening,
+            .starved, .seeking, .recovering, .opening
         ]
         for presentation in PlaybackPresentation.allCases {
             for stage in PlaybackLoadingStage.allCases {
@@ -4185,6 +4198,23 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(model.environmentContext == .none)
         #expect(model.immersiveSpaceResidency == .closed)
+    }
+
+    @Test("failed system collapse retains the window and clears the transition")
+    func failedSystemCollapseRetainsWindowPresentation() throws {
+        let model = PlaybackPresentationModel()
+        let context = playingContext(mediaSessionID: "failed-collapse-session")
+        _ = try model.requestPresentation(.docked, effect: .light, playbackContext: context)
+        _ = try completePendingEffect(model)
+        _ = model.receiveSpatialPlatformResult(.immersiveSpaceDisappeared(context))
+
+        #expect(try completePendingEffect(
+            model, outcome: .failed(.windowPlaybackSurfaceUnavailable)
+        ) == .presentationCommitted(.window))
+        #expect(model.presentation == .window)
+        #expect(model.immersiveSpaceResidency == .closed)
+        #expect(model.pendingSpatialPlatformEffect == nil)
+        #expect(model.transition == nil)
     }
 
     @Test("system collapse keeps paused playback paused")

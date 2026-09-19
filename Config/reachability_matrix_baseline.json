@@ -1101,6 +1101,16 @@
       "context": "main-window-browser",
       "operation": "accessibility:Settings-OpenSourceLicenses-row-{component.id}",
       "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:EnvironmentCard-default-{environment.id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:EnvironmentCard-default-{environment.id}",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 import json
 from pathlib import Path
 import re
@@ -181,6 +181,18 @@ for identifier, family, target in (
 class SourceLocation:
     path: str
     line: int
+
+
+def serialized(location: SourceLocation) -> dict[str, str]:
+    """A location as the inventory records it: the path, without the line.
+
+    The line number has no consumer - the readers of this file take `id`, the
+    identifier template or the raw text - while it moves whenever anything
+    above it in the same file changes. Recording it made every source edit read
+    as inventory drift, which buried the drift that matters (an identifier
+    added or removed) under hundreds of entries that differed by nothing else.
+    """
+    return {"path": location.path}
 
 
 class RuntimeIdentifierResolutionError(ValueError):
@@ -981,7 +993,7 @@ def presentation_derivation(
         source = required_source_location(documents, path, token)
         return ["window"], {
             "host": "browserWindowSurface",
-            "sources": [asdict(source)],
+            "sources": [serialized(source)],
         }
 
     if operation_family == "EnvironmentCard":
@@ -992,7 +1004,7 @@ def presentation_derivation(
         )
         return ["window", "docked"], {
             "host": "environmentVolume",
-            "sources": [asdict(source)],
+            "sources": [serialized(source)],
         }
 
     if operation_family == "PlayerPanel":
@@ -1005,7 +1017,7 @@ def presentation_derivation(
             )
             return immersive_presentations, {
                 "host": "playerControlDockControls",
-                "sources": [asdict(source), asdict(immersive_source)],
+                "sources": [serialized(source), serialized(immersive_source)],
             }
         if template.startswith("PlayerPanel-DockedPlacement") or template == (
             "PlayerPanel-{identifier}-slider"
@@ -1017,7 +1029,7 @@ def presentation_derivation(
             )
             return ["docked"], {
                 "host": "dockedPlacementControls",
-                "sources": [asdict(source)],
+                "sources": [serialized(source)],
             }
         if template.startswith("PlayerPanel-VideoFormat-"):
             source = required_source_location(
@@ -1027,7 +1039,7 @@ def presentation_derivation(
             )
             return [], {
                 "host": "uninstantiatedPlayerControlDockVideoFormat",
-                "sources": [asdict(source)],
+                "sources": [serialized(source)],
             }
         if template == "PlayerPanel-button-settings":
             source = required_source_location(
@@ -1037,7 +1049,7 @@ def presentation_derivation(
             )
             return ["docked"], {
                 "host": "dockedPlayerControlSettings",
-                "sources": [asdict(source)],
+                "sources": [serialized(source)],
             }
         if template == "PlayerPanel-button-enter-panorama":
             source = required_source_location(
@@ -1047,7 +1059,7 @@ def presentation_derivation(
             )
             return [], {
                 "host": "uninstantiatedPortalPlayerControlDockBranch",
-                "sources": [asdict(source)],
+                "sources": [serialized(source)],
             }
         if template == "PlayerPanel-button-exit-spatial":
             source = required_source_location(
@@ -1057,7 +1069,7 @@ def presentation_derivation(
             )
             return immersive_presentations, {
                 "host": "immersiveReturnControls",
-                "sources": [asdict(source), asdict(immersive_source)],
+                "sources": [serialized(source), serialized(immersive_source)],
             }
         window_source = required_source_location(
             documents,
@@ -1072,10 +1084,10 @@ def presentation_derivation(
         return all_playback_presentations, {
             "host": "fusedPlayerPanelSharedContent",
             "sources": [
-                asdict(window_source),
-                asdict(dock_source),
-                asdict(main_window_source),
-                asdict(immersive_source),
+                serialized(window_source),
+                serialized(dock_source),
+                serialized(main_window_source),
+                serialized(immersive_source),
             ],
         }
 
@@ -1099,10 +1111,10 @@ def presentation_derivation(
             return main_window_presentations, {
                 "host": "windowPlaybackSurfaceEntityTapTarget",
                 "sources": [
-                    asdict(source),
-                    asdict(gesture_source),
-                    asdict(collider_source),
-                    asdict(main_window_source),
+                    serialized(source),
+                    serialized(gesture_source),
+                    serialized(collider_source),
+                    serialized(main_window_source),
                 ],
             }
         if template.startswith("PlayerUI-DockMenu-") or template == (
@@ -1120,7 +1132,7 @@ def presentation_derivation(
             )
             return ["window"], {
                 "host": "windowPlaybackDockEntryTopActions",
-                "sources": [asdict(host_source), asdict(condition_source)],
+                "sources": [serialized(host_source), serialized(condition_source)],
             }
         if template == "PlayerUI-TopAction-resumePanorama":
             host_source = required_source_location(
@@ -1135,7 +1147,7 @@ def presentation_derivation(
             )
             return ["portal"], {
                 "host": "portalPlaybackPanoramaEntryTopActions",
-                "sources": [asdict(host_source), asdict(condition_source)],
+                "sources": [serialized(host_source), serialized(condition_source)],
             }
         if template in {
             "PlayerUI-TopAction-more",
@@ -1152,7 +1164,7 @@ def presentation_derivation(
             )
             return main_window_presentations, {
                 "host": "windowPlaybackTopChromeMoreControl",
-                "sources": [asdict(source), asdict(main_window_source)],
+                "sources": [serialized(source), serialized(main_window_source)],
             }
         if template == "PlayerUI-InfoBar-button-back" or template.startswith(
             ("PlayerUI-TopAction-videoFormat", "PlayerUI-VideoFormat-")
@@ -1164,7 +1176,7 @@ def presentation_derivation(
             )
             return main_window_presentations, {
                 "host": "windowPlaybackTopChrome",
-                "sources": [asdict(source), asdict(main_window_source)],
+                "sources": [serialized(source), serialized(main_window_source)],
             }
         if template == "PlayerUI-audio-spectrum":
             source = required_source_location(
@@ -1174,7 +1186,7 @@ def presentation_derivation(
             )
             return ["window"], {
                 "host": "windowAudioOnlyPlaybackSurface",
-                "sources": [asdict(source), asdict(main_window_source)],
+                "sources": [serialized(source), serialized(main_window_source)],
             }
         if template.startswith("PlayerUI-resumeDecision-"):
             source = required_source_location(
@@ -1184,7 +1196,7 @@ def presentation_derivation(
             )
             return ["window"], {
                 "host": "browserWindowResumeDecision",
-                "sources": [asdict(source)],
+                "sources": [serialized(source)],
             }
         if template.startswith("PlayerUI-loadFailure-"):
             source = required_source_location(
@@ -1194,7 +1206,7 @@ def presentation_derivation(
             )
             return main_window_presentations, {
                 "host": "mainWindowPlaybackIssueActions",
-                "sources": [asdict(source), asdict(main_window_source)],
+                "sources": [serialized(source), serialized(main_window_source)],
             }
         if template.startswith("PlayerUI-spatialFailure-"):
             source = required_source_location(
@@ -1204,7 +1216,7 @@ def presentation_derivation(
             )
             return immersive_presentations, {
                 "host": "immersivePlaybackIssueActions",
-                "sources": [asdict(source), asdict(immersive_source)],
+                "sources": [serialized(source), serialized(immersive_source)],
             }
         if template in {
             "PlayerUI-playbackIssue-primary",
@@ -1222,7 +1234,7 @@ def presentation_derivation(
             )
             return [], {
                 "host": "uninstantiatedPlayerDeckRetryCloseActions",
-                "sources": [asdict(identifier_source), asdict(policy_source)],
+                "sources": [serialized(identifier_source), serialized(policy_source)],
             }
         if template == "PlayerUI-presentation-conversion-dismiss":
             source = required_source_location(
@@ -1232,7 +1244,7 @@ def presentation_derivation(
             )
             return ["window"], {
                 "host": "browserWindowPlaybackIssue",
-                "sources": [asdict(source)],
+                "sources": [serialized(source)],
             }
         if any(
             marker in template
@@ -1251,9 +1263,9 @@ def presentation_derivation(
             return all_playback_presentations, {
                 "host": "playbackIssuePresentationSites",
                 "sources": [
-                    asdict(source),
-                    asdict(main_window_source),
-                    asdict(immersive_source),
+                    serialized(source),
+                    serialized(main_window_source),
+                    serialized(immersive_source),
                 ],
             }
 
@@ -1273,7 +1285,7 @@ def explicit_presentation_derivation(
         )
     return {
         "host": "explicitOperationContract",
-        "sources": [asdict(SourceLocation(source_path, 1))],
+        "sources": [serialized(SourceLocation(source_path, 1))],
     }
 
 
@@ -1357,7 +1369,7 @@ def build_inventory() -> dict[str, object]:
             "scope": scope,
             "role": role,
             "action": action,
-            "sources": [asdict(location) for location in sorted(set(locations))],
+            "sources": [serialized(location) for location in sorted(set(locations))],
         }
         if (
             evidence
@@ -1378,7 +1390,7 @@ def build_inventory() -> dict[str, object]:
                 record["role"] = "uninstantiated-identifier"
                 record["renderDerivation"] = {
                     "host": "uninstantiatedSwiftUIView",
-                    "sources": [asdict(SourceLocation(
+                    "sources": [serialized(SourceLocation(
                         uninstantiated_owner.path,
                         source.count("\n", 0, uninstantiated_owner.body_offset) + 1,
                     ))],

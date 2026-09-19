@@ -126,7 +126,7 @@ public struct MainView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(DesignTokens.Spacing.xl)
-                .enchronGlassBackground(in: DesignTokens.ShapeToken.card)
+                .enchronListGroupSurface(in: DesignTokens.ShapeToken.card)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("PlayerUI-requestResolution-spinner")
                 .transition(.opacity)

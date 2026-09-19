@@ -45,12 +45,11 @@ enum PlaybackBufferingPolicy {
     static let audioPrerollPollInterval: Duration = .milliseconds(5)
 
     static let seekProgressStallTimeout: Duration = .seconds(5)
-    // Absolute bound for a stall that keeps a source read in flight. A live
-    // transport resolves earlier (bytes arrive or the read errors); this only
-    // catches a pending-read flag that never clears.
     static let transportBoundStallLimit: Duration = .seconds(120)
 
     static let pendingReadPollInterval: Duration = .seconds(1)
+
+    static let rendererFlushProbeBudget: Duration = .milliseconds(250)
 
     static func seekRequirement(
         target: CMTime,
@@ -275,6 +274,32 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var rendererFailureMonitor: RendererFailureMonitoring?
     let rendererFailureLock = NSLock()
     var acceptsRendererFailure = true
+
+    /// Set once the system has flushed the video decoder, cleared when the
+    /// reopen has restored it. A second report while it is set is ignored, so
+    /// delivery is not stopped twice for one flush.
+    let rendererFlushLock = NSLock()
+    var rendererFlushPending = false
+
+    func beginRendererFlushRecovery() -> Bool {
+        rendererFlushLock.withLock {
+            guard rendererFlushPending == false else { return false }
+            rendererFlushPending = true
+            return true
+        }
+    }
+
+    func clearRendererFlushRecovery() {
+        rendererFlushLock.withLock { rendererFlushPending = false }
+    }
+
+    let rendererRecoveryLock = NSLock()
+    var rendererRecoveryTask: Task<Void, Error>?
+
+    var needsVideoRendererRecovery: Bool {
+        renderer.requiresFlushToResumeDecoding
+            || rendererFlushLock.withLock { rendererFlushPending }
+    }
     let videoTrackID: String
     let deliveryQueue = DispatchQueue(label: "PlaybackCore.sample-delivery")
     let audioDeliveryQueue = DispatchQueue(label: "PlaybackCore.audio-sample-delivery")
@@ -1094,6 +1119,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         beginOperation(.pause, targetRate: 0)
         timelineStartRate = 0
         setTimelineStopped(reason: .pause)
+        cancelFirstVideoFrameDeadline()
         updateLifecycle(.paused)
         recordRendererState(at: currentTime())
         debugStore.emit(

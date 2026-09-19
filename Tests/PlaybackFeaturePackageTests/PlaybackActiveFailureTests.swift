@@ -73,6 +73,32 @@ struct PlaybackActiveFailureTests {
         await runtime.leavePlaybackAndWait(reason: .backButton)
     }
 
+    @Test("Play on a terminal session delegates to recovery")
+    func playOnTerminalSessionDelegatesToRecovery() async throws {
+        let controller = PlaybackCoreController()
+        let runtime = PlaybackRuntime(controller: controller)
+        let request = PlaybackLaunchRequest(
+            source: try PlaybackAddress(
+                localFileURL: URL(fileURLWithPath: "/tests/terminal-resume.mkv")
+            ),
+            displayName: "terminal-resume.mkv"
+        )
+        runtime.prepareForPlayback(request)
+        controller.onStatusChange?(.failed("renderer died while suspended"))
+        var recoveryRequests = 0
+        runtime.onResumeHealingRequired = {
+            recoveryRequests += 1
+            return true
+        }
+
+        runtime.resume()
+        await Task.yield()
+
+        #expect(recoveryRequests == 1)
+        #expect(runtime.userVisibleIssue == .playbackFailed)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
     @Test("connection interruption maps from URL HTTP and POSIX boundaries")
     func connectionInterruptionMapsFromExternalBoundaries() {
         #expect(
@@ -680,6 +706,33 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
         initialSpeed: PlaybackModel.PlaybackSpeed,
         initialFormat: MediaFormat?
     ) async throws {
+        try await openLike(
+            request,
+            startTimeSeconds: startTimeSeconds,
+            initialFormat: initialFormat,
+            startsPaused: false
+        )
+    }
+
+    func preparePaused(
+        _ request: PlaybackLaunchRequest,
+        startTimeSeconds: Double,
+        initialFormat: MediaFormat?
+    ) async throws {
+        try await openLike(
+            request,
+            startTimeSeconds: startTimeSeconds,
+            initialFormat: initialFormat,
+            startsPaused: true
+        )
+    }
+
+    private func openLike(
+        _ request: PlaybackLaunchRequest,
+        startTimeSeconds: Double,
+        initialFormat: MediaFormat?,
+        startsPaused: Bool
+    ) async throws {
         let openNumber = openCalls.count + 1
         openCalls.append(
             OpenCall(
@@ -701,7 +754,13 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
         }
         currentLaunchRequest = request
         activeSessionID = "session-\(openNumber)"
-        productLifecycle = loadingOpenNumbers.contains(openNumber) ? .loading : .ready
+        productLifecycle = if startsPaused {
+            .paused
+        } else if loadingOpenNumbers.contains(openNumber) {
+            .loading
+        } else {
+            .ready
+        }
         selectedFormat = initialFormat
         currentAudioTrackID = availableAudioTracks[0].id
         currentSubtitleTrackID = availableSubtitleTracks[0].id

@@ -907,6 +907,23 @@ extension SampleBufferPlaybackSession {
     }
 
     func publishRendererFailure(_ fact: RendererFailureFact) {
+        if fact.rendererKind == .video, fact.requiresFlushToResumeDecoding == true {
+            guard !isClosed, !isResetting else { return }
+            guard beginRendererFlushRecovery() else {
+                return
+            }
+            stopVideoDelivery()
+            stopAudioDelivery()
+            setTimelineStopped(reason: .rendererFailure)
+            cancelFirstVideoFrameDeadline()
+            debugStore.emit(
+                mediaSessionID: traceID,
+                kind: "videoRenderer.flushRequired",
+                outcome: .succeeded,
+                details: ["positionSeconds": String(currentTime().seconds), "error": fact.message]
+            )
+            return
+        }
         if fact.rendererKind == .audio {
             guard hasAudio else { return }
             retireAudio(

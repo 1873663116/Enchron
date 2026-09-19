@@ -6,6 +6,11 @@ lifecycle and the primary transport button morphs into Replay or Play Next per
 the End of Playback setting. The Play Next tap launches the resolved next item
 with origin .automaticContinuation, preserving the stored-position bypass of
 Ask Every Time.
+
+Two writes are mechanical. The two rubric criteria still name the removed
+`.stop` default, and `copyDocuments` pins catalog-root payloads by digest, so
+`viewing-state.md` and `semantic-authority.json` are re-pinned after the
+coordinator line numbers and the manual continuation moved.
 """
 from __future__ import annotations
 
@@ -121,7 +126,6 @@ def main() -> None:
         "activation means the product still advances by itself and fails the claim.",
     ]
 
-    # Stale references to the removed .stop default in two rubric criteria.
     catalog = replace_strings(
         catalog,
         "under the default endBehavior .stop a correct product",
@@ -135,8 +139,6 @@ def main() -> None:
         "ended-state transport affordance instead of auto-repeating, a correct product",
     )
 
-    # copyDocuments pins catalog-root payloads by digest; viewing-state.md was
-    # updated for the new coordinator line numbers and the manual continuation.
     for document in catalog["copyDocuments"]:
         if document["path"] in {"promises/viewing-state.md", "semantic-authority.json"}:
             payload_bytes = (ROOT / "Config/regression/catalog-root" / document["path"]).read_bytes()

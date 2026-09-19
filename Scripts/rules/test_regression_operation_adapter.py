@@ -4351,7 +4351,7 @@ class OperationAllowlistTests(unittest.TestCase):
                 "references": [],
                 "playbackPreferences": {
                     "resumePolicy": "always-resume",
-                    "endBehavior": "stop",
+                    "endBehavior": "play-next",
                     "defaultSpeed": 1.0,
                     "controlsAutoHideSeconds": 8,
                 },

@@ -22,6 +22,8 @@ PLAYBACK_CORE_SOURCES = "Packages/PlaybackCore/Sources"
 
 ALLOCATE_FORMAT_CONTEXT_SIGNATURE = "static AVFormatContext *allocate_format_context("
 OPEN_MEDIA_SOURCE_SIGNATURE = "static int open_media_source("
+MONITORED_OPEN_INPUT_SIGNATURE = "static int monitored_avformat_open_input("
+MONITORED_OPEN_INPUT_CALL = "monitored_avformat_open_input("
 MONITORED_SOURCE_OPEN_SIGNATURE = (
     "PBFFmpegMonitoredSource *PBFFmpegMonitoredSourceOpen("
 )
@@ -124,19 +126,31 @@ def check_S1(bridge_source: str) -> None:
 
 
 def check_S2(bridge_source: str) -> None:
-    body_start, body_end = find_definition_span(
-        bridge_source, OPEN_MEDIA_SOURCE_SIGNATURE
-    )
     calls = count_calls(bridge_source, "avformat_open_input(")
     require(
         len(calls) == 1,
         "S2: PlaybackFFmpegBridge.c must contain exactly one "
         f"avformat_open_input( call, found {len(calls)}",
     )
+    door_start, door_end = find_definition_span(
+        bridge_source, MONITORED_OPEN_INPUT_SIGNATURE
+    )
     require(
-        body_start <= calls[0] < body_end,
+        door_start <= calls[0] < door_end,
         "S2: the sole avformat_open_input( call must live inside "
-        "open_media_source's body",
+        "monitored_avformat_open_input's body, which is where the read monitor "
+        "brackets the open",
+    )
+    body_start, body_end = find_definition_span(
+        bridge_source, OPEN_MEDIA_SOURCE_SIGNATURE
+    )
+    require(
+        any(
+            body_start <= position < body_end
+            for position in count_calls(bridge_source, MONITORED_OPEN_INPUT_CALL)
+        ),
+        "S2: open_media_source must reach the monitored door rather than "
+        "opening the source itself",
     )
 
 

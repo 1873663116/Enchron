@@ -859,7 +859,14 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
                     let increase = try XCTUnwrap(d.rendererDroppedFrameCount) - (try XCTUnwrap(settledDropCount))
                     XCTAssertLessThanOrEqual(increase, 2, "Sustained frame loss in \(phase)")
                 }
-                print("DROP_PROBE phase=\(phase) tick=\(tick) position=\(d.currentSeconds) dropped=\(d.rendererDroppedFrameCount ?? -1) total=\(d.rendererTotalFrameCount ?? -1) lead=\(d.videoEnqueueLeadMinSeconds ?? -999) late=\(d.lateVideoEnqueueCount) gap=\(d.videoEnqueueGapMaxSeconds ?? -999)")
+                print(
+                    "DROP_PROBE phase=\(phase) tick=\(tick) position=\(d.currentSeconds) "
+                        + "dropped=\(d.rendererDroppedFrameCount ?? -1) "
+                        + "total=\(d.rendererTotalFrameCount ?? -1) "
+                        + "lead=\(d.videoEnqueueLeadMinSeconds ?? -999) "
+                        + "late=\(d.lateVideoEnqueueCount) "
+                        + "gap=\(d.videoEnqueueGapMaxSeconds ?? -999)"
+                )
             }
         }
         XCTAssertGreaterThan(runtime.playbackPosition.seconds, 15)

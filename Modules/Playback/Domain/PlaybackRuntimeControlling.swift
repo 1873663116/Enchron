@@ -334,6 +334,12 @@ public protocol PlaybackRuntimeControlling: AnyObject {
         initialSpeed: PlaybackModel.PlaybackSpeed,
         initialFormat: MediaFormat?
     ) async throws
+    /// Opens the request and leaves it paused, ready for the user to play.
+    func preparePaused(
+        _ request: PlaybackLaunchRequest,
+        startTimeSeconds: Double,
+        initialFormat: MediaFormat?
+    ) async throws
     func setFormat(
         projection: PlaybackModel.ProjectionType,
         horizontalFieldOfViewDegrees: Int?,

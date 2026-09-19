@@ -1897,8 +1897,8 @@ private final class ReportedPositions: @unchecked Sendable {
 }
 
 #if DEBUG
-@Test func armedPlaybackSwitchSamplingRecordsEveryAcceptedVideoInput() async throws {
-    let acceptedInputCount = 4
+@Test func armedPlaybackSwitchSamplingRecordsTheFirstInputAndEveryThirtieth() async throws {
+    let acceptedInputCount = 31
     let samples = try (0..<acceptedInputCount).map { index in
         try makeCompressedH264Sample(
             presentationTimeSeconds: Double(index) / 30
@@ -1927,7 +1927,7 @@ private final class ReportedPositions: @unchecked Sendable {
             false
         }
     }
-    #expect(acceptedInputSamples.map(\.acceptedInputCount) == [1, 2, 3, 4])
+    #expect(acceptedInputSamples.map(\.acceptedInputCount) == [1, 30])
 }
 
 @Test func disarmedPlaybackSwitchSamplingRecordsNoAcceptedVideoInputs() async throws {
@@ -4745,7 +4745,7 @@ func terminalRendererFailurePublishesFailedOnce(
     try await waitForSampleCount(1, in: session)
     try await waitForAudioSampleCount(1, in: session)
     try await setRateWhenTimelineIsReady(1, in: session)
-    let requiresFlush = rendererKind == .video ? true : nil
+    let requiresFlush: Bool? = false
     let fact = RendererFailureFact(
         rendererKind: rendererKind,
         errorType: "Injected\(rendererKind.rawValue.capitalized)RendererError",
@@ -4887,7 +4887,7 @@ func terminalRendererFailurePublishesFailedOnce(
     #expect(snapshot.lastFailure == nil)
 }
 
-@Test func receiverRequiresFlushPublishesTerminalVideoFailure() async throws {
+@Test func receiverRequiresFlushPreservesTheSessionForRecovery() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 5)
     let sink = FakeRendererInputSink(
         enqueueOutcomes: [.requiresFlush("Injected flush requirement")]
@@ -4901,12 +4901,38 @@ func terminalRendererFailurePublishesFailedOnce(
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/receiver-requires-flush.mp4"))
     try session.start()
-    try await waitForLifecycle(.failed, in: session)
+    let deadline = ContinuousClock.now + .seconds(2)
+    while !session.needsVideoRendererRecovery, ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(10))
+    }
 
     let snapshot = session.debugSnapshot()
-    #expect(snapshot.lastFailure?.rendererKind == RendererFailureKind.video.rawValue)
-    #expect(snapshot.lastFailure?.message == "Injected flush requirement")
-    #expect(snapshot.lastFailure?.requiresFlushToResumeDecoding == true)
+    #expect(session.needsVideoRendererRecovery)
+    #expect(snapshot.lifecycle != .failed)
+    #expect(snapshot.lastFailure == nil)
+}
+
+@Test func pausingDisarmsTheFirstVideoFrameDeadline() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 5)
+    let session = SampleBufferPlaybackSession(
+        traceID: "pause-disarms-first-frame-deadline",
+        provider: FakeVideoSampleProvider(events: [
+            .sample(sample), .sample(sample), .sample(sample), .end,
+        ]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameDeadline: .milliseconds(50),
+        firstVideoFrameObservation: { false }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/pause-deadline.mp4"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try session.pause()
+    try await Task.sleep(for: .milliseconds(250))
+
+    #expect(session.debugSnapshot().lifecycle != .failed)
+    #expect(session.debugSnapshot().lastFailure == nil)
 }
 
 @Test
@@ -5059,8 +5085,10 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
     private let readError: Error?
     private let eventDelay: Duration?
     private let postSeekEventDelay: Duration?
+    private let nextEventHangs: Bool
     private var deliversAfterSeek = false
     private(set) var startCount = 0
+    private(set) var prepareCount = 0
     private(set) var sourceInformationReceived: MediaSourceInformation?
 
     init(
@@ -5070,6 +5098,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         readError: Error? = nil,
         eventDelay: Duration? = nil,
         postSeekEventDelay: Duration? = nil,
+        nextEventHangs: Bool = false,
         projectionKind: String? = nil,
         durationSeconds: Double = 60,
         nominalFrameRate: Double = 30
@@ -5107,6 +5136,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         self.readError = readError
         self.eventDelay = eventDelay
         self.postSeekEventDelay = postSeekEventDelay
+        self.nextEventHangs = nextEventHangs
     }
 
     func prepare(
@@ -5115,6 +5145,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         sourceInformation: MediaSourceInformation?,
         startTime: CMTime
     ) async throws {
+        prepareCount += 1
         sourceInformationReceived = sourceInformation
         deliversAfterSeek = startTime > .zero
         if startTime > .zero, let seekPrepareDelay {
@@ -5133,6 +5164,9 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
 
     func nextEvent() async throws -> VideoSampleProviderEvent {
         if let readError { throw readError }
+        if nextEventHangs {
+            try await Task.sleep(for: .seconds(3600))
+        }
         if let eventDelay {
             try await Task.sleep(for: eventDelay)
         }
@@ -5182,6 +5216,10 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
 
     var lastEnqueuedSample: CMSampleBuffer? {
         lock.withLock { samples.last }
+    }
+
+    var enqueuedSamples: [CMSampleBuffer] {
+        lock.withLock { samples }
     }
 
     var flushCount: Int {

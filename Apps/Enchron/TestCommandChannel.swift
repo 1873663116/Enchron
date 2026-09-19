@@ -1141,37 +1141,6 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [String(playbackSession.environmentCardDismissalRequestRevision)]
             )
-        case "previewEnvironment":
-            guard let rawEnvironment = request.args["environment"],
-                  rawEnvironment.isEmpty == false,
-                  let environment = SpatialSceneDomain.CinemaEnvironment(
-                    rawValue: rawEnvironment
-                  ) else {
-                throw CommandError(
-                    message: "previewEnvironment requires a valid environment argument."
-                )
-            }
-            let effect = request.args["effect"].flatMap {
-                SpatialSceneDomain.EnvironmentEffect(rawValue: $0)
-            }
-            try playbackSession.playbackPresentationModel.requestEnvironmentPreview(
-                environment: environment,
-                effect: effect
-            )
-            SurfaceInputProbes.record(
-                "testcmd previewEnvironment environment=\(rawEnvironment)"
-                    + " effect=\(effect?.rawValue ?? "none")",
-                retention: .evidence
-            )
-            return Response(id: request.id, ok: true, detail: nil, payload: [rawEnvironment])
-        case "dismissEnvironmentPreview":
-            try playbackSession.playbackPresentationModel
-                .requestEnvironmentPreviewDismissal()
-            SurfaceInputProbes.record(
-                "testcmd dismissEnvironmentPreview",
-                retention: .evidence
-            )
-            return Response(id: request.id, ok: true, detail: nil, payload: [])
         case "playMedia":
             guard let name = request.args["name"], name.isEmpty == false else {
                 throw CommandError(message: "playMedia requires a name argument.")
@@ -1278,51 +1247,6 @@ final class TestCommandChannel {
                     "result=\(result)"
                 ] + fileBrowser.files.map(\.name)
             )
-        case "playRemoteFile":
-            guard let name = request.args["name"], name.isEmpty == false else {
-                throw CommandError(message: "playRemoteFile requires a name argument.")
-            }
-            guard let file = fileBrowser.files.first(where: { $0.name == name }) else {
-                throw CommandError(
-                    message: "playRemoteFile found no remote file named \(name)."
-                )
-            }
-            fileBrowser.lastErrorMessage = nil
-            fileBrowser.selectFile(file)
-            SurfaceInputProbes.record(
-                "testcmd playRemoteFile name=\(name)",
-                retention: .evidence
-            )
-            var acceptance = "timeout"
-            for _ in 0..<50 {
-                if fileBrowser.lastErrorMessage != nil {
-                    acceptance = "error"
-                    break
-                }
-                if playbackLauncher.pendingResumeDecision != nil {
-                    acceptance = "pendingResumeDecision"
-                    break
-                }
-                if playbackRuntime.currentLaunchRequest != nil {
-                    acceptance = "launchRequest"
-                    break
-                }
-                try await Task.sleep(for: .milliseconds(400))
-            }
-            SurfaceInputProbes.record(
-                "testcmd playRemoteFile acceptance=\(acceptance)",
-                retention: .evidence
-            )
-            return Response(
-                id: request.id,
-                ok: acceptance == "launchRequest" || acceptance == "pendingResumeDecision",
-                detail: fileBrowser.lastErrorMessage,
-                payload: [
-                    "acceptance=\(acceptance)",
-                    "session=\(playbackRuntime.activeSessionID ?? "none")",
-                    "pendingResume=\(playbackLauncher.pendingResumeDecision != nil)"
-                ]
-            )
         case "scrollEmby":
             return try scrollEmby(request)
         case "showPlaybackIssue":
@@ -1396,7 +1320,7 @@ final class TestCommandChannel {
                 payload: nil
             )
         case "leavePlayback":
-            await playbackRuntime.leavePlaybackAndWait(reason: .backButton)
+            await playbackLauncher.stopPlaybackAndWait(reason: .backButton)
             return Response(
                 id: request.id,
                 ok: true,
@@ -1807,7 +1731,7 @@ final class TestCommandChannel {
                 "enabled=\(transport.primaryActionEnabled)",
                 "lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
                 "loadingVisibility=\(playbackRuntime.loadingState.visibility.rawValue)",
-                "loadingStage=\(playbackRuntime.loadingState.stage?.rawValue ?? "none")",
+                "loadingStage=\(playbackRuntime.loadingState.stage?.rawValue ?? "none")"
             ]
         )
     }

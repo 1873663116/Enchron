@@ -1,5 +1,5 @@
 {
-  "originHash" : "b212f2c40c05294c5126ad51369853be4607643c721414c686024e078beb51da",
+  "originHash" : "380d89de597afd80353e7d8ef690a8a17ceeb57a0777673db73053ed66cb8415",
   "pins" : [
     {
       "identity" : "amsmb2",
@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/realitykitscripting.git",
       "state" : {
-        "branch" : "main",
-        "revision" : "860a42d1ef76ce37f89a279a469099600606814d"
+        "revision" : "860a42d1ef76ce37f89a279a469099600606814d",
+        "version" : "1.4.0"
       }
     },
     {

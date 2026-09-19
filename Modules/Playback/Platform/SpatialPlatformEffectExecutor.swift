@@ -37,10 +37,10 @@ enum SpatialPlatformPresentationFailurePolicy {
         switch effect {
         case .enterImmersivePlayback,
              .exitImmersivePlayback,
-             .collapseImmersivePlayback,
              .swapWindowPlaybackProjection:
             return true
-        case .presentEnvironmentPreview,
+        case .collapseImmersivePlayback,
+             .presentEnvironmentPreview,
              .dismissEnvironmentPreview,
              .presentEnvironmentCard,
              .normalizeStoppedSpatialPlayback,
@@ -132,9 +132,10 @@ extension SpatialPlatformEffect {
 enum SpatialPlatformPlayerWindowClosurePolicy {
     static func stopsPlayback(
         hasActivePlaybackRequest: Bool,
-        playerWindowStateBeforeDisconnect: SpatialPlatformPlayerWindowState
+        playerWindowStateBeforeDisconnect: SpatialPlatformPlayerWindowState,
+        applicationIsActive: Bool = true
     ) -> Bool {
-        hasActivePlaybackRequest && playerWindowStateBeforeDisconnect != .closing
+        applicationIsActive && hasActivePlaybackRequest && playerWindowStateBeforeDisconnect != .closing
     }
 }
 
@@ -283,6 +284,7 @@ public final class SpatialPlatformEffectCoordinator {
     private var sceneDisconnectObserver: (any NSObjectProtocol)?
     @ObservationIgnored
     public var onPlayerWindowClosedByWearer: (@MainActor () -> Void)?
+    public var onSuspendedPlaybackRecoveryRequired: (@MainActor () -> Void)?
     @ObservationIgnored
     public var onImmersiveSpaceScenePhaseChanged:
         (@MainActor (ScenePhase, ScenePhase) -> Void)?
@@ -290,6 +292,9 @@ public final class SpatialPlatformEffectCoordinator {
     private var windowCapabilityIDs: [SpatialPlatformWindowIdentity: UUID] = [:]
     @ObservationIgnored
     private var playerWindowState = SpatialPlatformPlayerWindowState.absent
+    @ObservationIgnored
+    private var activationWatchdogRetryCount = 0
+    private static let activationWatchdogMaxRetries = 5
     public private(set) var playbackResidency = PlaybackResidency.browsing
 
     public private(set) var lastPlatformOperation = "none"
@@ -367,7 +372,8 @@ public final class SpatialPlatformEffectCoordinator {
         guard window == .player else { return }
         let stopsPlayback = SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(
             hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
-            playerWindowStateBeforeDisconnect: playerWindowStateBeforeDisconnect
+            playerWindowStateBeforeDisconnect: playerWindowStateBeforeDisconnect,
+            applicationIsActive: UIApplication.shared.applicationState == .active
         )
         appModel.recordSurfaceInputProbe(
             "playerWindowScene disconnected stopsPlayback=\(stopsPlayback)",
@@ -527,6 +533,7 @@ public final class SpatialPlatformEffectCoordinator {
     public func handleApplicationDidBecomeActive() {
         reconcileImmersiveSpaceResidency()
         requestDrain()
+        activationWatchdogRetryCount = 0
         runActivationWatchdog()
     }
 
@@ -554,16 +561,25 @@ public final class SpatialPlatformEffectCoordinator {
             return
         }
         guard issuePushedWindow(.player) else {
+            if activationWatchdogRetryCount < Self.activationWatchdogMaxRetries {
+                activationWatchdogRetryCount += 1
+                appModel.recordSurfaceInputProbe(
+                    "activationWatchdog playerWindowRestore deferred"
+                        + " attempt=\(activationWatchdogRetryCount)",
+                    retention: .evidence
+                )
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .seconds(2))
+                    self?.runActivationWatchdog()
+                }
+                return
+            }
             appModel.recordSurfaceInputProbe(
                 "activationWatchdog playerWindowRestore failed"
-                    + " action=stoppingPlayback",
+                    + " action=retainingPlayback",
                 retention: .evidence
             )
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                await stopPlaybackForFailedPresentationTransfer()
-                appModel.requestStoppedPlaybackCleanup()
-            }
+            playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
             return
         }
         appModel.recordSurfaceInputProbe(
@@ -2294,7 +2310,6 @@ public final class SpatialPlatformEffectCoordinator {
             switch execution.request.effect {
             case .enterImmersivePlayback,
                  .exitImmersivePlayback,
-                 .collapseImmersivePlayback,
                  .swapWindowPlaybackProjection:
                 appModel.presentationTransition?.previousPresentation
             default:
@@ -2316,6 +2331,13 @@ public final class SpatialPlatformEffectCoordinator {
         lastExecutionCheckpoint = "effect-completed-\(String(describing: outcome))-\(String(describing: resolution))"
         if resolution != .ignored {
             immersiveRequestProvenance.clear(requestID: execution.request.id)
+        }
+        if resolution != .ignored,
+           case .failed = outcome,
+           case .collapseImmersivePlayback = execution.request.effect {
+            _ = issuePushedWindow(.player)
+            onSuspendedPlaybackRecoveryRequired?()
+            return resolution
         }
         guard resolution != .ignored,
               performsAfterTransport,

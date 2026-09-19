@@ -88,7 +88,6 @@ public struct PlayerView: View {
     private var spatialPlatformEffectCoordinator
     @Environment(SettingsViewModel.self) private var settingsViewModel
 
-
     @State private var playbackDeckOpacity: Double = 0
     @State private var reapplyVerificationSnapshotTick = 0
     private let playbackSurfaceIsEnabled: Bool

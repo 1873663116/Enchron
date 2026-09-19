@@ -55,12 +55,13 @@ class OrphanVerbsTests(unittest.TestCase):
         self.assertTrue(found)
         self.assertTrue(any("orphanVerb" in line for line in found))
 
-    def test_prepareEmbyAccount_is_exempt(self) -> None:
-        self.write_channel('case "prepareEmbyAccount":\n')
-        self.write_script("Scripts/verification/foo.py", 'nothing')
-        self.write_script("Regression/operations/other.md", 'nothing')
-        self.write_script("Config/reachability_operation_inventory.json", 'nothing')
-        self.assertEqual(checker.failures(), [])
+    def test_exempt_verbs_are_exempt(self) -> None:
+        for verb in checker.EXEMPT_VERBS:
+            self.write_channel(f'case "{verb}":\n')
+            self.write_script("Scripts/verification/foo.py", 'nothing')
+            self.write_script("Regression/operations/other.md", 'nothing')
+            self.write_script("Config/reachability_operation_inventory.json", 'nothing')
+            self.assertEqual(checker.failures(), [])
 
     def test_real_repository_has_no_violations(self) -> None:
         original_root = Path(__file__).resolve().parents[2]
