@@ -114,18 +114,13 @@ class SemanticAuthorityTests(unittest.TestCase):
                     json.loads(row["requiredWork"]), decision["requiredWork"]
                 )
 
-    def test_bundle_has_a_stable_content_identity(self) -> None:
-        canonical = json.dumps(
-            self.payload,
-            ensure_ascii=False,
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-        digest = "sha256:" + hashlib.sha256(canonical).hexdigest()
-        self.assertRegex(digest, r"^sha256:[0-9a-f]{64}$")
+    def test_bundle_records_the_digest_of_the_decisions_it_was_built_from(self) -> None:
         self.assertEqual(
-            digest,
-            "sha256:51f6e1e91726429465aff90c56b3cac7645e6ac704c4867eba779a47c8d6c88f",
+            self.payload["authority"]["sourceDigest"],
+            "sha256:" + hashlib.sha256(DECISIONS_PATH.read_bytes()).hexdigest(),
+            "semantic-authority.json names a sourceDigest that no longer matches "
+            + DECISIONS_PATH.relative_to(REPOSITORY_ROOT).as_posix()
+            + "; update the recorded digest with the decisions it was built from.",
         )
 
 
