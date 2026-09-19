@@ -392,11 +392,6 @@ public struct PlaybackVideoSurface: View {
         return [
             presentation.rawValue,
             isActive ? "active" : "inactive",
-            // The host marker is what actually flips when the presentation
-            // surface is torn down and rebuilt; `isActive` can stay true across
-            // the whole round trip, so on its own it never re-arms the
-            // attachment. Without this the surface is left un-attached after the
-            // rebuild and both playback and recovery stall on no pictures.
             realityViewHostMarker.isActive ? "hostActive" : "hostInactive",
             String(playbackRuntime.foregroundReturnRevision),
             playbackRuntime.hasActivePlaybackRequest ? "requestActive" : "requestNone",
@@ -419,12 +414,6 @@ public struct PlaybackVideoSurface: View {
         recordSurfaceAttachmentFacts(reason: "enter")
         while surfaceAttachmentCanStillSettle {
             guard Task.isCancelled == false else { return }
-            // The host marker is what flips when the presentation surface is
-            // torn down and rebuilt, and the four attachment conditions can all
-            // read as satisfied straight through that rebuild. A flip therefore
-            // demands one real re-attach before the surface counts as settled.
-            // Every other change to the readiness key is left to the
-            // bookkeeping, which is accurate when nothing was rebuilt.
             if lastObservedHostMarkerActive != realityViewHostMarker.isActive {
                 lastObservedHostMarkerActive = realityViewHostMarker.isActive
                 reattachRequired = true

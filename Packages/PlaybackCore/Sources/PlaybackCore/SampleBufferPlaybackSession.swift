@@ -45,15 +45,10 @@ enum PlaybackBufferingPolicy {
     static let audioPrerollPollInterval: Duration = .milliseconds(5)
 
     static let seekProgressStallTimeout: Duration = .seconds(5)
-    // Absolute bound for a stall that keeps a source read in flight. A live
-    // transport resolves earlier (bytes arrive or the read errors); this only
-    // catches a pending-read flag that never clears.
     static let transportBoundStallLimit: Duration = .seconds(120)
 
     static let pendingReadPollInterval: Duration = .seconds(1)
 
-    // Bounds the resume-time source liveness probe. A live transport answers
-    // well inside this; a dead one is abandoned here and the caller reopens.
     static let rendererFlushProbeBudget: Duration = .milliseconds(250)
 
     static func seekRequirement(
@@ -1124,10 +1119,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         beginOperation(.pause, targetRate: 0)
         timelineStartRate = 0
         setTimelineStopped(reason: .pause)
-        // A paused session is no longer waiting for a first frame, and the
-        // displayed image can go with the presentation surface. Leaving the
-        // deadline armed fails a session that was only ever paused; playing
-        // again arms a fresh one.
         cancelFirstVideoFrameDeadline()
         updateLifecycle(.paused)
         recordRendererState(at: currentTime())

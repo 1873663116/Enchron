@@ -388,7 +388,6 @@ struct WindowPlaybackPageGeometryTests {
             verticalOffsetMeters: verticalOffset
         )
 
-        // Gaze forward is world-up; view-down is -Z (toward the chin).
         #expect(abs(placement.translation.x) < 1e-4)
         #expect(abs(placement.translation.y - (0.4 - forwardOffset)) < 1e-4)
         #expect(abs(placement.translation.z - verticalOffset) < 1e-4)

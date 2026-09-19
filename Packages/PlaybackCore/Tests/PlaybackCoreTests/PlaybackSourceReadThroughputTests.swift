@@ -271,14 +271,14 @@ private func waitForCondition(
     }
     defer { PBFFmpegDemuxSourceDestroy(openedSource) }
 
-    // Let the read thread settle (drain to EOF) so only the seek is pending.
-    #expect(waitForCondition(timeout: 10) {
-        PBFFmpegSourceReadMonitorGetPendingReadCount(monitor) == 0
-    })
+    #expect(
+        waitForCondition(timeout: 10) {
+            PBFFmpegSourceReadMonitorGetPendingReadCount(monitor) == 0
+        },
+        "the read thread did not drain to the end of the file"
+    )
 
     server.stallNextRangeResponse()
-    // Seek back to the start; after the EOF drain this always misses the
-    // buffer and issues a fresh range request, which the server stalls.
     let seekFinished = DispatchSemaphore(value: 0)
     let sourceAddress = Int(bitPattern: openedSource)
     DispatchQueue.global().async {

@@ -37,7 +37,16 @@ PYTHON_ROOTS = (
     REPOSITORY_ROOT / ".claude/hooks",
 )
 EXCLUDED_SEGMENTS = frozenset(
-    {"Vendor", ".build", ".scratch", ".git", "DerivedData", "SourcePackages", "checkouts"}
+    {
+        "Vendor",
+        "ffmpeg-headers",
+        ".build",
+        ".scratch",
+        ".git",
+        "DerivedData",
+        "SourcePackages",
+        "checkouts",
+    }
 )
 TOOLS_VERSION = "// swift-tools-version"
 
@@ -74,6 +83,20 @@ def skip_string(source: str, index: int, hashes: int, quotes: int) -> int:
     return len(source)
 
 
+def is_doc_comment(source: str, index: int, marker: str) -> bool:
+    """Whether the comment opening at `index` documents what it sits above.
+
+    `///` and `/**` are the document-comment spellings for Swift and C. A doc
+    comment describes the declaration beneath it - what the interface already
+    is - and is the one place a reader looks for it, so it is not the prose this
+    gate sends to the constraints documents. A longer run of the same character
+    (`////`, `/***`) is a divider and stays reported.
+    """
+    if marker == "//":
+        return source.startswith("///", index) and not source.startswith("////", index)
+    return source.startswith("/**", index) and not source.startswith("/***", index)
+
+
 def swift_comments(source: str) -> tuple[Comment, ...]:
     comments: list[Comment] = []
     index = 0
@@ -92,7 +115,7 @@ def swift_comments(source: str) -> tuple[Comment, ...]:
             continue
         if source.startswith("//", index):
             directive = line == 1 and index == 0 and source.startswith(TOOLS_VERSION, index)
-            if not directive:
+            if not directive and not is_doc_comment(source, index, "//"):
                 comments.append(Comment(line, index - line_start + 1, "//"))
             newline = source.find("\n", index + 2)
             if newline < 0:
@@ -102,7 +125,8 @@ def swift_comments(source: str) -> tuple[Comment, ...]:
             line_start = index
             continue
         if source.startswith("/*", index):
-            comments.append(Comment(line, index - line_start + 1, "/*"))
+            if not is_doc_comment(source, index, "/*"):
+                comments.append(Comment(line, index - line_start + 1, "/*"))
             depth = 1
             cursor = index + 2
             while cursor < len(source) and depth:
@@ -201,7 +225,8 @@ def c_comments(source: str) -> tuple[Comment, ...]:
             index = cursor + 1
             continue
         if source.startswith("//", index):
-            comments.append(Comment(line, index - line_start + 1, "//"))
+            if not is_doc_comment(source, index, "//"):
+                comments.append(Comment(line, index - line_start + 1, "//"))
             newline = source.find("\n", index + 2)
             if newline < 0:
                 break
@@ -210,7 +235,8 @@ def c_comments(source: str) -> tuple[Comment, ...]:
             line_start = index
             continue
         if source.startswith("/*", index):
-            comments.append(Comment(line, index - line_start + 1, "/*"))
+            if not is_doc_comment(source, index, "/*"):
+                comments.append(Comment(line, index - line_start + 1, "/*"))
             cursor = source.find("*/", index + 2)
             cursor = len(source) if cursor < 0 else cursor + 2
             segment = source[index:cursor]
@@ -259,13 +285,14 @@ def main() -> int:
         print(
             "Move external constraints to the owning constraints document, "
             "put measured values behind named constants, and encode invariants "
-            "in types or checks.",
+            "in types or checks. A doc comment (/// or /**) describes the "
+            "declaration it sits above and is allowed.",
             file=sys.stderr,
         )
         return 1
     print(
         f"{len(swift)} Swift files, {len(bridge)} C bridge and probe files and "
-        f"{len(python)} Python files contain no source comments"
+        f"{len(python)} Python files carry no prose comments"
     )
     return 0
 

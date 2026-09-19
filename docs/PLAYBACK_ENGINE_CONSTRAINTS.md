@@ -105,7 +105,7 @@ seek 的代价仍然随持有帧数超线性增长（2026-08-22 在 8K60 上测�
 
 ## 2026-09-12 真机测量：窗口播放的显示刷新率与进程内存分解
 
-测量在 RealityDevice17,1（visionOS 27）上完成；内存样本取自容器内 `Documents/surface-tap-probe.log` 的控制面行（AX 不通时仍推进），刷新率取自 `xctrace --instrument 'Display' --all-processes` 的 display-vsyncs-interval 表。原始数据、导出表与截图在 `.scratch/2026-09-12-memory-probe/device/`（`experiment-a.md`、`refresh/`、`crashlogs/`）。
+测量在 RealityDevice17,1（visionOS 27）上完成；内存样本取自容器内 `Documents/surface-tap-probe.log` 的控制面行（AX 不通时仍推进），刷新率取自 `xctrace --instrument 'Display' --all-processes` 的 display-vsyncs-interval 表。原始数据、导出表与截图是当时会话的 `.scratch` 产物，已随该会话删除；本节保留的是从它们读出的数字，以及上面这两条取数方法。
 
 **窗口播放期间显示器跑在 90.00 Hz，与内容帧率、播放路径都无关。** Enchron 窗口播放 24p 的 1822 个 vsync、59.94 fps 的 1823 个 vsync、以及 Safari 经 http.server 播放同一 24p 文件的 1822 个 vsync，间隔全部落在 11.1107–11.1108 ms。「更高刷新率可能被自动采用」的那一档在窗口播放中对自研渲染器与系统播放器都不触发。读数条 `SCENE x/90Hz` 的分母是 CADisplayLink 间隔（`refreshHz`），此前只是进程内读数，现在与 Instruments 地面真值一致，可以采信。
 
@@ -145,6 +145,10 @@ C 层的 demux 会话另有一组同样来自 mpv 的默认值，来自 `demux/d
 同一层的 `PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS = {250, 500, 1000}` 是远程来源读错误后的重试退避序列，尝试次数上限由数组长度派生（`PB_DEMUX_RECONNECT_ATTEMPT_LIMIT`，当前为 3），只在来源是远程且没有到达已知末尾时触发。「已知末尾」不按字节位置判定：demuxer 可以在容器的最后一个字节之前就结束，读到的位置等于声明的总长度因此不是终点条件。判据是来源声明了总长度、`av_read_frame` 返回 `AVERROR_EOF`、且 AVIO 层没有留下传输错误（`demux_source_reached_known_end` 读 `formatContext->pb->error`），这三条把正常的容器结束与一次被截短的响应分开。它经 `reconnectAttemptCount` 进诊断，落成 `demuxReconnects`（`SampleBufferPlaybackSession+Diagnostics.swift`）与 `reconnects`（`PlaybackDiagnostics.swift`）。`Scripts/rules/verify_demux_buffer_policy.py` 只要求诊断文本里出现 `demuxReconnects` 这个字段名，不比对退避的具体毫秒数或次数上限。
 
 `audioPrerollTimeout` 的五秒是 **provider 或渲染器故障的界，不是缓冲媒体的策略**；5 毫秒轮询让激活在该界内保持响应。它与 `seekProgressStallTimeout` 同为五秒是历史巧合，分开命名以免与已删除的"五秒媒体储备"混淆。
+
+`transportBoundStallLimit = 120 s` 是**一条读已经发出、却始终没有返回**时的绝对上界，判据与上面按进展计的 `seekProgressStallTimeout` 不同：活的传输会先自行了结（字节到达，或这次读报错），这个常数只抓一个永不落地的 pending-read 标志，`pendingReadPollInterval = 1 s` 是查看该标志的间隔。
+
+`rendererFlushProbeBudget = 250 ms` 封住恢复时探测来源存活的那一次真实读取：活的传输远在这个界内应答，死的来源在这里被放弃，由调用方转入重开。
 
 `seekProgressStallTimeout = 5 s` 从**最后一次观察到进展**起算，不是从等待开始起算，seek 的两条协调循环（视频与纯音频）都没有绝对上界。进展指四个信号中任意一个发生变化：会话 `sourceReadMeter.totalBytesRead` 增加、`lastVideoSample` 换了 `sourceEventID` 或呈现时间、`lastAudioSample` 换了流 epoch 或呈现时间、`lastAcceptedRendererInput` 换了 `sourceEventID` 或流 epoch。取消与关闭仍然当场中断等待。绝对上界是错的判据：2026-09-09 真机上 seek 到 999.9 s 落在 990.57 s 的关键帧，驱动器给出 4.3 MB/s 而该流需要 7.4 MB/s，到达目标要约 16 秒；五秒时解码样本数正从 745 走到 866，seek 仍在推进，却以 `seekTimedOut` 报错、记录失败、关闭会话，画面冻在原处。等待超过五秒墙钟而仍有进展时发一次 `session.seek.stalled seconds=<target> lastProgressMs=<n>`，慢而活着的 seek 因此在 trace 里可见；真正停摆时的失败记录带上 `progressAgeMilliseconds`，说明距上一次进展有多久。断言见 `aSeekThatKeepsMakingProgressCompletesAfterTheOldDeadline` 与 `aSeekWithNoProgressFailsAfterTheStallTimeout`（`Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift`）。
 
@@ -253,9 +257,17 @@ visionOS 上 CoreText 为汉字回退选出的系统字体是 `PingFangUI.ttc`�
 
 换音轨时会话停住时间线、冲掉音频渲染器并重新打开音频 provider；共享 demux 来源同时需要 seek 回当前位置并重新打开视频 provider。此后直接 `setRate(rate, time:)` 恢复速率，在 visionOS 上得到的是请求速率为 1 而实际时基为 0 的时间线（见"visionOS 的时基与速率激活"）：新音轨还没有 preroll，同步器不会启动，画面停住而 UI 仍显示播放。正确的恢复与 seek 相同——`hasStartedTimeline = false`、`timelineStartRate = rate`、`requestedTimelineStart = 当前时间`、重置 decoder bootstrap 并冲掉视频渲染器（保留已显示的画面）——让 bootstrap 与音频 preroll 之后的 `setRateAtHostTime` 激活时间线。断言在 `PlaybackCoreTests`：`audioTrackSelectionWhilePlayingRestartsTheTimelineThroughPreroll`。
 
+## 场景音频的增益不在代码里抬高
+
+`AudioPlaybackController.gain` 在 0 dB 封顶，响度写在音频文件里。所以 `OceanEnvironmentAudio.ambientGainDecibels` 是 0：环境音的响度由素材本身决定，代码里的增益只能从这个上限往下走。
+
 ## 诊断工具的时间基准
 
 `Tools/RemoteMediaProbe` 的跨度限制一律从**第一个 presentation time** 起算，而不是从零。Apple 的 projected-media 示例首样本的时间戳接近十秒，按绝对界计量时它们在交付第二帧之前就已满足要求。
+
+## 桥接层样本时间戳的前提
+
+`PBFFmpegSampleGetPresentationTimeLowerBound` 只在 demuxer 给出了显式解码时间戳时有效。没有 DTS 时它给出的下界不属于这条样本，调用方按自己的兜底取值。
 
 ## 宿主上的 C 探针照抄桥接层的判据，不调用它
 

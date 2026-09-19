@@ -12,7 +12,6 @@ final class OceanEnvironmentAudio {
     static let bandDistances: [ClosedRange<Float>] = [6...14, 14...35, 35...80]
     static let bandWeights: [Float] = [0.3, 0.4, 0.3]
     static let fadeDuration: TimeInterval = 1.5
-    // AudioPlaybackController.gain clamps at 0 dB; loudness lives in the file.
     static let ambientGainDecibels: Double = 0
     static let sourceCount = 6
     static let periodJitter: ClosedRange<Double> = 0.8...1.2

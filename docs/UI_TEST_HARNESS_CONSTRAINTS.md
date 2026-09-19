@@ -39,7 +39,7 @@
 
 - **Settings 里的菜单格子改的是持久化偏好，跑完必须恢复**。`reachability_matrix.py` 的 `settings_menu_scenario` 为了证明投递会给每个 Settings 菜单选一个非当前项（默认倍速选 0.5），这些值写进 `UserDefaults`（`PreferencesStore.swift`），真机上一直留到下一次人手改回；2026-09-08 佩戴者发现每次播放都是 0.5 倍速。现在每个格子在投递证明之后用 `selected_menu_item` 读到的原选项调 `selectMenuItem` 恢复，结果记在结果文档的 `settingsRestorations`。
 - **`The runner did not answer tap within 30 seconds.` 不等于 tap 没落**。2026-09-12 真机上 AX 传输在播放中反复卡住，超时的 tap 有时延迟落到了目标上（`snapshot` 超时同理）。判动作是否生效要看控制面——探针里的 `lifecycle`、PTS 推进、`testcmd` 行——不能只凭 runner 回的错误文本。
-- **探针日志的写入不经过 AX**。`Documents/surface-tap-probe.log` 的控制面行由 app 自己写，AX 卡死期间照常推进，经 `devicectl` 拷容器即可读——2026-09-12 的整轮内存采样（`.scratch/2026-09-12-memory-probe/device/experiment-a.md`）就是在 AX 不通的窗口里由它完成的。
+- **探针日志的写入不经过 AX**。`Documents/surface-tap-probe.log` 的控制面行由 app 自己写，AX 卡死期间照常推进，经 `devicectl` 拷容器即可读——2026-09-12 的整轮内存采样就是在 AX 不通的窗口里由它完成的。
 
 ## XCUITest 与 visionOS 的场景
 
@@ -149,7 +149,7 @@ App 侧测试通道的复位不是"删掉一切"：
 
 ## xctrace 在 visionOS 真机上是不可靠通道，先验活再驱动
 
-xctrace 与 devicectl 走的是**两条不同的设备通道**：devicectl 是控制面（CoreDevice 隧道上的小请求），xctrace 要在设备端拉起 `instruments.remoteserver` 并维持一条持续高带宽的 kdebug/trace 流。前者的 connected/online 状态**不代表**后者可用——2026-09-13 实测：devicectl 全程能装能控能拷文件，xctrace 同时段十几次录制全部在开录约 10 秒后以 `Device got disconnected` 中断，留下只有目录结构、0 行数据的空心 trace（`.scratch/2026-09-12-scene-perf/traces/`）。
+xctrace 与 devicectl 走的是**两条不同的设备通道**：devicectl 是控制面（CoreDevice 隧道上的小请求），xctrace 要在设备端拉起 `instruments.remoteserver` 并维持一条持续高带宽的 kdebug/trace 流。前者的 connected/online 状态**不代表**后者可用——2026-09-13 实测：devicectl 全程能装能控能拷文件，xctrace 同时段十几次录制全部在开录约 10 秒后以 `Device got disconnected` 中断，留下只有目录结构、0 行数据的空心 trace。
 
 这两个故障都是 **Apple 官方论坛记录在案的已知问题，没有文档化规避手段**，重试、换参数、改命令形式都无意义：
 

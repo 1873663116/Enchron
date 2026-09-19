@@ -604,12 +604,6 @@ final class EnchronApplication {
 
     func handleScenePhaseTransition(to current: ScenePhase) {
         if current == .background {
-            // Suspending cancels the source resolution, and cancelling that
-            // tears down the stream it handed the player. A paused player still
-            // owns that stream: resume() only clears a flag and restarts
-            // nothing, so suspending here leaves the source dead and the next
-            // reopen fails with "Connection refused". Suspend only when no
-            // session is holding it.
             if !holdsLivePlaybackSession {
                 playbackLauncher.preparation.suspend()
             }

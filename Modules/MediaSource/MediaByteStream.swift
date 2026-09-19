@@ -1648,11 +1648,6 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     }
 
-    // A source read that produces nothing for `timeout` is cancelled and
-    // retried. After the retry budget is spent the registration enters
-    // degraded mode: subsequent reads use a shorter timeout and no retries,
-    // so demux reconnects fail fast instead of each waiting a full window.
-    // Any successful read restores normal mode.
     private func readSourceWithSilenceRetry(
         _ range: Range<Int64>,
         registration: Registration
