@@ -1250,6 +1250,33 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         initialSpeed: PlaybackModel.PlaybackSpeed,
         initialFormat: MediaFormat?
     ) async throws {
+        try await openLike(
+            request,
+            startTimeSeconds: startTimeSeconds,
+            initialFormat: initialFormat,
+            startsPaused: false
+        )
+    }
+
+    func preparePaused(
+        _ request: PlaybackLaunchRequest,
+        startTimeSeconds: Double,
+        initialFormat: MediaFormat?
+    ) async throws {
+        try await openLike(
+            request,
+            startTimeSeconds: startTimeSeconds,
+            initialFormat: initialFormat,
+            startsPaused: true
+        )
+    }
+
+    private func openLike(
+        _ request: PlaybackLaunchRequest,
+        startTimeSeconds: Double,
+        initialFormat: MediaFormat?,
+        startsPaused: Bool
+    ) async throws {
         currentLaunchRequest = request
         if suspendsNextOpen {
             suspendsNextOpen = false
@@ -1259,7 +1286,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
             try Task.checkCancellation()
         }
         activeSessionID = UUID().uuidString
-        productLifecycle = .ready
+        productLifecycle = startsPaused ? .paused : .ready
         lastStartTimeSeconds = startTimeSeconds
         if let initialFormat {
             lastAppliedFormat = initialFormat
