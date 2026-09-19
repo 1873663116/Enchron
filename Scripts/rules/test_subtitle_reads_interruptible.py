@@ -17,28 +17,73 @@ VALID_ALLOCATE_FORMAT_CONTEXT = (
     "}\n"
 )
 
-VALID_OPEN_MEDIA_SOURCE = (
+VALID_MONITORED_DOOR = (
+    "static int monitored_avformat_open_input(\n"
+    "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    AVFormatContext **context,\n"
+    "    const char *path\n"
+    ") {\n"
+    "    source_read_monitor_note_read_begin(monitor);\n"
+    "    int result = avformat_open_input(context, path, NULL, NULL);\n"
+    "    source_read_monitor_note_read_end(monitor);\n"
+    "    return result;\n"
+    "}\n"
+    "\n"
     "static int open_media_source(\n"
     "    AVFormatContext **context,\n"
     "    const char *path,\n"
     "    PBFFmpegSourceReadContext *sourceReadContext\n"
     ") {\n"
-    "    int result = avformat_open_input(context, path, NULL, NULL);\n"
-    "    return result;\n"
+    "    return monitored_avformat_open_input(\n"
+    "        sourceReadContext ? sourceReadContext->monitor : NULL,\n"
+    "        context,\n"
+    "        path\n"
+    "    );\n"
     "}\n"
 )
 
 ROGUE_OPEN_MEDIA_SOURCE_WITH_EXTERNAL_CALL = (
+    "static int monitored_avformat_open_input(\n"
+    "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    AVFormatContext **context,\n"
+    "    const char *path\n"
+    ") {\n"
+    "    return -1;\n"
+    "}\n"
+    "\n"
+    "static int open_media_source(\n"
+    "    AVFormatContext **context,\n"
+    "    const char *path,\n"
+    "    PBFFmpegSourceReadContext *sourceReadContext\n"
+    ") {\n"
+    "    return monitored_avformat_open_input(\n"
+    "        sourceReadContext ? sourceReadContext->monitor : NULL,\n"
+    "        context,\n"
+    "        path\n"
+    "    );\n"
+    "}\n"
+    "\n"
+    "static int rogue_open(const char *path) {\n"
+    "    return avformat_open_input(NULL, path, NULL, NULL);\n"
+    "}\n"
+)
+
+OPEN_MEDIA_SOURCE_THAT_BYPASSES_THE_DOOR = (
+    "static int monitored_avformat_open_input(\n"
+    "    PBFFmpegSourceReadMonitor *monitor,\n"
+    "    AVFormatContext **context,\n"
+    "    const char *path\n"
+    ") {\n"
+    "    int result = avformat_open_input(context, path, NULL, NULL);\n"
+    "    return result;\n"
+    "}\n"
+    "\n"
     "static int open_media_source(\n"
     "    AVFormatContext **context,\n"
     "    const char *path,\n"
     "    PBFFmpegSourceReadContext *sourceReadContext\n"
     ") {\n"
     "    return 0;\n"
-    "}\n"
-    "\n"
-    "static int rogue_open(const char *path) {\n"
-    "    return avformat_open_input(NULL, path, NULL, NULL);\n"
     "}\n"
 )
 
@@ -164,13 +209,18 @@ class OpenPathCallSiteTests(unittest.TestCase):
     def test_allocate_format_context_call_inside_its_own_body_is_accepted(self) -> None:
         rule.check_S1(VALID_ALLOCATE_FORMAT_CONTEXT)
 
-    def test_open_media_source_call_inside_its_own_body_is_accepted(self) -> None:
-        rule.check_S2(VALID_OPEN_MEDIA_SOURCE)
+    def test_call_inside_the_monitored_door_is_accepted(self) -> None:
+        rule.check_S2(VALID_MONITORED_DOOR)
 
-    def test_raw_avformat_open_input_outside_open_media_source_is_rejected(self) -> None:
+    def test_raw_avformat_open_input_outside_the_door_is_rejected(self) -> None:
         with self.assertRaises(AssertionError) as failure:
             rule.check_S2(ROGUE_OPEN_MEDIA_SOURCE_WITH_EXTERNAL_CALL)
         self.assertIn("S2", str(failure.exception))
+
+    def test_open_media_source_that_bypasses_the_door_is_rejected(self) -> None:
+        with self.assertRaises(AssertionError) as failure:
+            rule.check_S2(OPEN_MEDIA_SOURCE_THAT_BYPASSES_THE_DOOR)
+        self.assertIn("reach the monitored door", str(failure.exception))
 
     def test_subtitle_source_without_raw_open_calls_is_accepted(self) -> None:
         rule.check_S3({"Bridge/SubtitleFrameRenderer.c": SUBTITLE_SOURCE_WITHOUT_RAW_CALLS})
