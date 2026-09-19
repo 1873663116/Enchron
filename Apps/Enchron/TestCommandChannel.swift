@@ -1320,7 +1320,7 @@ final class TestCommandChannel {
                 payload: nil
             )
         case "leavePlayback":
-            await playbackRuntime.leavePlaybackAndWait(reason: .backButton)
+            await playbackLauncher.stopPlaybackAndWait(reason: .backButton)
             return Response(
                 id: request.id,
                 ok: true,

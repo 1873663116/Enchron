@@ -3227,10 +3227,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func refreshDisplayCriteria() {
-        if case .playing(let host) = residency, let driver = rendererTransferCoordinator.activeDriver {
+        if case .playing(let host) = residency,
+           let facts = rendererTransferCoordinator.activeDisplayFacts {
             displayCriteria.update(
-                frameRate: driver.diagnostics.nominalFrameRate,
-                format: driver.acceptedVideoFormatDescription,
+                frameRate: facts.frameRate,
+                format: facts.format,
                 host: host
             )
         } else {

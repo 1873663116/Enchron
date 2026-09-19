@@ -1210,6 +1210,18 @@ extension RendererTransferCoordinator {
         activeDriver?.sessionID
     }
 
+    /// What the active driver contributes to the display criteria: its nominal
+    /// frame rate and the format it accepted. The runtime reads these two facts
+    /// and nothing else about the driver, so it asks for them by name rather
+    /// than holding the driver, whose selection is this coordinator's.
+    var activeDisplayFacts: (frameRate: Double, format: CMFormatDescription?)? {
+        guard let driver = activeDriver else { return nil }
+        return (
+            driver.diagnostics.nominalFrameRate,
+            driver.acceptedVideoFormatDescription
+        )
+    }
+
     func setRate(_ rate: Float) throws {
         try requireActiveDriver().setRate(rate)
     }
