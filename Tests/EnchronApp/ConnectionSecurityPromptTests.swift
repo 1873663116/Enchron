@@ -83,11 +83,11 @@ nonisolated final class ConnectionSecurityPromptTests: XCTestCase {
 
 nonisolated final class ConnectionSecurityQuestionWordingTests: XCTestCase {
     @MainActor private func titleOf(_ question: ConnectionSecurityQuestion) -> String {
-        question.title
+        String(localized: question.title)
     }
 
     @MainActor private func messageOf(_ question: ConnectionSecurityQuestion) -> String {
-        question.message
+        String(describing: question.message)
     }
 
     @MainActor
@@ -104,8 +104,8 @@ nonisolated final class ConnectionSecurityQuestionWordingTests: XCTestCase {
         let replacement = ConnectionSecurityQuestion
             .unverifiedCertificate(.replacement(certificate, previousFingerprint: "CC:DD"))
 
-        XCTAssertEqual(titleOf(firstContact), "无法验证服务器证书")
-        XCTAssertEqual(titleOf(replacement), "服务器证书已更换")
+        XCTAssertEqual(titleOf(firstContact), "Cannot verify the server certificate")
+        XCTAssertEqual(titleOf(replacement), "The server certificate has changed")
         XCTAssertFalse(messageOf(firstContact).contains("CC:DD"))
         XCTAssertTrue(messageOf(replacement).contains("CC:DD"))
         XCTAssertTrue(messageOf(replacement).contains("AA:BB"))
@@ -115,7 +115,10 @@ nonisolated final class ConnectionSecurityQuestionWordingTests: XCTestCase {
     func testTheCleartextQuestionNamesTheHostAndTheRemedy() {
         let question = ConnectionSecurityQuestion.cleartextCredentials(host: "203.0.113.92")
 
-        XCTAssertEqual(titleOf(question), "这个地址不会加密你的密码")
+        XCTAssertEqual(
+            titleOf(question),
+            "This address will not encrypt your password"
+        )
         let description = messageOf(question)
         XCTAssertTrue(description.contains("203.0.113.92"))
         XCTAssertTrue(description.contains("https://"))

@@ -18,7 +18,7 @@ enum ConnectionSecurityQuestion: Equatable {
         }
     }
 
-    var title: LocalizedStringKey {
+    var title: LocalizedStringResource {
         switch self {
         case .cleartextCredentials:
             "This address will not encrypt your password"
