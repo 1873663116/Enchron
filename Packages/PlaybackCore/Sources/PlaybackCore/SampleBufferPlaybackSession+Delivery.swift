@@ -653,8 +653,7 @@ extension SampleBufferPlaybackSession {
             diagnostics.enqueuedSampleCount += 1
             #if DEBUG
                 if diagnostics.enqueuedSampleCount == 1
-                    || diagnostics.enqueuedSampleCount % 30 == 0
-                {
+                    || diagnostics.enqueuedSampleCount % 30 == 0 {
                     recordPlaybackSwitchRendererSample(
                         trigger: diagnostics.enqueuedSampleCount == 1
                             ? .firstInputAccepted

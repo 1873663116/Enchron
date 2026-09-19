@@ -45,8 +45,9 @@ final class VideoReflectionTextureSource {
             do {
                 try prepare()
             } catch {
-                failure = String(describing: error)
-                onEvent?(.failed(failure!))
+                let message = String(describing: error)
+                failure = message
+                onEvent?(.failed(message))
                 return
             }
         }
@@ -99,8 +100,9 @@ final class VideoReflectionTextureSource {
             lastPlaneCount = stats.planeCount
             onEvent?(.frameEncoded)
         } catch {
-            failure = String(describing: error)
-            onEvent?(.failed(failure!))
+            let message = String(describing: error)
+            failure = message
+            onEvent?(.failed(message))
         }
         pendingEncode = nil
     }

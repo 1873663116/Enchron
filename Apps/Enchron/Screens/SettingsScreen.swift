@@ -131,7 +131,9 @@ struct SettingsScreen: View {
                     + "confirm whether the requested display mode was applied.")
                 Text("Playback")
                     .font(DesignTokens.Typography.sectionHeader)
-                Text("Enqueued counts video samples sent to the renderer each second. Dropped is the current video renderer’s cumulative count; replacing the renderer can reset it. Buffer is queued source data.")
+                Text("Enqueued counts video samples sent to the renderer each second. "
+                    + "Dropped is the current video renderer’s cumulative count; replacing "
+                    + "the renderer can reset it. Buffer is queued source data.")
                 Text("App performance")
                     .font(DesignTokens.Typography.sectionHeader)
                 Text("Memory is the app footprint. Scene updates measures RealityKit updates. "

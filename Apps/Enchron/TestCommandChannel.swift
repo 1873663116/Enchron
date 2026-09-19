@@ -1731,7 +1731,7 @@ final class TestCommandChannel {
                 "enabled=\(transport.primaryActionEnabled)",
                 "lifecycle=\(playbackRuntime.productLifecycle.rawValue)",
                 "loadingVisibility=\(playbackRuntime.loadingState.visibility.rawValue)",
-                "loadingStage=\(playbackRuntime.loadingState.stage?.rawValue ?? "none")",
+                "loadingStage=\(playbackRuntime.loadingState.stage?.rawValue ?? "none")"
             ]
         )
     }

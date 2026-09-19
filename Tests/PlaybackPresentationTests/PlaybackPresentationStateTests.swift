@@ -2573,7 +2573,7 @@ struct PlaybackPresentationStateTests {
     @Test("The immersive indicator shows for starvation, recovery, opening, and seeking")
     func immersiveStallIndicatorShowsStarvationAndSeeking() {
         let visibleStages: [PlaybackLoadingStage] = [
-            .starved, .seeking, .recovering, .opening,
+            .starved, .seeking, .recovering, .opening
         ]
         for presentation in PlaybackPresentation.allCases {
             for stage in PlaybackLoadingStage.allCases {
