@@ -1897,8 +1897,8 @@ private final class ReportedPositions: @unchecked Sendable {
 }
 
 #if DEBUG
-@Test func armedPlaybackSwitchSamplingRecordsEveryAcceptedVideoInput() async throws {
-    let acceptedInputCount = 4
+@Test func armedPlaybackSwitchSamplingRecordsTheFirstInputAndEveryThirtieth() async throws {
+    let acceptedInputCount = 31
     let samples = try (0..<acceptedInputCount).map { index in
         try makeCompressedH264Sample(
             presentationTimeSeconds: Double(index) / 30
@@ -1927,7 +1927,7 @@ private final class ReportedPositions: @unchecked Sendable {
             false
         }
     }
-    #expect(acceptedInputSamples.map(\.acceptedInputCount) == [1, 2, 3, 4])
+    #expect(acceptedInputSamples.map(\.acceptedInputCount) == [1, 30])
 }
 
 @Test func disarmedPlaybackSwitchSamplingRecordsNoAcceptedVideoInputs() async throws {
