@@ -3109,6 +3109,18 @@
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
+      "template": "Settings-General-group"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
       "template": "Settings-MainWindow-sidebar"
     },
     {

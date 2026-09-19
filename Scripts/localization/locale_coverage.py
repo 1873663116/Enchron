@@ -135,7 +135,6 @@ def check_bundle(app: Path, root: Path, allow_missing: set[str]) -> int:
             shipped = plistlib.loads(path.read_bytes())
             dictionary = path.with_suffix(".stringsdict")
             if dictionary.exists():
-                # Plural keys compile into a stringsdict, not into the strings table.
                 shipped.update(plistlib.loads(dictionary.read_bytes()))
             catalog = json.loads(
                 (root / next(r for r in CATALOGS if Path(r).name.replace(".xcstrings", ".strings") == table))

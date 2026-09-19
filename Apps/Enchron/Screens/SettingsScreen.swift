@@ -158,7 +158,11 @@ struct SettingsScreen: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
                 Text("Video and display")
                     .font(DesignTokens.Typography.sectionHeader)
-                Text("Video is the source frame rate. Requested is a preference submitted to the system, not confirmation of a mode switch. DisplayLink measures app display updates, not the physical panel refresh rate. Verify the panel’s current refresh rate using the Display timeline in Apple Instruments; DisplayLink alone does not confirm whether the requested display mode was applied.")
+                Text("Video is the source frame rate. Requested is a preference submitted to the system, "
+                    + "not confirmation of a mode switch. DisplayLink measures app display updates, not "
+                    + "the physical panel refresh rate. Verify the panel’s current refresh rate using the "
+                    + "Display timeline in Apple Instruments; DisplayLink alone does not confirm whether "
+                    + "the requested display mode was applied.")
                 Text("Playback")
                     .font(DesignTokens.Typography.sectionHeader)
                 Text("Enqueued counts video samples sent to the renderer each second. "
@@ -166,7 +170,9 @@ struct SettingsScreen: View {
                     + "the renderer can reset it. Buffer is queued source data.")
                 Text("App performance")
                     .font(DesignTokens.Typography.sectionHeader)
-                Text("Memory is the app footprint. Scene updates measures RealityKit updates. Main-thread stall is the longest delay in the sampling interval. Detailed metrics add memory categories and queued video frames.")
+                Text("Memory is the app footprint. Scene updates measures RealityKit updates. "
+                    + "Main-thread stall is the longest delay in the sampling interval. Detailed "
+                    + "metrics add memory categories and queued video frames.")
             }
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(DesignTokens.Surface.supportingText)

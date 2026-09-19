@@ -30,6 +30,8 @@ python3 Scripts/localization/extract_strings.py
 
 脚本带 `SWIFT_EMIT_LOC_STRINGS=YES` 跑一次 `xcodebuild`，再从 `.scratch/derived-data` 收编译器为每个源文件产出的 `.stringsdata`，过滤后合并进表。已有译文保留，新键加进去，不再出现的键标成 `stale`（`--prune` 改为删除）。
 
+编译器为 DerivedData 下的生成源同样产出 stringsdata，其中带着 `InfoPlist` 的键；那些键属于 `InfoPlist.xcstrings`，脚本按来源前缀剔除。
+
 `--check` 不写文件，表与源码不一致时退出码为 1，可挂进 CI。
 
 ## 为什么不用 Xcode 自带的导出
@@ -85,6 +87,6 @@ python3 Scripts/localization/locale_coverage.py --app <built .app>
 
 ## 已知边界
 
-- 复数：`%lld items`、`%lld selected` 在法语、德语、俄语按各自的复数规则写 variations；俄语需要 one/few/many/other 四档。
+- 复数：`%lld items`、`%lld selected` 在法语、德语、俄语按各自的复数规则写 variations；俄语需要 one/few/many/other 四档。编译后复数键落进 `stringsdict` 而不是 `strings` 表，`locale_coverage.py` 比对前把两者合并。
 - 表按源码原文作键，一处英文改动等于新增一个键，已有译文需要重新绑定。
 - 视图之外产生的字符串如果忘了 `String(localized:)`，不会被抽到，也没有检查能发现。

@@ -145,8 +145,6 @@ def select(extracted: list[ExtractedString], root: Path, rules: dict) -> tuple[l
     skipped: list[ExtractedString] = []
     for entry in extracted:
         if not entry.source.startswith(SOURCE_ROOTS):
-            # Generated sources under DerivedData carry the InfoPlist keys into
-            # the Localizable table; those keys belong to InfoPlist.xcstrings.
             skipped.append(entry)
             continue
         if entry.source in excluded_files or entry.key in excluded_keys:

@@ -21,7 +21,6 @@ public struct MainView: View {
     @Environment(SettingsViewModel.self) private var settingsViewModel
     @Environment(DeveloperMetricsModel.self) private var developerMetrics
 
-
     public init() {}
 
     public var body: some View {

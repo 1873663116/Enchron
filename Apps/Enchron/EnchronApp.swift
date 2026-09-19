@@ -21,7 +21,8 @@ struct EnchronApp: App {
     }
 
     var body: some Scene {
-        Window("Enchron",
+        Window(
+            "Enchron",
             id: "main"
         ) {
             WindowSceneGate(window: .main) {
@@ -81,7 +82,8 @@ struct EnchronApp: App {
         )
         .windowResizability(.contentSize)
 
-        WindowGroup("Player",
+        WindowGroup(
+            "Player",
             id: SpatialPlatformWindowIdentity.player.rawValue
         ) {
             WindowSceneGate(window: .player) {
