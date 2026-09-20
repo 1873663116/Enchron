@@ -1706,6 +1706,70 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 }
 
 @MainActor
+@Test func pausedOpenLandsOnTheRequestedTimeAfterCoverage() async throws {
+    let frame = 1.0 / 30
+    let decodeOrder: [(presentation: Double, decode: Double)] = [
+        (1.0, 1.0),
+        (1.0 + 3 * frame, 1.0 + 3 * frame),
+        (1.0 + frame, 1.0),
+        (1.0 + 2 * frame, 1.0 + frame),
+        (1.0 + 6 * frame, 1.0 + 2 * frame),
+        (1.0 + 4 * frame, 1.0 + 3 * frame),
+        (1.0 + 5 * frame, 1.0 + 4 * frame),
+        (1.0 + 9 * frame, 1.0 + 5 * frame),
+        (1.0 + 7 * frame, 1.0 + 6 * frame),
+        (1.0 + 8 * frame, 1.0 + 7 * frame),
+        (1.0 + 12 * frame, 1.0 + 8 * frame)
+    ]
+    let initialSample = try makeCompressedH264Sample()
+    let reorderedSamples = try decodeOrder.map {
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: $0.presentation,
+            decodeTimeSeconds: $0.decode,
+            durationSeconds: frame
+        )
+    }
+    let session = SampleBufferPlaybackSession(
+        traceID: "paused-open-target",
+        provider: FakeVideoSampleProvider(
+            events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
+            seekPrepareDelay: .milliseconds(20)
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    let target = 1.0 + 1.5 * frame
+    let observedTargetEvent = LockedBox<PlaybackDebugEvent?>(nil)
+    let observerID = session.debugStore.addEventObserver { event in
+        guard event.kind == "timeline.targetApplied" else { return }
+        observedTargetEvent.withLock { $0 = event }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/paused-open-target.mp4"),
+        startTime: CMTime(seconds: target, preferredTimescale: 60_000),
+        startsPaused: true
+    )
+    try session.start()
+
+    let clock = ContinuousClock()
+    let startedAt = clock.now
+    while (abs(session.currentTime().seconds - target) > frame
+        || session.synchronizer.rate != 0),
+          clock.now - startedAt < .seconds(3) {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    #expect(abs(session.currentTime().seconds - target) <= frame)
+    #expect(session.synchronizer.rate == 0)
+    let event = try #require(observedTargetEvent.withLock { $0 })
+    let appliedTime = try #require(event.details["time"].flatMap(Double.init))
+    #expect(abs(appliedTime - target) <= frame)
+}
+
+@MainActor
 @Test func pausedSeekWaitsForTheCoveringFrameBehindItsLaterReferences() async throws {
     let frame = 1.0 / 30
     let decodeOrder = [0, 4, 2, 1, 3, 8, 6, 5, 7, 12, 10, 9, 11]

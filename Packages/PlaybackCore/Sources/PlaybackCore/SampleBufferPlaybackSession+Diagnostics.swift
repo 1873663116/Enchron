@@ -713,6 +713,9 @@ extension SampleBufferPlaybackSession {
         pausedSeekAwaitsCoverage = false
         clearPrerollRequirement()
         recordTimelineControlState()
+        if activeOperation?.kind == .open {
+            publishTargetTimelineState(at: activationTime)
+        }
         publishDiagnostics(at: activationTime, force: true)
     }
 

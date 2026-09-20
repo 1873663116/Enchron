@@ -556,6 +556,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         timelineStartRate = startsPaused || requestedRate == 0
             ? 0
             : preferredPlaybackRate
+        pausedSeekAwaitsCoverage = timelineStartRate == 0
+            && startTime.isNumeric
+            && startTime.seconds > 0
         sourceURL = url
         sourceAsset = asset
         sourceIsRemote = sourceTransport.isRemote
