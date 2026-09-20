@@ -4417,7 +4417,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
                 && event.details["phase"] == "call.before"
         }
     })
-    #expect(event.details["delaysRateChangeUntilHasSufficientMediaData"] == "false")
+    #expect(event.details["delaysRateChangeUntilHasSufficientMediaData"] == "true")
     #expect(event.details["videoAcceptedMinPTSSeconds"] == "0.8")
     #expect(event.details["videoAcceptedMaxPTSSeconds"] == "1.2")
     #expect(event.details["videoAcceptedMinDTSSeconds"] == "0.6")

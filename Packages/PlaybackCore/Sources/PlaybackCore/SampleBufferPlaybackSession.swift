@@ -487,7 +487,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.activationReapplyVerificationConfiguration =
             activationReapplyVerificationConfiguration
         self.activationReapplyVerificationHooks = activationReapplyVerificationHooks
-        initialSynchronizer.delaysRateChangeUntilHasSufficientMediaData = false
+        initialSynchronizer.delaysRateChangeUntilHasSufficientMediaData = true
         initialAudioRenderer.audioTimePitchAlgorithm = .timeDomain
         initialAudioRenderer.allowedAudioSpatializationFormats = .monoStereoAndMultichannel
         #if os(visionOS)
