@@ -21,7 +21,7 @@ struct EnchronApp: App {
     }
 
     var body: some Scene {
-        Window(
+        WindowGroup(
             "Enchron",
             id: "main"
         ) {
