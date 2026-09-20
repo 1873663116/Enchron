@@ -479,24 +479,30 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         resumeAt seconds: Double?,
         playbackMode: PersistedPlaybackMode
     ) -> Bool {
-        guard isLoopbackBridged, !bridgeHealingInProgress else { return false }
+        guard let lastResolvedLaunch, !bridgeHealingInProgress else { return false }
         bridgeHealingInProgress = true
         let recoveryGeneration = generation
         Task { [weak self] in
             guard let self else { return }
             defer { self.bridgeHealingInProgress = false }
-            guard let refreshed = await self.refreshedLoopbackRequest() else { return }
+            let request: PlaybackLaunchRequest
+            if self.isLoopbackBridged {
+                guard let refreshed = await self.refreshedLoopbackRequest() else { return }
+                request = refreshed
+            } else {
+                request = lastResolvedLaunch.request
+            }
             guard self.generation == recoveryGeneration else { return }
             SurfaceInputProbes.record(
                 "resumePreparation.begin resumeAt=\(String(describing: seconds))",
                 retention: .evidence
             )
             self.launchResolvedPlayback(
-                refreshed,
+                request,
                 resumeAt: seconds,
-                savedFormat: self.lastResolvedLaunch?.savedFormat,
+                savedFormat: lastResolvedLaunch.savedFormat,
                 playbackMode: playbackMode,
-                trackSelectionPreference: self.lastResolvedLaunch?
+                trackSelectionPreference: lastResolvedLaunch
                     .trackSelectionPreference,
                 startsPaused: true
             )

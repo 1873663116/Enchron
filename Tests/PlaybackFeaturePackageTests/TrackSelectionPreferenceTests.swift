@@ -40,6 +40,39 @@ struct TrackSelectionPreferenceTests {
         ))
     }
 
+    @Test("foreground resume preparation reloads a non-loopback source")
+    func foregroundResumePreparationReloadsNonLoopbackSource() async throws {
+        let suiteName = "app.enchron.tests.resume-preparation.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = PlaybackLaunchRequest(
+            url: URL(fileURLWithPath: "/fixtures/local.mp4"),
+            displayName: "local.mp4"
+        )
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+
+        coordinator.beginPlayback(request)
+        try await runtime.waitUntilOpened()
+        runtime.productLifecycle = .paused
+
+        #expect(
+            coordinator.preparePausedPlaybackForResume(
+                resumeAt: 12.5,
+                playbackMode: .window
+            )
+        )
+
+        let deadline = ContinuousClock.now + .seconds(2)
+        while runtime.lastStartTimeSeconds != 12.5,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(runtime.lastStartTimeSeconds == 12.5)
+        #expect(runtime.currentLaunchRequest?.url == request.url)
+        #expect(runtime.productLifecycle == .paused)
+    }
+
     @Test("playback mode persists independently from Media Format")
     func playbackModePersistsIndependentlyFromMediaFormat() async throws {
         let suiteName = "app.enchron.tests.playback-mode.\(UUID().uuidString)"

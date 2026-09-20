@@ -728,7 +728,6 @@ final class EnchronApplication {
     /// at its position and left paused. Whether the user then plays is theirs
     /// to decide; the app's part is to have it ready.
     private func preparePlaybackForResume(origin: String) {
-        guard playbackLauncher.isLoopbackBridged else { return }
         let position = playbackRuntime.playbackPosition.seconds
         let resumeAt = position.isFinite && position > 0 ? position : nil
         let presentation = suspendedPlaybackPresentation
