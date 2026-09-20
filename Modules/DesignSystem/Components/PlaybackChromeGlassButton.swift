@@ -38,8 +38,14 @@ public struct PlaybackChromeGlassButton: View {
                 accessibilityLabel: accessibilityLabel,
                 iconTier: iconTier
             )
+            .accessibilityHidden(true)
+            .frame(
+                width: DesignTokens.Interactive.large,
+                height: DesignTokens.Interactive.large
+            )
+            .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .disabled(!isEnabled)
         .playbackChromeGlassHitArea()
         .accessibilityLabel(accessibilityLabel)
@@ -86,6 +92,12 @@ public struct PlaybackChromeGlassMenuButton<Content: View>: View {
                 accessibilityLabel: accessibilityLabel,
                 iconTier: iconTier
             )
+            .accessibilityHidden(true)
+            .frame(
+                width: DesignTokens.Interactive.large,
+                height: DesignTokens.Interactive.large
+            )
+            .contentShape(Circle())
         }
         .simultaneousGesture(TapGesture().onEnded { onOpen?() })
         .buttonStyle(EnchronPressFeedbackButtonStyle.menuIcon())
@@ -109,26 +121,19 @@ private struct PlaybackChromeGlassIcon: View {
             )
             .clipShape(Circle())
             .enchronGlassBackground(in: Circle())
-            .enchronHoverEffect(.automatic)
-            .accessibilityHidden(true)
+            .enchronHoverContentShape(Circle())
+            .enchronHoverEffect(.highlight)
+            .enchronSpatialOffset(z: 1)
     }
 }
 
 private extension View {
     func playbackChromeGlassHitArea() -> some View {
         contentShape(Circle())
-            .frame(
-                width: DesignTokens.Interactive.large,
-                height: DesignTokens.Interactive.large
-            )
-            .contentShape(Circle())
-            .enchronHoverContentShape(
-                Circle(),
-                insets: EdgeInsets(
-                    top: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
-                    leading: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
-                    bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
-                    trailing: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
+            .contentShape(
+                .hoverEffect,
+                Circle().inset(
+                    by: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
                 )
             )
     }
