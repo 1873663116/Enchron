@@ -286,8 +286,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Apps/Enchron/EnchronApp.swift",
-        "find": "        Window(\n            \"Enchron\",\n            id: \"main\"\n        ) {",
-        "replaceWith": "        WindowGroup(\n            \"Enchron\",\n            id: \"main\"\n        ) {"
+        "find": "        WindowGroup(\n            \"Enchron\",\n            id: \"main\"\n        ) {",
+        "replaceWith": "        Window(\n            \"Enchron\",\n            id: \"main\"\n        ) {"
       },
       "expected": {
         "exitCode": 1,

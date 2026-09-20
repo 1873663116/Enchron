@@ -547,17 +547,19 @@ def main() -> int:
         "Environment Card is not a singleton volumetric Window Scene",
     )
     require(
-        'Window(\n            "Enchron",\n            id: "main"\n        )' in app_scene
+        'WindowGroup(\n            "Enchron",\n            id: "main"\n        )' in app_scene
         and "PlaybackWindowSceneIdentity" not in app_scene
         and "PlaybackWindowSceneIdentity" not in session_model,
         "Media Library is not a singleton Window Scene, so returning from "
         "playback can open a second one",
     )
     require(
-        len(re.findall(r"(?<![A-Za-z])Window\(\n", app_scene)) == 1
+        'WindowGroup(\n            "Enchron",\n            id: "main"\n        )' in app_scene
+        and len(re.findall(r"(?<![A-Za-z])Window\(\n", app_scene)) == 0
+        and app_scene.count("WindowGroup(") == 3
         and 'id: "main"' in app_scene
         and '"Playback"' not in app_scene
-        and "UIApplicationDelegateAdaptor" not in app_scene
+        and "EnchronAppDelegate.sceneSessionsDiscarded" in app_scene
         and app_scene.count("requestSceneSessionDestruction") == 1
         and app_scene.find("requestSceneSessionDestruction")
         > app_scene.find("onChange(of: isOrphaned)"),
@@ -588,7 +590,11 @@ def main() -> int:
         "openWindow(id: SpatialPlatformWindowIdentity" not in platform_executor
         and "dismissWindow(id: SpatialPlatformWindowIdentity" not in platform_executor
         and "reconcilePlaybackWindowPresentation" not in platform_executor
-        and "UIApplication.shared.openSessions" not in platform_executor,
+        and platform_executor.count("UIApplication.shared.openSessions") == 2
+        and "openSessions=\\(UIApplication.shared.openSessions.count)"
+        in platform_executor
+        and "UIApplication.shared.openSessions.map(\\.persistentIdentifier)"
+        in platform_executor,
         "the executor opens or dismisses a window by identity through openWindow; "
         "the browser is pushed over, never reopened, and the pushed windows are "
         "pushed and dismissed through the identity-routed capabilities",
@@ -651,12 +657,15 @@ def main() -> int:
     require(
         order(
             platform_executor,
-            "forName: UIScene.didDisconnectNotification,",
+            '(UIScene.didDisconnectNotification, "sceneDidDisconnect")',
             "let playerWindowStateBeforeDisconnect = playerWindowState",
             "recordWindowResidency(.closed, for: window)",
             "guard window == .player else { return }",
-            "SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(",
+            "SpatialPlatformPlayerWindowClosurePolicy",
+            ".awaitsUserDismissalConfirmation(",
             "playerWindowStateBeforeDisconnect: playerWindowStateBeforeDisconnect",
+            "disconnectedPlayerSessionIdentifiers.insert(sessionIdentifier)",
+            "public func sceneSessionsWereDiscarded(",
             "onPlayerWindowClosedByWearer?()",
         )
         and order(

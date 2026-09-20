@@ -43,11 +43,18 @@ public struct PlaybackChromeGlassButton: View {
                 width: DesignTokens.Interactive.large,
                 height: DesignTokens.Interactive.large
             )
-            .contentShape(Circle())
+            .enchronHoverContentShape(
+                Circle(),
+                insets: EdgeInsets(
+                    top: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                    leading: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                    bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                    trailing: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
+                )
+            )
         }
         .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .disabled(!isEnabled)
-        .playbackChromeGlassHitArea()
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
@@ -97,11 +104,18 @@ public struct PlaybackChromeGlassMenuButton<Content: View>: View {
                 width: DesignTokens.Interactive.large,
                 height: DesignTokens.Interactive.large
             )
-            .contentShape(Circle())
+            .enchronHoverContentShape(
+                Circle(),
+                insets: EdgeInsets(
+                    top: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                    leading: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                    bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                    trailing: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
+                )
+            )
         }
         .simultaneousGesture(TapGesture().onEnded { onOpen?() })
         .buttonStyle(EnchronPressFeedbackButtonStyle.menuIcon())
-        .playbackChromeGlassHitArea()
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
@@ -124,17 +138,5 @@ private struct PlaybackChromeGlassIcon: View {
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.highlight)
             .enchronSpatialOffset(z: 1)
-    }
-}
-
-private extension View {
-    func playbackChromeGlassHitArea() -> some View {
-        contentShape(Circle())
-            .contentShape(
-                .hoverEffect,
-                Circle().inset(
-                    by: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
-                )
-            )
     }
 }

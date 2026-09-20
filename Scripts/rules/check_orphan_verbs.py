@@ -18,6 +18,11 @@ EXEMPT_VERBS = {
         "it by hand. Nothing automates an assertion against the setting, so no "
         "operation declares the verb."
     ),
+    "sceneSessions": (
+        "Lists the app's live UIScene sessions with their activation and "
+        "destruction state. A reading taken by hand while probing wearer-close "
+        "and restored-scene behavior; no operation asserts against it."
+    ),
 }
 
 def failures() -> list[str]:

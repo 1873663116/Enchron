@@ -23,6 +23,7 @@ $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/LevelContent.swift
 $(SRCROOT)/Modules/DesignSystem/Components/LoadingSpinner.swift
 $(SRCROOT)/Modules/DesignSystem/Components/MenuSelectionRow.swift
+$(SRCROOT)/Modules/DesignSystem/Components/PlaybackChromeGlassButton.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarSplitLayout.swift
