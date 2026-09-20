@@ -250,10 +250,11 @@ struct PlaybackResidencyTests {
             ) == .immersiveSpace
         )
         #expect(
-            SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(
-                hasActivePlaybackRequest: runtime.hasActivePlaybackRequest,
-                playerWindowStateBeforeDisconnect: .closing
-            ) == false
+            SpatialPlatformPlayerWindowClosurePolicy
+                .awaitsUserDismissalConfirmation(
+                    hasActivePlaybackRequest: runtime.hasActivePlaybackRequest,
+                    playerWindowStateBeforeDisconnect: .closing
+                ) == false
         )
         #expect(runtime.residency == .playing(host: .immersiveSpace))
         await runtime.leavePlaybackAndWait(reason: .backButton)

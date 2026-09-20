@@ -1120,6 +1120,23 @@ final class TestCommandChannel {
                 options: nil
             )
             return Response(id: request.id, ok: true, detail: nil, payload: [])
+        case "sceneSessions":
+            let sessions = UIApplication.shared.openSessions.sorted {
+                $0.persistentIdentifier < $1.persistentIdentifier
+            }
+            let payload = sessions.map { session in
+                let scene = session.scene
+                let destructionConditions = (scene as? UIWindowScene)
+                    .map {
+                        String($0.destructionConditions.contains(.userInitiatedDismissal))
+                    } ?? "-"
+                return "session=\(session.persistentIdentifier)"
+                    + " role=\(session.role.rawValue)"
+                    + " connected=\(scene != nil)"
+                    + " activation=\(scene.map { String($0.activationState.rawValue) } ?? "-")"
+                    + " destructionConditions=\(destructionConditions)"
+            } + ["appState=\(UIApplication.shared.applicationState.rawValue)"]
+            return Response(id: request.id, ok: true, detail: nil, payload: payload)
         case "setWindowSize":
             return try setWindowSize(request)
         case "openEnvironmentCard":

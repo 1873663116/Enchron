@@ -9,6 +9,7 @@ import UIKit
 
 @main
 struct EnchronApp: App {
+    @UIApplicationDelegateAdaptor(EnchronAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var mainScenePhase
     @State private var application: EnchronApplication
     @State private var immersionStyle: ImmersionStyle = .progressive(
@@ -50,6 +51,17 @@ struct EnchronApp: App {
             .onChange(of: mainScenePhase) { previous, current in
                 SurfaceInputProbes.record("mainScenePhase \(previous) -> \(current)")
                 application.handleScenePhaseTransition(to: current)
+            }
+            .onReceive(
+                NotificationCenter.default.publisher(
+                    for: EnchronAppDelegate.sceneSessionsDiscarded
+                )
+            ) { notification in
+                guard let identifiers = notification.object as? Set<String> else {
+                    return
+                }
+                application.spatialPlatformEffectCoordinator
+                    .sceneSessionsWereDiscarded(identifiers)
             }
             .enchronEnvironment(application)
             .onAppear {
@@ -193,6 +205,22 @@ struct EnchronApp: App {
             for: application.playbackSessionModel.currentCinemaEnvironment
         )
         return geometry.dimsSurroundings ? .ultraDark : nil
+    }
+}
+
+private final class EnchronAppDelegate: NSObject, UIApplicationDelegate {
+    static let sceneSessionsDiscarded = Notification.Name(
+        "app.enchron.sceneSessionsDiscarded"
+    )
+
+    func application(
+        _ application: UIApplication,
+        didDiscardSceneSessions sceneSessions: Set<UISceneSession>
+    ) {
+        NotificationCenter.default.post(
+            name: Self.sceneSessionsDiscarded,
+            object: Set(sceneSessions.map(\.persistentIdentifier))
+        )
     }
 }
 

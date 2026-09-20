@@ -130,12 +130,11 @@ extension SpatialPlatformEffect {
 }
 
 enum SpatialPlatformPlayerWindowClosurePolicy {
-    static func stopsPlayback(
+    static func awaitsUserDismissalConfirmation(
         hasActivePlaybackRequest: Bool,
-        playerWindowStateBeforeDisconnect: SpatialPlatformPlayerWindowState,
-        applicationIsActive: Bool = true
+        playerWindowStateBeforeDisconnect: SpatialPlatformPlayerWindowState
     ) -> Bool {
-        applicationIsActive && hasActivePlaybackRequest && playerWindowStateBeforeDisconnect != .closing
+        hasActivePlaybackRequest && playerWindowStateBeforeDisconnect != .closing
     }
 }
 
@@ -281,7 +280,9 @@ public final class SpatialPlatformEffectCoordinator {
     public private(set) var liveWindowSessionIdentifiers:
         [SpatialPlatformWindowIdentity: String] = [:]
     @ObservationIgnored
-    private var sceneDisconnectObserver: (any NSObjectProtocol)?
+    private var sceneLifecycleObservers: [any NSObjectProtocol] = []
+    @ObservationIgnored
+    private var disconnectedPlayerSessionIdentifiers: Set<String> = []
     @ObservationIgnored
     public var onPlayerWindowClosedByWearer: (@MainActor () -> Void)?
     public var onSuspendedPlaybackRecoveryRequired: (@MainActor () -> Void)?
@@ -337,19 +338,54 @@ public final class SpatialPlatformEffectCoordinator {
     }
 
     private func observeSceneDisconnections() {
-        sceneDisconnectObserver = NotificationCenter.default.addObserver(
-            forName: UIScene.didDisconnectNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            nonisolated(unsafe) let object = notification.object
-            let identifier = MainActor.assumeIsolated {
-                (object as? UIScene)?.session.persistentIdentifier
-            }
-            Task { @MainActor [weak self] in
-                self?.windowSceneDidDisconnect(sessionIdentifier: identifier)
+        let sceneNotifications: [(Notification.Name, String)] = [
+            (UIScene.willConnectNotification, "sceneWillConnect"),
+            (UIScene.didActivateNotification, "sceneDidActivate"),
+            (UIScene.willDeactivateNotification, "sceneWillDeactivate"),
+            (UIScene.didEnterBackgroundNotification, "sceneDidEnterBackground"),
+            (UIScene.willEnterForegroundNotification, "sceneWillEnterForeground"),
+            (UIScene.didDisconnectNotification, "sceneDidDisconnect"),
+            (UIApplication.didEnterBackgroundNotification, "appDidEnterBackground"),
+            (UIApplication.willEnterForegroundNotification, "appWillEnterForeground"),
+            (UIApplication.didBecomeActiveNotification, "appDidBecomeActive"),
+            (UIApplication.willResignActiveNotification, "appWillResignActive")
+        ]
+        sceneLifecycleObservers = sceneNotifications.map { name, event in
+            NotificationCenter.default.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] notification in
+                nonisolated(unsafe) let object = notification.object
+                MainActor.assumeIsolated {
+                    self?.recordSceneLifecycle(event: event, object: object)
+                    guard event == "sceneDidDisconnect" else { return }
+                    let identifier = (object as? UIScene)?.session.persistentIdentifier
+                    self?.windowSceneDidDisconnect(sessionIdentifier: identifier)
+                }
             }
         }
+    }
+
+    private func recordSceneLifecycle(event: String, object: Any?) {
+        let scene = object as? UIScene
+        let sessionIdentifier = scene?.session.persistentIdentifier
+        let window = sessionIdentifier.flatMap { identifier in
+            windowSceneSessionIdentifiers.first {
+                $0.value == identifier
+            }?.key.rawValue
+        } ?? "unknown"
+        appModel.recordSurfaceInputProbe(
+            "sceneLifecycle event=\(event)"
+                + " role=\(scene?.session.role.rawValue ?? "-")"
+                + " session=\(sessionIdentifier ?? "-")"
+                + " window=\(window)"
+                + " activation=\(scene.map { String($0.activationState.rawValue) } ?? "-")"
+                + " appState=\(UIApplication.shared.applicationState.rawValue)"
+                + " openSessions=\(UIApplication.shared.openSessions.count)"
+                + " connectedScenes=\(UIApplication.shared.connectedScenes.count)",
+            retention: .evidence
+        )
     }
 
     private func windowSceneDidDisconnect(sessionIdentifier: String?) {
@@ -370,16 +406,31 @@ public final class SpatialPlatformEffectCoordinator {
         let playerWindowStateBeforeDisconnect = playerWindowState
         recordWindowResidency(.closed, for: window)
         guard window == .player else { return }
-        let stopsPlayback = SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(
-            hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
-            playerWindowStateBeforeDisconnect: playerWindowStateBeforeDisconnect,
-            applicationIsActive: UIApplication.shared.applicationState == .active
-        )
+        let awaitsUserDismissal = SpatialPlatformPlayerWindowClosurePolicy
+            .awaitsUserDismissalConfirmation(
+                hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
+                playerWindowStateBeforeDisconnect: playerWindowStateBeforeDisconnect
+            )
+        if awaitsUserDismissal {
+            disconnectedPlayerSessionIdentifiers.insert(sessionIdentifier)
+        }
         appModel.recordSurfaceInputProbe(
-            "playerWindowScene disconnected stopsPlayback=\(stopsPlayback)",
+            "playerWindowScene disconnected"
+                + " awaitsUserDismissal=\(awaitsUserDismissal)",
             retention: .evidence
         )
-        guard stopsPlayback else { return }
+    }
+
+    public func sceneSessionsWereDiscarded(_ identifiers: Set<String>) {
+        let discardedPlayerIdentifiers = disconnectedPlayerSessionIdentifiers
+            .intersection(identifiers)
+        disconnectedPlayerSessionIdentifiers.subtract(identifiers)
+        guard discardedPlayerIdentifiers.isEmpty == false,
+              playbackRuntime.hasActivePlaybackRequest else { return }
+        appModel.recordSurfaceInputProbe(
+            "playerWindowScene closedByWearer stoppingPlayback",
+            retention: .evidence
+        )
         onPlayerWindowClosedByWearer?()
     }
 
@@ -531,6 +582,10 @@ public final class SpatialPlatformEffectCoordinator {
     }
 
     public func handleApplicationDidBecomeActive() {
+        let openSessionIdentifiers = Set(
+            UIApplication.shared.openSessions.map(\.persistentIdentifier)
+        )
+        disconnectedPlayerSessionIdentifiers.subtract(openSessionIdentifiers)
         reconcileImmersiveSpaceResidency()
         requestDrain()
         activationWatchdogRetryCount = 0
@@ -551,7 +606,8 @@ public final class SpatialPlatformEffectCoordinator {
                 retention: .evidence
             )
         }
-        guard pendingRequest == nil,
+        guard disconnectedPlayerSessionIdentifiers.isEmpty,
+              pendingRequest == nil,
               SpatialPlatformPlaybackHostActivationPolicy
             .shouldRestorePlayerWindow(
                 residency: playbackRuntime.residency,

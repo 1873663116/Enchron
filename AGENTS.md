@@ -28,6 +28,8 @@ XcodeBuildMCP 工具承担 Xcode IDE 的缺口：SwiftPM、代码覆盖率、mac
 
 两者都由 Xcode 工具链 `mcpbridge` 提供，无需 Xcode 图形界面运行。
 
+任何源码修改后的真机任务，完成判据是：所有测试结束后重新构建当前工作树、覆盖安装并启动该产物，且核对运行进程的安装容器与本次安装返回的容器一致；缺一项即失败。
+
 ## 模拟器安装
 
 向模拟器安装 Enchron.app 必须走 `Scripts/build/install_to_simulator.sh`（用法见脚本头注释），它会先校验包带签名再 `simctl install`。禁止直接 `simctl install` 未经校验的包：模拟器构建是 ad-hoc 签名，而 `CODE_SIGNING_ALLOWED=NO` 产出的测试构建完全无签名，装上后应用丢失 keychain 身份，读写凭证报 OSStatus -34018，已存的 Emby 会话随之中断。测试产物复用于安装前，先跑 `install_to_simulator.sh --check` 确认签名。

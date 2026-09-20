@@ -957,33 +957,25 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.showControls == false)
     }
 
-    @Test("A wearer close of the player window stops playback; the app's own dismissal does not")
-    func playerWindowClosureStopsPlaybackOnlyForTheWearer() {
+    @Test("A player disconnect awaits discard unless the app requested it")
+    func playerWindowDisconnectAwaitsUserDismissalConfirmation() {
         typealias Policy = SpatialPlatformPlayerWindowClosurePolicy
-        #expect(
-            Policy.stopsPlayback(
-                hasActivePlaybackRequest: true,
-                playerWindowStateBeforeDisconnect: .open
-            )
-        )
-        #expect(
-            Policy.stopsPlayback(
-                hasActivePlaybackRequest: true,
-                playerWindowStateBeforeDisconnect: .opening
-            )
-        )
-        #expect(
-            Policy.stopsPlayback(
-                hasActivePlaybackRequest: true,
-                playerWindowStateBeforeDisconnect: .closing
-            ) == false
-        )
-        #expect(
-            Policy.stopsPlayback(
-                hasActivePlaybackRequest: false,
-                playerWindowStateBeforeDisconnect: .open
-            ) == false
-        )
+        #expect(Policy.awaitsUserDismissalConfirmation(
+            hasActivePlaybackRequest: true,
+            playerWindowStateBeforeDisconnect: .open
+        ))
+        #expect(Policy.awaitsUserDismissalConfirmation(
+            hasActivePlaybackRequest: true,
+            playerWindowStateBeforeDisconnect: .opening
+        ))
+        #expect(Policy.awaitsUserDismissalConfirmation(
+            hasActivePlaybackRequest: true,
+            playerWindowStateBeforeDisconnect: .closing
+        ) == false)
+        #expect(Policy.awaitsUserDismissalConfirmation(
+            hasActivePlaybackRequest: false,
+            playerWindowStateBeforeDisconnect: .open
+        ) == false)
     }
 
     @Test("Only stopped playback cleanup can run while the application is inactive")
@@ -1393,11 +1385,11 @@ struct PlaybackPresentationStateTests {
             ) == false
         )
         #expect(
-            SpatialPlatformPlayerWindowClosurePolicy.stopsPlayback(
-                hasActivePlaybackRequest: true,
-                playerWindowStateBeforeDisconnect: .open,
-                applicationIsActive: false
-            ) == false
+            SpatialPlatformPlayerWindowClosurePolicy
+                .awaitsUserDismissalConfirmation(
+                    hasActivePlaybackRequest: true,
+                    playerWindowStateBeforeDisconnect: .open
+                )
         )
         #expect(
             SpatialPlatformPresentationFailurePolicy.shouldStopPlayback(
