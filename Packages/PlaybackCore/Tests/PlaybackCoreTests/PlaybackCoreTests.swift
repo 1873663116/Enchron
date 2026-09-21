@@ -2758,8 +2758,6 @@ struct RendererLeadBudgetTests {
         to: CMTime(seconds: 6, preferredTimescale: 600),
         startsPaused: false
     )
-    // Samples past the target keep arriving while the probe reports no
-    // post-seek frame on screen; the clock must stay held through them.
     try await Task.sleep(for: .milliseconds(300))
     #expect(session.synchronizer.rate == 0)
 

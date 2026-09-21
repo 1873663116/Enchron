@@ -170,7 +170,7 @@ public struct LoadingSpinner: View {
                 }
             }
             .clipShape(Circle())
-            .enchronGlassBackground(in: Circle())
+            .enchronButtonSurface(in: Circle())
             .enchronSpatialOffset(z: 1)
 
             if let sourceReadPendingSeconds {
