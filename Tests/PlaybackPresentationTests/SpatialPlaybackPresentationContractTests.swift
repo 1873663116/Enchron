@@ -57,6 +57,7 @@ private enum PresentationContract {
         let model = PlaybackPresentationModel()
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: playingContext
         )
@@ -391,14 +392,14 @@ struct SpatialPlaybackPresentationContractTests {
 
         let requestedDock = try presentationModel.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: PresentationContract.playingContext
         )
         #expect(
-            requestedDock.targetEnvironment.environment == presentationModel.defaultEnvironment
-                && presentationModel.defaultEnvironment.supportsDarkAppearance == false
+            requestedDock.targetEnvironment.environment == .quietRoom
                 && requestedDock.targetEnvironment.effect == nil,
-            "Docking without an active Environment Context must fall to the Default Environment, which carries no Effect whatever the Dock menu requested"
+            "Docking into Quiet Room carries no Effect whatever the Dock menu requested"
         )
 
         let firstRequest = try PresentationContract.pendingRequest(presentationModel)
@@ -437,15 +438,16 @@ struct SpatialPlaybackPresentationContractTests {
                 && presentationModel.environmentContext == .none
                 && presentationModel.transition == nil
                 && presentationModel.pendingSpatialPlatformEffect == nil,
-            "a failed Docking effect must restore Window without leaking its temporary Default Environment"
+            "a failed Docking effect must restore Window without leaking its explicit Quiet Room"
         )
     }
 
-    @Test("a temporary Docking environment closes with the presentation that created it")
-    func temporaryDockingEnvironmentClosesWithItsPresentation() throws {
+    @Test("an explicit Quiet Room closes with the presentation that created it")
+    func explicitQuietRoomClosesWithItsPresentation() throws {
         let temporaryEnvironmentModel = PlaybackPresentationModel()
         _ = try temporaryEnvironmentModel.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: PresentationContract.playingContext
         )
@@ -458,7 +460,7 @@ struct SpatialPlaybackPresentationContractTests {
         #expect(
             try PresentationContract.pendingRequest(temporaryEnvironmentModel).effect
                 == .exitImmersivePlayback(.flat, keepsEnvironmentOpen: false),
-            "Window must close a temporary Default Environment created only for Docking"
+            "Window must close the explicit Quiet Room created only for Docking"
         )
 
         try PresentationContract.completePendingEffect(temporaryEnvironmentModel)
@@ -470,6 +472,7 @@ struct SpatialPlaybackPresentationContractTests {
 
         _ = try temporaryEnvironmentModel.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .light,
             playbackContext: PresentationContract.playingContext
         )
@@ -501,9 +504,8 @@ struct SpatialPlaybackPresentationContractTests {
         try presentationModel.activateEnvironment(.placeholderRed, effect: .dark)
         #expect(
             presentationModel.snapshot.environmentContext.environment == .placeholderRed
-                && presentationModel.snapshot.environmentContext.effect == .dark
-                && presentationModel.defaultEnvironment == .quietRoom,
-            "Environment Context must carry Environment identity and Environment Effect together, independent of the fixed Default Environment"
+                && presentationModel.snapshot.environmentContext.effect == .dark,
+            "Environment Context must carry Environment identity and Environment Effect together"
         )
 
         let pendingDock = try presentationModel.requestPresentation(
@@ -558,8 +560,8 @@ struct SpatialPlaybackPresentationContractTests {
         )
         #expect(
             presentationModel.presentation == .docked
-                && presentationModel.defaultEnvironment == .quietRoom,
-            "committing Docked must not rewrite Default Environment identity"
+                && presentationModel.environmentContext.environment == .placeholderGreen,
+            "committing Docked must keep the Dock menu environment"
         )
 
         do {
@@ -753,6 +755,7 @@ struct SpatialPlaybackPresentationContractTests {
         let dockedCardModel = PlaybackPresentationModel()
         _ = try dockedCardModel.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: PresentationContract.playingContext
         )
@@ -884,6 +887,7 @@ struct SpatialPlaybackPresentationContractTests {
         let dockedCollapseModel = PlaybackPresentationModel()
         _ = try dockedCollapseModel.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .light,
             playbackContext: PresentationContract.playingContext
         )
@@ -1012,6 +1016,7 @@ struct SpatialPlaybackPresentationContractTests {
         let expectedDismissalModel = PlaybackPresentationModel()
         _ = try expectedDismissalModel.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .light,
             playbackContext: PresentationContract.playingContext
         )

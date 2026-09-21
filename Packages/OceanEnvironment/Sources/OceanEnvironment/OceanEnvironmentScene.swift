@@ -236,6 +236,19 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         audio.setVideoPlaying(isPlaying)
     }
 
+    /// Builds the runtime IBL resource from an already-decoded root so the
+    /// first `OceanProbeSystem.update` finds it cached. No-op without a sky
+    /// dome material; `synchronize` then builds on demand as before.
+    public func prewarmRuntime(in root: Entity) {
+        guard let dome = root.findEntity(named: Self.skyDomeEntityName),
+              let model = dome.components[ModelComponent.self],
+              let sky = model.materials.first as? ShaderGraphMaterial
+        else {
+            return
+        }
+        RuntimeEnvironmentLighting.prewarm(sky: SkyAppearance(material: sky))
+    }
+
     private func captureAuthoredLighting(in root: Entity) -> AuthoredLighting {
         var lighting = AuthoredLighting(
             skyGain: 1,

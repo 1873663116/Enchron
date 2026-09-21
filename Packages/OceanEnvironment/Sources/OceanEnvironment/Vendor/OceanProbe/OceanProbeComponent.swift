@@ -113,7 +113,7 @@ enum CascadeLayoutError: Error {
     case invalidLengthScales(SIMD4<Float>)
 }
 
-struct CascadeLayout: Equatable {
+struct CascadeLayout: Equatable, Sendable {
     let resolution: Int
     let lengthScales: SIMD4<Float>
     let inverseLengthScales: SIMD4<Float>
@@ -155,7 +155,7 @@ struct CascadeLayout: Equatable {
     }
 }
 
-struct FoamParameters: Equatable {
+struct FoamParameters: Equatable, Sendable {
     static let resolution = OceanSimulationGrid.resolution
 
     let bias: Float
@@ -178,7 +178,7 @@ struct FoamParameters: Equatable {
     }
 }
 
-struct SwellSpectrumCalibration: Equatable {
+struct SwellSpectrumCalibration: Equatable, Sendable {
     let peakWaveNumber: Float
     let cascade: Int?
     let peakAngularFrequency: Float
@@ -304,7 +304,7 @@ struct SwellSpectrumCalibration: Equatable {
     }
 }
 
-struct SwellSpectrumDiagnostic: Equatable {
+struct SwellSpectrumDiagnostic: Equatable, Sendable {
     let calibration: SwellSpectrumCalibration
     let quantizedAngularFrequency: Float
     let loopHarmonic: Int
@@ -317,7 +317,7 @@ struct SwellSpectrumDiagnostic: Equatable {
     }
 }
 
-struct OceanProbeParameters: Equatable {
+struct OceanProbeParameters: Equatable, Sendable {
     let seed: UInt32
     let amplitude: Float
     let timeScale: Float

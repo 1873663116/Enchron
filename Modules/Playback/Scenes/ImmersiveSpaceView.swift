@@ -1083,6 +1083,17 @@ public struct ImmersiveSpaceView: View {
                 && requestedEnvironmentContext.environment != nil)
     }
 
+    /// Whether the loaded environment has presented its first frame. Only the
+    /// ocean reports this (its surface enables on the first presented FFT
+    /// frame); other environments are synchronous once loaded. Gating video on
+    /// it keeps the two first-frame cliffs from stacking on the same frames.
+    private var environmentFirstFramePresented: Bool {
+        guard world.environment == .ocean, let root = world.entity else {
+            return true
+        }
+        return root.findEntity(named: "OceanProbeSurface")?.isEnabled == true
+    }
+
     private var spatialPresentationOpacity: Double {
         let existingOpacity = PlaybackPresentationTransitionAppearance.opacity(
             for: requestedPresentation,
@@ -1212,6 +1223,12 @@ public struct ImmersiveSpaceView: View {
                 "waitingForDockedAnchor"
             }
             appModel.recordSpatialPlaybackSurfacePreparationStage(stage)
+            return
+        }
+        if world.environment != nil, environmentFirstFramePresented == false {
+            appModel.recordSpatialPlaybackSurfacePreparationStage(
+                "waitingForEnvironmentFirstFrame"
+            )
             return
         }
 
@@ -2016,8 +2033,7 @@ public struct ImmersiveSpaceView: View {
         dockedPlacement: PlaybackSurfaceTransform,
         spatialPresentationOpacity: Double
     ) async {
-        let environment = requestedEnvironmentContext.environment
-            ?? SpatialSceneDomain.CinemaEnvironment.defaultEnvironment
+        guard let environment = requestedEnvironmentContext.environment else { return }
         if world.entity != nil, world.environment != environment {
             unloadWorld(from: content, reason: "environmentChanged")
         }
@@ -2035,7 +2051,9 @@ public struct ImmersiveSpaceView: View {
         do {
             let scene = EnvironmentSceneMapping.scene(for: environment)
             let entity: Entity
-            if let scene {
+            if let prefetched = EnvironmentSceneMapping.takePrefetch(for: environment) {
+                entity = try await prefetched.value
+            } else if let scene {
                 entity = try await scene.load()
             } else {
                 entity = Self.makePlaceholderWorld(for: environment)
@@ -2507,7 +2525,7 @@ public struct ImmersiveSpaceView: View {
         relativeTo anchor: Entity,
         transform: PlaybackSurfaceTransform
     ) {
-        let environment = world.environment ?? .defaultEnvironment
+        guard let environment = world.environment else { return }
         let geometry = EnvironmentSceneMapping.geometry(for: environment)
         let restPose = world.restPose ?? Self.fallbackRestPose
         let pose = PlaybackSurfacePlacement.dock(

@@ -17,7 +17,7 @@ public struct SenseZoneVolumeRoot: View {
     public var body: some View {
         EnvironmentCardCarousel(
             activeEnvironment: appModel.environmentContext.environment,
-            defaultEnvironment: appModel.defaultCardEnvironment,
+            cardDefaultEnvironment: appModel.defaultCardEnvironment,
             isPresented: appModel.environmentCardResidency != .closed,
             onSetDefault: appModel.setDefaultCardEnvironment,
             defaultEffect: appModel.currentEnvironmentEffect,
@@ -128,6 +128,7 @@ public struct SenseZoneVolumeRoot: View {
                 try appModel.requestEnvironmentPreviewDismissal()
             } else {
                 guard appModel.immersiveSpaceResidency == .closed else { return }
+                EnvironmentSceneMapping.prefetch([featured.environment])
                 try appModel.requestEnvironmentPreview(
                     environment: featured.environment,
                     effect: featured.environment.supportsDarkAppearance ? effect : nil

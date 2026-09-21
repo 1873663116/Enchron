@@ -119,7 +119,7 @@ def iteration(arguments: argparse.Namespace, container: Path, index: int) -> dic
     playing = wait_until_playing(arguments)
     entered = False
     for _ in range(8):
-        if controller(arguments, "app-command", "--verb", "enterSpatial").get("success"):
+        if controller(arguments, "app-command", "--verb", "enterSpatial", "--arg", "environment=quiet-room").get("success"):
             entered = True
             break
     time.sleep(arguments.settle_seconds)

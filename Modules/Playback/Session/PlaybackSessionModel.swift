@@ -252,10 +252,6 @@ public final class PlaybackSessionModel {
         playbackPresentationModel.currentEnvironment
     }
 
-    public var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment {
-        playbackPresentationModel.defaultEnvironment
-    }
-
     public var defaultCardEnvironment: SpatialSceneDomain.CinemaEnvironment {
         playbackPresentationModel.defaultCardEnvironment
     }

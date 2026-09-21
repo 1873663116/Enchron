@@ -2,6 +2,7 @@ import EnvironmentSceneContract
 import Foundation
 import OceanEnvironment
 import QuietRoomEnvironment
+import RealityKit
 
 public nonisolated enum SpatialSceneDomain {}
 
@@ -12,8 +13,6 @@ nonisolated extension SpatialSceneDomain {
         case placeholderRed = "placeholder-red"
         case placeholderGreen = "placeholder-green"
         case placeholderBlue = "placeholder-blue"
-
-        public static let defaultEnvironment: Self = .quietRoom
 
         public static let cardEnvironments: [Self] = [
             .ocean,
@@ -115,6 +114,49 @@ public nonisolated enum EnvironmentSceneMapping {
     }
 
     @MainActor private static var scenes: [SpatialSceneDomain.CinemaEnvironment: any EnvironmentScene] = [:]
+    @MainActor private static var prefetchTasks: [SpatialSceneDomain.CinemaEnvironment: Task<Entity, Error>] = [:]
+
+    /// Starts decoding `environments` ahead of an imminent open (dock menu
+    /// shown, card toggled). Holds at most the requested batch: anything else
+    /// is cancelled. Never decodes more than asked — the card catalog is not
+    /// bulk-loaded.
+    @MainActor
+    public static func prefetch(_ environments: [SpatialSceneDomain.CinemaEnvironment]) {
+        for stale in prefetchTasks.keys where !environments.contains(stale) {
+            prefetchTasks[stale]?.cancel()
+            prefetchTasks[stale] = nil
+        }
+        for environment in environments {
+            guard prefetchTasks[environment] == nil,
+                  let scene = scene(for: environment)
+            else {
+                continue
+            }
+            prefetchTasks[environment] = Task { @MainActor in
+                let root = try await scene.load()
+                if let ocean = scene as? OceanEnvironmentScene {
+                    ocean.prewarmRuntime(in: root)
+                }
+                try Task.checkCancellation()
+                return root
+            }
+        }
+    }
+
+    /// Takes the in-flight or finished decode for `environment`, if any,
+    /// cancelling the rest. Awaiting the returned task reuses the prefetched
+    /// root instead of decoding twice.
+    @MainActor
+    public static func takePrefetch(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) -> Task<Entity, Error>? {
+        for stale in prefetchTasks.keys where stale != environment {
+            prefetchTasks[stale]?.cancel()
+            prefetchTasks[stale] = nil
+        }
+        defer { prefetchTasks[environment] = nil }
+        return prefetchTasks[environment]
+    }
 
     @MainActor
     public static func scene(

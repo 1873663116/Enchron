@@ -26,7 +26,7 @@ public struct FeaturedEnvironment: Identifiable {
         }
     }
 
-    public static let defaultEnvironmentThumbnailName = "EnvironmentQuietRoom"
+    public static let quietRoomThumbnailName = "EnvironmentQuietRoom"
 
     public static let catalog: [FeaturedEnvironment] = [
         .init(
@@ -309,9 +309,9 @@ struct EnvironmentCarouselRenderSlot: Identifiable, Equatable {
 enum EnvironmentCarouselLayout {
     static func initialPosition(
         environments: [FeaturedEnvironment],
-        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment
+        cardDefaultEnvironment: SpatialSceneDomain.CinemaEnvironment
     ) -> CGFloat {
-        CGFloat(environments.firstIndex { $0.environment == defaultEnvironment } ?? 0)
+        CGFloat(environments.firstIndex { $0.environment == cardDefaultEnvironment } ?? 0)
     }
 
     static func renderSlots(
@@ -352,7 +352,7 @@ enum EnvironmentCarouselLayout {
 struct EnvironmentCardCarousel: View {
     var environments: [FeaturedEnvironment] = FeaturedEnvironment.catalog
     var activeEnvironment: SpatialSceneDomain.CinemaEnvironment?
-    var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean
+    var cardDefaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean
     var isPresented = true
     var onSetDefault: (SpatialSceneDomain.CinemaEnvironment) -> Void = { _ in }
     var defaultEffect: SpatialSceneDomain.EnvironmentEffect = .inactiveFallback
@@ -401,7 +401,7 @@ struct EnvironmentCardCarousel: View {
                                 selectedEffect(for: item.environment)
                             )
                         },
-                        isDefault: item.environment.environment == defaultEnvironment,
+                        isDefault: item.environment.environment == cardDefaultEnvironment,
                         onSetDefault: { onSetDefault(item.environment.environment) }
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
@@ -431,7 +431,7 @@ struct EnvironmentCardCarousel: View {
         isSettling = false
         detailsVisible = true
         scrollPosition = EnvironmentCarouselLayout.initialPosition(
-            environments: environments, defaultEnvironment: defaultEnvironment
+            environments: environments, cardDefaultEnvironment: cardDefaultEnvironment
         )
     }
 

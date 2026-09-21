@@ -29,7 +29,7 @@ struct SimulationClock {
     }
 }
 
-private struct SpectrumControlSnapshot: Equatable {
+private struct SpectrumControlSnapshot: Equatable, Sendable {
     let windSpeed: Float
     let windDirectionDegrees: Float
     let windAlignment: Float
@@ -55,7 +55,7 @@ private struct SpectrumControlSnapshot: Equatable {
     }
 }
 
-private struct FoamControlSnapshot: Equatable {
+private struct FoamControlSnapshot: Equatable, Sendable {
     let bias: Float
     let power: Float
     let amount: Float
@@ -297,37 +297,27 @@ public struct OceanProbeSystem: System {
                 component: component,
                 parameters: parameters
             )
-            if let lastSpectrumControls,
-               lastSpectrumControls != spectrumControls
-            {
-                Self.logger.notice(
-                    "Hot-updated spectrum controls; wind speed \(spectrumControls.windSpeed, privacy: .public) m/s; wind direction \(spectrumControls.windDirectionDegrees, privacy: .public) degrees; wind alignment \(spectrumControls.windAlignment, privacy: .public); cross-sea amount \(spectrumControls.crossSeaAmount, privacy: .public); cross-sea angle \(spectrumControls.crossSeaAngleDegrees, privacy: .public) degrees; swell direction \(spectrumControls.swellDirectionDegrees, privacy: .public) degrees; swell wavelength \(spectrumControls.swellWavelength, privacy: .public) m; swell height \(spectrumControls.swellHeight, privacy: .public) m; swell spread \(spectrumControls.swellSpread, privacy: .public) degrees; swell bandwidth \(spectrumControls.swellBandwidth, privacy: .public); rebuilding spectrum"
-                )
-            } else if lastSpectrumControls == nil {
-                Self.logger.notice(
-                    "Ocean parameters active; wind speed \(parameters.windSpeed, privacy: .public) m/s; wind direction \(spectrumControls.windDirectionDegrees, privacy: .public) degrees; wind alignment \(spectrumControls.windAlignment, privacy: .public); cross-sea amount \(spectrumControls.crossSeaAmount, privacy: .public); cross-sea angle \(spectrumControls.crossSeaAngleDegrees, privacy: .public) degrees; swell direction \(spectrumControls.swellDirectionDegrees, privacy: .public) degrees; swell wavelength \(spectrumControls.swellWavelength, privacy: .public) m; swell height \(spectrumControls.swellHeight, privacy: .public) m; swell spread \(spectrumControls.swellSpread, privacy: .public) degrees; swell bandwidth \(spectrumControls.swellBandwidth, privacy: .public); IBL intensity exponent \(parameters.iblIntensityExponent, privacy: .public)"
-                )
-            }
-            if lastSpectrumControls != spectrumControls {
-                let diagnostic = SwellSpectrumDiagnostic(parameters: parameters)
-                let calibration = diagnostic.calibration
-                Self.logger.notice(
-                    "Swell spectrum diagnostic; requested direction \(spectrumControls.swellDirectionDegrees, privacy: .public) degrees; requested wavelength \(spectrumControls.swellWavelength, privacy: .public) m; peak wave number \(calibration.peakWaveNumber, privacy: .public) rad/m; cascade \(calibration.cascade ?? -1, privacy: .public); effective direction sigma \(calibration.effectiveDirectionalSigma * 180 / .pi, privacy: .public) degrees; effective angular-frequency sigma \(calibration.effectiveAngularFrequencySigma, privacy: .public) rad/s; centroid direction \(calibration.centroidDirectionRadians * 180 / .pi, privacy: .public) degrees; centroid wavelength \(calibration.centroidWavelength, privacy: .public) m; discrete variance \(calibration.discreteVariance, privacy: .public); dispersion angular frequency \(calibration.peakAngularFrequency, privacy: .public) rad/s; loop-quantized angular frequency \(diagnostic.quantizedAngularFrequency, privacy: .public) rad/s; repeat-time harmonic \(diagnostic.loopHarmonic, privacy: .public)"
-                )
-            }
-            lastSpectrumControls = spectrumControls
-
             let foamControls = FoamControlSnapshot(parameters: parameters)
-            if let lastFoamControls, lastFoamControls != foamControls {
-                Self.logger.notice(
-                    "Hot-updated physical foam controls; bias \(foamControls.bias, privacy: .public); power \(foamControls.power, privacy: .public); add per nominal 60 Hz step \(foamControls.amount, privacy: .public); decay \(foamControls.decay, privacy: .public) per second; source-free one-second retention \(foamControls.sourceFreeRetentionPerSecond, privacy: .public)"
-                )
-            } else if lastFoamControls == nil {
-                Self.logger.notice(
-                    "Physical foam controls active; bias \(foamControls.bias, privacy: .public); power \(foamControls.power, privacy: .public); add per nominal 60 Hz step \(foamControls.amount, privacy: .public); decay \(foamControls.decay, privacy: .public) per second; source-free one-second retention \(foamControls.sourceFreeRetentionPerSecond, privacy: .public)"
-                )
-            }
+            let spectrumChanged = lastSpectrumControls != spectrumControls
+            let foamChanged = lastFoamControls != foamControls
+            let isFirstControlsReport = lastSpectrumControls == nil
+            lastSpectrumControls = spectrumControls
             lastFoamControls = foamControls
+            if spectrumChanged || foamChanged {
+                // Spectrum calibration and control logging leave the render
+                // loop: the diagnostic math and multi-line log interpolation
+                // must not sit inside the opening frames.
+                Task.detached(priority: .utility) {
+                    Self.reportControlActivation(
+                        parameters: parameters,
+                        spectrum: spectrumControls,
+                        foam: foamControls,
+                        spectrumChanged: spectrumChanged,
+                        foamChanged: foamChanged,
+                        isFirstReport: isFirstControlsReport
+                    )
+                }
+            }
 
             do {
                 let offeredTick = simulationClock.offer(sceneTime: elapsedTime)
@@ -373,6 +363,45 @@ public struct OceanProbeSystem: System {
             } catch {
                 Self.logger.error("Metal probe update failed: \(error)")
             }
+        }
+    }
+
+    nonisolated private static func reportControlActivation(
+        parameters: OceanProbeParameters,
+        spectrum: SpectrumControlSnapshot,
+        foam: FoamControlSnapshot,
+        spectrumChanged: Bool,
+        foamChanged: Bool,
+        isFirstReport: Bool
+    ) {
+        let logger = Logger(
+            subsystem: "dev.enchron.ocean-probe",
+            category: "simulation"
+        )
+        if spectrumChanged, !isFirstReport {
+            logger.notice(
+                "Hot-updated spectrum controls; wind speed \(spectrum.windSpeed, privacy: .public) m/s; wind direction \(spectrum.windDirectionDegrees, privacy: .public) degrees; wind alignment \(spectrum.windAlignment, privacy: .public); cross-sea amount \(spectrum.crossSeaAmount, privacy: .public); cross-sea angle \(spectrum.crossSeaAngleDegrees, privacy: .public) degrees; swell direction \(spectrum.swellDirectionDegrees, privacy: .public) degrees; swell wavelength \(spectrum.swellWavelength, privacy: .public) m; swell height \(spectrum.swellHeight, privacy: .public) m; swell spread \(spectrum.swellSpread, privacy: .public) degrees; swell bandwidth \(spectrum.swellBandwidth, privacy: .public); rebuilding spectrum"
+            )
+        } else if isFirstReport {
+            logger.notice(
+                "Ocean parameters active; wind speed \(parameters.windSpeed, privacy: .public) m/s; wind direction \(spectrum.windDirectionDegrees, privacy: .public) degrees; wind alignment \(spectrum.windAlignment, privacy: .public); cross-sea amount \(spectrum.crossSeaAmount, privacy: .public); cross-sea angle \(spectrum.crossSeaAngleDegrees, privacy: .public) degrees; swell direction \(spectrum.swellDirectionDegrees, privacy: .public) degrees; swell wavelength \(spectrum.swellWavelength, privacy: .public) m; swell height \(spectrum.swellHeight, privacy: .public) m; swell spread \(spectrum.swellSpread, privacy: .public) degrees; swell bandwidth \(spectrum.swellBandwidth, privacy: .public); IBL intensity exponent \(parameters.iblIntensityExponent, privacy: .public)"
+            )
+        }
+        if spectrumChanged {
+            let diagnostic = SwellSpectrumDiagnostic(parameters: parameters)
+            let calibration = diagnostic.calibration
+            logger.notice(
+                "Swell spectrum diagnostic; requested direction \(spectrum.swellDirectionDegrees, privacy: .public) degrees; requested wavelength \(spectrum.swellWavelength, privacy: .public) m; peak wave number \(calibration.peakWaveNumber, privacy: .public) rad/m; cascade \(calibration.cascade ?? -1, privacy: .public); effective direction sigma \(calibration.effectiveDirectionalSigma * 180 / .pi, privacy: .public) degrees; effective angular-frequency sigma \(calibration.effectiveAngularFrequencySigma, privacy: .public) rad/s; centroid direction \(calibration.centroidDirectionRadians * 180 / .pi, privacy: .public) degrees; centroid wavelength \(calibration.centroidWavelength, privacy: .public) m; discrete variance \(calibration.discreteVariance, privacy: .public); dispersion angular frequency \(calibration.peakAngularFrequency, privacy: .public) rad/s; loop-quantized angular frequency \(diagnostic.quantizedAngularFrequency, privacy: .public) rad/s; repeat-time harmonic \(diagnostic.loopHarmonic, privacy: .public)"
+            )
+        }
+        if foamChanged, !isFirstReport {
+            logger.notice(
+                "Hot-updated physical foam controls; bias \(foam.bias, privacy: .public); power \(foam.power, privacy: .public); add per nominal 60 Hz step \(foam.amount, privacy: .public); decay \(foam.decay, privacy: .public) per second; source-free one-second retention \(foam.sourceFreeRetentionPerSecond, privacy: .public)"
+            )
+        } else if isFirstReport {
+            logger.notice(
+                "Physical foam controls active; bias \(foam.bias, privacy: .public); power \(foam.power, privacy: .public); add per nominal 60 Hz step \(foam.amount, privacy: .public); decay \(foam.decay, privacy: .public) per second; source-free one-second retention \(foam.sourceFreeRetentionPerSecond, privacy: .public)"
+            )
         }
     }
 

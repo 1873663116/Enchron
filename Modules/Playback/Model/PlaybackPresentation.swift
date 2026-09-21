@@ -530,7 +530,6 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         _ target: PlaybackPresentation,
         environment requestedEnvironment: SpatialSceneDomain.CinemaEnvironment? = nil,
         effect requestedEffect: SpatialSceneDomain.EnvironmentEffect? = nil,
-        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultEnvironment,
         id: UUID = UUID()
     ) throws -> PlaybackPresentationTransition {
         guard transition == nil else {
@@ -542,7 +541,9 @@ package struct PlaybackPresentationState: Equatable, Sendable {
 
         let targetEnvironment: EnvironmentContext
         if target == .docked {
-            let dockingEnvironment = requestedEnvironment ?? defaultEnvironment
+            guard let dockingEnvironment = requestedEnvironment else {
+                throw PlaybackPresentationTransitionError.dockedPresentationRequiresEnvironment
+            }
             targetEnvironment = .active(
                 environment: dockingEnvironment,
                 effect: dockingEnvironment.supportsDarkAppearance
@@ -680,7 +681,6 @@ public struct PlaybackPresentationSnapshot: Equatable, Sendable {
     public let presentation: PlaybackPresentation
     public let environmentContext: EnvironmentContext
     public let panoramaReturnEnvironmentContext: EnvironmentContext?
-    public let defaultEnvironment: SpatialSceneDomain.CinemaEnvironment
     public let dockedPlacement: PlaybackDockedPlacement
     public let transition: PlaybackPresentationTransition?
     public let pendingSpatialPlatformEffect: SpatialPlatformEffectRequest?
@@ -708,9 +708,6 @@ public final class PlaybackPresentationModel {
     private var lastSettledPlaybackEffectCorrelation:
         (requestID: UUID, executionID: UUID, mediaSessionID: String)?
 
-    public var defaultEnvironment: SpatialSceneDomain.CinemaEnvironment {
-        .defaultEnvironment
-    }
     public private(set) var defaultCardEnvironment: SpatialSceneDomain.CinemaEnvironment
 
     @ObservationIgnored private let environmentDefaults: UserDefaults
@@ -731,7 +728,7 @@ public final class PlaybackPresentationModel {
         environmentDefaults: UserDefaults = .standard
     ) {
         dockedPlacement = PlaybackDockedPlacement(
-            limits: .limits(for: .defaultEnvironment)
+            limits: .limits(for: .quietRoom)
         )
         self.screenPositionStore = screenPositionStore
         self.environmentDefaults = environmentDefaults
@@ -746,7 +743,6 @@ public final class PlaybackPresentationModel {
             environmentContext: presentationState.environment,
             panoramaReturnEnvironmentContext:
                 presentationState.environmentBeforePanoramaPresentation,
-            defaultEnvironment: defaultEnvironment,
             dockedPlacement: dockedPlacement,
             transition: presentationState.transition,
             pendingSpatialPlatformEffect: pendingSpatialPlatformEffect,
@@ -779,7 +775,7 @@ public final class PlaybackPresentationModel {
     }
 
     public var currentEnvironment: SpatialSceneDomain.CinemaEnvironment {
-        environmentContext.environment ?? defaultEnvironment
+        environmentContext.environment ?? .quietRoom
     }
 
     public var currentEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect {
@@ -818,8 +814,7 @@ public final class PlaybackPresentationModel {
         let transition = try presentationState.begin(
             presentation,
             environment: environment,
-            effect: effect,
-            defaultEnvironment: defaultEnvironment
+            effect: effect
         )
         let platformEffect: SpatialPlatformEffect = switch edge {
         case .enterImmersive:

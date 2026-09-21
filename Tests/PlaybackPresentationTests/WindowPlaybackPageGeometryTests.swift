@@ -592,7 +592,7 @@ struct WindowPlaybackPageGeometryTests {
     func selectingQuietRoomRecordsNoAppearance() {
         var state = PlaybackTopActionsState()
 
-        let requested = state.selectDockTarget(environment: .defaultEnvironment, effect: nil)
+        let requested = state.selectDockTarget(environment: .quietRoom, effect: nil)
 
         #expect(requested.0 == .quietRoom)
         #expect(requested.1 == nil)

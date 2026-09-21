@@ -3547,6 +3547,7 @@ struct PlaybackPresentationStateTests {
             do {
                 let transition = try model.requestPresentation(
                     testCase.target,
+                    environment: testCase.target == .docked ? .quietRoom : nil,
                     playbackContext: playingContext(mediaSessionID: mediaSessionID)
                 )
                 #expect(testCase.error == nil)
@@ -3585,6 +3586,7 @@ struct PlaybackPresentationStateTests {
             let model = try settledModel(in: testCase.source)
             _ = try model.requestPresentation(
                 testCase.target,
+                environment: testCase.target == .docked ? .quietRoom : nil,
                 playbackContext: SpatialPlaybackTransitionContext(
                     mediaSessionID: "paused-\(testCase.source.rawValue)-to-\(testCase.target.rawValue)",
                     wasPlaying: false
@@ -3652,28 +3654,26 @@ struct PlaybackPresentationStateTests {
                 effect: nil
             )
         )
-        #expect(model.defaultEnvironment == .quietRoom)
     }
 
-    @Test("direct dock opens the default environment when none is active")
+    @Test("direct dock without an environment is rejected")
     @MainActor
-    func directDockUsesDefaultEnvironment() throws {
+    func directDockRequiresExplicitEnvironment() throws {
         let model = PlaybackPresentationModel()
 
-        _ = try model.requestPresentation(
-            .docked,
-            effect: .dark,
-            playbackContext: playingContext()
-        )
-        _ = try completePendingEffect(model)
-
-        #expect(model.presentation == .docked)
-        #expect(
-            model.environmentContext == .active(
-                environment: .quietRoom,
-                effect: nil
+        do {
+            _ = try model.requestPresentation(
+                .docked,
+                effect: .dark,
+                playbackContext: playingContext()
             )
-        )
+            Issue.record("Docking without an environment must throw")
+        } catch PlaybackPresentationTransitionError.dockedPresentationRequiresEnvironment {
+        } catch {
+            Issue.record("Docking without an environment failed for an unexpected reason")
+        }
+        #expect(model.presentation == .window)
+        #expect(model.environmentContext == .none)
     }
 
     @Test("undock restores the active environment that preceded Docked")
@@ -3701,12 +3701,13 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("temporary Default Environment closes when Docked returns to Window")
+    @Test("undock closes the explicitly docked Quiet Room")
     @MainActor
-    func undockClosesTemporaryDefaultEnvironment() throws {
+    func undockClosesExplicitQuietRoom() throws {
         let model = PlaybackPresentationModel()
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: playingContext()
         )
@@ -3732,6 +3733,7 @@ struct PlaybackPresentationStateTests {
         let inactiveModel = PlaybackPresentationModel()
         _ = try inactiveModel.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: playingContext()
         )
@@ -3903,6 +3905,7 @@ struct PlaybackPresentationStateTests {
         try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             playbackContext: playingContext()
         )
         if !transitionInFlight {
@@ -3923,12 +3926,13 @@ struct PlaybackPresentationStateTests {
         #expect(model.environmentContext == .none)
     }
 
-    @Test("stopping Docked playback closes a temporary Default Environment")
+    @Test("stopping Docked playback closes its explicit Quiet Room")
     @MainActor
-    func playbackStopClosesTemporaryDefaultEnvironment() throws {
+    func playbackStopClosesExplicitQuietRoom() throws {
         let model = PlaybackPresentationModel()
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: playingContext()
         )
@@ -3950,7 +3954,8 @@ struct PlaybackPresentationStateTests {
     func playbackStopCancelsTransition() throws {
         let model = PlaybackPresentationModel()
         try model.activateEnvironment(.ocean, effect: .dark)
-        _ = try model.requestPresentation(.docked, playbackContext: playingContext())
+        _ = try model.requestPresentation(.docked,
+            environment: .quietRoom, playbackContext: playingContext())
         let staleRequest = try #require(model.pendingSpatialPlatformEffect)
 
         model.requestStoppedPlaybackCleanup()
@@ -4167,6 +4172,7 @@ struct PlaybackPresentationStateTests {
         let context = playingContext(mediaSessionID: "docked-collapse-session")
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .light,
             playbackContext: context
         )
@@ -4196,7 +4202,8 @@ struct PlaybackPresentationStateTests {
     func failedSystemCollapseRetainsWindowPresentation() throws {
         let model = PlaybackPresentationModel()
         let context = playingContext(mediaSessionID: "failed-collapse-session")
-        _ = try model.requestPresentation(.docked, effect: .light, playbackContext: context)
+        _ = try model.requestPresentation(.docked,
+            environment: .quietRoom, effect: .light, playbackContext: context)
         _ = try completePendingEffect(model)
         _ = model.receiveSpatialPlatformResult(.immersiveSpaceDisappeared(context))
 
@@ -4236,7 +4243,8 @@ struct PlaybackPresentationStateTests {
         let model = PlaybackPresentationModel()
         let context = playingContext(mediaSessionID: "app-exit-session")
         try model.activateEnvironment(.ocean, effect: .dark)
-        _ = try model.requestPresentation(.docked, playbackContext: context)
+        _ = try model.requestPresentation(.docked,
+            environment: .quietRoom, playbackContext: context)
         _ = try completePendingEffect(model)
         _ = try model.requestPresentation(.window, playbackContext: context)
         let exitRequest = try #require(model.pendingSpatialPlatformEffect)
@@ -4272,6 +4280,7 @@ struct PlaybackPresentationStateTests {
         let context = playingContext(mediaSessionID: "stopped-cleanup-session")
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: context
         )
@@ -4322,6 +4331,7 @@ struct PlaybackPresentationStateTests {
         let context = playingContext(mediaSessionID: "duplicate-collapse-session")
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .light,
             playbackContext: context
         )
@@ -4401,6 +4411,7 @@ struct PlaybackPresentationStateTests {
         let context = playingContext()
         _ = try model.requestPresentation(
             .docked,
+            environment: .quietRoom,
             effect: .dark,
             playbackContext: context
         )
@@ -4499,6 +4510,7 @@ struct PlaybackPresentationStateTests {
             }
             _ = try model.requestPresentation(
                 target,
+                environment: target == .docked ? .quietRoom : nil,
                 effect: target == .docked ? .light : nil,
                 playbackContext: context
             )
@@ -4595,6 +4607,7 @@ struct PlaybackPresentationStateTests {
         case .docked:
             _ = try model.requestPresentation(
                 .docked,
+                environment: .quietRoom,
                 playbackContext: playingContext()
             )
             _ = try completePendingEffect(model)

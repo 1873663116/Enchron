@@ -120,7 +120,7 @@ struct PlaybackTopActionsState {
 
     init(
         presentedMenu: PlaybackTopSecondaryMenu? = nil,
-        selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultEnvironment,
+        selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment = .quietRoom,
         selectedEffect: SpatialSceneDomain.EnvironmentEffect? = nil,
         projection: PlaybackModel.ProjectionType = .flat,
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
@@ -503,7 +503,7 @@ public struct PlaybackTopActions: View {
         _state = State(
                 initialValue: PlaybackTopActionsState(
                     presentedMenu: initialPresentedMenu,
-                    selectedDockEnvironment: .defaultEnvironment,
+                    selectedDockEnvironment: .quietRoom,
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
                     stereoLayout: stereoLayout
@@ -597,9 +597,9 @@ public struct PlaybackTopActions: View {
                 .padding(.horizontal, DesignTokens.Spacing.sm)
 
             dockMenuItem(
-                environment: .defaultEnvironment,
+                environment: .quietRoom,
                 effect: nil,
-                thumbnailName: FeaturedEnvironment.defaultEnvironmentThumbnailName
+                thumbnailName: FeaturedEnvironment.quietRoomThumbnailName
             )
 
             Divider()
@@ -621,6 +621,9 @@ public struct PlaybackTopActions: View {
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-DockMenu")
+        .onAppear {
+            EnvironmentSceneMapping.prefetch([.quietRoom, cardEnvironment])
+        }
     }
 
     private var dockMenuIsPresented: Binding<Bool> {

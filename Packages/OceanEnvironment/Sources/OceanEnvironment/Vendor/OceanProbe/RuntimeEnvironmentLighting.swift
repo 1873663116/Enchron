@@ -35,6 +35,15 @@ enum RuntimeEnvironmentLighting {
     /// texture bundle any more.
     static func configure(applicationResourceBundle: Bundle) {}
 
+    /// Builds and caches the procedural-sky `EnvironmentResource` ahead of the
+    /// first rendered frame. Attaching still happens in `synchronize`, which
+    /// then hits the cache instead of paying the cold build (~98 ms on device)
+    /// inside the opening frames.
+    static func prewarm(sky: SkyAppearance) {
+        guard cachedEnvironment == nil else { return }
+        _ = try? environmentResource(for: sky)
+    }
+
     static func synchronize(
         surface: Entity,
         to oceanEntity: Entity,

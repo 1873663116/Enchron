@@ -29,9 +29,8 @@ struct EnvironmentSceneMappingTests {
         #expect(SpatialSceneDomain.EnvironmentEffect.allCases == [.light, .dark])
     }
 
-    @Test("Quiet Room is the only default environment and the only one without dark appearance")
-    func quietRoomIsTheUnconfigurableDefault() {
-        #expect(SpatialSceneDomain.CinemaEnvironment.defaultEnvironment == .quietRoom)
+    @Test("Quiet Room is the only environment without dark appearance")
+    func quietRoomHasNoDarkAppearance() {
         for environment in SpatialSceneDomain.CinemaEnvironment.allCases {
             #expect(
                 environment.supportsDarkAppearance == (environment != .quietRoom),
@@ -124,7 +123,7 @@ struct DefaultCardEnvironmentTests {
         #expect(PlaybackPresentationModel(environmentDefaults: defaults).defaultCardEnvironment == .placeholderGreen)
         let position = EnvironmentCarouselLayout.initialPosition(
             environments: FeaturedEnvironment.catalog,
-            defaultEnvironment: reopened.defaultCardEnvironment
+            cardDefaultEnvironment: reopened.defaultCardEnvironment
         )
         let centered = EnvironmentCarouselLayout.renderSlots(
             environmentCount: FeaturedEnvironment.catalog.count,
