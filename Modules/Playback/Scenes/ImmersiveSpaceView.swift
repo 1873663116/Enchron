@@ -122,6 +122,8 @@ private final class WorldSceneState {
     var lastDockedPose: PlaybackDockedPose?
     var isLoading = false
     var hasFailed = false
+    var loadStartedInstant: ContinuousClock.Instant?
+    var firstFrameReported = false
 
     func reset() {
         entity = nil
@@ -135,6 +137,8 @@ private final class WorldSceneState {
         appliedEnvironmentEffect = nil
         lastDockedPose = nil
         hasFailed = false
+        loadStartedInstant = nil
+        firstFrameReported = false
     }
 }
 
@@ -1231,6 +1235,22 @@ public struct ImmersiveSpaceView: View {
             )
             return
         }
+#if DEBUG
+        if world.environment == .ocean,
+           world.firstFrameReported == false,
+           let started = world.loadStartedInstant {
+            world.firstFrameReported = true
+            let components = (ContinuousClock().now - started).components
+            let elapsedMS = components.seconds * 1_000
+                + components.attoseconds / 1_000_000_000_000_000
+            appModel.recordSurfaceInputProbe(
+                "worldTiming phase=environmentFirstFrame"
+                    + " environment=ocean"
+                    + " elapsedMS=\(elapsedMS)",
+                retention: .evidence
+            )
+        }
+#endif
 
         appModel.recordSpatialPlaybackSurfacePreparationStage("preparingEntity")
         presentVideo(
@@ -2043,6 +2063,10 @@ public struct ImmersiveSpaceView: View {
         defer { world.isLoading = false }
         logger.notice("world load started environment=\(environment.rawValue, privacy: .public)")
 #if DEBUG
+        world.loadStartedInstant = EnvironmentSceneMapping.prefetchStartedInstant(
+            for: environment
+        ) ?? ContinuousClock().now
+        world.firstFrameReported = false
         appModel.recordSurfaceInputProbe(
             "worldLoad event=started"
                 + " environment=\(environment.rawValue)"
@@ -2058,6 +2082,19 @@ public struct ImmersiveSpaceView: View {
             } else {
                 entity = Self.makePlaceholderWorld(for: environment)
             }
+#if DEBUG
+            if let started = world.loadStartedInstant {
+                let components = (ContinuousClock().now - started).components
+                let elapsedMS = components.seconds * 1_000
+                    + components.attoseconds / 1_000_000_000_000_000
+                appModel.recordSurfaceInputProbe(
+                    "worldTiming phase=decoded"
+                        + " environment=\(environment.rawValue)"
+                        + " elapsedMS=\(elapsedMS)",
+                    retention: .evidence
+                )
+            }
+#endif
             try Task.checkCancellation()
             let restPose = scene?.restPose ?? Self.fallbackRestPose
             let anchor = Entity()

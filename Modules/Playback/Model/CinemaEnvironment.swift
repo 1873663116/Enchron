@@ -115,6 +115,7 @@ public nonisolated enum EnvironmentSceneMapping {
 
     @MainActor private static var scenes: [SpatialSceneDomain.CinemaEnvironment: any EnvironmentScene] = [:]
     @MainActor private static var prefetchTasks: [SpatialSceneDomain.CinemaEnvironment: Task<Entity, Error>] = [:]
+    @MainActor private static var prefetchStarted: [SpatialSceneDomain.CinemaEnvironment: ContinuousClock.Instant] = [:]
 
     /// Starts decoding `environments` ahead of an imminent open (dock menu
     /// shown, card toggled). Holds at most the requested batch: anything else
@@ -125,6 +126,7 @@ public nonisolated enum EnvironmentSceneMapping {
         for stale in prefetchTasks.keys where !environments.contains(stale) {
             prefetchTasks[stale]?.cancel()
             prefetchTasks[stale] = nil
+            prefetchStarted[stale] = nil
         }
         for environment in environments {
             guard prefetchTasks[environment] == nil,
@@ -132,6 +134,7 @@ public nonisolated enum EnvironmentSceneMapping {
             else {
                 continue
             }
+            prefetchStarted[environment] = ContinuousClock().now
             prefetchTasks[environment] = Task { @MainActor in
                 let root = try await scene.load()
                 if let ocean = scene as? OceanEnvironmentScene {
@@ -153,9 +156,22 @@ public nonisolated enum EnvironmentSceneMapping {
         for stale in prefetchTasks.keys where stale != environment {
             prefetchTasks[stale]?.cancel()
             prefetchTasks[stale] = nil
+            prefetchStarted[stale] = nil
         }
-        defer { prefetchTasks[environment] = nil }
+        defer {
+            prefetchTasks[environment] = nil
+            prefetchStarted[environment] = nil
+        }
         return prefetchTasks[environment]
+    }
+
+    /// When the decode for `environment` started, if prefetched. Lets the
+    /// opener measure the true decode cost even though it began earlier.
+    @MainActor
+    public static func prefetchStartedInstant(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) -> ContinuousClock.Instant? {
+        prefetchStarted[environment]
     }
 
     @MainActor

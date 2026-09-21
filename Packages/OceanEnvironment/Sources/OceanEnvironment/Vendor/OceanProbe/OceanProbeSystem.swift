@@ -227,6 +227,9 @@ public struct OceanProbeSystem: System {
                 continue
             }
             parameterFailureReported = false
+            guard let calibration = SwellSpectrumCalibrationCache.shared.readyValue(for: parameters) else {
+                continue
+            }
 
             let activeRenderer: OceanProbeRenderer
             if let renderer {
@@ -304,12 +307,10 @@ public struct OceanProbeSystem: System {
             lastSpectrumControls = spectrumControls
             lastFoamControls = foamControls
             if spectrumChanged || foamChanged {
-                // Spectrum calibration and control logging leave the render
-                // loop: the diagnostic math and multi-line log interpolation
-                // must not sit inside the opening frames.
                 Task.detached(priority: .utility) {
                     Self.reportControlActivation(
                         parameters: parameters,
+                        calibration: calibration,
                         spectrum: spectrumControls,
                         foam: foamControls,
                         spectrumChanged: spectrumChanged,
@@ -325,7 +326,8 @@ public struct OceanProbeSystem: System {
                     sceneTime: elapsedTime,
                     frameDeltaTime: Float(context.deltaTime),
                     offeredTick: offeredTick,
-                    parameters: parameters
+                    parameters: parameters,
+                    calibration: calibration
                 )
                 if advance.acceptedOfferedTick, let offeredTick {
                     simulationClock.commit(offeredTick)
@@ -368,6 +370,7 @@ public struct OceanProbeSystem: System {
 
     nonisolated private static func reportControlActivation(
         parameters: OceanProbeParameters,
+        calibration: SwellSpectrumCalibration,
         spectrum: SpectrumControlSnapshot,
         foam: FoamControlSnapshot,
         spectrumChanged: Bool,
@@ -388,8 +391,7 @@ public struct OceanProbeSystem: System {
             )
         }
         if spectrumChanged {
-            let diagnostic = SwellSpectrumDiagnostic(parameters: parameters)
-            let calibration = diagnostic.calibration
+            let diagnostic = SwellSpectrumDiagnostic(parameters: parameters, calibration: calibration)
             logger.notice(
                 "Swell spectrum diagnostic; requested direction \(spectrum.swellDirectionDegrees, privacy: .public) degrees; requested wavelength \(spectrum.swellWavelength, privacy: .public) m; peak wave number \(calibration.peakWaveNumber, privacy: .public) rad/m; cascade \(calibration.cascade ?? -1, privacy: .public); effective direction sigma \(calibration.effectiveDirectionalSigma * 180 / .pi, privacy: .public) degrees; effective angular-frequency sigma \(calibration.effectiveAngularFrequencySigma, privacy: .public) rad/s; centroid direction \(calibration.centroidDirectionRadians * 180 / .pi, privacy: .public) degrees; centroid wavelength \(calibration.centroidWavelength, privacy: .public) m; discrete variance \(calibration.discreteVariance, privacy: .public); dispersion angular frequency \(calibration.peakAngularFrequency, privacy: .public) rad/s; loop-quantized angular frequency \(diagnostic.quantizedAngularFrequency, privacy: .public) rad/s; repeat-time harmonic \(diagnostic.loopHarmonic, privacy: .public)"
             )

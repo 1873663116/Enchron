@@ -113,7 +113,7 @@ enum CascadeLayoutError: Error {
     case invalidLengthScales(SIMD4<Float>)
 }
 
-struct CascadeLayout: Equatable, Sendable {
+struct CascadeLayout: Hashable, Sendable {
     let resolution: Int
     let lengthScales: SIMD4<Float>
     let inverseLengthScales: SIMD4<Float>
@@ -179,6 +179,26 @@ struct FoamParameters: Equatable, Sendable {
 }
 
 struct SwellSpectrumCalibration: Equatable, Sendable {
+    struct Input: Hashable, Sendable {
+        let cascades: CascadeLayout
+        let swellWavelength: Float
+        let swellHeight: Float
+        let swellBandwidth: Float
+        let swellSpreadRadians: Float
+        let swellDirectionRadians: Float
+        let waterDepth: Float
+
+        init(_ parameters: OceanProbeParameters) {
+            cascades = parameters.cascades
+            swellWavelength = parameters.swellWavelength
+            swellHeight = parameters.swellHeight
+            swellBandwidth = parameters.swellBandwidth
+            swellSpreadRadians = parameters.swellSpreadRadians
+            swellDirectionRadians = parameters.swellDirectionRadians
+            waterDepth = parameters.waterDepth
+        }
+    }
+
     let peakWaveNumber: Float
     let cascade: Int?
     let peakAngularFrequency: Float
@@ -191,7 +211,7 @@ struct SwellSpectrumCalibration: Equatable, Sendable {
 
     private static let gravity: Float = 9.81
 
-    init(parameters: OceanProbeParameters) {
+    init(parameters: Input) {
         let cascades = parameters.cascades
         let peakWaveNumber = 2 * Float.pi / parameters.swellWavelength
         let cascade = cascades.owners(of: peakWaveNumber).first
@@ -309,8 +329,8 @@ struct SwellSpectrumDiagnostic: Equatable, Sendable {
     let quantizedAngularFrequency: Float
     let loopHarmonic: Int
 
-    init(parameters: OceanProbeParameters) {
-        calibration = SwellSpectrumCalibration(parameters: parameters)
+    init(parameters: OceanProbeParameters, calibration: SwellSpectrumCalibration) {
+        self.calibration = calibration
         let baseFrequency = 2 * Float.pi / parameters.repeatTime
         loopHarmonic = Int(floor(calibration.peakAngularFrequency / baseFrequency))
         quantizedAngularFrequency = Float(loopHarmonic) * baseFrequency

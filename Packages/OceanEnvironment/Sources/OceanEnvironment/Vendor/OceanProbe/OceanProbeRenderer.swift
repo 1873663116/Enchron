@@ -375,6 +375,24 @@ struct RenderEvidence {
     let foam: FoamFieldEvidence?
 }
 
+struct FoamEvidenceSchedule {
+    private let isEnabled: Bool
+    private var frames: Set<Int>
+
+    init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        isEnabled = environment["ENCHRON_OCEAN_FOAM_DIAGNOSTICS"] == "1"
+        frames = isEnabled ? [1, 120, 240] : []
+    }
+
+    mutating func parametersDidChange(after frame: Int) {
+        if isEnabled { frames.insert(frame + 120) }
+    }
+
+    mutating func take(frame: Int) -> Bool {
+        frames.remove(frame) != nil
+    }
+}
+
 @MainActor
 private struct PublishedSurfaceFields {
     // 512 rather than 1024: a full four-cascade update measured 4.97 ms median
@@ -539,7 +557,7 @@ final class OceanProbeRenderer {
     private var installedFoamParameters: FoamParameters?
     private var didVerifyFirstFrame = false
     private var submittedSimulationCount = 0
-    private var foamEvidenceFrames: Set<Int> = [1, 120, 240]
+    private var foamEvidence = FoamEvidenceSchedule()
     private var cascadeUpdateScheduler = CascadeUpdateScheduler()
     private var latestCompletedSimulation: CompletedSimulation?
     private var completedSimulations: [CompletedSimulation] = []
@@ -670,13 +688,14 @@ final class OceanProbeRenderer {
         sceneTime: Float,
         frameDeltaTime: Float,
         offeredTick: SimulationTickOffer?,
-        parameters: OceanProbeParameters
+        parameters: OceanProbeParameters,
+        calibration: SwellSpectrumCalibration
     ) throws -> FrameAdvanceResult {
         let completed = try reapCompletedCommands()
         if let installedFoamParameters,
            installedFoamParameters != parameters.foam
         {
-            foamEvidenceFrames.insert(submittedSimulationCount + 120)
+            foamEvidence.parametersDidChange(after: submittedSimulationCount)
         }
         installedFoamParameters = parameters.foam
         let signature = SpectrumSignature(
@@ -740,7 +759,8 @@ final class OceanProbeRenderer {
                     lease: lease,
                     signature: signature,
                     generation: desiredSpectrumGeneration,
-                    parameters: parameters
+                    parameters: parameters,
+                    calibration: calibration
                 )
                 acceptedOfferedTick = acceptedOffer != nil
             }
@@ -767,7 +787,8 @@ final class OceanProbeRenderer {
         lease: SnapshotLeaseLedger.SimulationLease,
         signature: SpectrumSignature,
         generation: UInt64,
-        parameters: OceanProbeParameters
+        parameters: OceanProbeParameters,
+        calibration: SwellSpectrumCalibration
     ) throws {
         guard let commandBuffer = simulationQueue.makeCommandBuffer() else {
             snapshotLedger.cancelBeforeSubmission(lease)
@@ -800,7 +821,7 @@ final class OceanProbeRenderer {
         do {
             if rebuildsSpectrum {
                 var windSpectra = makeWindSpectrumParameters(parameters)
-                var swellSpectrum = makeSwellSpectrumParameters(parameters)
+                var swellSpectrum = makeSwellSpectrumParameters(parameters, calibration: calibration)
                 try encodeClearOutputs(
                     into: commandBuffer,
                     field: textures.fields[destination],
@@ -943,7 +964,7 @@ final class OceanProbeRenderer {
             )
 
             let verifiesFirstFrame = !didVerifyFirstFrame
-            let verifiesFoam = foamEvidenceFrames.remove(request.source.frame) != nil
+            let verifiesFoam = foamEvidence.take(frame: request.source.frame)
             let foamReadback = verifiesFoam
                 ? try encodeFoamReadback(
                     from: publishedTargets.all,
@@ -1400,9 +1421,9 @@ final class OceanProbeRenderer {
     }
 
     private func makeSwellSpectrumParameters(
-        _ parameters: OceanProbeParameters
+        _ parameters: OceanProbeParameters,
+        calibration: SwellSpectrumCalibration
     ) -> SwellSpectrumParameters {
-        let calibration = SwellSpectrumCalibration(parameters: parameters)
         return SwellSpectrumParameters(
             height: parameters.swellHeight,
             angle: parameters.swellDirectionRadians,

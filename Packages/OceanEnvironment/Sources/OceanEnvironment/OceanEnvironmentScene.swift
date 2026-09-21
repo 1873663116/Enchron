@@ -124,6 +124,8 @@ public final class OceanEnvironmentScene: EnvironmentScene {
 
     public func load() async throws -> Entity {
         Self.registerRuntimeIfNeeded()
+        let parameters = try OceanProbeParameters(Self.authoredSimulation)
+        async let calibration = SwellSpectrumCalibrationCache.shared.value(for: parameters)
         guard let url = Bundle.module.url(forResource: Self.resourceName, withExtension: "reality") else {
             throw EnvironmentSceneLoadingError.resourceMissing(Self.resourceName)
         }
@@ -150,6 +152,8 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         root.disableEnvironmentPreviewScreen()
         SkyRotation.install(in: root)
         authoredLighting = captureAuthoredLighting(in: root)
+        _ = await calibration
+        try Task.checkCancellation()
         return root
     }
 
