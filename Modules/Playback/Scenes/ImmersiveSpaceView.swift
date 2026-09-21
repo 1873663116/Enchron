@@ -763,9 +763,14 @@ public struct ImmersiveSpaceView: View {
             }
             Attachment(id: ImmersivePlaybackStallIndicatorPlacement.attachmentID) {
                 if stallIndicatorIsVisible {
-                    LoadingSpinner(sourceReadBytesPerSecond: {
-                        playbackRuntime.outputObservation().sourceReadBytesPerSecond
-                    })
+                    LoadingSpinner(
+                        size: requestedPresentation == .panorama
+                            ? ImmersivePlaybackStallIndicatorPlacement.panoramaSpinnerSize
+                            : 56,
+                        sourceReadBytesPerSecond: {
+                            playbackRuntime.outputObservation().sourceReadBytesPerSecond
+                        }
+                    )
                     .accessibilityIdentifier("PlayerUI-immersive-loading-spinner")
                     .accessibilityLabel("Loading")
                     .allowsHitTesting(false)
@@ -2717,6 +2722,9 @@ public struct ImmersiveSpaceView: View {
 enum ImmersivePlaybackStallIndicatorPlacement {
     static let attachmentID = "immersivePlaybackStallIndicator"
     static let dockedLift: Float = PlaybackSubtitlePlacement.planeLift + 0.01
+    static let panoramaSpinnerDistance: Float = PlaybackPanoramaInteractionSurface.shellRadius - 0.2
+    static let panoramaSpinnerDownMeters: Float = 0.14
+    static let panoramaSpinnerSize: CGFloat = 336
 
     static func isVisible(
         loadingStage: PlaybackLoadingStage?,
@@ -2731,7 +2739,7 @@ enum ImmersivePlaybackStallIndicatorPlacement {
 
     static func position(for presentation: PlaybackPresentation) -> SIMD3<Float> {
         presentation == .panorama
-            ? [0, 0, -PlaybackSubtitlePlacement.panoramaScreenDistance]
+            ? [0, -panoramaSpinnerDownMeters, -panoramaSpinnerDistance]
             : [0, 0, dockedLift]
     }
 }

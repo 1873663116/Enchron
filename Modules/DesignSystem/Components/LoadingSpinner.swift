@@ -120,8 +120,9 @@ public struct LoadingSpinner: View {
     public var body: some View {
         let lineWidth = size * 0.06
         let inset = size * 0.16
+        let textScale = size / 56
 
-        VStack(spacing: DesignTokens.Spacing.xs) {
+        VStack(spacing: DesignTokens.Spacing.xs * textScale) {
             TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) {
                 context in
                 let elapsed = context.date.timeIntervalSince(cycleAnchor)
@@ -163,20 +164,21 @@ public struct LoadingSpinner: View {
                 if showBorder {
                     Circle()
                         .strokeBorder(
-                            DesignTokens.Theme.accent.opacity(0.3),
-                            lineWidth: 1
+                            DesignTokens.Surface.chromeBorder,
+                            lineWidth: DesignTokens.Stroke.subtle
                         )
                 }
             }
             .clipShape(Circle())
-            .background(DesignTokens.Surface.elevated, in: Circle())
+            .enchronGlassBackground(in: Circle())
+            .enchronSpatialOffset(z: 1)
 
             if let sourceReadPendingSeconds {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
                     let pendingSeconds = sourceReadPendingSeconds()
                     if pendingSeconds >= Self.reconnectNoticeThresholdSeconds {
                         Text("Reconnecting…")
-                            .font(DesignTokens.Typography.metadata)
+                            .font(Self.scaledFont(size: size))
                             .foregroundStyle(.secondary)
                             .fixedSize()
                             .accessibilityIdentifier(
@@ -191,12 +193,22 @@ public struct LoadingSpinner: View {
                     Text(Self.sourceReadRateText(
                         bytesPerSecond: sourceReadBytesPerSecond()
                     ))
-                    .font(DesignTokens.Typography.metadata.monospacedDigit())
+                    .font(Self.scaledMonospacedFont(size: size))
                     .foregroundStyle(.secondary)
                     .fixedSize()
                 }
             }
         }
+    }
+
+    static func scaledFont(size: CGFloat) -> Font {
+        guard size != 56 else { return DesignTokens.Typography.metadata }
+        return .system(size: 12 * size / 56)
+    }
+
+    static func scaledMonospacedFont(size: CGFloat) -> Font {
+        guard size != 56 else { return DesignTokens.Typography.metadata.monospacedDigit() }
+        return .system(size: 12 * size / 56, design: .monospaced)
     }
 
     static func sourceReadRateText(bytesPerSecond: UInt64) -> String {
