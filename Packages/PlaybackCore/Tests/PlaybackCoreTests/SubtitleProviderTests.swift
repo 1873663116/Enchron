@@ -963,7 +963,9 @@ private final class SettledFlag: @unchecked Sendable {
         traceID: "subtitle-seek",
         provider: FFmpegSampleProvider(),
         subtitleProvider: FFmpegSubtitleProvider(),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     try await session.prepare(url: try subtitleFixtureURL())
     try session.start()
@@ -996,7 +998,9 @@ private final class SettledFlag: @unchecked Sendable {
             traceID: sessionID,
             provider: FFmpegSampleProvider(),
             subtitleProvider: FFmpegSubtitleProvider(),
-            rendererSink: sink
+            rendererSink: sink,
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     let session = try await controller.open(
@@ -1044,7 +1048,9 @@ private final class SettledFlag: @unchecked Sendable {
         traceID: "subtitle-close",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: subtitleProvider,
-        rendererSink: SubtitleTestRendererInputSink()
+        rendererSink: SubtitleTestRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/subtitle-close.mkv"))
 
@@ -1065,7 +1071,9 @@ private final class SettledFlag: @unchecked Sendable {
         traceID: "subtitle-diagnostics",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: FFmpegSubtitleProvider(),
-        rendererSink: SubtitleTestRendererInputSink()
+        rendererSink: SubtitleTestRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     try await session.prepare(url: try subtitleFixtureURL())
     session.synchronizer.setRate(
@@ -1104,7 +1112,9 @@ private final class SettledFlag: @unchecked Sendable {
         traceID: "subtitle-callback",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: FFmpegSubtitleProvider(),
-        rendererSink: SubtitleTestRendererInputSink()
+        rendererSink: SubtitleTestRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     session.onSubtitleCuesChange = { cues in
         recorder.append(cues.map(\.text))
@@ -1141,7 +1151,9 @@ private final class SettledFlag: @unchecked Sendable {
         traceID: "subtitle-selection-stale",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: DelayedSubtitleTestProvider(),
-        rendererSink: SubtitleTestRendererInputSink()
+        rendererSink: SubtitleTestRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     session.onSubtitleCuesChange = { cues in
         recorder.append(cues.map(\.text))

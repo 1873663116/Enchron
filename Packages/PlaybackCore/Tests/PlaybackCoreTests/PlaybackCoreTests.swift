@@ -78,7 +78,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     let session = SampleBufferPlaybackSession(
         traceID: "multichannel-spatialization",
         provider: FakeVideoSampleProvider(events: [.end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -169,7 +171,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         audioProvider: audioProvider,
         subtitleProvider: subtitleProvider,
         mediaSourceInformationLoader: loader,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -191,7 +195,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
             SampleBufferPlaybackSession(
                 traceID: sessionID,
                 provider: FakeVideoSampleProvider(events: [.end]),
-                rendererSink: FakeRendererInputSink()
+                rendererSink: FakeRendererInputSink(),
+                videoPrerollDisplayObservation: { true },
+                videoRendererReadyObservation: { true }
             )
         },
         debugRecorderMode: .disabledForVerification
@@ -228,7 +234,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
                 stateDescription: "ingested:177 displaySets:0"
             )
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     try await session.prepare(
@@ -259,7 +267,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         traceID: "subtitle-outcome-unsupported",
         provider: FakeVideoSampleProvider(events: [.end]),
         subtitleProvider: StubSubtitleProvider(tracks: [track]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     try await session.prepare(
@@ -299,7 +309,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
             tracks: [track],
             renderer: StubSubtitleFrameRenderer(frame: frame)
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     try await session.prepare(
@@ -321,7 +333,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         audioProvider: FakeAudioSampleProvider(),
         subtitleProvider: subtitleProvider,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -345,7 +359,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         audioProvider: FakeAudioSampleProvider(
             trackListError: FakeSampleError.audioRead
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -386,7 +402,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
         mediaSourceInformationLoader: FixedMediaSourceInformationLoader(information),
         rendererSink: FakeRendererInputSink(),
-        audioRendererSink: FakeAudioRendererInputSink()
+        audioRendererSink: FakeAudioRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -406,7 +424,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.end]),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
 
@@ -428,7 +448,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.end]),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     let url = URL(fileURLWithPath: "/fixtures/photos-video.mov")
@@ -800,7 +822,9 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.end]),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -845,7 +869,9 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
             SampleBufferPlaybackSession(
                 traceID: sessionID,
                 provider: FakeVideoSampleProvider(events: [.end]),
-                rendererSink: FakeRendererInputSink()
+                rendererSink: FakeRendererInputSink(),
+                videoPrerollDisplayObservation: { true },
+                videoRendererReadyObservation: { true }
             )
         },
         debugRecorderMode: mode
@@ -897,7 +923,9 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.end]),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     let session = try await controller.open(
@@ -922,7 +950,9 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
         return SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.end]),
-            rendererSink: sink
+            rendererSink: sink,
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     let source = URL(fileURLWithPath: "/fixtures/fake.mov")
@@ -1005,7 +1035,9 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
         return SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.end]),
-            rendererSink: creation == 1 ? retiringSink : replacementSink
+            rendererSink: creation == 1 ? retiringSink : replacementSink,
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     let source = URL(fileURLWithPath: "/fixtures/replacement.mov")
@@ -1030,7 +1062,9 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
     let session = SampleBufferPlaybackSession(
         traceID: "cleanup-barrier-session",
         provider: FakeVideoSampleProvider(events: [.end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/cleanup.mov"))
 
@@ -1055,7 +1089,9 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
                 events: [],
                 readError: FakeSampleError.providerRead
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1103,7 +1139,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 events: creation == 1 ? [] : [.end],
                 readError: creation == 1 ? FakeSampleError.providerRead : nil
             ),
-            rendererSink: sink
+            rendererSink: sink,
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     let source = URL(fileURLWithPath: "/fixtures/failing.mov")
@@ -1165,7 +1203,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                     .end,
                 ]
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1210,7 +1250,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         let session = SampleBufferPlaybackSession(
             traceID: "seek-past-delivered-video-\(lastPTSLabel)",
             provider: FakeVideoSampleProvider(events: events, durationSeconds: 10),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
         let statuses = LockedBox<[PlaybackStatus]>([])
         session.onStatusChange = { status in
@@ -1253,7 +1295,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
             events: samples.map { .sample($0) } + [.end],
             durationSeconds: 1.0 + 3 * frame + 0.5
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/last-frame.mkv"))
@@ -1297,7 +1341,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 ],
                 seekPrepareDelay: .milliseconds(150)
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1361,7 +1407,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 seekPrepareDelay: .seconds(2),
                 seekPrepareIgnoresCancellation: true
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1428,7 +1476,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 ],
                 seekPrepareDelay: .milliseconds(150)
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1490,7 +1540,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 ],
                 seekPrepareDelay: .milliseconds(150)
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1549,7 +1601,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                     .end
                 ]
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1592,7 +1646,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 events: samples.map { .sample($0) } + [.end],
                 eventDelay: .milliseconds(20)
             ),
-            rendererSink: sink
+            rendererSink: sink,
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1655,7 +1711,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
                 seekPrepareDelay: .milliseconds(20)
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1735,7 +1793,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
             events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
             seekPrepareDelay: .milliseconds(20)
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -1788,7 +1848,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
                 eventDelay: .milliseconds(5)
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1851,7 +1913,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
                 events: [.sample(initialSample)] + reorderedSamples.map { .sample($0) } + [.end],
                 eventDelay: .milliseconds(5)
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -1917,7 +1981,9 @@ private final class ReportedPositions: @unchecked Sendable {
     let session = SampleBufferPlaybackSession(
         traceID: "fake-compressed-session",
         provider: provider,
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -1973,7 +2039,9 @@ private final class ReportedPositions: @unchecked Sendable {
         provider: FakeVideoSampleProvider(
             events: samples.map(VideoSampleProviderEvent.sample) + [.end]
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let sampleSink = PlaybackSwitchRendererSampleSpy()
     defer { session.close() }
@@ -2000,7 +2068,9 @@ private final class ReportedPositions: @unchecked Sendable {
         provider: FakeVideoSampleProvider(
             events: [.sample(try makeCompressedH264Sample()), .end]
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let sampleSink = PlaybackSwitchRendererSampleSpy()
     defer { session.close() }
@@ -2148,7 +2218,9 @@ struct RendererLeadBudgetTests {
             provider: FakeVideoSampleProvider(
                 events: Array(repeating: .sample(sample), count: 1_000) + [.end]
             ),
-            rendererSink: sink
+            rendererSink: sink,
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
         RendererLeadBudget.setFixedFramesOverride(8)
         defer {
@@ -2254,7 +2326,9 @@ struct RendererLeadBudgetTests {
     let session = SampleBufferPlaybackSession(
         traceID: "offset-first-video-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2287,7 +2361,9 @@ struct RendererLeadBudgetTests {
     let session = SampleBufferPlaybackSession(
         traceID: "negative-preroll-before-zero",
         provider: FakeVideoSampleProvider(events: [.sample(prerollSample), .end]),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2323,7 +2399,9 @@ struct RendererLeadBudgetTests {
             events: samples.map { .sample($0) } + [.end],
             eventDelay: .milliseconds(100)
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2359,7 +2437,9 @@ struct RendererLeadBudgetTests {
         provider: FakeVideoSampleProvider(
             events: samples.map { .sample($0) } + [.end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     let events = LockedBox<[PlaybackDebugEvent]>([])
@@ -2413,7 +2493,9 @@ struct RendererLeadBudgetTests {
             events: samples.map { .sample($0) } + [.end],
             eventDelay: .milliseconds(100)
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2457,7 +2539,9 @@ struct RendererLeadBudgetTests {
             events: samples.map { .sample($0) } + [.end],
             eventDelay: .milliseconds(100)
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2500,7 +2584,9 @@ struct RendererLeadBudgetTests {
             events: samples.map { .sample($0) } + [.end],
             eventDelay: .milliseconds(100)
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2538,7 +2624,9 @@ struct RendererLeadBudgetTests {
             events: samples.map { .sample($0) } + [.end],
             durationSeconds: 1
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -2577,7 +2665,9 @@ struct RendererLeadBudgetTests {
             durationSeconds: 30
         ),
         rendererSink: FakeRendererInputSink(),
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2612,7 +2702,9 @@ struct RendererLeadBudgetTests {
             durationSeconds: 30
         ),
         rendererSink: FakeRendererInputSink(),
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -2636,6 +2728,262 @@ struct RendererLeadBudgetTests {
     #expect((failure.progressAgeMilliseconds ?? 0) >= 5_000)
 }
 
+@Test func playingSeekHoldsTheClockUntilAPostSeekFrameDisplays() async throws {
+    let pass = try (0...12).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index),
+            durationSeconds: 1
+        )
+    }
+    let displayReady = LockedBox(false)
+    let session = SampleBufferPlaybackSession(
+        traceID: "playing-seek-waits-for-display",
+        provider: FakeVideoSampleProvider(
+            events: (pass + pass + pass).map { .sample($0) } + [.end],
+            eventDelay: .milliseconds(20),
+            durationSeconds: 60
+        ),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { displayReady.withLock { $0 } },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-display-gate.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    try await session.seek(
+        to: CMTime(seconds: 6, preferredTimescale: 600),
+        startsPaused: false
+    )
+    // Samples past the target keep arriving while the probe reports no
+    // post-seek frame on screen; the clock must stay held through them.
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(session.synchronizer.rate == 0)
+
+    displayReady.withLock { $0 = true }
+    let deadline = ContinuousClock.now + .seconds(5)
+    while session.synchronizer.rate == 0, ContinuousClock.now < deadline {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(session.synchronizer.rate == 1)
+    #expect(session.isPrerolling == false)
+}
+
+@Test func rendererBackpressureBlocksVideoEnqueueUntilReady() async throws {
+    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0)
+    let ready = LockedBox(false)
+    let session = SampleBufferPlaybackSession(
+        traceID: "renderer-backpressure-blocks-enqueue",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { ready.withLock { $0 } }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/renderer-backpressure.mkv"))
+    try session.start()
+    let parkedDeadline = ContinuousClock.now + .seconds(2)
+    while session.currentPendingVideoSample() == nil, ContinuousClock.now < parkedDeadline {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(session.currentPendingVideoSample() != nil)
+    try await Task.sleep(for: .milliseconds(300))
+    #expect(session.debugSnapshot().acceptedRendererInputCount == 0)
+
+    ready.withLock { $0 = true }
+    try await waitForAcceptedRendererInputCount(1, in: session)
+    #expect(session.debugSnapshot().acceptedRendererInputCount == 1)
+}
+
+@Test func displayStallRebuffersTheTimelineWithStarvedContinuity() async throws {
+    let pass = try (0...12).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index),
+            durationSeconds: 1
+        )
+    }
+    let dropped = LockedBox(100)
+    let displayPass = LockedBox(true)
+    let continuities = LockedBox<[PlaybackDeliveryContinuityObservation]>([])
+    let session = SampleBufferPlaybackSession(
+        traceID: "display-stall-rebuffers",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: pass, count: 60).flatMap { $0 }.map { .sample($0) } + [.end],
+            eventDelay: .milliseconds(20),
+            durationSeconds: 600
+        ),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { displayPass.withLock { $0 } },
+        videoRendererReadyObservation: { true },
+        videoRendererDroppedCountObservation: {
+            dropped.withLock { $0 += 5; return $0 }
+        }
+    )
+    session.onDeliveryContinuityChange = { observation in
+        continuities.withLock { $0.append(observation) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/display-stall-rebuffer.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let activatedDeadline = ContinuousClock.now + .seconds(5)
+    while session.synchronizer.rate == 0, ContinuousClock.now < activatedDeadline {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(session.synchronizer.rate == 1)
+    displayPass.withLock { $0 = false }
+
+    let holdDeadline = ContinuousClock.now + .seconds(8)
+    var held = false
+    while ContinuousClock.now < holdDeadline {
+        if session.isPrerolling && session.synchronizer.rate == 0 {
+            held = true
+            break
+        }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(held)
+    #expect(continuities.withLock {
+        $0.contains {
+            $0.phase == .starved && $0.evidence?.detectionSource == .displayStall
+        }
+    })
+
+    displayPass.withLock { $0 = true }
+    let recoveredDeadline = ContinuousClock.now + .seconds(8)
+    while session.synchronizer.rate == 0, ContinuousClock.now < recoveredDeadline {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(session.synchronizer.rate == 1)
+    #expect(session.isPrerolling == false)
+}
+
+@Test func wedgeRecoveryReseeksToAnchorAndResumesPlaying() async throws {
+    let pass = try (0...60).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index),
+            durationSeconds: 1
+        )
+    }
+    let session = SampleBufferPlaybackSession(
+        traceID: "wedge-recovery-reseek",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: pass, count: 20).flatMap { $0 }.map { .sample($0) } + [.end],
+            eventDelay: .milliseconds(20),
+            durationSeconds: 3600
+        ),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/wedge-recovery-reseek.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    let activatedDeadline = ContinuousClock.now + .seconds(5)
+    while session.synchronizer.rate == 0, ContinuousClock.now < activatedDeadline {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(session.synchronizer.rate == 1)
+
+    await session.recoverWedgedDecoder()
+    let recoveredDeadline = ContinuousClock.now + .seconds(8)
+    while session.synchronizer.rate == 0, ContinuousClock.now < recoveredDeadline {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(session.synchronizer.rate == 1)
+    #expect(session.debugSnapshot().lastFailure == nil)
+}
+
+@Test func wedgeRecoveryExhaustionFailsTheSessionHonestly() async throws {
+    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0)
+    let session = SampleBufferPlaybackSession(
+        traceID: "wedge-recovery-exhausted",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/wedge-recovery-exhausted.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    session.wedgeRecoveryAttempts = 5
+    session.launchWedgeRecovery(hostSeconds: 1000)
+    #expect(session.debugSnapshot().lastFailure?.stage == "videoRenderer.decoderStallUnrecovered")
+    #expect(session.debugSnapshot().lifecycle == .failed)
+}
+
+@Test func wedgeDetectorFiresOnFrozenDisplayWithAdvancingFeed() async throws {
+    let pass = try (0...60).map { index in
+        try makeCompressedH264Sample(
+            presentationTimeSeconds: Double(index),
+            durationSeconds: 1
+        )
+    }
+    let session = SampleBufferPlaybackSession(
+        traceID: "wedge-detector-fires",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: pass, count: 20).flatMap { $0 }.map { .sample($0) } + [.end],
+            eventDelay: .milliseconds(20),
+            durationSeconds: 3600
+        ),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true },
+        videoRendererDroppedCountObservation: { 100 }
+    )
+    defer { session.close() }
+
+    let recoveryStarted = LockedBox(false)
+    let observerID = session.debugStore.addEventObserver { event in
+        if event.kind == "timeline.decoderStallRecovery.started" {
+            recoveryStarted.withLock { $0 = true }
+        }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/wedge-detector-fires.mkv"))
+    try session.start()
+    try await waitForSampleCount(20, in: session)
+    let activatedDeadline = ContinuousClock.now + .seconds(5)
+    while session.synchronizer.rate == 0, ContinuousClock.now < activatedDeadline {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(session.synchronizer.rate == 1)
+
+    let now = CMClockGetTime(CMClockGetHostTimeClock()).seconds
+    session.displayStallWindowStartHostSeconds = now - 10
+    session.displayStallWindowDisplayedCount = session.displayedFrameObservationCount
+    session.displayStallWindowDroppedCount = 100
+    session.displayStallWindowAcceptedCount = 0
+    session.observeDisplayStallStatus(hostSeconds: now)
+    let firedDeadline = ContinuousClock.now + .seconds(5)
+    var fired = false
+    while ContinuousClock.now < firedDeadline {
+        if recoveryStarted.withLock({ $0 }) {
+            fired = true
+            break
+        }
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    #expect(fired)
+}
+
 @Test(arguments: [false, true])
 func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     hasAudio: Bool
@@ -2653,7 +3001,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
             durationSeconds: 4
         ),
         audioProvider: audioProvider,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -2691,7 +3041,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
             events: [.sample(sample), .end],
             durationSeconds: 4
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -2730,7 +3082,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
             events: [.sample(initialSample), .sample(targetSample), .end],
             durationSeconds: 4
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -2772,7 +3126,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: provider,
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     let statuses = LockedBox<[PlaybackStatus]>([])
@@ -2831,7 +3187,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     let session = SampleBufferPlaybackSession(
         traceID: "seek-to-end-session",
         provider: provider,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -2870,7 +3228,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: provider,
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -2908,7 +3268,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
                 events: samples.map { .sample($0) } + [.end],
                 durationSeconds: 1.5
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -2949,7 +3311,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
                 events: [.sample(sample), .end],
                 durationSeconds: 1
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
         defer { session.close() }
         try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-clamp.mkv"))
@@ -2984,7 +3348,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
         let session = SampleBufferPlaybackSession(
             traceID: "seek-reject-non-finite",
             provider: provider,
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
         defer { session.close() }
         try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-invalid.mkv"))
@@ -3018,7 +3384,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     let session = SampleBufferPlaybackSession(
         traceID: "seek-to-final-sample-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3060,7 +3428,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     let session = SampleBufferPlaybackSession(
         traceID: "final-displayable-time-fallback",
         provider: FakeVideoSampleProvider(events: [], durationSeconds: 60),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3075,7 +3445,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
             durationSeconds: 60.025167,
             nominalFrameRate: 12.345
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     let lastPresentationBeforeDuration = CMTime(
@@ -3105,7 +3477,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
         provider: FakeVideoSampleProvider(
             events: [.sample(marker), .sample(video), .end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3122,7 +3496,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     let session = SampleBufferPlaybackSession(
         traceID: "invalid-rate-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3151,7 +3527,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     let session = SampleBufferPlaybackSession(
         traceID: "preferred-rate-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3178,7 +3556,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
         provider: FakeVideoSampleProvider(
             events: [.formatChanged, .sample(sample), .end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3197,7 +3577,9 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     let session = SampleBufferPlaybackSession(
         traceID: "provider-flush-session",
         provider: FakeVideoSampleProvider(events: [.flush, .sample(sample), .end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3217,7 +3599,9 @@ func stereoOverrideBeforeFirstSampleKeepsInitialRevision() async throws {
     let session = SampleBufferPlaybackSession(
         traceID: "stereo-before-start",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3251,7 +3635,9 @@ func liveStereoOverridePublishesAcceptedRevisionsAndKeepsImmutableRendererGraph(
         provider: FakeVideoSampleProvider(
             events: samples.map { .sample($0) } + [.end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let acceptedFormatRevisions = LockedBox<[UInt64]>([])
     session.onAcceptedVideoFormatRevisionChange = { revision in
@@ -3427,7 +3813,9 @@ func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() asy
         provider: FakeVideoSampleProvider(
             events: Array(repeating: .sample(sample), count: 1_000) + [.end]
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let controller = PlaybackCoreController(
         sessionFactory: { _ in session },
@@ -3462,7 +3850,9 @@ func explicitPauseDuringTheContinuityProofSupersedesTheProofInsteadOfFailingIt()
         provider: FakeVideoSampleProvider(
             events: Array(repeating: .sample(sample), count: 1_000) + [.end]
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let controller = PlaybackCoreController(
         sessionFactory: { _ in session },
@@ -3509,7 +3899,9 @@ func liveProjectionOverrideKeepsImmutableRendererGraphAndTimeline() async throws
             events: samples.map { .sample($0) } + [.end],
             projectionKind: sourceProjection
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3558,7 +3950,9 @@ func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeli
         provider: FakeVideoSampleProvider(
             events: samples.map { .sample($0) } + [.end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3599,7 +3993,9 @@ func stereoAndProjectionOverridesCommitAtOneFormatRevision() async throws {
         provider: FakeVideoSampleProvider(
             events: Array(repeating: .sample(sample), count: 1_000) + [.end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3659,7 +4055,9 @@ func stereoAndProjectionOverridesCommitAtOneFormatRevision() async throws {
         provider: FakeVideoSampleProvider(
             events: samples.map { .sample($0) } + [.end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3709,7 +4107,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
                 + samples.dropFirst().map { .sample($0) }
                 + [.end]
         ),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer {
         session.close()
@@ -3765,7 +4165,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
             provider: FakeVideoSampleProvider(
                 events: Array(repeating: .sample(sample), count: 120) + [.end]
             ),
-            rendererSink: creation == 1 ? firstSink : laterSink
+            rendererSink: creation == 1 ? firstSink : laterSink,
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -3815,7 +4217,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     let session = SampleBufferPlaybackSession(
         traceID: "binding-identity-session",
         provider: FakeVideoSampleProvider(events: [.end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/binding.mov"))
@@ -3845,7 +4249,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         traceID: "audio-control-session",
         provider: FakeVideoSampleProvider(events: [.end]),
         audioProvider: audio,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3892,7 +4298,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
             durationSeconds: 0.75
         ),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3926,7 +4334,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
             events: [.sample(videoSample), .end],
             durationSeconds: 60
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -3979,7 +4389,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
                 events: [.sample(videoSample), .end],
                 durationSeconds: 60
             ),
-            rendererSink: FakeRendererInputSink()
+            rendererSink: FakeRendererInputSink(),
+            videoPrerollDisplayObservation: { true },
+            videoRendererReadyObservation: { true }
         )
     }
     defer { controller.close() }
@@ -4010,7 +4422,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
             events: [.sample(videoSample), .end],
             durationSeconds: 0.05
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4031,7 +4445,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     let session = SampleBufferPlaybackSession(
         traceID: "video-only-audio-preferences-session",
         provider: FakeVideoSampleProvider(events: [.end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4060,7 +4476,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
             sampleAfterPrepare: audioSample,
             repeatsSample: false
         ),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let recorder = PlaybackDebugRecorder(session: session, platform: "visionOSSimulator")
     defer {
@@ -4183,7 +4601,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
         rendererSink: FakeRendererInputSink(),
-        audioRendererSink: audioSink
+        audioRendererSink: audioSink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
     let events = LockedBox<[PlaybackDebugEvent]>([])
@@ -4435,7 +4855,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         ),
         audioProvider: FailingAudioOpenProvider(),
         rendererSink: FakeRendererInputSink(),
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4465,7 +4887,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         audioProvider: FakeAudioSampleProvider(),
         rendererSink: FakeRendererInputSink(),
         audioRendererSink: FakeAudioRendererInputSink(),
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4497,7 +4921,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
             events: videoSamples.map(VideoSampleProviderEvent.sample) + [.end]
         ),
         audioProvider: FFmpegAudioSampleProvider(),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -4539,7 +4965,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         ),
         audioProvider: FakeAudioSampleProvider(readError: FakeSampleError.audioRead),
         rendererSink: FakeRendererInputSink(),
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4573,7 +5001,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         ),
         rendererSink: FakeRendererInputSink(),
         audioRendererSink: FakeAudioRendererInputSink(),
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4599,7 +5029,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.end]),
         rendererSink: FakeRendererInputSink(),
         firstVideoFrameDeadline: .milliseconds(20),
-        firstVideoFrameObservation: { false }
+        firstVideoFrameObservation: { false },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4625,7 +5057,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: FakeRendererInputSink(),
         firstVideoFrameDeadline: .milliseconds(20),
-        firstVideoFrameObservation: { false }
+        firstVideoFrameObservation: { false },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4654,7 +5088,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: FakeRendererInputSink(),
         firstVideoFrameDeadline: .milliseconds(40),
-        firstVideoFrameObservation: { false }
+        firstVideoFrameObservation: { false },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4680,7 +5116,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: FakeRendererInputSink(),
         firstVideoFrameDeadline: .milliseconds(20),
-        firstVideoFrameObservation: { false }
+        firstVideoFrameObservation: { false },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4709,7 +5147,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: sink,
         firstVideoFrameDeadline: .milliseconds(20),
-        firstVideoFrameObservation: { false }
+        firstVideoFrameObservation: { false },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4734,7 +5174,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: FakeRendererInputSink(),
         firstVideoFrameDeadline: .milliseconds(20),
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4756,7 +5198,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         traceID: "failed-audio-selection-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         audioProvider: audio,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4796,7 +5240,9 @@ func terminalRendererFailurePublishesFailedOnce(
         provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
         rendererSink: sink,
-        rendererFailureMonitor: monitor
+        rendererFailureMonitor: monitor,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -4856,7 +5302,9 @@ func terminalRendererFailurePublishesFailedOnce(
         rendererSink: sink,
         audioRendererSink: FakeAudioRendererInputSink(),
         rendererFailureMonitor: monitor,
-        firstVideoFrameObservation: { true }
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     let statuses = LockedBox<[PlaybackStatus]>([])
     session.onStatusChange = { status in
@@ -4916,7 +5364,9 @@ func terminalRendererFailurePublishesFailedOnce(
     let session = SampleBufferPlaybackSession(
         traceID: "receiver-warning-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4937,7 +5387,9 @@ func terminalRendererFailurePublishesFailedOnce(
     let session = SampleBufferPlaybackSession(
         traceID: "receiver-flush-cancellation-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4959,7 +5411,9 @@ func terminalRendererFailurePublishesFailedOnce(
     let session = SampleBufferPlaybackSession(
         traceID: "receiver-requires-flush-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
-        rendererSink: sink
+        rendererSink: sink,
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -4985,7 +5439,9 @@ func terminalRendererFailurePublishesFailedOnce(
         ]),
         rendererSink: FakeRendererInputSink(),
         firstVideoFrameDeadline: .milliseconds(50),
-        firstVideoFrameObservation: { false }
+        firstVideoFrameObservation: { false },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -5004,7 +5460,9 @@ func providerOpenContractRecordsTheActiveProvider() async throws {
     let session = SampleBufferPlaybackSession(
         traceID: "provider-open",
         provider: FakeVideoSampleProvider(events: [.end]),
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -5022,7 +5480,9 @@ func repeatedSessionStartDoesNotRestartThePreparedProvider() async throws {
     let session = SampleBufferPlaybackSession(
         traceID: "idempotent-session-start",
         provider: provider,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     defer { session.close() }
 
@@ -6207,7 +6667,9 @@ private let audioSwitchTestMedia = URL(fileURLWithPath: #filePath)
         ),
         sourceReadMeter: meter,
         demuxSession: demuxSession,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     try await session.prepare(url: fixture)
     try session.start()
@@ -6264,7 +6726,9 @@ private let audioSwitchTestMedia = URL(fileURLWithPath: #filePath)
         ),
         sourceReadMeter: meter,
         demuxSession: demuxSession,
-        rendererSink: FakeRendererInputSink()
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
     )
     try await session.prepare(
         url: fixture,

@@ -11,6 +11,7 @@ enum CorePlaybackError: LocalizedError {
     case mediaInputTruncated(deliveredEndSeconds: Double?, declaredDurationSeconds: Double)
     case audioPrerollTimedOut(Double)
     case firstVideoFrameTimedOut(Double, rendererError: String?)
+    case videoDecoderStalled(attempts: Int)
     case seekTimedOut(Double)
     case seekSuperseded(Double)
     case stereoOverrideUnavailable(VideoStereoLayout?)
@@ -40,6 +41,7 @@ enum CorePlaybackError: LocalizedError {
                     + "seconds after playback started."
             }
         case .seekTimedOut(let seconds): "Seek to \(seconds) seconds did not reach renderer input coordination."
+        case .videoDecoderStalled(let attempts): "Video decoding produced no frames after \(attempts) recovery attempts."
         case .seekSuperseded(let seconds): "Seek to \(seconds) seconds was superseded by a newer request."
         case .stereoOverrideUnavailable(let layout):
             "Stereo layout \(layout?.rawValue ?? "source") cannot be applied after the video input ended."

@@ -94,6 +94,9 @@ extension SampleBufferPlaybackSession {
                 "demuxBuffer": demuxBufferTraceFields
             ]
         )
+        observeDisplayStallStatus(
+            hostSeconds: CMClockGetTime(CMClockGetHostTimeClock()).seconds
+        )
         onDiagnosticsChange?(diagnostics)
     }
 
@@ -682,6 +685,26 @@ extension SampleBufferPlaybackSession {
         return prerollFramesBeyondTarget > outputLagFrames
     }
 
+    func recordFirstAcceptedFrameForensics(
+        presentationTime: CMTime,
+        decodeTime: CMTime,
+        sample: CMSampleBuffer
+    ) {
+        guard streamEpoch != lastForensicEpoch else { return }
+        lastForensicEpoch = streamEpoch
+        var sync = "unknown"
+        if let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: false) as? [[String: Any]],
+           let first = attachments.first {
+            let notSync = first[kCMSampleAttachmentKey_NotSync as String] as? Bool
+            sync = (notSync == true) ? "notSync" : "sync"
+        }
+        PlaybackTrace.event(
+            "session.videoDelivery.firstAcceptedFrame id=\(traceID) "
+            + "epoch=\(streamEpoch) pts=\(presentationTime.seconds) dts=\(decodeTime.seconds) "
+            + "sync=\(sync) target=\(requestedTimelineStart.seconds)"
+        )
+    }
+
     func recordPausedSeekCoverageCandidate(_ presentationTime: CMTime) {
         guard requestedTimelineStart.isNumeric else { return }
         guard presentationTime.seconds
@@ -691,6 +714,18 @@ extension SampleBufferPlaybackSession {
         }
         guard prerollCoveringPresentationTime.map({ presentationTime > $0 }) ?? true else { return }
         prerollCoveringPresentationTime = presentationTime
+    }
+
+    func videoPrerollGateIsSatisfied() -> Bool {
+        videoPrerollDisplayIsReady()
+    }
+
+    func videoPrerollDisplayIsReady() -> Bool {
+        if let probe = videoPrerollDisplayObservation {
+            return probe()
+        }
+        let current = observeDisplayedFrame() ?? displayedFrameObservationCount
+        return current > videoPrerollDisplayBaseline
     }
 
     func activatePausedSeekTimeline(
@@ -720,6 +755,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func resetDecoderBootstrap() {
+        videoPrerollDisplayBaseline = displayedFrameObservationCount
         decoderBootstrapLock.withLock {
             decoderBootstrapComplete = false
             decoderBootstrapTargetSeconds = nil
@@ -730,6 +766,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func beginDecoderBootstrap(target: CMTime) {
+        videoPrerollDisplayBaseline = displayedFrameObservationCount
         let targetSeconds = numericSeconds(target) ?? 0
         let record = decoderBootstrapLock.withLock {
             decoderBootstrapTargetSeconds = targetSeconds
@@ -1126,6 +1163,96 @@ extension SampleBufferPlaybackSession {
             outcome: outcome,
             details: ["operationID": operation.operationID]
         )
+    }
+
+    static let displayStallWindowSeconds = 2.0
+    static let displayStallDroppedThreshold = 10
+    static let decoderWedgeWindowSeconds = 5.0
+    static let decoderWedgeAcceptedThreshold = 10
+    static let decoderWedgeMaxAttempts = 5
+    static let decoderWedgeCooldownSeconds = 10.0
+
+    func observeDisplayStallStatus(hostSeconds: Double) {
+        let displayed = displayedFrameObservationCount
+        let dropped = videoRendererDroppedCountObservation?() ?? diagnostics.rendererDroppedFrameCount
+        let accepted = diagnostics.enqueuedSampleCount
+        guard timelineStartRate > 0,
+              mediaKind == .video,
+              activeOperation?.kind != .seek else {
+            resetDisplayStallWindow(displayed: displayed, dropped: dropped, accepted: accepted, at: hostSeconds)
+            return
+        }
+        guard let dropped,
+              displayed == displayStallWindowDisplayedCount else {
+            resetDisplayStallWindow(displayed: displayed, dropped: dropped, accepted: accepted, at: hostSeconds)
+            return
+        }
+        let start = displayStallWindowStartHostSeconds ?? hostSeconds
+        let baseDropped = displayStallWindowDroppedCount ?? dropped
+        if !isPrerolling, synchronizer.rate > 0,
+           hostSeconds - start >= Self.displayStallWindowSeconds,
+           dropped - baseDropped >= Self.displayStallDroppedThreshold {
+            resetDisplayStallWindow(displayed: displayed, dropped: dropped, accepted: accepted, at: hostSeconds)
+            beginDisplayStallRecovery()
+            return
+        }
+        let baseAccepted = displayStallWindowAcceptedCount ?? accepted
+        guard synchronizer.rate > 0 || isPrerolling,
+              hostSeconds - start >= Self.decoderWedgeWindowSeconds,
+              dropped - baseDropped <= 2,
+              accepted - baseAccepted >= Self.decoderWedgeAcceptedThreshold,
+              let anchorSeconds = numericSeconds(requestedTimelineStart),
+              acceptedVideoCoversTarget(anchorSeconds) else { return }
+        resetDisplayStallWindow(displayed: displayed, dropped: dropped, accepted: accepted, at: hostSeconds)
+        launchWedgeRecovery(hostSeconds: hostSeconds)
+    }
+
+    func resetDisplayStallWindow(displayed: UInt64, dropped: Int?, accepted: Int, at hostSeconds: Double) {
+        displayStallWindowStartHostSeconds = hostSeconds
+        displayStallWindowDisplayedCount = displayed
+        displayStallWindowDroppedCount = dropped
+        displayStallWindowAcceptedCount = accepted
+    }
+
+    func launchWedgeRecovery(hostSeconds: Double) {
+        let decision = wedgeRecoveryLock.withLock { () -> WedgeRecoveryDecision in
+            if isClosed || wedgeRecoveryRequested { return .ignore }
+            if let last = lastWedgeRecoveryHostSeconds,
+               hostSeconds - last < Self.decoderWedgeCooldownSeconds {
+                return .ignore
+            }
+            if wedgeRecoveryAttempts >= Self.decoderWedgeMaxAttempts { return .exhausted }
+            wedgeRecoveryAttempts += 1
+            lastWedgeRecoveryHostSeconds = hostSeconds
+            wedgeRecoveryRequested = true
+            return .request
+        }
+        switch decision {
+        case .request:
+            break
+        case .exhausted:
+            failWedgedDecoder()
+        case .ignore:
+            break
+        }
+    }
+
+    enum WedgeRecoveryDecision {
+        case request
+        case exhausted
+        case ignore
+    }
+
+    func consumeWedgeRecoveryRequest() -> Bool {
+        wedgeRecoveryLock.withLock {
+            guard wedgeRecoveryRequested else { return false }
+            wedgeRecoveryRequested = false
+            return true
+        }
+    }
+
+    func resetWedgeRecoveryAttempts() {
+        wedgeRecoveryLock.withLock { wedgeRecoveryAttempts = 0 }
     }
 
     func recordRendererState(at time: CMTime) {

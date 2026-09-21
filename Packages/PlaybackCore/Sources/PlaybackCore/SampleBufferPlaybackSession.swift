@@ -378,6 +378,20 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         videoRendererGraphLock.withLock { videoRendererGraph.revision }
     }
     var displayedFrameObservationCount: UInt64 = 0
+    var videoPrerollDisplayBaseline: UInt64 = 0
+    var lastForensicEpoch: UInt64 = 0
+    let videoPrerollDisplayObservation: (@Sendable () -> Bool)?
+    let videoRendererReadyObservation: (@Sendable () -> Bool)?
+    let videoRendererDroppedCountObservation: (@Sendable () -> Int?)?
+    var displayStallWindowStartHostSeconds: Double?
+    var displayStallWindowDisplayedCount: UInt64?
+    var displayStallWindowDroppedCount: Int?
+    var displayStallWindowAcceptedCount: Int?
+    let wedgeRecoveryLock = NSLock()
+    var wedgeRecoveryRequested = false
+    var wedgeRecoveryAttempts = 0
+    var lastWedgeRecoveryHostSeconds: Double?
+    var wedgeFailureReported = false
     var videoEnqueueLeadWindowMinSeconds: Double?
     var videoEnqueueGapWindowMaxSeconds: Double?
     var lastVideoEnqueueHostSeconds: Double?
@@ -464,6 +478,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         rendererFailureMonitor: RendererFailureMonitoring? = nil,
         firstVideoFrameDeadline: Duration = .seconds(5),
         firstVideoFrameObservation: (@Sendable () -> Bool)? = nil,
+        videoPrerollDisplayObservation: (@Sendable () -> Bool)? = nil,
+        videoRendererReadyObservation: (@Sendable () -> Bool)? = nil,
+        videoRendererDroppedCountObservation: (@Sendable () -> Int?)? = nil,
         activationReapplyVerificationConfiguration:
             PlaybackActivationReapplyVerificationConfiguration = .processDefault,
         activationReapplyVerificationHooks: PlaybackActivationReapplyVerificationHooks = .init()
@@ -484,6 +501,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         )
         self.firstVideoFrameDeadline = firstVideoFrameDeadline
         self.firstVideoFrameObservation = firstVideoFrameObservation
+        self.videoPrerollDisplayObservation = videoPrerollDisplayObservation
+        self.videoRendererReadyObservation = videoRendererReadyObservation
+        self.videoRendererDroppedCountObservation = videoRendererDroppedCountObservation
         self.activationReapplyVerificationConfiguration =
             activationReapplyVerificationConfiguration
         self.activationReapplyVerificationHooks = activationReapplyVerificationHooks

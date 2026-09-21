@@ -11,6 +11,8 @@ public enum PlaybackDeliveryContinuityDetectionSource: String, Codable, Sendable
     case blockedLanes
     case hostWatchdog
     case deliveryLag
+    case displayStall
+    case decoderStall
 }
 
 public struct PlaybackDeliveryContinuityEvidence: Codable, Sendable, Equatable {
@@ -146,7 +148,8 @@ struct PlaybackDeliveryContinuity: Sendable {
         rateApplicationGeneration: UInt64,
         videoStreamEpoch: UInt64,
         audioStreamEpoch: UInt64,
-        requestedRate: Float
+        requestedRate: Float,
+        detectionSource: PlaybackDeliveryContinuityDetectionSource = .deliveryLag
     ) -> PlaybackDeliveryContinuityObservation? {
         guard lagStarvation == nil, frozenMediaTime.isNumeric else { return nil }
         let activeRequiredLanes = mediaState.requiredLanes.subtracting(
@@ -161,7 +164,7 @@ struct PlaybackDeliveryContinuity: Sendable {
         nextLagIncidentID &+= 1
         let evidence = PlaybackDeliveryContinuityEvidence(
             incidentID: nextLagIncidentID,
-            detectionSource: .deliveryLag,
+            detectionSource: detectionSource,
             watchdogCause: nil,
             requiredLanes: activeRequiredLanes.map(\.rawValue).sorted(),
             rateApplicationGeneration: rateApplicationGeneration,

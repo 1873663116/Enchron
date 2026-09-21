@@ -259,8 +259,10 @@ private func makeActivationReapplySession(
     subtitleProvider: NoSubtitleProvider(),
     rendererSink: ReapplyNullVideoSink(),
     audioRendererSink: ReapplyNullAudioSink(),
+    videoPrerollDisplayObservation: { true },
+    videoRendererReadyObservation: { true },
     activationReapplyVerificationConfiguration: configuration,
-    activationReapplyVerificationHooks: harness.hooks
+    activationReapplyVerificationHooks: harness.hooks,
   )
   session.hasAudio = hasAudio
   session.timelineStartRate = 1

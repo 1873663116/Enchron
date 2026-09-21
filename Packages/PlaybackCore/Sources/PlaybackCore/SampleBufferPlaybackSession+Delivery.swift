@@ -250,6 +250,10 @@ extension SampleBufferPlaybackSession {
 
     func deliverSamples(generation: UInt64) async {
         while isCurrentVideoDelivery(generation), !isClosed, !isResetting {
+            if consumeWedgeRecoveryRequest() {
+                await recoverWedgedDecoder()
+                guard isCurrentVideoDelivery(generation), !isClosed, !isResetting else { return }
+            }
             let sampleOrdinal = UInt64(diagnostics.enqueuedSampleCount + 1)
             let sourceSample: CMSampleBuffer
             if let pendingSample = currentPendingVideoSample() {
@@ -302,7 +306,7 @@ extension SampleBufferPlaybackSession {
                         await handleProviderControlEvent(.flush)
                         return
                     case .end:
-                        finishDelivery()
+                        await finishDelivery()
                         return
                     }
                     guard isCurrentVideoDelivery(generation), !isClosed, !isResetting else {
@@ -445,7 +449,16 @@ extension SampleBufferPlaybackSession {
                     presentationTime: presentationTime,
                     decodeTime: decodeTime
                 )
-                try await waitForBoundedVideoLead(presentationTime: presentationTime)
+                if try await waitForBoundedVideoLead(presentationTime: presentationTime, generation: generation) { return }
+                guard isCurrentVideoDelivery(generation), !isClosed, !isResetting else {
+                    PlaybackTrace.event(
+                        "session.videoDelivery.staleSampleDropped id=\(traceID) "
+                        + "pts=\(presentationTime.seconds) dts=\(decodeTime.seconds) "
+                        + "requiredGeneration=\(generation) epochNow=\(streamEpoch) "
+                        + "closed=\(isClosed) resetting=\(isResetting)"
+                    )
+                    return
+                }
                 emitPlaybackDeliveryStage(
                     lane: "video",
                     stage: "boundedLead.returned",
@@ -516,6 +529,11 @@ extension SampleBufferPlaybackSession {
                 decodeTime: decodeTime,
                 presentationEnd: presentationEnd
             )
+            recordFirstAcceptedFrameForensics(
+                presentationTime: presentationTime,
+                decodeTime: decodeTime,
+                sample: formatSignaledSample
+            )
             recordPausedSeekCoverageCandidate(presentationTime)
             let bootstrap = recordAcceptedDecoderBootstrapSample(
                 decodeTime: decodeTime,
@@ -542,10 +560,12 @@ extension SampleBufferPlaybackSession {
                         capturedVideoDeliveryGeneration: generation
                     )
                 }
-            } else if isPrerolling, timelineStartRate > 0, bootstrap.complete, targetReached {
+            } else if isPrerolling, timelineStartRate > 0, bootstrap.complete, targetReached,
+                videoPrerollGateIsSatisfied() {
                 if synchronizer.rate == timelineStartRate {
                     isPrerolling = false
                     clearPrerollRequirement()
+                    resetWedgeRecoveryAttempts()
                     recordTimelineControlState()
                     publishTargetTimelineState(
                         at: targetTimelineTime(fallback: presentationTime)
@@ -559,63 +579,11 @@ extension SampleBufferPlaybackSession {
                         "bootstrapComplete=true alreadyRunning=true"
                     )
                 } else {
-                let activationTime = pausedTimelineActivationTime(
-                    target: targetTimelineTime(fallback: presentationTime),
-                    firstDisplayablePresentationTime: presentationTime
-                )
-                do {
-                    let audioRequirement = requiredPreroll
-                        ?? PlaybackBufferingPolicy.seekRequirement(
-                            target: activationTime,
-                            durationSeconds: diagnostics.durationSeconds
-                        )
-                    try await waitForAudioPreroll(
-                        through: audioRequirement.audioEnd,
-                        after: audioRequirement.timelineStart
+                    await activatePlayingPrerollFromBootstrap(
+                        presentationTime: presentationTime,
+                        immediateEnqueueCount: bootstrap.immediateEnqueueCount,
+                        capturedVideoDeliveryGeneration: generation
                     )
-                } catch {
-                    guard isCurrentVideoDelivery(generation), !isClosed else { return }
-                    guard !(error is CancellationError), !Task.isCancelled else { return }
-                    retireAudio(
-                        after: error,
-                        node: .rendererInputCoordination,
-                        kind: "audioRenderer.prerollFailed.videoContinues"
-                    )
-                }
-                let activationSequence = activationObservation.beginActivation(
-                    requestedRate: timelineStartRate,
-                    anchorTime: activationTime
-                )
-                setTimelineStopped(
-                    at: activationTime,
-                    reason: .decoderBootstrapPreActivation,
-                    capturedVideoDeliveryGeneration: generation
-                )
-                setRateAtHostTime(
-                    timelineStartRate,
-                    time: activationTime,
-                    reason: .decoderBootstrap,
-                    capturedVideoDeliveryGeneration: generation
-                )
-                if let activationSequence {
-                    activationObservation.rateApplicationReturned(
-                        sequence: activationSequence
-                    )
-                }
-                recordAudioRateActivation(
-                    rate: timelineStartRate,
-                    time: activationTime,
-                    reason: "decoderBootstrap"
-                )
-                isPrerolling = false
-                clearPrerollRequirement()
-                recordTimelineControlState()
-                publishTargetTimelineState(at: activationTime)
-                publishDiagnostics(at: activationTime, force: true)
-                PlaybackTrace.event(
-                    "session.timeline.activated id=\(traceID) rate=\(timelineStartRate) " +
-                    "bootstrapComplete=true immediateSamples=\(bootstrap.immediateEnqueueCount)"
-                )
                 }
             } else if shouldAnchorTimeline, !isPrerolling {
                 let activationTime = targetTimelineTime(fallback: presentationTime)
@@ -793,6 +761,103 @@ extension SampleBufferPlaybackSession {
                 "requiredAudioEndSeconds": String(requirement.audioEnd.seconds),
                 "requiredVideoEndSeconds": String(requirement.videoEnd.seconds),
                 "timelineSeconds": String(timelineTime.seconds)
+            ]
+        )
+        publishTargetTimelineState(at: timelineTime)
+        publishDiagnostics(at: timelineTime, force: true)
+    }
+
+    func recoverWedgedDecoder() async {
+        guard !isClosed else { return }
+        guard !isPrerolling, timelineStartRate > 0, mediaKind != .audioOnly,
+              activeOperation?.kind != .seek else { return }
+        let anchor = timelineClockReading().mediaTime
+        guard anchor.isNumeric else { return }
+        let attempt = wedgeRecoveryLock.withLock { wedgeRecoveryAttempts }
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "timeline.decoderStallRecovery.started",
+            outcome: .succeeded,
+            details: [
+                "attempt": String(attempt),
+                "anchorSeconds": String(anchor.seconds)
+            ]
+        )
+        do {
+            try await seek(to: anchor, startsPaused: false, removingDisplayedImage: false)
+        } catch {
+            guard !(error is CancellationError), !Task.isCancelled else { return }
+            debugStore.emit(
+                mediaSessionID: traceID,
+                node: .rendererInputCoordination,
+                kind: "timeline.decoderStallRecovery.seekEnded",
+                outcome: .succeeded,
+                details: [
+                    "attempt": String(attempt),
+                    "error": String(describing: error)
+                ]
+            )
+        }
+    }
+
+    func failWedgedDecoder() {
+        guard !isClosed else { return }
+        let attempts = wedgeRecoveryLock.withLock { () -> Int? in
+            guard wedgeFailureReported == false else { return nil }
+            wedgeFailureReported = true
+            return wedgeRecoveryAttempts
+        }
+        guard let attempts else { return }
+        let error = CorePlaybackError.videoDecoderStalled(attempts: attempts)
+        recordFailure(
+            error,
+            node: .rendererInputCoordination,
+            kind: "videoRenderer.decoderStallUnrecovered"
+        )
+        publishFailureStatus(error, context: .decoder(.rendererRequiresFlush))
+        onStatusChange?(.failed(error.localizedDescription))
+    }
+
+    func beginDisplayStallRecovery() {
+        let timelineTime = timelineClockReading().mediaTime
+        guard timelineTime.isNumeric else { return }
+        requestedTimelineStart = timelineTime
+        isPrerolling = true
+        videoPrerollDisplayBaseline = displayedFrameObservationCount
+        let stoppedRun = timelineProgressRecoveryLock.withLock {
+            timelineProgressRecovery.currentRun
+        }
+        setTimelineStopped(
+            at: timelineTime,
+            reason: .displayStallRecovery,
+            capturedVideoDeliveryGeneration: nil
+        )
+        recordTimelineControlState()
+        let mediaState = deliveryContinuityMediaState()
+        let stallObservation = timelineProgressRecoveryLock.withLock {
+            deliveryContinuity.observeDeliveryLag(
+                frozenMediaTime: timelineTime,
+                mediaState: mediaState,
+                rateApplicationGeneration: stoppedRun?.generation ?? 0,
+                videoStreamEpoch: streamEpoch,
+                audioStreamEpoch: audioStreamEpoch,
+                requestedRate: timelineStartRate,
+                detectionSource: .displayStall
+            )
+        }
+        if let stallObservation {
+            publishDeliveryContinuity(stallObservation)
+        }
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "timeline.displayStallRecovery.started",
+            outcome: .succeeded,
+            details: [
+                "timelineSeconds": String(timelineTime.seconds),
+                "displayedFrameObservationCount": String(displayedFrameObservationCount),
+                "droppedFrames": diagnostics.rendererDroppedFrameCount.map(String.init) ?? "none"
             ]
         )
         publishTargetTimelineState(at: timelineTime)
@@ -981,6 +1046,7 @@ extension SampleBufferPlaybackSession {
                     decodeTime: decodeTime
                 )
                 try await waitForBoundedAudioLead(presentationTime: presentationTime)
+                guard !isClosed, !isResetting else { return }
                 emitPlaybackDeliveryStage(
                     lane: "audio",
                     stage: "boundedLead.returned",
@@ -1242,11 +1308,114 @@ extension SampleBufferPlaybackSession {
         videoFramesInFlightLock.withLock { videoFramesInFlight.removeAll() }
     }
 
-    func waitForBoundedVideoLead(presentationTime: CMTime) async throws {
-        guard presentationTime.isNumeric else { return }
+    func activatePlayingPrerollFromBootstrap(
+        presentationTime: CMTime,
+        immediateEnqueueCount: UInt64,
+        capturedVideoDeliveryGeneration: UInt64?
+    ) async {
+        let activationTime = pausedTimelineActivationTime(
+            target: targetTimelineTime(fallback: presentationTime),
+            firstDisplayablePresentationTime: presentationTime
+        )
+        do {
+            let audioRequirement = prerollRequirementLock.withLock { prerollRequirement }
+                ?? PlaybackBufferingPolicy.seekRequirement(
+                    target: activationTime,
+                    durationSeconds: diagnostics.durationSeconds
+                )
+            try await waitForAudioPreroll(
+                through: audioRequirement.audioEnd,
+                after: audioRequirement.timelineStart
+            )
+        } catch {
+            if let generation = capturedVideoDeliveryGeneration,
+               !isCurrentVideoDelivery(generation) || isClosed {
+                return
+            }
+            if isClosed { return }
+            guard !(error is CancellationError), !Task.isCancelled else { return }
+            retireAudio(
+                after: error,
+                node: .rendererInputCoordination,
+                kind: "audioRenderer.prerollFailed.videoContinues"
+            )
+        }
+        let activationSequence = activationObservation.beginActivation(
+            requestedRate: timelineStartRate,
+            anchorTime: activationTime
+        )
+        setTimelineStopped(
+            at: activationTime,
+            reason: .decoderBootstrapPreActivation,
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration
+        )
+        setRateAtHostTime(
+            timelineStartRate,
+            time: activationTime,
+            reason: .decoderBootstrap,
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration
+        )
+        if let activationSequence {
+            activationObservation.rateApplicationReturned(
+                sequence: activationSequence
+            )
+        }
+        recordAudioRateActivation(
+            rate: timelineStartRate,
+            time: activationTime,
+            reason: "decoderBootstrap"
+        )
+        isPrerolling = false
+        clearPrerollRequirement()
+        recordTimelineControlState()
+        publishTargetTimelineState(at: activationTime)
+        publishDiagnostics(at: activationTime, force: true)
+        PlaybackTrace.event(
+            "session.timeline.activated id=\(traceID) rate=\(timelineStartRate) " +
+            "bootstrapComplete=true immediateSamples=\(immediateEnqueueCount)"
+        )
+        resetWedgeRecoveryAttempts()
+    }
+
+    func videoRendererWantsMoreMediaData() -> Bool {
+        videoRendererReadyObservation?() ?? renderer.isReadyForMoreMediaData
+    }
+
+    func prerollTargetReached(presentationTime: CMTime) -> Bool {
+        let requiredVideoEnd = prerollRequirementLock.withLock({ prerollRequirement })?.videoEnd
+            ?? requestedTimelineStart
+        return requiredVideoEnd.isNumeric == false
+            || presentationTime >= requiredVideoEnd
+    }
+
+    func decoderBootstrapIsComplete() -> Bool {
+        decoderBootstrapLock.withLock { decoderBootstrapComplete }
+    }
+
+    func decoderBootstrapImmediateCount() -> UInt64 {
+        decoderBootstrapLock.withLock { decoderBootstrapImmediateEnqueueCount }
+    }
+
+    func waitForBoundedVideoLead(presentationTime: CMTime, generation: UInt64) async throws -> Bool {
+        guard presentationTime.isNumeric else { return false }
         while true {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
+            if consumeWedgeRecoveryRequest() {
+                await recoverWedgedDecoder()
+                return true
+            }
+            if isPrerolling, timelineStartRate > 0,
+               isCurrentVideoDelivery(generation),
+               decoderBootstrapIsComplete(),
+               prerollTargetReached(presentationTime: presentationTime),
+               videoPrerollGateIsSatisfied() {
+                await activatePlayingPrerollFromBootstrap(
+                    presentationTime: presentationTime,
+                    immediateEnqueueCount: decoderBootstrapImmediateCount(),
+                    capturedVideoDeliveryGeneration: generation
+                )
+            }
             let budget = videoLeadFrames
             let reading = timelineClockReading()
             let reference = leadReferenceSeconds(reading)
@@ -1257,6 +1426,7 @@ extension SampleBufferPlaybackSession {
                 )
             }
             let isBlocked = framesInFlight >= budget
+                || !videoRendererWantsMoreMediaData()
                 || (timelineProgressRecoveryIsEligible && reading.directRate == 0)
             observeLeadDecision(
                 lane: .video,
@@ -1264,7 +1434,7 @@ extension SampleBufferPlaybackSession {
                 presentationTime: presentationTime,
                 reading: reading
             )
-            if !isBlocked { return }
+            if !isBlocked { return false }
             try await Task.sleep(for: leadRetryDelay(
                 until: earliestRetirement,
                 from: reference,
@@ -2297,11 +2467,20 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func finishDelivery() {
+    func finishDelivery() async {
         markVideoProviderEnded()
         if isPrerolling, timelineStartRate == 0, pausedSeekAwaitsCoverage {
             activatePausedSeekTimeline(
                 fallback: targetTimelineTime(fallback: .zero),
+                capturedVideoDeliveryGeneration: nil
+            )
+        } else if isPrerolling, timelineStartRate > 0, playingPrerollEndedWithTargetCovered {
+            await activatePlayingPrerollFromBootstrap(
+                presentationTime: maximumAcceptedVideoPresentationTime
+                    ?? targetTimelineTime(fallback: .zero),
+                immediateEnqueueCount: decoderBootstrapLock.withLock {
+                    decoderBootstrapImmediateEnqueueCount
+                },
                 capturedVideoDeliveryGeneration: nil
             )
         }
@@ -2556,6 +2735,14 @@ extension SampleBufferPlaybackSession {
             kind: "timeline.truncated"
         )
         publishFailureStatus(error, context: .sourceRead(.mediaDataCorrupt))
+    }
+
+    var playingPrerollEndedWithTargetCovered: Bool {
+        guard decoderBootstrapLock.withLock({ decoderBootstrapComplete }) else { return false }
+        let requiredVideoEnd = prerollRequirementLock.withLock({ prerollRequirement })?.videoEnd
+            ?? requestedTimelineStart
+        guard requiredVideoEnd.isNumeric else { return true }
+        return acceptedVideoCoversTarget(requiredVideoEnd.seconds)
     }
 
     func claimEndReport() -> Bool {
