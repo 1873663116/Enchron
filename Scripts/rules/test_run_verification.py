@@ -127,10 +127,8 @@ class PoisonedBuildDirectoryTests(unittest.TestCase):
         def run_logged(*arguments, **keywords):
             recorded.extend(arguments[1])
             return (
-                1,
-                "Test controllerRejectsSecondOpenAndRecordsTheRejection() "
-                "failed after 0.1 seconds with 1 issue.\n"
-                "Test run with 1 test in 1 suite failed after 0.1 seconds.\n",
+                0,
+                "Test run with 1 test in 1 suite passed after 0.1 seconds.\n",
             )
 
         with tempfile.TemporaryDirectory() as directory:

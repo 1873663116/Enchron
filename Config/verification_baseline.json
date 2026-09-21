@@ -1,7 +1,5 @@
 {
-  "playbackCoreExpectedFailures": [
-    "controllerRejectsSecondOpenAndRecordsTheRejection"
-  ],
+  "playbackCoreExpectedFailures": [],
   "playbackCoreIntermittentTimeout": {
     "markers": [
       "Timed out",
