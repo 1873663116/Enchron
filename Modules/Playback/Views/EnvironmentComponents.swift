@@ -6,10 +6,6 @@ public struct FeaturedEnvironment: Identifiable {
     public let lightImageName: String
     public let darkImageName: String
     public let title: String
-    public let environmentNumber: String
-    public let quote: String
-    public let mode: String
-    public let atmosphere: String
 
     public var id: String { environment.rawValue }
 
@@ -33,41 +29,25 @@ public struct FeaturedEnvironment: Identifiable {
             environment: .ocean,
             lightImageName: "EnvironmentOcean",
             darkImageName: "EnvironmentOceanDark",
-            title: String(localized: "Ocean"),
-            environmentNumber: String(localized: "Environment 01"),
-            quote: String(localized: "\"Open water under a slow sky, the screen mirrored in the swell.\""),
-            mode: String(localized: "Open water"),
-            atmosphere: String(localized: "Light Mode / Dark Mode")
+            title: String(localized: "Ocean")
         ),
         .init(
             environment: .placeholderRed,
             lightImageName: "EnvironmentPlaceholderRed",
             darkImageName: "EnvironmentPlaceholderRedDark",
-            title: "Red",
-            environmentNumber: "Environment 02",
-            quote: "\"A solid red placeholder for a future environment.\"",
-            mode: "Placeholder",
-            atmosphere: "Light Mode / Dark Mode"
+            title: "Red"
         ),
         .init(
             environment: .placeholderGreen,
             lightImageName: "EnvironmentPlaceholderGreen",
             darkImageName: "EnvironmentPlaceholderGreenDark",
-            title: "Green",
-            environmentNumber: "Environment 03",
-            quote: "\"A solid green placeholder for a future environment.\"",
-            mode: "Placeholder",
-            atmosphere: "Light Mode / Dark Mode"
+            title: "Green"
         ),
         .init(
             environment: .placeholderBlue,
             lightImageName: "EnvironmentPlaceholderBlue",
             darkImageName: "EnvironmentPlaceholderBlueDark",
-            title: "Blue",
-            environmentNumber: "Environment 04",
-            quote: "\"A solid blue placeholder for a future environment.\"",
-            mode: "Placeholder",
-            atmosphere: "Light Mode / Dark Mode"
+            title: "Blue"
         )
     ]
 }
@@ -91,7 +71,7 @@ public struct EnvironmentCard: View {
 
         ZStack(alignment: .bottom) {
             backgroundImage
-            topMultiplyOverlay
+            topReadabilityScrim
             environmentInfoPanel
             topControls
         }
@@ -176,13 +156,12 @@ public struct EnvironmentCard: View {
         .opacity(Double(clampedDetailVisibility))
     }
 
-    private var topMultiplyOverlay: some View {
+    private var topReadabilityScrim: some View {
         VStack(spacing: 0) {
             Rectangle()
-                .fill(Color.black)
-                .blendMode(.multiply)
-                .mask(topMultiplyFadeMask)
-                .frame(height: DesignTokens.EnvironmentCard.topMultiplyHeight)
+                .fill(DesignTokens.Surface.textScrimMaterial)
+                .mask(topReadabilityMask)
+                .frame(height: DesignTokens.EnvironmentCard.topScrimHeight)
             Spacer(minLength: 0)
         }
         .frame(
@@ -193,53 +172,28 @@ public struct EnvironmentCard: View {
     }
 
     private var environmentInfoPanel: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(environment.title)
-                    .font(DesignTokens.Typography.title)
-                    .foregroundStyle(.white)
-                Spacer(minLength: DesignTokens.Spacing.md)
-                Text(environment.environmentNumber)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(
-                        .white.opacity(DesignTokens.EnvironmentCard.secondaryTextOpacity)
-                    )
-            }
-
-            Text(environment.quote)
-                .font(.title3)
+        HStack(alignment: .firstTextBaseline) {
+            Text(environment.title)
+                .font(DesignTokens.Typography.title)
                 .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(alignment: .bottom, spacing: DesignTokens.Spacing.sm) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                    Text("Mode: \(environment.mode)")
-                    Text("Atmosphere: \(environment.atmosphere)")
-                }
-                .foregroundStyle(
-                    .white.opacity(DesignTokens.EnvironmentCard.secondaryTextOpacity)
-                )
-                Spacer(minLength: 0)
-                Button(action: onSetDefault) {
-                    Label(isDefault ? "Default" : "Set as default",
-                          systemImage: isDefault ? "checkmark.circle.fill" : "circle")
-                }
-                .fixedSize()
-                .disabled(isDefault)
-                .accessibilityIdentifier("EnvironmentCard-default-\(environment.id)")
+            Spacer(minLength: DesignTokens.Spacing.md)
+            Button(action: onSetDefault) {
+                Label(isDefault ? "Default" : "Set as default",
+                      systemImage: isDefault ? "checkmark.circle.fill" : "circle")
             }
             .font(DesignTokens.Typography.metadata)
+            .fixedSize()
+            .disabled(isDefault)
+            .accessibilityIdentifier("EnvironmentCard-default-\(environment.id)")
         }
         .padding(.horizontal, DesignTokens.EnvironmentCard.informationPaddingH)
-        .padding(.top, DesignTokens.EnvironmentCard.informationPaddingTop)
         .padding(.bottom, DesignTokens.EnvironmentCard.informationPaddingBottom)
         .frame(width: DesignTokens.EnvironmentCard.width,
                height: DesignTokens.EnvironmentCard.informationHeight,
-               alignment: .topLeading)
+               alignment: .bottomLeading)
         .background {
             Rectangle()
-                .fill(Color.black)
-                .blendMode(.multiply)
+                .fill(DesignTokens.Surface.textScrimMaterial)
                 .mask(infoMaterialFadeMask)
         }
         .opacity(Double(clampedDetailVisibility))
@@ -247,28 +201,23 @@ public struct EnvironmentCard: View {
 
     private var infoMaterialFadeMask: some View {
         LinearGradient(
-            stops: [
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMinOpacity), location: 0),
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.34), location: 0.08),
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.52), location: 0.18),
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.62), location: 0.42),
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.72), location: 0.68),
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.92), location: 0.88),
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity), location: 1)
-            ],
+            stops: readabilityScrimStops,
             startPoint: .top,
             endPoint: .bottom
         )
     }
 
-    private var topMultiplyFadeMask: some View {
+    private var topReadabilityMask: some View {
         LinearGradient(
-            stops: [
-                .init(color: .white.opacity(DesignTokens.EnvironmentCard.topFadeMaxOpacity), location: 0),
-                .init(color: .clear, location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
+            stops: readabilityScrimStops,
+            startPoint: .bottom,
+            endPoint: .top
+        )
+    }
+
+    private var readabilityScrimStops: [Gradient.Stop] {
+        DesignTokens.Surface.textScrimStops(
+            leadFraction: 1 - Double(DesignTokens.Surface.textScrimPlateauFraction)
         )
     }
 

@@ -336,17 +336,12 @@ public enum DesignTokens {
     public enum EnvironmentCard {
         public static let width: CGFloat = 500
         public static let height: CGFloat = 548
-        public static let informationHeight: CGFloat = 188
+        public static let informationHeight: CGFloat = 128
         public static let cornerRadius: CGFloat = Radius.card
         public static let chromePadding: CGFloat = 18
         public static let informationPaddingH: CGFloat = 36
-        public static let informationPaddingTop: CGFloat = 34
-        public static let informationPaddingBottom: CGFloat = 14
-        public static let secondaryTextOpacity: CGFloat = 0.72
-        public static let informationFadeMinOpacity: CGFloat = 0
-        public static let informationFadeMaxOpacity: CGFloat = 0.45
-        public static let topMultiplyHeight: CGFloat = 160
-        public static let topFadeMaxOpacity: CGFloat = 0.40
+        public static let informationPaddingBottom: CGFloat = Spacing.xl
+        public static let topScrimHeight: CGFloat = 112
         public static let atmosphericContrastReduction: CGFloat = 0.68
         public static let atmosphericDesaturation: CGFloat = 0.38
         public static let atmosphericBlurRadius: CGFloat = 2.6
