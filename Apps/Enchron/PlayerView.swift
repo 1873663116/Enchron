@@ -86,7 +86,9 @@ public struct PlayerView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
+#if DEBUG
     @Environment(SettingsViewModel.self) private var settingsViewModel
+#endif
 
     @State private var playbackDeckOpacity: Double = 0
     @State private var reapplyVerificationSnapshotTick = 0
@@ -126,11 +128,13 @@ public struct PlayerView: View {
 
     public var body: some View {
         platformContent
+#if DEBUG
             .developerStatsOverlay(
                 isEnabled: settingsViewModel.preferences.developerModeEnabled
                     && playbackSession.immersiveSpaceResidency == .closed,
                 sceneKey: .window
             )
+#endif
             .onChange(of: playbackRuntime.residency) { _, residency in
                 spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
             }

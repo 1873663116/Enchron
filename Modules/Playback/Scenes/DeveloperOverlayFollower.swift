@@ -1,3 +1,4 @@
+#if DEBUG
 import RealityKit
 import SwiftUI
 import simd
@@ -94,3 +95,21 @@ final class DeveloperOverlayFollower {
         )
     }
 }
+#else
+import RealityKit
+import SwiftUI
+
+@MainActor
+final class DeveloperOverlayFollower {
+    static let attachmentID = "developerStatsOverlay"
+
+    func setActive(
+        _ active: Bool,
+        attachment entity: Entity?,
+        in content: RealityViewContent,
+        headPoseSource: HeadPoseSource
+    ) {}
+
+    func stop() {}
+}
+#endif

@@ -13,8 +13,8 @@
   "defaultOptions" : {
     "targetForVariableExpansion" : {
       "containerPath" : "container:Enchron.xcodeproj",
-      "identifier" : "C3B0F97F2F5726B30064596E",
-      "name" : "Enchron"
+      "identifier" : "F300000E2FA5000100E1C001",
+      "name" : "EnchronDebug"
     }
   },
   "testTargets" : [

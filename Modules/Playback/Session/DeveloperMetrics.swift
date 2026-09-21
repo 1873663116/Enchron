@@ -1,8 +1,11 @@
-import Foundation
 import Observation
-import QuartzCore
 import RealityKit
+#if DEBUG
+import Foundation
+import QuartzCore
+#endif
 
+#if DEBUG
 public struct DeveloperProcessMetrics: Equatable, Sendable {
     public var footprintBytes: UInt64
     public var availableBytes: Int
@@ -147,6 +150,8 @@ final class MainThreadCadenceMonitor {
     }
 }
 
+#endif
+
 @MainActor
 public final class SceneTickSubscriber {
     private var subscription: EventSubscription?
@@ -166,6 +171,7 @@ public final class SceneTickSubscriber {
     public var isSubscribed: Bool { subscription != nil }
 }
 
+#if DEBUG
 @MainActor
 @Observable
 public final class DeveloperMetricsModel {
@@ -351,3 +357,23 @@ public final class DeveloperMetricsModel {
         }
     }
 }
+#else
+@MainActor
+@Observable
+public final class DeveloperMetricsModel {
+    public enum SceneKey: String, Sendable {
+        case window
+        case immersive
+    }
+
+    public private(set) var isRunning = false
+
+    public init() {}
+
+    public func recordSceneTick(_ key: SceneKey) {}
+
+    public func start() {}
+
+    public func stop() {}
+}
+#endif

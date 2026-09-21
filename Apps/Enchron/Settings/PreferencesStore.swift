@@ -38,13 +38,18 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
 
         let defaultSpeed = defaults.object(forKey: Self.defaultSpeedKey) as? Double ?? 1.0
         let controlsAutoHide = defaults.object(forKey: Self.controlsAutoHideKey) as? Int ?? 8
+#if DEBUG
+        let developerModeEnabled = defaults.bool(forKey: Self.developerModeKey)
+#else
+        let developerModeEnabled = false
+#endif
 
         return UserPreferences(
             resumePolicy: policy,
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
             controlsAutoHideSeconds: controlsAutoHide,
-            developerModeEnabled: defaults.bool(forKey: Self.developerModeKey),
+            developerModeEnabled: developerModeEnabled,
             surroundingsDimmingEnabled: defaults.object(forKey: Self.surroundingsDimmingKey) as? Bool ?? true
         )
     }
@@ -72,6 +77,9 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         defaults.set(preferences.defaultPlaybackSpeed, forKey: Self.defaultSpeedKey)
         defaults.set(preferences.controlsAutoHideSeconds, forKey: Self.controlsAutoHideKey)
         defaults.set(preferences.developerModeEnabled, forKey: Self.developerModeKey)
+#if !DEBUG
+        defaults.removeObject(forKey: Self.developerModeKey)
+#endif
         defaults.set(preferences.surroundingsDimmingEnabled, forKey: Self.surroundingsDimmingKey)
     }
 

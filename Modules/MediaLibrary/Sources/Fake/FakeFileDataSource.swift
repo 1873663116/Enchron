@@ -1,3 +1,4 @@
+#if DEBUG
 import Foundation
 import MediaSource
 
@@ -235,3 +236,4 @@ nonisolated extension FakeFileDataSource {
         }
     }
 }
+#endif

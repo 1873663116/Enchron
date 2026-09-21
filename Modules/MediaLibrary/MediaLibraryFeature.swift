@@ -121,6 +121,7 @@ private struct PersistedPreferences: Codable {
 
 @MainActor
 public final class MediaLibraryFeature {
+#if DEBUG
     public enum UITestDataset: String, Sendable {
         case standard
         case singleItem
@@ -129,9 +130,12 @@ public final class MediaLibraryFeature {
         case hierarchical
     }
 
+#endif
     public enum SourceMode: Sendable {
         case production
+#if DEBUG
         case uiTestFixture(sourceID: UUID, dataset: UITestDataset = .standard)
+#endif
     }
 
     public let browser: FileBrowsingViewModel
@@ -150,6 +154,7 @@ public final class MediaLibraryFeature {
         let localSource: any LocalFileSource
         let initialLibrary: FileBrowsingDomain.MediaLibrary?
 
+#if DEBUG
         switch sourceMode {
         case .production:
             sourceID = UUID()
@@ -163,6 +168,11 @@ public final class MediaLibraryFeature {
                 dataset: dataset
             )
         }
+#else
+        sourceID = UUID()
+        localSource = LocalDataSourceAdapter()
+        initialLibrary = nil
+#endif
 
         let resolver = MediaReferenceResolver()
         let uiState = MediaLibraryUIState(
@@ -211,6 +221,7 @@ public final class MediaLibraryFeature {
         self.uiState = uiState
     }
 
+#if DEBUG
     private static func makeUITestLibrary(
         sourceID: UUID,
         dataset: UITestDataset
@@ -270,4 +281,5 @@ public final class MediaLibraryFeature {
         }
         return library
     }
+#endif
 }

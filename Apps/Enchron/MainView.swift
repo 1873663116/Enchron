@@ -19,7 +19,9 @@ public struct MainView: View {
     private var spatialPlatformEffectCoordinator
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
     @Environment(SettingsViewModel.self) private var settingsViewModel
+#if DEBUG
     @Environment(DeveloperMetricsModel.self) private var developerMetrics
+#endif
 
     public init() {}
 
@@ -29,6 +31,7 @@ public struct MainView: View {
             spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
         }
         .enchronWindowGlassBackground(.always)
+#if DEBUG
         .developerStatsOverlay(
             isEnabled: settingsViewModel.preferences.developerModeEnabled
                 && playbackSession.immersiveSpaceResidency == .closed,
@@ -52,6 +55,7 @@ public struct MainView: View {
                 developerMetrics.enqueuedSampleCountSource = nil
             }
         }
+#endif
         .onAppear {
             playbackRuntime.onPlaybackEnded = {
                 playbackLauncher.handlePlaybackEnded()

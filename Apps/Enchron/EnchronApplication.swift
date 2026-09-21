@@ -398,10 +398,13 @@ final class EnchronApplication {
             }
         }
         playbackVideoEntityStore.onRealityKitContentTypeChanged = nil
+#if DEBUG
         let fixtureSourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
         let uiTestDataset = environment["ENCHRON_UI_TEST_LIBRARY_DATASET"]
             .flatMap(MediaLibraryFeature.UITestDataset.init(rawValue:))
             ?? .standard
+#endif
+#if DEBUG
         let mediaLibraryFeature = MediaLibraryFeature(
             sourceMode: isUITesting
                 ? .uiTestFixture(sourceID: fixtureSourceID, dataset: uiTestDataset)
@@ -414,6 +417,17 @@ final class EnchronApplication {
                 launcher.requestPlayback($0.playbackLaunchRequest)
             }
         )
+#else
+        let mediaLibraryFeature = MediaLibraryFeature(
+            defaultsSuiteName: mediaLibraryDefaultsSuiteName,
+            viewingStateProvider: Self.viewingStateProvider(launcher),
+            durationProbe: Self.durationProbe(launcher),
+            onPlay: {
+                SurfaceInputProbes.record("openRequestForwarded")
+                launcher.requestPlayback($0.playbackLaunchRequest)
+            }
+        )
+#endif
         let mediaLibrary = mediaLibraryFeature.library
         mediaLibrary.diagnosticProbe = { SurfaceInputProbes.record($0) }
         let browser = mediaLibraryFeature.browser

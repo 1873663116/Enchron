@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Checks that the test command channel cannot exist in a Release product.
+"""Checks that the test command channel cannot exist in the shipping product.
 
 The channel drives product state directly, without going through hit testing.
 That is what makes it useful to a UI test and what makes it unacceptable in a
@@ -24,7 +24,16 @@ PROJECT_FILE = "Enchron.xcodeproj/project.pbxproj"
 INSTALL_CALL = "installTestCommandChannelIfEnabled"
 INSTALL_SITE = "Apps/Enchron/EnchronApplication.swift"
 
+PRODUCTION_RELEASE_CONFIGURATION_IDS = (
+    "C3B0F99B2F5726B40064596E",
+    "C3B0F99D2F5726B40064596E",
+)
 RELEASE_CONFIGURATION = re.compile(
+    rf"(?:{'|'.join(PRODUCTION_RELEASE_CONFIGURATION_IDS)} )"
+    r"/\* Release \*/ = \{.*?\n\t\t\};",
+    re.DOTALL,
+)
+ANY_RELEASE_CONFIGURATION = re.compile(
     r"/\* Release \*/ = \{.*?\n\t\t\};", re.DOTALL
 )
 DEBUG_CONDITION = re.compile(
@@ -105,6 +114,8 @@ def release_configuration_failures() -> list[str]:
     source = path.read_text(encoding="utf-8")
     blocks = RELEASE_CONFIGURATION.findall(source)
     if not blocks:
+        blocks = ANY_RELEASE_CONFIGURATION.findall(source)
+    if not blocks:
         return [f"{PROJECT_FILE}: no Release build configuration was found"]
     failures = []
     for block in blocks:
@@ -133,8 +144,9 @@ def main() -> int:
         print(f"\n{len(found)} failures")
         return 1
     print(
-        "Release test channel absent: the channel file is entirely #if DEBUG, "
-        "its install site is guarded, and no Release configuration defines DEBUG"
+        "Shipping Release test channel absent: the channel file is entirely "
+        "#if DEBUG, its install site is guarded, and the shipping Enchron "
+        "Release configuration does not define DEBUG"
     )
     return 0
 

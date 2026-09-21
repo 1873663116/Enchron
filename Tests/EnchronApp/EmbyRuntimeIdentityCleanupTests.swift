@@ -18,7 +18,7 @@ nonisolated final class EmbyRuntimeIdentityCleanupTests: XCTestCase {
         )
 
         await assertOperationFailure(.invalidArguments) {
-            try await cleanup.perform {
+            try await perform(cleanup) {
                 throw OperationFailure.invalidArguments
             }
         }
@@ -32,7 +32,7 @@ nonisolated final class EmbyRuntimeIdentityCleanupTests: XCTestCase {
             fileManager: .default
         )
 
-        let receipt = try await cleanup.perform { "prepared" }
+        let receipt = try await perform(cleanup) { "prepared" }
 
         XCTAssertEqual(receipt, "prepared")
         XCTAssertFalse(FileManager.default.fileExists(atPath: identityURL.path))
@@ -46,7 +46,7 @@ nonisolated final class EmbyRuntimeIdentityCleanupTests: XCTestCase {
         )
 
         await assertOperationFailure(.downstreamPreparation) {
-            try await cleanup.perform {
+            try await perform(cleanup) {
                 throw OperationFailure.downstreamPreparation
             }
         }
@@ -62,7 +62,7 @@ nonisolated final class EmbyRuntimeIdentityCleanupTests: XCTestCase {
         )
 
         await assertOperationFailure(.missingIdentity) {
-            try await cleanup.perform {
+            try await perform(cleanup) {
                 throw OperationFailure.missingIdentity
             }
         }
@@ -82,7 +82,7 @@ nonisolated final class EmbyRuntimeIdentityCleanupTests: XCTestCase {
         )
 
         do {
-            _ = try await cleanup.perform { "prepared" }
+            _ = try await perform(cleanup) { "prepared" }
             XCTFail("Expected cleanup failure.")
         } catch {
             XCTAssertEqual(
@@ -123,6 +123,15 @@ nonisolated final class EmbyRuntimeIdentityCleanupTests: XCTestCase {
         } catch {
             XCTFail("Unexpected failure: \(type(of: error)).")
         }
+    }
+
+    private func perform<T: Sendable>(
+        _ cleanup: EmbyRuntimeIdentityCleanup,
+        operation: @escaping @MainActor () async throws -> T
+    ) async throws -> T {
+        try await Task { @MainActor in
+            try await cleanup.perform(operation)
+        }.value
     }
 }
 #endif

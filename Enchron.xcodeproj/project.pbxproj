@@ -24,6 +24,15 @@
 		E10000132FA1000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
 		E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
 		E22000032FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
+		F30000002FA5000100E1C001 /* AMSMB2 in Debug Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
+		F30000012FA5000100E1C001 /* PlaybackCore in Debug Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
+		F30000022FA5000100E1C001 /* RealityKitScripting in Debug Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
+		F30000032FA5000100E1C001 /* MediaSource in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FA1000100E1C001 /* MediaSource */; };
+		F30000042FA5000100E1C001 /* Playback in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* Playback */; };
+		F30000052FA5000100E1C001 /* DesignSystem in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
+		F30000062FA5000100E1C001 /* MediaLibrary in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
+		F30000072FA5000100E1C001 /* Emby in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
+		F30000082FA5000100E1C001 /* AMSMB2 in Debug Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -31,22 +40,22 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = C3B0F97F2F5726B30064596E;
-			remoteInfo = Enchron;
+			remoteGlobalIDString = F300000E2FA5000100E1C001;
+			remoteInfo = EnchronDebug;
 		};
 		E2E0000800000000DEADBEEF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = C3B0F97F2F5726B30064596E;
-			remoteInfo = Enchron;
+			remoteGlobalIDString = F300000E2FA5000100E1C001;
+			remoteInfo = EnchronDebug;
 		};
 		F1A0000800000000DEADBEEF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
 			proxyType = 1;
-			remoteGlobalIDString = C3B0F97F2F5726B30064596E;
-			remoteInfo = Enchron;
+			remoteGlobalIDString = F300000E2FA5000100E1C001;
+			remoteInfo = EnchronDebug;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -58,6 +67,17 @@
 			dstSubfolderSpec = 10;
 			files = (
 				A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F300000C2FA5000100E1C001 /* Debug Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F30000082FA5000100E1C001 /* AMSMB2 in Debug Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -76,6 +96,7 @@
 
 /* Begin PBXFileReference section */
 		C3B0F9802F5726B30064596E /* Enchron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchron.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F300000D2FA5000100E1C001 /* EnchronDebug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EnchronDebug.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronDomainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2E0000200000000DEADBEEF /* EnchronAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1A0000200000000DEADBEEF /* EnchronAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -317,6 +338,21 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F300000A2FA5000100E1C001 /* Debug Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F30000002FA5000100E1C001 /* AMSMB2 in Debug Frameworks */,
+				F30000012FA5000100E1C001 /* PlaybackCore in Debug Frameworks */,
+				F30000022FA5000100E1C001 /* RealityKitScripting in Debug Frameworks */,
+				F30000032FA5000100E1C001 /* MediaSource in Debug Frameworks */,
+				F30000042FA5000100E1C001 /* Playback in Debug Frameworks */,
+				F30000052FA5000100E1C001 /* DesignSystem in Debug Frameworks */,
+				F30000062FA5000100E1C001 /* MediaLibrary in Debug Frameworks */,
+				F30000072FA5000100E1C001 /* Emby in Debug Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D00000050000000000D0A1A1 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -372,6 +408,7 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9802F5726B30064596E /* Enchron.app */,
+				F300000D2FA5000100E1C001 /* EnchronDebug.app */,
 				F1A0000200000000DEADBEEF /* EnchronAppTests.xctest */,
 				E2E0000200000000DEADBEEF /* EnchronAppUITests.xctest */,
 				D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */,
@@ -422,6 +459,37 @@
 			);
 			productName = Enchron;
 			productReference = C3B0F9802F5726B30064596E /* Enchron.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F300000E2FA5000100E1C001 /* EnchronDebug */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F300000F2FA5000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronDebug" */;
+			buildPhases = (
+				F30000092FA5000100E1C001 /* Debug Sources */,
+				F300000A2FA5000100E1C001 /* Debug Frameworks */,
+				F300000C2FA5000100E1C001 /* Debug Embed Frameworks */,
+				F300000B2FA5000100E1C001 /* Debug Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C3B0F9822F5726B30064596E /* Apps/Enchron */,
+			);
+			name = EnchronDebug;
+			packageProductDependencies = (
+				A4C19F9E2FD1000100AABBCC /* AMSMB2 */,
+				B1C000022FD3000100C0FFEE /* PlaybackCore */,
+				A4C1A00E2FD2000100AABBCC /* RealityKitScripting */,
+				E10000022FA1000100E1C001 /* MediaSource */,
+				E10000032FA1000100E1C001 /* Playback */,
+				E10000102FA1000100E1C001 /* DesignSystem */,
+				E20000012FA2000100E1C001 /* MediaLibrary */,
+				E22000042FA4000100E1C001 /* Emby */,
+			);
+			productName = EnchronDebug;
+			productReference = F300000D2FA5000100E1C001 /* EnchronDebug.app */;
 			productType = "com.apple.product-type.application";
 		};
 		D00000010000000000D0A1A1 /* EnchronDomainTests */ = {
@@ -520,11 +588,11 @@
 					};
 					E2E0000100000000DEADBEEF = {
 						CreatedOnToolsVersion = 26.2;
-						TestTargetID = C3B0F97F2F5726B30064596E;
+						TestTargetID = F300000E2FA5000100E1C001;
 					};
 					F1A0000100000000DEADBEEF = {
 						CreatedOnToolsVersion = 27.0;
-						TestTargetID = C3B0F97F2F5726B30064596E;
+						TestTargetID = F300000E2FA5000100E1C001;
 					};
 				};
 			};
@@ -549,6 +617,7 @@
 			projectRoot = "";
 			targets = (
 				C3B0F97F2F5726B30064596E /* Enchron */,
+				F300000E2FA5000100E1C001 /* EnchronDebug */,
 				F1A0000100000000DEADBEEF /* EnchronAppTests */,
 				E2E0000100000000DEADBEEF /* EnchronAppUITests */,
 				D00000010000000000D0A1A1 /* EnchronDomainTests */,
@@ -558,6 +627,13 @@
 
 /* Begin PBXResourcesBuildPhase section */
 		C3B0F97E2F5726B30064596E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F300000B2FA5000100E1C001 /* Debug Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -651,6 +727,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F30000092FA5000100E1C001 /* Debug Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D00000040000000000D0A1A1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -677,17 +760,17 @@
 /* Begin PBXTargetDependency section */
 		D00000070000000000D0A1A1 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = C3B0F97F2F5726B30064596E /* Enchron */;
+			target = F300000E2FA5000100E1C001 /* EnchronDebug */;
 			targetProxy = D00000080000000000D0A1A1 /* PBXContainerItemProxy */;
 		};
 		E2E0000700000000DEADBEEF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = C3B0F97F2F5726B30064596E /* Enchron */;
+			target = F300000E2FA5000100E1C001 /* EnchronDebug */;
 			targetProxy = E2E0000800000000DEADBEEF /* PBXContainerItemProxy */;
 		};
 		F1A0000700000000DEADBEEF /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = C3B0F97F2F5726B30064596E /* Enchron */;
+			target = F300000E2FA5000100E1C001 /* EnchronDebug */;
 			targetProxy = F1A0000800000000DEADBEEF /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -882,6 +965,79 @@
 			};
 			name = Release;
 		};
+		F30000102FA5000100E1C001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/Enchron-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron.debug;
+				PRODUCT_MODULE_NAME = Enchron;
+				PRODUCT_NAME = EnchronDebug;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENCHRON_DEBUG_APP $(inherited)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		F30000112FA5000100E1C001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/Enchron-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron.debug;
+				PRODUCT_MODULE_NAME = Enchron;
+				PRODUCT_NAME = EnchronDebug;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENCHRON_DEBUG_APP $(inherited)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
 		D00000090000000000D0A1A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -898,8 +1054,8 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchron.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Enchron";
-				TEST_TARGET_NAME = Enchron;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EnchronDebug.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EnchronDebug";
+				TEST_TARGET_NAME = EnchronDebug;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Debug;
@@ -920,8 +1076,8 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchron.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Enchron";
-				TEST_TARGET_NAME = Enchron;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EnchronDebug.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EnchronDebug";
+				TEST_TARGET_NAME = EnchronDebug;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Release;
@@ -946,7 +1102,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
-				TEST_TARGET_NAME = Enchron;
+				TEST_TARGET_NAME = EnchronDebug;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Debug;
@@ -971,7 +1127,7 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
-				TEST_TARGET_NAME = Enchron;
+				TEST_TARGET_NAME = EnchronDebug;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Release;
@@ -993,8 +1149,8 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchron.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Enchron";
-				TEST_TARGET_NAME = Enchron;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EnchronDebug.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EnchronDebug";
+				TEST_TARGET_NAME = EnchronDebug;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Debug;
@@ -1016,8 +1172,8 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Enchron.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Enchron";
-				TEST_TARGET_NAME = Enchron;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/EnchronDebug.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/EnchronDebug";
+				TEST_TARGET_NAME = EnchronDebug;
 				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Release;
@@ -1042,6 +1198,15 @@
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
+		};
+		F300000F2FA5000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronDebug" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F30000102FA5000100E1C001 /* Debug */,
+				F30000112FA5000100E1C001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
 		};
 		D000000B0000000000D0A1A1 /* Build configuration list for PBXNativeTarget "EnchronDomainTests" */ = {
 			isa = XCConfigurationList;

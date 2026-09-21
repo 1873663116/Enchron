@@ -6,7 +6,9 @@ import SwiftUI
 import UIKit
 
 struct SettingsScreen: View {
+#if DEBUG
     @Environment(DeveloperMetricsModel.self) private var developerMetrics
+#endif
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
@@ -19,14 +21,20 @@ struct SettingsScreen: View {
     @State private var showsLicenses = false
 
     private enum Category: String, CaseIterable {
-        case general, playback, storagePrivacy, developer, about
+        case general, playback, storagePrivacy
+#if DEBUG
+        case developer
+#endif
+        case about
 
         var title: String {
             switch self {
             case .general: String(localized: "General")
             case .playback: String(localized: "Playback Behavior")
             case .storagePrivacy: String(localized: "Storage & Privacy")
+#if DEBUG
             case .developer: String(localized: "Developer")
+#endif
             case .about: String(localized: "About")
             }
         }
@@ -37,7 +45,9 @@ struct SettingsScreen: View {
             case .general: String(localized: "Language and app-wide preferences")
             case .playback: nil
             case .storagePrivacy: String(localized: "Rebuildable cache, playback history, and data handling")
+#if DEBUG
             case .developer: String(localized: "Performance readout in every window and space")
+#endif
             case .about: String(localized: "Version, support, and feedback")
             }
         }
@@ -47,7 +57,9 @@ struct SettingsScreen: View {
             case .general: "gearshape.fill"
             case .playback: "play.circle.fill"
             case .storagePrivacy: "internaldrive.fill"
+#if DEBUG
             case .developer: "wrench.and.screwdriver.fill"
+#endif
             case .about: "info.circle.fill"
             }
         }
@@ -153,6 +165,7 @@ struct SettingsScreen: View {
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
+#if DEBUG
         case .developer:
             SettingListGroup(accessibilityIdentifier: "Settings-Developer-group", items: developerItems)
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -176,11 +189,13 @@ struct SettingsScreen: View {
             }
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(DesignTokens.Surface.supportingText)
+#endif
         case .about:
             SettingListGroup(accessibilityIdentifier: "Settings-About-group", items: aboutItems)
         }
     }
 
+#if DEBUG
     private var developerItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
@@ -225,6 +240,7 @@ struct SettingsScreen: View {
             )
         ]
     }
+#endif
 
     private var playbackItems: [SettingListGroup.Item] {
         [

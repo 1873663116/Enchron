@@ -1,3 +1,4 @@
+#if DEBUG
 import DesignSystem
 import PlaybackCore
 import SwiftUI
@@ -410,3 +411,25 @@ private extension View {
 #endif
     }
 }
+#else
+import SwiftUI
+
+public struct DeveloperStatsOverlayReader: View {
+    public init(
+        sceneKey: DeveloperMetricsModel.SceneKey? = nil,
+        includePlayback: Bool = true
+    ) {}
+
+    public var body: some View { EmptyView() }
+}
+
+public extension View {
+    func developerStatsOverlay(
+        isEnabled: Bool,
+        sceneKey: DeveloperMetricsModel.SceneKey? = nil,
+        includePlayback: Bool = true
+    ) -> some View {
+        self
+    }
+}
+#endif

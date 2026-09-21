@@ -433,7 +433,7 @@ struct DirectoryMediaImportReceipt: Encodable, Equatable {
 }
 
 #if DEBUG
-nonisolated struct EmbyRuntimeIdentityCleanup {
+nonisolated struct EmbyRuntimeIdentityCleanup: @unchecked Sendable {
     enum CleanupError: LocalizedError {
         case removalFailed
 
@@ -460,8 +460,9 @@ nonisolated struct EmbyRuntimeIdentityCleanup {
         self.removeFile = removeFile
     }
 
+    @MainActor
     func perform<T>(
-        _ operation: () async throws -> T
+        _ operation: @MainActor () async throws -> T
     ) async throws -> T {
         let outcome: Result<T, any Error>
         do {
