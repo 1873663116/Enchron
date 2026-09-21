@@ -831,8 +831,13 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     let source = URL(fileURLWithPath: "/fixtures/fake.mov")
 
     let first = try await controller.open(source)
+#if targetEnvironment(simulator)
     #expect(first.debugSnapshot().platform == "visionOSSimulator")
     #expect(first.debugSnapshot().hardwareDisplayFacts == .notAvailable)
+#else
+    #expect(first.debugSnapshot().platform == "visionOS")
+    #expect(first.debugSnapshot().hardwareDisplayFacts == .unknown)
+#endif
     do {
         _ = try await controller.open(source)
         Issue.record("Expected second open to be rejected")
@@ -2857,7 +2862,8 @@ struct RendererLeadBudgetTests {
 
     displayPass.withLock { $0 = true }
     let recoveredDeadline = ContinuousClock.now + .seconds(8)
-    while session.synchronizer.rate == 0, ContinuousClock.now < recoveredDeadline {
+    while (session.synchronizer.rate == 0 || session.isPrerolling),
+          ContinuousClock.now < recoveredDeadline {
         try await Task.sleep(for: .milliseconds(20))
     }
     #expect(session.synchronizer.rate == 1)
