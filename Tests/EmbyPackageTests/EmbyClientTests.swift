@@ -5,6 +5,27 @@ import Testing
 
 @Suite(.serialized)
 struct EmbyClientTests {
+    @Test("continue watching includes resumable specials without an episode number")
+    func resumableSpecialsRemainVisible() async throws {
+        MockURLProtocol.setHandler { request in
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let requestsResumableItems = request.url?.path == "/emby/Users/user-1/Items"
+                && query.contains { $0.name == "Filters" && $0.value == "IsResumable" }
+            return try response(request, status: 200, json: requestsResumableItems ? """
+                {"Items":[{"Id":"special","Name":"Special","Type":"Episode",
+                "SeriesId":"series","SeasonId":"specials","ParentIndexNumber":0,
+                "UserData":{"PlaybackPositionTicks":12685000725,"Played":false}}],
+                "TotalRecordCount":1}
+                """ : "{\"Items\":[],\"TotalRecordCount\":0}")
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+
+        let page = try await makeClient().resumeItems(on: server)
+
+        #expect(page.items.map(\.metadata.id.rawValue) == ["special"])
+        #expect(page.items.first?.metadata.userData?.playbackPositionTicks == 12_685_000_725)
+    }
+
     @Test("zero byte counts remain unknown until the byte source reports its length")
     func zeroByteCountsAreUnknown() async throws {
         MockURLProtocol.setHandler { request in
@@ -339,10 +360,15 @@ struct EmbyClientTests {
         let paths = recorder.requests.compactMap(\.url?.path)
         #expect(paths == [
             "/emby/Users/user-1/Views",
-            "/emby/Users/user-1/Items/Resume",
+            "/emby/Users/user-1/Items",
             "/emby/Shows/NextUp",
             "/emby/Users/user-1/Items"
         ])
+        let resumeQuery = URLComponents(
+            url: try #require(recorder.requests[1].url), resolvingAgainstBaseURL: false
+        )?.queryItems
+        #expect(resumeQuery?.first { $0.name == "Filters" }?.value == "IsResumable")
+        #expect(resumeQuery?.first { $0.name == "SortBy" }?.value == "DatePlayed")
         let nextUpQuery = URLComponents(
             url: try #require(recorder.requests[2].url),
             resolvingAgainstBaseURL: false
@@ -559,7 +585,8 @@ struct EmbyClientTests {
             playSessionID: EmbyPlaySessionID(rawValue: "session-1"),
             positionTicks: 42,
             audioStreamIndex: 1,
-            subtitleStreamIndex: 2
+            subtitleStreamIndex: -1,
+            progressEvent: .subtitleTrackChange
         )
         try await client.sendPlayingStarted(report, on: server)
         try await client.sendProgress(report, on: server)
@@ -575,6 +602,12 @@ struct EmbyClientTests {
             let body = try #require(request.httpBody)
             let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(json["PositionTicks"] as? Int == 42)
+            if request.url?.path == "/emby/Sessions/Playing/Progress" {
+                #expect(json["EventName"] as? String == "SubtitleTrackChange")
+                #expect(json["SubtitleStreamIndex"] as? Int == -1)
+            } else {
+                #expect(json["EventName"] == nil)
+            }
             if request.url?.path != "/emby/Sessions/Playing/Stopped" {
                 #expect(json["PlayMethod"] as? String == "DirectPlay")
             } else {

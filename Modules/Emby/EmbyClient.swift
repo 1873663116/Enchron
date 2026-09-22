@@ -195,13 +195,13 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
 
     public func resumeItems(
         on server: EmbyAuthenticatedServer,
-        query: EmbyItemQuery = EmbyItemQuery(sortBy: [.dateCreated], sortOrder: .descending)
+        query: EmbyItemQuery = EmbyItemQuery(sortBy: [.datePlayed], sortOrder: .descending)
     ) async throws -> EmbyItemPage {
         try await itemPage(
-            path: "/Users/\(server.userID.rawValue)/Items/Resume",
+            path: "/Users/\(server.userID.rawValue)/Items",
             server: server,
             query: query,
-            additionalQueryItems: []
+            additionalQueryItems: [URLQueryItem(name: "Filters", value: "IsResumable")]
         )
     }
 
@@ -749,7 +749,8 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 audioStreamIndex: report.audioStreamIndex,
                 subtitleStreamIndex: report.subtitleStreamIndex,
                 isPaused: report.isPaused,
-                playMethod: "DirectPlay"
+                playMethod: "DirectPlay",
+                eventName: event == .progress ? report.progressEvent ?? .timeUpdate : nil
             ))
         case .stopped:
             body = try Self.makeEncoder().encode(PlaybackStoppedReportDTO(
@@ -1055,6 +1056,7 @@ private struct PlaybackStatusReportDTO: Encodable {
     let subtitleStreamIndex: Int?
     let isPaused: Bool
     let playMethod: String
+    let eventName: EmbyPlaybackReport.ProgressEvent?
 }
 
 private struct PlaybackStoppedReportDTO: Encodable {

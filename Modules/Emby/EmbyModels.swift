@@ -415,6 +415,7 @@ public enum EmbyItemSort: String, Codable, CaseIterable, Sendable {
     case sortName = "SortName"
     case indexNumber = "IndexNumber"
     case dateCreated = "DateCreated"
+    case datePlayed = "DatePlayed"
     case premiereDate = "PremiereDate"
     case communityRating = "CommunityRating"
     case runtime = "Runtime"
@@ -637,6 +638,14 @@ public struct EmbyPlaybackSession: Equatable, Hashable, Sendable {
 }
 
 public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
+    public enum ProgressEvent: String, Encodable, Sendable {
+        case timeUpdate = "TimeUpdate"
+        case pause = "Pause"
+        case unpause = "Unpause"
+        case audioTrackChange = "AudioTrackChange"
+        case subtitleTrackChange = "SubtitleTrackChange"
+    }
+
     public let itemID: EmbyItemID
     public let mediaSourceID: EmbyMediaSourceID
     public let playSessionID: EmbyPlaySessionID
@@ -644,6 +653,7 @@ public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
     public let audioStreamIndex: Int?
     public let subtitleStreamIndex: Int?
     public let isPaused: Bool
+    public let progressEvent: ProgressEvent?
 
     public init(
         itemID: EmbyItemID,
@@ -652,7 +662,8 @@ public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
         positionTicks: Int64,
         audioStreamIndex: Int? = nil,
         subtitleStreamIndex: Int? = nil,
-        isPaused: Bool = false
+        isPaused: Bool = false,
+        progressEvent: ProgressEvent? = nil
     ) {
         self.itemID = itemID
         self.mediaSourceID = mediaSourceID
@@ -661,6 +672,7 @@ public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
         self.audioStreamIndex = audioStreamIndex
         self.subtitleStreamIndex = subtitleStreamIndex
         self.isPaused = isPaused
+        self.progressEvent = progressEvent
     }
 }
 

@@ -12,6 +12,7 @@ public final class EmbySessionViewModel {
     public private(set) var server: EmbyAuthenticatedServer?
     public private(set) var persistenceErrorMessage: String?
     public private(set) var playbackQueue: PlaybackQueueSnapshot = .empty
+    public private(set) var resumeCatalogRevision: UInt64 = 0
 #if DEBUG
     public private(set) var evidenceJournal = EmbyEvidenceJournal()
 #endif
@@ -142,6 +143,7 @@ public final class EmbySessionViewModel {
         }
         server = nil
         playbackQueue = .empty
+        resumeCatalogRevision = 0
 #if DEBUG
         evidenceJournal = EmbyEvidenceJournal()
 #endif
@@ -268,14 +270,22 @@ public final class EmbySessionViewModel {
         await playbackBridge.configure(server: server) { [weak self] in
             await self?.signOut()
         } onAcceptedReport: { [weak self] report in
-#if DEBUG
-            await self?.recordAcceptedPlaybackReport(report)
-#endif
+            await self?.acceptPlaybackReport(report)
         } onPreparedPlayback: { [weak self] evidence in
 #if DEBUG
             await self?.recordPreparedPlayback(evidence)
 #endif
         }
+    }
+
+    private func acceptPlaybackReport(_ report: EmbyAcceptedPlaybackReport) {
+#if DEBUG
+        recordAcceptedPlaybackReport(report)
+#endif
+        guard report.event == .stopped,
+              report.serverID == server?.id,
+              report.userID == server?.userID else { return }
+        resumeCatalogRevision &+= 1
     }
 
 #if DEBUG

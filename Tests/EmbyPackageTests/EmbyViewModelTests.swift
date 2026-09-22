@@ -36,6 +36,68 @@ struct EmbyViewModelTests {
         ])
     }
 
+    @Test("only an accepted stopped report invalidates Continue Watching")
+    func acceptedStopInvalidatesContinueWatching() async throws {
+        let item = movie(id: "movie", mediaSourceID: "source")
+        let source = playableSource(id: "source", itemID: "movie")
+        let playback = EmbyPlaybackSession(
+            id: EmbyPlaySessionID(rawValue: "session"),
+            mediaSources: [source]
+        )
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [item.metadata.id: item],
+            playbackByID: [item.metadata.id: playback]
+        )
+        let session = makeSession(client: client, server: authenticatedServer)
+        let request = try await session.playbackRequest(for: EmbyPlaybackSelection(
+            item: item,
+            mediaSourceID: source.id,
+            startAction: .fromBeginning
+        ))
+        let reporter = try #require(
+            request.sessionReporter as? EmbyPlaybackSessionReporter
+        )
+        let report = PlaybackSessionReport(
+            positionSeconds: 30,
+            isPaused: false,
+            selectedAudioTrackID: nil,
+            selectedSubtitleTrackID: nil
+        )
+
+        reporter.playbackStarted(report)
+        reporter.playbackProgressed(report, reason: .timeUpdate)
+        await reporter.waitForPendingReports()
+        #expect(session.resumeCatalogRevision == 0)
+
+        reporter.playbackStopped(report)
+        await reporter.waitForPendingReports()
+        #expect(session.resumeCatalogRevision == 1)
+
+        let failingClient = ViewModelFakeEmbyClient(
+            itemByID: [item.metadata.id: item],
+            playbackByID: [item.metadata.id: playback],
+            failStoppedReport: true
+        )
+        let failingSession = makeSession(
+            client: failingClient,
+            server: authenticatedServer
+        )
+        let failingRequest = try await failingSession.playbackRequest(
+            for: EmbyPlaybackSelection(
+                item: item,
+                mediaSourceID: source.id,
+                startAction: .fromBeginning
+            )
+        )
+        let failingReporter = try #require(
+            failingRequest.sessionReporter as? EmbyPlaybackSessionReporter
+        )
+
+        failingReporter.playbackStopped(report)
+        await failingReporter.waitForPendingReports()
+        #expect(failingSession.resumeCatalogRevision == 0)
+    }
+
     @Test("library sort toggles from recently added to alphabetical")
     func librarySortToggle() async {
         let library = EmbyLibraryView(
@@ -415,6 +477,7 @@ private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
     private let itemByID: [EmbyItemID: EmbyLibraryItem]
     private let childrenByID: [EmbyItemID: [EmbyLibraryItem]]
     private let playbackByID: [EmbyItemID: EmbyPlaybackSession]
+    private let failStoppedReport: Bool
 
     init(
         authenticatedServer: EmbyAuthenticatedServer? = nil,
@@ -426,7 +489,8 @@ private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
         latest: [EmbyItemID: [EmbyLibraryItem]] = [:],
         itemByID: [EmbyItemID: EmbyLibraryItem] = [:],
         childrenByID: [EmbyItemID: [EmbyLibraryItem]] = [:],
-        playbackByID: [EmbyItemID: EmbyPlaybackSession] = [:]
+        playbackByID: [EmbyItemID: EmbyPlaybackSession] = [:],
+        failStoppedReport: Bool = false
     ) {
         self.authenticatedServer = authenticatedServer
         self.authenticationError = authenticationError
@@ -438,6 +502,7 @@ private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
         self.itemByID = itemByID
         self.childrenByID = childrenByID
         self.playbackByID = playbackByID
+        self.failStoppedReport = failStoppedReport
     }
 
     var viewsCallCount: Int { state.withLock { $0.viewsCallCount } }
@@ -546,7 +611,11 @@ private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
 
     func sendPlayingStarted(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {}
     func sendProgress(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {}
-    func sendStopped(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {}
+    func sendStopped(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {
+        if failStoppedReport {
+            throw EmbyError.httpStatus(500)
+        }
+    }
 }
 
 private final class RecordingServerStore: EmbyServerStoring, Sendable {

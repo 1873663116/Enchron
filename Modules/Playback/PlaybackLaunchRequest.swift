@@ -135,7 +135,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             externalSubtitleSources: subtitles,
             externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
-            startPositionSeconds: startPositionSeconds, sessionReporter: sessionReporter
+            startPositionSeconds: startPositionSeconds,
+            initialTrackSelection: initialTrackSelection, sessionReporter: sessionReporter
         )
     }
 
@@ -152,6 +153,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let externalSubtitleResolutionFailed: Bool
     public let viewingStateAuthority: ViewingStateAuthority
     public let startPositionSeconds: Double?
+    public let initialTrackSelection: TrackSelectionPreference?
     public let sessionReporter: (any PlaybackSessionReporting)?
 
     public init(
@@ -165,6 +167,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
+        initialTrackSelection: TrackSelectionPreference? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
         self.id = source.url
@@ -179,6 +182,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
+        self.initialTrackSelection = initialTrackSelection
         self.sessionReporter = sessionReporter
     }
 
@@ -195,6 +199,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
+        initialTrackSelection: TrackSelectionPreference? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
         self.init(
@@ -208,6 +213,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
+            initialTrackSelection: initialTrackSelection,
             sessionReporter: sessionReporter
         )
     }
@@ -225,6 +231,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
+        initialTrackSelection: TrackSelectionPreference? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
         self.id = source.url
@@ -239,6 +246,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
+        self.initialTrackSelection = initialTrackSelection
         self.sessionReporter = sessionReporter
     }
 
@@ -256,6 +264,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         externalSubtitleResolutionFailed: Bool = false,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
+        initialTrackSelection: TrackSelectionPreference? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
         self.init(
@@ -270,6 +279,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
+            initialTrackSelection: initialTrackSelection,
             sessionReporter: sessionReporter
         )
     }
@@ -288,6 +298,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
+            initialTrackSelection: initialTrackSelection,
             sessionReporter: sessionReporter
         )
     }
@@ -303,6 +314,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.externalSubtitleSources == rhs.externalSubtitleSources &&
             lhs.externalSubtitleResolutionFailed == rhs.externalSubtitleResolutionFailed &&
             lhs.viewingStateAuthority == rhs.viewingStateAuthority &&
-            lhs.startPositionSeconds == rhs.startPositionSeconds
+            lhs.startPositionSeconds == rhs.startPositionSeconds &&
+            lhs.initialTrackSelection == rhs.initialTrackSelection
     }
 }

@@ -91,7 +91,7 @@ public final class EmbyHomeViewModel {
             let continueWatching = try await client.resumeItems(
                 on: server,
                 query: EmbyItemQuery(
-                    sortBy: [.dateCreated],
+                    sortBy: [.datePlayed],
                     sortOrder: .descending,
                     limit: 20
                 )

@@ -24,6 +24,14 @@ public nonisolated struct PlaybackSessionReport: Sendable, Equatable {
 
 public nonisolated protocol PlaybackSessionReporting: Sendable {
     func playbackStarted(_ report: PlaybackSessionReport)
-    func playbackProgressed(_ report: PlaybackSessionReport)
+    func playbackProgressed(_ report: PlaybackSessionReport, reason: PlaybackProgressReason)
     func playbackStopped(_ report: PlaybackSessionReport)
+}
+
+public nonisolated enum PlaybackProgressReason: Sendable, Equatable {
+    case timeUpdate
+    case pause
+    case unpause
+    case audioTrackChange
+    case subtitleTrackChange
 }

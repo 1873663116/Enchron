@@ -1,6 +1,7 @@
 nonisolated public enum SubtitleTrackSelectionPreference: Codable, Equatable, Sendable {
     case off
     case track(id: String)
+    case externalSource(id: String)
 }
 
 nonisolated public struct TrackSelectionPreference: Codable, Equatable, Sendable {

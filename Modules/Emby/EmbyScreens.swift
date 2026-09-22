@@ -710,7 +710,7 @@ private struct EmbyHomeScreen: View {
         .overlay(alignment: .top) {
             EmbyPageHeader(title: String(localized: "Home"), sidebarIsVisible: sidebarIsVisible) { EmptyView() }
         }
-        .task {
+        .task(id: session.resumeCatalogRevision) {
             initialRefreshCompleted = false
             await viewModel.refresh()
             initialRefreshCompleted = true

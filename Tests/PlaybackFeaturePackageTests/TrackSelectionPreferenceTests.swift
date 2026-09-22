@@ -7,6 +7,61 @@ import Testing
 
 @MainActor
 struct TrackSelectionPreferenceTests {
+    @Test("media server launches restore track choices before reporting playback or background pause", arguments: [false, true], [false, true])
+    func serverSelectionsRestoreBeforeStarted(subtitlesOff: Bool, pausesWhileConfiguring: Bool) async throws {
+        let suiteName = "app.enchron.tests.server-restore.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let reporter = RecordingPlaybackSessionReporter()
+        let runtime = TrackSelectionRuntime(audioTracks: Self.audioTracks, subtitleTracks: Self.subtitleTracks)
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        runtime.suspendNextFormatApplication()
+        coordinator.beginPlayback(Self.request(
+            revision: "server-restore", authority: .mediaServer,
+            initialTrackSelection: TrackSelectionPreference(
+                audioTrackID: Self.audioTracks[1].id,
+                subtitleTrack: subtitlesOff ? .off : .track(id: Self.subtitleTracks[1].id)
+            ), reporter: reporter
+        ))
+        try await runtime.waitUntilFormatApplicationIsSuspended()
+        runtime.emitLifecycle(.playing)
+        if pausesWhileConfiguring {
+            runtime.emitLifecycle(.paused, positionSeconds: 12)
+            coordinator.flushViewingProgress()
+        }
+        #expect(reporter.calls.isEmpty)
+        runtime.resumeSuspendedFormatApplication()
+        let deadline = ContinuousClock.now + .seconds(10)
+        while reporter.calls.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let expectedSubtitleID = subtitlesOff ? nil : Self.subtitleTracks[1].id
+        #expect(runtime.currentAudioTrackID == Self.audioTracks[1].id)
+        #expect(runtime.currentSubtitleTrackID == expectedSubtitleID)
+        #expect(reporter.calls.first == .started(PlaybackSessionReport(
+            positionSeconds: pausesWhileConfiguring ? 12 : 0, isPaused: pausesWhileConfiguring,
+            selectedAudioTrackID: Self.audioTracks[1].id, selectedSubtitleTrackID: expectedSubtitleID
+        )))
+        coordinator.stopPlayback(reason: .backButton)
+    }
+
+    @Test("media server external subtitles restore by source identity")
+    func serverExternalSubtitleRestoresBySourceIdentity() async throws {
+        let suiteName = "app.enchron.tests.server-external-restore.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let subtitle = PlaybackModel.SubtitleTrack(
+            id: "external.subtitle.emby.subtitle.7.2", languageCode: "zh", displayName: "Chinese"
+        )
+        let runtime = TrackSelectionRuntime(subtitleTracks: [subtitle])
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        coordinator.beginPlayback(Self.request(
+            revision: "external", authority: .mediaServer,
+            initialTrackSelection: TrackSelectionPreference(subtitleTrack: .externalSource(id: "emby.subtitle.7"))
+        ))
+        try await runtime.waitUntilConfigured()
+        #expect(runtime.currentSubtitleTrackID == subtitle.id)
+        coordinator.stopPlayback(reason: .backButton)
+    }
+
     @Test("older Media Format preferences decode with Dolby Vision enabled off")
     func olderMediaFormatDefaultsDolbyVisionFallbackToOff() throws {
         let data = Data(
@@ -856,6 +911,7 @@ struct TrackSelectionPreferenceTests {
         ))
         try await runtime.waitUntilConfigured()
         runtime.emitLifecycle(.playing, positionSeconds: 42)
+        try await reporter.waitUntilStarted()
 
         coordinator.flushViewingProgress()
 
@@ -886,6 +942,7 @@ struct TrackSelectionPreferenceTests {
         try await runtime.waitUntilConfigured()
 
         runtime.emitLifecycle(.playing)
+        try await reporter.waitUntilStarted()
         runtime.emitDiagnostics(positionSeconds: 9, actualPlaybackSeconds: 9)
         runtime.emitDiagnostics(positionSeconds: 10, actualPlaybackSeconds: 25)
         runtime.emitLifecycle(.paused, positionSeconds: 12)
@@ -918,6 +975,10 @@ struct TrackSelectionPreferenceTests {
         #expect(calls[8].stoppedReport?.positionSeconds == 50)
         #expect(calls[8].stoppedReport?.selectedAudioTrackID == Self.audioTracks[1].id)
         #expect(calls[8].stoppedReport?.selectedSubtitleTrackID == Self.subtitleTracks[1].id)
+        #expect(reporter.progressReasons == [
+            .timeUpdate, .pause, .timeUpdate, .audioTrackChange,
+            .subtitleTrackChange, .unpause, .timeUpdate
+        ])
     }
 
     @Test("coordinator and direct runtime stops each report once")
@@ -1062,6 +1123,7 @@ struct TrackSelectionPreferenceTests {
         revision: String,
         authority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
+        initialTrackSelection: TrackSelectionPreference? = nil,
         reporter: (any PlaybackSessionReporting)? = nil
     ) -> PlaybackLaunchRequest {
         let identity = VersionedMediaIdentity(
@@ -1074,6 +1136,7 @@ struct TrackSelectionPreferenceTests {
             versionedIdentity: identity,
             viewingStateAuthority: authority,
             startPositionSeconds: startPositionSeconds,
+            initialTrackSelection: initialTrackSelection,
             sessionReporter: reporter
         )
     }
@@ -1175,9 +1238,25 @@ private enum PlaybackSessionReporterCall: Equatable {
 
 private final class RecordingPlaybackSessionReporter: PlaybackSessionReporting {
     private let recordedCalls = Mutex<[PlaybackSessionReporterCall]>([])
+    private let recordedProgressReasons = Mutex<[PlaybackProgressReason]>([])
+
+    var progressReasons: [PlaybackProgressReason] {
+        recordedProgressReasons.withLock { $0 }
+    }
 
     var calls: [PlaybackSessionReporterCall] {
         recordedCalls.withLock { $0 }
+    }
+
+    func waitUntilStarted() async throws {
+        let deadline = ContinuousClock.now + .seconds(10)
+        while calls.isEmpty, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        guard case .started? = calls.first else {
+            Issue.record("Playback did not report its configured start")
+            return
+        }
     }
 
     var stoppedCount: Int {
@@ -1192,7 +1271,8 @@ private final class RecordingPlaybackSessionReporter: PlaybackSessionReporting {
         }
     }
 
-    func playbackProgressed(_ report: PlaybackSessionReport) {
+    func playbackProgressed(_ report: PlaybackSessionReport, reason: PlaybackProgressReason) {
+        recordedProgressReasons.withLock { $0.append(reason) }
         recordedCalls.withLock {
             $0.append(.progressed(report))
         }
@@ -1354,6 +1434,12 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func useSourceFormat() async throws {
+        if suspendsNextFormatApplication {
+            suspendsNextFormatApplication = false
+            await withCheckedContinuation { continuation in
+                suspendedFormatApplicationContinuation = continuation
+            }
+        }
         sourceFormatApplicationCount += 1
         lastAppliedFormat = nil
     }

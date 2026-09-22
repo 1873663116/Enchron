@@ -121,7 +121,7 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
 
     private enum Event: Sendable {
         case started
-        case progress
+        case progress(EmbyPlaybackReport.ProgressEvent)
         case stopped
     }
 
@@ -159,8 +159,15 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
         enqueue(.started, report: report)
     }
 
-    public func playbackProgressed(_ report: PlaybackSessionReport) {
-        enqueue(.progress, report: report)
+    public func playbackProgressed(_ report: PlaybackSessionReport, reason: PlaybackProgressReason) {
+        let event: EmbyPlaybackReport.ProgressEvent = switch reason {
+        case .timeUpdate: .timeUpdate
+        case .pause: .pause
+        case .unpause: .unpause
+        case .audioTrackChange: .audioTrackChange
+        case .subtitleTrackChange: .subtitleTrackChange
+        }
+        enqueue(.progress(event), report: report)
     }
 
     public func playbackStopped(_ report: PlaybackSessionReport) {
@@ -173,6 +180,11 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
     }
 
     private func enqueue(_ event: Event, report: PlaybackSessionReport) {
+        let progressEvent: EmbyPlaybackReport.ProgressEvent? = if case .progress(let reason) = event {
+            reason
+        } else {
+            nil
+        }
         let embyReport = EmbyPlaybackReport(
             itemID: itemID,
             mediaSourceID: mediaSourceID,
@@ -180,7 +192,8 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
             positionTicks: Self.ticks(from: report.positionSeconds),
             audioStreamIndex: report.selectedAudioTrackID.flatMap(Int.init),
             subtitleStreamIndex: subtitleStreamIndex(for: report.selectedSubtitleTrackID),
-            isPaused: report.isPaused
+            isPaused: report.isPaused,
+            progressEvent: progressEvent
         )
         pendingTask.withLock { pendingTask in
             let precedingTask = pendingTask
@@ -225,7 +238,7 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
     }
 
     private func subtitleStreamIndex(for trackID: String?) -> Int? {
-        guard let trackID else { return nil }
+        guard let trackID else { return -1 }
         if let index = Int(trackID) { return index }
         if trackID.hasPrefix("ffmpeg.subtitle.") {
             return trackID.split(separator: ".").last.flatMap { Int($0) }
@@ -453,8 +466,20 @@ public actor EmbyPlaybackBridge {
             externalSubtitleSources: subtitles,
             viewingStateAuthority: .mediaServer,
             startPositionSeconds: startPosition,
+            initialTrackSelection: TrackSelectionPreference(
+                audioTrackID: source.defaultStreamIndexes.audio.map(String.init),
+                subtitleTrack: Self.subtitleSelection(for: source)
+            ),
             sessionReporter: reporter
         )
+    }
+
+    private static func subtitleSelection(for source: EmbyMediaSource) -> SubtitleTrackSelectionPreference {
+        guard let index = source.defaultStreamIndexes.subtitle, index >= 0 else { return .off }
+        if source.mediaStreams.contains(where: { $0.index == index && $0.isExternal }) {
+            return .externalSource(id: externalSubtitleSourceID(for: index))
+        }
+        return .track(id: "ffmpeg.subtitle.\(index)")
     }
 
     private func installQueue(_ episodes: [EmbyEpisode], currentItemID: EmbyItemID) throws {

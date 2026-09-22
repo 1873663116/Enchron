@@ -6,6 +6,38 @@ import Testing
 @testable import Emby
 
 struct EmbyPlaybackBridgeTests {
+    @Test("launch requests carry server track choices for embedded, external, and disabled subtitles", arguments: [-1, 3, 7])
+    func serverTrackChoicesReachLaunchRequest(subtitleIndex: Int) async throws {
+        let item = movie(id: "movie", resumeTicks: 50_000_000)
+        let source = mediaSource(
+            id: "source", container: "mkv",
+            streams: [
+                mediaStream(index: 3, kind: .subtitle, external: false),
+                mediaStream(index: 7, kind: .subtitle, external: true, deliveryURL: "/subtitle/7")
+            ],
+            defaults: EmbyDefaultStreamIndexes(video: 0, audio: 2, subtitle: subtitleIndex)
+        )
+        let client = FakeEmbyClient(
+            items: [item.metadata.id: item],
+            playback: [item.metadata.id: EmbyPlaybackSession(
+                id: EmbyPlaySessionID(rawValue: "session"), mediaSources: [source]
+            )]
+        )
+        let bridge = EmbyPlaybackBridge(client: client, server: server)
+        let request = try await bridge.request(for: EmbyPlaybackSelection(
+            item: item, mediaSourceID: source.id, startAction: .resume
+        ))
+        let expectedSubtitle: SubtitleTrackSelectionPreference = switch subtitleIndex {
+        case -1: .off
+        case 7: .externalSource(id: "emby.subtitle.7")
+        default: .track(id: "ffmpeg.subtitle.3")
+        }
+        #expect(request.initialTrackSelection == TrackSelectionPreference(
+            audioTrackID: "2", subtitleTrack: expectedSubtitle
+        ))
+        #expect(request.updating(metadata: nil).initialTrackSelection == request.initialTrackSelection)
+    }
+
     @Test("a codec the server declares is left for the playback core to judge from the bytes")
     func declaredCodecDoesNotGatePlayback() async throws {
         let item = movie(id: "movie", resumeTicks: 0)
@@ -186,7 +218,7 @@ struct EmbyPlaybackBridgeTests {
             isPaused: true,
             selectedAudioTrackID: "2",
             selectedSubtitleTrackID: "external.subtitle.emby.subtitle.4.0"
-        ))
+        ), reason: .subtitleTrackChange)
         reporter.playbackStopped(PlaybackSessionReport(
             positionSeconds: 3,
             isPaused: false,
@@ -202,6 +234,8 @@ struct EmbyPlaybackBridgeTests {
         #expect(reports[0].report.subtitleStreamIndex == 3)
         #expect(reports[1].report.subtitleStreamIndex == 4)
         #expect(reports[1].report.isPaused)
+        #expect(reports[1].report.progressEvent == .subtitleTrackChange)
+        #expect(reports[2].report.subtitleStreamIndex == -1)
         #expect(acceptedReports.withLock { $0.map(\.event) } == [
             .started,
             .progress,
@@ -234,7 +268,7 @@ struct EmbyPlaybackBridgeTests {
             isPaused: false,
             selectedAudioTrackID: nil,
             selectedSubtitleTrackID: nil
-        ))
+        ), reason: .timeUpdate)
         await reporter.waitForPendingReports()
 
         #expect(client.reports.isEmpty)
@@ -470,7 +504,8 @@ private func metadata(
 private func mediaSource(
     id: String,
     container: String,
-    streams: [EmbyMediaStream] = []
+    streams: [EmbyMediaStream] = [],
+    defaults: EmbyDefaultStreamIndexes = EmbyDefaultStreamIndexes(video: 0, audio: 1, subtitle: nil)
 ) -> EmbyMediaSource {
     EmbyMediaSource(
         id: EmbyMediaSourceID(rawValue: id),
@@ -478,7 +513,7 @@ private func mediaSource(
         container: container,
         sizeInBytes: 1_000,
         mediaStreams: streams,
-        defaultStreamIndexes: EmbyDefaultStreamIndexes(video: 0, audio: 1, subtitle: nil),
+        defaultStreamIndexes: defaults,
         directPlayURL: URL(string: "http://example.test/video/\(id).\(container)")!,
         versionedIdentity: VersionedMediaIdentity.emby(
             serverID: "server",
