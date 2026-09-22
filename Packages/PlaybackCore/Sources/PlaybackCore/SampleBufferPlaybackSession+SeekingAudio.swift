@@ -647,7 +647,7 @@ extension SampleBufferPlaybackSession {
 
     public func currentRate() -> Float {
         guard hasStartedTimeline else { return timelineStartRate }
-        return debugStore.snapshot().lifecycle == .playing ? preferredPlaybackRate : 0
+        return mediaSessionRecord?.lifecycle == .playing ? preferredPlaybackRate : 0
     }
 
     public var currentVolume: Float {

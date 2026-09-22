@@ -1,3 +1,4 @@
+#if DEBUG
 import Darwin
 import Foundation
 
@@ -92,3 +93,4 @@ enum ProcessMemoryFootprint {
         ]
     }
 }
+#endif

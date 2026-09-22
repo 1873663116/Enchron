@@ -2,7 +2,7 @@
 
 实现事实来自代码、构建配置和运行结果。文档帮助定位这些事实，不替代它们：
 - Enchron 术语 `docs/CONTEXT.md`；
-- 当前代码所有权与依赖入口 `ARCHITECTURE.md`；
+- 新代码落位判据与当前代码所有权 `ARCHITECTURE.md`；
 - 合并证据强度、改动分类与授权裁决 `docs/MERGE_EVIDENCE.md`；
 - 自动回归的合同权威与执行、评审、判定协议 `Regression/`；
 - 播放引擎无法从代码读出的外部约束与实测常数 `docs/PLAYBACK_ENGINE_CONSTRAINTS.md`；

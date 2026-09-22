@@ -448,12 +448,14 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         url: URL,
         result: (responses: [PROPFINDParserDelegate.ResponseItem], xml: String)
     ) {
+#if DEBUG
         let hrefs = result.responses.compactMap(\.href).joined(separator: ", ")
         print("[WebDAV] PROPFIND url=\(url.absoluteString)")
         print("[WebDAV] PROPFIND responses=\(result.responses.count) hrefs=[\(hrefs)]")
         if result.responses.count <= 1 {
             print("[WebDAV] PROPFIND xml=\(result.xml)")
         }
+#endif
     }
 
     private static let propfindBody = """

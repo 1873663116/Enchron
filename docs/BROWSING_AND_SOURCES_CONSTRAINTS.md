@@ -20,7 +20,7 @@
 
 ## 凭据表单与系统 Save-Password 面板
 
-- **Emby 连接表单声明 `textContentType(.username)` 与 `textContentType(.password)`，提交它会引出系统的 Save-Password 面板**。WebDAV 与 SMB 的连接表单同样如此：产品提交的每一个凭据表单都会引出这张面板。见 `Scripts/verification/regression_preparation_adapter.py` 与 `Scripts/rules/test_regression_preparation_adapter.py`。
+- **Emby 连接表单声明 `textContentType(.username)` 与 `textContentType(.password)`，提交它会引出系统的 Save-Password 面板**。WebDAV 与 SMB 的连接表单同样如此：产品提交的每一个凭据表单都会引出这张面板。见 `Scripts/verification/regression_preparation_adapter.py` 与 `Scripts/rules/tests/test_regression_preparation_adapter.py`。
 - **这张面板在窗口层级之外**，同一个 Preparation 里后续的任何一步都清不掉它。每个连接分支因此在自己的连接按钮之后立刻关掉它，一次关闭只能顶一个分支。见 `Scripts/verification/regression_preparation_adapter.py`。
 
 ## 服务器证书信任
@@ -96,7 +96,7 @@
 - **图片先完成原子磁盘写，再在内存里暴露**，避免读者看到半张图。
 - **句柄释放时，回环服务器要取消这个登记的所有传输**。服务器只在下一次 `send` 失败时才知道对端已经关闭，而 `send` 要等当前这一块（1 MiB）的来源读取返回；在慢速网盘上，一个已关闭条目留下的读取会占住共享 `URLSession` 每主机连接上限（未设置 `httpMaximumConnectionsPerHost`，取系统默认，iOS 系为 4，未在 visionOS 上实测）中的一个，直到那一块读完，下一个条目的打开就排在它后面。`unregister(token:)` 因此按 token 取消传输任务与连接，响应循环在每次读取前检查取消；`MediaByteStreamReleaseTests.releasingTheHandleCancelsAnUnansweredRead` 钉住这条契约。仍在登记内、但对端已经关闭的连接（AVFoundation 的探测请求）还是要等当前一块读完才结束，每次打开约一到两个。
 - **回环服务器缓存的端口只在监听器 ready 期间有效**。系统可以在 App 挂起期间收走这个监听器，而登记铸出的 `http://127.0.0.1:<port>/…` 只是个数字，所以 `failed` 与 `cancelled` 连同监听器一起清掉端口（并取消它名下的连接与传输），下一次 `register` 因此经 `ensureStarted` 起一个新的监听器；`waiting` 只清端口，此刻到达的登记留在 `startupWaiters` 里等下一次 ready 或 failed。此前铸出的句柄留在死端口上，不再复活。每次状态变化记为 `bytestream.listener.state=<ready|failed:<error>|cancelled|waiting:<error>> port=<n>`；`MediaByteStreamListenerTests.aRegistrationAfterTheListenerDiedServesFromANewListener` 钉住这条契约。
-- **产品在来源被添加时收到一次地址，此后在它打开的会话存续期间一直向那个路径发请求**。移动端点的激活会由产品已绑定的会话应答，注入的每一个故障因此都会带上同一个签名。见 `Scripts/rules/test_regression_remote_source.py`。
+- **产品在来源被添加时收到一次地址，此后在它打开的会话存续期间一直向那个路径发请求**。移动端点的激活会由产品已绑定的会话应答，注入的每一个故障因此都会带上同一个签名。见 `Scripts/rules/tests/test_regression_remote_source.py`。
 - **一次静默的读按固定预算重试，预算用尽后转入降档读**。`silentReadTimeout` 30 s、`silentReadRetryLimit` 1：一次读在 30 s 内没有产出就被取消并重试一次；重试仍然没有产出，这个登记进入降档模式，之后每次读改用 `degradedReadTimeout` 10 s 且不再重试，demux 的重连因此快速失败，而不是各等满一整个窗口。任何一次成功的读都恢复常规模式。三个值都是 `MediaByteStreamServer` 的初始化参数，默认值即产品取值。
 - **App 挂起不得取消来源解析，只要还有会话持有那条流**。`preparation.suspend()` 取消解析，而取消解析会拆掉它已经交给播放器的那条流；已暂停的播放器仍然持有那条流，`resume()` 只清一个标志、不重启任何东西，所以带着会话挂起会让来源死掉、下一次重开报 "Connection refused"。`handleScenePhaseTransition` 因此只在 `holdsLivePlaybackSession` 为假时挂起。
 

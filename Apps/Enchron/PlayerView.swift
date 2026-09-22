@@ -5,6 +5,7 @@ import PlaybackCore
 import Playback
 import SwiftUI
 
+#if DEBUG
 private enum PlaybackRegressionIdentity {
     static func addressKind(_ request: PlaybackLaunchRequest?) -> String {
         guard let request else { return "none" }
@@ -31,6 +32,7 @@ private enum PlaybackRegressionIdentity {
         request?.collectionOrigin.rawValue ?? "none"
     }
 }
+#endif
 
 enum WindowPlaybackLoadingVisibility {
     static func shouldShow(
@@ -139,6 +141,7 @@ public struct PlayerView: View {
                 spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
             }
             .overlay {
+#if DEBUG
                 if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
                     Text("Application playback state")
                         .font(.system(size: 1))
@@ -152,6 +155,7 @@ public struct PlayerView: View {
                             )
                         )
                 }
+#endif
             }
     }
 
@@ -216,9 +220,11 @@ public struct PlayerView: View {
         ZStack {
             windowPlayback
 
+#if DEBUG
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
                 PlaybackAutomationStateProbe(hostedPresentation: hostedPlaybackPresentation)
             }
+#endif
         }
         .enchronWindowGlassBackground(showsWindowGlass ? .always : .never)
         .persistentSystemOverlays(
@@ -479,9 +485,14 @@ private struct WindowControlPlaneStateModifier: ViewModifier {
     let windowPlaybackAcceptsInput: Bool
 
     func body(content: Content) -> some View {
+#if DEBUG
         content.accessibilityValue(stateValue)
+#else
+        content
+#endif
     }
 
+#if DEBUG
     private var stateValue: String {
         _ = reapplyVerificationSnapshotTick
         let position = playbackRuntime.playbackPosition
@@ -782,8 +793,10 @@ private struct WindowControlPlaneStateModifier: ViewModifier {
                 + playbackSession.spatialPlaybackSurfaceObservation.accessibilityFields
         ).joined(separator: ";")
     }
+#endif
 }
 
+#if DEBUG
 private struct PlaybackAutomationStateProbe: View {
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -938,3 +951,4 @@ private struct PlaybackAutomationStateProbe: View {
         return "none"
     }
 }
+#endif

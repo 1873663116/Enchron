@@ -16,7 +16,6 @@ RAW_GLASS_OWNER = Path("Modules/DesignSystem/View+Platform.swift")
 RAW_GLASS_CALLEE = "glassBackgroundEffect"
 WRAPPER_CALLEES = (
     "enchronGlassBackground",
-    "enchronPlateGlassBackground",
     "enchronWindowGlassBackground",
 )
 

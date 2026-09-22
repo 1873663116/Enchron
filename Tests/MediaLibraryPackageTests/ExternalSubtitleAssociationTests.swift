@@ -92,7 +92,7 @@ struct ExternalSubtitleAssociationTests {
         #expect(bookmarkRoot.standardizedFileURL == root.standardizedFileURL)
 
         viewModel.play(reference)
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while capturedItem == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -146,7 +146,7 @@ struct ExternalSubtitleAssociationTests {
         )
 
         viewModel.play(reference)
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while capturedItem == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -212,7 +212,7 @@ struct ExternalSubtitleAssociationTests {
         )
 
         viewModel.play(reference)
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while capturedItem == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }

@@ -90,12 +90,14 @@ public nonisolated struct PlaybackAddress: @unchecked Sendable, Equatable {
         remote = true
     }
 
+#if DEBUG
     @_spi(Testing)
     public init(testingURL: URL) {
         url = testingURL
         byteStreamHandle = nil
         remote = testingURL.isFileURL == false
     }
+#endif
 
     public var isRemote: Bool { remote }
     public var preferredBufferDepth: MediaByteBufferDepth {
@@ -180,6 +182,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.sessionReporter = sessionReporter
     }
 
+#if DEBUG
     @_spi(Testing)
     public init(
         url: URL,
@@ -208,6 +211,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             sessionReporter: sessionReporter
         )
     }
+#endif
 
     public init(
         source: PlaybackAddress,
@@ -238,6 +242,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.sessionReporter = sessionReporter
     }
 
+#if DEBUG
     @_spi(Testing)
     public init(
         url: URL,
@@ -268,6 +273,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             sessionReporter: sessionReporter
         )
     }
+#endif
 
     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
         PlaybackLaunchRequest(

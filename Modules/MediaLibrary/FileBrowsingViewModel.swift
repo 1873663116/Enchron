@@ -144,7 +144,9 @@ public final class FileBrowsingViewModel {
         do {
             try credentialStore.deleteCredential(for: dataSource.credentialSourceID)
         } catch {
+#if DEBUG
             print("[FileBrowser] Failed to delete credential for \(dataSource.credentialSourceID): \(error)")
+#endif
         }
     }
 
@@ -375,7 +377,9 @@ public final class FileBrowsingViewModel {
         } catch {
             guard sourceGeneration == generation, activeDataSource == nil else { return }
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
+#if DEBUG
             print("[FileBrowser] loadFiles failed: \(error)")
+#endif
         }
         applySortToLevel()
         loadProgressForFiles()
@@ -948,7 +952,9 @@ public final class FileBrowsingViewModel {
             guard sourceGeneration == generation, activeDataSource == nil else { return }
             files = []
             lastErrorMessage = "Failed to connect local data source: \(error.localizedDescription)"
+#if DEBUG
             print("[FileBrowser] connect failed: \(error)")
+#endif
             settleCurrentLevel()
         }
     }

@@ -7,13 +7,15 @@ enum PlaybackDebugRecorderMode: Equatable, Sendable {
         "ENCHRON_VERIFICATION_DISABLE_PLAYBACK_DEBUG_RECORDER"
 
     case enabled
-    case disabledForVerification
+    case disabled
 
+#if DEBUG
     init(environment: [String: String]) {
         self = environment[Self.verificationDisableEnvironmentKey] == "1"
-            ? .disabledForVerification
+            ? .disabled
             : .enabled
     }
+#endif
 }
 
 @MainActor
@@ -40,9 +42,11 @@ public final class PlaybackCoreController {
     public var onSubtitleFrameChange: ((PlaybackSubtitleFrame?) -> Void)?
     public var onAudioSpectrumFrameChange: ((AudioSpectrumFrame) -> Void)?
 
+#if DEBUG
     public var debugDirectoryURL: URL? {
         debugRecorder?.directoryURL
     }
+#endif
 
     public var staleUpdateCount: Int {
         mediaSlot.staleUpdateCount
@@ -99,7 +103,7 @@ public final class PlaybackCoreController {
             environment: ProcessInfo.processInfo.environment
         )
         #else
-        debugRecorderMode = .enabled
+        debugRecorderMode = .disabled
         #endif
     }
 
@@ -1069,10 +1073,6 @@ public final class PlaybackCoreController {
             self?.replacementRetirementTasks[retirementID] = nil
         }
         return retirement
-    }
-
-    public func writeDebugSnapshot() {
-        debugRecorder?.writeSnapshotIgnoringErrors()
     }
 
     #if DEBUG

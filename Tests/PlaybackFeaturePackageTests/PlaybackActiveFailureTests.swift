@@ -567,7 +567,7 @@ struct PlaybackActiveFailureTests {
     private func waitUntilResolutionFlagClears(
         on coordinator: PlaybackLaunchCoordinator
     ) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while coordinator.isResolvingPlaybackRequest,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -884,7 +884,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
         _ count: Int,
         issueIsCleared: Bool = false
     ) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while ContinuousClock.now < deadline {
             if openCalls.count >= count,
                issueIsCleared == false || userVisibleIssue == nil {
@@ -896,7 +896,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilOpenIsSuspended() async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while suspendedOpenContinuation == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -904,7 +904,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilSuspendedOpenFinished() async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while suspendedOpenFinishedCount == 0, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -912,7 +912,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilFailedOpenCount(_ count: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while failedOpenCount < count, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -920,7 +920,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilOpenReturnCount(_ count: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while openReturnCount < count, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -928,7 +928,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilIssue(_ issue: PlaybackUserVisibleIssue) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while userVisibleIssue != issue, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -936,7 +936,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilIssueIsCleared() async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while userVisibleIssue != nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }

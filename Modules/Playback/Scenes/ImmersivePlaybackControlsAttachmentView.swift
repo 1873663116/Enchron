@@ -36,6 +36,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             )
         }
         .overlay {
+#if DEBUG
             if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
                 Text("Spatial playback state")
                     .font(.system(size: 1))
@@ -45,9 +46,11 @@ struct ImmersivePlaybackControlsAttachmentView: View {
                     .accessibilityIdentifier("PlayerUI-spatial-state")
                     .accessibilityValue(spatialAcceptanceValue)
             }
+#endif
         }
     }
 
+#if DEBUG
     private var spatialAcceptanceValue: String {
         let position = playbackRuntime.playbackPosition
         let output = playbackRuntime.outputObservation()
@@ -217,6 +220,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
         return (fields + appModel.spatialPlaybackSurfaceObservation.accessibilityFields)
             .joined(separator: ";")
     }
+#endif
 
     @MainActor
     private func stopSpatialPlayback() async {
@@ -230,6 +234,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
 
 }
 
+#if DEBUG
 public enum PlaybackStateAccessibility {
     public static func deliveryAccessibilityFields(
         diagnostics: PlaybackDiagnostics,
@@ -336,3 +341,4 @@ public enum PlaybackStateAccessibility {
             ?? String(describing: fact.availability)
     }
 }
+#endif

@@ -113,65 +113,6 @@ public struct EmbyAcceptedPlaybackReport: Equatable, Sendable {
     public let positionTicks: Int64
 }
 
-public struct EmbyPlaybackEvidence: Equatable, Sendable {
-    private static let retainedReportLimit = 64
-
-    public let serverID: EmbyServerID
-    public let userID: EmbyUserID
-    public let itemID: EmbyItemID
-    public let mediaSourceID: EmbyMediaSourceID
-    public let playSessionID: EmbyPlaySessionID
-    public private(set) var activePositionTicks: Int64?
-    public private(set) var latestPositionTicks: Int64
-    public private(set) var exitPositionTicks: Int64?
-    public private(set) var acceptedProgressReportCount: Int
-    public private(set) var acceptedReports: [EmbyAcceptedPlaybackReport]
-    public private(set) var totalAcceptedReportCount: Int
-
-    public var acceptedReportsWereTruncated: Bool {
-        totalAcceptedReportCount > acceptedReports.count
-    }
-
-    public init(report: EmbyAcceptedPlaybackReport) {
-        serverID = report.serverID
-        userID = report.userID
-        itemID = report.itemID
-        mediaSourceID = report.mediaSourceID
-        playSessionID = report.playSessionID
-        activePositionTicks = report.event == .started ? report.positionTicks : nil
-        latestPositionTicks = report.positionTicks
-        exitPositionTicks = report.event == .stopped ? report.positionTicks : nil
-        acceptedProgressReportCount = report.event == .progress ? 1 : 0
-        acceptedReports = [report]
-        totalAcceptedReportCount = 1
-    }
-
-    public mutating func record(_ report: EmbyAcceptedPlaybackReport) {
-        guard report.serverID == serverID,
-              report.userID == userID,
-              report.itemID == itemID,
-              report.mediaSourceID == mediaSourceID,
-              report.playSessionID == playSessionID else {
-            return
-        }
-        if report.event == .started {
-            activePositionTicks = report.positionTicks
-        }
-        if report.event == .progress {
-            acceptedProgressReportCount += 1
-        }
-        if report.event == .stopped {
-            exitPositionTicks = report.positionTicks
-        }
-        latestPositionTicks = report.positionTicks
-        totalAcceptedReportCount += 1
-        acceptedReports.append(report)
-        if acceptedReports.count > Self.retainedReportLimit {
-            acceptedReports.removeFirst(acceptedReports.count - Self.retainedReportLimit)
-        }
-    }
-}
-
 public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unchecked Sendable {
     public typealias UnauthorizedHandler = @Sendable () async -> Void
     public typealias AcceptedReportHandler = @Sendable (

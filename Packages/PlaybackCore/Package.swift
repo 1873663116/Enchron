@@ -59,5 +59,10 @@ let package = Package(
             dependencies: ["PlaybackCore", "PlaybackFFmpegBridge"],
             resources: [.copy("Fixtures")]
         ),
+        .testTarget(
+            name: "PlaybackCoreStandaloneTests",
+            dependencies: ["PlaybackCore"],
+            path: "Tests/Standalone"
+        ),
     ]
 )

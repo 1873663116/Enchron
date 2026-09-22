@@ -357,24 +357,34 @@ public final class MediaLibraryViewModel {
         }
     }
 
+#if DEBUG
     public var diagnosticProbe: (@MainActor (String) -> Void)?
+#endif
 
     public func play(_ reference: FileBrowsingDomain.MediaReference) {
+#if DEBUG
         diagnosticProbe?("libraryPlay name=\(reference.name)")
+#endif
         playbackCollection = Self.naturalPlaybackCollection(from: references)
         Task {
             do {
                 let request = try await playbackPreparation.resolve {
                     try await self.playbackItem(for: reference)
                 }
+#if DEBUG
                 diagnosticProbe?("libraryResolved name=\(reference.name)")
+#endif
                 currentReferenceID = reference.id
                 onPlay(request)
+#if DEBUG
                 diagnosticProbe?("libraryOnPlayReturned name=\(reference.name)")
+#endif
             } catch is CancellationError {
                 return
             } catch {
+#if DEBUG
                 diagnosticProbe?("libraryPlayFailed name=\(reference.name) error=\(error.localizedDescription)")
+#endif
                 lastErrorMessage = error.localizedDescription
             }
         }

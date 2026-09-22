@@ -8,9 +8,11 @@ extension SampleBufferPlaybackSession {
         return hasStartedTimeline ? 0 : timelineStartRate
     }
 
+#if DEBUG
     public func debugEvents() -> AsyncStream<PlaybackDebugEvent> {
         debugStore.events()
     }
+#endif
 
     public func debugSnapshot() -> PlaybackDebugSnapshotV1 {
         var snapshot = debugStore.snapshot()
@@ -77,26 +79,6 @@ extension SampleBufferPlaybackSession {
                 ) / 1000
             )
         }
-    }
-
-    public func debugSnapshotJSON() throws -> String {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return String(decoding: try encoder.encode(debugStore.snapshot()), as: UTF8.self)
-    }
-
-    public func correlateEvidenceID(_ evidenceID: String) {
-        debugStore.correlateEvidenceID(evidenceID)
-    }
-
-    public func recordDebugCommand(_ command: String) {
-        debugStore.emit(
-            mediaSessionID: traceID,
-            kind: "debug.command.received",
-            outcome: .succeeded,
-            details: ["command": command]
-        )
     }
 
     func admitTimelineControl(

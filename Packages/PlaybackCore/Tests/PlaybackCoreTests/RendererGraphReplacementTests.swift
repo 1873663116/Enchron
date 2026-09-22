@@ -14,7 +14,7 @@ import Testing
                 provider: FakeVideoSampleProvider(events: [.sample(sample), .end])
             )
         },
-        debugRecorderMode: .disabledForVerification
+        debugRecorderMode: .disabled
     )
     defer { controller.close() }
 
@@ -51,7 +51,7 @@ import Testing
                 provider: FakeVideoSampleProvider(events: [.end])
             )
         },
-        debugRecorderMode: .disabledForVerification
+        debugRecorderMode: .disabled
     )
     _ = try await controller.open(URL(fileURLWithPath: "/fixtures/fake.mov"))
     await controller.closeAndWait()

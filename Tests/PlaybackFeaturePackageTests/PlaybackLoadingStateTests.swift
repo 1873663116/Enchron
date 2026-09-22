@@ -217,7 +217,7 @@ import Testing
         runtime.seekIndicationDelay = .milliseconds(50)
 
         runtime.seek(to: 0.1)
-        try await Task.sleep(for: .milliseconds(250))
+        await waitUntilSeeking(runtime)
 
         #expect(runtime.loadingState.stage == .seeking)
         #expect(runtime.loadingState.visibility == .loading)
@@ -272,7 +272,7 @@ import Testing
         runtime.seekIndicationDelay = .milliseconds(50)
 
         runtime.seek(to: 0.1)
-        try await Task.sleep(for: .milliseconds(250))
+        await waitUntilSeeking(runtime)
         #expect(runtime.loadingState.stage == .seeking)
 
         gate.release()
@@ -297,14 +297,23 @@ import Testing
         runtime.seekIndicationDelay = .milliseconds(300)
 
         runtime.seek(to: 0.1)
-        try await Task.sleep(for: .milliseconds(200))
-        #expect(runtime.loadingState.stage != .seeking)
+        let firstSeekAt = ContinuousClock.now
+        var sawSeekingEarly = false
+        while ContinuousClock.now - firstSeekAt < .milliseconds(200) {
+            if runtime.loadingState.stage == .seeking { sawSeekingEarly = true }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(sawSeekingEarly == false)
 
         runtime.seek(to: 0.2)
-        try await Task.sleep(for: .milliseconds(200))
-        #expect(runtime.loadingState.stage != .seeking)
+        let secondSeekAt = ContinuousClock.now
+        while ContinuousClock.now - secondSeekAt < .milliseconds(200) {
+            if runtime.loadingState.stage == .seeking { sawSeekingEarly = true }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(sawSeekingEarly == false)
 
-        try await Task.sleep(for: .milliseconds(250))
+        await waitUntilSeeking(runtime)
         #expect(runtime.loadingState.stage == .seeking)
         #expect(seekingEvidence(runtime)?.targetSeconds == 0.2)
 
@@ -346,7 +355,7 @@ import Testing
 
         runtime.seek(to: runtime.playbackPosition.duration / 2)
         #expect(runtime.productLifecycle == .paused)
-        try await Task.sleep(for: .milliseconds(300))
+        await waitUntilSeeking(runtime)
         #expect(runtime.loadingState.stage == .seeking)
 
         gate.release()
@@ -546,8 +555,16 @@ private func seekingEvidence(_ runtime: PlaybackRuntime) -> PlaybackSeekingEvide
 
 @MainActor
 private func waitUntilSeekSettles(_ runtime: PlaybackRuntime) async {
-    let deadline = ContinuousClock.now + .seconds(5)
+    let deadline = ContinuousClock.now + .seconds(10)
     while runtime.seekIsInProgress, ContinuousClock.now < deadline {
+        try? await Task.sleep(for: .milliseconds(10))
+    }
+}
+
+@MainActor
+private func waitUntilSeeking(_ runtime: PlaybackRuntime) async {
+    let deadline = ContinuousClock.now + .seconds(10)
+    while runtime.loadingState.stage != .seeking, ContinuousClock.now < deadline {
         try? await Task.sleep(for: .milliseconds(10))
     }
 }

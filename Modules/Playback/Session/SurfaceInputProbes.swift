@@ -2,10 +2,11 @@ import OSLog
 
 public enum SurfaceInputProbes {
     public static func record(
-        _ fact: String,
+        _ fact: @autoclosure () -> String,
         retention: DebugProbeRetention = .diagnostic
     ) {
 #if DEBUG
+        let fact = fact()
         Logger(subsystem: "app.enchron", category: "Presentation")
             .notice("surface input probe \(fact, privacy: .public)")
         journal.record(fact, retention: retention)

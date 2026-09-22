@@ -52,7 +52,10 @@ struct PlaybackDockedPoseSolverTests {
         #expect(simd_length(pose.normal - SIMD3<Float>(0, 0, 1)) < 0.0001)
         #expect(simd_length(pose.right - SIMD3<Float>(1, 0, 0)) < 0.0001)
         #expect(abs(pose.effectiveDistance - 10) < 0.0001)
-        #expect(pose.roomPosition == .zero)
+        #expect(abs(pose.roomPosition.z - 5) < 0.0001)
+        #expect(abs(pose.roomPosition.x) < 0.0001)
+        #expect(abs(pose.roomPosition.y) < 0.0001)
+        #expect(abs((pose.center.z - pose.roomPosition.z) - -15) < 0.0001)
         #expect(abs(pose.roomRotation.real - 1) < 0.0001)
     }
 
@@ -151,8 +154,8 @@ struct PlaybackDockedPoseSolverTests {
         #expect(abs(raised.roomPosition.z - level.roomPosition.z) < 0.0001)
     }
 
-    @Test("elevation pitches a screen-moving environment's room around the bottom-edge pivot")
-    func elevationPitchesTheMovesScreenRoom() {
+    @Test("elevation pitches a viewer-moving environment's room and its carried shift around the bottom-edge pivot")
+    func elevationPitchesTheMovesViewerRoom() {
         let geometry = EnvironmentSceneMapping.geometry(for: .ocean)
         let transform = PlaybackSurfaceTransform(
             distance: 8,
@@ -168,10 +171,11 @@ struct PlaybackDockedPoseSolverTests {
         )
 
         let pivot = SIMD3<Float>(0, 0.75, 0)
-        let rotated = pose.roomRotation.act(-pivot) + pivot
+        let carried = SIMD3<Float>(0, 0, 7)
+        let rotated = pose.roomRotation.act(carried - pivot) + pivot
         #expect(simd_length(pose.roomPosition - rotated) < 0.001)
-        #expect(abs(pose.roomPosition.y - (0.75 - 0.75 * cos(.pi / 6))) < 0.001)
-        #expect(abs(pose.roomPosition.z - (-0.375)) < 0.001)
+        #expect(abs(pose.roomPosition.y - (0.75 - 0.75 * cos(.pi / 6) - 3.5)) < 0.001)
+        #expect(abs(pose.roomPosition.z - (-0.375 + 7 * cos(.pi / 6))) < 0.001)
         #expect(abs(pose.effectiveDistance - 8) < 0.0001)
     }
 

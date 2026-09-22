@@ -384,6 +384,7 @@ private final class SpatialPresentationObservation {
     }
 }
 
+#if DEBUG
 @MainActor
 private final class SpatialDisplayLinkProbe {
     private var scope: String?
@@ -617,6 +618,7 @@ private final class SpatialDisplayLinkProbe {
         lastEnablementChain = nil
     }
 }
+#endif
 
 public struct ImmersiveSpaceView: View {
     private static let collisionShellInputShelved = false
@@ -630,7 +632,9 @@ public struct ImmersiveSpaceView: View {
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
+#if DEBUG
     @Environment(DeveloperMetricsModel.self) private var developerMetrics
+#endif
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @Environment(\.openWindow) private var openWindow
@@ -653,11 +657,15 @@ public struct ImmersiveSpaceView: View {
     @State private var rendererTargetObservation =
         PlaybackVideoRendererTargetObservation()
     @State private var presentationObservation = SpatialPresentationObservation()
+#if DEBUG
     @State private var displayLinkProbe = SpatialDisplayLinkProbe()
+#endif
     @State private var controlsAttachmentController =
         ImmersivePlaybackControlsAttachmentController()
     @State private var headPoseSource = HeadPoseSource()
+#if DEBUG
     @State private var developerOverlayFollower = DeveloperOverlayFollower()
+#endif
     @State private var immersiveSceneTicks = SceneTickSubscriber()
     @State private var reflectionTicks = SceneTickSubscriber()
     @State private var reflectionTexture = VideoReflectionTextureSource()
@@ -743,7 +751,9 @@ public struct ImmersiveSpaceView: View {
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
+#if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
+#endif
         } update: { content, attachments in
             installRealityViewHostMarker(into: content)
             observeImmersiveSceneUpdates(content)
@@ -751,7 +761,9 @@ public struct ImmersiveSpaceView: View {
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
+#if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
+#endif
         } attachments: {
             Attachment(
                 id: ImmersivePlaybackControlsAttachmentController.attachmentID
@@ -760,11 +772,13 @@ public struct ImmersiveSpaceView: View {
                     presentation: requestedPresentation
                 )
             }
+#if DEBUG
             Attachment(id: DeveloperOverlayFollower.attachmentID) {
                 if developerMetrics.isRunning {
                     DeveloperStatsOverlayReader(sceneKey: .immersive)
                 }
             }
+#endif
             Attachment(id: ImmersivePlaybackStallIndicatorPlacement.attachmentID) {
                 if stallIndicatorIsVisible {
                     LoadingSpinner(
@@ -786,7 +800,9 @@ public struct ImmersiveSpaceView: View {
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {
             controlsAttachmentController.stop()
+#if DEBUG
             developerOverlayFollower.stop()
+#endif
             immersiveSceneTicks.cancel()
             reflectionTicks.cancel()
             realityViewUpdateScheduler.cancel()
@@ -874,6 +890,7 @@ public struct ImmersiveSpaceView: View {
     }
 
     private func observeImmersiveSceneUpdates(_ content: RealityViewContent) {
+#if DEBUG
         guard developerMetrics.isRunning else {
             immersiveSceneTicks.cancel()
             return
@@ -885,6 +902,9 @@ public struct ImmersiveSpaceView: View {
                 }
             }
         }
+#else
+        immersiveSceneTicks.cancel()
+#endif
     }
 
     private func observeReflectionUpdates(_ content: RealityViewContent) {
@@ -990,6 +1010,7 @@ public struct ImmersiveSpaceView: View {
         }
     }
 
+#if DEBUG
     private func installDeveloperOverlay(
         from attachments: RealityViewAttachments,
         into content: RealityViewContent
@@ -1001,6 +1022,7 @@ public struct ImmersiveSpaceView: View {
             headPoseSource: headPoseSource
         )
     }
+#endif
 
     private func installStallIndicator(from attachments: RealityViewAttachments) {
         guard let entity = attachments.entity(
@@ -1341,6 +1363,7 @@ public struct ImmersiveSpaceView: View {
         dockedPlacement: PlaybackSurfaceTransform,
         spatialPresentationOpacity: Double
     ) {
+#if DEBUG
         displayLinkProbe.recordRealityViewUpdate(
             technicalSessionID: playbackRuntime.activeTechnicalSessionID,
             renderer: renderer,
@@ -1349,6 +1372,7 @@ public struct ImmersiveSpaceView: View {
             entityIsInRealityView: content.entities.contains { $0 === videoEntity },
             emit: { appModel.recordSurfaceInputProbe($0) }
         )
+#endif
         let videoComponentRevision = playbackRuntime.videoComponentRevision
         guard PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
             for: presentation,
@@ -1785,19 +1809,21 @@ public struct ImmersiveSpaceView: View {
                 provenance: playbackRuntime.activeMediaFormatProvenance,
                 observedContentType: playbackVideoEntityStore.realityKitContentType
             )
-        let diagnostics = playbackRuntime.diagnostics
         let debugSnapshot = playbackRuntime.debugSnapshot()
+        let displayedPixelBuffer = renderer.displayedPixelBuffer() != nil
+        recordDisplayLinkProbe(event: "presentationState", entityIsInRealityView: nil)
+#if DEBUG
+        let diagnostics = playbackRuntime.diagnostics
         let rendererState = debugSnapshot?.rendererState
         let audioRendererState = debugSnapshot?.audioRendererState
         let timelineControlState = debugSnapshot?.timelineControlState
         let timelineRateActivation = timelineControlState?.lastRateActivation
         let timelineStop = timelineControlState?.lastStop
-        let displayedPixelBuffer = renderer.displayedPixelBuffer() != nil
-        recordDisplayLinkProbe(event: "presentationState", entityIsInRealityView: nil)
         let displayedFrameObservationCount = (
             rendererState?.displayedFrameObservationCount
         ).map(String.init) ?? "none"
         let surfaceOpacity = videoEntity.components[OpacityComponent.self]?.opacity ?? 1
+#endif
         let viewingModeMatches =
             SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
                 stereoLayout: playbackRuntime.effectiveStereoLayout,
@@ -1847,6 +1873,7 @@ public struct ImmersiveSpaceView: View {
             surfaceRefreshTick &+= 1
         }
         let isSettled = readiness.isSettled
+#if DEBUG
         let settlementFields = [
             "settled=\(isSettled)",
             "ready=\(readiness.componentIsReady)",
@@ -1954,6 +1981,7 @@ public struct ImmersiveSpaceView: View {
         ) {
             appModel.recordSurfaceInputProbe("settlement \(settlementBreakdown)")
         }
+#endif
         recordSpatialPlaybackSurfaceObservation(
             presentation: presentation,
             component: component,
@@ -1985,6 +2013,7 @@ public struct ImmersiveSpaceView: View {
         component: VideoPlayerComponent,
         settled: Bool
     ) {
+#if DEBUG
         let worldPosition = videoEntity.position(relativeTo: nil)
         let worldOrientation = videoEntity.orientation(relativeTo: nil)
         let worldScale = videoEntity.scale(relativeTo: nil)
@@ -2045,6 +2074,7 @@ public struct ImmersiveSpaceView: View {
                 settled: settled
             )
         )
+#endif
     }
 
     @MainActor
@@ -2264,8 +2294,10 @@ public struct ImmersiveSpaceView: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         presentationObservation.cancel()
+#if DEBUG
         displayLinkProbe.reset()
         appModel.clearSpatialPlaybackSurfaceObservation()
+#endif
         panoramaInteractionSurface.removeFromParent()
         subtitleFollower.stop()
 #if DEBUG
@@ -2314,7 +2346,9 @@ public struct ImmersiveSpaceView: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         presentationObservation.cancel()
+#if DEBUG
         displayLinkProbe.reset()
+#endif
         subtitleSurface.remove {
             appModel.recordSurfaceInputProbe($0)
         }
@@ -2381,6 +2415,7 @@ public struct ImmersiveSpaceView: View {
         entityIsInRealityView: Bool?,
         isExplicitFirstFrameWaitSample: Bool = false
     ) {
+#if DEBUG
         guard let renderer = playbackRuntime.renderer else { return }
         displayLinkProbe.record(
             event: event,
@@ -2393,6 +2428,7 @@ public struct ImmersiveSpaceView: View {
             isExplicitFirstFrameWaitSample: isExplicitFirstFrameWaitSample,
             emit: { appModel.recordSurfaceInputProbe($0) }
         )
+#endif
     }
 
     private var spatialFirstFrameProbeKey: String {
@@ -2406,6 +2442,7 @@ public struct ImmersiveSpaceView: View {
 
     @MainActor
     private func sampleWhileWaitingForSpatialFirstFrame() async {
+#if DEBUG
         guard requestedPresentation.usesImmersiveSpace else { return }
         while spatialSurfaceAttachmentCanStillSettle {
             guard Task.isCancelled == false,
@@ -2422,6 +2459,7 @@ public struct ImmersiveSpaceView: View {
             }
             try? await Task.sleep(for: PlaybackSurfaceActivation.retryIntervalForView)
         }
+#endif
     }
 
     private var spatialSurfaceReadinessKey: String {

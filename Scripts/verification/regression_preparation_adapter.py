@@ -320,7 +320,7 @@ EMBY_IMPLEMENTATION_IDENTITIES = MappingProxyType(
             )
         ),
         "emby-command-channel": MappingProxyType(
-            _implementation_binding(REPOSITORY_ROOT / "Apps/Enchron/TestCommandChannel.swift")
+            _implementation_binding(REPOSITORY_ROOT / "Apps/Enchron/DebugSupport/TestCommandChannel.swift")
         ),
         "emby-account-session": MappingProxyType(
             _implementation_binding(REPOSITORY_ROOT / "Modules/Emby/EmbySessionViewModel.swift")

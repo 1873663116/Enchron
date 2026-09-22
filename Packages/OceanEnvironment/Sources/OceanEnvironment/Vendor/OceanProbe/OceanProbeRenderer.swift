@@ -380,7 +380,11 @@ struct FoamEvidenceSchedule {
     private var frames: Set<Int>
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
+        #if DEBUG
         isEnabled = environment["ENCHRON_OCEAN_FOAM_DIAGNOSTICS"] == "1"
+        #else
+        isEnabled = false
+        #endif
         frames = isEnabled ? [1, 120, 240] : []
     }
 

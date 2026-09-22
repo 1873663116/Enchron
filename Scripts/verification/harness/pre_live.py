@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-RULES_DIRECTORY = Path(__file__).resolve().parents[2] / "rules"
+RULES_DIRECTORY = Path(__file__).resolve().parents[2] / "rules" / "tests"
 
 PRE_LIVE_CHECKS = (
     "test_controller_replay.py",

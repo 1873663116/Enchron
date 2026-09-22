@@ -2,15 +2,12 @@ import Foundation
 import OSLog
 
 public enum PlaybackTrace {
-    private static let logger = Logger(
-        subsystem: "com.xiongzhipeng.PlaybackCore",
-        category: "PlaybackTrace"
-    )
-
-    public static func event(_ message: String) {
-        logger.notice("[PBTRACE-7C31] \(message, privacy: .public)")
+    public static func event(_ message: @autoclosure () -> String) {
 #if DEBUG
-        sinkLock.withLock { sinkStorage }?(message)
+        let text = message()
+        Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "PlaybackTrace")
+            .notice("[PBTRACE-7C31] \(text, privacy: .public)")
+        sinkLock.withLock { sinkStorage }?(text)
 #endif
     }
 

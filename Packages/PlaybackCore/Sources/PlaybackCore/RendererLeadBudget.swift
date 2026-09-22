@@ -13,9 +13,15 @@ public enum RendererLeadBudget {
 
     static let minimumOutputLagFrames = 2
 
+#if DEBUG
     static let localMaximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 32
 
     static let remoteMaximumFrames = environmentInteger("ENCHRON_RENDERER_LEAD_MAX_FRAMES") ?? 48
+#else
+    static let localMaximumFrames = 32
+
+    static let remoteMaximumFrames = 48
+#endif
 
     static let rampSeconds = 1.5
 
@@ -23,6 +29,7 @@ public enum RendererLeadBudget {
 
     static let criticalCeilingFrames = 16
 
+#if DEBUG
     private static let overrideLock = NSLock()
     nonisolated(unsafe) private static var fixedFramesOverride: Int?
 
@@ -33,6 +40,7 @@ public enum RendererLeadBudget {
     public static var currentFixedFramesOverride: Int? {
         overrideLock.withLock { fixedFramesOverride }
     }
+#endif
 
     static func outputLagFrames(reorderDepth: Int) -> Int {
         max(reorderDepth, minimumOutputLagFrames)
@@ -68,9 +76,11 @@ public enum RendererLeadBudget {
         secondsSinceDeliveryStart: Double?,
         memoryPressure: MemoryPressure
     ) -> Int {
+#if DEBUG
         if let fixed = currentFixedFramesOverride {
             return fixed
         }
+#endif
         let floor = floorFrames(reorderDepth: reorderDepth)
         let ceiling = ceilingFrames(
             reorderDepth: reorderDepth,
@@ -84,11 +94,13 @@ public enum RendererLeadBudget {
         return floor + Int((Double(ceiling - floor) * progress).rounded(.down))
     }
 
+#if DEBUG
     private static func environmentInteger(_ name: String) -> Int? {
         guard let raw = ProcessInfo.processInfo.environment[name],
               let value = Int(raw), value > 0 else { return nil }
         return value
     }
+#endif
 }
 
 enum ProcessMemory {

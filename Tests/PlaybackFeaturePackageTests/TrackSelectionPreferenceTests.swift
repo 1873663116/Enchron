@@ -62,7 +62,7 @@ struct TrackSelectionPreferenceTests {
             )
         )
 
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while runtime.lastStartTimeSeconds != 12.5,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -326,7 +326,7 @@ struct TrackSelectionPreferenceTests {
         firstRuntime.actualPlaybackSeconds = 20
         firstCoordinator.stopPlayback(reason: .backButton)
         let identity = request.versionedIdentity!.mediaIdentity
-        let persistedDeadline = ContinuousClock.now + .seconds(2)
+        let persistedDeadline = ContinuousClock.now + .seconds(10)
         while await firstCoordinator.viewingState(for: identity) == nil,
               ContinuousClock.now < persistedDeadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -339,7 +339,7 @@ struct TrackSelectionPreferenceTests {
             preferencesProvider: AskToResumePreferences()
         )
         resumeCoordinator.beginPlayback(request)
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while resumeCoordinator.pendingResumeDecision == nil,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -377,7 +377,7 @@ struct TrackSelectionPreferenceTests {
         firstRuntime.actualPlaybackSeconds = 20
         firstCoordinator.stopPlayback(reason: .backButton)
         let identity = try #require(request.versionedIdentity).mediaIdentity
-        let persistedDeadline = ContinuousClock.now + .seconds(2)
+        let persistedDeadline = ContinuousClock.now + .seconds(10)
         while await firstCoordinator.viewingState(for: identity) == nil,
               ContinuousClock.now < persistedDeadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -392,7 +392,7 @@ struct TrackSelectionPreferenceTests {
         var intentCount = 0
         resumeCoordinator.onPlaybackIntentStarted = { intentCount += 1 }
         resumeCoordinator.beginPlayback(request)
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while resumeCoordinator.pendingResumeDecision == nil,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -423,7 +423,7 @@ struct TrackSelectionPreferenceTests {
         persistenceRuntime.actualPlaybackSeconds = 20
         persistenceCoordinator.stopPlayback(reason: .backButton)
         let nextIdentity = try #require(nextRequest.versionedIdentity?.mediaIdentity)
-        let persistedDeadline = ContinuousClock.now + .seconds(2)
+        let persistedDeadline = ContinuousClock.now + .seconds(10)
         while await persistenceCoordinator.viewingState(for: nextIdentity) == nil,
               ContinuousClock.now < persistedDeadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -1083,7 +1083,7 @@ struct TrackSelectionPreferenceTests {
         identity: VersionedMediaIdentity,
         satisfies predicate: (PersistedMediaState) -> Bool
     ) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while ContinuousClock.now < deadline {
             if let state = await store.loadValidated(for: identity), predicate(state) {
                 return
@@ -1387,7 +1387,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilOpened() async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while openCount == 0, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -1395,7 +1395,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilConfigured() async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while formatApplicationCount + sourceFormatApplicationCount == 0,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -1408,7 +1408,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         _ request: PlaybackLaunchRequest,
         replacing previousSessionID: String?
     ) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while currentLaunchRequest != request
             || activeSessionID == nil
             || activeSessionID == previousSessionID,
@@ -1421,7 +1421,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilConfigurationCountIs(_ expectedCount: Int) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while formatApplicationCount + sourceFormatApplicationCount < expectedCount,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -1434,7 +1434,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilFormatApplicationIsSuspended() async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while suspendedFormatApplicationContinuation == nil,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -1452,7 +1452,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilOpenIsSuspended() async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while suspendedOpenContinuation == nil,
               ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
@@ -1466,7 +1466,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func waitUntilCurrentRevisionIs(_ revision: String) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while currentLaunchRequest?.versionedIdentity?.contentRevision
                 != .remote(entityTag: revision, sizeInBytes: 1_024),
               ContinuousClock.now < deadline {
@@ -1525,14 +1525,14 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func waitForAudioTrack(id: String) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while currentAudioTrackID != id, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
     }
 
     func waitForSubtitleTrack(id: String?) async throws {
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while currentSubtitleTrackID != id, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }

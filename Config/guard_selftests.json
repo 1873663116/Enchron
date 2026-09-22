@@ -877,7 +877,7 @@
       "guard": "Scripts/rules/verify_unittest_main_guard.py",
       "defect": {
         "type": "replace-text",
-        "file": "Scripts/rules/test_run_verification.py",
+        "file": "Scripts/rules/tests/test_run_verification.py",
         "find": "if __name__ == \"__main__\":\n    unittest.main()\n",
         "replaceWith": "if __name__ == '__main__':\n    unittest.main()\n\n\nclass LateTests(unittest.TestCase):\n    def test_late(self) -> None:\n        pass\n"
       },
@@ -1365,6 +1365,91 @@
         "exitCode": 1,
         "outputContains": [
           "stopped reporting the modification time"
+        ]
+      }
+    },
+    {
+      "id": "release-surface-rejects-ungated-environment-read",
+      "guard": "Scripts/rules/verify_release_surface.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackDemuxBuffering.swift",
+        "find": "#if DEBUG\nprivate func applyPositiveInt64Override(",
+        "replaceWith": "#if os(visionOS)\nprivate func applyPositiveInt64Override("
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "environment key read",
+          "Release"
+        ]
+      }
+    },
+    {
+      "id": "test-target-membership-rejects-unmapped-test-directory",
+      "guard": "Scripts/rules/verify_test_target_membership.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Config/test_harness_map.json",
+        "find": "    \"Tests/EnchronApp\": {\n      \"harnesses\": [\"EnchronAppTests\"]\n    },\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "absent",
+          "test_harness_map.json"
+        ]
+      }
+    },
+    {
+      "id": "debug-boundary-rejects-ungated-marker-declaration",
+      "guard": "Scripts/rules/verify_debug_boundary.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaLibrary/Views/SourceSidebar.swift",
+        "find": "#if DEBUG\n    private func addDebugSource() {",
+        "replaceWith": "    private func addDebugSource() {"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "marker-named declaration",
+          "addDebugSource"
+        ]
+      }
+    },
+    {
+      "id": "debug-boundary-rejects-ungated-marker-file",
+      "guard": "Scripts/rules/verify_debug_boundary.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/rules/verify_debug_boundary.py",
+        "find": "    \"Modules/Playback/Session/DebugProbeJournal.swift\":\n        \"DebugProbeRetention stays ungated for the shipped record signature; \"\n        \"the journal itself is #if DEBUG gated inside this file\",\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "marker-named file",
+          "DebugProbeJournal.swift"
+        ]
+      }
+    },
+    {
+      "id": "debug-boundary-rejects-ungated-spi-testing",
+      "guard": "Scripts/rules/verify_debug_boundary.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/Playback/PlaybackLaunchRequest.swift",
+        "find": "#if DEBUG\n    @_spi(Testing)\n    public init(testingURL: URL) {",
+        "replaceWith": "    @_spi(Testing)\n    public init(testingURL: URL) {"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "@_spi(Testing)",
+          "Release"
         ]
       }
     }

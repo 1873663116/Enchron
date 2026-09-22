@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-CHANNEL_PATH = REPOSITORY_ROOT / "Apps/Enchron/TestCommandChannel.swift"
+CHANNEL_PATH = REPOSITORY_ROOT / "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
 INVENTORY_PATH = REPOSITORY_ROOT / "Config/reachability_operation_inventory.json"
 EXEMPT_VERBS = {
     "primaryTransport": (

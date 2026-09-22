@@ -8,6 +8,7 @@ Enchron 最低运行于 visionOS 27。
 
 ```text
 Apps/Enchron/                产品 App：组合、SwiftUI Scene 声明、系统入口
+Apps/Enchron/DebugSupport/   整文件 #if DEBUG 门控的调试与诊断子系统
 Modules/MediaSource/         公共名词：来源身份、授权与字节访问
 Modules/MediaLibrary/        feature：虚拟媒体库与来源浏览
 Modules/Emby/                feature：Emby 远程源
@@ -20,7 +21,7 @@ Packages/QuietRoomEnvironment/  Quiet Room 场景包：quiet_room.reality 与契
 Tests/                       Package 测试、App 测试、UI 测试与检查器自测
 Regression/                  自动回归的 Promise、Journey、Scenario、Operation、Oracle 与 rubric 合同
 Scripts/regression/          可移植的回归编译核心、运行时、Operation／Oracle 适配器与 CLI
-Scripts/rules/               规则本体、自测、verification 入口与分级器（W3）
+Scripts/rules/               规则本体、verification 入口与分级器（W3）；规则自测在 Scripts/rules/tests/
 Scripts/verification/        驱动器、探针、清单生成器与 harness 的失败分类、等待与预算（W0）
 docs/                        术语与外部约束
 Config/                      检查器的基线与清单
@@ -71,6 +72,8 @@ flowchart LR
 
 新代码该放哪，按下面的顺序问：
 
+**它是否服务终端用户的播放与附带功能**——是，才继续往下问放哪个生产位置；不是，按用途归位：测试进 [`Tests`](Tests) 下对应套件目录并在 [`Config/test_harness_map.json`](Config/test_harness_map.json) 登记归属；独立的调试与诊断子系统进 [`Apps/Enchron/DebugSupport`](Apps/Enchron/DebugSupport)；自动化、检查器与生成器进 [`Scripts`](Scripts) 对应目录。贴着宿主的调试装饰留在宿主文件，整段置于 `#if DEBUG` 并以 Debug／Harness／Automation／TestHook／Fixture 标记词命名——标记让 [`verify_debug_boundary.py`](Scripts/rules/verify_debug_boundary.py) 能断言带标记的声明不落在 Release 面内，[`verify_release_surface.py`](Scripts/rules/verify_release_surface.py) 兜住不带标记的环境读取与 `print`。注意 Diagnostic／Probe／Trace／Evidence 在本仓是生产领域词汇（媒体探测、用户可见诊断、证据管线），不算标记词。
+
 **它是否只描述来源本身**——地址、凭据、信任、字节读取、媒体身份与版本？属 [`Modules/MediaSource`](Modules/MediaSource)。它不认识库、不认识播放，被所有 feature 依赖。
 
 **它是否是跨 feature 的视觉原语或组件**？属 [`Modules/DesignSystem`](Modules/DesignSystem)。准入门槛是至少两个产品 feature（MediaLibrary、Emby、Playback）在代码里消费它。只有一个 feature 消费的，放进那个 feature；没有 feature 消费而 DesignSystem 自身在用的，降为 internal；两者皆无的，删除。该规则目前由人执行，没有检查器把关；判断消费者数量时必须先剥掉注释与字符串再统计，按名字直接 grep 会把注释里的名字算成消费者。
@@ -94,7 +97,7 @@ flowchart LR
 
 **它是否是解码、解复用、渲染、时钟、字幕栅格化**？属 [`Packages/PlaybackCore`](Packages/PlaybackCore)。该 Package 只依赖两个 vendored 二进制与自己的 C 桥，不依赖本仓任何模块；`Modules/Playback` 的 `PlaybackRuntime` 是它的适配层，产品语义不要下沉进去。
 
-**它是否只在把上面几件东西拼起来时才需要**——Scene 声明、导航壳、模态协调、设置存储、测试指令通道？属 [`Apps/Enchron`](Apps/Enchron)。这里现在很薄：`AppModel` 只剩导航标签页，播放会话状态住在 `Modules/Playback` 的 `PlaybackSessionModel`。全部 `WindowGroup`、`Window` 与 `ImmersiveSpace` 在 `EnchronApp.swift` 里声明，内容视图两边都有——`MainView` 在 App，`ImmersiveSpaceView` 与 `SenseZoneVolumeRoot` 在 Playback。新增或删除一个 Scene 必然要动 App。
+**它是否只在把上面几件东西拼起来时才需要**——Scene 声明、导航壳、模态协调、设置存储？属 [`Apps/Enchron`](Apps/Enchron)。这里现在很薄：`AppModel` 只剩导航标签页，播放会话状态住在 `Modules/Playback` 的 `PlaybackSessionModel`。全部 `WindowGroup`、`Window` 与 `ImmersiveSpace` 在 `EnchronApp.swift` 里声明，内容视图两边都有——`MainView` 在 App，`ImmersiveSpaceView` 与 `SenseZoneVolumeRoot` 在 Playback。新增或删除一个 Scene 必然要动 App。
 
 **它是否属于自动回归合同、编译或运行控制**？用户可见承诺、自动化范围、Journey 分组、Scenario 裁决合同、Operation／Oracle 合同与 rubric 属 [`Regression`](Regression)。解析、审查、不可变计划、调度、lease、证据接受、ledger 与 replay 属 [`Scripts/regression`](Scripts/regression)。`Scripts/regression/core` 只依赖 Python 标准库，不 import Xcode、设备控制器或 [`Scripts/verification`](Scripts/verification)；外围 Operation／Oracle 适配器可以调用现有驱动，但不能写 core 状态。该工具层不属于产品 Swift 依赖图，不修改 `Package.swift` 的五个产品 target。
 
@@ -116,6 +119,6 @@ flowchart LR
 
 `EnchronAppTests` 对应 [`Tests/EnchronApp`](Tests/EnchronApp)，`EnchronAppUITests` 对应 [`Tests/EnchronAppUI`](Tests/EnchronAppUI)。测试计划见仓根四个 `.xctestplan`。引擎自身的测试在 [`Packages/PlaybackCore/Tests`](Packages/PlaybackCore/Tests)，字节流一致性套件是独立 Package [`Tests/MediaByteStreamConformance`](Tests/MediaByteStreamConformance)。
 
-规则本体、它们的自测、W0 与 W1 的入口 [`run_verification.py`](Scripts/rules/run_verification.py) 与分级器都在 [`Scripts/rules`](Scripts/rules)，基线与清单在 [`Config`](Config)。放进这个目录的 `test_*.py` 由入口扫描执行，不需要登记；[`verify_scripts_inventory.py`](Scripts/rules/verify_scripts_inventory.py) 要求每个脚本都落进已声明的类别，且文件名与内容一致。[`Scripts/regression`](Scripts/regression) 承担自动回归的可移植核心和适配器，[`Scripts/verification`](Scripts/verification) 留下驱动器、探针、清单生成器与 [`harness`](Scripts/verification/harness) 包：失败领域模型、等待策略与超时预算。自动回归的权威关系与运行不变量见 [`Regression/README.md`](Regression/README.md)；端到端设备操作读 [`.agents/skills/vp-e2e`](.agents/skills/vp-e2e)，级别定义读 [`docs/CONTEXT.md`](docs/CONTEXT.md)。
+规则本体、W0 与 W1 的入口 [`run_verification.py`](Scripts/rules/run_verification.py) 与分级器都在 [`Scripts/rules`](Scripts/rules)，规则自测在 [`Scripts/rules/tests`](Scripts/rules/tests)，基线与清单在 [`Config`](Config)。放进 `tests/` 的 `test_*.py` 由入口扫描执行，不需要登记；[`verify_scripts_inventory.py`](Scripts/rules/verify_scripts_inventory.py) 要求每个脚本都落进已声明的类别，且文件名与内容一致。测试目录到 harness 的归属以 [`Config/test_harness_map.json`](Config/test_harness_map.json) 为准，[`verify_test_target_membership.py`](Scripts/rules/verify_test_target_membership.py) 断言它与 pbxproj 同步组、Package.swift testTarget 三方一致。[`Scripts/regression`](Scripts/regression) 承担自动回归的可移植核心和适配器，[`Scripts/verification`](Scripts/verification) 留下驱动器、探针、清单生成器与 [`harness`](Scripts/verification/harness) 包：失败领域模型、等待策略与超时预算。自动回归的权威关系与运行不变量见 [`Regression/README.md`](Regression/README.md)；端到端设备操作读 [`.agents/skills/vp-e2e`](.agents/skills/vp-e2e)，级别定义读 [`docs/CONTEXT.md`](docs/CONTEXT.md)。
 
-改动模块目录结构时，有一批文件按路径锚定，必须同一个 commit 一起改：[`Config/design_source_architecture_inputs.xcfilelist`](Config/design_source_architecture_inputs.xcfilelist)、`Enchron.xcodeproj` 的 membershipExceptions、[`Config/reachability_operation_inventory.json`](Config/reachability_operation_inventory.json)，以及 [`Scripts/verification`](Scripts/verification) 下按源码位置或符号取锚的检查器。
+改动模块目录结构时，有一批文件按路径锚定，必须同一个 commit 一起改：[`Config/design_source_architecture_inputs.xcfilelist`](Config/design_source_architecture_inputs.xcfilelist)、`Enchron.xcodeproj` 的 membershipExceptions、[`Config/reachability_operation_inventory.json`](Config/reachability_operation_inventory.json)、[`Config/test_harness_map.json`](Config/test_harness_map.json)，以及 [`Scripts/verification`](Scripts/verification) 下按源码位置或符号取锚的检查器。

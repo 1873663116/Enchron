@@ -394,6 +394,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func dumpVideoSampleIfRequested(_ sample: CMSampleBuffer) {
+#if DEBUG
         guard ProcessInfo.processInfo.environment["PLAYBACKLAB_DUMP_VIDEO_DESCRIPTION"] == "1",
               let format = CMSampleBufferGetFormatDescription(sample) else { return }
         var blockBuffer: CMBlockBuffer?
@@ -443,6 +444,7 @@ extension SampleBufferPlaybackSession {
                 )
             }
         }
+#endif
     }
 
     func numericSeconds(_ time: CMTime) -> Double? {

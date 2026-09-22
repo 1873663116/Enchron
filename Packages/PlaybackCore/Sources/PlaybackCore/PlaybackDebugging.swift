@@ -597,13 +597,6 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         currentSnapshot.hardwareDisplayFacts = hardwareDisplayFacts
     }
 
-    public func correlateEvidenceID(_ evidenceID: String) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !currentSnapshot.evidenceCorrelationIDs.contains(evidenceID) else { return }
-        currentSnapshot.evidenceCorrelationIDs.append(evidenceID)
-    }
-
     public func recordError(_ message: String?) {
         lock.lock()
         defer { lock.unlock() }

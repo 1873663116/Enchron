@@ -4,13 +4,13 @@
   "allowances": [
     {
       "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/EnchronApp.swift",
+      "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift",
       "signature": ".font(.system(size: 54))",
       "count": 2
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/EnchronApp.swift",
+      "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift",
       "signature": ".padding(48)",
       "count": 2
     },
@@ -22,7 +22,7 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Apps/Enchron/EnchronApp.swift",
+      "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift",
       "signature": "VStack(spacing: 18) {",
       "count": 2
     },
@@ -78,96 +78,6 @@
       "rule": "production-hardcoded-visual",
       "path": "Modules/Emby/EmbyScreens.swift",
       "signature": ".init(color: .black.opacity(DesignTokens.EmbyDetail.titleWashStrength * 0.45), location: 0.5),",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift",
-      "signature": ".frame(minWidth: 60, minHeight: 60)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift",
-      "signature": ".padding(.vertical, 8)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift",
-      "signature": "HStack(spacing: 4) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift",
-      "signature": ".fill(viewModel.activeDataSource?.id == ds.id ? .green : .secondary.opacity(0.3))",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift",
-      "signature": ".frame(width: 8, height: 8)",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift",
-      "signature": ".padding(.horizontal, 20)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift",
-      "signature": ".padding(.vertical, 12)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift",
-      "signature": "VStack(alignment: .leading, spacing: 6) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FolderListView.swift",
-      "signature": ".frame(width: 40)",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FolderListView.swift",
-      "signature": ".frame(width: 6, height: 6)",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FolderListView.swift",
-      "signature": ".padding(.vertical, 4)",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FolderListView.swift",
-      "signature": "HStack(spacing: 16) {",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FolderListView.swift",
-      "signature": "HStack(spacing: 4) {",
-      "count": 1
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FolderListView.swift",
-      "signature": "VStack(alignment: .leading, spacing: 4) {",
-      "count": 2
-    },
-    {
-      "rule": "production-hardcoded-visual",
-      "path": "Modules/MediaLibrary/Views/FolderListView.swift",
-      "signature": "VStack(spacing: 20) {",
       "count": 1
     },
     {

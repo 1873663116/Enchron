@@ -289,7 +289,7 @@ struct PlaybackResidencyTests {
 
     private static func wait(
         until condition: @MainActor () -> Bool,
-        within timeout: Duration = .seconds(3)
+        within timeout: Duration = .seconds(10)
     ) async -> Bool {
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {

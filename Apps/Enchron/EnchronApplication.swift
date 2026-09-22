@@ -136,6 +136,7 @@ final class EnchronApplication {
         PlaybackTrace.installSink { DebugTraceMirror.shared.append("pbtrace \($0)") }
         MediaSourceDebugTrace.installSink { DebugTraceMirror.shared.append("mstrace \($0)") }
 #endif
+#if DEBUG
         let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
         let mediaLibraryDefaultsSuiteName = isUITesting ? "app.enchron.ui-testing" : nil
         let regressionPreferencesSuiteName = environment[
@@ -192,9 +193,6 @@ final class EnchronApplication {
             }
         }
 
-        let screenPositionStore = PlaybackPresentationStorage.makeScreenPositionStore(
-            suiteName: preferencesSuiteName
-        )
         let playbackSpeedOverride = environment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"].flatMap(Double.init)
             .map { PlaybackModel.PlaybackSpeed($0).value }
         let preferencesStore = UserDefaultsStore(
@@ -206,6 +204,15 @@ final class EnchronApplication {
                 .init(resumePolicy: .alwaysStartFromBeginning)
             )
         }
+#else
+        let mediaLibraryDefaultsSuiteName: String? = nil
+        let preferencesSuiteName: String? = nil
+        let mediaStateSuiteName: String? = nil
+        let preferencesStore = UserDefaultsStore(defaults: .standard)
+#endif
+        let screenPositionStore = PlaybackPresentationStorage.makeScreenPositionStore(
+            suiteName: preferencesSuiteName
+        )
         let playbackSessionModel = PlaybackSessionModel(
             playbackPresentationModel: PlaybackPresentationModel(
                 screenPositionStore: screenPositionStore
@@ -429,7 +436,9 @@ final class EnchronApplication {
         )
 #endif
         let mediaLibrary = mediaLibraryFeature.library
+#if DEBUG
         mediaLibrary.diagnosticProbe = { SurfaceInputProbes.record($0) }
+#endif
         let browser = mediaLibraryFeature.browser
         mediaLibrary.playbackPreparation = launcher.preparation
         browser.playbackPreparation = launcher.preparation
@@ -496,12 +505,16 @@ final class EnchronApplication {
         }
 
         let preferences = preferencesStore.loadPreferences()
+#if DEBUG
         if let override = environment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"].flatMap(Int.init),
            override > 0 {
             playbackSessionModel.controlsAutoHideSeconds = override
         } else {
             playbackSessionModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
         }
+#else
+        playbackSessionModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
+#endif
 
         appModel = AppModel()
         self.playbackSessionModel = playbackSessionModel
@@ -901,6 +914,7 @@ final class EnchronApplication {
         }
     }
 
+#if DEBUG
     static func mediaStateSuiteName(
         isUITesting: Bool,
         environment: [String: String]
@@ -914,6 +928,7 @@ final class EnchronApplication {
         }
         return "app.enchron.spatial-acceptance"
     }
+#endif
 
     private static func durationProbe(
         _ launcher: PlaybackLaunchCoordinator

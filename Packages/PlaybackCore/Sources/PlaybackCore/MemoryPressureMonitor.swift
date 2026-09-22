@@ -10,13 +10,11 @@ public final class MemoryPressureMonitor: @unchecked Sendable {
     private var source: DispatchSourceMemoryPressure?
     private var reported: RendererLeadBudget.MemoryPressure = .normal
     private var elevatedUntil: Date?
-    private var overrideLevel: RendererLeadBudget.MemoryPressure?
 
     private init() {}
 
     public var current: RendererLeadBudget.MemoryPressure {
         lock.withLock {
-            if let overrideLevel { return overrideLevel }
             startLocked()
             if let elevatedUntil, elevatedUntil > Date() { return reported }
             if elevatedUntil != nil {
@@ -25,10 +23,6 @@ public final class MemoryPressureMonitor: @unchecked Sendable {
             }
             return reported
         }
-    }
-
-    public func setOverride(_ level: RendererLeadBudget.MemoryPressure?) {
-        lock.withLock { overrideLevel = level }
     }
 
     private func startLocked() {

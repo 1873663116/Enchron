@@ -18,7 +18,7 @@ import sys
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
-CHANNEL_SOURCE = "Apps/Enchron/TestCommandChannel.swift"
+CHANNEL_SOURCE = "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
 PROJECT_FILE = "Enchron.xcodeproj/project.pbxproj"
 
 INSTALL_CALL = "installTestCommandChannelIfEnabled"

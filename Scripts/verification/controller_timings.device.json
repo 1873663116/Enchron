@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-17T03:18:58.258133+00:00",
+  "updatedAt": "2026-09-22T07:27:09.096619+00:00",
   "verbs": {
     "accessibility-inspect": {
       "samples": [
@@ -3408,26 +3408,6 @@
     "subtitle-window": {
       "samples": [
         {
-          "at": "2026-09-04T19:41:37.482875+00:00",
-          "censored": true,
-          "seconds": 1.0
-        },
-        {
-          "at": "2026-09-04T19:42:09.231134+00:00",
-          "censored": false,
-          "seconds": 0.0
-        },
-        {
-          "at": "2026-09-04T19:42:09.236602+00:00",
-          "censored": false,
-          "seconds": 0.0
-        },
-        {
-          "at": "2026-09-04T19:42:09.237748+00:00",
-          "censored": false,
-          "seconds": 0.0
-        },
-        {
           "at": "2026-09-04T19:42:10.257537+00:00",
           "censored": true,
           "seconds": 1.0
@@ -3604,6 +3584,26 @@
         },
         {
           "at": "2026-09-05T01:16:04.193051+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-22T07:24:09.472384+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-22T07:24:55.364398+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-22T07:25:13.853244+00:00",
+          "censored": true,
+          "seconds": 1.0
+        },
+        {
+          "at": "2026-09-22T07:27:09.096607+00:00",
           "censored": true,
           "seconds": 1.0
         }

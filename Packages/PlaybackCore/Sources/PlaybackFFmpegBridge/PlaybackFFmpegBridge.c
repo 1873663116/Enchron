@@ -4278,6 +4278,7 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
     return count;
 }
 
+#if DEBUG
 bool PBFFmpegHasDemuxer(const char *name) {
     if (!name) return false;
     return av_find_input_format(name) != NULL;
@@ -4297,6 +4298,7 @@ bool PBFFmpegHasInputProtocol(const char *name) {
     }
     return false;
 }
+#endif
 
 int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
     PBFFmpegDemuxSource *source
@@ -4838,6 +4840,7 @@ void PBFFmpegReaderCancel(PBFFmpegReader *reader) {
     }
 }
 
+#if DEBUG
 void PBFFmpegReaderForceBitstreamExtradataBootstrapOnNextOpen(PBFFmpegReader *reader) {
     if (reader) reader->forceBitstreamExtradataBootstrap = true;
 }
@@ -4845,6 +4848,7 @@ void PBFFmpegReaderForceBitstreamExtradataBootstrapOnNextOpen(PBFFmpegReader *re
 bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader) {
     return reader && reader->usedBitstreamExtradataBootstrap;
 }
+#endif
 
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
     if (reader == NULL) return;

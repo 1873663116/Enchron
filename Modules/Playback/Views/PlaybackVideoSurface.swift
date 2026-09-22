@@ -9,6 +9,7 @@ private let playbackVideoSurfaceLogger = Logger(
     category: "PlaybackVideoSurface"
 )
 
+#if DEBUG
 enum PlaybackSettlementProbeSignature {
     private static let fastChangingFieldPrefixes = [
         "synchronizerTime=",
@@ -43,6 +44,7 @@ enum PlaybackSettlementProbeSignature {
             .joined(separator: ",")
     }
 }
+#endif
 
 @MainActor
 private final class PlaybackSurfaceHostRoot {
@@ -958,11 +960,12 @@ public struct PlaybackVideoSurface: View {
             )
         let renderingIsReady = component.currentRenderingStatus == .ready
         let renderer = playbackRuntime.renderer
+        let hasPixels = renderer?.displayedPixelBuffer() != nil
+#if DEBUG
         let diagnostics = playbackRuntime.diagnostics
         let debugSnapshot = playbackRuntime.debugSnapshot()
         let rendererState = debugSnapshot?.rendererState
         let audioRendererState = debugSnapshot?.audioRendererState
-        let hasPixels = renderer?.displayedPixelBuffer() != nil
         let displayedFrameObservationCount = (
             rendererState?.displayedFrameObservationCount
         ).map(String.init) ?? "none"
@@ -991,10 +994,12 @@ public struct PlaybackVideoSurface: View {
         } ?? "none"
         let backpressureCount = debugSnapshot.map { String($0.backpressureCount) } ?? "none"
         let timelineRecovery = debugSnapshot?.timelineProgressRecovery
+#endif
         let isSettled = renderingIsReady
             && immersiveViewingModeIsSettled
             && viewingModeIsSettled
             && hasPixels
+#if DEBUG
         let settlementFields = [
             "settled=\(isSettled)",
             "ready=\(renderingIsReady)",
@@ -1078,6 +1083,7 @@ public struct PlaybackVideoSurface: View {
         ) {
             appModel.recordSurfaceInputProbe("windowSettlement \(breakdown)")
         }
+#endif
         return isSettled ? .settled : .surfaceAttached
     }
 

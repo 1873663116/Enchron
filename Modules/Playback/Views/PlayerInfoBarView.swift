@@ -76,10 +76,14 @@ public struct PlayerInfoBarView: View {
     }
 
     private var initialPresentedMenu: PlaybackTopSecondaryMenu? {
+#if DEBUG
         let environment = ProcessInfo.processInfo.environment
         guard environment["ENCHRON_UI_TESTING"] == "1",
               let rawValue = environment["ENCHRON_UI_INITIAL_MENU"] else { return nil }
         return PlaybackTopSecondaryMenu(rawValue: rawValue)
+#else
+        nil
+#endif
     }
 
     private func enterImmersive(

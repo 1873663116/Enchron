@@ -42,9 +42,11 @@ struct PlaybackActivationReapplyVerificationConfiguration: Equatable, Sendable {
         self.timeoutMilliseconds = max(1, timeoutMilliseconds)
     }
 
+#if DEBUG
     init(environment: [String: String]) {
         self.init(isEnabled: environment[Self.environmentKey] == "1")
     }
+#endif
 }
 
 struct PlaybackActivationReapplyVerificationFacts: Equatable, Sendable {
@@ -374,12 +376,14 @@ final class PlaybackActivationObservation: @unchecked Sendable {
         )
     }
 
+#if DEBUG
     func fireReapplyVerificationTimerForTesting() {
         guard let sequence = lock.withLock({ reapplyVerificationContext?.activationSequence }) else {
             return
         }
         reapplyVerificationTimerFired(sequence: sequence)
     }
+#endif
 
     func recordAcceptedVideo(
         epoch: UInt64,

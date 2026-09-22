@@ -10,7 +10,7 @@
 
 **PlaybackCore 实时记录**是媒体打开过程的分步流水。每个媒体会话在容器的 `tmp/playbackcore-live-debug/<mediaSessionID>/` 下生成 `events.jsonl` 与 `snapshot.json`，根部的 `current.json` 始终指向最新会话。常驻交互会话中默认开启；`VisionProDeviceAcceptanceUITests` 通过 `ENCHRON_VERIFICATION_DISABLE_PLAYBACK_DEBUG_RECORDER=1` 将其关闭。当播放长时间停留在 Loading 时，若 `events.jsonl` 只有 `source.acquired` 与 `open.admitted` 两条记录，说明线程阻塞在 FFmpeg 的 reader open 阶段——既没有取得流信息、也没有报错，而诊断串此时只会显示 `lifecycle=Loading`。
 
-**App 命令通道**直接驱动产品状态，不经过 hit testing。动词集合以 `Apps/Enchron/TestCommandChannel.swift` 为准；App 以 `ENCHRON_TEST_CHANNEL=1` 启动后，在自身 Documents 目录下以 500ms 周期轮询 `test-command.json`。它的用途是测试前置、清场与状态读回，驱动方式记为 `injected`；可达性仍须由 `real` 驱动证明。
+**App 命令通道**直接驱动产品状态，不经过 hit testing。动词集合以 `Apps/Enchron/DebugSupport/TestCommandChannel.swift` 为准；App 以 `ENCHRON_TEST_CHANNEL=1` 启动后，在自身 Documents 目录下以 500ms 周期轮询 `test-command.json`。它的用途是测试前置、清场与状态读回，驱动方式记为 `injected`；可达性仍须由 `real` 驱动证明。
 
 ### 通道的有效范围
 

@@ -200,7 +200,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
                 videoRendererReadyObservation: { true }
             )
         },
-        debugRecorderMode: .disabledForVerification
+        debugRecorderMode: .disabled
     )
     let session = try await controller.open(
         URL(fileURLWithPath: "/fixtures/build-configuration.mov")
@@ -858,13 +858,13 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     ]) == .enabled)
     #expect(PlaybackDebugRecorderMode(environment: [
         PlaybackDebugRecorderMode.verificationDisableEnvironmentKey: "1",
-    ]) == .disabledForVerification)
+    ]) == .disabled)
 }
 
 @MainActor
 @Test(arguments: [
     PlaybackDebugRecorderMode.enabled,
-    PlaybackDebugRecorderMode.disabledForVerification,
+    PlaybackDebugRecorderMode.disabled,
 ])
 func controllerDebugRecorderModeControlsRealRecorderLifecycle(
     _ mode: PlaybackDebugRecorderMode
@@ -3823,7 +3823,7 @@ func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() asy
     )
     let controller = PlaybackCoreController(
         sessionFactory: { _ in session },
-        debugRecorderMode: .disabledForVerification
+        debugRecorderMode: .disabled
     )
     defer { session.close() }
 
@@ -3860,7 +3860,7 @@ func explicitPauseDuringTheContinuityProofSupersedesTheProofInsteadOfFailingIt()
     )
     let controller = PlaybackCoreController(
         sessionFactory: { _ in session },
-        debugRecorderMode: .disabledForVerification
+        debugRecorderMode: .disabled
     )
     defer { session.close() }
 

@@ -122,7 +122,7 @@ def wait_for(label, probe, budget, observe) -> Evidence
 
 ## 通用要求
 
-- 单元测试纯 Python 可跑，不依赖模拟器或真机；跟随仓库现有测试惯例。本包的测试是 `Scripts/rules/test_harness_library.py` 与 `Scripts/rules/test_budget_ceiling_timing_samples.py`。
+- 单元测试纯 Python 可跑，不依赖模拟器或真机；跟随仓库现有测试惯例。本包的测试是 `Scripts/rules/tests/test_harness_library.py` 与 `Scripts/rules/tests/test_budget_ceiling_timing_samples.py`。
 - 提交信息遵循仓库现有风格（一行祈使句主题）。
 
 ## 由来

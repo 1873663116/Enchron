@@ -44,7 +44,7 @@ HISTORY_ROOTS = ("docs/archive",)
 DIGEST_BOUND_EVIDENCE_ROOTS = ("Regression/reviews",)
 
 SELF = ("Scripts/rules/verify_documentation_references.py",
-        "Scripts/rules/test_verify_documentation_references.py")
+        "Scripts/rules/tests/test_verify_documentation_references.py")
 
 GENERATOR_OUTPUT_ROOT = ".scratch"
 RETIRED_ARTIFACT_ROOT = "/Volumes/Cortisol/DevSpace/Xcode/Enchron"

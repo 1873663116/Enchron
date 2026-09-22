@@ -2006,7 +2006,7 @@ extension SampleBufferPlaybackSession {
                 )
                 return
             }
-            if debugStore.snapshot().lifecycle == .failed {
+            if mediaSessionRecord?.lifecycle == .failed {
                 throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
             }
             let now = ContinuousClock.now

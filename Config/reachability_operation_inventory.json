@@ -22,7 +22,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-engine-snapshot"
@@ -34,7 +34,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-mixer-tap-envelope"
@@ -46,7 +46,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-mixer-tap-envelope-sha256"
@@ -58,7 +58,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-runtime-timeline"
@@ -70,7 +70,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-source-evidence"
@@ -82,7 +82,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-start"
@@ -94,7 +94,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-status"
@@ -106,7 +106,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "AcousticCalibration-tone-manifest"
@@ -595,10 +595,10 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/Emby/EmbyEvidence.swift"
         },
         {
-          "path": "Modules/Emby/EmbySessionViewModel.swift"
+          "path": "Modules/Emby/EmbyScreens.swift"
         }
       ],
       "template": "Emby-Detail-Play"
@@ -906,26 +906,6 @@
     {
       "action": "activate",
       "family": "FileBrowsing",
-      "renderDerivation": {
-        "host": "uninstantiatedSwiftUIView",
-        "sources": [
-          {
-            "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift"
-          }
-        ]
-      },
-      "role": "uninstantiated-identifier",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift"
-        }
-      ],
-      "template": "FileBrowsing-Breadcrumb-button-{segment.index}"
-    },
-    {
-      "action": "activate",
-      "family": "FileBrowsing",
       "role": "operation",
       "scope": "product",
       "sources": [
@@ -1158,46 +1138,6 @@
       "template": "FileBrowsing-FilesScreen-viewMode"
     },
     {
-      "action": "activate",
-      "family": "FileBrowsing",
-      "renderDerivation": {
-        "host": "uninstantiatedSwiftUIView",
-        "sources": [
-          {
-            "path": "Modules/MediaLibrary/Views/FolderListView.swift"
-          }
-        ]
-      },
-      "role": "uninstantiated-identifier",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/MediaLibrary/Views/FolderListView.swift"
-        }
-      ],
-      "template": "FileBrowsing-FolderList-button-file-{file.id}"
-    },
-    {
-      "action": "activate",
-      "family": "FileBrowsing",
-      "renderDerivation": {
-        "host": "uninstantiatedSwiftUIView",
-        "sources": [
-          {
-            "path": "Modules/MediaLibrary/Views/FolderListView.swift"
-          }
-        ]
-      },
-      "role": "uninstantiated-identifier",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/MediaLibrary/Views/FolderListView.swift"
-        }
-      ],
-      "template": "FileBrowsing-FolderList-button-folder-{folder.id}"
-    },
-    {
       "action": null,
       "family": "FileBrowsing",
       "role": "observation",
@@ -1220,46 +1160,6 @@
         }
       ],
       "template": "FileBrowsing-Manage-button"
-    },
-    {
-      "action": "activate",
-      "family": "FileBrowsing",
-      "renderDerivation": {
-        "host": "uninstantiatedSwiftUIView",
-        "sources": [
-          {
-            "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
-          }
-        ]
-      },
-      "role": "uninstantiated-identifier",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
-        }
-      ],
-      "template": "FileBrowsing-Sidebar-row-local"
-    },
-    {
-      "action": "activate",
-      "family": "FileBrowsing",
-      "renderDerivation": {
-        "host": "uninstantiatedSwiftUIView",
-        "sources": [
-          {
-            "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
-          }
-        ]
-      },
-      "role": "uninstantiated-identifier",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift"
-        }
-      ],
-      "template": "FileBrowsing-Sidebar-row-{ds.id}"
     },
     {
       "action": null,
@@ -3034,7 +2934,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "SampleBufferAcousticCalibration-renderer-snapshot"
@@ -3046,7 +2946,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "SampleBufferAcousticCalibration-start"
@@ -3058,7 +2958,7 @@
       "scope": "debug-calibration",
       "sources": [
         {
-          "path": "Apps/Enchron/EnchronApp.swift"
+          "path": "Apps/Enchron/DebugSupport/AcousticCalibration.swift"
         }
       ],
       "template": "SampleBufferAcousticCalibration-status"
@@ -6142,7 +6042,7 @@
         "host": "explicitOperationContract",
         "sources": [
           {
-            "path": "Apps/Enchron/TestCommandChannel.swift"
+            "path": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
           }
         ]
       },
@@ -6154,7 +6054,7 @@
         "docked"
       ],
       "proofDomain": "shared",
-      "source": "Apps/Enchron/TestCommandChannel.swift"
+      "source": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
     },
     {
       "id": "command:seekNormalized",
@@ -6163,7 +6063,7 @@
         "host": "explicitOperationContract",
         "sources": [
           {
-            "path": "Apps/Enchron/TestCommandChannel.swift"
+            "path": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
           }
         ]
       },
@@ -6174,7 +6074,7 @@
         "docked"
       ],
       "proofDomain": "playback",
-      "source": "Apps/Enchron/TestCommandChannel.swift"
+      "source": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
     },
     {
       "id": "command:selectMenuItem",
@@ -6183,7 +6083,7 @@
         "host": "explicitOperationContract",
         "sources": [
           {
-            "path": "Apps/Enchron/TestCommandChannel.swift"
+            "path": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
           }
         ]
       },
@@ -6195,7 +6095,7 @@
         "docked"
       ],
       "proofDomain": "shared",
-      "source": "Apps/Enchron/TestCommandChannel.swift"
+      "source": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
     },
     {
       "id": "command:setDockedPlacement",
@@ -6204,7 +6104,7 @@
         "host": "explicitOperationContract",
         "sources": [
           {
-            "path": "Apps/Enchron/TestCommandChannel.swift"
+            "path": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
           }
         ]
       },
@@ -6212,7 +6112,7 @@
         "docked"
       ],
       "proofDomain": "playback",
-      "source": "Apps/Enchron/TestCommandChannel.swift"
+      "source": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
     },
     {
       "id": "command:setWindowSize",
@@ -6221,7 +6121,7 @@
         "host": "explicitOperationContract",
         "sources": [
           {
-            "path": "Apps/Enchron/TestCommandChannel.swift"
+            "path": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
           }
         ]
       },
@@ -6229,7 +6129,7 @@
         "portal"
       ],
       "proofDomain": "playback",
-      "source": "Apps/Enchron/TestCommandChannel.swift"
+      "source": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
     },
     {
       "id": "command:toggleControls",
@@ -6238,7 +6138,7 @@
         "host": "explicitOperationContract",
         "sources": [
           {
-            "path": "Apps/Enchron/TestCommandChannel.swift"
+            "path": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
           }
         ]
       },
@@ -6249,7 +6149,7 @@
         "docked"
       ],
       "proofDomain": "playback",
-      "source": "Apps/Enchron/TestCommandChannel.swift"
+      "source": "Apps/Enchron/DebugSupport/TestCommandChannel.swift"
     },
     {
       "id": "environmentVolume:open-interact-close",

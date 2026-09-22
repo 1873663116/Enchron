@@ -51,7 +51,10 @@ def run(directory: Path) -> int:
     fixture = directory / "main.swift"
     binary = directory / "memory-region-walk"
     fixture.write_text(FIXTURE)
-    subprocess.run(["xcrun", "swiftc", str(SOURCE), str(fixture), "-o", str(binary)], check=True)
+    subprocess.run(
+        ["xcrun", "swiftc", "-D", "DEBUG", str(SOURCE), str(fixture), "-o", str(binary)],
+        check=True,
+    )
     result = subprocess.run([str(binary)], capture_output=True, text=True, check=True)
     output = json.loads(result.stdout)
     print(json.dumps(output, sort_keys=True))

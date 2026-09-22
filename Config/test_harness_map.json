@@ -1,0 +1,68 @@
+{
+  "schema": "enchron.test-harness-map@1",
+  "note": "Every test-bearing directory maps to exactly the harnesses that compile it. verify_test_target_membership.py asserts this map stays in sync with project.pbxproj synchronized groups and Package.swift testTargets.",
+  "harnesses": {
+    "EnchronAppTests": { "kind": "xcode", "host": "EnchronDebug" },
+    "EnchronAppUITests": { "kind": "xcode", "host": "EnchronDebug" },
+    "EnchronDomainTests": { "kind": "xcode", "host": "EnchronDebug" },
+    "MediaLibraryTests": { "kind": "swiftpm", "package": "EnchronModules" },
+    "EmbyTests": { "kind": "swiftpm", "package": "EnchronModules" },
+    "PlaybackFeatureTests": { "kind": "swiftpm", "package": "EnchronModules" },
+    "PlaybackCoreTests": { "kind": "swiftpm", "package": "PlaybackCore" },
+    "PlaybackCoreStandaloneTests": { "kind": "swiftpm", "package": "PlaybackCore" },
+    "MediaByteStreamConformanceTests": {
+      "kind": "swiftpm",
+      "package": "Tests/MediaByteStreamConformance"
+    },
+    "ScriptsRuleSelfTests": { "kind": "tooling", "runner": "Scripts/rules/run_verification.py" }
+  },
+  "directories": {
+    "Tests/EnchronApp": {
+      "harnesses": ["EnchronAppTests"]
+    },
+    "Tests/EnchronAppUI": {
+      "harnesses": ["EnchronAppUITests"],
+      "excludedFromMembership": ["AGENTS.md", "CLAUDE.md"]
+    },
+    "Tests/EnchronAppLogicTests": {
+      "harnesses": ["EnchronDomainTests"]
+    },
+    "Tests/EnchronDomainSupport": {
+      "harnesses": ["EnchronDomainTests"],
+      "role": "support"
+    },
+    "Tests/MediaLibraryPackageTests": {
+      "harnesses": ["EnchronDomainTests", "MediaLibraryTests"]
+    },
+    "Tests/EmbyPackageTests": {
+      "harnesses": ["EnchronDomainTests", "EmbyTests"]
+    },
+    "Tests/PlaybackFeaturePackageTests": {
+      "harnesses": ["EnchronDomainTests", "PlaybackFeatureTests"]
+    },
+    "Tests/PlaybackPresentationTests": {
+      "harnesses": ["EnchronDomainTests"]
+    },
+    "Tests/MediaSourceTests": {
+      "harnesses": ["EnchronDomainTests"]
+    },
+    "Tests/Fixtures": {
+      "harnesses": [],
+      "role": "fixture-corpus"
+    },
+    "Tests/MediaByteStreamConformance/Tests/MediaByteStreamConformanceTests": {
+      "harnesses": ["MediaByteStreamConformanceTests"],
+      "role": "standalone-package"
+    },
+    "Packages/PlaybackCore/Tests/PlaybackCoreTests": {
+      "harnesses": ["PlaybackCoreTests"]
+    },
+    "Packages/PlaybackCore/Tests/Standalone": {
+      "harnesses": ["EnchronDomainTests", "PlaybackCoreStandaloneTests"]
+    },
+    "Scripts/rules/tests": {
+      "harnesses": ["ScriptsRuleSelfTests"],
+      "role": "tooling-self-tests"
+    }
+  }
+}

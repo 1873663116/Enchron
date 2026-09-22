@@ -92,29 +92,3 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         )
     }
 }
-
-public nonisolated final class FakePreferencesStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
-    private let lock = NSLock()
-    private var preferences: UserPreferences
-
-    public init(initial: UserPreferences = UserPreferences()) {
-        self.preferences = initial
-    }
-
-    public func loadPreferences() -> UserPreferences {
-        lock.withLock { preferences }
-    }
-
-    public func savePreferences(_ preferences: UserPreferences) {
-        lock.withLock { self.preferences = preferences }
-    }
-
-    public func loadPlaybackPreferences() -> PlaybackPreferences {
-        let preferences = loadPreferences()
-        return PlaybackPreferences(
-            resumePolicy: preferences.resumePolicy,
-            endBehavior: preferences.playbackEndBehavior,
-            defaultSpeed: preferences.defaultPlaybackSpeed
-        )
-    }
-}

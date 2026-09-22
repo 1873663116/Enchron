@@ -617,13 +617,15 @@ public final class PlaybackSessionModel {
         controlsAutoHideTask = nil
     }
 
+#if DEBUG
     public var debugSurfaceTapTrace: String = "none"
+#endif
 
     public func recordSurfaceInputProbe(
-        _ fact: String,
+        _ fact: @autoclosure () -> String,
         retention: DebugProbeRetention = .diagnostic
     ) {
-        SurfaceInputProbes.record(fact, retention: retention)
+        SurfaceInputProbes.record(fact(), retention: retention)
     }
 
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
@@ -646,7 +648,9 @@ public final class PlaybackSessionModel {
         }
         showControls.toggle()
         logger.info("surface tap controlsVisible=\(self.showControls)")
+#if DEBUG
         debugSurfaceTapTrace = "toggled:\(showControls ? "shown" : "hidden")"
+#endif
         SurfaceInputProbes.record(
             "controlsVisibility event=surface-toggle state=\(showControls ? "shown" : "hidden") interactionMillis=\(Int(date.timeIntervalSince1970 * 1000)) autoHideSeconds=\(controlsAutoHideSeconds)",
             retention: .evidence

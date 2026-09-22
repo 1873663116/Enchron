@@ -85,6 +85,7 @@ extension PBFFmpegDemuxBufferConfiguration {
             mode,
             explicitForwardByteLimit
         )
+#if DEBUG
         try applyPositiveInt64Override(
             "ENCHRON_DEMUX_FORWARD_BUFFER_BYTES",
             from: environment,
@@ -102,10 +103,12 @@ extension PBFFmpegDemuxBufferConfiguration {
             from: environment,
             to: &configuration.targetDurationSeconds
         )
+#endif
         return configuration
     }
 }
 
+#if DEBUG
 private func applyPositiveInt64Override(
     _ name: String,
     from environment: [String: String],
@@ -141,3 +144,4 @@ private func applyPositiveDoubleOverride(
     }
     value = parsed
 }
+#endif

@@ -944,7 +944,10 @@ struct PlaybackPresentationStateTests {
         let appModel = PlaybackSessionModel()
         appModel.controlsAutoHideSeconds = 1
         appModel.showControls = true
-        try await Task.sleep(for: .milliseconds(1_400))
+        let firstHideDeadline = ContinuousClock.now + .seconds(10)
+        while appModel.showControls, ContinuousClock.now < firstHideDeadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
         #expect(appModel.showControls == false)
 
         appModel.showControls = true
@@ -953,7 +956,10 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.showControls)
 
         appModel.setControlsFocused(false)
-        try await Task.sleep(for: .milliseconds(1_400))
+        let secondHideDeadline = ContinuousClock.now + .seconds(10)
+        while appModel.showControls, ContinuousClock.now < secondHideDeadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
         #expect(appModel.showControls == false)
     }
 

@@ -117,7 +117,7 @@
 - **常驻 runner 以 300 s 的控件自动隐藏启动 app**。Preparation 不覆盖它时，任何"菜单打开时控件仍在"的读数都由 harness 保证，成对的 controls=hidden 判据永远不会触发。见 `Scripts/verification/regression_preparation_adapter.py`。
 - **secondary-menu-pins-audio-controls 在 9000 ms settle 之后探测 controls=shown**，audio-only Preparation 因此把自动隐藏窗口压到 8 s。见 `Scripts/verification/regression_preparation_adapter.py`。
 - **window-surface-controls-toggle-and-autohide 从三次 Device Hub 捏合读出 shown-hidden-shown**。一次捏合是一次 `device_hub_canvas.py` 往返加一次控制器快照，各需数秒；8 s 的空闲窗口会在两次捏合之间触发，25 s 覆盖整段序列，并且短于该 Scenario 收尾的 30000 ms 探测 settle（适配器上限）。见 `Scripts/verification/regression_preparation_adapter.py`。
-- **audio-only 集合里的 FATE 片长在 0.107 s 到 11.9 s 之间**，撑不到 tap 之后三次控制器往返的那次控制面读数；181 s 的生成资产是集合里唯一能撑到的。见 `Scripts/rules/test_fixture_registry.py`。
+- **audio-only 集合里的 FATE 片长在 0.107 s 到 11.9 s 之间**，撑不到 tap 之后三次控制器往返的那次控制面读数；181 s 的生成资产是集合里唯一能撑到的。见 `Scripts/rules/tests/test_fixture_registry.py`。
 
 ## 可达性清单的字符串扫描
 

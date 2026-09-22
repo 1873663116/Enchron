@@ -9,7 +9,7 @@ import sys
 
 
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-TEST_ROOTS = (Path("Scripts/rules"),)
+TEST_ROOTS = (Path("Scripts/rules/tests"),)
 RULE = "unittest-main-guard-last"
 
 

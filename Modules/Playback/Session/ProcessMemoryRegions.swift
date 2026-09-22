@@ -1,3 +1,4 @@
+#if DEBUG
 import Darwin
 import Foundation
 
@@ -94,3 +95,4 @@ nonisolated enum ProcessMemoryRegions {
         return summary.regionCount > 0 ? summary : nil
     }
 }
+#endif

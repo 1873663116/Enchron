@@ -88,9 +88,11 @@ typedef struct PBFFmpegDemuxBufferConfiguration {
 
 const char *PBFFmpegBuildConfiguration(void);
 
+#if DEBUG
 bool PBFFmpegHasDemuxer(const char *name);
 bool PBFFmpegHasDecoder(const char *name);
 bool PBFFmpegHasInputProtocol(const char *name);
+#endif
 
 PBFFmpegDemuxBufferConfiguration PBFFmpegDemuxBufferConfigurationMake(
     PBFFmpegDemuxBufferMode mode,
@@ -285,8 +287,10 @@ bool PBFFmpegReaderOpenWithDemuxSource(
 );
 void PBFFmpegReaderCancel(PBFFmpegReader *reader);
 
+#if DEBUG
 void PBFFmpegReaderForceBitstreamExtradataBootstrapOnNextOpen(PBFFmpegReader *reader);
 bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader);
+#endif
 
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader);
 

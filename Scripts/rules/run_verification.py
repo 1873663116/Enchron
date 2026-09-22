@@ -119,6 +119,18 @@ STRUCTURE_CHECKS = (
         "verify_release_test_channel_absent.py",
     ),
     StructureCheck(
+        "release-surface",
+        "verify_release_surface.py",
+    ),
+    StructureCheck(
+        "debug-boundary",
+        "verify_debug_boundary.py",
+    ),
+    StructureCheck(
+        "test-target-membership",
+        "verify_test_target_membership.py",
+    ),
+    StructureCheck(
         "regression-fact-provenance",
         "verify_regression_fact_provenance.py",
     ),
@@ -381,12 +393,16 @@ def structure_check_command(filename: str) -> list[str]:
 
 
 def discovered_test_checks() -> tuple[StructureCheck, ...]:
-    discovered: list[StructureCheck] = []
-    for directory in SCRIPT_DIRECTORIES:
-        for path in sorted((REPOSITORY_ROOT / directory).glob("test_*.py")):
-            discovered.append(StructureCheck(path.stem.replace("_", "-"), path.name))
+    tests_root = REPOSITORY_ROOT / "Scripts/rules/tests"
+    discovered = [
+        StructureCheck(
+            path.stem.replace("_", "-"),
+            f"tests/{path.name}",
+        )
+        for path in sorted(tests_root.glob("test_*.py"))
+    ]
     if not discovered:
-        raise ValueError(f"no self-tests found under {', '.join(SCRIPT_DIRECTORIES)}")
+        raise ValueError(f"no self-tests found under {tests_root}")
     return tuple(discovered)
 
 
@@ -673,6 +689,113 @@ def run_domain_tests(run_directory: Path, environment: dict[str, str]) -> LayerR
         return LayerResult("Domain tests", "FAIL", f"failures: {detail}", logs)
     return LayerResult(
         "Domain tests", "PASS", f"{summary.group('count')} tests passed", logs
+    )
+
+
+"""Names that must not survive into the shipping Release binary. Each is a
+whole-#if-DEBUG subsystem or a test seam: finding one as a symbol or as a
+string means gating was removed or a new surface leaked past the source
+checks."""
+RELEASE_BINARY_FORBIDDEN = (
+    "ENCHRON_",
+    "PLAYBACKLAB_",
+    "TestCommandChannel",
+    "FakeFileDataSource",
+    "AcousticCalibration",
+    "ViewingStorageDiagnostics",
+    "PlaybackSwitchStateRing",
+    "EmbyPlaybackEvidence",
+    "SystemImportDeliveryDiagnostics",
+    "ContainerIndexDebug",
+    "DebugProbeJournal",
+    "PlaybackAutomationStateProbe",
+)
+
+
+def run_release_binary_surface(
+    run_directory: Path, environment: dict[str, str]
+) -> LayerResult:
+    """Build Enchron.app Release for a concrete visionOS simulator and scan
+    the binary for forbidden names. A concrete destination matters:
+    generic/platform=visionOS Simulator builds an x86_64+arm64 fat binary,
+    and the x86_64 slice fails inside RealityKitScriptingMacros with
+    'Unable to resolve module dependency' under explicit module builds."""
+    log = run_directory / "release-binary-surface.log"
+    identifier = visionos_simulator_identifier(environment)
+    if identifier is None:
+        return LayerResult(
+            "Release binary surface",
+            "FAIL",
+            "no visionOS simulator is available for the Release build",
+        )
+    derived = artifact_root() / "DerivedData/ReleaseSurface"
+    build = [
+        "xcodebuild",
+        "-project",
+        str(REPOSITORY_ROOT / "Enchron.xcodeproj"),
+        "-scheme",
+        "Enchron",
+        "-configuration",
+        "Release",
+        "-destination",
+        f"id={identifier}",
+        "build",
+        "CODE_SIGNING_ALLOWED=NO",
+        "-derivedDataPath",
+        str(derived),
+    ]
+    code, output = run_logged("release binary surface", build, log, environment)
+    logs = (relative_log(log, run_directory),)
+    if code != 0:
+        return LayerResult(
+            "Release binary surface", "FAIL", f"release build exited {code}", logs
+        )
+    binary = (
+        derived / "Build/Products/Release-xrsimulator/Enchron.app/Enchron"
+    )
+    if not binary.is_file():
+        return LayerResult(
+            "Release binary surface",
+            "FAIL",
+            f"built binary missing at {binary}",
+            logs,
+        )
+    strings = subprocess.run(
+        ["strings", "-a", str(binary)],
+        env=environment,
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+    symbols = subprocess.run(
+        ["nm", "-gU", str(binary)],
+        env=environment,
+        capture_output=True,
+        text=True,
+        errors="replace",
+    )
+    blob = strings.stdout + "\n" + symbols.stdout
+    hits = sorted(
+        {name for name in RELEASE_BINARY_FORBIDDEN if name in blob}
+    )
+    with log.open("a", encoding="utf-8") as sink:
+        sink.write(f"binary: {binary}\n")
+        sink.write(f"forbidden names found: {len(hits)}\n")
+        for hit in hits:
+            sink.write(f"  {hit}\n")
+    if hits:
+        return LayerResult(
+            "Release binary surface",
+            "FAIL",
+            "shipping binary carries: " + ", ".join(hits),
+            logs,
+        )
+    return LayerResult(
+        "Release binary surface",
+        "PASS",
+        f"{len(RELEASE_BINARY_FORBIDDEN)} forbidden names absent from "
+        "the Release binary",
+        logs,
     )
 
 
@@ -1061,6 +1184,7 @@ def main() -> int:
             results.extend(
                 [
                     skipped("Domain tests"),
+                    skipped("Release binary surface"),
                     skipped("Source parity"),
                     skipped("Media discovery capability matrix"),
                     skipped("Feature evidence coverage"),
@@ -1071,6 +1195,14 @@ def main() -> int:
                 results.append(run_domain_tests(run_directory, environment))
             except (OSError, subprocess.SubprocessError) as error:
                 results.append(LayerResult("Domain tests", "FAIL", str(error)))
+            try:
+                results.append(
+                    run_release_binary_surface(run_directory, environment)
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                results.append(
+                    LayerResult("Release binary surface", "FAIL", str(error))
+                )
             results.append(run_source_parity(run_directory, environment, baseline))
             results.append(
                 run_media_discovery_capability_matrix(run_directory, environment)

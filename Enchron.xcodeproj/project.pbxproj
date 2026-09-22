@@ -14,25 +14,25 @@
 		D00000300000000000D0A1A1 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = D00000200000000000D0A1A1 /* MediaSource */; };
 		D00000310000000000D0A1A1 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = D00000210000000000D0A1A1 /* Emby */; };
 		D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D00000220000000000D0A1A1 /* MediaLibrary */; };
-		D00000330000000000D0A1A1 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D00000230000000000D0A1A1 /* PlaybackFeature */; };
+		D00000330000000000D0A1A1 /* Playback in Frameworks */ = {isa = PBXBuildFile; productRef = D00000230000000000D0A1A1 /* Playback */; };
 		D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = D00000240000000000D0A1A1 /* PlaybackCore */; };
 		D00000350000000000D0A1A1 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = D00000250000000000D0A1A1 /* DesignSystem */; };
-		D00000360000000000D0A1A1 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = D00000260000000000D0A1A1 /* PlaybackPresentation */; };
+		D00000360000000000D0A1A1 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		E10000052FA1000100E1C001 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FA1000100E1C001 /* MediaSource */; };
-		E10000062FA1000100E1C001 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* PlaybackFeature */; };
-		E10000072FA1000100E1C001 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = E10000042FA1000100E1C001 /* PlaybackPresentation */; };
+		E10000062FA1000100E1C001 /* Playback in Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* Playback */; };
+		E10000072FA1000100E1C001 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		E10000132FA1000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
 		E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
 		E22000032FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
-		F30000002FA5000100E1C001 /* AMSMB2 in Debug Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
-		F30000012FA5000100E1C001 /* PlaybackCore in Debug Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
-		F30000022FA5000100E1C001 /* RealityKitScripting in Debug Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
-		F30000032FA5000100E1C001 /* MediaSource in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FA1000100E1C001 /* MediaSource */; };
-		F30000042FA5000100E1C001 /* Playback in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* Playback */; };
-		F30000052FA5000100E1C001 /* DesignSystem in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
-		F30000062FA5000100E1C001 /* MediaLibrary in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
-		F30000072FA5000100E1C001 /* Emby in Debug Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
-		F30000082FA5000100E1C001 /* AMSMB2 in Debug Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F30000002FA5000100E1C001 /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
+		F30000012FA5000100E1C001 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
+		F30000022FA5000100E1C001 /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
+		F30000032FA5000100E1C001 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FA1000100E1C001 /* MediaSource */; };
+		F30000042FA5000100E1C001 /* Playback in Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* Playback */; };
+		F30000052FA5000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
+		F30000062FA5000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
+		F30000072FA5000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
+		F30000082FA5000100E1C001 /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -71,17 +71,6 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F300000C2FA5000100E1C001 /* Debug Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				F30000082FA5000100E1C001 /* AMSMB2 in Debug Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		C3A35AAE2F85415E00DA0D16 /* Embed ExtensionKit Extensions */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -92,50 +81,61 @@
 			name = "Embed ExtensionKit Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F300000C2FA5000100E1C001 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F30000082FA5000100E1C001 /* AMSMB2 in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		C3B0F9802F5726B30064596E /* Enchron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchron.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		F300000D2FA5000100E1C001 /* EnchronDebug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EnchronDebug.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronDomainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2E0000200000000DEADBEEF /* EnchronAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1A0000200000000DEADBEEF /* EnchronAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F300000D2FA5000100E1C001 /* EnchronDebug.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EnchronDebug.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		E10000162FA1000100E1C001 /* Exceptions for "Modules" folder in "Enchron" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				"DesignSystem/View+EnchronGlass.swift",
-				"DesignSystem/View+Platform.swift",
-				"DesignSystem/View+PressFeedback.swift",
-				"MediaLibrary/Storage/CredentialStoring+ConnectionInfo.swift",
 				DesignSystem/Components/AsyncArtworkImage.swift,
 				DesignSystem/Components/ButtonIcon.swift,
 				DesignSystem/Components/CardGrid.swift,
+				DesignSystem/Components/FlowGridLayout.swift,
 				DesignSystem/Components/GridCard.swift,
 				DesignSystem/Components/InputComponents.swift,
 				DesignSystem/Components/LevelContent.swift,
 				DesignSystem/Components/LoadingSpinner.swift,
 				DesignSystem/Components/MenuSelectionRow.swift,
-				DesignSystem/Components/FlowGridLayout.swift,
 				DesignSystem/Components/PlaybackChromeGlassButton.swift,
 				DesignSystem/Components/SettingsComponents.swift,
-				DesignSystem/Components/SidebarSplitLayout.swift,
 				DesignSystem/Components/SidebarRow.swift,
+				DesignSystem/Components/SidebarSplitLayout.swift,
 				DesignSystem/Components/SidebarToggleButton.swift,
 				DesignSystem/DebugMenuSelection.swift,
 				DesignSystem/DesignTokens.swift,
+				"DesignSystem/View+EnchronGlass.swift",
+				"DesignSystem/View+Platform.swift",
+				"DesignSystem/View+PressFeedback.swift",
 				Emby/CollapsibleBlock.swift,
 				Emby/EmbyClient.swift,
 				Emby/EmbyClientProtocol.swift,
+				Emby/EmbyEvidence.swift,
 				Emby/EmbyItemPresentation.swift,
 				Emby/EmbyLaunchRoute.swift,
 				Emby/EmbyMediaByteSource.swift,
 				Emby/EmbyModels.swift,
 				Emby/EmbyPlaybackBridge.swift,
-				Emby/EmbyScreenViewModels.swift,
 				Emby/EmbyScreens.swift,
+				Emby/EmbyScreenViewModels.swift,
 				Emby/EmbyServerStore.swift,
 				Emby/EmbySessionViewModel.swift,
 				Emby/EmbyShelf.swift,
@@ -143,6 +143,7 @@
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,
 				MediaLibrary/MediaLibraryViewModel.swift,
+				MediaLibrary/SystemImportDeliveryDiagnostics.swift,
 				MediaLibrary/Model/ExternalSubtitleAssociation.swift,
 				MediaLibrary/Model/MediaBrowsing.swift,
 				MediaLibrary/Model/MediaLibrary.swift,
@@ -155,14 +156,12 @@
 				MediaLibrary/Sources/Local/SecurityScopedFileReferenceResolver.swift,
 				MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift,
 				MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift,
+				"MediaLibrary/Storage/CredentialStoring+ConnectionInfo.swift",
 				MediaLibrary/Storage/SavedDataSourceStore.swift,
 				MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift,
-				MediaLibrary/Views/BreadcrumbView.swift,
 				MediaLibrary/Views/ConnectionFormPanel.swift,
-				MediaLibrary/Views/FileBrowserSidebar.swift,
 				MediaLibrary/Views/FilesScreen.swift,
 				MediaLibrary/Views/FilesScreenViewState.swift,
-				MediaLibrary/Views/FolderListView.swift,
 				MediaLibrary/Views/LibraryListComponents.swift,
 				MediaLibrary/Views/LibraryNavigationComponents.swift,
 				MediaLibrary/Views/LibraryToolbarComponents.swift,
@@ -172,8 +171,9 @@
 				MediaSource/KeychainStore.swift,
 				MediaSource/MediaAccessLease.swift,
 				MediaSource/MediaByteStream.swift,
-				MediaSource/MediaSourcePreparationResources.swift,
+				"MediaSource/MediaByteStream+Diagnostics.swift",
 				MediaSource/MediaSourcePreparation.swift,
+				MediaSource/MediaSourcePreparationResources.swift,
 				MediaSource/NaturalMediaNameOrder.swift,
 				MediaSource/NetworkMonitor.swift,
 				MediaSource/RemoteAddressScope.swift,
@@ -205,39 +205,39 @@
 				Playback/Model/SpatialPlaybackSurfaceSettlementPolicy.swift,
 				Playback/Model/UnmetCapability.swift,
 				Playback/Model/WindowPlaybackPageGeometry.swift,
-				Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift,
+				Playback/Platform/PlaybackDisplayCriteria.swift,
 				Playback/Platform/PlaybackDockedPoseSolver.swift,
-				Playback/Platform/VideoReflectionTextureSource.swift,
+				Playback/Platform/PlaybackSurfaceRealityKitAdapter.swift,
 				Playback/Platform/SpatialPlatformEffectExecutor.swift,
 				Playback/Platform/SpatialPlatformExecutionLease.swift,
+				Playback/Platform/VideoReflectionTextureSource.swift,
 				Playback/PlaybackAudioSession.swift,
 				Playback/PlaybackLaunchCoordinator.swift,
 				Playback/PlaybackLaunchRequest.swift,
 				Playback/PlaybackMediaMetadataService.swift,
 				Playback/PlaybackRuntime.swift,
+				Playback/Scenes/DeveloperOverlayFollower.swift,
+				Playback/Scenes/HeadPoseSource.swift,
 				Playback/Scenes/ImmersivePlaybackControlsAttachment.swift,
 				Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift,
 				Playback/Scenes/ImmersiveSpaceView.swift,
 				Playback/Scenes/PanoramaSubtitleFollower.swift,
-				Playback/Scenes/HeadPoseSource.swift,
-				Playback/Scenes/DeveloperOverlayFollower.swift,
 				Playback/Session/ApplicationSuspensionWatchdog.swift,
 				Playback/Session/DebugProbeJournal.swift,
+				Playback/Session/DeveloperMetrics.swift,
 				Playback/Session/PlaybackMediaSessionDriver.swift,
 				Playback/Session/PlaybackPresentationChrome.swift,
+				Playback/Session/PlaybackSessionModel.swift,
 				Playback/Session/ProcessMemoryFootprint.swift,
 				Playback/Session/ProcessMemoryRegions.swift,
-				Playback/Session/DeveloperMetrics.swift,
-				Playback/Platform/PlaybackDisplayCriteria.swift,
 				Playback/Session/RendererTransferCoordinator.swift,
-				Playback/Session/PlaybackSessionModel.swift,
 				Playback/Session/SurfaceInputProbes.swift,
 				Playback/Storage/ScreenPositionStore.swift,
 				Playback/Views/AnimatedDirectionalIconButton.swift,
-				Playback/Views/DeveloperStatsOverlay.swift,
 				Playback/Views/AppearanceModeButton.swift,
 				Playback/Views/AudioSpectrumSurface.swift,
 				Playback/Views/DetentedRangeSlider.swift,
+				Playback/Views/DeveloperStatsOverlay.swift,
 				Playback/Views/DragRotationModifier.swift,
 				Playback/Views/EnvironmentComponents.swift,
 				Playback/Views/PlaybackFormatters.swift,
@@ -252,6 +252,14 @@
 				Playback/Views/WindowPlayerDeck.swift,
 			);
 			target = C3B0F97F2F5726B30064596E /* Enchron */;
+		};
+		E2E0000D00000000DEADBEEF /* Exceptions for "Tests/EnchronAppUI" folder in "EnchronAppUITests" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AGENTS.md,
+				CLAUDE.md,
+			);
+			target = E2E0000100000000DEADBEEF /* EnchronAppUITests */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -294,6 +302,11 @@
 			path = Tests/PlaybackPresentationTests;
 			sourceTree = "<group>";
 		};
+		D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Packages/PlaybackCore/Tests/Standalone;
+			sourceTree = "<group>";
+		};
 		D00000160000000000D0A1A1 /* Tests/EnchronAppLogicTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = Tests/EnchronAppLogicTests;
@@ -304,13 +317,11 @@
 			path = Tests/MediaSourceTests;
 			sourceTree = "<group>";
 		};
-		D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = Packages/PlaybackCore/Tests/Standalone;
-			sourceTree = "<group>";
-		};
 		E2E0000C00000000DEADBEEF /* Tests/EnchronAppUI */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E2E0000D00000000DEADBEEF /* Exceptions for "Tests/EnchronAppUI" folder in "EnchronAppUITests" target */,
+			);
 			path = Tests/EnchronAppUI;
 			sourceTree = "<group>";
 		};
@@ -330,26 +341,11 @@
 				B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */,
 				A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */,
 				E10000052FA1000100E1C001 /* MediaSource in Frameworks */,
-				E10000062FA1000100E1C001 /* PlaybackFeature in Frameworks */,
-				E10000072FA1000100E1C001 /* PlaybackPresentation in Frameworks */,
+				E10000062FA1000100E1C001 /* Playback in Frameworks */,
+				E10000072FA1000100E1C001 /* (null) in Frameworks */,
 				E10000132FA1000100E1C001 /* DesignSystem in Frameworks */,
 				E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */,
 				E22000032FA4000100E1C001 /* Emby in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		F300000A2FA5000100E1C001 /* Debug Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				F30000002FA5000100E1C001 /* AMSMB2 in Debug Frameworks */,
-				F30000012FA5000100E1C001 /* PlaybackCore in Debug Frameworks */,
-				F30000022FA5000100E1C001 /* RealityKitScripting in Debug Frameworks */,
-				F30000032FA5000100E1C001 /* MediaSource in Debug Frameworks */,
-				F30000042FA5000100E1C001 /* Playback in Debug Frameworks */,
-				F30000052FA5000100E1C001 /* DesignSystem in Debug Frameworks */,
-				F30000062FA5000100E1C001 /* MediaLibrary in Debug Frameworks */,
-				F30000072FA5000100E1C001 /* Emby in Debug Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,10 +356,10 @@
 				D00000300000000000D0A1A1 /* MediaSource in Frameworks */,
 				D00000310000000000D0A1A1 /* Emby in Frameworks */,
 				D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */,
-				D00000330000000000D0A1A1 /* PlaybackFeature in Frameworks */,
+				D00000330000000000D0A1A1 /* Playback in Frameworks */,
 				D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */,
 				D00000350000000000D0A1A1 /* DesignSystem in Frameworks */,
-				D00000360000000000D0A1A1 /* PlaybackPresentation in Frameworks */,
+				D00000360000000000D0A1A1 /* (null) in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -378,6 +374,21 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F300000A2FA5000100E1C001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F30000002FA5000100E1C001 /* AMSMB2 in Frameworks */,
+				F30000012FA5000100E1C001 /* PlaybackCore in Frameworks */,
+				F30000022FA5000100E1C001 /* RealityKitScripting in Frameworks */,
+				F30000032FA5000100E1C001 /* MediaSource in Frameworks */,
+				F30000042FA5000100E1C001 /* Playback in Frameworks */,
+				F30000052FA5000100E1C001 /* DesignSystem in Frameworks */,
+				F30000062FA5000100E1C001 /* MediaLibrary in Frameworks */,
+				F30000072FA5000100E1C001 /* Emby in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -461,37 +472,6 @@
 			productReference = C3B0F9802F5726B30064596E /* Enchron.app */;
 			productType = "com.apple.product-type.application";
 		};
-		F300000E2FA5000100E1C001 /* EnchronDebug */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = F300000F2FA5000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronDebug" */;
-			buildPhases = (
-				F30000092FA5000100E1C001 /* Debug Sources */,
-				F300000A2FA5000100E1C001 /* Debug Frameworks */,
-				F300000C2FA5000100E1C001 /* Debug Embed Frameworks */,
-				F300000B2FA5000100E1C001 /* Debug Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				C3B0F9822F5726B30064596E /* Apps/Enchron */,
-			);
-			name = EnchronDebug;
-			packageProductDependencies = (
-				A4C19F9E2FD1000100AABBCC /* AMSMB2 */,
-				B1C000022FD3000100C0FFEE /* PlaybackCore */,
-				A4C1A00E2FD2000100AABBCC /* RealityKitScripting */,
-				E10000022FA1000100E1C001 /* MediaSource */,
-				E10000032FA1000100E1C001 /* Playback */,
-				E10000102FA1000100E1C001 /* DesignSystem */,
-				E20000012FA2000100E1C001 /* MediaLibrary */,
-				E22000042FA4000100E1C001 /* Emby */,
-			);
-			productName = EnchronDebug;
-			productReference = F300000D2FA5000100E1C001 /* EnchronDebug.app */;
-			productType = "com.apple.product-type.application";
-		};
 		D00000010000000000D0A1A1 /* EnchronDomainTests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = D000000B0000000000D0A1A1 /* Build configuration list for PBXNativeTarget "EnchronDomainTests" */;
@@ -511,9 +491,9 @@
 				D00000120000000000D0A1A1 /* Tests/PlaybackFeaturePackageTests */,
 				D00000130000000000D0A1A1 /* Tests/EnchronDomainSupport */,
 				D00000140000000000D0A1A1 /* Tests/PlaybackPresentationTests */,
+				D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */,
 				D00000160000000000D0A1A1 /* Tests/EnchronAppLogicTests */,
 				D00000170000000000D0A1A1 /* Tests/MediaSourceTests */,
-				D00000150000000000D0A1A1 /* Packages/PlaybackCore/Tests/Standalone */,
 			);
 			name = EnchronDomainTests;
 			packageProductDependencies = (
@@ -569,6 +549,37 @@
 			productName = EnchronAppTests;
 			productReference = F1A0000200000000DEADBEEF /* EnchronAppTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F300000E2FA5000100E1C001 /* EnchronDebug */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F300000F2FA5000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronDebug" */;
+			buildPhases = (
+				F30000092FA5000100E1C001 /* Sources */,
+				F300000A2FA5000100E1C001 /* Frameworks */,
+				F300000C2FA5000100E1C001 /* Embed Frameworks */,
+				F300000B2FA5000100E1C001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C3B0F9822F5726B30064596E /* Apps/Enchron */,
+			);
+			name = EnchronDebug;
+			packageProductDependencies = (
+				A4C19F9E2FD1000100AABBCC /* AMSMB2 */,
+				B1C000022FD3000100C0FFEE /* PlaybackCore */,
+				A4C1A00E2FD2000100AABBCC /* RealityKitScripting */,
+				E10000022FA1000100E1C001 /* MediaSource */,
+				E10000032FA1000100E1C001 /* Playback */,
+				E10000102FA1000100E1C001 /* DesignSystem */,
+				E20000012FA2000100E1C001 /* MediaLibrary */,
+				E22000042FA4000100E1C001 /* Emby */,
+			);
+			productName = EnchronDebug;
+			productReference = F300000D2FA5000100E1C001 /* EnchronDebug.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
@@ -633,13 +644,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F300000B2FA5000100E1C001 /* Debug Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		D00000060000000000D0A1A1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -655,6 +659,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F1A0000600000000DEADBEEF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F300000B2FA5000100E1C001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -727,13 +738,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		F30000092FA5000100E1C001 /* Debug Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		D00000040000000000D0A1A1 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -749,6 +753,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F1A0000400000000DEADBEEF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F30000092FA5000100E1C001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -965,79 +976,6 @@
 			};
 			name = Release;
 		};
-		F30000102FA5000100E1C001 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = JFLYK8F636;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Config/Enchron-Info.plist";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron.debug;
-				PRODUCT_MODULE_NAME = Enchron;
-				PRODUCT_NAME = EnchronDebug;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SUPPORTED_PLATFORMS = "xros xrsimulator";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENCHRON_DEBUG_APP $(inherited)";
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 7;
-				XROS_DEPLOYMENT_TARGET = 27.0;
-			};
-			name = Debug;
-		};
-		F30000112FA5000100E1C001 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
-				DEVELOPMENT_TEAM = JFLYK8F636;
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "Config/Enchron-Info.plist";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"$(inherited)",
-					"$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron.debug;
-				PRODUCT_MODULE_NAME = Enchron;
-				PRODUCT_NAME = EnchronDebug;
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SUPPORTED_PLATFORMS = "xros xrsimulator";
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENCHRON_DEBUG_APP $(inherited)";
-				SWIFT_COMPILATION_MODE = wholemodule;
-				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 6.0;
-				TARGETED_DEVICE_FAMILY = 7;
-				VALIDATE_PRODUCT = YES;
-				XROS_DEPLOYMENT_TARGET = 27.0;
-			};
-			name = Release;
-		};
 		D00000090000000000D0A1A1 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1178,6 +1116,79 @@
 			};
 			name = Release;
 		};
+		F30000102FA5000100E1C001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/Enchron-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron.debug;
+				PRODUCT_MODULE_NAME = Enchron;
+				PRODUCT_NAME = EnchronDebug;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENCHRON_DEBUG_APP $(inherited)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		F30000112FA5000100E1C001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 2;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "Config/Enchron-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron.debug;
+				PRODUCT_MODULE_NAME = Enchron;
+				PRODUCT_NAME = EnchronDebug;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ENCHRON_DEBUG_APP $(inherited)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				VALIDATE_PRODUCT = YES;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -1198,15 +1209,6 @@
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
-		};
-		F300000F2FA5000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronDebug" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				F30000102FA5000100E1C001 /* Debug */,
-				F30000112FA5000100E1C001 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Debug;
 		};
 		D000000B0000000000D0A1A1 /* Build configuration list for PBXNativeTarget "EnchronDomainTests" */ = {
 			isa = XCConfigurationList;
@@ -1234,6 +1236,15 @@
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
+		};
+		F300000F2FA5000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronDebug" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F30000102FA5000100E1C001 /* Debug */,
+				F30000112FA5000100E1C001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
 

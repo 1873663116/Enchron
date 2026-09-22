@@ -61,7 +61,9 @@ public struct SourceSidebar: View {
     @State private var draggingSourceTargetIndex: Int?
     @State private var sourceDragTranslation: CGFloat = 0
     @State private var appearingSourceIDs: Set<SidebarSourceItem.ID> = []
+#if DEBUG
     @State private var nextDebugSourceIndex = 1
+#endif
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
@@ -239,6 +241,7 @@ public struct SourceSidebar: View {
                     Label("SMB", systemImage: "server.rack")
                 }
                 .accessibilityIdentifier("\(identifierPrefix)-addSMB")
+#if DEBUG
                 if onAddSource == nil {
                     Button {
                         addDebugSource()
@@ -247,6 +250,7 @@ public struct SourceSidebar: View {
                     }
                     .accessibilityIdentifier("DesignSystem-SourcesSidebar-addDebug")
                 }
+#endif
             }
             .onAppear { onReachabilityAction?("sourceMore") }
         }
@@ -433,6 +437,7 @@ public struct SourceSidebar: View {
         items.first { $0.id == id }?.isDeletable == true
     }
 
+#if DEBUG
     private func addDebugSource() {
         let debugIndex = nextDebugSourceIndex
         let newSourceID = "debug-source-\(debugIndex)"
@@ -458,6 +463,7 @@ public struct SourceSidebar: View {
             }
         }
     }
+#endif
 
     private func expandSourceSwipe(_ id: SidebarSourceItem.ID) {
         withAnimation(DesignTokens.AnimationToken.selection) {

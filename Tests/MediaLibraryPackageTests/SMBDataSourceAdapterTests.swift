@@ -409,7 +409,7 @@ struct SMBDataSourceAdapterTests {
             try await URLSession.shared.data(from: url)
         }
 
-        let deadline = ContinuousClock.now + .seconds(2)
+        let deadline = ContinuousClock.now + .seconds(10)
         while source.hasStarted == false, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }

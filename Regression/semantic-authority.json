@@ -5,7 +5,7 @@
     "equivalentDerivedHumanCoverageAuthorized": true,
     "runtimeHumanActorAllowed": false,
     "source": "Config/regression/semantic-authority-decisions.tsv",
-    "sourceDigest": "sha256:d0410e9324eb2beac241b781403003c50ba2075874fe3e73d3024164eeb7f1cd"
+    "sourceDigest": "sha256:915040fb46ade9f9a481bd07694d0b819894968b6613d5d38821795e58776417"
   },
   "decisions": [
     {
@@ -13,39 +13,65 @@
       "status": "decided",
       "policy": "The complete reviewed Catalog is authoritative after all HC decisions and their product fixes are incorporated. The target contains 65 independently covered Promises and Scenarios.",
       "applicability": "Catalog design and review only; it does not permit runtime semantic changes.",
-      "evidence": ["Regression/README.md#权威目录", "Scripts/regression/core/review_catalog.py"],
-      "requiredWork": ["regenerate-v2-catalog", "reissue-content-bound-reviews"]
+      "evidence": [
+        "Regression/README.md#权威目录",
+        "Scripts/regression/core/review_catalog.py"
+      ],
+      "requiredWork": [
+        "regenerate-v2-catalog",
+        "reissue-content-bound-reviews"
+      ]
     },
     {
       "id": "HC-001",
       "status": "decided",
       "policy": "Drive the real Files and Photos system pickers. Preauthorize persistent system permissions before an unattended run; a missing grant is a typed infrastructure interruption, never a product verdict or human prompt.",
       "applicability": "Files, Photos, local-network, hand-input, and world-sensing authorization at lane bootstrap.",
-      "evidence": ["Modules/MediaLibrary/Views/FilesScreen.swift#requestProductEntry", "Config/Enchron-Info.plist", ".agents/skills/vp-e2e/references/device.md#首次安装顺序"],
-      "requiredWork": ["implement-photos-picker", "permission-state-producer"]
+      "evidence": [
+        "Modules/MediaLibrary/Views/FilesScreen.swift#requestProductEntry",
+        "Config/Enchron-Info.plist",
+        ".agents/skills/vp-e2e/references/device.md#首次安装顺序"
+      ],
+      "requiredWork": [
+        "implement-photos-picker",
+        "permission-state-producer"
+      ]
     },
     {
       "id": "HC-002",
       "status": "decided",
       "policy": "HDR10, HLG, and Dolby Vision acceptance uses exact metadata plus same-attempt project-generated positive and stripped-transfer negative references. Personal brightness, saturation, and aesthetic preference are outside automated coverage.",
       "applicability": "Visual dynamic-range obligations; invalid reference self-check makes the Oracle Indeterminate.",
-      "evidence": ["Tests/Fixtures/fixture-registry.json#acceptanceCriteriaDefinitions", ".agents/skills/vp-e2e/features/picture-interpretation.md"],
-      "requiredWork": ["generate-stripped-transfer-controls"]
+      "evidence": [
+        "Tests/Fixtures/fixture-registry.json#acceptanceCriteriaDefinitions",
+        ".agents/skills/vp-e2e/features/picture-interpretation.md"
+      ],
+      "requiredWork": [
+        "generate-stripped-transfer-controls"
+      ]
     },
     {
       "id": "HC-003",
       "status": "decided",
       "policy": "Automated audio coverage includes measurable delivery, mute, renderer, discontinuity, overrun, channel-activity, codec, and synchronization facts. Subjective sound quality and post-render head-pose spatial perception are excluded.",
       "applicability": "App-observable audio output before system spatialization.",
-      "evidence": ["Apps/Enchron/EnchronApp.swift#AcousticMixerTapEnvelope", "Modules/Playback/PlaybackAudioSession.swift"],
-      "requiredWork": ["acoustic-envelope-readback"]
+      "evidence": [
+        "Apps/Enchron/DebugSupport/AcousticCalibration.swift#AcousticMixerTapEnvelope",
+        "Modules/Playback/PlaybackAudioSession.swift"
+      ],
+      "requiredWork": [
+        "acoustic-envelope-readback"
+      ]
     },
     {
       "id": "HC-004",
       "status": "decided",
       "policy": "Transition acceptance uses the typed transition ring, platform lifecycle deadlines, rollback state, and non-solid non-frozen frame sequences. Subjective comfort and abruptness are excluded.",
       "applicability": "Window, Portal, Docked, Panorama, and immersive transition attempts.",
-      "evidence": ["Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift", "docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md"],
+      "evidence": [
+        "Modules/Playback/Platform/SpatialPlatformEffectExecutor.swift",
+        "docs/PLAYBACK_PRESENTATION_CONSTRAINTS.md"
+      ],
       "requiredWork": []
     },
     {
@@ -53,7 +79,10 @@
       "status": "decided",
       "policy": "Simulator Device Hub gaze-and-pinch plus ordered app-side spatialTap and toggle facts proves the product input pipeline. The missing physical-device actuator does not block automated coverage and subjective feel is excluded.",
       "applicability": "Simulator spatial-input lane only; device decode obligations remain independent.",
-      "evidence": [".agents/skills/vp-e2e/references/simulator.md#空间手势：Device Hub 的鼠标映射", "Modules/Playback/Scenes/ImmersiveSpaceView.swift#spatialTap"],
+      "evidence": [
+        ".agents/skills/vp-e2e/references/simulator.md#空间手势：Device Hub 的鼠标映射",
+        "Modules/Playback/Scenes/ImmersiveSpaceView.swift#spatialTap"
+      ],
       "requiredWork": []
     },
     {
@@ -61,39 +90,64 @@
       "status": "decided",
       "policy": "Use project-generated, acceptance-eligible 3840x2160 equirectangular 180-degree mono and stereo fixtures plus a same-resolution flat negative control. Geometry and eye separation are exact-field comparisons; comfort is excluded.",
       "applicability": "Projection and stereo corpus for 180-degree cases.",
-      "evidence": ["Tests/Fixtures/fixture-registry.json", "Modules/Playback/Domain/MediaFormat.swift#PanoramaHorizontalCoverage"],
-      "requiredWork": ["generate-180-mono-stereo-flat-controls", "verify-projection-signaling"]
+      "evidence": [
+        "Tests/Fixtures/fixture-registry.json",
+        "Modules/Playback/Domain/MediaFormat.swift#PanoramaHorizontalCoverage"
+      ],
+      "requiredWork": [
+        "generate-180-mono-stereo-flat-controls",
+        "verify-projection-signaling"
+      ]
     },
     {
       "id": "HC-007",
       "status": "decided",
       "policy": "Dolby Vision profiles 10 and 20 remain included. Supply them in an admitted MP4 or MKV form; do not add DASH or HLS solely for fixture reachability and do not drop the profiles.",
       "applicability": "Dolby Vision profile matrix on fixtures with acceptable provenance.",
-      "evidence": ["Modules/MediaLibrary/Model/MediaBrowsing.swift#MediaDiscoveryAdmissionPolicy", "Modules/Playback/Model/MediaProfile.swift#DolbyVision"],
-      "requiredWork": ["remux-and-register-dv10-dv20"]
+      "evidence": [
+        "Modules/MediaLibrary/Model/MediaBrowsing.swift#MediaDiscoveryAdmissionPolicy",
+        "Modules/Playback/Model/MediaProfile.swift#DolbyVision"
+      ],
+      "requiredWork": [
+        "remux-and-register-dv10-dv20"
+      ]
     },
     {
       "id": "HC-008",
       "status": "decided",
       "policy": "Add an independent format-support Promise: unsupported codecs and unavailable decoders are identified before playback and produce typed, codec-specific guidance.",
       "applicability": "Graceful rejection; it cannot substitute for successful playback coverage.",
-      "evidence": ["Modules/Playback/Domain/PlaybackUserVisibleIssue.swift#PlaybackUnsupportedVideoCodec"],
-      "requiredWork": ["add-format-support-promise-scenario", "issue-surface-producer", "vc1-mpeg2-fixtures"]
+      "evidence": [
+        "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift#PlaybackUnsupportedVideoCodec"
+      ],
+      "requiredWork": [
+        "add-format-support-promise-scenario",
+        "issue-surface-producer",
+        "vc1-mpeg2-fixtures"
+      ]
     },
     {
       "id": "HC-009",
       "status": "decided",
       "policy": "Add an independent issue-surface Promise. Every category has fixed title, actions, placement, and interruption policy; the product intentionally has one visible issue slot and a new issue replaces the previous issue.",
       "applicability": "User-visible issue policy, not an issue queue.",
-      "evidence": ["Modules/Playback/Domain/PlaybackUserVisibleIssue.swift#policy", "Modules/Playback/PlaybackRuntime.swift#userVisibleIssue"],
-      "requiredWork": ["add-issue-surface-promise-scenario", "issue-surface-producer"]
+      "evidence": [
+        "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift#policy",
+        "Modules/Playback/PlaybackRuntime.swift#userVisibleIssue"
+      ],
+      "requiredWork": [
+        "add-issue-surface-promise-scenario",
+        "issue-surface-producer"
+      ]
     },
     {
       "id": "HC-010",
       "status": "decided",
       "policy": "A first open with no stored track preference starts with subtitles Off. Only an explicit stored preference or user selection may choose a track.",
       "applicability": "Subtitle selection on media-session open.",
-      "evidence": ["Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession.swift#selectedTrackID"],
+      "evidence": [
+        "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession.swift#selectedTrackID"
+      ],
       "requiredWork": []
     },
     {
@@ -101,47 +155,74 @@
       "status": "decided",
       "policy": "A source-declared panoramic format first settles in Portal. Panorama requires an explicit public entry action; observing either outcome is not acceptable.",
       "applicability": "Clean first open and persisted format overrides.",
-      "evidence": ["Apps/Enchron/EnchronApplication.swift#EffectiveMediaFormatPresentationResolver", "Modules/Playback/Model/MediaProfile.swift#isPanoramic"],
-      "requiredWork": ["repair-parametric-and-apple-immersive-projection-routing"]
+      "evidence": [
+        "Apps/Enchron/EnchronApplication.swift#EffectiveMediaFormatPresentationResolver",
+        "Modules/Playback/Model/MediaProfile.swift#isPanoramic"
+      ],
+      "requiredWork": [
+        "repair-parametric-and-apple-immersive-projection-routing"
+      ]
     },
     {
       "id": "HC-012",
       "status": "decided",
       "policy": "The closed loading vocabulary is none or loading. Opening and true playback starvation show Loading; a reconnect completely covered by buffered media never shows it.",
       "applicability": "Remote open, reconnect, and renderer-starvation windows.",
-      "evidence": ["Apps/Enchron/PlayerView.swift#WindowPlaybackLoadingVisibility", "Modules/Playback/PlaybackRuntime.swift#PresentationState"],
-      "requiredWork": ["publish-starvation-loading-state"]
+      "evidence": [
+        "Apps/Enchron/PlayerView.swift#WindowPlaybackLoadingVisibility",
+        "Modules/Playback/PlaybackRuntime.swift#PresentationState"
+      ],
+      "requiredWork": [
+        "publish-starvation-loading-state"
+      ]
     },
     {
       "id": "HC-013",
       "status": "decided",
       "policy": "Play Next under Ask Every Time does not interrupt continuous playback with a resume prompt. It continues from the stored position according to the queue action.",
       "applicability": "Ended-state Play Next only: reaching end of media surfaces the affordance and the user's tap launches it; a direct user open still honors Ask Every Time.",
-      "evidence": ["Modules/Playback/PlaybackLaunchCoordinator.swift#playEndedContinuation"],
-      "requiredWork": ["bypass-resume-prompt-for-automatic-play-next", "add-playback-queue-promise-scenario"]
+      "evidence": [
+        "Modules/Playback/PlaybackLaunchCoordinator.swift#playEndedContinuation"
+      ],
+      "requiredWork": [
+        "bypass-resume-prompt-for-automatic-play-next",
+        "add-playback-queue-promise-scenario"
+      ]
     },
     {
       "id": "HC-014",
       "status": "decided",
       "policy": "Clear All Playback Progress clears viewing progress and completion only. Format, presentation-mode, and track preferences remain.",
       "applicability": "The Playback Progress settings action.",
-      "evidence": ["Modules/Playback/Domain/MediaStateStore.swift#clearViewingStates"],
-      "requiredWork": ["add-preservation-criterion"]
+      "evidence": [
+        "Modules/Playback/Domain/MediaStateStore.swift#clearViewingStates"
+      ],
+      "requiredWork": [
+        "add-preservation-criterion"
+      ]
     },
     {
       "id": "HC-015",
       "status": "decided",
       "policy": "Deleting a library folder removes the folder hierarchy but moves contained media references to the deleted root folder's parent. Original source files remain untouched.",
       "applicability": "Library-folder deletion; deleting a media reference remains a separate action.",
-      "evidence": ["Modules/MediaLibrary/Model/MediaLibrary.swift#removeFolder", "Config/regression/semantic-authority-decisions.tsv#HC-015"],
-      "requiredWork": ["change-folder-delete-to-parent-rehome", "add-library-management-promise-scenario"]
+      "evidence": [
+        "Modules/MediaLibrary/Model/MediaLibrary.swift#removeFolder",
+        "Config/regression/semantic-authority-decisions.tsv#HC-015"
+      ],
+      "requiredWork": [
+        "change-folder-delete-to-parent-rehome",
+        "add-library-management-promise-scenario"
+      ]
     },
     {
       "id": "HC-016",
       "status": "decided",
       "policy": "Video format editing is available in Window and Portal only. Docked exposes placement controls instead, and Panorama exposes neither editor.",
       "applicability": "Playback panel settings hosts.",
-      "evidence": ["Modules/Playback/Views/PlaybackPanel.swift#PlaybackPanelSettingsPolicy"],
+      "evidence": [
+        "Modules/Playback/Views/PlaybackPanel.swift#PlaybackPanelSettingsPolicy"
+      ],
       "requiredWork": []
     },
     {
@@ -149,56 +230,101 @@
       "status": "decided",
       "policy": "Retire all legacy perceptual Not Applicable rows. Absence of an obligation represents absence of automated coverage; no runtime not-applicable verdict exists.",
       "applicability": "Legacy vp-e2e perceptual design notes.",
-      "evidence": ["Regression/facts/runtime-no-human-or-wearer.md", "Regression/README.md#系统关系"],
-      "requiredWork": ["retire-legacy-perceptual-rows"]
+      "evidence": [
+        "Regression/facts/runtime-no-human-or-wearer.md",
+        "Regression/README.md#系统关系"
+      ],
+      "requiredWork": [
+        "retire-legacy-perceptual-rows"
+      ]
     },
     {
       "id": "HC-018",
       "status": "decided",
       "policy": "For the locked Emby server, network, device, and fixture environment, click-to-first-changing-frame must be at most 45000 ms. The harness liveness deadline is 90000 ms and is not the product threshold.",
       "applicability": "Cold Emby open in the recorded controlled environment; warm-open performance is measured separately.",
-      "evidence": [".agents/skills/vp-e2e/features/emby-library.md#证据"],
-      "requiredWork": ["same-attempt-click-to-frame-producer", "version-environment-identity"]
+      "evidence": [
+        ".agents/skills/vp-e2e/features/emby-library.md#证据"
+      ],
+      "requiredWork": [
+        "same-attempt-click-to-frame-producer",
+        "version-environment-identity"
+      ]
     },
     {
       "id": "HC-019",
       "status": "decided",
       "policy": "Add five independent library-management Promises for folder naming, folder deletion and reference rehoming, moving references, confirmed batch deletion, and current-folder search/counts; add one playback-queue Promise for end behavior and resume-policy interaction.",
       "applicability": "Library and automatic playback queue behavior; import remains a separate Promise family.",
-      "evidence": ["Modules/MediaLibrary/Model/MediaLibrary.swift", "Modules/Playback/PlaybackLaunchCoordinator.swift#handlePlaybackEnded"],
-      "requiredWork": ["add-six-promise-scenario-rubric-sets"]
+      "evidence": [
+        "Modules/MediaLibrary/Model/MediaLibrary.swift",
+        "Modules/Playback/PlaybackLaunchCoordinator.swift#handlePlaybackEnded"
+      ],
+      "requiredWork": [
+        "add-six-promise-scenario-rubric-sets"
+      ]
     },
     {
       "id": "HC-020",
       "status": "decided",
       "policy": "Apple Immersive support requires successfully decoded, changing rendered frames with the correct immersive projection. Classification or typed rejection cannot satisfy the Promise.",
       "applicability": "Apple Immersive media with an acceptance-eligible asset.",
-      "evidence": ["Modules/Playback/Domain/MediaFormatInterpreter.swift#appleImmersiveVideo", "Modules/Playback/Model/SpatialPlaybackSurfaceSettlementPolicy.swift"],
-      "requiredWork": ["remove-pre-render-rejection", "implement-immersive-projection-route", "obtain-licensed-apple-immersive-fixture"]
+      "evidence": [
+        "Modules/Playback/Domain/MediaFormatInterpreter.swift#appleImmersiveVideo",
+        "Modules/Playback/Model/SpatialPlaybackSurfaceSettlementPolicy.swift"
+      ],
+      "requiredWork": [
+        "remove-pre-render-rejection",
+        "implement-immersive-projection-route",
+        "obtain-licensed-apple-immersive-fixture"
+      ]
     },
     {
       "id": "HC-021",
       "status": "decided",
       "policy": "Compare exact causal values first. Only unavoidable uncertainty uses a named versioned rule keyed by producer, fixture, lane, and environment. Emby ticks use product rounding, artwork JPEG uses a measured distortion bound, reconnect observation uses a versioned sampling interval, and resume position uses a 5-second observed-position bound after exact target binding.",
       "applicability": "All rubric numeric comparisons; no global tolerance exists.",
-      "evidence": ["Tests/Fixtures/fixture-registry.json#acceptanceCriteriaDefinitions", "Modules/Playback/Domain/ViewingState.swift"],
-      "requiredWork": ["add-near-end-facts", "measure-artwork-bound", "version-reconnect-sampling"]
+      "evidence": [
+        "Tests/Fixtures/fixture-registry.json#acceptanceCriteriaDefinitions",
+        "Modules/Playback/Domain/ViewingState.swift"
+      ],
+      "requiredWork": [
+        "add-near-end-facts",
+        "measure-artwork-bound",
+        "version-reconnect-sampling"
+      ]
     },
     {
       "id": "HC-022",
       "status": "decided",
       "policy": "Source connection guidance has exactly four typed outcomes: credentials-rejected, server-unreachable, invalid-address, and requires-https. Wrong username and wrong password intentionally share credentials-rejected.",
       "applicability": "SMB, WebDAV, and Emby connection forms before playback.",
-      "evidence": ["Modules/MediaSource/RemoteConnectionFailureDiagnoser.swift", "Modules/MediaLibrary/FileBrowsingViewModel.swift#connectionFailure", "Modules/MediaLibrary/Views/ConnectionFormPanel.swift#sourceConnectionMessage"],
-      "requiredWork": ["typed-remote-source-outcomes", "source-failure-policy", "source-failure-producer"]
+      "evidence": [
+        "Modules/MediaSource/RemoteConnectionFailureDiagnoser.swift",
+        "Modules/MediaLibrary/FileBrowsingViewModel.swift#connectionFailure",
+        "Modules/MediaLibrary/Views/ConnectionFormPanel.swift#sourceConnectionMessage"
+      ],
+      "requiredWork": [
+        "typed-remote-source-outcomes",
+        "source-failure-policy",
+        "source-failure-producer"
+      ]
     },
     {
       "id": "HC-023",
       "status": "decided",
       "policy": "Active playback failures have exactly four typed categories: connection-interrupted, source-file-missing, source-access-denied, and media-data-corrupt. Every category preserves the causal position and exposes Retry and Close; Retry resumes within the HC-021 bound. Generic playbackFailed is insufficient.",
       "applicability": "Failures after active playback begins; connection-form failures use HC-022.",
-      "evidence": ["Modules/Playback/Domain/PlaybackUserVisibleIssue.swift", "Modules/Playback/PlaybackLaunchCoordinator.swift#retryPlayback"],
-      "requiredWork": ["typed-active-playback-failures", "causal-position-retry", "fault-producers", "issue-surface-producer"]
+      "evidence": [
+        "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift",
+        "Modules/Playback/PlaybackLaunchCoordinator.swift#retryPlayback"
+      ],
+      "requiredWork": [
+        "typed-active-playback-failures",
+        "causal-position-retry",
+        "fault-producers",
+        "issue-surface-producer"
+      ]
     }
   ]
 }

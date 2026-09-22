@@ -59,11 +59,6 @@ public extension View {
     }
 
     @ViewBuilder
-    func enchronPlateGlassBackground<S: InsettableShape>(in shape: S) -> some View {
-        glassBackgroundEffect(.plate, in: shape, displayMode: .always)
-    }
-
-    @ViewBuilder
     func enchronWindowGlassBackground(_ displayMode: GlassBackgroundDisplayMode) -> some View {
         glassBackgroundEffect(displayMode: displayMode)
     }
