@@ -1,30 +1,41 @@
 # Enchron
 
-Enchron 是一款 visionOS 视频播放器：本地文件、SMB / WebDAV / Emby 媒体库，在沉浸空间中以环境场景（海面、室内）承载大尺寸播放屏幕。
+简体中文 | [English](README.en.md)
 
-## 技术栈
+Enchron 是面向 Apple Vision Pro 的媒体播放器。应用可在窗口和沉浸空间中播放视频，支持本地文件、SMB、WebDAV 和 Emby 媒体库。
 
-- **UI / 呈现**：SwiftUI + RealityKit。窗口与沉浸空间并存，播放表面由 `VideoPlayerComponent` 与自定义 RealityKit 实体承载，dock 位姿由运行时解算器按场景 authored rest pose 计算。
-- **播放引擎**：`Packages/PlaybackCore`，自定义 sample-buffer 播放管线（`AVSampleBufferDisplayLayer` / `AVSampleBufferAudioRenderer` + 自有时间轴同步）。
-- **解码 / 解封装**：vendored `PlaybackFFmpeg.xcframework`（FFmpeg 9.0.1，固定 SHA-256 源码 + 本地补丁，构建脚本见 `Packages/PlaybackCore/Scripts/build_ffmpeg.sh`）。
-- **媒体来源**：SMB 走 AMSMB2（动态框架），WebDAV 与 Emby 为自研客户端，本地文件经安全作用域书签访问。
-- **环境场景**：`Packages/OceanEnvironment` 等。海面为 Metal FFT 波浪模拟（OceanProbe），场景资产由 Reality Composer Pro 工程导出为 `.reality`。
-- **存储**：媒体库索引与播放进度存于本地数据库，远程凭据存于 Keychain，诊断数据不离开设备。
+## 状态
 
-## 仓库结构
+Enchron 正在准备 TestFlight 外部测试。功能、兼容性和发布方式可能变化。
 
-代码所有权与依赖入口以 [`ARCHITECTURE.md`](ARCHITECTURE.md) 为准；模块级说明见各 `Packages/*/AGENTS.md`。回归契约与执行协议在 `Regression/`。
+## 功能
 
-## 外部依赖
+- 在窗口、停靠屏幕和沉浸式环境中播放视频。
+- 浏览本地媒体库，或连接 SMB、WebDAV 和 Emby 服务器。
+- 控制播放、切换字幕和音轨。
+- 使用 AVFoundation 进行硬件加速解码和渲染。HDR10、HLG 和杜比视界的播放能力取决于设备及媒体格式。
+- 使用 FFmpeg 解封装常见媒体格式。H.264、HEVC 和 AV1 等编码格式的播放能力取决于设备；Apple Vision Pro（M5）支持 AV1。
 
-| 组件 | 用途 | 许可 |
-|---|---|---|
-| FFmpeg 9.0.1 | 解封装 / 解码 | LGPL 2.1+ |
-| AMSMB2（含 libsmb2） | SMB 客户端 | LGPL 2.1 / LGPL 2.1+ |
-| FreeType、HarfBuzz、libass 等 | 字幕渲染（经 PlaybackFFmpeg 带入） | 见设置内开源许可页 |
+## 构建
 
-完整第三方许可清单见应用内 设置 → Open-source Licenses，以及 [`NOTICE`](NOTICE)。
+本项目需要 Xcode 27.0 与 visionOS SDK。`Packages/PlaybackCore` 依赖未纳入 Git 的 `PlaybackFFmpeg.xcframework`。在克隆后的仓库根目录运行以下命令以准备该依赖：
 
-## 贡献
+```sh
+Scripts/provision_vendored_ffmpeg.sh
+```
 
-本项目暂不接受外部贡献（Pull Request / Issue 均不开放）。仓库公开仅为源码可见性，CI 与签名供应链不对外提供服务。
+该脚本会构建 FFmpeg，或在传入另一个已具备该二进制的工作副本路径时复用其中的文件。构建与验证入口位于 `Scripts/` 和 `Regression/`。项目约束、模块所有权和测试协议分别见 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`AGENTS.md`](AGENTS.md) 和 [`Regression/README.md`](Regression/README.md)。
+
+## 隐私与网络
+
+Enchron 不运营媒体服务，也不将媒体、播放历史或远程凭据发送给开发者。应用会直接连接用户配置的服务器。远程凭据保存在当前设备的 Keychain 中。完整说明见 [`PRIVACY.md`](PRIVACY.md)。
+
+为了连接未配置 TLS 的自托管服务器，应用允许明文 HTTP；连接公网地址前，应用会显示凭据可能明文传输的确认提示。可使用 HTTPS 或私有加密网络。
+
+## 开源许可与第三方组件
+
+Enchron 以 Apache License 2.0 发布，许可证文本位于 [`LICENSE`](LICENSE)。第三方组件及其许可证见 [`NOTICE`](NOTICE)，应用内的设置页面也提供相同的许可证信息。
+
+## 外部贡献
+
+目前本项目暂不接受外部贡献。仓库用于源码查阅、构建复现和许可证履行；CI、签名与发布基础设施不向外部开放。
