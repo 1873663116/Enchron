@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Scan Git history for common secrets and inventory committed media.
+"""Scan the public HEAD lineage for secrets and archived captures.
 
 Run from any directory after installing Gitleaks. Reports stay in the ignored
 `.audit/` directory. The summary never prints a matched secret.
@@ -50,7 +50,7 @@ def main() -> int:
         [
             "gitleaks", "git", "--no-banner", "--redact=100",
             "--report-format", "json", "--report-path", str(GITLEAKS_REPORT),
-            "--log-opts=--all", ".",
+            "--log-opts=HEAD", ".",
         ],
         cwd=REPOSITORY,
         capture_output=True,
@@ -62,14 +62,14 @@ def main() -> int:
         return 2
 
     findings = json.loads(GITLEAKS_REPORT.read_text(encoding="utf-8"))
-    history_paths = sorted(set(git_output("log", "--all", "--name-only", "--format=").splitlines()))
+    history_paths = sorted(set(git_output("log", "HEAD", "--name-only", "--format=").splitlines()))
     tracked_paths = git_output("ls-files").splitlines()
     sensitive_paths = sorted(
         path for path in history_paths if SENSITIVE_NAME.fullmatch(Path(path).name)
     )
     summary = {
         "head": git_output("rev-parse", "HEAD").strip(),
-        "commit_count": int(git_output("rev-list", "--all", "--count").strip()),
+        "commit_count": int(git_output("rev-list", "HEAD", "--count").strip()),
         "secret_findings": [
             {
                 "rule": finding.get("RuleID"),
