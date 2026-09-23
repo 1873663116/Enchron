@@ -8,8 +8,9 @@ struct EmbyClientTests {
     @Test("continue watching includes resumable specials without an episode number")
     func resumableSpecialsRemainVisible() async throws {
         MockURLProtocol.setHandler { request in
-            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
-            let requestsResumableItems = request.url?.path == "/emby/Users/user-1/Items"
+            let url = try #require(request.url)
+            let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let requestsResumableItems = url.path == "/emby/Users/user-1/Items"
                 && query.contains { $0.name == "Filters" && $0.value == "IsResumable" }
             return try response(request, status: 200, json: requestsResumableItems ? """
                 {"Items":[{"Id":"special","Name":"Special","Type":"Episode",
