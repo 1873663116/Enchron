@@ -18,6 +18,7 @@ __pycache__/
 
 # Session scratch: probes, DerivedData, logs (see AGENTS.md 构建产物)
 .scratch/
+.audit/
 
 # Xcode local build output
 /build/
