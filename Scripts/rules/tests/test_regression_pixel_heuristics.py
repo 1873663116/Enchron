@@ -69,17 +69,6 @@ class AllBlackTests(unittest.TestCase):
         self.assertLessEqual(DEFAULT_BLACK_PEAK, max(luma))
         self.assertIsNone(all_black(frame))
 
-    def test_a_real_device_capture_is_never_reported_as_black(self) -> None:
-        capture = (
-            SCRIPTS.parent
-            / "docs/archive/acceptance/evidence"
-            / "playback-seek-and-menu-surface-20260821"
-            / "menu-after-popover-minimum-window.png"
-        )
-        if not capture.is_file():
-            self.skipTest("the archived device capture is not in this checkout")
-        self.assertIsNone(all_black(capture.read_bytes()))
-
     def test_a_grey_channel_frame_is_measured_on_its_own_samples(self) -> None:
         self.assertEqual(ALL_BLACK, all_black(png(16, 16, flat(16, 16, 0, 1), channels=1)))
         self.assertIsNone(all_black(png(16, 16, flat(16, 16, 90, 1), channels=1)))

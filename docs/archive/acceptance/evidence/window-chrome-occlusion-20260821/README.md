@@ -32,10 +32,8 @@ Physical Vision Pro `REDACTED`, Xcode destination
 `Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4` in Window
 presentation, both frames captured with `showControls` true.
 
-- [before-chrome-shown.png](before-chrome-shown.png): video plus the bottom ornament,
-  no top row, no edge scrims.
-- [after-chrome-shown.png](after-chrome-shown.png): the same state with Back, Dock,
-  Video Format and More rendered, and the edge scrims visible.
+Before the fix, the video and bottom ornament appeared without the top row or edge
+scrims. After the fix, Back, Dock, Video Format, More, and the edge scrims appeared.
 
 Two screenshots of one paused frame, taken with chrome on and chrome off, differed
 only in the ornament band before the fix. Neither the top chrome nor either edge

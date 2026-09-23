@@ -67,13 +67,11 @@ the device.
 They had no surface. Their backing was a system `Material`, which blurs whatever
 SwiftUI backdrop sits behind it, and these menus float over the playback video,
 which is a RealityKit mesh rather than a SwiftUI layer. With nothing to blur they
-resolved to bare text over the picture:
-[menu-before-no-glass.png](menu-before-no-glass.png).
+resolved to bare text over the picture.
 
 They were clipped. The Video Format panel is 458 points tall and the chrome above
 it costs 88, so it needs 546. The playback window's minimum height is 513, which
-left 425 and cut off the Stereo Layout row along with Cancel and Apply:
-[video-format-clipped-at-minimum-window.png](video-format-clipped-at-minimum-window.png).
+left 425 and cut off the Stereo Layout row along with Cancel and Apply.
 Reproduce with `setWindowSize width=912 height=513` in Portal, then open Video
 Format.
 
@@ -89,10 +87,8 @@ own scene sized to the panel, `Window (Main), {{0, 0}, {520.0, 458.5}}`, so the
 playback window's size cannot clip it, and every identifier is present, from
 `PlayerUI-VideoFormat-Projection-180` through `-cancel` and `-apply`. At the
 912x513 minimum the whole panel renders outside the window's edges and Cancel is
-hittable and dismisses it:
-[menu-after-popover-minimum-window.png](menu-after-popover-minimum-window.png).
-At the default size it sits beside the window as an ordinary attached panel:
-[menu-after-popover-default-window.png](menu-after-popover-default-window.png).
+hittable and dismisses it. At the default size it sits beside the window as an
+ordinary attached panel.
 
 The popover supplies the surface, the outside-tap dismissal and the sizing, so the
 app-side glass, the interaction shield that used to absorb outside taps, the fixed
