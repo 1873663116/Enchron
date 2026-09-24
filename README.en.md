@@ -6,7 +6,11 @@ Enchron is a media player for Apple Vision Pro. It plays videos in windows and i
 
 ## Status
 
-Enchron is preparing for external TestFlight testing. Features, compatibility, and release plans may change.
+Enchron is available for public beta testing on TestFlight. Join on Apple Vision Pro using the link below. Features and compatibility may change.
+
+<a href="https://testflight.apple.com/join/F1xpZq6b">
+  <img src="docs/assets/testflight/testflight.svg" alt="Join the Enchron public beta on TestFlight" width="240" />
+</a>
 
 ## Features
 

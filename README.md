@@ -6,7 +6,11 @@ Enchron 是面向 Apple Vision Pro 的媒体播放器。应用可在窗口和沉
 
 ## 状态
 
-Enchron 正在准备 TestFlight 外部测试。功能、兼容性和发布方式可能变化。
+Enchron 已开放 TestFlight 公开测试。使用 Apple Vision Pro，通过下方入口加入测试。功能和兼容性可能变化。
+
+<a href="https://testflight.apple.com/join/F1xpZq6b">
+  <img src="docs/assets/testflight/testflight.svg" alt="通过 TestFlight 加入 Enchron 公开测试" width="240" />
+</a>
 
 ## 功能
 
