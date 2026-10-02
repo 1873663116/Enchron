@@ -3495,6 +3495,31 @@ func repeatedPauseAfterSeeksReportEveryPausedStateToTheProduct(
     #expect(sink.enqueuedSampleCount == 1)
 }
 
+@Test func selectingSpeedAtEndPreservesStoppedTimeline() async throws {
+    let sample = try makeCompressedH264Sample()
+    let session = SampleBufferPlaybackSession(
+        traceID: "ended-speed-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/ended-speed.mov"))
+    session.restoreEndedPresentation(PlaybackEndedContinuity(
+        reason: .naturalCompletion,
+        logicalPosition: CMTime(seconds: 30, preferredTimescale: 600),
+        finalVideoPresentationTime: CMTime(seconds: 29.96, preferredTimescale: 600)
+    ))
+
+    try session.setRate(2)
+
+    #expect(session.preferredPlaybackRate == 2)
+    #expect(session.debugSnapshot().lifecycle == .ended)
+    #expect(session.debugSnapshot().rendererState?.rate == 0)
+    #expect(session.synchronizer.rate == 0)
+}
+
 @Test func invalidRateIsRejectedAndRecorded() async throws {
     let sample = try makeCompressedH264Sample()
     let session = SampleBufferPlaybackSession(

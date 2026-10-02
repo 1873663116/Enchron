@@ -1170,6 +1170,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         beginOperation(.setRate, targetRate: rate)
         if rate > 0 {
             preferredPlaybackRate = rate
+            if mediaSessionRecord?.lifecycle == .ended {
+                finishActiveOperation(.completed)
+                return
+            }
         }
         timelineStartRate = rate
         if rate > 0 {
