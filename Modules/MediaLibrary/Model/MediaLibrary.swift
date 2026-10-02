@@ -21,6 +21,11 @@ nonisolated extension FileBrowsingDomain {
     }
 
     public struct MediaReference: Sendable, Equatable, Identifiable, Codable {
+        public enum Content: String, Sendable, Equatable, Codable {
+            case mediaFile
+            case bluRayDisc
+        }
+
         public enum Locator: Sendable, Equatable, Codable {
             case file(bookmark: Data, relativePath: String)
             case sourceItem(dataSourceID: UUID, path: String)
@@ -34,6 +39,7 @@ nonisolated extension FileBrowsingDomain {
         public let fileExtension: String
         public let remoteEntityTag: String?
         public let remoteSourceKey: String?
+        public let content: Content
 
         public init(
             id: UUID = UUID(),
@@ -43,7 +49,8 @@ nonisolated extension FileBrowsingDomain {
             modifiedAt: Date = .distantPast,
             fileExtension: String? = nil,
             remoteEntityTag: String? = nil,
-            remoteSourceKey: String? = nil
+            remoteSourceKey: String? = nil,
+            content: Content = .mediaFile
         ) {
             self.id = id
             self.name = name
@@ -53,6 +60,32 @@ nonisolated extension FileBrowsingDomain {
             self.fileExtension = (fileExtension ?? (name as NSString).pathExtension).lowercased()
             self.remoteEntityTag = remoteEntityTag
             self.remoteSourceKey = remoteSourceKey
+            self.content = content
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case id
+            case name
+            case locator
+            case sizeInBytes
+            case modifiedAt
+            case fileExtension
+            case remoteEntityTag
+            case remoteSourceKey
+            case content
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = try container.decode(UUID.self, forKey: .id)
+            name = try container.decode(String.self, forKey: .name)
+            locator = try container.decode(Locator.self, forKey: .locator)
+            sizeInBytes = try container.decode(Int64.self, forKey: .sizeInBytes)
+            modifiedAt = try container.decode(Date.self, forKey: .modifiedAt)
+            fileExtension = try container.decode(String.self, forKey: .fileExtension)
+            remoteEntityTag = try container.decodeIfPresent(String.self, forKey: .remoteEntityTag)
+            remoteSourceKey = try container.decodeIfPresent(String.self, forKey: .remoteSourceKey)
+            content = try container.decodeIfPresent(Content.self, forKey: .content) ?? .mediaFile
         }
     }
 

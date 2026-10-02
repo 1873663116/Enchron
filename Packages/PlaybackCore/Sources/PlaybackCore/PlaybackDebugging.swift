@@ -14,6 +14,7 @@ public struct PlaybackDebugEvent: Codable, Equatable, Sendable {
 
 public struct MediaSessionDebugSummary: Codable, Equatable, Sendable {
     public var mediaSessionID: String
+    public var bluRayPlaylistID: UInt32?
     public var sourceSummary: String
     public var sourceProvenance: String
     public var accessRequirement: String
@@ -24,6 +25,7 @@ public struct MediaSessionDebugSummary: Codable, Equatable, Sendable {
 
     public init(_ session: MediaSessionRecord) {
         mediaSessionID = session.mediaSessionID
+        bluRayPlaylistID = session.bluRayPlaylistID
         sourceSummary = session.source.privacySafeSummary
         sourceProvenance = session.source.provenance
         accessRequirement = session.source.accessRequirement

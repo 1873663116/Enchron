@@ -56,7 +56,7 @@ class RunControlTests(unittest.TestCase):
 
     def test_prepare_build_has_the_exact_argument_surface(self) -> None:
         self.assertEqual(
-            {"-h", "--help", "--repository-root", "--artifact-root"},
+            {"-h", "--help", "--repository-root", "--artifact-root", "--requested-lane"},
             self.command_options("prepare-build"),
         )
         with redirect_stderr(StringIO()), self.assertRaises(SystemExit) as raised:
@@ -176,6 +176,7 @@ class RunControlTests(unittest.TestCase):
             "--agent-executable",
             "--output",
             "--bootstrap",
+            "--requested-lane",
         }
         self.assertEqual(expected, self.command_options("freeze"))
         valid = [
@@ -195,7 +196,6 @@ class RunControlTests(unittest.TestCase):
         for option in (
             "--artifact-root",
             "--simulator-target",
-            "--device-target",
             "--agent-model",
             "--output",
         ):
@@ -207,6 +207,9 @@ class RunControlTests(unittest.TestCase):
                     _parser().parse_args(missing)
                 self.assertEqual(2, raised.exception.code)
                 self.assertIn(f"required: {option}", stderr.getvalue())
+        no_device = valid[:valid.index("--device-target")] + valid[valid.index("--device-target") + 2:]
+        with self.assertRaisesRegex(RunControlError, "dual-lane freeze requires --device-target"):
+            _execute(_parser().parse_args(no_device))
         for option in (
             "--bundle-identifier",
             "--configuration-receipt",
@@ -321,6 +324,29 @@ class RunControlTests(unittest.TestCase):
         load.assert_called_once_with(execution_input)
         self.assertIs(compiled, result)
         self.assertIs(execution, loaded)
+
+    def test_supplemental_compile_requests_only_simulator_lane(self) -> None:
+        execution = SimpleNamespace(
+            build_identity="build-identity",
+            evidence_environment_identity="evidence-identity",
+            bootstrap=False,
+        )
+        with (
+            patch("regression.runctl.load_execution_input", return_value=execution),
+            patch("regression.runctl.load_current_reviewed_catalog", return_value=(SimpleNamespace(catalog="catalog"), object())),
+            patch("regression.runctl._repository_path"),
+            patch("regression.runctl.load_blueprint_fact_values", return_value={}),
+            patch("regression.runctl.derive_reviewed_facts", return_value=()),
+            patch("regression.runctl.CompileRequest") as request,
+            patch("regression.runctl.compile_run", return_value="compiled"),
+        ):
+            compile_execution_plan(
+                Path("/tmp/enchron-repository"), Path("/tmp/execution-input.json"),
+                Path("Regression"), Path("Regression/review-policy.md"),
+                Path("Regression/reviews"), Path("Config/regression/catalog-v2.json"),
+                requested_lane=BoundLane.SIMULATOR,
+            )
+        self.assertEqual(request.call_args.args[2], (BoundLane.SIMULATOR,))
 
     def test_execution_identity_failures_exit_at_the_cli_boundary(self) -> None:
         for command, error in (

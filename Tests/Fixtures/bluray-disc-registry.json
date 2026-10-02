@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "sourceRoot": "$WORKSPACE/TestMedia",
+  "discs": [
+    {
+      "id": "bluray-avs-iso",
+      "relativePath": "Samples/DiscImages/AVS-HD-709/HDMV-2d.iso",
+      "kind": "iso",
+      "sha256": "7f1de39604ce3894ff085fcd145d035786d265435944e2fd4333e92c99ac59db"
+    },
+    {
+      "id": "bluray-avs-directory",
+      "relativePath": "Samples/DiscImages/AVS-HD-709/HDMV-2d",
+      "kind": "directory",
+      "indexSHA256": "dacbe1c3a10e2e46b3fafc57c79f985e1408095b5922351d45f3d1f9e64c156b",
+      "playlistCount": 110,
+      "streamCount": 253
+    },
+    {
+      "id": "bluray-fel-iso",
+      "relativePath": "Samples/DiscImages/DolbyVision-Profile7-FEL/FEL_test_for_AVS.iso",
+      "kind": "iso",
+      "sha256": "b3e788d13eb5933fddc80f903eb013cbc58a27f2b28a87bc63647a492a642ca9"
+    },
+    {
+      "id": "bluray-fel-directory",
+      "relativePath": "Samples/DiscImages/DolbyVision-Profile7-FEL/FEL_test_for_AVS",
+      "kind": "directory",
+      "indexSHA256": "009c233d7aaa7f00ed084a2b116c18efe70231b7ab5e833fdf13919ed00c8082",
+      "playlistCount": 1,
+      "streamCount": 1
+    }
+  ]
+}

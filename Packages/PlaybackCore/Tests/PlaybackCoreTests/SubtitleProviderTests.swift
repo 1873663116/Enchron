@@ -240,7 +240,7 @@ import Testing
     defer { server.stop() }
     let meter = PlaybackSourceReadMeter()
     let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
-    try demuxSession.configureSource(transport: .remoteByteStream(buffering: .automatic))
+    try await demuxSession.configureSource(transport: .remoteByteStream(buffering: .automatic))
     let loader = SystemMediaSourceInformationLoader(
         sourceReadMeter: meter,
         demuxSession: demuxSession

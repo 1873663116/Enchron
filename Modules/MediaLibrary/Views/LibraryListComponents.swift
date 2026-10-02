@@ -40,6 +40,7 @@ public struct FileListGroup: View {
         public let kind: Kind
         public let title: String
         public let metadata: String?
+        public let accessibilityLabel: String?
         public var action: () -> Void = {}
         public var contextActions: [ContextAction] = []
         public var selectionEnabled = false
@@ -51,6 +52,7 @@ public struct FileListGroup: View {
             fileSize: String,
             duration: String,
             badges: [String] = [],
+            accessibilityLabel: String? = nil,
             contextActions: [ContextAction] = [],
             selectionEnabled: Bool = false,
             isSelected: Bool = false,
@@ -61,6 +63,7 @@ public struct FileListGroup: View {
                 kind: .video,
                 title: title,
                 metadata: (badges + [fileSize, duration]).joined(separator: " · "),
+                accessibilityLabel: accessibilityLabel,
                 action: action,
                 contextActions: contextActions,
                 selectionEnabled: selectionEnabled,
@@ -80,9 +83,14 @@ public struct FileListGroup: View {
                 kind: .folder,
                 title: title,
                 metadata: itemCount.map { "\($0) items" },
+                accessibilityLabel: nil,
                 action: action,
                 contextActions: contextActions
             )
+        }
+
+        var resolvedAccessibilityLabel: String {
+            accessibilityLabel ?? title
         }
     }
 
@@ -139,7 +147,7 @@ public struct FileListGroupRow: View {
             hoverNamespace: hoverNamespace,
             showsHighlight: true,
             isInteractive: true,
-            accessibilityLabel: item.title,
+            accessibilityLabel: item.resolvedAccessibilityLabel,
             action: item.action
         ) { rowHoverGroup in
             rowContent(reveal: rowHoverGroup)

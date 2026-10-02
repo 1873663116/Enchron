@@ -81,8 +81,11 @@ def run_probe(
     stage: str,
     source: str,
     timeout: int,
+    playlist_id: int | None = None,
 ) -> ProbeResult:
     command = [str(probe), "--stage", stage, "--url", source]
+    if playlist_id is not None:
+        command.extend(["--playlist", str(playlist_id)])
     if stage == "decode":
         command.extend(["--seconds", "1"])
     try:
@@ -106,7 +109,11 @@ def last_error_line(stderr: str) -> str:
     return lines[-1] if lines else ""
 
 
-def stage_record(stage: str, result: ProbeResult) -> dict[str, object]:
+def stage_record(
+    stage: str,
+    result: ProbeResult,
+    playlist_id: int | None = None,
+) -> dict[str, object]:
     record: dict[str, object] = {
         "exitCode": result.exit_code,
         "stdout": result.stdout,
@@ -138,6 +145,8 @@ def stage_record(stage: str, result: ProbeResult) -> dict[str, object]:
         }
     else:
         raise ValueError(f"unknown probe stage {stage}")
+    if playlist_id is not None:
+        record["expectation"]["playlist_id"] = str(playlist_id)
     return record
 
 
@@ -166,9 +175,14 @@ def capture_transport(
     source_scope: str,
     media_kind: str,
     timeout: int,
+    playlist_id: int | None = None,
 ) -> dict[str, object]:
     stages = {
-        label: stage_record(stage, run_probe(probe, stage, source, timeout))
+        label: stage_record(
+            stage,
+            run_probe(probe, stage, source, timeout, playlist_id),
+            playlist_id,
+        )
         for label, stage in stages_for(media_kind)
     }
     return {
@@ -242,11 +256,17 @@ def sha256(path: Path) -> str:
 def expected_source_scope(extension: str, transport: str) -> str:
     if extension == "iso":
         return (
-            "local-udf-image"
+            "local-selected-bluray-playlist"
             if transport == "local"
-            else "http-byte-range-without-local-udf-detection"
+            else "http-byte-range-selected-bluray-playlist"
         )
     return "local-file" if transport == "local" else "http-byte-range"
+
+
+def expected_selection(extension: str) -> dict[str, object] | None:
+    if extension == "iso":
+        return {"kind": "bluRayPlaylist", "playlistID": 0}
+    return None
 
 
 def validate_matrix(
@@ -279,6 +299,12 @@ def validate_matrix(
 
     for entry in containers:
         extension = entry["extension"]
+        selection = expected_selection(extension)
+        if selection is None:
+            if "selection" in entry:
+                failures.append(f"{extension}: file containers must not declare selection")
+        elif entry.get("selection") != selection:
+            failures.append(f"{extension}: selection must be {selection}")
         media_kind = entry.get("mediaKind", "video")
         if media_kind not in {"video", "audioOnly"}:
             failures.append(f"{extension}: mediaKind must be video or audioOnly")
@@ -362,14 +388,22 @@ def compare_stage(
         ]
 
     fields = parse_fields(actual.stdout)
+    selection_failures = []
+    expected_playlist = expectation.get("playlist_id")
+    if expected_playlist is not None and fields.get("playlist_id") != expected_playlist:
+        selection_failures.append(
+            f"{prefix}: playlist_id={fields.get('playlist_id')!r}, "
+            f"expected {expected_playlist!r}"
+        )
     if stage == "tracks":
-        return [
+        return selection_failures + [
             f"{prefix}: {key}={fields.get(key)!r}, expected {expected!r}"
             for key, expected in expectation.items()
+            if key != "playlist_id"
             if fields.get(key) != expected
         ]
     if stage == "video-reader":
-        failures = []
+        failures = list(selection_failures)
         if fields.get("video_stream") != expectation.get("video_stream"):
             failures.append(
                 f"{prefix}: video_stream={fields.get('video_stream')!r}, "
@@ -383,12 +417,14 @@ def compare_stage(
             failures.append(f"{prefix}: duration_seconds is not positive")
         return failures
     if stage == "audio-reader":
-        return [] if fields.get("audio_stream") == expectation.get("audio_stream") else [
+        if fields.get("audio_stream") == expectation.get("audio_stream"):
+            return selection_failures
+        return selection_failures + [
             f"{prefix}: audio_stream={fields.get('audio_stream')!r}, "
             f"expected {expectation.get('audio_stream')!r}"
         ]
     if stage == "decode":
-        failures = []
+        failures = list(selection_failures)
         for key in ("codec", "decode"):
             if fields.get(key) != expectation.get(key):
                 failures.append(
@@ -412,10 +448,11 @@ def replay_transport(
     source: str,
     media_kind: str,
     timeout: int,
+    playlist_id: int | None = None,
 ) -> list[str]:
     failures: list[str] = []
     for label, stage in stages_for(media_kind):
-        actual = run_probe(probe, stage, source, timeout)
+        actual = run_probe(probe, stage, source, timeout, playlist_id)
         failures.extend(
             compare_stage(
                 extension,
@@ -454,12 +491,14 @@ def capture_matrix(
             }
             continue
         path = test_media_root / fixture["path"]
+        playlist_id = 0 if extension == "iso" else None
         entry["transports"]["local"] = capture_transport(
             probe,
             str(path),
             expected_source_scope(extension, "local"),
             media_kind,
             timeout,
+            playlist_id,
         )
         with RangeServer(path.parent) as server:
             entry["transports"]["http"] = capture_transport(
@@ -468,6 +507,7 @@ def capture_matrix(
                 expected_source_scope(extension, "http"),
                 media_kind,
                 timeout,
+                playlist_id,
             )
         print(
             f"captured .{extension}: "
@@ -489,6 +529,7 @@ def replay_matrix(
             continue
         extension = entry["extension"]
         media_kind = entry.get("mediaKind", "video")
+        playlist_id = 0 if extension == "iso" else None
         path = test_media_root / fixture["path"]
         print(f"replaying .{extension} local", flush=True)
         failures.extend(
@@ -500,6 +541,7 @@ def replay_matrix(
                 str(path),
                 media_kind,
                 timeout,
+                playlist_id,
             )
         )
         print(f"replaying .{extension} HTTP", flush=True)
@@ -513,6 +555,7 @@ def replay_matrix(
                     server.url_for(path.name),
                     media_kind,
                     timeout,
+                    playlist_id,
                 )
             )
     return failures

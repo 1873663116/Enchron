@@ -1,3 +1,4 @@
+import BluRayDisc
 import Foundation
 import MediaSource
 import Observation
@@ -27,12 +28,50 @@ public final class FileBrowsingViewModel {
 
     public private(set) var fileViewingStates: [UUID: VideoCardViewingState] = [:]
 
+    public var currentBluRayTitles: [BluRayTitleItem] {
+        currentBluRayLevel?.titles ?? []
+    }
+
+    public var displayedBluRayTitles: [BluRayTitleItem] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard query.isEmpty == false else { return currentBluRayTitles }
+        return currentBluRayTitles.filter {
+            $0.displayName.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    public var isBrowsingBluRayDisc: Bool { currentBluRayLevel != nil }
+
+    public var canBrowseFilesInCurrentBluRayDisc: Bool {
+        guard let currentBluRayLevel else { return false }
+        return switch currentBluRayLevel.source {
+        case .localFolder, .remoteFolder: true
+        case .image: false
+        }
+    }
+
+    public var currentBluRayFolder: FileBrowsingDomain.MediaFolder? {
+        guard let currentBluRayLevel else { return nil }
+        switch currentBluRayLevel.source {
+        case .localFolder(let folder, _, _), .remoteFolder(let folder, _): return folder
+        case .image: return nil
+        }
+    }
+
     public var searchText: String = ""
 
     public var displayedFiles: [FileBrowsingDomain.MediaFile] {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return files }
         return files.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    public var displayedBluRayImages: [FileBrowsingDomain.MediaFile] {
+        displayedFiles.filter { $0.fileExtension.caseInsensitiveCompare("iso") == .orderedSame }
+    }
+
+    public var displayedOrdinaryFiles: [FileBrowsingDomain.MediaFile] {
+        displayedFiles.filter { $0.fileExtension.caseInsensitiveCompare("iso") != .orderedSame }
     }
 
     public var displayedFolders: [FileBrowsingDomain.MediaFolder] {
@@ -61,6 +100,10 @@ public final class FileBrowsingViewModel {
 
     public var currentLevelHasSettled: Bool { settledLevel == currentLevel }
 
+    public var currentLevelPresentationID: String {
+        currentBluRayLevel?.identityComponent ?? currentRemotePath
+    }
+
     private let localDataSource: any LocalFileSource
     private let uiState: MediaLibraryUIState
     private let logger = Logger(subsystem: "app.enchron", category: "FileBrowser")
@@ -83,6 +126,10 @@ public final class FileBrowsingViewModel {
     private var sourceGeneration: UInt64 = 0
     private var playbackCollection: [FileBrowsingDomain.MediaFile] = []
     private var currentPlaybackFileID: UUID?
+    private var bluRayOpenGeneration: UInt64 = 0
+    private var currentBluRayLevel: BluRayBrowseLevel?
+    private var forwardBluRayLevel: BluRayBrowseLevel?
+    private let bluRayCatalog: @Sendable (BluRayDiscSource) async throws -> [BluRayTitleItem]
 
     private let makeRemoteAdapter: (@MainActor (
         FileBrowsingDomain.DataSource,
@@ -97,6 +144,7 @@ public final class FileBrowsingViewModel {
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
         viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
         durationProbe: MediaDurationProbe? = nil,
+        bluRayCatalogAtURL: (@Sendable (URL) async throws -> [BluRayTitleItem])? = nil,
         localDataSourceID: UUID = UUID(),
         makeRemoteAdapter: (@MainActor (
             FileBrowsingDomain.DataSource,
@@ -112,6 +160,16 @@ public final class FileBrowsingViewModel {
         self.savedDataSourceStore = savedDataSourceStore
         self.viewingStateProvider = viewingStateProvider
         self.durationProbe = durationProbe
+        if let bluRayCatalogAtURL {
+            bluRayCatalog = { source in
+                guard case .url(let url) = source else {
+                    throw BluRayDiscBrowsingError.remoteDirectoryCatalogUnavailable
+                }
+                return try await bluRayCatalogAtURL(url)
+            }
+        } else {
+            bluRayCatalog = BluRayCatalogProjectionLoader.load
+        }
         self.localDataSourceID = localDataSourceID
         self.makeRemoteAdapter = makeRemoteAdapter
         self.onPlayFile = onPlayFile
@@ -459,6 +517,10 @@ public final class FileBrowsingViewModel {
     }
 
     public func selectFile(_ file: FileBrowsingDomain.MediaFile) {
+        if file.fileExtension.caseInsensitiveCompare("iso") == .orderedSame {
+            Task { [weak self] in await self?.openBluRayDisc(for: file) }
+            return
+        }
         playbackCollection = Self.naturalPlaybackCollection(from: files)
         currentPlaybackFileID = file.id
         Task { [weak self] in
@@ -483,6 +545,152 @@ public final class FileBrowsingViewModel {
                 return
             }
         }
+    }
+
+    public func openBluRayDisc(
+        for file: FileBrowsingDomain.MediaFile
+    ) async {
+        bluRayOpenGeneration &+= 1
+        let openGeneration = bluRayOpenGeneration
+        let parentFiles = files
+        let parentFolders = folders
+        let parentCanNavigateUp = canNavigateUp
+        let parentRootDisplayName = currentRootDisplayName
+        let expectedLevel = currentLevel
+        isLoading = true
+        enterLevel()
+        do {
+            let resolved: ResolvedMediaSource
+            if let activeRemoteAdapter {
+                resolved = try await activeRemoteAdapter.resolvePlayableSource(for: file)
+            } else {
+                resolved = try await localDataSource.resolvePlayableSource(for: file)
+            }
+            let source = BluRayBrowseLevel.Source.image(file: file, resolved: resolved)
+            let titles = try await catalogTitles(
+                source: source,
+                identity: .versioned(versionedDiscIdentity(for: file, resolved: resolved))
+            )
+            guard currentLevel == expectedLevel,
+                  bluRayOpenGeneration == openGeneration else {
+                resolved.byteStreamHandle?.release()
+                return
+            }
+            currentBluRayLevel = BluRayBrowseLevel(
+                source: source,
+                titles: titles,
+                parentFiles: parentFiles,
+                parentFolders: parentFolders,
+                parentCanNavigateUp: parentCanNavigateUp,
+                parentRootDisplayName: parentRootDisplayName
+            )
+            forwardBluRayLevel = nil
+            currentRootDisplayName = source.displayName
+            canNavigateUp = true
+            canNavigateForward = false
+            lastErrorMessage = nil
+            isLoading = false
+            settleCurrentLevel()
+        } catch {
+            guard currentLevel == expectedLevel,
+                  bluRayOpenGeneration == openGeneration else { return }
+            files = parentFiles
+            folders = parentFolders
+            canNavigateUp = parentCanNavigateUp
+            currentRootDisplayName = parentRootDisplayName
+            isLoading = false
+            lastErrorMessage = BluRayDiscErrorPresentation.message(for: error)
+            settleCurrentLevel()
+        }
+    }
+
+    public func selectBluRayTitle(_ title: BluRayTitleItem) {
+        guard let level = currentBluRayLevel,
+              level.titles.contains(where: { $0.playlistID == title.playlistID }) else { return }
+        let item = MediaPlaybackItem(
+            id: title.mediaItemID,
+            url: level.source.url,
+            displayName: title.displayName,
+            stableIdentifier: title.versionedIdentity?.mediaIdentity.storageKey,
+            sizeInBytes: level.source.sizeInBytes,
+            collectionOrigin: .sourceDirectory,
+            versionedIdentity: title.versionedIdentity,
+            accessLease: level.source.accessLease,
+            byteStreamHandle: level.source.byteStreamHandle,
+            selection: .bluRayPlaylist(
+                title.playlistID,
+                source: level.source.discSource
+            )
+        )
+        if let onPrepareFile {
+            detailNavigationRequest = item
+            onPrepareFile(item)
+        } else {
+            onPlayFile(item)
+        }
+    }
+
+    public func browseFilesInCurrentBluRayDisc() async {
+        guard let level = currentBluRayLevel else { return }
+        switch level.source {
+        case .image:
+            return
+        case .localFolder(let folder, _, _), .remoteFolder(let folder, _):
+            currentBluRayLevel = nil
+            forwardBluRayLevel = nil
+            files = level.parentFiles
+            folders = level.parentFolders
+            canNavigateUp = level.parentCanNavigateUp
+            currentRootDisplayName = level.parentRootDisplayName
+            await navigateToFolderContents(folder)
+        }
+    }
+
+    private func catalogTitles(
+        source: BluRayBrowseLevel.Source,
+        identity: BluRayDiscIdentityBasis
+    ) async throws -> [BluRayTitleItem] {
+        let titles = try await bluRayCatalog(source.discSource)
+        let manifest = titles.first?.catalogManifest
+            ?? BluRayCatalogProjectionLoader.fallbackManifest(for: titles)
+        let discIdentity: VersionedMediaIdentity? = switch identity {
+        case .versioned(let identity): identity
+        case .directory(let mediaIdentity):
+            VersionedMediaIdentity(
+                mediaIdentity: mediaIdentity,
+                contentRevision: .directoryManifest(manifest)
+            )
+        }
+        return titles.map { title in
+            BluRayTitleItem(
+                playlistID: title.playlistID,
+                ordinal: title.ordinal,
+                optionalName: title.optionalName,
+                durationSeconds: title.durationSeconds,
+                isMain: title.isMain,
+                versionedIdentity: discIdentity.map {
+                    .bluRayPlaylist(disc: $0, playlistID: title.playlistID.rawValue)
+                },
+                mediaItemID: title.mediaItemID,
+                catalogManifest: manifest
+            )
+        }
+    }
+
+    private func versionedDiscIdentity(
+        for file: FileBrowsingDomain.MediaFile,
+        resolved: ResolvedMediaSource
+    ) -> VersionedMediaIdentity? {
+        if let dataSource = activeDataSource {
+            return .remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: file.url.path,
+                entityTag: file.remoteEntityTag,
+                sizeInBytes: file.sizeInBytes,
+                modifiedAt: file.modifiedAt
+            )
+        }
+        return .local(resolved.url)
     }
 
     public func playbackItem(
@@ -740,6 +948,50 @@ public final class FileBrowsingViewModel {
         }
     }
 
+    func resolveSourceBluRayDisc(
+        dataSourceID: UUID,
+        path: String,
+        reference: FileBrowsingDomain.MediaReference
+    ) async throws -> BluRayDiscSource {
+        guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+        let adapter: any DataSourceConnecting & FileProviding
+        let folderURL: URL
+        switch dataSource.sourceType {
+        case .webDAV:
+            let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+            webDAV.ownerDataSourceID = dataSource.id
+            adapter = webDAV
+            folderURL = URL(fileURLWithPath: path)
+        case .smb:
+            let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
+            smb.ownerDataSourceID = dataSource.id
+            adapter = smb
+            folderURL = URL(string: "smb://placeholder\(path)") ?? URL(fileURLWithPath: path)
+        case .local:
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+        do {
+            try await adapter.connect(with: dataSource.connectionInfo)
+            let folder = FileBrowsingDomain.MediaFolder(
+                name: reference.name,
+                dataSourceID: dataSourceID,
+                path: path,
+                url: folderURL,
+                modifiedAt: reference.modifiedAt
+            )
+            guard let source = try await adapter.bluRayDiscSource(for: folder) else {
+                throw BluRayDiscError.unsupported("The saved folder is not a Blu-ray disc.")
+            }
+            adapter.disconnect()
+            return source
+        } catch {
+            adapter.disconnect()
+            throw error
+        }
+    }
+
     func resolveExternalSubtitleSources(
         dataSourceID: UUID,
         path: String,
@@ -795,6 +1047,84 @@ public final class FileBrowsingViewModel {
     }
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
+        let discSource: BluRayBrowseLevel.Source?
+        if activeRemoteAdapter == nil,
+           let discRoot = LocalDataSourceAdapter.bluRayDiscRootURL(for: folder.url) {
+            discSource = .localFolder(
+                folder: folder,
+                rootURL: discRoot,
+                accessLease: MediaAccessLease.securityScoped(securityScopedRootURL ?? discRoot)
+            )
+        } else if let activeRemoteAdapter {
+            do {
+                if let source = try await activeRemoteAdapter.bluRayDiscSource(for: folder) {
+                    discSource = .remoteFolder(folder: folder, source: source)
+                } else {
+                    discSource = nil
+                }
+            } catch {
+                lastErrorMessage = error.localizedDescription
+                settleCurrentLevel()
+                return
+            }
+        } else {
+            discSource = nil
+        }
+
+        guard let discSource else {
+            await navigateToFolderContents(folder)
+            return
+        }
+
+        bluRayOpenGeneration &+= 1
+        let openGeneration = bluRayOpenGeneration
+        let parentFiles = files
+        let parentFolders = folders
+        let parentCanNavigateUp = canNavigateUp
+        let parentRootDisplayName = currentRootDisplayName
+        let expectedLevel = currentLevel
+        isLoading = true
+        enterLevel()
+        do {
+            let titles = try await catalogTitles(
+                source: discSource,
+                identity: .directory(mediaIdentity(for: folder, source: discSource))
+            )
+            guard currentLevel == expectedLevel,
+                  bluRayOpenGeneration == openGeneration else { return }
+            currentBluRayLevel = BluRayBrowseLevel(
+                source: discSource,
+                titles: titles,
+                parentFiles: parentFiles,
+                parentFolders: parentFolders,
+                parentCanNavigateUp: parentCanNavigateUp,
+                parentRootDisplayName: parentRootDisplayName
+            )
+            forwardBluRayLevel = nil
+            currentRootDisplayName = discSource.displayName
+            canNavigateUp = true
+            canNavigateForward = false
+            lastErrorMessage = nil
+            isLoading = false
+            settleCurrentLevel()
+        } catch {
+            guard currentLevel == expectedLevel,
+                  bluRayOpenGeneration == openGeneration else { return }
+            files = parentFiles
+            folders = parentFolders
+            canNavigateUp = parentCanNavigateUp
+            currentRootDisplayName = parentRootDisplayName
+            isLoading = false
+            let message = BluRayDiscErrorPresentation.message(for: error)
+            await navigateToFolderContents(folder)
+            lastErrorMessage = message
+        }
+    }
+
+    private func navigateToFolderContents(
+        _ folder: FileBrowsingDomain.MediaFolder
+    ) async {
+        forwardBluRayLevel = nil
         if remotePathStack.isEmpty {
             remotePathStack.append(activeRemoteAdapter != nil ? currentRemotePath : "/")
         }
@@ -808,7 +1138,36 @@ public final class FileBrowsingViewModel {
         await loadFiles()
     }
 
+    private func mediaIdentity(
+        for folder: FileBrowsingDomain.MediaFolder,
+        source: BluRayBrowseLevel.Source
+    ) -> MediaIdentity {
+        if let dataSource = activeDataSource {
+            return .remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: source.url.path
+            )
+        }
+        let canonicalURL = source.url.lastPathComponent.caseInsensitiveCompare("BDMV")
+            == .orderedSame
+            ? source.url.deletingLastPathComponent()
+            : source.url
+        return VersionedMediaIdentity.local(canonicalURL)?.mediaIdentity
+            ?? .localPathFallback(canonicalPath: canonicalURL.standardizedFileURL.path)
+    }
+
     public func navigateUp() async {
+        if let level = currentBluRayLevel {
+            currentBluRayLevel = nil
+            forwardBluRayLevel = level
+            files = level.parentFiles
+            folders = level.parentFolders
+            canNavigateUp = level.parentCanNavigateUp
+            canNavigateForward = true
+            currentRootDisplayName = level.parentRootDisplayName
+            settleCurrentLevel()
+            return
+        }
         guard remotePathStack.count > 1 else { return }
         let leftLevel = remotePathStack.removeLast()
         forwardPathStack.append(leftLevel)
@@ -831,6 +1190,17 @@ public final class FileBrowsingViewModel {
     }
 
     public func navigateForward() async {
+        if let level = forwardBluRayLevel {
+            forwardBluRayLevel = nil
+            currentBluRayLevel = level
+            files = []
+            folders = []
+            canNavigateUp = true
+            canNavigateForward = false
+            currentRootDisplayName = level.source.displayName
+            settleCurrentLevel()
+            return
+        }
         guard let next = forwardPathStack.popLast() else { return }
         remotePathStack.append(next)
         currentRemotePath = next
@@ -844,6 +1214,12 @@ public final class FileBrowsingViewModel {
 
     public var breadcrumbSegments: [(name: String, index: Int)] {
         guard !remotePathStack.isEmpty else {
+            if let currentBluRayLevel {
+                return [
+                    (currentBluRayLevel.parentRootDisplayName, 0),
+                    (currentBluRayLevel.source.displayName, -1)
+                ]
+            }
             return [(currentRootDisplayName, 0)]
         }
 
@@ -864,10 +1240,22 @@ public final class FileBrowsingViewModel {
             segments.append((name.removingPercentEncoding ?? name, i))
         }
 
+        if let currentBluRayLevel {
+            segments.append((currentBluRayLevel.source.displayName, -1))
+        }
         return segments
     }
 
     public func navigateToBreadcrumb(index: Int) async {
+        if index == -1 { return }
+        if let level = currentBluRayLevel {
+            currentBluRayLevel = nil
+            forwardBluRayLevel = nil
+            files = level.parentFiles
+            folders = level.parentFolders
+            canNavigateUp = level.parentCanNavigateUp
+            currentRootDisplayName = level.parentRootDisplayName
+        }
         guard index >= 0, index < remotePathStack.count else { return }
         remotePathStack = Array(remotePathStack.prefix(index + 1))
         let targetPath = remotePathStack.last ?? "/"
@@ -961,6 +1349,9 @@ public final class FileBrowsingViewModel {
 
     private func beginSourceGeneration() -> UInt64 {
         sourceGeneration &+= 1
+        bluRayOpenGeneration &+= 1
+        currentBluRayLevel = nil
+        forwardBluRayLevel = nil
         return sourceGeneration
     }
 

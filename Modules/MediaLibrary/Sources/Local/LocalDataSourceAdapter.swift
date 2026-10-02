@@ -153,6 +153,24 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
         return rootURL
     }
 
+    static func bluRayDiscRootURL(
+        for folderURL: URL,
+        fileManager: FileManager = .default
+    ) -> URL? {
+        let root = folderURL.standardizedFileURL
+        let bdmvURL: URL
+        if root.lastPathComponent.caseInsensitiveCompare("BDMV") == .orderedSame {
+            bdmvURL = root
+        } else {
+            bdmvURL = root.appending(path: "BDMV", directoryHint: .isDirectory)
+        }
+        guard let names = try? fileManager.contentsOfDirectory(atPath: bdmvURL.path),
+              names.contains(where: {
+                  $0.caseInsensitiveCompare("index.bdmv") == .orderedSame
+              }) else { return nil }
+        return root
+    }
+
     private func loadMediaFiles(
         in directoryURL: URL,
         filter: FileBrowsingDomain.FileFilter

@@ -31,7 +31,7 @@ Config/                      检查器的基线与清单
 
 `Modules/` 下的每一个 Swift 文件恰好由一个包 target 编译。[`Package.swift`](Package.swift) 声明五个 library target（`MediaSource`、`MediaLibrary`、`Emby`、`Playback`、`DesignSystem`），每个 target 的 `path` 恰为 `Modules/<name>`，`exclude` 为空，不声明 `sources` 子集——即整目录编译，新增文件不需要登记。
 
-[`Enchron.xcodeproj`](Enchron.xcodeproj) 声明四个原生 target：`Enchron` 一个 App，`EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests` 三个测试 bundle。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里，条目数与 `Modules` 下 Swift 文件数相等，因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
+[`Enchron.xcodeproj`](Enchron.xcodeproj) 声明五个原生 target：`Enchron` 与测试宿主 `EnchronDebug` 两个 App，`EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests` 三个测试 bundle。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里，条目数与 `Modules` 下 Swift 文件数相等，因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
 
 `Modules/Playback` 在清单里带 `.defaultIsolation(MainActor.self)`，其余模块用 Swift 默认的 nonisolated。往 Playback 加纯值类型时要注意它默认被主线程隔离；往 MediaLibrary 加视图时要注意它没有这层默认，主线程隔离来自 SwiftUI 自身。
 
@@ -42,6 +42,7 @@ flowchart LR
     MediaSource["MediaSource"]
     DesignSystem["DesignSystem"]
     PlaybackCore["PlaybackCore"]
+    BluRayDisc["BluRayDisc"]
     MediaLibrary["MediaLibrary"]
     Playback["Playback"]
     Emby["Emby"]
@@ -49,9 +50,12 @@ flowchart LR
 
     MediaLibrary --> MediaSource
     MediaLibrary --> DesignSystem
+    MediaLibrary --> BluRayDisc
     Playback --> MediaSource
     Playback --> DesignSystem
     Playback --> PlaybackCore
+    Playback --> BluRayDisc
+    PlaybackCore --> BluRayDisc
     Emby --> MediaSource
     Emby --> DesignSystem
     Emby --> Playback
@@ -63,7 +67,7 @@ flowchart LR
     App --> PlaybackCore
 ```
 
-图里只画本仓模块之间的边。此外 `MediaLibrary` 依赖 AMSMB2，`Playback` 依赖 EnvironmentSceneContract、OceanEnvironment、QuietRoomEnvironment 与 RealityKitScripting，`Enchron` 依赖 RealityKitScripting，`PlaybackCore` 依赖它自己的两个 vendored xcframework。场景包只依赖 EnvironmentSceneContract 与 RealityKit，互不依赖，也不依赖本仓模块；Ocean 包内 `Sources/OceanEnvironment/Vendor/OceanProbe` 是从 Xrplay_scene 的 OceanProbePlugin 运行时复制来的海面模拟，去掉了只在 Reality Composer Pro 内有意义的编辑器状态分支。
+图里只画本仓模块之间的边。此外 `MediaLibrary` 依赖 AMSMB2，`Playback` 依赖 EnvironmentSceneContract、OceanEnvironment、QuietRoomEnvironment 与 RealityKitScripting，`Enchron` 依赖 RealityKitScripting。`Packages/PlaybackCore` 提供播放引擎 `PlaybackCore` 与光盘读取 `BluRayDisc` 两个 library 产品；前者依赖 PlaybackFFmpeg、PlaybackSubtitleRenderer，后者经 BluRayDiscBridge 依赖含 libbluray 与 libudfread 的 PlaybackBluRay。三个二进制均以 vendored xcframework 提供。场景包只依赖 EnvironmentSceneContract 与 RealityKit，互不依赖，也不依赖本仓模块；Ocean 包内 `Sources/OceanEnvironment/Vendor/OceanProbe` 是从 Xrplay_scene 的 OceanProbePlugin 运行时复制来的海面模拟，去掉了只在 Reality Composer Pro 内有意义的编辑器状态分支。
 
 `MediaSource` 与 `DesignSystem` 不依赖任何本仓模块，是两个公共名词层。`MediaLibrary` 与 `Emby` 互不依赖：Emby 自带完整的浏览与详情实现，不复用 MediaLibrary 的浏览。`Emby` 依赖 `Playback` 是单向的——`EmbyPlaybackBridge` 与 `EmbySessionViewModel` 把 Emby 的播放选择翻成播放启动请求。
 
@@ -95,7 +99,7 @@ flowchart LR
 
 **它是否只对 Emby 有意义**——Emby 的 REST 模型、认证、图片与流地址、货架与详情页？属 [`Modules/Emby`](Modules/Emby)。
 
-**它是否是解码、解复用、渲染、时钟、字幕栅格化**？属 [`Packages/PlaybackCore`](Packages/PlaybackCore)。该 Package 只依赖两个 vendored 二进制与自己的 C 桥，不依赖本仓任何模块；`Modules/Playback` 的 `PlaybackRuntime` 是它的适配层，产品语义不要下沉进去。
+**它是否是解码、解复用、渲染、时钟、字幕栅格化或蓝光结构读取**？属 [`Packages/PlaybackCore`](Packages/PlaybackCore)。该 Package 只依赖 vendored 二进制与自己的 C 桥，不依赖本仓任何模块。`BluRayDisc` 负责 ISO／目录验证、播放列表与轨道描述、选定播放列表的随机读取；`PlaybackCore` 通过自定义 AVIO 接入选定的整片字节流，并保持连续的整片时间轴。文件页识别、卡片与播放项目身份属 `MediaLibrary`，`Modules/Playback` 的 `PlaybackRuntime` 是播放引擎的适配层。
 
 **它是否只在把上面几件东西拼起来时才需要**——Scene 声明、导航壳、模态协调、设置存储？属 [`Apps/Enchron`](Apps/Enchron)。这里现在很薄：`AppModel` 只剩导航标签页，播放会话状态住在 `Modules/Playback` 的 `PlaybackSessionModel`。全部 `WindowGroup`、`Window` 与 `ImmersiveSpace` 在 `EnchronApp.swift` 里声明，内容视图两边都有——`MainView` 在 App，`ImmersiveSpaceView` 与 `SenseZoneVolumeRoot` 在 Playback。新增或删除一个 Scene 必然要动 App。
 
@@ -115,7 +119,7 @@ flowchart LR
 
 ## 测试与验证入口
 
-`EnchronDomainTests` 是无 App 宿主的域测试 bundle，覆盖 [`Tests/MediaSourceTests`](Tests/MediaSourceTests)、[`Tests/MediaLibraryPackageTests`](Tests/MediaLibraryPackageTests)、[`Tests/EmbyPackageTests`](Tests/EmbyPackageTests)、[`Tests/PlaybackFeaturePackageTests`](Tests/PlaybackFeaturePackageTests)、[`Tests/PlaybackPresentationTests`](Tests/PlaybackPresentationTests)、[`Tests/EnchronAppLogicTests`](Tests/EnchronAppLogicTests)、[`Tests/EnchronDomainSupport`](Tests/EnchronDomainSupport) 与 [`Packages/PlaybackCore/Tests/Standalone`](Packages/PlaybackCore/Tests/Standalone)。其中 `Tests/MediaLibraryPackageTests`、`Tests/EmbyPackageTests`、`Tests/PlaybackFeaturePackageTests` 三个目录同时由 `Package.swift` 的 SwiftPM testTarget 编译，改动它们要同时顾及两条编译路径。
+`EnchronDomainTests` 是以 `EnchronDebug` 为宿主的域测试 bundle，覆盖 [`Tests/MediaSourceTests`](Tests/MediaSourceTests)、[`Tests/MediaLibraryPackageTests`](Tests/MediaLibraryPackageTests)、[`Tests/EmbyPackageTests`](Tests/EmbyPackageTests)、[`Tests/PlaybackFeaturePackageTests`](Tests/PlaybackFeaturePackageTests)、[`Tests/PlaybackPresentationTests`](Tests/PlaybackPresentationTests)、[`Tests/EnchronAppLogicTests`](Tests/EnchronAppLogicTests)、[`Tests/EnchronDomainSupport`](Tests/EnchronDomainSupport) 与 [`Packages/PlaybackCore/Tests/Standalone`](Packages/PlaybackCore/Tests/Standalone)。其中 `Tests/MediaLibraryPackageTests`、`Tests/EmbyPackageTests`、`Tests/PlaybackFeaturePackageTests` 三个目录同时由 `Package.swift` 的 SwiftPM testTarget 编译，改动它们要同时顾及两条编译路径。
 
 `EnchronAppTests` 对应 [`Tests/EnchronApp`](Tests/EnchronApp)，`EnchronAppUITests` 对应 [`Tests/EnchronAppUI`](Tests/EnchronAppUI)。测试计划见仓根四个 `.xctestplan`。引擎自身的测试在 [`Packages/PlaybackCore/Tests`](Packages/PlaybackCore/Tests)，字节流一致性套件是独立 Package [`Tests/MediaByteStreamConformance`](Tests/MediaByteStreamConformance)。
 

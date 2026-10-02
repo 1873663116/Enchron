@@ -109,14 +109,27 @@ public struct FilesScreen: View {
 
     private var totalItemCount: Int {
         if isBrowsingSource {
+            if viewModel.isBrowsingBluRayDisc {
+                return viewModel.displayedBluRayTitles.count
+            }
             return viewModel.displayedFolders.count + viewModel.displayedFiles.count
+        }
+        if mediaLibrary.currentBluRayDiscName != nil {
+            return mediaLibrary.currentBluRayTitles.count
         }
         return displayedLibraryFolders.count + displayedLibraryReferences.count
     }
 
     private var isEmpty: Bool {
         if isBrowsingSource {
+            if viewModel.isBrowsingBluRayDisc {
+                return viewModel.currentBluRayTitles.isEmpty
+                    && viewModel.canBrowseFilesInCurrentBluRayDisc == false
+            }
             return viewModel.files.isEmpty && viewModel.folders.isEmpty
+        }
+        if mediaLibrary.currentBluRayDiscName != nil {
+            return mediaLibrary.currentBluRayTitles.isEmpty
         }
         return mediaLibrary.folders.isEmpty && mediaLibrary.references.isEmpty
     }
@@ -141,6 +154,9 @@ public struct FilesScreen: View {
 
     private var sortKeyAvailability: FileBrowsingDomain.SortKeyAvailability {
         if isBrowsingSource {
+            if viewModel.isBrowsingBluRayDisc {
+                return .init(datedItemCount: 0, sizedItemCount: 0)
+            }
             return .init(
                 datedItemCount: viewModel.displayedFiles.count
                     + viewModel.displayedFolders.filter { $0.modifiedAt != nil }.count,
@@ -619,8 +635,10 @@ public struct FilesScreen: View {
 
     private var folderIdentity: String {
         isBrowsingSource
-            ? viewModel.currentRemotePath
-            : mediaLibrary.currentFolderID?.uuidString ?? "media-library-root"
+            ? viewModel.currentLevelPresentationID
+            : mediaLibrary.currentBluRayDiscName.map { "media-library-bluray:\($0)" }
+                ?? mediaLibrary.currentFolderID?.uuidString
+                ?? "media-library-root"
     }
 
     @ViewBuilder
@@ -739,13 +757,17 @@ public struct FilesScreen: View {
         if !isBrowsingSource {
             let folders = mediaLibrary.breadcrumbFolders
             return PathBreadcrumbMenu(
-                path: [String(localized: "Local Files")] + folders.map(\.name),
+                path: [String(localized: "Local Files")]
+                    + folders.map(\.name)
+                    + [mediaLibrary.currentBluRayDiscName].compactMap { $0 },
                 onSelectLevel: { position in
                     recordReachability(.breadcrumb(.mediaLibrary))
                     if position == 0 {
                         mediaLibrary.navigateToRoot()
                     } else if folders.indices.contains(position - 1) {
                         mediaLibrary.navigate(to: folders[position - 1].id)
+                    } else if mediaLibrary.currentBluRayDiscName != nil {
+                        return
                     }
                 },
                 accessibilityIdentifier: "MediaLibrary-Breadcrumb-current"
@@ -871,71 +893,164 @@ public struct FilesScreen: View {
         ScrollView {
             CardGrid {
                 if isBrowsingSource {
-                    ForEach(viewModel.displayedFolders) { folder in
-                        GridCard.folder(
-                            title: folder.name,
-                            count: nil,
-                            accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)",
-                            action: {
-                                recordReachability(.remoteFolder)
-                                Task { await viewModel.navigateToFolder(folder) }
+                    if viewModel.isBrowsingBluRayDisc {
+                        if viewModel.canBrowseFilesInCurrentBluRayDisc {
+                            GridCard.folder(
+                                title: String(localized: "Browse Files"),
+                                count: nil,
+                                accessibilityIdentifier: "FileBrowsing-grid-bluray-browseFiles",
+                                action: {
+                                    Task { await viewModel.browseFilesInCurrentBluRayDisc() }
+                                }
+                            )
+                            .contextMenu {
+                                if let dataSource = viewModel.activeDataSource,
+                                   let folder = viewModel.currentBluRayFolder {
+                                    Button("Add to Media Library", systemImage: "plus.rectangle.on.folder") {
+                                        mediaLibrary.addSourceBluRayFolder(
+                                            folder,
+                                            dataSource: dataSource
+                                        )
+                                    }
+                                }
                             }
-                        )
-                    }
-                    ForEach(viewModel.displayedFiles) { file in
-                        GridCard.video(
-                            title: displayTitle(file),
-                            artworkURL: viewModel.artworkURL(for: file),
-                            fileSize: fileSizeText(file),
-                            duration: durationText(viewModel.fileViewingStates[file.id]?.durationSeconds),
-                            watchedProgress: viewModel.fileViewingStates[file.id]?.progress,
-                            accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)",
-                            action: {
-                                recordReachability(.remoteVideo)
-                                viewModel.selectFile(file)
+                        }
+                        ForEach(viewModel.displayedBluRayTitles) { title in
+                            GridCard.video(
+                                title: title.displayName,
+                                artworkURL: nil,
+                                fileSize: title.isMain ? String(localized: "Main") : "",
+                                duration: durationText(title.durationSeconds),
+                                watchedProgress: nil,
+                                accessibilityIdentifier:
+                                    "FileBrowsing-grid-bluray-playlist-\(title.playlistID.rawValue)",
+                                action: { viewModel.selectBluRayTitle(title) }
+                            )
+                            .accessibilityLabel(BluRayTitleAccessibility.label(
+                                for: title,
+                                durationText: durationText(title.durationSeconds)
+                            ))
+                        }
+                    } else {
+                        ForEach(viewModel.displayedFolders) { folder in
+                            GridCard.folder(
+                                title: folder.name,
+                                count: nil,
+                                accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)",
+                                action: {
+                                    recordReachability(.remoteFolder)
+                                    Task { await viewModel.navigateToFolder(folder) }
+                                }
+                            )
+                        }
+                        ForEach(viewModel.displayedBluRayImages) { file in
+                            GridCard.folder(
+                                title: displayTitle(file),
+                                count: nil,
+                                accessibilityIdentifier:
+                                    "FileBrowsing-grid-bluray-disc-\(file.name)",
+                                action: {
+                                    recordReachability(.remoteFolder)
+                                    viewModel.selectFile(file)
+                                }
+                            )
+                            .contextMenu {
+                                if let source = viewModel.activeDataSource {
+                                    Button("Add to Media Library", systemImage: "plus.rectangle.on.folder") {
+                                        mediaLibrary.addSourceFile(
+                                            file,
+                                            dataSource: source,
+                                            path: file.url.path
+                                        )
+                                    }
+                                }
                             }
-                        )
-                        .contextMenu {
-                            if let source = viewModel.activeDataSource {
-                                Button("Add to Media Library", systemImage: "plus.rectangle.on.folder") {
-                                    mediaLibrary.addSourceFile(
-                                        file,
-                                        dataSource: source,
-                                        path: file.url.path
-                                    )
+                        }
+                        ForEach(viewModel.displayedOrdinaryFiles) { file in
+                            GridCard.video(
+                                title: displayTitle(file),
+                                artworkURL: viewModel.artworkURL(for: file),
+                                fileSize: fileSizeText(file),
+                                duration: durationText(viewModel.fileViewingStates[file.id]?.durationSeconds),
+                                watchedProgress: viewModel.fileViewingStates[file.id]?.progress,
+                                accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)",
+                                action: {
+                                    recordReachability(.remoteVideo)
+                                    viewModel.selectFile(file)
+                                }
+                            )
+                            .contextMenu {
+                                if let source = viewModel.activeDataSource {
+                                    Button("Add to Media Library", systemImage: "plus.rectangle.on.folder") {
+                                        mediaLibrary.addSourceFile(
+                                            file,
+                                            dataSource: source,
+                                            path: file.url.path
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 } else {
-                    ForEach(displayedLibraryFolders) { folder in
-                        GridCard.folder(
-                            title: folder.name,
-                            count: mediaLibrary.library.folders(in: folder.id).count
-                                + mediaLibrary.library.references(in: folder.id).count,
-                            accessibilityIdentifier: "MediaLibrary-grid-folder-\(folder.name)",
-                            action: {
-                                recordReachability(.libraryFolder)
-                                mediaLibrary.open(folder)
+                    if mediaLibrary.currentBluRayDiscName != nil {
+                        ForEach(mediaLibrary.currentBluRayTitles) { title in
+                            GridCard.video(
+                                title: title.displayName,
+                                artworkURL: nil,
+                                fileSize: title.isMain ? String(localized: "Main") : "",
+                                duration: durationText(title.durationSeconds),
+                                watchedProgress: nil,
+                                accessibilityIdentifier:
+                                    "MediaLibrary-grid-bluray-playlist-\(title.playlistID.rawValue)",
+                                action: { mediaLibrary.selectBluRayTitle(title) }
+                            )
+                            .accessibilityLabel(BluRayTitleAccessibility.label(
+                                for: title,
+                                durationText: durationText(title.durationSeconds)
+                            ))
+                        }
+                    } else {
+                        ForEach(displayedLibraryFolders) { folder in
+                            GridCard.folder(
+                                title: folder.name,
+                                count: mediaLibrary.library.folders(in: folder.id).count
+                                    + mediaLibrary.library.references(in: folder.id).count,
+                                accessibilityIdentifier: "MediaLibrary-grid-folder-\(folder.name)",
+                                action: {
+                                    recordReachability(.libraryFolder)
+                                    mediaLibrary.open(folder)
+                                }
+                            )
+                            .contextMenu { libraryFolderActions(folder) }
+                        }
+                        ForEach(displayedLibraryReferences) { reference in
+                            if reference.content == .bluRayDisc {
+                                GridCard.folder(
+                                    title: displayTitle(reference),
+                                    count: nil,
+                                    accessibilityIdentifier:
+                                        "MediaLibrary-grid-bluray-disc-\(reference.name)",
+                                    action: { activateMediaReference(reference) }
+                                )
+                                .contextMenu { libraryReferenceActions(reference) }
+                            } else {
+                                GridCard.video(
+                                    title: displayTitle(reference),
+                                    artworkURL: mediaLibrary.artworkURL(for: reference),
+                                    fileSize: fileSizeText(reference),
+                                    duration: durationText(
+                                        mediaLibrary.referenceViewingStates[reference.id]?.durationSeconds
+                                    ),
+                                    watchedProgress: mediaLibrary.referenceViewingStates[reference.id]?.progress,
+                                    accessibilityIdentifier: "MediaLibrary-grid-video-\(reference.name)",
+                                    selectionEnabled: mediaReferenceSelectionIsActive,
+                                    isSelected: selectedMediaReferenceIDs.contains(reference.id),
+                                    action: { activateMediaReference(reference) }
+                                )
+                                .contextMenu { libraryReferenceActions(reference) }
                             }
-                        )
-                        .contextMenu { libraryFolderActions(folder) }
-                    }
-                    ForEach(displayedLibraryReferences) { reference in
-                        GridCard.video(
-                            title: displayTitle(reference),
-                            artworkURL: mediaLibrary.artworkURL(for: reference),
-                            fileSize: fileSizeText(reference),
-                            duration: durationText(
-                                mediaLibrary.referenceViewingStates[reference.id]?.durationSeconds
-                            ),
-                            watchedProgress: mediaLibrary.referenceViewingStates[reference.id]?.progress,
-                            accessibilityIdentifier: "MediaLibrary-grid-video-\(reference.name)",
-                            selectionEnabled: mediaReferenceSelectionIsActive,
-                            isSelected: selectedMediaReferenceIDs.contains(reference.id),
-                            action: { activateMediaReference(reference) }
-                        )
-                        .contextMenu { libraryReferenceActions(reference) }
+                        }
                     }
                 }
             }
@@ -977,14 +1092,50 @@ public struct FilesScreen: View {
     }
 
     private var sourceListItems: [FileListGroup.Item] {
-        viewModel.displayedFolders.map { folder in
+        if viewModel.isBrowsingBluRayDisc {
+            let browseFiles: [FileListGroup.Item] = if viewModel.canBrowseFilesInCurrentBluRayDisc {
+                [
+                    .folder(
+                        id: "bluray-browse-files",
+                        title: String(localized: "Browse Files"),
+                        itemCount: nil,
+                        contextActions: sourceBluRayFolderContextActions,
+                        action: { Task { await viewModel.browseFilesInCurrentBluRayDisc() } }
+                    )
+                ]
+            } else {
+                []
+            }
+            return browseFiles + viewModel.displayedBluRayTitles.map { title in
+                .video(
+                    id: "bluray-playlist-\(title.playlistID.rawValue)",
+                    title: title.displayName,
+                    fileSize: title.isMain ? String(localized: "Main") : "",
+                    duration: durationText(title.durationSeconds),
+                    accessibilityLabel: BluRayTitleAccessibility.label(
+                        for: title,
+                        durationText: durationText(title.durationSeconds)
+                    ),
+                    action: { viewModel.selectBluRayTitle(title) }
+                )
+            }
+        }
+        return viewModel.displayedFolders.map { folder in
                         FileListGroup.Item.folder(
                             id: "folder-\(folder.id)",
                             title: folder.name,
                             itemCount: nil,
                             action: { Task { await viewModel.navigateToFolder(folder) } }
                         )
-                    } + viewModel.displayedFiles.map { file in
+                    } + viewModel.displayedBluRayImages.map { file in
+                        FileListGroup.Item.folder(
+                            id: "bluray-disc-\(file.id)",
+                            title: displayTitle(file),
+                            itemCount: nil,
+                            contextActions: sourceFileContextActions(file),
+                            action: { viewModel.selectFile(file) }
+                        )
+                    } + viewModel.displayedOrdinaryFiles.map { file in
                         FileListGroup.Item.video(
                             id: "video-\(file.id)",
                             title: displayTitle(file),
@@ -997,7 +1148,22 @@ public struct FilesScreen: View {
     }
 
     private var libraryListItems: [FileListGroup.Item] {
-        displayedLibraryFolders.map { folder in
+        if mediaLibrary.currentBluRayDiscName != nil {
+            return mediaLibrary.currentBluRayTitles.map { title in
+                .video(
+                    id: "library-bluray-playlist-\(title.playlistID.rawValue)",
+                    title: title.displayName,
+                    fileSize: title.isMain ? String(localized: "Main") : "",
+                    duration: durationText(title.durationSeconds),
+                    accessibilityLabel: BluRayTitleAccessibility.label(
+                        for: title,
+                        durationText: durationText(title.durationSeconds)
+                    ),
+                    action: { mediaLibrary.selectBluRayTitle(title) }
+                )
+            }
+        }
+        return displayedLibraryFolders.map { folder in
             FileListGroup.Item.folder(
                 id: "library-folder-\(folder.id)",
                 title: folder.name,
@@ -1007,16 +1173,25 @@ public struct FilesScreen: View {
                 action: { mediaLibrary.open(folder) }
             )
         } + displayedLibraryReferences.map { reference in
-            FileListGroup.Item.video(
-                id: "library-video-\(reference.id)",
-                title: displayTitle(reference),
-                fileSize: fileSizeText(reference),
-                duration: durationText(mediaLibrary.referenceViewingStates[reference.id]?.durationSeconds),
-                contextActions: libraryReferenceContextActions(reference),
-                selectionEnabled: mediaReferenceSelectionIsActive,
-                isSelected: selectedMediaReferenceIDs.contains(reference.id),
-                action: { activateMediaReference(reference) }
-            )
+            if reference.content == .bluRayDisc {
+                return FileListGroup.Item.folder(
+                    id: "library-bluray-disc-\(reference.id)",
+                    title: displayTitle(reference),
+                    itemCount: nil,
+                    contextActions: libraryReferenceContextActions(reference),
+                    action: { activateMediaReference(reference) }
+                )
+            }
+            return FileListGroup.Item.video(
+                    id: "library-video-\(reference.id)",
+                    title: displayTitle(reference),
+                    fileSize: fileSizeText(reference),
+                    duration: durationText(mediaLibrary.referenceViewingStates[reference.id]?.durationSeconds),
+                    contextActions: libraryReferenceContextActions(reference),
+                    selectionEnabled: mediaReferenceSelectionIsActive,
+                    isSelected: selectedMediaReferenceIDs.contains(reference.id),
+                    action: { activateMediaReference(reference) }
+                )
         }
     }
 
@@ -1332,9 +1507,27 @@ public struct FilesScreen: View {
         )]
     }
 
+    private var sourceBluRayFolderContextActions: [FileListGroup.Item.ContextAction] {
+        guard let dataSource = viewModel.activeDataSource,
+              let folder = viewModel.currentBluRayFolder else { return [] }
+        return [.init(
+            title: String(localized: "Add to Media Library"),
+            systemName: "plus.rectangle.on.folder",
+            action: {
+                mediaLibrary.addSourceBluRayFolder(folder, dataSource: dataSource)
+            }
+        )]
+    }
+
     private func beginRenaming(_ folder: FileBrowsingDomain.LibraryFolder) {
         renamedFolderName = folder.name
         folderToRename = folder
     }
 
+}
+
+nonisolated enum BluRayTitleAccessibility {
+    static func label(for title: BluRayTitleItem, durationText: String) -> String {
+        "\(title.displayName), Playlist ID \(title.playlistID.rawValue), Duration \(durationText)"
+    }
 }

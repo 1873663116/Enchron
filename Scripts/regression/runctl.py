@@ -193,6 +193,7 @@ def compile_execution_plan(
     policy_path: Path,
     reviews_root: Path,
     blueprint_path: Path,
+    requested_lane: BoundLane | None = None,
 ) -> tuple[Any, Any]:
     repository = Path(repository_root).resolve()
     execution = load_execution_input(execution_input_path)
@@ -214,7 +215,7 @@ def compile_execution_plan(
     request = CompileRequest(
         FullSelector(),
         facts,
-        (BoundLane.SIMULATOR, BoundLane.DEVICE),
+        (requested_lane,) if requested_lane is not None else (BoundLane.SIMULATOR, BoundLane.DEVICE),
         execution.build_identity,
         execution.evidence_environment_identity,
     )
@@ -327,11 +328,13 @@ def _parser() -> argparse.ArgumentParser:
     prepare = commands.add_parser("prepare-build")
     prepare.add_argument("--repository-root", type=Path, default=Path.cwd())
     prepare.add_argument("--artifact-root", type=Path, required=True)
+    prepare.add_argument("--requested-lane", choices=("simulator",))
     freeze = commands.add_parser("freeze")
     freeze.add_argument("--repository-root", type=Path, default=Path.cwd())
     freeze.add_argument("--artifact-root", type=Path, required=True)
     freeze.add_argument("--simulator-target", required=True)
-    freeze.add_argument("--device-target", required=True)
+    freeze.add_argument("--device-target")
+    freeze.add_argument("--requested-lane", choices=("simulator",))
     freeze.add_argument("--agent-model", required=True)
     freeze.add_argument("--agent-executable", default="codex")
     freeze.add_argument("--output", type=Path, required=True)
@@ -342,6 +345,7 @@ def _parser() -> argparse.ArgumentParser:
     )
     compile_parser = commands.add_parser("compile")
     _common(compile_parser)
+    compile_parser.add_argument("--requested-lane", choices=("simulator", "device"))
     compile_parser.add_argument("--output", type=Path, required=True)
     status_parser = commands.add_parser("status")
     status_parser.add_argument("--run-directory", type=Path, required=True)
@@ -352,18 +356,29 @@ def _execute(arguments: argparse.Namespace) -> tuple[Mapping[str, Any], int]:
     if arguments.operation == "prepare-build":
         repository = arguments.repository_root.resolve()
         artifact_root = _artifact_path(repository, arguments.artifact_root)
-        prepared = prepare_build_provenance(repository, artifact_root)
+        prepared = prepare_build_provenance(
+            repository, artifact_root,
+            **({"lanes": (BoundLane.SIMULATOR,)} if arguments.requested_lane else {}),
+        )
         return _prepared_build_payload(artifact_root, prepared), 0
     if arguments.operation == "freeze":
         repository = arguments.repository_root.resolve()
         artifact_root = _artifact_path(repository, arguments.artifact_root)
+        if arguments.requested_lane == "simulator":
+            if arguments.device_target is not None:
+                raise RunControlError("simulator-only freeze must not name a device target")
+            targets = {BoundLane.SIMULATOR: arguments.simulator_target}
+        else:
+            if not arguments.device_target:
+                raise RunControlError("dual-lane freeze requires --device-target")
+            targets = {
+                BoundLane.SIMULATOR: arguments.simulator_target,
+                BoundLane.DEVICE: arguments.device_target,
+            }
         value = freeze_execution_input(
             repository,
             artifact_root,
-            {
-                BoundLane.SIMULATOR: arguments.simulator_target,
-                BoundLane.DEVICE: arguments.device_target,
-            },
+            targets,
             arguments.agent_model,
             arguments.agent_executable,
             bootstrap=bool(getattr(arguments, "bootstrap", False)),
@@ -391,13 +406,14 @@ def _execute(arguments: argparse.Namespace) -> tuple[Mapping[str, Any], int]:
     if not execution_input.is_absolute():
         execution_input = repository / execution_input
     if arguments.operation == "compile":
+        compile_arguments = (
+            repository, execution_input, arguments.catalog_root, arguments.policy,
+            arguments.reviews_root, arguments.blueprint,
+        )
         plan, _ = compile_execution_plan(
-            repository,
-            execution_input,
-            arguments.catalog_root,
-            arguments.policy,
-            arguments.reviews_root,
-            arguments.blueprint,
+            *compile_arguments,
+            **({"requested_lane": BoundLane(arguments.requested_lane)}
+               if arguments.requested_lane else {}),
         )
         output = arguments.output
         if not output.is_absolute():

@@ -259,25 +259,26 @@ class BuildIdentity:
         artifacts = tuple(
             sorted(artifacts, key=lambda item: _lane_sort_key(item.lane))
         )
-        required_lanes = (BoundLane.SIMULATOR, BoundLane.DEVICE)
-        if tuple(item.lane for item in artifacts) != required_lanes:
+        artifact_lanes = tuple(item.lane for item in artifacts)
+        if artifact_lanes not in ((BoundLane.SIMULATOR,), (BoundLane.SIMULATOR, BoundLane.DEVICE)):
             raise _error(
                 "plan.missing.build.artifact",
                 "buildIdentity.laneArtifacts",
-                "BuildIdentity must bind exactly one simulator and one device artifact",
+                "BuildIdentity must bind simulator only or simulator and device artifacts",
             )
-        simulator, device = artifacts
-        for name, location, label in (
-            ("xctestrun_digest", "xctestrunDigest", ".xctestrun"),
-            ("test_products_digest", "testProductsDigest", "test products"),
-            ("application_code_digest", "applicationCodeDigest", "application code"),
-        ):
-            if getattr(simulator, name) == getattr(device, name):
-                raise _error(
-                    "plan.shared.build.artifact.digest",
-                    f"buildIdentity.laneArtifacts.{location}",
-                    f"simulator and device {label} digests must differ",
-                )
+        if len(artifacts) == 2:
+            simulator, device = artifacts
+            for name, location, label in (
+                ("xctestrun_digest", "xctestrunDigest", ".xctestrun"),
+                ("test_products_digest", "testProductsDigest", "test products"),
+                ("application_code_digest", "applicationCodeDigest", "application code"),
+            ):
+                if getattr(simulator, name) == getattr(device, name):
+                    raise _error(
+                        "plan.shared.build.artifact.digest",
+                        f"buildIdentity.laneArtifacts.{location}",
+                        f"simulator and device {label} digests must differ",
+                    )
         object.__setattr__(self, "lane_artifacts", artifacts)
         object.__setattr__(
             self,
@@ -419,6 +420,12 @@ class CompileRequest:
                 "plan.invalid.build.identity",
                 "compileRequest.buildIdentity",
                 "expected BuildIdentity",
+            )
+        if not set(self.requested_lanes) <= {item.lane for item in self.build_identity.lane_artifacts}:
+            raise _error(
+                "plan.requested.lane.unbuilt",
+                "compileRequest.requestedLanes",
+                "every requested lane needs its own frozen build artifact",
             )
         if not isinstance(
             self.evidence_environment_identity, EvidenceEnvironmentIdentity
@@ -1130,6 +1137,11 @@ class CompiledRunPlan:
         if not isinstance(self.evidence_environment_identity, EvidenceEnvironmentIdentity):
             raise _error("plan.invalid.evidence.environment", "compiledPlan.evidenceEnvironment", "expected EvidenceEnvironmentIdentity")
         object.__setattr__(self, "requested_lanes", _lanes(tuple(self.requested_lanes), "compiledPlan.requestedLanes"))
+        if not set(self.requested_lanes) <= {item.lane for item in self.build_identity.lane_artifacts}:
+            raise _error(
+                "plan.requested.lane.unbuilt", "compiledPlan.requestedLanes",
+                "every requested lane needs its own frozen build artifact",
+            )
         preparations = tuple(self.preparation_bindings)
         nodes = tuple(self.nodes)
         gates = tuple(self.main_gates)

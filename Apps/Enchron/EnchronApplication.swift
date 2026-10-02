@@ -981,7 +981,16 @@ private extension MediaPlaybackItem {
         case .sourceDirectory: .sourceDirectory
         }
         let playbackAddress: PlaybackAddress
-        if let byteStreamHandle {
+        let contentSelection: PlaybackContentSelection
+        switch selection {
+        case .file:
+            contentSelection = .file
+        case .bluRayPlaylist(let playlist, let source):
+            contentSelection = .bluRayPlaylist(playlist, source: source)
+        }
+        if case .bluRayPlaylist(_, let source) = selection {
+            playbackAddress = PlaybackAddress(discSource: source, byteStreamHandle: byteStreamHandle)
+        } else if let byteStreamHandle {
             playbackAddress = PlaybackAddress(byteStreamHandle: byteStreamHandle)
         } else {
             do {
@@ -992,6 +1001,7 @@ private extension MediaPlaybackItem {
         }
         return PlaybackLaunchRequest(
             source: playbackAddress,
+            contentSelection: contentSelection,
             displayName: displayName,
             fileIdentifier: stableIdentifier.map(PlaybackFileIdentifier.init(rawValue:)),
             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),

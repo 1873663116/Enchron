@@ -20,12 +20,20 @@ fi
 
 SIM_UDID="${1:?usage: $0 [--check] SIMULATOR_UDID [APP_BUNDLE]}"
 APP_BUNDLE="${2:-$ROOT_DIR/.scratch/derived-data/Build/Products/Debug-xrsimulator/Enchron.app}"
-BUNDLE_ID="com.xiongzhipeng.Enchron"
 
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "app bundle not found: $APP_BUNDLE" >&2
   exit 2
 fi
+
+BUNDLE_ID="$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$APP_BUNDLE/Info.plist")"
+case "$BUNDLE_ID" in
+  com.xiongzhipeng.Enchron|com.xiongzhipeng.Enchron.debug) ;;
+  *)
+    echo "refusing to install unexpected bundle: $BUNDLE_ID" >&2
+    exit 2
+    ;;
+esac
 
 SIGNATURE="$(/usr/bin/codesign -dv "$APP_BUNDLE" 2>&1 | /usr/bin/grep '^Signature=' || true)"
 if [[ -z "$SIGNATURE" ]]; then

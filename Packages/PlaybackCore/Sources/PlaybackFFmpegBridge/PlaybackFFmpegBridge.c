@@ -1,5 +1,6 @@
 #include "PlaybackFFmpegBridge.h"
 #include "PlaybackFFmpegBridgeInternal.h"
+#include <BluRayDiscBridge.h>
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <errno.h>
@@ -43,6 +44,8 @@ typedef struct {
     atomic_bool *cancelled;
     AVFormatContext *formatContext;
     int64_t accountedBytesRead;
+    PBBlurayReader *disc;
+    AVIOContext *discIO;
 } PBFFmpegSourceReadContext;
 
 typedef struct PBFFmpegPacketNode {
@@ -338,6 +341,14 @@ static void close_media_source(
 ) {
     finish_source_read_context(sourceReadContext);
     avformat_close_input(formatContext);
+    if (sourceReadContext && sourceReadContext->discIO) {
+        av_freep(&sourceReadContext->discIO->buffer);
+        avio_context_free(&sourceReadContext->discIO);
+    }
+    if (sourceReadContext && sourceReadContext->disc) {
+        PBBlurayClose(sourceReadContext->disc);
+        sourceReadContext->disc = NULL;
+    }
 }
 
 PBFFmpegReadCancellation *PBFFmpegReadCancellationCreate(void) {
@@ -411,6 +422,41 @@ static int monitored_av_read_frame(
     source_read_monitor_note_read_begin(monitor);
     int result = av_read_frame(context, packet);
     source_read_monitor_note_read_end(monitor);
+    PBFFmpegSourceReadContext *readContext = context->interrupt_callback.opaque;
+    if (result >= 0 && readContext && readContext->disc && packet->pos >= 0) {
+        PBBlurayClipInfo clip;
+        uint32_t clipIndex = 0;
+        for (; clipIndex < PBBlurayReaderClipCount(readContext->disc); clipIndex++) {
+            if (PBBlurayReaderClipAt(readContext->disc, clipIndex, &clip) &&
+                (uint64_t)packet->pos >= clip.byteStart &&
+                (uint64_t)packet->pos < clip.byteEnd) break;
+        }
+        if (clipIndex < PBBlurayReaderClipCount(readContext->disc)) {
+            AVStream *stream = context->streams[packet->stream_index];
+            int64_t offset = av_rescale_q(
+                (int64_t)clip.startTime90k - (int64_t)clip.inTime90k,
+                (AVRational){1, 90000}, stream->time_base
+            );
+            if (packet->pts != AV_NOPTS_VALUE) packet->pts += offset;
+            if (packet->dts != AV_NOPTS_VALUE) packet->dts += offset;
+            for (uint32_t ordinal = 0; ordinal < clip.streamCount; ordinal++) {
+                PBBlurayStreamInfo current, first;
+                if (!PBBlurayReaderStreamAt(readContext->disc, clipIndex, ordinal, &current) ||
+                    current.pid != stream->id ||
+                    !PBBlurayReaderStreamAt(readContext->disc, 0, ordinal, &first) ||
+                    first.kind != current.kind || first.codingType != current.codingType) continue;
+                for (unsigned int index = 0; index < context->nb_streams; index++) {
+                    if (context->streams[index]->id == first.pid) {
+                        av_packet_rescale_ts(packet, stream->time_base,
+                                             context->streams[index]->time_base);
+                        packet->stream_index = (int)index;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
     return result;
 }
 
@@ -448,14 +494,21 @@ static int monitored_avformat_seek_file(
     int flags
 ) {
     source_read_monitor_note_read_begin(monitor);
-    int result = avformat_seek_file(
-        context,
-        streamIndex,
-        minTimestamp,
-        timestamp,
-        maxTimestamp,
-        flags
-    );
+    PBFFmpegSourceReadContext *readContext = context->interrupt_callback.opaque;
+    int result;
+    if (readContext && readContext->disc) {
+        int64_t time90k = streamIndex < 0
+            ? av_rescale_q(timestamp, AV_TIME_BASE_Q, (AVRational){1, 90000})
+            : av_rescale_q(timestamp, context->streams[streamIndex]->time_base,
+                           (AVRational){1, 90000});
+        int64_t position = PBBluraySeekTime(readContext->disc, (uint64_t)(time90k > 0 ? time90k : 0));
+        result = position < 0 ? AVERROR(EIO) : avio_seek(context->pb, position, SEEK_SET) < 0
+            ? AVERROR(EIO) : 0;
+        if (result >= 0) avformat_flush(context);
+    } else {
+        result = avformat_seek_file(context, streamIndex, minTimestamp,
+                                   timestamp, maxTimestamp, flags);
+    }
     source_read_monitor_note_read_end(monitor);
     return result;
 }
@@ -736,6 +789,21 @@ static int64_t demux_source_resume_timestamp(
 
 static int reopen_demux_source(PBFFmpegDemuxSource *source) {
     int64_t resumeTimestamp = demux_source_resume_timestamp(source);
+    if (source->sourceReadContext->disc) {
+        int result = monitored_avformat_seek_file(
+            source->sourceReadContext->monitor, source->formatContext, -1,
+            INT64_MIN, resumeTimestamp == AV_NOPTS_VALUE ? 0 : resumeTimestamp,
+            INT64_MAX, AVSEEK_FLAG_BACKWARD
+        );
+        if (result >= 0) {
+            for (unsigned int index = 0; index < source->queueCount; index++) {
+                source->replayThroughTimestamps[index] = source->lastQueuedTimestamps[index];
+                source->replayCaughtUp[index] =
+                    source->replayThroughTimestamps[index] == AV_NOPTS_VALUE;
+            }
+        }
+        return result;
+    }
     PBFFmpegSourceReadContext *replacementReadContext =
         source->sourceReadContext == &source->readContexts[0]
             ? &source->readContexts[1]
@@ -964,6 +1032,9 @@ static void stop_demux_source_read_thread(PBFFmpegDemuxSource *source) {
     bool join = source->readThreadStarted;
     source->stopsReadThread = true;
     atomic_store_explicit(&source->interrupted, true, memory_order_relaxed);
+    if (source->sourceReadContext && source->sourceReadContext->disc) {
+        PBBlurayReaderSetInterrupted(source->sourceReadContext->disc, true);
+    }
     pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
     if (join) pthread_join(source->readThread, NULL);
@@ -975,6 +1046,8 @@ static void stop_demux_source_read_thread(PBFFmpegDemuxSource *source) {
             memory_order_seq_cst
         )) {
         atomic_store_explicit(&source->interrupted, true, memory_order_seq_cst);
+    } else if (source->sourceReadContext && source->sourceReadContext->disc) {
+        PBBlurayReaderSetInterrupted(source->sourceReadContext->disc, false);
     }
     pthread_mutex_unlock(&source->lock);
 }
@@ -1534,38 +1607,26 @@ static int finalize_stream_information(
     return result;
 }
 
-enum {
-    PB_UDF_VOLUME_RECOGNITION_SEQUENCE_OFFSET = 32768,
-    PB_UDF_VOLUME_DESCRIPTOR_SIZE = 2048,
-    PB_UDF_VOLUME_IDENTIFIER_OFFSET = 1,
-    PB_UDF_VOLUME_IDENTIFIER_LENGTH = 5,
-};
-static const int64_t PB_DISC_IMAGE_RESYNC_SIZE = 16LL * 1024 * 1024;
+static int disc_read_packet(void *opaque, uint8_t *buffer, int size) {
+    PBFFmpegSourceReadContext *context = opaque;
+    if (publish_source_bytes_and_check_cancellation(context)) return AVERROR_EXIT;
+    int count = PBBlurayRead(context->disc, buffer, size);
+    return count > 0 ? count : count == 0 ? AVERROR_EOF : AVERROR(EIO);
+}
 
-static const AVInputFormat *disc_image_input_format(const char *path) {
-    if (!path) return NULL;
-    FILE *file = fopen(path, "rb");
-    if (!file) return NULL;
-    uint8_t descriptors[2][PB_UDF_VOLUME_DESCRIPTOR_SIZE];
-    const uint8_t *firstIdentifier =
-        descriptors[0] + PB_UDF_VOLUME_IDENTIFIER_OFFSET;
-    const uint8_t *secondIdentifier =
-        descriptors[1] + PB_UDF_VOLUME_IDENTIFIER_OFFSET;
-    bool isUDF = false;
-    if (fseek(file, PB_UDF_VOLUME_RECOGNITION_SEQUENCE_OFFSET, SEEK_SET) == 0
-        && fread(descriptors, sizeof(descriptors[0]), 2, file) == 2
-        && memcmp(
-               firstIdentifier, "BEA01", PB_UDF_VOLUME_IDENTIFIER_LENGTH
-           ) == 0) {
-        isUDF = memcmp(
-                    secondIdentifier, "NSR02", PB_UDF_VOLUME_IDENTIFIER_LENGTH
-                ) == 0
-            || memcmp(
-                   secondIdentifier, "NSR03", PB_UDF_VOLUME_IDENTIFIER_LENGTH
-               ) == 0;
+static int64_t disc_seek_bytes(void *opaque, int64_t offset, int whence) {
+    PBFFmpegSourceReadContext *context = opaque;
+    if (whence == AVSEEK_SIZE) return (int64_t)PBBluraySize(context->disc);
+    whence &= ~AVSEEK_FORCE;
+    int64_t base;
+    switch (whence) {
+        case SEEK_SET: base = 0; break;
+        case SEEK_CUR: base = (int64_t)PBBlurayTell(context->disc); break;
+        case SEEK_END: base = (int64_t)PBBluraySize(context->disc); break;
+        default: return AVERROR(EINVAL);
     }
-    fclose(file);
-    return isUDF ? av_find_input_format("mpegts") : NULL;
+    if (offset < -base || (offset > 0 && base > INT64_MAX - offset)) return AVERROR(EINVAL);
+    return PBBluraySeekBytes(context->disc, (uint64_t)(base + offset));
 }
 
 static int open_media_source(
@@ -1575,14 +1636,24 @@ static int open_media_source(
 ) {
     AVDictionary *options = NULL;
     int result = 0;
-    const AVInputFormat *format = disc_image_input_format(path);
-    if (format) {
-        av_dict_set_int(&options, "resync_size", PB_DISC_IMAGE_RESYNC_SIZE, 0);
+    const AVInputFormat *format = NULL;
+    if (sourceReadContext && sourceReadContext->disc) {
+        const int bufferSize = 32768;
+        uint8_t *buffer = av_malloc(bufferSize);
+        if (!buffer) return AVERROR(ENOMEM);
+        sourceReadContext->discIO = avio_alloc_context(
+            buffer, bufferSize, 0, sourceReadContext,
+            disc_read_packet, NULL, disc_seek_bytes
+        );
+        if (!sourceReadContext->discIO) { av_free(buffer); return AVERROR(ENOMEM); }
+        (*context)->pb = sourceReadContext->discIO;
+        (*context)->flags |= AVFMT_FLAG_CUSTOM_IO;
+        format = av_find_input_format("mpegts");
     }
     result = monitored_avformat_open_input(
         sourceReadContext ? sourceReadContext->monitor : NULL,
         context,
-        path,
+        sourceReadContext && sourceReadContext->disc ? NULL : path,
         format,
         &options
     );
@@ -3985,8 +4056,9 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
     return information;
 }
 
-PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
+static PBFFmpegDemuxSource *create_demux_source(
     const char *path,
+    PBBlurayReader *disc,
     bool isRemote,
     PBFFmpegDemuxBufferConfiguration bufferConfiguration,
     PBFFmpegSourceReadMonitor *monitor,
@@ -4001,11 +4073,13 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         !isfinite(bufferConfiguration.targetDurationSeconds) ||
         bufferConfiguration.targetDurationSeconds <= 0) {
         set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg demux source call");
+        if (disc) PBBlurayClose(disc);
         return NULL;
     }
     PBFFmpegDemuxSource *source = calloc(1, sizeof(*source));
     if (!source) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg demux source");
+        if (disc) PBBlurayClose(disc);
         return NULL;
     }
     source->isRemote = isRemote;
@@ -4014,11 +4088,13 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     atomic_init(&source->permanentlyInterrupted, false);
     if (pthread_mutex_init(&source->lock, NULL) != 0) {
         set_error(errorBuffer, errorBufferSize, "Unable to initialize FFmpeg demux source");
+        if (disc) PBBlurayClose(disc);
         free(source);
         return NULL;
     }
     if (pthread_cond_init(&source->changed, NULL) != 0) {
         set_error(errorBuffer, errorBufferSize, "Unable to initialize FFmpeg demux source");
+        if (disc) PBBlurayClose(disc);
         pthread_mutex_destroy(&source->lock);
         free(source);
         return NULL;
@@ -4026,6 +4102,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     source->path = av_strdup(path);
     source->sourceReadContext = &source->readContexts[0];
     source->sourceReadContext->monitor = monitor;
+    source->sourceReadContext->disc = disc;
     source->formatContext = allocate_format_context(
         &source->interrupted,
         source->sourceReadContext
@@ -4096,6 +4173,25 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
             return NULL;
         }
     }
+    if (disc) {
+        source->formatContext->duration = av_rescale_q(
+            (int64_t)PBBlurayDuration(disc), (AVRational){1, 90000}, AV_TIME_BASE_Q
+        );
+        source->formatContext->start_time = 0;
+        for (unsigned int index = 0; index < source->formatContext->nb_streams; index++) {
+            AVStream *stream = source->formatContext->streams[index];
+            stream->start_time = 0;
+            stream->duration = av_rescale_q(source->formatContext->duration,
+                                           AV_TIME_BASE_Q, stream->time_base);
+        }
+        result = monitored_avformat_seek_file(monitor, source->formatContext,
+            -1, INT64_MIN, 0, INT64_MAX, AVSEEK_FLAG_BACKWARD);
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Rewind disc title", result);
+            PBFFmpegDemuxSourceDestroy(source);
+            return NULL;
+        }
+    }
     source->queueCount = source->formatContext->nb_streams;
     if (source->queueCount > 0) {
         source->queues = calloc(source->queueCount, sizeof(*source->queues));
@@ -4142,6 +4238,28 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     return source;
 }
 
+PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
+    const char *path, bool isRemote,
+    PBFFmpegDemuxBufferConfiguration bufferConfiguration,
+    PBFFmpegSourceReadMonitor *monitor, char *errorBuffer, size_t errorBufferSize
+) {
+    return create_demux_source(path, NULL, isRemote, bufferConfiguration,
+                               monitor, errorBuffer, errorBufferSize);
+}
+
+PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreateWithDisc(
+    const char *path, PBBlurayReader *disc, bool isRemote,
+    PBFFmpegDemuxBufferConfiguration bufferConfiguration,
+    PBFFmpegSourceReadMonitor *monitor, char *errorBuffer, size_t errorBufferSize
+) {
+    if (!disc) {
+        set_error(errorBuffer, errorBufferSize, "Missing selected disc title");
+        return NULL;
+    }
+    return create_demux_source(path, disc, isRemote, bufferConfiguration,
+                               monitor, errorBuffer, errorBufferSize);
+}
+
 bool PBFFmpegDemuxSourceInterruptTargetsOwnReadContext(
     const PBFFmpegDemuxSource *source
 ) {
@@ -4157,6 +4275,9 @@ void PBFFmpegDemuxSourceInterrupt(PBFFmpegDemuxSource *source) {
         memory_order_seq_cst
     );
     atomic_store_explicit(&source->interrupted, true, memory_order_seq_cst);
+    if (source->sourceReadContext && source->sourceReadContext->disc) {
+        PBBlurayReaderSetInterrupted(source->sourceReadContext->disc, true);
+    }
     pthread_cond_broadcast(&source->changed);
 }
 

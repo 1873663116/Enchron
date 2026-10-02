@@ -5,6 +5,104 @@ import Testing
 
 @Suite(.serialized)
 struct WebDAVDataSourceAdapterTests {
+    @Test("WebDAV exposes a BDMV root as a random-access disc filesystem")
+    func bluRayDirectoryFileSystem() async throws {
+        let bytes = Data("INDX0200".utf8)
+        let recorder = WebDAVRequestRecorder()
+        WebDAVTestURLProtocol.setHandler { request in
+            recorder.record(request)
+            let url = try #require(request.url)
+            if request.httpMethod == "PROPFIND" {
+                let path = try #require(
+                    URLComponents(url: url, resolvingAgainstBaseURL: false)?.path
+                )
+                let listing = path.hasSuffix("/Feature/BDMV/")
+                    ? Self.bdmvIndexListing
+                    : path.hasSuffix("/Feature/")
+                        ? Self.bluRayRootListing
+                        : Self.directoryListing
+                let response = try #require(HTTPURLResponse(
+                    url: url,
+                    statusCode: 207,
+                    httpVersion: "HTTP/1.1",
+                    headerFields: ["Content-Type": "application/xml"]
+                ))
+                return (response, Data(listing.utf8))
+            }
+            let range = request.value(forHTTPHeaderField: "Range") ?? "bytes=0-0"
+            let bounds = range.dropFirst("bytes=".count).split(separator: "-")
+            let lower = Int(bounds.first ?? "0") ?? 0
+            let upper = Int(bounds.last ?? "0") ?? 0
+            let response = try #require(HTTPURLResponse(
+                url: url,
+                statusCode: 206,
+                httpVersion: "HTTP/1.1",
+                headerFields: [
+                    "Content-Range": "bytes \(lower)-\(upper)/\(bytes.count)",
+                    "Content-Length": String(upper - lower + 1)
+                ]
+            ))
+            return (response, bytes.subdata(in: lower..<(upper + 1)))
+        }
+        defer { WebDAVTestURLProtocol.setHandler(nil) }
+
+        let adapter = WebDAVDataSourceAdapter(session: Self.makeSession())
+        try await adapter.connect(with: .init(
+            sourceType: .webDAV,
+            address: "https://media.example.test/dav/library",
+            scheme: "https",
+            host: "media.example.test",
+            rootPath: "/dav/library"
+        ))
+        let folder = FileBrowsingDomain.MediaFolder(
+            name: "Feature",
+            dataSourceID: UUID(),
+            path: "/dav/library/Feature",
+            url: try #require(URL(string: "https://media.example.test/dav/library/Feature/"))
+        )
+
+        let source = try #require(try await adapter.bluRayDiscSource(for: folder))
+        guard case .fileSystem(_, let fileSystem) = source else {
+            Issue.record("A BDMV directory must resolve to a filesystem source")
+            return
+        }
+        #expect(try await fileSystem.contents(of: "BDMV") == ["index.bdmv"])
+        let index = try await fileSystem.openFile(at: "BDMV/index.bdmv")
+        #expect(try await index.size == 8)
+        #expect(try await index.read(at: 0, count: 4) == Data("INDX".utf8))
+
+        let bdmvFolder = FileBrowsingDomain.MediaFolder(
+            name: "BDMV",
+            dataSourceID: folder.dataSourceID,
+            path: "/dav/library/Feature/BDMV",
+            url: try #require(URL(
+                string: "https://media.example.test/dav/library/Feature/BDMV/"
+            ))
+        )
+        let selfSource = try #require(try await adapter.bluRayDiscSource(for: bdmvFolder))
+        #expect(selfSource.rootURL.path == "/dav/library/Feature")
+
+        let persistedFolder = FileBrowsingDomain.MediaFolder(
+            name: "Feature",
+            dataSourceID: folder.dataSourceID,
+            path: "/dav/library/Feature",
+            url: URL(fileURLWithPath: "/dav/library/Feature")
+        )
+        let persistedSource = try #require(
+            try await adapter.bluRayDiscSource(for: persistedFolder)
+        )
+        #expect(persistedSource.rootURL.absoluteString == "https://media.example.test/dav/library/Feature")
+        let propfindPaths = recorder.requests
+            .filter { $0.httpMethod == "PROPFIND" }
+            .compactMap { request in
+                request.url.flatMap {
+                    URLComponents(url: $0, resolvingAgainstBaseURL: false)?.path
+                }
+            }
+        #expect(propfindPaths.contains("/dav/library/Feature/"))
+        #expect(propfindPaths.contains("/dav/library/Feature/BDMV/"))
+    }
+
     @Test("WebDAV sends authenticated depth-one PROPFIND and parses files and folders")
     func authenticatedPROPFIND() async throws {
         let recorder = WebDAVRequestRecorder()
@@ -518,6 +616,22 @@ struct WebDAVDataSourceAdapterTests {
           <d:status>HTTP/1.1 200 OK</d:status>
         </d:propstat>
       </d:response>
+    </d:multistatus>
+    """
+
+    nonisolated private static let bluRayRootListing = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <d:multistatus xmlns:d="DAV:">
+      <d:response><d:href>/dav/library/Feature/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+      <d:response><d:href>/dav/library/Feature/BDMV/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+    </d:multistatus>
+    """
+
+    nonisolated private static let bdmvIndexListing = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <d:multistatus xmlns:d="DAV:">
+      <d:response><d:href>/dav/library/Feature/BDMV/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+      <d:response><d:href>/dav/library/Feature/BDMV/index.bdmv</d:href><d:propstat><d:prop><d:getcontentlength>8</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
     </d:multistatus>
     """
 }

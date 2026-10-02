@@ -650,6 +650,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 openResult = try await driver.open(
                     .init(
                         url: request.url,
+                        contentSelection: request.contentSelection,
                         startTime: CMTime(
                             seconds: startTimeSeconds,
                             preferredTimescale: 60_000
@@ -1648,6 +1649,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             let replacement = try await replacementDriver.open(
                 .init(
                     url: request.url,
+                    contentSelection: request.contentSelection,
                     startTime: CMTime(
                         seconds: startTimeSeconds,
                         preferredTimescale: 60_000

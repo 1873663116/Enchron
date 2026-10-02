@@ -28,6 +28,10 @@ public struct MediaIdentity: Codable, Hashable, Sendable {
         make(scope: "emby", components: [serverID, itemID, mediaSourceID])
     }
 
+    public static func bluRayPlaylist(disc: Self, playlistID: UInt32) -> Self {
+        make(scope: "bluray-playlist", components: [disc.storageKey, String(playlistID)])
+    }
+
     static func make(scope: String, components: [String]) -> Self {
         let canonicalValue = ([scope] + components).joined(separator: "\u{1f}")
         let digest = SHA256.hash(data: Data(canonicalValue.utf8))
@@ -40,6 +44,16 @@ public struct ContentRevision: Codable, Equatable, Hashable, Sendable {
 
     private init(storageKey: String) {
         self.storageKey = storageKey
+    }
+
+    public static func bluRayPlaylist(disc: Self, playlistID: UInt32) -> Self {
+        make(components: ["bluray-playlist", disc.storageKey, String(playlistID)])
+    }
+
+    public static func directoryManifest(_ manifest: Data) -> Self {
+        make(components: ["directory-manifest", SHA256.hash(data: manifest).map {
+            String(format: "%02x", $0)
+        }.joined()])
     }
 
     public static func file(
@@ -178,6 +192,13 @@ public struct VersionedMediaIdentity: Codable, Equatable, Hashable, Sendable {
 
     public static func local(_ url: URL) -> Self? {
         LocalMediaVersionResolver.resolve(url)
+    }
+
+    public static func bluRayPlaylist(disc: Self, playlistID: UInt32) -> Self {
+        Self(
+            mediaIdentity: .bluRayPlaylist(disc: disc.mediaIdentity, playlistID: playlistID),
+            contentRevision: .bluRayPlaylist(disc: disc.contentRevision, playlistID: playlistID)
+        )
     }
 
     package static func localIdentity(_ url: URL) -> MediaIdentity? {

@@ -218,7 +218,7 @@ Profile 7 把配置记录放在**增强流**而不是被解码的基础层上，
 
 ## 流选择与格式探测
 
-- **光盘镜像的探测会被错判成一条打不开的 MPEG 节目流。** 镜像最前面的字节是文件系统描述符而不是媒体，FFmpeg 的探测把它们计分成 MPEG program stream 并据此打开，得到的是一条无法读出画面的视频流。桥接层因此不靠探测，改在偏移 32768 字节处嗅探 UDF 卷描述符签名：连续两个 2048 字节的描述符，各自从第 1 个字节起的 5 个字符依次是 `BEA01` 与 `NSR02`／`NSR03`，命中后指名 `mpegts` 打开，并把 `resync_size` 从默认的 64 KB 提到 16 MB，因为真正的负载起点在约 896 KB 处，第一次同步字节的搜索本会在到达它之前放弃。实测于 `FEL_test_for_AVS.iso`：探测得到 format mpeg、1 条流，解码器拒绝该画面；指名后得到 mpegts、2 条流，时长同为 119.99 秒。守卫只认 UDF。蓝光用的是 UDF，其上的视频一律是 MPEG-TS，命中即可无条件指名 `mpegts`。DVD 镜像装的是 program stream，不在覆盖范围内；加密光盘的负载指名成什么都没有 demuxer 读得出来。把嗅探放宽到 ISO9660 就会让一张 DVD 镜像被指名成 mpegts。默认 `resync_size` 下的失败形状是：open 返回成功，流数与镜像真实持有的一样，而第一次 `av_read_frame` 一个包都不返回。探测读的位置在播放起点之前，流因此照样被识别出来，同步搜索却在到达负载起点之前就放弃了。`Scripts/rules/check_disc_image_format.py` 的 docstring 记录了这道嗅探式守卫要成立所依赖的两件事——镜像仍可被识别为 UDF，指名 demuxer 仍能找回镜像携带的流——并说明二者都不是我们代码的性质，因此都不能靠单元测试覆盖，只能靠这份对着真实镜像跑的脚本检查。
+- 蓝光 ISO 的 UDF 文件系统由 libudfread 读取，BDMV 结构与播放列表由 libbluray 验证。选定的播放列表经自定义 AVIO 提供 MPEG-TS 字节流；解复用只处理该播放列表引用的范围。片段 IN 时间由整片累计起点替换，PTS／DTS、时长与跳转共用整片时间轴。`Scripts/verification/verify_bluray_corpus.py` 将产品目录与独立解析的 MPLS 内容比较；`BluRayDemuxTests` 在真实多片段样本上检查全部样本时间与正反向跳转。ISO 后缀只触发验证，UDF 签名本身不证明内容是蓝光。加密盘在边界返回不支持；单个 M2TS 走普通媒体读取。
 - reader 用 `av_find_best_stream` 挑视频流，并以 `stream:<index>` 报告挑中哪一条。文件的第一条视频流可能是附图或预览，直接取第一条会描述一帧解码器根本不产出的画面。
 - **MOV 的编码 ID 要手工订正两处，缘由并不相同。** FFmpeg 把 `AV_CODEC_ID_APAC` 复用给了一个不相关的 codec（Marian's A-pac），所以把一条音频流判成 Apple 的 `apac` 音频时，仅凭 `codec_id` 不够，还必须要求 MOV sample-entry tag 就是 `'apac'`（`normalize_mov_codec_ids`）。另一处与它无关：`Packages/PlaybackCore/Scripts/build_ffmpeg.sh` 实际拉取并 vendored 的是 FFmpeg 9.0.1，这个版本仍然保留 `dav1` sample entry、`av1C` extradata 与 Dolby Vision 配置记录，却不把这条轨道归类成 AV1，桥接层因此把 `codec_id` 手工订正为 `AV_CODEC_ID_AV1`。`profile10Dav1FixtureCreatesCompressedAV1SamplesWithDolbyVisionConfiguration`（`PlaybackFFmpegBridgeTests`）在 P10.0 的 `dav1` fixture 上无条件要求归类结果是 `av1`，证实这条订正在当前 vendored 的 9.0.1 上仍会被触发。
 - 一张合格的 MOV 流表可以让 open 跳过 `avformat_find_stream_info`，被跳过的探测本该填的字段留在零值。渲染器超前预算花的正是这些字段，而一个静默的零读作"这帧不花钱"，会把为 720p 准备的上限发给 8K 流。`PBFFmpegMediaStreamInfo.decodedBytesPerPixel` 的单位是一个解码像素在平台输出面上占的字节数。色度抽样按每像素的取样数计入，超过八位的分量落在十六位字里，所以十比特 4:2:0 是三字节，八比特 4:2:0 是一点五字节。已知缺口是 Sony 那条 4:2:2 十比特 H.264：真实成本每像素四字节，但 H.264 解码器在解出一帧之前不选定像素格式，`avcC` atom 本身也带不回色度格式，估计因此落到 4:2:0 八比特——高估预算而不是饿死它。像素格式缺席时的退路按编码分：H.264 只有 High 4:2:2 与 High 4:4:4 两组 profile 在 SPS 里自选色度格式，它们以下的每个 profile 按标准定义都是 4:2:0，所以 profile 就是这一步的答案（`samples_per_pixel_for_h264_profile`），其余编码一律按 4:2:0 估。强制探测能买到精确数字，代价是每次 open 都读媒体字节，而这条路径存在的目的正是避免它。
@@ -268,11 +268,11 @@ visionOS 上 CoreText 为汉字回退选出的系统字体是 `PingFangUI.ttc`�
 
 `PBFFmpegSampleGetPresentationTimeLowerBound` 只在 demuxer 给出了显式解码时间戳时有效。没有 DTS 时它给出的下界不属于这条样本，调用方按自己的兜底取值。
 
-## 宿主上的 C 探针照抄桥接层的判据，不调用它
+## 宿主上的 Dolby Vision 前提探针
 
-检查驱动的宿主 C 探针有两个：`disc_image_probe.c` 与 `dolby_vision_premise_probe.c`（第三个 `remote_open_accounting_probe.c` 只被 `docs/archive/` 里的研究记录引用，没有检查构建它）。两者链接 `PlaybackFFmpeg.xcframework/macos-arm64/PlaybackFFmpeg.framework` 并在宿主上运行，而桥接层编译成 visionOS 目标，两者不在同一个平台上。探针因此把要验证的判据抄一份：前者的 `disc_image_input_format` 抄自同名函数，后者的 `declarable` 抄的是 `has_usable_dovi_configuration` 的条件。由此得到的界限是，这两道检查只回答抄本对真实媒体是否成立，不回答产品代码与抄本是否仍然一致；两边一起改成同一个错误答案时，检查照样通过。
+`dolby_vision_premise_probe.c` 链接 `PlaybackFFmpeg.xcframework/macos-arm64/PlaybackFFmpeg.framework` 并在宿主上运行。探针的 `declarable` 复制 `has_usable_dovi_configuration` 的条件，因此该检查只验证这个条件对真实媒体是否成立，不验证探针与产品实现是否一致。蓝光结构探针 `BluRayDiscProbe` 直接调用产品 library，预期结果来自独立 MPLS 解析器。
 
-那个 framework 是动态库，构建时用 `-F <macos-arm64> -framework PlaybackFFmpeg`，运行时靠 `DYLD_FRAMEWORK_PATH` 指向同一目录——vendored 树不是 dyld 会自己搜的位置。FFmpeg 从静态库改成内嵌 framework 时这两个检查没有跟着改，它们链接的 `Headers/` 与 `libPlaybackFFmpeg.a` 已不存在，于是长期停在编译步骤失败。
+PlaybackFFmpeg 是动态 framework，宿主 C 探针构建时用 `-F <macos-arm64> -framework PlaybackFFmpeg`，运行时用 `DYLD_FRAMEWORK_PATH` 指向相应 vendored 目录。
 
 ## 连续播放证明与用户暂停
 

@@ -19,8 +19,8 @@ from typing import Callable
 
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
-APP_BUNDLE_ID = "com.xiongzhipeng.Enchron"
-DEVICE_PROCESS_MARKER = "Enchron"
+APP_BUNDLE_ID = "com.xiongzhipeng.Enchron.debug"
+DEVICE_PROCESS_MARKER = "EnchronDebug"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"
 DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
@@ -979,6 +979,7 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
         raise ValueError("app-command requires --verb.")
     if arguments.timeout_seconds <= 0:
         raise ValueError("--timeout-seconds must be greater than zero.")
+    app_bundle_id = _bound_app_bundle_id(arguments)
 
     command_arguments: dict[str, str] = {}
     for item in arguments.app_arguments:
@@ -1003,7 +1004,7 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
         )
         copy_to_device(
             device=arguments.device,
-            runner_bundle_id=APP_BUNDLE_ID,
+            runner_bundle_id=app_bundle_id,
             local_path=command_path,
             remote_path=(
                 f"{DEFERRED_APP_COMMAND_ROOT}/{command_id}.json"
@@ -1023,7 +1024,7 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
         deadline = time.monotonic() + arguments.timeout_seconds
         while not copy_from_device(
             device=arguments.device,
-            runner_bundle_id=APP_BUNDLE_ID,
+            runner_bundle_id=app_bundle_id,
             remote_path=f"{APP_RESPONSE_ROOT}/{command_id}.json",
             local_path=response_path,
             quiet=True,
@@ -1073,6 +1074,16 @@ def _execution_input_path(arguments: argparse.Namespace) -> Path:
         )
     path = Path(value)
     return path if path.is_absolute() else REPOSITORY_ROOT / path
+
+
+def _bound_app_bundle_id(arguments: argparse.Namespace) -> str:
+    execution = load_execution_input(_execution_input_path(arguments))
+    bundle_id = execution.build_identity.bundle_identifier
+    if bundle_id != APP_BUNDLE_ID:
+        raise RuntimeError(
+            "The frozen UI test app is not the isolated EnchronDebug bundle."
+        )
+    return bundle_id
 
 
 def _developer_environment(developer_dir: str | None) -> dict[str, str]:

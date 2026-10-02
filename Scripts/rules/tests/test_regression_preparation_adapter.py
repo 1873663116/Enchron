@@ -184,6 +184,7 @@ DECLARED_IMPLEMENTATION_PATHS = (
     "Modules/Emby/EmbySessionViewModel.swift",
     "Regression/semantic-authority.json",
     "Scripts/verification/device_hub_canvas.py",
+    "Scripts/verification/bluray_webdav_tree.py",
     "Scripts/verification/interactive_visionpro_ui.py",
     "Scripts/verification/regression_emby_source.py",
     "Scripts/verification/regression_environment_preflight.py",

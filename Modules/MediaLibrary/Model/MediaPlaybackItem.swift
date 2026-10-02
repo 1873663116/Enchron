@@ -1,10 +1,16 @@
 import Foundation
+import BluRayDisc
 import MediaSource
 
 public enum MediaCollectionOrigin: String, Sendable, Equatable {
     case standalone
     case mediaLibrary
     case sourceDirectory
+}
+
+public enum MediaPlaybackSelection: Sendable, Equatable {
+    case file
+    case bluRayPlaylist(BluRayPlaylistID, source: BluRayDiscSource)
 }
 
 public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
@@ -19,6 +25,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let byteStreamHandle: MediaByteStreamHandle?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
     public let externalSubtitleResolutionFailed: Bool
+    public let selection: MediaPlaybackSelection
 
     public init(
         id: UUID,
@@ -31,7 +38,8 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         accessLease: MediaAccessLease? = nil,
         byteStreamHandle: MediaByteStreamHandle? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleResolutionFailed: Bool = false
+        externalSubtitleResolutionFailed: Bool = false,
+        selection: MediaPlaybackSelection = .file
     ) {
         self.id = id
         self.url = url
@@ -44,6 +52,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         self.byteStreamHandle = byteStreamHandle
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
+        self.selection = selection
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
@@ -56,6 +65,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
             && lhs.versionedIdentity == rhs.versionedIdentity
             && lhs.externalSubtitleSources == rhs.externalSubtitleSources
             && lhs.externalSubtitleResolutionFailed == rhs.externalSubtitleResolutionFailed
+            && lhs.selection == rhs.selection
     }
 }
 

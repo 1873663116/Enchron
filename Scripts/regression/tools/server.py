@@ -140,13 +140,18 @@ def _op(arguments: Mapping[str, Any]) -> ToolResult:
             "op compiles the plan it runs against and needs " + ", ".join(missing)
         )
 
+    requested_lane = arguments.get("requestedLane")
+    if requested_lane is not None and requested_lane != arguments["lane"]:
+        raise OpToolError("op lane must equal the compiled requested lane")
+    compile_arguments = (
+        Path(arguments["repositoryRoot"]), Path(arguments["executionInput"]),
+        Path(arguments["catalogRoot"]), Path(arguments["policy"]),
+        Path(arguments["reviewsRoot"]), Path(arguments["blueprint"]),
+    )
     plan, _ = compile_execution_plan(
-        Path(arguments["repositoryRoot"]),
-        Path(arguments["executionInput"]),
-        Path(arguments["catalogRoot"]),
-        Path(arguments["policy"]),
-        Path(arguments["reviewsRoot"]),
-        Path(arguments["blueprint"]),
+        *compile_arguments,
+        **({"requested_lane": BoundLane(requested_lane)}
+           if requested_lane is not None else {}),
     )
     outcome = op_tool.run(
         plan,
@@ -156,6 +161,7 @@ def _op(arguments: Mapping[str, Any]) -> ToolResult:
         BoundLane(arguments["lane"]),
         arguments["target"],
         SidekickID(arguments["sidekick"]),
+        execution_input_path=Path(arguments["executionInput"]).resolve(),
     )
     images = ()
     if outcome.screenshot is not None:
@@ -264,6 +270,7 @@ OP_SCHEMA = {
         "lane": {"type": "string", "enum": [item.value for item in BoundLane]},
         "target": {"type": "string"},
         "sidekick": {"type": "string"},
+        "requestedLane": {"type": "string", "enum": [item.value for item in BoundLane]},
     },
     "required": [
         *OP_COMPILE_INPUTS,
@@ -383,6 +390,7 @@ def registry() -> Dict[str, ToolDefinition]:
                     ("--node", {"dest": "node"}),
                     ("--call", {"dest": "call"}),
                     ("--lane", {"dest": "lane"}),
+                    ("--requested-lane", {"dest": "requestedLane"}),
                     ("--target", {"dest": "target"}),
                     ("--sidekick", {"dest": "sidekick"}),
                 ),

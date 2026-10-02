@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+from functools import partial
 import json
 import os
 from pathlib import Path
+import re
+import shutil
 import sys
 import tempfile
 import unittest
@@ -19,6 +22,30 @@ import regression_system_import as system_import
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+
+_timing_scratch: tempfile.TemporaryDirectory[str] | None = None
+_original_budget_provider = adapter.BudgetProvider
+
+
+def setUpModule() -> None:
+    global _timing_scratch
+    _timing_scratch = tempfile.TemporaryDirectory(prefix="enchron-adapter-test-timings-")
+    for lane in ("device", "simulator"):
+        shutil.copyfile(
+            REPOSITORY_ROOT / f"Scripts/verification/controller_timings.{lane}.json",
+            Path(_timing_scratch.name) / f"controller_timings.{lane}.json",
+        )
+    adapter.BudgetProvider = partial(
+        _original_budget_provider, timings_directory=Path(_timing_scratch.name)
+    )
+
+
+def tearDownModule() -> None:
+    global _timing_scratch
+    adapter.BudgetProvider = _original_budget_provider
+    assert _timing_scratch is not None
+    _timing_scratch.cleanup()
+    _timing_scratch = None
 
 
 class FakeBackend:
@@ -434,6 +461,19 @@ class OperationAllowlistTests(unittest.TestCase):
                 "device",
                 {**expected, "expectedIssueCategory": "any-error"},
             )
+
+    def test_media_open_accepts_a_registered_bluray_playlist_card(self) -> None:
+        spec = adapter.SPECS["operation:media.open@2"]
+        inventory_patterns = (
+            re.compile(r"^FileBrowsing-grid-bluray-playlist-[0-9]+$"),
+        )
+        with mock.patch.object(adapter, "_INVENTORY_PATTERNS", inventory_patterns):
+            arguments = {
+                "identifier": "FileBrowsing-grid-bluray-playlist-99",
+                "expectedLanding": "window",
+                "deadlineSeconds": 45,
+            }
+            self.assertEqual(dict(spec.validate("simulator", arguments)), arguments)
 
     def test_subtitle_selection_shape_is_typed_and_closed(self) -> None:
         spec = adapter.SPECS["operation:playback.select-subtitle@1"]
@@ -2110,6 +2150,9 @@ class OperationAllowlistTests(unittest.TestCase):
         expected = {
             "remote-source-service": Path(
                 "Scripts/verification/regression_remote_source.py"
+            ),
+            "bluray-webdav-tree": Path(
+                "Scripts/verification/bluray_webdav_tree.py"
             ),
             "remote-environment-preflight": Path(
                 "Scripts/verification/regression_environment_preflight.py"

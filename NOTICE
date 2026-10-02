@@ -23,6 +23,23 @@ FFmpeg 9.0.1 - GNU Lesser General Public License, version 2.1 or later
     and one substitution in libavcodec/videotoolbox.c that the script applies
     inline.
 
+libbluray 1.4.1 - GNU Lesser General Public License, version 2.1 or later
+    https://www.videolan.org/developers/libbluray.html
+    Blu-ray disc structure and playlist reading, linked statically.
+    Packages/PlaybackCore/Scripts/build_bluray.sh fetches the pinned release
+    and applies
+    Packages/PlaybackCore/Vendor/BluRay/Patches/0001-allow-darwin-without-diskarbitration.patch.
+    That patch supports visionOS and prevents decryption-library loading.
+    Full upstream license text:
+    Packages/PlaybackCore/Vendor/BluRay/Licenses/libbluray-COPYING.
+
+libudfread 1.2.0 - GNU Lesser General Public License, version 2.1 or later
+    https://code.videolan.org/videolan/libudfread
+    UDF filesystem reading for Blu-ray disc images, linked statically.
+    Packages/PlaybackCore/Scripts/build_bluray.sh fetches the pinned release.
+    Full upstream license text:
+    Packages/PlaybackCore/Vendor/BluRay/Licenses/libudfread-COPYING.
+
 libass 0.17.4 - ISC License
     Copyright (C) 2006-2016 libass contributors
     https://github.com/libass/libass
@@ -117,8 +134,8 @@ form in which the document is stored.
     pins. Upstream carries the exception inside that one file, under its own
     heading; the app prints the file whole.
 
-    GNU Lesser General Public License, version 2.1, printed for FFmpeg, GNU
-    FriBidi, AMSMB2 and libsmb2
+    GNU Lesser General Public License, version 2.1, printed for FFmpeg,
+    libbluray, libudfread, GNU FriBidi, AMSMB2 and libsmb2
     26530 bytes, sha256
     dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551
     LICENCE-LGPL-2.1.txt of libsmb2 at commit

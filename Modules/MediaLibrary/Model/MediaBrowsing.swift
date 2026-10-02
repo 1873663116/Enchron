@@ -1,3 +1,4 @@
+import BluRayDisc
 import Foundation
 import MediaSource
 
@@ -220,6 +221,10 @@ public nonisolated protocol FileProviding: Sendable {
     func resolveSubtitleSource(
         for file: FileBrowsingDomain.MediaFile
     ) async throws -> ResolvedMediaSource
+
+    func bluRayDiscSource(
+        for folder: FileBrowsingDomain.MediaFolder
+    ) async throws -> BluRayDiscSource?
 }
 
 public nonisolated extension FileProviding {
@@ -227,6 +232,12 @@ public nonisolated extension FileProviding {
         for file: FileBrowsingDomain.MediaFile
     ) async throws -> ResolvedMediaSource {
         try await resolvePlayableSource(for: file)
+    }
+
+    func bluRayDiscSource(
+        for folder: FileBrowsingDomain.MediaFolder
+    ) async throws -> BluRayDiscSource? {
+        nil
     }
 }
 

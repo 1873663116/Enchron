@@ -194,6 +194,7 @@ STRUCTURE_CHECKS = (
         runs_in_quick_mode=False,
     ),
     StructureCheck("disc-image-format", "check_disc_image_format.py"),
+    StructureCheck("bluray-corpus", "../verification/verify_bluray_corpus.py", runs_in_quick_mode=False),
     StructureCheck(
         "dolby-vision-premises",
         "check_dolby_vision_premises.py",
@@ -394,6 +395,7 @@ def structure_check_command(filename: str) -> list[str]:
 
 def discovered_test_checks() -> tuple[StructureCheck, ...]:
     tests_root = REPOSITORY_ROOT / "Scripts/rules/tests"
+    verification_tests = REPOSITORY_ROOT / "Scripts/verification/tests"
     discovered = [
         StructureCheck(
             path.stem.replace("_", "-"),
@@ -401,6 +403,10 @@ def discovered_test_checks() -> tuple[StructureCheck, ...]:
         )
         for path in sorted(tests_root.glob("test_*.py"))
     ]
+    discovered.extend(
+        StructureCheck(path.stem.replace("_", "-"), f"../verification/tests/{path.name}")
+        for path in sorted(verification_tests.glob("test_*.py"))
+    )
     if not discovered:
         raise ValueError(f"no self-tests found under {tests_root}")
     return tuple(discovered)

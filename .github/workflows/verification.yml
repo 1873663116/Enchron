@@ -71,6 +71,7 @@ jobs:
           git -C "$REPO" clean -ffdx \
             -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
           "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
+          "$REPO/Scripts/provision_vendored_bluray.sh" "$MAIN"
           # No credential reaches this checkout. The quick tier needs none:
           # every check that parses an environment file writes its own fake one
           # into a temporary directory, and the Emby live suite lives in a

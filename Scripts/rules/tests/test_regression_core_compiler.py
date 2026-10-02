@@ -1494,7 +1494,7 @@ class CompilerFailureTests(unittest.TestCase):
                     ),
                 )
 
-    def test_build_identity_requires_dual_lane_noncolliding_artifacts(self) -> None:
+    def test_build_identity_accepts_simulator_only_or_noncolliding_dual_lane_artifacts(self) -> None:
         def identity(artifacts: tuple[LaneBuildArtifact, ...]) -> BuildIdentity:
             return BuildIdentity(
                 "com.example.Enchron",
@@ -1506,10 +1506,12 @@ class CompilerFailureTests(unittest.TestCase):
             )
 
         simulator = lane_build_artifact(BoundLane.SIMULATOR, "3", "4", "5")
+        self.assertEqual(identity((simulator,)).lane_artifacts, (simulator,))
         self.assert_code(
             "plan.missing.build.artifact",
-            lambda: identity((simulator,)),
+            lambda: identity((lane_build_artifact(BoundLane.DEVICE, "6", "7", "8"),)),
         )
+
         self.assert_code(
             "plan.duplicate.build.artifact",
             lambda: identity(
@@ -1542,6 +1544,21 @@ class CompilerFailureTests(unittest.TestCase):
                 self.assertEqual(
                     f"buildIdentity.laneArtifacts.{location}", error.location
                 )
+
+    def test_unbuilt_device_lane_cannot_be_requested_from_simulator_only_identity(self) -> None:
+        simulator_request = self.fixture.request(lanes=(BoundLane.SIMULATOR,))
+        simulator_build = replace(
+            simulator_request.build_identity,
+            lane_artifacts=(simulator_request.build_identity.lane_artifacts[0],),
+        )
+        self.assertEqual(
+            replace(simulator_request, build_identity=simulator_build).requested_lanes,
+            (BoundLane.SIMULATOR,),
+        )
+        self.assert_code(
+            "plan.requested.lane.unbuilt",
+            lambda: replace(self.fixture.request(), build_identity=simulator_build),
+        )
 
     def test_old_or_incomplete_reviews_cannot_create_capability(self) -> None:
         completed = completed_review(self.fixture.catalog)

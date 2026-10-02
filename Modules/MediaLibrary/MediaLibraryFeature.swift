@@ -205,6 +205,16 @@ public final class MediaLibraryFeature {
                 reference: reference
             )
         }
+        resolver.resolveSourceBluRayDisc = { [weak browser] sourceID, path, reference in
+            guard let browser else {
+                throw MediaReferenceResolver.ResolutionError.unavailableSource
+            }
+            return try await browser.resolveSourceBluRayDisc(
+                dataSourceID: sourceID,
+                path: path,
+                reference: reference
+            )
+        }
         resolver.resolveExternalSubtitleSources = { [weak browser] sourceID, path, reference in
             guard let browser else {
                 throw MediaReferenceResolver.ResolutionError.unavailableSource

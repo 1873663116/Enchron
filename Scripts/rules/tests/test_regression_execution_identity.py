@@ -251,10 +251,10 @@ class ExecutionIdentityTests(unittest.TestCase):
                                 "EnchronAppUITests-Runner.app"
                             ),
                             "UITargetAppPath": (
-                                f"__TESTROOT__/{configuration}/Enchron.app"
+                                f"__TESTROOT__/{configuration}/EnchronDebug.app"
                             ),
                             "DependentProductPaths": [
-                                f"__TESTROOT__/{configuration}/Enchron.app",
+                                f"__TESTROOT__/{configuration}/EnchronDebug.app",
                                 (
                                     f"__TESTROOT__/{configuration}/"
                                     "EnchronAppUITests-Runner.app"
@@ -286,7 +286,7 @@ class ExecutionIdentityTests(unittest.TestCase):
             / "Products"
         )
         configuration = prefix / "Debug"
-        app = configuration / "Enchron.app"
+        app = configuration / "EnchronDebug.app"
         runner = configuration / "EnchronAppUITests-Runner.app"
         test_bundle = runner / "PlugIns" / "EnchronAppUITests.xctest"
         shared = configuration / "Shared.framework"
@@ -295,15 +295,15 @@ class ExecutionIdentityTests(unittest.TestCase):
         (app / "Info.plist").write_bytes(
             plistlib.dumps(
                 {
-                    "CFBundleIdentifier": "com.example.Enchron",
-                    "CFBundleExecutable": "Enchron",
+                    "CFBundleIdentifier": "com.xiongzhipeng.Enchron.debug",
+                    "CFBundleExecutable": "EnchronDebug",
                 },
                 sort_keys=True,
             )
         )
-        (app / "Enchron").write_bytes(f"{lane.value}-launch-stub".encode())
+        (app / "EnchronDebug").write_bytes(f"{lane.value}-launch-stub".encode())
         stamp = self.artifact / "build-provenance" / f"{lane.value}.json"
-        code = app / "Enchron.debug.dylib"
+        code = app / "EnchronDebug.debug.dylib"
         code.write_bytes(_macho(stamp.read_bytes(), lane))
         (runner / "Runner").write_bytes(f"{lane.value}-runner".encode())
         (test_bundle / "EnchronAppUITests").write_bytes(
@@ -397,7 +397,7 @@ class ExecutionIdentityTests(unittest.TestCase):
         self.assertEqual(frozen, loaded)
         self.assertEqual(2, json.loads(path.read_bytes())["schemaVersion"])
         self.assertNotIn("worktreeClean", path.read_text(encoding="utf-8"))
-        self.assertEqual("com.example.Enchron", loaded.build_identity.bundle_identifier)
+        self.assertEqual("com.xiongzhipeng.Enchron.debug", loaded.build_identity.bundle_identifier)
         self.assertEqual(TOOLCHAIN, loaded.build_identity.toolchain)
         simulator = load_frozen_test_launch
         with self.boundaries():
@@ -408,6 +408,22 @@ class ExecutionIdentityTests(unittest.TestCase):
             launch.destination_specifier,
         )
 
+    def test_simulator_only_freeze_omits_device_artifact_and_launch(self) -> None:
+        with self.boundaries():
+            prepared = prepare_build_provenance(
+                self.repository, self.artifact, lanes=(BoundLane.SIMULATOR,)
+            )
+            frozen = freeze_execution_input(
+                self.repository, self.artifact,
+                {BoundLane.SIMULATOR: "SIM-UDID"}, "gpt-5.6-sol",
+            )
+        self.assertEqual(tuple(item.lane for item in prepared), (BoundLane.SIMULATOR,))
+        self.assertEqual(tuple(item.lane for item in frozen.launches), (BoundLane.SIMULATOR,))
+        self.assertEqual(tuple(item.lane for item in frozen.build_identity.lane_artifacts), (BoundLane.SIMULATOR,))
+        path = self.artifact / "simulator-execution-input.json"
+        write_execution_input(path, frozen)
+        self.assertEqual(self.load(path), frozen)
+
     def test_application_digest_uses_debug_dylib_not_launch_stub(self) -> None:
         frozen = self.freeze()
         artifacts = {item.lane: item for item in frozen.build_identity.lane_artifacts}
@@ -417,9 +433,18 @@ class ExecutionIdentityTests(unittest.TestCase):
                 artifacts[lane].application_code_digest,
             )
             self.assertNotEqual(
-                digest_bytes((self.products[lane]["app"] / "Enchron").read_bytes()),
+                digest_bytes((self.products[lane]["app"] / "EnchronDebug").read_bytes()),
                 artifacts[lane].application_code_digest,
             )
+
+    def test_production_bundle_cannot_be_bound_as_ui_test_host(self) -> None:
+        app = self.products[BoundLane.SIMULATOR]["app"]
+        info_path = app / "Info.plist"
+        info = plistlib.loads(info_path.read_bytes())
+        info["CFBundleIdentifier"] = "com.xiongzhipeng.Enchron"
+        info_path.write_bytes(plistlib.dumps(info, sort_keys=True))
+        with self.assertRaisesRegex(ExecutionIdentityError, "bundle identifier must identify EnchronDebug"):
+            self.freeze()
 
     def test_exact_xctestrun_discovery_rejects_zero_or_multiple_files(self) -> None:
         simulator = self.products[BoundLane.SIMULATOR]
@@ -456,7 +481,7 @@ class ExecutionIdentityTests(unittest.TestCase):
     def test_plist_rejects_unregistered_macro_and_product_path_escape(self) -> None:
         def macro(payload):
             target = payload["TestConfigurations"][0]["TestTargets"][0]
-            target["UITargetAppPath"] = "__UNKNOWN__/Enchron.app"
+            target["UITargetAppPath"] = "__UNKNOWN__/EnchronDebug.app"
 
         self.mutate_xctestrun(BoundLane.SIMULATOR, macro)
         with self.assertRaisesRegex(ExecutionIdentityError, "unsupported Xcode macro"):
@@ -468,7 +493,7 @@ class ExecutionIdentityTests(unittest.TestCase):
 
         def escape(payload):
             target = payload["TestConfigurations"][0]["TestTargets"][0]
-            target["UITargetAppPath"] = "__TESTROOT__/../Enchron.app"
+            target["UITargetAppPath"] = "__TESTROOT__/../EnchronDebug.app"
 
         self.mutate_xctestrun(BoundLane.SIMULATOR, escape)
         with self.assertRaisesRegex(ExecutionIdentityError, "canonical absolute product path"):
@@ -487,21 +512,21 @@ class ExecutionIdentityTests(unittest.TestCase):
         root = Path("/tmp/tmpa__b9/DerivedData/Build/Products")
 
         resolved = identity._macro_product_path(
-            "__TESTROOT__/Debug/Enchron.app",
+            "__TESTROOT__/Debug/EnchronDebug.app",
             "UITargetAppPath",
             root,
             {"__TESTROOT__": root},
             frozenset({"__TESTROOT__"}),
         )
 
-        self.assertEqual(Path("Debug/Enchron.app"), resolved)
+        self.assertEqual(Path("Debug/EnchronDebug.app"), resolved)
 
     def test_a_macro_shaped_token_left_in_the_template_is_still_refused(self) -> None:
         root = Path("/tmp/products")
 
         with self.assertRaisesRegex(ExecutionIdentityError, "unresolved Xcode macro"):
             identity._macro_product_path(
-                "__TESTROOT__/__leftover__/Enchron.app",
+                "__TESTROOT__/__leftover__/EnchronDebug.app",
                 "UITargetAppPath",
                 root,
                 {"__TESTROOT__": root},

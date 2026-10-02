@@ -16,6 +16,28 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "verification"))
 import interactive_visionpro_ui as controller
 
 
+_timing_scratch: tempfile.TemporaryDirectory[str] | None = None
+_original_timing_paths: tuple[Path, Path] | None = None
+
+
+def setUpModule() -> None:
+    global _timing_scratch, _original_timing_paths
+    _timing_scratch = tempfile.TemporaryDirectory(prefix="enchron-controller-test-timings-")
+    _original_timing_paths = (controller.TIMINGS_DEVICE_PATH, controller.TIMINGS_SIMULATOR_PATH)
+    root = Path(_timing_scratch.name)
+    controller.TIMINGS_DEVICE_PATH = root / "controller_timings.device.json"
+    controller.TIMINGS_SIMULATOR_PATH = root / "controller_timings.simulator.json"
+
+
+def tearDownModule() -> None:
+    global _timing_scratch, _original_timing_paths
+    assert _original_timing_paths is not None and _timing_scratch is not None
+    controller.TIMINGS_DEVICE_PATH, controller.TIMINGS_SIMULATOR_PATH = _original_timing_paths
+    _timing_scratch.cleanup()
+    _timing_scratch = None
+    _original_timing_paths = None
+
+
 class ReadyStateCacheTests(unittest.TestCase):
     def arguments(self, device: str) -> argparse.Namespace:
         return argparse.Namespace(
@@ -72,6 +94,15 @@ class ReadyStateCacheTests(unittest.TestCase):
 
 
 class DeferredAppCommandTests(unittest.TestCase):
+    def test_app_command_rejects_production_bundle_from_frozen_input(self) -> None:
+        arguments = argparse.Namespace(execution_input=Path("/tmp/execution-input.json"))
+        frozen = SimpleNamespace(build_identity=SimpleNamespace(
+            bundle_identifier="com.xiongzhipeng.Enchron"
+        ))
+        with patch.object(controller, "load_execution_input", return_value=frozen):
+            with self.assertRaisesRegex(RuntimeError, "isolated EnchronDebug bundle"):
+                controller._bound_app_bundle_id(arguments)
+
     def test_deferred_command_sends_once_without_copying_its_response(self) -> None:
         sent: dict[str, object] = {}
         arguments = argparse.Namespace(
@@ -90,13 +121,19 @@ class DeferredAppCommandTests(unittest.TestCase):
             controller, "copy_to_device", side_effect=capture_request
         ) as copy_to, patch.object(
             controller, "copy_from_device"
-        ) as copy_from, patch.object(controller.time, "sleep"):
+        ) as copy_from, patch.object(controller.time, "sleep"), patch.object(
+            controller, "_bound_app_bundle_id", return_value="com.xiongzhipeng.Enchron.debug"
+        ):
             response = controller.app_command(arguments)
 
         copy_to.assert_called_once()
         self.assertEqual(
             copy_to.call_args.kwargs["remote_path"],
             "Documents/test-commands/command-10.json",
+        )
+        self.assertEqual(
+            copy_to.call_args.kwargs["runner_bundle_id"],
+            "com.xiongzhipeng.Enchron.debug",
         )
         copy_from.assert_not_called()
         self.assertEqual(

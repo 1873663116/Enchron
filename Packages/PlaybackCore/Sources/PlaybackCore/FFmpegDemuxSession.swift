@@ -1,5 +1,7 @@
 import Foundation
 import PlaybackFFmpegBridge
+import BluRayDisc
+import BluRayDiscBridge
 
 final class FFmpegDemuxSession: @unchecked Sendable {
     private let operationLock = NSLock()
@@ -8,6 +10,8 @@ final class FFmpegDemuxSession: @unchecked Sendable {
     private var source: OpaquePointer?
     private var sourceArgument: String?
     private var sourceTransport: PlaybackSourceTransport = .localFile
+    private var contentSelection: PlaybackContentSelection = .file
+    private var pendingDiscReader: OpaquePointer?
     private var bufferConfiguration = PBFFmpegDemuxBufferConfigurationMake(
         PBFFmpegDemuxBufferModeNone,
         0
@@ -17,15 +21,28 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         self.sourceReadMeter = sourceReadMeter
     }
 
-    func configureSource(transport: PlaybackSourceTransport) throws {
+    func configureSource(
+        transport: PlaybackSourceTransport,
+        selection: PlaybackContentSelection = .file
+    ) async throws {
+        let reader: BluRayDiscReader?
+        switch selection {
+        case .file:
+            reader = nil
+        case .bluRayPlaylist(let playlist, let disc):
+            reader = try await BluRayDisc.open(source: disc, playlistID: playlist)
+        }
         try operationLock.withLock {
             guard source == nil else {
-                if sourceTransport != transport {
+                if sourceTransport != transport || contentSelection != selection {
                     throw FFmpegDemuxSessionError.sourceChanged
                 }
                 return
             }
             sourceTransport = transport
+            contentSelection = selection
+            if let pendingDiscReader { PBBlurayClose(pendingDiscReader) }
+            pendingDiscReader = reader?.takeNativeHandle()
             bufferConfiguration = try .playbackConfiguration(
                 for: transport.bufferPreference
             )
@@ -33,6 +50,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
     }
 
     deinit {
+        if let pendingDiscReader { PBBlurayClose(pendingDiscReader) }
         let source = sourceLock.withLock {
             defer {
                 self.source = nil
@@ -58,14 +76,17 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             }
             var error = [CChar](repeating: 0, count: 512)
             PlaybackTrace.event("demux.open.begin remote=\(sourceTransport.isRemote)")
-            let opened = argument.withCString {
-                PBFFmpegDemuxSourceCreate(
-                    $0,
-                    sourceTransport.isRemote,
-                    bufferConfiguration,
-                    sourceReadMeter.bridgeMonitor,
-                    &error,
-                    error.count
+            let opened = argument.withCString { path in
+                if let disc = pendingDiscReader {
+                    pendingDiscReader = nil
+                    return PBFFmpegDemuxSourceCreateWithDisc(
+                        path, disc, sourceTransport.isRemote, bufferConfiguration,
+                        sourceReadMeter.bridgeMonitor, &error, error.count
+                    )
+                }
+                return PBFFmpegDemuxSourceCreate(
+                    path, sourceTransport.isRemote, bufferConfiguration,
+                    sourceReadMeter.bridgeMonitor, &error, error.count
                 )
             }
             PlaybackTrace.event("demux.open.end ok=\(opened != nil)")

@@ -139,6 +139,24 @@ private struct OpenSourceSection: Identifiable {
                     document: .lesserGeneralPublicLicense21
                 ),
                 OpenSourceComponent(
+                    id: "libbluray",
+                    name: "libbluray",
+                    version: "1.4.1",
+                    license: "GNU Lesser General Public License, version 2.1 or later",
+                    usage: "Blu-ray disc structure and playlist reading. Built without Java menus or decryption-library loading.",
+                    origin: "https://www.videolan.org/developers/libbluray.html",
+                    document: .lesserGeneralPublicLicense21
+                ),
+                OpenSourceComponent(
+                    id: "libudfread",
+                    name: "libudfread",
+                    version: "1.2.0",
+                    license: "GNU Lesser General Public License, version 2.1 or later",
+                    usage: "UDF filesystem reading for Blu-ray disc images.",
+                    origin: "https://code.videolan.org/videolan/libudfread",
+                    document: .lesserGeneralPublicLicense21
+                ),
+                OpenSourceComponent(
                     id: "libass",
                     name: "libass",
                     version: "0.17.4",

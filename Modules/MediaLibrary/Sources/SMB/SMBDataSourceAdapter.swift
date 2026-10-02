@@ -1,4 +1,5 @@
 import AMSMB2
+import BluRayDisc
 import CryptoKit
 import Foundation
 import MediaSource
@@ -220,6 +221,28 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         }
     }
 
+    public func bluRayDiscSource(
+        for folder: FileBrowsingDomain.MediaFolder
+    ) async throws -> BluRayDiscSource? {
+        guard let connection = serverConnection,
+              let (shareName, selectedPath) = Self.shareAndRelativePath(for: folder.path) else {
+            throw SMBError.notConnected
+        }
+        let selectedIsBDMV = (selectedPath as NSString).lastPathComponent
+            .caseInsensitiveCompare("BDMV") == .orderedSame
+        let rootPath = selectedIsBDMV
+            ? (selectedPath as NSString).deletingLastPathComponent
+            : selectedPath
+        let rootURL = selectedIsBDMV ? folder.url.deletingLastPathComponent() : folder.url
+        let fileSystem = SMBBluRayDiscFileSystem(
+            connection: connection,
+            shareName: shareName,
+            rootPath: rootPath
+        )
+        guard try await fileSystem.isBluRayRoot else { return nil }
+        return .fileSystem(rootURL: rootURL, fileSystem)
+    }
+
     func resolveSession(
         for info: FileBrowsingDomain.ConnectionInfo
     ) throws -> SMBSession {
@@ -421,6 +444,97 @@ private nonisolated final class SMBByteRangeSource: MediaByteRangeSource, @unche
     }
 }
 
+private nonisolated final class SMBBluRayDiscFileSystem: BluRayDiscFileSystem, @unchecked Sendable {
+    private let connection: SMBServerConnection
+    private let shareName: String
+    private let rootPath: String
+
+    init(connection: SMBServerConnection, shareName: String, rootPath: String) {
+        self.connection = connection
+        self.shareName = shareName
+        self.rootPath = rootPath
+    }
+
+    var isBluRayRoot: Bool {
+        get async throws {
+            let rootNames = try await contents(of: "")
+            if (rootPath as NSString).lastPathComponent.caseInsensitiveCompare("BDMV")
+                == .orderedSame {
+                return rootNames.contains { $0.caseInsensitiveCompare("index.bdmv") == .orderedSame }
+            }
+            guard rootNames.contains(where: {
+                $0.caseInsensitiveCompare("BDMV") == .orderedSame
+            }) else { return false }
+            return try await contents(of: "BDMV").contains {
+                $0.caseInsensitiveCompare("index.bdmv") == .orderedSame
+            }
+        }
+    }
+
+    func contents(of relativePath: String) async throws -> [String] {
+        try await connection.directoryItems(
+            shareName: shareName,
+            atPath: joined(relativePath)
+        ).map(\.name)
+    }
+
+    func openFile(at relativePath: String) async throws -> any BluRayDiscRandomAccessFile {
+        let path = joined(relativePath)
+        let size = try await connection.contentLength(shareName: shareName, path: path)
+        guard size >= 0 else {
+            throw SMBError.streamingFailed("The server did not report the Blu-ray file size.")
+        }
+        return SMBBluRayDiscFile(
+            connection: connection,
+            shareName: shareName,
+            path: path,
+            size: size
+        )
+    }
+
+    private func joined(_ relativePath: String) -> String {
+        let relative = relativePath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard relative.isEmpty == false else { return rootPath }
+        return rootPath == "/" ? "/\(relative)" : "\(rootPath)/\(relative)"
+    }
+}
+
+private nonisolated struct SMBBluRayDiscFile: BluRayDiscRandomAccessFile, Sendable {
+    let connection: SMBServerConnection
+    let shareName: String
+    let path: String
+    let reportedSize: Int64
+
+    init(
+        connection: SMBServerConnection,
+        shareName: String,
+        path: String,
+        size: Int64
+    ) {
+        self.connection = connection
+        self.shareName = shareName
+        self.path = path
+        reportedSize = size
+    }
+
+    var size: Int64 {
+        get async throws { reportedSize }
+    }
+
+    func read(at offset: Int64, count: Int) async throws -> Data {
+        guard offset >= 0, count >= 0, offset <= Int64.max - Int64(count) else {
+            throw MediaSourceReadFailure.invalidData
+        }
+        let upper = min(reportedSize, offset + Int64(count))
+        guard offset < upper else { return Data() }
+        return try await connection.contents(
+            shareName: shareName,
+            atPath: path,
+            range: UInt64(offset)..<UInt64(upper)
+        )
+    }
+}
+
 nonisolated struct SMBSessionIdentity: Hashable, Sendable {
     let host: String
     let port: Int
@@ -493,6 +607,14 @@ actor SMBServerConnection {
                 modifiedAt: item[.contentModificationDateKey] as? Date ?? .distantPast
             )
         }
+    }
+
+    func directoryItems(
+        shareName: String,
+        atPath path: String
+    ) async throws -> [DirectoryItem] {
+        try await manager.connectShare(name: shareName)
+        return try await directoryItems(atPath: path)
     }
 
     func contentLength(

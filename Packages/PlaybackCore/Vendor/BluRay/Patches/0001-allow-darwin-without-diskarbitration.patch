@@ -1,0 +1,40 @@
+diff --git a/meson.build b/meson.build
+--- a/meson.build
++++ b/meson.build
+@@ -55,5 +55,8 @@
+ if host_machine.system() == 'darwin'
+-    extra_dependencies += dependency('appleframeworks',
+-        modules: ['CoreFoundation', 'DiskArbitration'])
++    darwin_frameworks = ['CoreFoundation']
++    if cc.has_header('DiskArbitration/DADisk.h')
++        darwin_frameworks += 'DiskArbitration'
++    endif
++    extra_dependencies += dependency('appleframeworks', modules: darwin_frameworks)
+ elif host_machine.system() == 'netbsd'
+     test_args += '-D_NETBSD_SOURCE'
+diff --git a/src/meson.build b/src/meson.build
+--- a/src/meson.build
++++ b/src/meson.build
+@@ -77,7 +77,11 @@
+         'file/dirs_darwin.c',
+         'file/dl_posix.c',
+         'file/file_posix.c',
+-        'file/mount_darwin.c',
+     )
++    if cc.has_header('DiskArbitration/DADisk.h')
++        libbluray_src += files('file/mount_darwin.c')
++    else
++        libbluray_src += files('file/mount.c')
++    endif
+ else
+     libbluray_src += files(
+diff --git a/src/libbluray/disc/dec.c b/src/libbluray/disc/dec.c
+--- a/src/libbluray/disc/dec.c
++++ b/src/libbluray/disc/dec.c
+@@ -260,4 +260,5 @@ static int _dec_detect(struct dec_dev *dev, BD_ENC_INFO *i)
+     /* check for BD+ */
+     i->bdplus_detected = libbdplus_required((void*)dev, _bdrom_have_file);
+-    return 1;
++    /* Enchron reports encrypted discs but never loads a decryption library. */
++    return 0;
+ }

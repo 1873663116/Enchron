@@ -10,12 +10,39 @@ let package = Package(
     ],
     products: [
         .library(name: "PlaybackCore", targets: ["PlaybackCore"]),
+        .library(name: "BluRayDisc", targets: ["BluRayDisc"]),
+        .library(name: "BluRayDiscBridge", targets: ["BluRayDiscBridge"]),
+        .executable(name: "BluRayDiscProbe", targets: ["BluRayDiscProbe"]),
         .executable(
             name: "PlaybackCoreRemoteMediaProbe",
             targets: ["PlaybackCoreRemoteMediaProbe"]
         ),
     ],
     targets: [
+        .binaryTarget(
+            name: "PlaybackBluRay",
+            path: "Vendor/BluRay/PlaybackBluRay.xcframework"
+        ),
+        .target(
+            name: "BluRayDiscBridge",
+            dependencies: ["PlaybackBluRay"],
+            path: "Sources/BluRayDiscBridge",
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedFramework("CoreFoundation"),
+                .linkedLibrary("iconv"),
+            ]
+        ),
+        .target(
+            name: "BluRayDisc",
+            dependencies: ["BluRayDiscBridge"],
+            path: "Sources/BluRayDisc"
+        ),
+        .executableTarget(
+            name: "BluRayDiscProbe",
+            dependencies: ["BluRayDisc", "BluRayDiscBridge"],
+            path: "Tools/BluRayDiscProbe"
+        ),
         .binaryTarget(
             name: "PlaybackFFmpeg",
             path: "Vendor/FFmpeg/PlaybackFFmpeg.xcframework"
@@ -26,7 +53,7 @@ let package = Package(
         ),
         .target(
             name: "PlaybackFFmpegBridge",
-            dependencies: ["PlaybackFFmpeg", "PlaybackSubtitleRenderer"],
+            dependencies: ["PlaybackFFmpeg", "PlaybackSubtitleRenderer", "BluRayDiscBridge"],
             path: "Sources/PlaybackFFmpegBridge",
             publicHeadersPath: "include",
             cSettings: [
@@ -46,12 +73,12 @@ let package = Package(
         ),
         .target(
             name: "PlaybackCore",
-            dependencies: ["PlaybackFFmpegBridge"],
+            dependencies: ["PlaybackFFmpegBridge", "BluRayDisc"],
             path: "Sources/PlaybackCore"
         ),
         .executableTarget(
             name: "PlaybackCoreRemoteMediaProbe",
-            dependencies: ["PlaybackFFmpegBridge"],
+            dependencies: ["PlaybackFFmpegBridge", "BluRayDisc"],
             path: "Tools/RemoteMediaProbe"
         ),
         .testTarget(
@@ -63,6 +90,11 @@ let package = Package(
             name: "PlaybackCoreStandaloneTests",
             dependencies: ["PlaybackCore"],
             path: "Tests/Standalone"
+        ),
+        .testTarget(
+            name: "BluRayDiscTests",
+            dependencies: ["BluRayDisc", "BluRayDiscBridge"],
+            path: "Tests/BluRayDiscTests"
         ),
     ]
 )

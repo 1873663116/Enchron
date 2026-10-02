@@ -41,6 +41,7 @@ let package = Package(
             dependencies: [
                 "MediaSource",
                 "DesignSystem",
+                .product(name: "BluRayDisc", package: "PlaybackCore"),
                 .product(name: "AMSMB2", package: "AMSMB2"),
             ],
             path: "Modules/MediaLibrary"
@@ -50,6 +51,7 @@ let package = Package(
             dependencies: [
                 "MediaSource",
                 "DesignSystem",
+                .product(name: "BluRayDisc", package: "PlaybackCore"),
                 .product(name: "PlaybackCore", package: "PlaybackCore"),
                 .product(name: "EnvironmentSceneContract", package: "EnvironmentSceneContract"),
                 .product(name: "OceanEnvironment", package: "OceanEnvironment"),
@@ -63,7 +65,11 @@ let package = Package(
         ),
         .testTarget(
             name: "MediaLibraryTests",
-            dependencies: ["MediaLibrary", "MediaSource"],
+            dependencies: [
+                "MediaLibrary",
+                "MediaSource",
+                .product(name: "BluRayDisc", package: "PlaybackCore"),
+            ],
             path: "Tests/MediaLibraryPackageTests"
         ),
         .testTarget(

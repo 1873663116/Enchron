@@ -33,6 +33,8 @@ from typing import Mapping, cast
 from urllib.parse import quote, unquote_to_bytes, urlsplit
 import xml.etree.ElementTree as ElementTree
 
+from bluray_webdav_tree import BluRayWebDAVTree, VIRTUAL_ROOT as BLURAY_VIRTUAL_ROOT
+
 from regression_paths import TEST_SERVICES_ROOT
 
 
@@ -520,6 +522,11 @@ class RemoteSourceService:
             raise RemoteSourceConfigurationError("service password must be nonempty")
         self.configuration = configuration
         self.manifest = FixtureManifest.load(configuration)
+        self._bluray = (
+            BluRayWebDAVTree(configuration.source_root)
+            if (configuration.source_root / "Samples/DiscImages").is_dir()
+            else None
+        )
         self._user = user
         self._password = password
         self._lock = threading.RLock()
@@ -772,6 +779,10 @@ class RemoteSourceService:
                 ),
                 logged_path,
             )
+        if target_kind == "bluray":
+            return self._bluray_response_locked(
+                method, str(target_name), headers, request_body
+            ), logged_path
         if method == "PROPFIND":
             return self._propfind_locked(
                 target_kind, target_name, headers, request_body
@@ -929,6 +940,8 @@ class RemoteSourceService:
         if target_kind == "root":
             self._append_propfind_response(multistatus, None)
             if depth == "1":
+                if self._bluray is not None:
+                    self._append_bluray_propfind_response(multistatus, BLURAY_VIRTUAL_ROOT)
                 for item in self.manifest.objects:
                     if (
                         self._recipe == "missing-object"
@@ -952,6 +965,92 @@ class RemoteSourceService:
             },
             payload,
         )
+
+    def _bluray_response_locked(
+        self,
+        method: str,
+        path: str,
+        headers: Mapping[str, str],
+        request_body: bytes | None,
+    ) -> _Response:
+        tree = self._bluray
+        if tree is None or not tree.contains(path):
+            return self._empty(404)
+        if method == "PROPFIND":
+            if request_body is None or headers.get("Depth", "1") not in {"0", "1"}:
+                return self._empty(400, condition="bounded-propfind")
+            if request_body:
+                upper = request_body.upper()
+                if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+                    return self._empty(400, condition="sanitized-propfind-xml")
+                try:
+                    root = ElementTree.fromstring(request_body)
+                except ElementTree.ParseError:
+                    return self._empty(400, condition="sanitized-propfind-xml")
+                if root.tag.split("}")[-1].lower() != "propfind":
+                    return self._empty(400, condition="sanitized-propfind-xml")
+            ElementTree.register_namespace("d", "DAV:")
+            multistatus = ElementTree.Element("{DAV:}multistatus")
+            self._append_bluray_propfind_response(multistatus, path)
+            if path in tree.directories and headers.get("Depth", "1") == "1":
+                for child in tree.children(path):
+                    self._append_bluray_propfind_response(multistatus, child)
+            payload = ElementTree.tostring(multistatus, encoding="utf-8", xml_declaration=True)
+            return _Response(207, {
+                "Content-Type": "application/xml; charset=utf-8",
+                "Content-Length": str(len(payload)), "DAV": "1",
+            }, payload)
+        if method not in {"GET", "HEAD"}:
+            return self._empty(405, {"Allow": "OPTIONS, PROPFIND, GET, HEAD"})
+        source = tree.file(path)
+        if source is None:
+            return self._empty(404)
+        metadata = source.stat()
+        selection = self._select_range(headers.get("Range"), metadata.st_size)
+        if selection is None:
+            return self._empty(416, {"Content-Range": f"bytes */{metadata.st_size}"})
+        start, end, ranged = selection
+        if method == "GET" and (not ranged or end - start + 1 > 8 * 1024 * 1024):
+            return self._empty(416, {"Content-Range": f"bytes */{metadata.st_size}"}, condition="bounded-bluray-range")
+        etag = hashlib.sha256(f"{path}:{metadata.st_size}:{metadata.st_mtime_ns}".encode()).hexdigest()
+        response_headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Type": mimetypes.guess_type(source.name)[0] or "application/octet-stream",
+            "Content-Length": str(end - start + 1),
+            "Content-Range": f"bytes {start}-{end}/{metadata.st_size}" if ranged else "",
+            "Last-Modified": formatdate(metadata.st_mtime, usegmt=True),
+            "ETag": f'"{etag}"',
+        }
+        if not ranged:
+            response_headers.pop("Content-Range")
+        if method == "HEAD":
+            return _Response(206 if ranged else 200, response_headers)
+        with source.open("rb") as handle:
+            handle.seek(start)
+            payload = handle.read(end - start + 1)
+        if len(payload) != end - start + 1:
+            return self._empty(500, condition="registered-bluray-file-stability")
+        return _Response(206, response_headers, payload)
+
+    def _append_bluray_propfind_response(
+        self, multistatus: ElementTree.Element, path: str
+    ) -> None:
+        tree = self._bluray
+        assert tree is not None and tree.contains(path)
+        response = ElementTree.SubElement(multistatus, "{DAV:}response")
+        href = ElementTree.SubElement(response, "{DAV:}href")
+        href.text = self._base_path + quote(path, safe="/") + ("/" if path in tree.directories else "")
+        propstat = ElementTree.SubElement(response, "{DAV:}propstat")
+        prop = ElementTree.SubElement(propstat, "{DAV:}prop")
+        resource_type = ElementTree.SubElement(prop, "{DAV:}resourcetype")
+        source = tree.file(path)
+        if source is None:
+            ElementTree.SubElement(resource_type, "{DAV:}collection")
+        else:
+            metadata = source.stat()
+            ElementTree.SubElement(prop, "{DAV:}getcontentlength").text = str(metadata.st_size)
+            ElementTree.SubElement(prop, "{DAV:}getlastmodified").text = formatdate(metadata.st_mtime, usegmt=True)
+        ElementTree.SubElement(propstat, "{DAV:}status").text = "HTTP/1.1 200 OK"
 
     def _append_propfind_response(
         self, multistatus: ElementTree.Element, item: FixtureObject | None
@@ -984,14 +1083,16 @@ class RemoteSourceService:
             return "rejected", None, "<rejected>"
         if "\x00" in decoded or "\\" in decoded:
             return "rejected", None, "<rejected>"
-        parts = PurePosixPath(decoded).parts
-        if any(part in {".", ".."} for part in parts):
+        if any(part in {".", ".."} for part in decoded.split("/")):
             return "rejected", None, "<rejected>"
         if not decoded.startswith(self._base_path):
             return "outside", None, "<outside-collection>"
         relative = decoded[len(self._base_path) :]
         if not relative:
             return "root", None, self._base_path
+        if relative.rstrip("/") == BLURAY_VIRTUAL_ROOT or relative.startswith(BLURAY_VIRTUAL_ROOT + "/"):
+            canonical = relative.rstrip("/")
+            return "bluray", canonical, self._base_path + quote(canonical, safe="/")
         if "/" in relative:
             return "rejected", None, "<rejected>"
         return "object", relative, self._base_path + quote(relative)

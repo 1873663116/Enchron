@@ -310,6 +310,7 @@ public struct MediaSourceRecord: Codable, Equatable, Sendable {
 public struct MediaSessionRecord: Codable, Equatable, Sendable {
     public let mediaSessionID: String
     public let source: MediaSourceRecord
+    public let bluRayPlaylistID: UInt32?
     public let initialTimeSeconds: Double
     public let startsPaused: Bool
     public let initialRate: Float
@@ -321,10 +322,12 @@ public struct MediaSessionRecord: Codable, Equatable, Sendable {
         initialTimeSeconds: Double,
         startsPaused: Bool,
         initialRate: Float? = nil,
-        lifecycle: PlaybackLifecycle = .opening
+        lifecycle: PlaybackLifecycle = .opening,
+        bluRayPlaylistID: UInt32? = nil
     ) {
         self.mediaSessionID = mediaSessionID
         self.source = source
+        self.bluRayPlaylistID = bluRayPlaylistID
         self.initialTimeSeconds = initialTimeSeconds
         self.startsPaused = startsPaused
         self.initialRate = initialRate ?? (startsPaused ? 0 : 1)

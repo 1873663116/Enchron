@@ -1478,7 +1478,9 @@ class CatalogV2MaterializerTests(unittest.TestCase):
 
     def test_subtitle_selection_semantic_failures_are_successful_observations(self) -> None:
         backend = operation_adapter.ResidentOperationBackend()
-        context = object()
+        context = operation_adapter.OperationContext(
+            "simulator", "SIM-UDID", ROOT / ".scratch", ROOT / ".scratch/controller"
+        )
         state = {
             "succeeded": True,
             "response": {"success": True},
@@ -1537,6 +1539,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "_select_public_subtitle_item",
                 return_value=(selection_response, candidate),
             ),
+            mock.patch.object(backend, "_harness_instruments", return_value=mock.Mock()),
         ):
             unsettled = backend._playback_select_subtitle_1(arguments, context)
         self.assertTrue(unsettled["succeeded"])

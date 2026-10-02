@@ -124,6 +124,16 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     char *errorBuffer,
     size_t errorBufferSize
 );
+typedef struct PBBlurayReader PBBlurayReader;
+PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreateWithDisc(
+    const char *path,
+    PBBlurayReader *disc,
+    bool isRemote,
+    PBFFmpegDemuxBufferConfiguration bufferConfiguration,
+    PBFFmpegSourceReadMonitor *monitor,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
 void PBFFmpegDemuxSourceInterrupt(PBFFmpegDemuxSource *source);
 bool PBFFmpegDemuxSourceInterruptTargetsOwnReadContext(
     const PBFFmpegDemuxSource *source

@@ -544,78 +544,88 @@
     {
       "extension": "iso",
       "fixture": {
-        "path": "Samples/DynamicRange/DolbyVision/Profile7.6/FEL_test_for_AVS.iso",
+        "path": "Samples/DiscImages/DolbyVision-Profile7-FEL/FEL_test_for_AVS.iso",
         "sha256": "b3e788d13eb5933fddc80f903eb013cbc58a27f2b28a87bc63647a492a642ca9"
+      },
+      "selection": {
+        "kind": "bluRayPlaylist",
+        "playlistID": 0
       },
       "transports": {
         "local": {
           "evidence": "proven",
-          "sourceScope": "local-udf-image",
+          "sourceScope": "local-selected-bluray-playlist",
           "playbackOutcome": "first-frame",
           "stages": {
             "streams": {
               "exitCode": 0,
-              "stdout": "stage=tracks bytes_read=6387824 video_tracks=2 audio_tracks=0 subtitle_tracks=0",
+              "stdout": "stage=tracks bytes_read=983040 playlist_id=0 video_tracks=2 audio_tracks=0 subtitle_tracks=0",
               "stderr": "",
               "expectation": {
                 "video_tracks": "2",
                 "audio_tracks": "0",
-                "subtitle_tracks": "0"
+                "subtitle_tracks": "0",
+                "playlist_id": "0"
               }
             },
             "open": {
               "exitCode": 0,
-              "stdout": "stage=video-reader bytes_read=6387824 video_stream=0 duration_seconds=119.99486666666667",
+              "stdout": "stage=video-reader bytes_read=983040 playlist_id=0 video_stream=0 duration_seconds=119.91144444444446",
               "stderr": "",
               "expectation": {
                 "video_stream": "0",
-                "duration": "positive"
+                "duration": "positive",
+                "playlist_id": "0"
               }
             },
             "firstFrame": {
               "exitCode": 0,
-              "stdout": "stage=decode bytes_read=8157296 codec=hvc1 session_status=0 samples=25 sample_bytes=692750 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stdout": "stage=decode bytes_read=3080192 playlist_id=0 codec=hvc1 session_status=0 samples=25 sample_bytes=692750 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
               "stderr": "",
               "expectation": {
                 "codec": "hvc1",
                 "decode": "ok",
-                "decodedFrames": "positive"
+                "decodedFrames": "positive",
+                "playlist_id": "0"
               }
             }
           }
         },
         "http": {
           "evidence": "proven",
-          "sourceScope": "http-byte-range-without-local-udf-detection",
-          "playbackOutcome": "no-first-frame",
+          "sourceScope": "http-byte-range-selected-bluray-playlist",
+          "playbackOutcome": "first-frame",
           "stages": {
             "streams": {
               "exitCode": 0,
-              "stdout": "stage=tracks bytes_read=6915867 video_tracks=1 audio_tracks=0 subtitle_tracks=0",
+              "stdout": "stage=tracks bytes_read=983040 playlist_id=0 video_tracks=2 audio_tracks=0 subtitle_tracks=0",
               "stderr": "",
               "expectation": {
-                "video_tracks": "1",
+                "video_tracks": "2",
                 "audio_tracks": "0",
-                "subtitle_tracks": "0"
+                "subtitle_tracks": "0",
+                "playlist_id": "0"
               }
             },
             "open": {
               "exitCode": 0,
-              "stdout": "stage=video-reader bytes_read=6915867 video_stream=0 duration_seconds=119.99486666666667",
+              "stdout": "stage=video-reader bytes_read=983040 playlist_id=0 video_stream=0 duration_seconds=119.91144444444446",
               "stderr": "",
               "expectation": {
                 "video_stream": "0",
-                "duration": "positive"
+                "duration": "positive",
+                "playlist_id": "0"
               }
             },
             "firstFrame": {
               "exitCode": 0,
-              "stdout": "stage=decode bytes_read=8554809 codec=hvc1 session_status=0 samples=46 sample_bytes=626094 decoded_frames=0 submit_failures=0 callback_failures=46 first_decode_status=-12909 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=no_frames",
+              "stdout": "stage=decode bytes_read=2013184 playlist_id=0 codec=hvc1 session_status=0 samples=25 sample_bytes=692750 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
               "stderr": "",
               "expectation": {
                 "codec": "hvc1",
-                "decode": "no_frames",
-                "decodedFrames": "zero"
+                "decode": "ok",
+                "decodedFrames": "positive",
+                "playlist_id": "0"
               }
             }
           }

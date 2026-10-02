@@ -22,13 +22,16 @@ Enchron 已开放 TestFlight 公开测试。使用 Apple Vision Pro，通过下�
 
 ## 构建
 
-本项目需要 Xcode 27.0 与 visionOS SDK。`Packages/PlaybackCore` 依赖未纳入 Git 的 `PlaybackFFmpeg.xcframework`。在克隆后的仓库根目录运行以下命令以准备该依赖：
+本项目需要 Xcode 27.0 与 visionOS SDK。`Packages/PlaybackCore` 依赖未纳入 Git 的 `PlaybackFFmpeg.xcframework` 和 `PlaybackBluRay.xcframework`。在克隆后的仓库根目录运行以下命令：
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh
+Scripts/provision_vendored_bluray.sh
 ```
 
-该脚本会构建 FFmpeg，或在传入另一个已具备该二进制的工作副本路径时复用其中的文件。构建与验证入口位于 `Scripts/` 和 `Regression/`。项目约束、模块所有权和测试协议分别见 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`AGENTS.md`](AGENTS.md) 和 [`Regression/README.md`](Regression/README.md)。
+蓝光样本结构由 `Scripts/verification/verify_bluray_corpus.py` 对照独立 MPLS 解析结果验证。`Scripts/verification/prepare_bluray_supplement.py` 生成本地、SMB 与 WebDAV 的专项验收目录；`Scripts/verification/verify_bluray_simulator.py` 通过编译后的操作网关执行该目录。模拟器端到端验收要求有效的专项审阅回执及干净工作树的冻结执行输入。
+
+两个脚本分别构建所需二进制；传入另一个已具备对应二进制的工作副本路径时，脚本复用其中的文件。构建与验证入口位于 `Scripts/` 和 `Regression/`。项目约束、模块所有权和测试协议分别见 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`AGENTS.md`](AGENTS.md) 和 [`Regression/README.md`](Regression/README.md)。
 
 ## 隐私与网络
 

@@ -1,3 +1,4 @@
+import BluRayDisc
 import Foundation
 import MediaSource
 
@@ -202,17 +203,23 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
     }
 
     public func resolveURL(for item: FileBrowsingDomain.MediaFile) async throws -> URL {
-        item.url
+        guard let baseURL else { throw WebDAVError.notConnected }
+        return item.url.scheme == "http" || item.url.scheme == "https"
+            ? item.url
+            : try buildRequestURL(baseURL: baseURL, path: item.url.path)
     }
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
     ) async throws -> ResolvedMediaSource {
-        guard connectionInfo != nil else {
+        guard connectionInfo != nil, let baseURL else {
             throw WebDAVError.notConnected
         }
+        let url = file.url.scheme == "http" || file.url.scheme == "https"
+            ? file.url
+            : try buildRequestURL(baseURL: baseURL, path: file.url.path)
         let source = WebDAVByteRangeSource(
-            url: file.url,
+            url: url,
             reportedContentLength: file.sizeInBytes,
             authorizationHeader: authHeader,
             session: session
@@ -227,6 +234,27 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         } catch {
             throw WebDAVError.streamingFailed(error.localizedDescription)
         }
+    }
+
+    public func bluRayDiscSource(
+        for folder: FileBrowsingDomain.MediaFolder
+    ) async throws -> BluRayDiscSource? {
+        guard connectionInfo != nil, let baseURL else { throw WebDAVError.notConnected }
+        let selectedURL = folder.url.scheme == "http" || folder.url.scheme == "https"
+            ? folder.url
+            : try buildRequestURL(baseURL: baseURL, path: folder.path)
+        let selectedIsBDMV = (folder.path as NSString).lastPathComponent
+            .caseInsensitiveCompare("BDMV") == .orderedSame
+        let rootURL = selectedIsBDMV
+            ? selectedURL.deletingLastPathComponent()
+            : selectedURL
+        let fileSystem = WebDAVBluRayDiscFileSystem(
+            rootURL: rootURL,
+            authorizationHeader: authHeader,
+            session: session
+        )
+        guard try await fileSystem.isBluRayRoot else { return nil }
+        return .fileSystem(rootURL: rootURL, fileSystem)
     }
 
     private func performPROPFIND(url: URL) async throws -> [PROPFINDParserDelegate.ResponseItem] {
@@ -551,6 +579,149 @@ private nonisolated final class WebDAVByteRangeSource: MediaByteRangeSource, @un
         guard let value = response.value(forHTTPHeaderField: "Content-Range"),
               let slash = value.lastIndex(of: "/") else { return nil }
         return Int64(value[value.index(after: slash)...])
+    }
+}
+
+private nonisolated final class WebDAVBluRayDiscFileSystem:
+    BluRayDiscFileSystem,
+    @unchecked Sendable {
+    private let rootURL: URL
+    private let authorizationHeader: String?
+    private let session: URLSession
+
+    init(rootURL: URL, authorizationHeader: String?, session: URLSession) {
+        self.rootURL = rootURL
+        self.authorizationHeader = authorizationHeader
+        self.session = session
+    }
+
+    var isBluRayRoot: Bool {
+        get async throws {
+            let rootNames = try await contents(of: "")
+            if rootURL.lastPathComponent.caseInsensitiveCompare("BDMV") == .orderedSame {
+                return rootNames.contains { $0.caseInsensitiveCompare("index.bdmv") == .orderedSame }
+            }
+            guard rootNames.contains(where: {
+                $0.caseInsensitiveCompare("BDMV") == .orderedSame
+            }) else { return false }
+            return try await contents(of: "BDMV").contains {
+                $0.caseInsensitiveCompare("index.bdmv") == .orderedSame
+            }
+        }
+    }
+
+    func contents(of relativePath: String) async throws -> [String] {
+        let directoryURL = url(for: relativePath, isDirectory: true)
+        var request = URLRequest(url: directoryURL)
+        request.httpMethod = "PROPFIND"
+        request.setValue("1", forHTTPHeaderField: "Depth")
+        request.setValue("application/xml; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        if let authorizationHeader {
+            request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
+        }
+        request.httpBody = Self.propfindBody.data(using: .utf8)
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse else {
+            throw WebDAVError.invalidResponse
+        }
+        guard (200 ... 299).contains(response.statusCode) else {
+            throw WebDAVError.requestFailed(response.statusCode)
+        }
+        let parser = XMLParser(data: data)
+        let delegate = PROPFINDParserDelegate()
+        parser.delegate = delegate
+        guard parser.parse() else { throw WebDAVError.malformedResponse }
+        let targetPath = Self.normalizedComparablePath(directoryURL.path)
+        return delegate.responses.compactMap { item in
+            guard let href = item.href,
+                  let itemURL = URL(string: href, relativeTo: directoryURL)?.absoluteURL,
+                  Self.normalizedComparablePath(itemURL.path) != targetPath else { return nil }
+            return itemURL.lastPathComponent.removingPercentEncoding
+                ?? itemURL.lastPathComponent
+        }
+    }
+
+    func openFile(at relativePath: String) async throws -> any BluRayDiscRandomAccessFile {
+        WebDAVBluRayDiscFile(
+            source: WebDAVByteRangeSource(
+                url: url(for: relativePath, isDirectory: false),
+                reportedContentLength: 0,
+                authorizationHeader: authorizationHeader,
+                session: session
+            )
+        )
+    }
+
+    private func url(for relativePath: String, isDirectory: Bool) -> URL {
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: true)
+        let url = components.reduce(rootURL) { partial, component in
+            partial.appending(
+                path: String(component),
+                directoryHint: isDirectory ? .isDirectory : .notDirectory
+            )
+        }
+        guard isDirectory else { return url }
+        return Self.directoryURL(for: url)
+    }
+
+    private static func directoryURL(for url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        guard components.path.hasSuffix("/") == false else { return url }
+        components.path += "/"
+        return components.url ?? url
+    }
+
+    private static func normalizedComparablePath(_ path: String) -> String {
+        let decoded = path.removingPercentEncoding ?? path
+        guard decoded.count > 1, decoded.hasSuffix("/") else { return decoded }
+        return String(decoded.dropLast())
+    }
+
+    private static let propfindBody = """
+    <?xml version="1.0"?>
+    <d:propfind xmlns:d="DAV:">
+      <d:prop>
+        <d:href/>
+        <d:getcontentlength/>
+        <d:getlastmodified/>
+        <d:getetag/>
+        <d:resourcetype/>
+      </d:prop>
+    </d:propfind>
+    """
+}
+
+private nonisolated final class WebDAVBluRayDiscFile:
+    BluRayDiscRandomAccessFile,
+    @unchecked Sendable {
+    private let source: WebDAVByteRangeSource
+    private let lock = NSLock()
+    private var knownSize: Int64?
+
+    init(source: WebDAVByteRangeSource) {
+        self.source = source
+    }
+
+    var size: Int64 {
+        get async throws {
+            if let knownSize = lock.withLock({ knownSize }) { return knownSize }
+            let firstByte = try await source.read(in: 0..<1)
+            guard let size = firstByte.contentLength else {
+                throw MediaSourceReadFailure.invalidData
+            }
+            lock.withLock { knownSize = size }
+            return size
+        }
+    }
+
+    func read(at offset: Int64, count: Int) async throws -> Data {
+        guard offset >= 0, count >= 0, offset <= Int64.max - Int64(count) else {
+            throw MediaSourceReadFailure.invalidData
+        }
+        guard count > 0 else { return Data() }
+        return try await source.read(in: offset..<(offset + Int64(count))).data
     }
 }
 

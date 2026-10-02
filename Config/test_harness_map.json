@@ -9,6 +9,7 @@
     "EmbyTests": { "kind": "swiftpm", "package": "EnchronModules" },
     "PlaybackFeatureTests": { "kind": "swiftpm", "package": "EnchronModules" },
     "PlaybackCoreTests": { "kind": "swiftpm", "package": "PlaybackCore" },
+    "BluRayDiscTests": { "kind": "swiftpm", "package": "PlaybackCore" },
     "PlaybackCoreStandaloneTests": { "kind": "swiftpm", "package": "PlaybackCore" },
     "MediaByteStreamConformanceTests": {
       "kind": "swiftpm",
@@ -57,10 +58,17 @@
     "Packages/PlaybackCore/Tests/PlaybackCoreTests": {
       "harnesses": ["PlaybackCoreTests"]
     },
+    "Packages/PlaybackCore/Tests/BluRayDiscTests": {
+      "harnesses": ["BluRayDiscTests"]
+    },
     "Packages/PlaybackCore/Tests/Standalone": {
       "harnesses": ["EnchronDomainTests", "PlaybackCoreStandaloneTests"]
     },
     "Scripts/rules/tests": {
+      "harnesses": ["ScriptsRuleSelfTests"],
+      "role": "tooling-self-tests"
+    },
+    "Scripts/verification/tests": {
       "harnesses": ["ScriptsRuleSelfTests"],
       "role": "tooling-self-tests"
     }

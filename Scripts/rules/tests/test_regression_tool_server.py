@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 
 SCRIPTS = Path(__file__).resolve().parents[2]
@@ -481,6 +482,16 @@ class OpRoutingTests(unittest.TestCase):
         self.assertIs(compile_execution_plan, server.compile_execution_plan)
         self.assertTrue(callable(server.compile_execution_plan))
 
+    def test_requested_lane_rejects_an_unrequested_device_call_before_compile(self) -> None:
+        with TemporaryDirectory() as temporary:
+            arguments = self.arguments(Path(temporary))
+            arguments["requestedLane"] = "simulator"
+            arguments["lane"] = "device"
+            with patch.object(server, "compile_execution_plan") as compile_plan:
+                with self.assertRaisesRegex(OpToolError, "must equal"):
+                    server.call_tool("op", arguments)
+            compile_plan.assert_not_called()
+
     def test_op_reaches_the_compiler_with_every_input_it_was_given(self) -> None:
         captured = {}
 
@@ -519,6 +530,7 @@ class OpRoutingTests(unittest.TestCase):
 
         def run(plan, run_directory, node, call, lane, target, sidekick, **rest):
             captured["lane"] = lane
+            captured["executionInput"] = rest.get("execution_input_path")
             return op_tool.OpOutcome(
                 node=node,
                 call=call,
@@ -537,6 +549,7 @@ class OpRoutingTests(unittest.TestCase):
 
         blocks = result.content()
         self.assertEqual(BoundLane.SIMULATOR, captured["lane"])
+        self.assertEqual(Path("execution-input.json").resolve(), captured["executionInput"])
         self.assertEqual("image", blocks[-1]["type"])
         self.assertEqual(op_tool.SCREENSHOT_MEDIA_TYPE, blocks[-1]["mimeType"])
         self.assertEqual(1, len(result.images))

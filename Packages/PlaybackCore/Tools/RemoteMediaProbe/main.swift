@@ -1,6 +1,7 @@
 import Foundation
 import CoreMedia
 import VideoToolbox
+import BluRayDisc
 import PlaybackFFmpegBridge
 
 enum ProbeFailure: Error, CustomStringConvertible {
@@ -24,11 +25,52 @@ enum ProbeStage: String {
     case decode
 }
 
+enum ProbeContentSelection {
+    case file
+    case bluRayPlaylist(BluRayPlaylistID)
+}
+
 func errorMessage(_ buffer: [CChar]) -> String {
     String(
         decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
         as: UTF8.self
     )
+}
+
+func sourceURL(_ source: String) -> URL {
+    if let url = URL(string: source), url.scheme != nil { return url }
+    return URL(fileURLWithPath: source)
+}
+
+func selectedDiscDemuxSource(
+    source: String,
+    playlistID: BluRayPlaylistID,
+    monitor: OpaquePointer
+) async throws -> OpaquePointer {
+    let url = sourceURL(source)
+    let reader = try await BluRayDisc.open(
+        source: .url(url),
+        playlistID: playlistID
+    )
+    guard let disc = reader.takeNativeHandle() else {
+        throw ProbeFailure.operation("selected Blu-ray reader handle was unavailable")
+    }
+    var error = [CChar](repeating: 0, count: 512)
+    let demuxSource = source.withCString {
+        PBFFmpegDemuxSourceCreateWithDisc(
+            $0,
+            disc,
+            url.isFileURL == false,
+            PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+            monitor,
+            &error,
+            error.count
+        )
+    }
+    guard let demuxSource else {
+        throw ProbeFailure.operation("disc demux source open failed: \(errorMessage(error))")
+    }
+    return demuxSource
 }
 
 func enumerateTracks(source: String, monitor: OpaquePointer) throws -> String {
@@ -47,6 +89,25 @@ func enumerateTracks(source: String, monitor: OpaquePointer) throws -> String {
         )
     }
     defer { PBFFmpegMediaSourceInformationDestroy(information) }
+    return try trackSummary(information)
+}
+
+func enumerateTracks(demuxSource: OpaquePointer) throws -> String {
+    var error = [CChar](repeating: 0, count: 512)
+    guard let information = PBFFmpegDemuxSourceCopyInformation(
+        demuxSource,
+        &error,
+        error.count
+    ) else {
+        throw ProbeFailure.operation(
+            "demux source information failed: \(errorMessage(error))"
+        )
+    }
+    defer { PBFFmpegMediaSourceInformationDestroy(information) }
+    return try trackSummary(information)
+}
+
+func trackSummary(_ information: OpaquePointer) throws -> String {
     let streamCount = PBFFmpegMediaSourceInformationGetStreamCount(information)
     var videoCount = 0
     var audioCount = 0
@@ -106,13 +167,34 @@ func openVideoReader(source: String, monitor: OpaquePointer) throws -> String {
         PBFFmpegReaderDestroy(reader)
         throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
     }
+    defer { PBFFmpegReaderDestroy(reader) }
+    return try videoReaderSummary(reader)
+}
+
+func openVideoReader(demuxSource: OpaquePointer) throws -> String {
+    guard let reader = PBFFmpegReaderAllocate() else {
+        throw ProbeFailure.operation("video reader allocation failed")
+    }
+    defer { PBFFmpegReaderDestroy(reader) }
+    var error = [CChar](repeating: 0, count: 512)
+    guard PBFFmpegReaderOpenWithDemuxSource(
+        reader,
+        demuxSource,
+        PBFFmpegModeCompressed,
+        &error,
+        error.count
+    ) else {
+        throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
+    }
+    return try videoReaderSummary(reader)
+}
+
+func videoReaderSummary(_ reader: OpaquePointer) throws -> String {
     let streamIndex = PBFFmpegReaderGetVideoStreamIndex(reader)
     let duration = PBFFmpegReaderGetDurationSeconds(reader)
     guard duration.isFinite, duration > 0 else {
-        PBFFmpegReaderDestroy(reader)
         throw ProbeFailure.operation("video stream duration is unavailable")
     }
-    PBFFmpegReaderDestroy(reader)
     return "video_stream=\(streamIndex) duration_seconds=\(duration)"
 }
 
@@ -270,6 +352,35 @@ func decodeSamples(
     guard opened else {
         throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
     }
+    return try decodeSamples(videoReader: videoReader, limitSeconds: limitSeconds)
+}
+
+func decodeSamples(
+    demuxSource: OpaquePointer,
+    limitSeconds: Double?
+) throws -> String {
+    var error = [CChar](repeating: 0, count: 512)
+    guard let videoReader = PBFFmpegReaderAllocate() else {
+        throw ProbeFailure.operation("reader allocation failed")
+    }
+    defer { PBFFmpegReaderDestroy(videoReader) }
+    guard PBFFmpegReaderOpenWithDemuxSource(
+        videoReader,
+        demuxSource,
+        PBFFmpegModeCompressed,
+        &error,
+        error.count
+    ) else {
+        throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
+    }
+    return try decodeSamples(videoReader: videoReader, limitSeconds: limitSeconds)
+}
+
+func decodeSamples(
+    videoReader: OpaquePointer,
+    limitSeconds: Double?
+) throws -> String {
+    var error = [CChar](repeating: 0, count: 512)
     var formatOut: Unmanaged<CMVideoFormatDescription>?
     let formatStatus = PBFFmpegVideoFormatDescriptionCreate(
         videoReader,
@@ -554,7 +665,7 @@ func measurePlayback(
         + "completion=\(completion)"
 }
 
-func run() throws {
+func run() async throws {
     var arguments = Array(CommandLine.arguments.dropFirst())
     var limitSeconds: Double?
     if let flag = arguments.firstIndex(of: "--seconds"), flag + 1 < arguments.count {
@@ -564,22 +675,31 @@ func run() throws {
         limitSeconds = value
         arguments.removeSubrange(flag...(flag + 1))
     }
+    var selection = ProbeContentSelection.file
+    if let flag = arguments.firstIndex(of: "--playlist"), flag + 1 < arguments.count {
+        guard let rawValue = UInt32(arguments[flag + 1]) else {
+            throw ProbeFailure.usage("--playlist needs an unsigned 32-bit playlist ID")
+        }
+        selection = .bluRayPlaylist(BluRayPlaylistID(rawValue: rawValue))
+        arguments.removeSubrange(flag...(flag + 1))
+    }
     guard arguments.count == 4,
           arguments[0] == "--stage",
           let stage = ProbeStage(rawValue: arguments[1]),
           arguments[2] == "--url" else {
         throw ProbeFailure.usage(
-            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session|format|decode --url URL [--seconds N]"
+            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session|format|decode --url URL [--playlist ID] [--seconds N]"
         )
     }
     guard let monitor = PBFFmpegSourceReadMonitorCreate() else {
         throw ProbeFailure.operation("source read monitor allocation failed")
     }
     defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
-    let stages: [ProbeStage] = [stage]
-    var previousBytes: UInt64 = 0
-    for currentStage in stages {
-        let detail = switch currentStage {
+
+    let detail: String
+    switch selection {
+    case .file:
+        detail = switch stage {
         case .tracks:
             try enumerateTracks(source: arguments[3], monitor: monitor)
         case .videoReader:
@@ -603,20 +723,46 @@ func run() throws {
                 limitSeconds: limitSeconds
             )
         }
-        let cumulativeBytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
-        let bytes = cumulativeBytes - previousBytes
-        previousBytes = cumulativeBytes
-        FileHandle.standardOutput.write(
-            Data(
-                "stage=\(currentStage.rawValue) bytes_read=\(bytes) \(detail)\n".utf8
+    case .bluRayPlaylist(let playlistID):
+        guard stage == .tracks || stage == .videoReader || stage == .decode else {
+            throw ProbeFailure.usage(
+                "--playlist supports tracks, video-reader, and decode stages"
             )
+        }
+        let demuxSource = try await selectedDiscDemuxSource(
+            source: arguments[3],
+            playlistID: playlistID,
+            monitor: monitor
         )
+        defer { PBFFmpegDemuxSourceDestroy(demuxSource) }
+        let stageDetail = switch stage {
+        case .tracks:
+            try enumerateTracks(demuxSource: demuxSource)
+        case .videoReader:
+            try openVideoReader(demuxSource: demuxSource)
+        case .decode:
+            try decodeSamples(demuxSource: demuxSource, limitSeconds: limitSeconds)
+        case .audioReader, .playback, .session, .format:
+            throw ProbeFailure.usage(
+                "--playlist supports tracks, video-reader, and decode stages"
+            )
+        }
+        detail = "playlist_id=\(playlistID.rawValue) \(stageDetail)"
     }
+    let bytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+    FileHandle.standardOutput.write(
+        Data("stage=\(stage.rawValue) bytes_read=\(bytes) \(detail)\n".utf8)
+    )
 }
 
-do {
-    try run()
-} catch {
-    FileHandle.standardError.write(Data("\(error)\n".utf8))
-    exit(2)
+@main
+struct RemoteMediaProbe {
+    static func main() async {
+        do {
+            try await run()
+        } catch {
+            FileHandle.standardError.write(Data("\(error)\n".utf8))
+            exit(2)
+        }
+    }
 }

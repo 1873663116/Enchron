@@ -1,5 +1,7 @@
 import Foundation
 import MediaSource
+import PlaybackCore
+import BluRayDisc
 
 public nonisolated enum PlaybackCollectionOrigin: String, Sendable, Equatable {
     case standalone
@@ -90,6 +92,12 @@ public nonisolated struct PlaybackAddress: @unchecked Sendable, Equatable {
         remote = true
     }
 
+    public init(discSource: BluRayDiscSource, byteStreamHandle: MediaByteStreamHandle? = nil) {
+        url = discSource.rootURL
+        self.byteStreamHandle = byteStreamHandle
+        remote = url.isFileURL == false
+    }
+
 #if DEBUG
     @_spi(Testing)
     public init(testingURL: URL) {
@@ -127,8 +135,16 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
                 accessLease: subtitle.accessLease, byteStreamHandle: handle
             )
         }
+        let refreshedSelection: PlaybackContentSelection
+        switch contentSelection {
+        case .bluRayPlaylist(let playlist, .url(let url)) where !url.isFileURL:
+            refreshedSelection = .bluRayPlaylist(playlist, source: .url(refreshed[0].url))
+        default:
+            refreshedSelection = contentSelection
+        }
         return PlaybackLaunchRequest(
             source: PlaybackAddress(byteStreamHandle: refreshed[0]),
+            contentSelection: refreshedSelection,
             displayName: displayName, fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata, collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity, sourceAccess: sourceAccess,
@@ -142,6 +158,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
 
     public let id: URL
     public let source: PlaybackAddress
+    public let contentSelection: PlaybackContentSelection
     public var url: URL { source.url }
     public let displayName: String
     public let fileIdentifier: PlaybackFileIdentifier?
@@ -158,6 +175,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
 
     public init(
         source: PlaybackAddress,
+        contentSelection: PlaybackContentSelection = .file,
         displayName: String,
         fileIdentifier: PlaybackFileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil,
@@ -170,8 +188,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         initialTrackSelection: TrackSelectionPreference? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
-        self.id = source.url
+        self.id = Self.requestIdentity(source: source, selection: contentSelection)
         self.source = source
+        self.contentSelection = contentSelection
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
@@ -221,6 +240,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
 
     public init(
         source: PlaybackAddress,
+        contentSelection: PlaybackContentSelection = .file,
         displayName: String,
         fileIdentifier: PlaybackFileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil,
@@ -234,8 +254,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         initialTrackSelection: TrackSelectionPreference? = nil,
         sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
-        self.id = source.url
+        self.id = Self.requestIdentity(source: source, selection: contentSelection)
         self.source = source
+        self.contentSelection = contentSelection
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
@@ -288,6 +309,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
         PlaybackLaunchRequest(
             source: source,
+            contentSelection: contentSelection,
             displayName: displayName,
             fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
@@ -301,6 +323,18 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             initialTrackSelection: initialTrackSelection,
             sessionReporter: sessionReporter
         )
+    }
+
+    private static func requestIdentity(
+        source: PlaybackAddress, selection: PlaybackContentSelection
+    ) -> URL {
+        switch selection {
+        case .file: return source.url
+        case .bluRayPlaylist(let playlist, _):
+            return source.url.appending(queryItems: [
+                URLQueryItem(name: "enchron-bluray-playlist", value: String(playlist.rawValue))
+            ])
+        }
     }
 
     public static func == (lhs: PlaybackLaunchRequest, rhs: PlaybackLaunchRequest) -> Bool {

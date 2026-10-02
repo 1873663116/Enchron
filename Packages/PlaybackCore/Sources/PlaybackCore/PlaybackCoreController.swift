@@ -121,6 +121,7 @@ public final class PlaybackCoreController {
     @discardableResult
     public func open(
         _ url: URL,
+        contentSelection: PlaybackContentSelection = .file,
         asset: PlaybackAsset? = nil,
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
@@ -206,6 +207,7 @@ public final class PlaybackCoreController {
         do {
             try await session.prepare(
                 url: url,
+                contentSelection: contentSelection,
                 asset: asset,
                 startTime: startTime,
                 startsPaused: startsPaused,

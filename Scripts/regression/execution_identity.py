@@ -218,9 +218,12 @@ class FrozenExecutionInput:
         artifact = _absolute_lexical(self.artifact_root, "artifact root")
         _relative_path(repository, artifact, "artifact root")
         launches = tuple(sorted(self.launches, key=lambda item: _lane_key(item.lane)))
-        if tuple(item.lane for item in launches) != _LANES:
+        artifact_lanes = tuple(item.lane for item in self.build_identity.lane_artifacts)
+        if tuple(item.lane for item in launches) != artifact_lanes or artifact_lanes not in (
+            (BoundLane.SIMULATOR,), _LANES
+        ):
             raise ExecutionIdentityError(
-                "frozen execution input must bind simulator and device launches exactly"
+                "frozen execution input must bind its requested simulator or dual-lane artifacts exactly"
             )
         artifacts = {item.lane: item for item in self.build_identity.lane_artifacts}
         if any(launch.lane_artifact != artifacts[launch.lane] for launch in launches):
@@ -1011,8 +1014,11 @@ def _build_provenance_bytes(
 
 
 def prepare_build_provenance(
-    repo_root: Path, artifact_root: Path
+    repo_root: Path, artifact_root: Path,
+    lanes: tuple[BoundLane, ...] = _LANES,
 ) -> tuple[PreparedLaneProvenance, ...]:
+    if lanes not in ((BoundLane.SIMULATOR,), _LANES):
+        raise ExecutionIdentityError("build provenance lanes must be simulator or both lanes")
     repository, artifact = _validated_roots(repo_root, artifact_root, create_artifact=True)
     if not _clean(repository):
         raise ExecutionIdentityError("build provenance requires a clean integrated worktree")
@@ -1023,10 +1029,10 @@ def prepare_build_provenance(
     provenance_relative = Path("build-provenance")
     lane_paths = {
         lane: artifact / provenance_relative / f"{lane.value}.json"
-        for lane in _LANES
+        for lane in lanes
     }
     build_settings = {
-        lane: _xcode_build_setting(lane_paths[lane]) for lane in _LANES
+        lane: _xcode_build_setting(lane_paths[lane]) for lane in lanes
     }
     artifact_relative = _relative_path(repository, artifact, "artifact root")
     _create_descendant_directory(
@@ -1040,7 +1046,7 @@ def prepare_build_provenance(
             artifact_descriptor, provenance_relative, "build provenance directory"
         )
         try:
-            for lane in _LANES:
+            for lane in lanes:
                 source = _build_provenance_bytes(lane, revision, source_digest, toolchain)
                 name = f"{lane.value}.json"
                 _atomic_replace_regular_at(
@@ -1074,8 +1080,8 @@ def prepare_build_provenance(
 
 def _lane_map(values: Mapping[BoundLane, Any], label: str) -> dict[BoundLane, Any]:
     result = dict(values)
-    if set(result) != set(_LANES):
-        raise ExecutionIdentityError(f"{label} must cover simulator and device exactly")
+    if set(result) not in ({BoundLane.SIMULATOR}, set(_LANES)):
+        raise ExecutionIdentityError(f"{label} must cover simulator only or simulator and device exactly")
     return result
 
 
@@ -1198,8 +1204,8 @@ def _validated_lane_targets(
     if any(not isinstance(value, str) or not value.strip() for value in targets.values()):
         raise ExecutionIdentityError(f"{label} must be non-empty text")
     simulator = targets[BoundLane.SIMULATOR]
-    device = targets[BoundLane.DEVICE]
-    if simulator == device:
+    device = targets.get(BoundLane.DEVICE)
+    if device is not None and simulator == device:
         raise ExecutionIdentityError(f"{label} must be distinct")
     registered = (simulator_udid_source or registered_simulator_udids)()
     if not isinstance(registered, frozenset) or any(not isinstance(item, str) for item in registered):
@@ -1208,6 +1214,8 @@ def _validated_lane_targets(
         raise ExecutionIdentityError(
             "simulator lane target must be a currently registered simctl UDID"
         )
+    if device is None:
+        return targets
     if device in registered:
         raise ExecutionIdentityError(
             "device lane target must not be a registered simulator UDID"
@@ -1424,8 +1432,8 @@ def _parse_xctestrun(source: bytes, products_root: Path) -> _ParsedXCTestRun:
         )
         for index, value in enumerate(dependencies_value)
     )
-    if ui_target.name != "Enchron.app":
-        raise ExecutionIdentityError("UITargetAppPath must identify Enchron.app")
+    if ui_target.name != "EnchronDebug.app":
+        raise ExecutionIdentityError("UITargetAppPath must identify EnchronDebug.app")
     if test_host.name != "EnchronAppUITests-Runner.app":
         raise ExecutionIdentityError(
             "TestHostPath must identify EnchronAppUITests-Runner.app"
@@ -1569,17 +1577,19 @@ def _application_code(
 ) -> tuple[str, bytes, Path]:
     info_path = app_path / "Info.plist"
     info_source, _ = _read_regular_at(
-        products_descriptor, info_path, "Enchron.app Info.plist"
+        products_descriptor, info_path, "EnchronDebug.app Info.plist"
     )
-    info = _decode_plist(info_source, "Enchron.app Info.plist")
+    info = _decode_plist(info_source, "EnchronDebug.app Info.plist")
     bundle_identifier = _text(
-        info.get("CFBundleIdentifier"), "Enchron.app CFBundleIdentifier"
+        info.get("CFBundleIdentifier"), "EnchronDebug.app CFBundleIdentifier"
     )
-    executable = _text(info.get("CFBundleExecutable"), "Enchron.app CFBundleExecutable")
-    if executable != "Enchron":
-        raise ExecutionIdentityError("Enchron.app CFBundleExecutable must identify Enchron")
+    if bundle_identifier != "com.xiongzhipeng.Enchron.debug":
+        raise ExecutionIdentityError("UI test app bundle identifier must identify EnchronDebug")
+    executable = _text(info.get("CFBundleExecutable"), "EnchronDebug.app CFBundleExecutable")
+    if executable != "EnchronDebug":
+        raise ExecutionIdentityError("EnchronDebug.app CFBundleExecutable must identify EnchronDebug")
     code_path = app_path / f"{executable}.debug.dylib"
-    code, _ = _read_regular_at(products_descriptor, code_path, "Enchron.debug.dylib")
+    code, _ = _read_regular_at(products_descriptor, code_path, "EnchronDebug.debug.dylib")
     return bundle_identifier, code, code_path
 
 
@@ -1882,6 +1892,8 @@ def _configuration_receipt(
 
 def _assert_no_lane_collisions(artifacts: Sequence[LaneBuildArtifact]) -> None:
     by_lane = {item.lane: item for item in artifacts}
+    if BoundLane.DEVICE not in by_lane:
+        return
     simulator = by_lane[BoundLane.SIMULATOR]
     device = by_lane[BoundLane.DEVICE]
     for name, label in (
@@ -1914,6 +1926,7 @@ def _freeze_current(
     revision = _revision(repository)
     source_digest = repository_source_digest(repository)
     toolchain = query_toolchain_identity()
+    requested_lanes = tuple(lane for lane in _LANES if lane in targets)
     if bootstrap:
         configuration_digest = _bootstrap_configuration_digest(source_digest)
         with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
@@ -1926,7 +1939,7 @@ def _freeze_current(
                     source_digest,
                     toolchain,
                 )
-                for lane in _LANES
+                for lane in requested_lanes
             )
     else:
         with _directory_descriptor(artifact, "artifact root") as artifact_descriptor:
@@ -1940,7 +1953,7 @@ def _freeze_current(
                     source_digest,
                     toolchain,
                 )
-                for lane in _LANES
+                for lane in requested_lanes
             )
     bundle_identifiers = {state.bundle_identifier for state in states}
     if len(bundle_identifiers) != 1:
@@ -2221,9 +2234,9 @@ def _parse_build_identity(value: object) -> BuildIdentity:
         "buildIdentity",
     )
     artifacts_value = build["laneArtifacts"]
-    if not isinstance(artifacts_value, list) or len(artifacts_value) != 2:
+    if not isinstance(artifacts_value, list) or len(artifacts_value) not in (1, 2):
         raise ExecutionIdentityError(
-            "buildIdentity.laneArtifacts must contain simulator and device"
+            "buildIdentity.laneArtifacts must contain simulator or both lanes"
         )
     artifacts = []
     for index, value in enumerate(artifacts_value):
@@ -2263,8 +2276,8 @@ def _parse_build_identity(value: object) -> BuildIdentity:
 def _parse_lanes(
     value: object, artifact_root: Path, build: BuildIdentity
 ) -> tuple[FrozenTestLaunch, ...]:
-    if not isinstance(value, list) or len(value) != 2:
-        raise ExecutionIdentityError("lanes must contain simulator and device")
+    if not isinstance(value, list) or len(value) not in (1, 2):
+        raise ExecutionIdentityError("lanes must contain simulator or both lanes")
     artifacts = {artifact.lane: artifact for artifact in build.lane_artifacts}
     launches = []
     for index, item in enumerate(value):
@@ -2288,18 +2301,21 @@ def _parse_lanes(
                 f"{location}.xctestrunPath is outside the fixed lane Products root"
             ) from error
         target = _text(parsed["targetId"], f"{location}.targetId")
+        artifact = artifacts.get(lane)
+        if artifact is None:
+            raise ExecutionIdentityError(f"{location}.lane has no frozen build artifact")
         launches.append(
             FrozenTestLaunch(
                 lane,
                 target,
                 artifact_root / relative,
                 _destination_specifier(lane, target),
-                artifacts[lane],
+                artifact,
             )
         )
     launches.sort(key=lambda item: _lane_key(item.lane))
-    if tuple(item.lane for item in launches) != _LANES:
-        raise ExecutionIdentityError("lanes must cover simulator and device exactly")
+    if tuple(item.lane for item in launches) != tuple(item.lane for item in build.lane_artifacts):
+        raise ExecutionIdentityError("lanes must match frozen BuildIdentity artifacts exactly")
     return tuple(launches)
 
 
@@ -2399,7 +2415,7 @@ def load_execution_input(path: Path) -> FrozenExecutionInput:
                     source_digest,
                     toolchain,
                 )
-                for lane in _LANES
+                for lane in targets
             )
             relative_input = _relative_path(artifact, source_path, "execution input")
             current_source, _ = _read_regular_at(
@@ -2426,7 +2442,7 @@ def load_execution_input(path: Path) -> FrozenExecutionInput:
                     source_digest,
                     toolchain,
                 )
-                for lane in _LANES
+                for lane in targets
             )
             relative_input = _relative_path(artifact, source_path, "execution input")
             current_source, _ = _read_regular_at(

@@ -144,6 +144,7 @@
 				MediaLibrary/MediaLibraryFeature.swift,
 				MediaLibrary/MediaLibraryViewModel.swift,
 				MediaLibrary/SystemImportDeliveryDiagnostics.swift,
+				MediaLibrary/Model/BluRayBrowsing.swift,
 				MediaLibrary/Model/ExternalSubtitleAssociation.swift,
 				MediaLibrary/Model/MediaBrowsing.swift,
 				MediaLibrary/Model/MediaLibrary.swift,

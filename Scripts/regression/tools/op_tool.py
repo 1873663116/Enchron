@@ -263,6 +263,7 @@ def run(
     target: str,
     sidekick: SidekickID,
     now_millis: Optional[int] = None,
+    execution_input_path: Path | None = None,
 ) -> OpOutcome:
     if not isinstance(lane, BoundLane):
         raise OpToolError("op drives one concrete lane")
@@ -317,6 +318,7 @@ def run(
             assignment,
             (assignment / "controller").resolve(),
             main.plan.build_identity.bundle_identifier,
+            execution_input_path,
         )
         bridge = _AdapterBridge(
             context,

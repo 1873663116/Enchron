@@ -209,9 +209,9 @@ class BootstrapFreezeTests(unittest.TestCase):
                             "BlueprintName": "EnchronAppUITests",
                             "TestBundlePath": "__TESTHOST__/PlugIns/EnchronAppUITests.xctest",
                             "TestHostPath": "__TESTROOT__/Debug/EnchronAppUITests-Runner.app",
-                            "UITargetAppPath": "__TESTROOT__/Debug/Enchron.app",
+                            "UITargetAppPath": "__TESTROOT__/Debug/EnchronDebug.app",
                             "DependentProductPaths": [
-                                "__TESTROOT__/Debug/Enchron.app",
+                                "__TESTROOT__/Debug/EnchronDebug.app",
                                 "__TESTROOT__/Debug/EnchronAppUITests-Runner.app",
                                 "__TESTROOT__/Debug/Shared.framework",
                             ],
@@ -226,7 +226,7 @@ class BootstrapFreezeTests(unittest.TestCase):
     def write_lane(self, lane: BoundLane) -> dict[str, Path]:
         prefix = self.artifact / "lanes" / lane.value / "DerivedData" / "Build" / "Products"
         configuration = prefix / "Debug"
-        app = configuration / "Enchron.app"
+        app = configuration / "EnchronDebug.app"
         runner = configuration / "EnchronAppUITests-Runner.app"
         test_bundle = runner / "PlugIns" / "EnchronAppUITests.xctest"
         shared = configuration / "Shared.framework"
@@ -235,15 +235,15 @@ class BootstrapFreezeTests(unittest.TestCase):
         (app / "Info.plist").write_bytes(
             plistlib.dumps(
                 {
-                    "CFBundleIdentifier": "com.example.Enchron",
-                    "CFBundleExecutable": "Enchron",
+                    "CFBundleIdentifier": "com.xiongzhipeng.Enchron.debug",
+                    "CFBundleExecutable": "EnchronDebug",
                 },
                 sort_keys=True,
             )
         )
-        (app / "Enchron").write_bytes(f"{lane.value}-launch-stub".encode())
+        (app / "EnchronDebug").write_bytes(f"{lane.value}-launch-stub".encode())
         stamp = self.artifact / "build-provenance" / f"{lane.value}.json"
-        code = app / "Enchron.debug.dylib"
+        code = app / "EnchronDebug.debug.dylib"
         code.write_bytes(_macho(stamp.read_bytes(), lane))
         (runner / "Runner").write_bytes(f"{lane.value}-runner".encode())
         (test_bundle / "EnchronAppUITests").write_bytes(

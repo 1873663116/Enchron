@@ -556,6 +556,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     func prepare(
         url: URL,
+        contentSelection: PlaybackContentSelection = .file,
         asset: PlaybackAsset? = nil,
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
@@ -582,7 +583,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         sourceURL = url
         sourceAsset = asset
         sourceIsRemote = sourceTransport.isRemote
-        try demuxSession?.configureSource(transport: sourceTransport)
+        try await demuxSession?.configureSource(
+            transport: sourceTransport, selection: contentSelection
+        )
         let sourceInformation: MediaSourceInformation?
         if let mediaSourceInformationLoader {
             sourceInformation = if demuxSession != nil {
@@ -692,7 +695,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             source: sourceRecord,
             initialTimeSeconds: startTime.seconds,
             startsPaused: startsPaused,
-            initialRate: initialRate ?? timelineStartRate
+            initialRate: initialRate ?? timelineStartRate,
+            bluRayPlaylistID: contentSelection.bluRayPlaylistID
         )
         mediaSessionRecord = sessionRecord
         debugStore.recordSession(sessionRecord)

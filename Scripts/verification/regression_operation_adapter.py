@@ -23,6 +23,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 VERIFICATION_DIRECTORY = REPOSITORY_ROOT / "Scripts/verification"
 INVENTORY_PATH = REPOSITORY_ROOT / "Config/reachability_operation_inventory.json"
 REMOTE_SOURCE_PATH = REPOSITORY_ROOT / "Scripts/verification/regression_remote_source.py"
+BLURAY_WEBDAV_TREE_PATH = REPOSITORY_ROOT / "Scripts/verification/bluray_webdav_tree.py"
 REMOTE_PREFLIGHT_PATH = (
     REPOSITORY_ROOT / "Scripts/verification/regression_environment_preflight.py"
 )
@@ -126,6 +127,7 @@ def _screenshot_digest(response: Mapping[str, object]) -> str | None:
 REMOTE_IMPLEMENTATION_IDENTITIES = MappingProxyType(
     {
         "remote-source-service": _source_identity(REMOTE_SOURCE_PATH),
+        "bluray-webdav-tree": _source_identity(BLURAY_WEBDAV_TREE_PATH),
         "remote-environment-preflight": _source_identity(REMOTE_PREFLIGHT_PATH),
     }
 )
@@ -335,6 +337,7 @@ class OperationContext:
     attempt_root: Path
     controller_directory: Path
     bundle_id: str = "com.xiongzhipeng.Enchron"
+    execution_input_path: Path | None = None
 
     def __post_init__(self) -> None:
         if self.lane not in ("simulator", "device"):
@@ -343,6 +346,8 @@ class OperationContext:
             raise OperationAdapterError("context target must not be empty")
         if not self.attempt_root.is_absolute() or not self.controller_directory.is_absolute():
             raise OperationAdapterError("attempt paths must be absolute")
+        if self.execution_input_path is not None and not self.execution_input_path.is_absolute():
+            raise OperationAdapterError("execution input path must be absolute")
 
 
 @dataclass(frozen=True)
@@ -2334,6 +2339,8 @@ def _media_open(arguments: Mapping[str, object]) -> None:
         for prefix in (
             "MediaLibrary-grid-video-",
             "FileBrowsing-grid-video-",
+            "MediaLibrary-grid-bluray-playlist-",
+            "FileBrowsing-grid-bluray-playlist-",
             "Emby-Episode-",
         )
     )
@@ -3398,6 +3405,8 @@ class ResidentOperationBackend:
             "--output-directory",
             str(controller_directory),
         ]
+        if context.execution_input_path is not None:
+            prefix.extend(("--execution-input", str(context.execution_input_path)))
         controller = ControllerClient(lane, command_prefix=prefix, budgets=budgets)
         tools = LocalToolRunner(lane, budgets=budgets)
         policy = RecoveryPolicy()
@@ -6404,12 +6413,23 @@ class ResidentOperationBackend:
             transport.developer_dir,
             transport,
         )
-        receipt = staging.stage_registered_fixture(
-            registry=staging.FixtureRegistry.load(staging.DEFAULT_REGISTRY),
-            fixture_id=str(arguments["fixtureID"]),
-            source_root=portable.resolve(str(arguments["sourceRoot"])),
-            transport=lane_bound_transport,
-        )
+        fixture_id = str(arguments["fixtureID"])
+        source_root = portable.resolve(str(arguments["sourceRoot"]))
+        if fixture_id.startswith("bluray-"):
+            import stage_registered_bluray as bluray_staging
+
+            receipt = bluray_staging.stage_registered_bluray(
+                identifier=fixture_id,
+                source_root=source_root,
+                transport=lane_bound_transport,
+            )
+        else:
+            receipt = staging.stage_registered_fixture(
+                registry=staging.FixtureRegistry.load(staging.DEFAULT_REGISTRY),
+                fixture_id=fixture_id,
+                source_root=source_root,
+                transport=lane_bound_transport,
+            )
         return {"succeeded": True, "receipt": receipt}
 
     def _media_import_staged_2(self, arguments, context):

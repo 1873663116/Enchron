@@ -9,6 +9,7 @@ import PlaybackCore
 class PlaybackMediaSessionDriver {
     struct OpenRequest {
         let url: URL
+        let contentSelection: PlaybackContentSelection
         let startTime: CMTime
         let startsPaused: Bool
         let initialRate: Float?
@@ -22,6 +23,7 @@ class PlaybackMediaSessionDriver {
 
         init(
             url: URL,
+            contentSelection: PlaybackContentSelection = .file,
             startTime: CMTime = .zero,
             startsPaused: Bool = false,
             initialRate: Float? = nil,
@@ -34,6 +36,7 @@ class PlaybackMediaSessionDriver {
             accessRequirement: String = "appAdapterManaged"
         ) {
             self.url = url
+            self.contentSelection = contentSelection
             self.startTime = startTime
             self.startsPaused = startsPaused
             self.initialRate = initialRate
@@ -171,6 +174,7 @@ class PlaybackMediaSessionDriver {
         }
         let openedSession = try await controller.open(
             request.url,
+            contentSelection: request.contentSelection,
             startTime: request.startTime,
             startsPaused: request.startsPaused,
             initialRate: request.initialRate,
