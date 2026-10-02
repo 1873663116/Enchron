@@ -115,7 +115,7 @@ public struct FilesScreen: View {
             return viewModel.displayedFolders.count + viewModel.displayedFiles.count
         }
         if mediaLibrary.currentBluRayDiscName != nil {
-            return mediaLibrary.currentBluRayTitles.count
+            return displayedLibraryBluRayTitles.count
         }
         return displayedLibraryFolders.count + displayedLibraryReferences.count
     }
@@ -150,6 +150,12 @@ public struct FilesScreen: View {
             return FileBrowsingDomain.SortCriteria.dated(byName, order: criteria.order) { $0.createdAt }
         }
         return criteria.order == .ascending ? byName : Array(byName.reversed())
+    }
+
+    private var displayedLibraryBluRayTitles: [BluRayTitleItem] {
+        mediaLibrary.currentBluRayTitles.filter {
+            MediaLibrarySearch.matches($0, query: viewModel.searchText)
+        }
     }
 
     private var sortKeyAvailability: FileBrowsingDomain.SortKeyAvailability {
@@ -994,7 +1000,7 @@ public struct FilesScreen: View {
                     }
                 } else {
                     if mediaLibrary.currentBluRayDiscName != nil {
-                        ForEach(mediaLibrary.currentBluRayTitles) { title in
+                        ForEach(displayedLibraryBluRayTitles) { title in
                             GridCard.video(
                                 title: title.displayName,
                                 artworkURL: nil,
@@ -1149,7 +1155,7 @@ public struct FilesScreen: View {
 
     private var libraryListItems: [FileListGroup.Item] {
         if mediaLibrary.currentBluRayDiscName != nil {
-            return mediaLibrary.currentBluRayTitles.map { title in
+            return displayedLibraryBluRayTitles.map { title in
                 .video(
                     id: "library-bluray-playlist-\(title.playlistID.rawValue)",
                     title: title.displayName,

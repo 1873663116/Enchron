@@ -205,6 +205,33 @@ struct ProductStateResetReceipt: Encodable, Equatable {
     }
 }
 
+struct StagedMediaFolder {
+    enum Entry: String {
+        case root
+        case bdmv
+    }
+
+    let url: URL
+
+    init(inbox: URL, directory: String, entry: Entry, fileManager: FileManager = .default) throws {
+        guard directory.isEmpty == false,
+              directory != ".",
+              directory != "..",
+              (directory as NSString).lastPathComponent == directory else {
+            throw TestMediaDirectorySource.SourceError.invalidDirectoryName
+        }
+        let root = inbox.appending(path: directory, directoryHint: .isDirectory)
+        let selected = entry == .root ? root : root.appending(path: "BDMV", directoryHint: .isDirectory)
+        for candidate in [root, selected] {
+            let values = try candidate.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard values.isDirectory == true, values.isSymbolicLink != true else {
+                throw TestMediaDirectorySource.SourceError.destinationIsNotDirectory
+            }
+        }
+        url = selected
+    }
+}
+
 struct TestMediaDirectorySource: Equatable {
     enum SourceError: LocalizedError {
         case invalidDirectoryName
@@ -1438,6 +1465,21 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: allReferenceNames
             )
+        case "importStagedFolder":
+            guard let directory = request.args["directory"],
+                  let entry = StagedMediaFolder.Entry(rawValue: request.args["entry"] ?? "root") else {
+                throw CommandError(message: "importStagedFolder requires directory and a root or bdmv entry.")
+            }
+            let folder = try StagedMediaFolder(inbox: inboxURL, directory: directory, entry: entry)
+            let before = Set(allReferences.map(\.id))
+            await mediaLibrary.addFolder(folder.url)
+            if let detail = mediaLibrary.lastErrorMessage {
+                throw CommandError(message: detail)
+            }
+            guard allReferences.contains(where: { before.contains($0.id) == false }) else {
+                throw CommandError(message: "The production folder import pipeline added no media.")
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: allReferenceNames)
         case "importMediaDirectory":
             guard let directoryName = request.args["directory"],
                   let mediaFileName = request.args["media"],

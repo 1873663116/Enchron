@@ -1,6 +1,10 @@
 import Foundation
 
 public nonisolated enum MediaLibrarySearch {
+    public static func matches(_ title: BluRayTitleItem, query: String) -> Bool {
+        matchesVisibleName(title.displayName, query: query)
+    }
+
     public static func matches(
         _ folder: FileBrowsingDomain.LibraryFolder,
         query: String

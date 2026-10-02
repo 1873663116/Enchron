@@ -6,6 +6,27 @@ import XCTest
 
 nonisolated final class LibraryEvidenceSnapshotTests: XCTestCase {
     @MainActor
+    func testStagedFolderBindsRootAndBDMVWithoutCopyingOrAcceptingTraversal() throws {
+        let inbox = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let root = inbox.appending(path: "Disc")
+        let bdmv = root.appending(path: "BDMV")
+        try FileManager.default.createDirectory(at: bdmv, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: inbox) }
+        try Data([1, 2, 3]).write(to: bdmv.appending(path: "index.bdmv"))
+
+        XCTAssertEqual(try StagedMediaFolder(inbox: inbox, directory: "Disc", entry: .root).url.path, root.path)
+        XCTAssertEqual(try StagedMediaFolder(inbox: inbox, directory: "Disc", entry: .bdmv).url.path, bdmv.path)
+        XCTAssertEqual(try Data(contentsOf: bdmv.appending(path: "index.bdmv")), Data([1, 2, 3]))
+        for name in ["", ".", "..", "../Disc", "Disc/BDMV"] {
+            XCTAssertThrowsError(try StagedMediaFolder(inbox: inbox, directory: name, entry: .root))
+        }
+        let link = inbox.appending(path: "Link")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: root)
+        XCTAssertThrowsError(try StagedMediaFolder(inbox: inbox, directory: "Link", entry: .root))
+        XCTAssertThrowsError(try StagedMediaFolder(inbox: inbox, directory: "Missing", entry: .root))
+    }
+
+    @MainActor
     func testProductStateResetReceiptFindsOnlyManagedDefaultsAndCanonicalizesLists() throws {
         let suiteName = "ProductStateResetReceiptTests.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

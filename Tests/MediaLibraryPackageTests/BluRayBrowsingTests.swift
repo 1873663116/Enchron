@@ -216,6 +216,15 @@ struct BluRayBrowsingTests {
         #expect(viewModel.isBrowsingBluRayDisc)
         #expect(viewModel.canNavigateUp)
         #expect(viewModel.currentLevelHasSettled)
+
+        viewModel.searchText = " 00008 "
+        #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [8])
+        viewModel.searchText = "BONUS"
+        #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [42])
+        viewModel.searchText = "unavailable title"
+        #expect(viewModel.displayedBluRayTitles.isEmpty)
+        viewModel.searchText = " "
+        #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [8, 42])
     }
 
     @MainActor

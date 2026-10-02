@@ -33,11 +33,7 @@ public final class FileBrowsingViewModel {
     }
 
     public var displayedBluRayTitles: [BluRayTitleItem] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard query.isEmpty == false else { return currentBluRayTitles }
-        return currentBluRayTitles.filter {
-            $0.displayName.localizedCaseInsensitiveContains(query)
-        }
+        currentBluRayTitles.filter { MediaLibrarySearch.matches($0, query: searchText) }
     }
 
     public var isBrowsingBluRayDisc: Bool { currentBluRayLevel != nil }
