@@ -419,11 +419,14 @@ static int monitored_av_read_frame(
     AVFormatContext *context,
     AVPacket *packet
 ) {
-    source_read_monitor_note_read_begin(monitor);
-    int result = av_read_frame(context, packet);
-    source_read_monitor_note_read_end(monitor);
-    PBFFmpegSourceReadContext *readContext = context->interrupt_callback.opaque;
-    if (result >= 0 && readContext && readContext->disc && packet->pos >= 0) {
+    while (true) {
+        source_read_monitor_note_read_begin(monitor);
+        int result = av_read_frame(context, packet);
+        source_read_monitor_note_read_end(monitor);
+        PBFFmpegSourceReadContext *readContext = context->interrupt_callback.opaque;
+        if (result < 0 || !readContext || !readContext->disc || packet->pos < 0) {
+            return result;
+        }
         PBBlurayClipInfo clip;
         uint32_t clipIndex = 0;
         for (; clipIndex < PBBlurayReaderClipCount(readContext->disc); clipIndex++) {
@@ -433,6 +436,15 @@ static int monitored_av_read_frame(
         }
         if (clipIndex < PBBlurayReaderClipCount(readContext->disc)) {
             AVStream *stream = context->streams[packet->stream_index];
+            if (stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO &&
+                packet->pts != AV_NOPTS_VALUE &&
+                av_compare_ts(
+                    packet->pts, stream->time_base,
+                    (int64_t)clip.outTime90k, (AVRational){1, 90000}
+                ) >= 0) {
+                av_packet_unref(packet);
+                continue;
+            }
             int64_t offset = av_rescale_q(
                 (int64_t)clip.startTime90k - (int64_t)clip.inTime90k,
                 (AVRational){1, 90000}, stream->time_base
@@ -456,8 +468,8 @@ static int monitored_av_read_frame(
                 break;
             }
         }
+        return result;
     }
-    return result;
 }
 
 static int monitored_avformat_open_input(

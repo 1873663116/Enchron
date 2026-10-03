@@ -117,3 +117,43 @@ func selectedDiscAudioUsesTheSameZeroBasedTitleClock(_ path: String) throws {
         #expect(firstTime < 0.1)
     }
 }
+
+@Test(arguments: ["Sintel-Editions/Sintel-Editions.iso", "Sintel-Editions/Sintel-Editions"])
+func selectedDiscAudioDoesNotRepeatTheTimestampAtAClipBoundary(_ path: String) throws {
+    try withDiscDemux(path, playlist: 1) { source in
+        var error = [CChar](repeating: 0, count: 512)
+        let reader = try #require(PBFFmpegAudioReaderAllocate())
+        defer { PBFFmpegAudioReaderDestroy(reader) }
+        try #require(PBFFmpegAudioReaderOpenWithDemuxSource(
+            reader, source, -1, &error, error.count
+        ))
+
+        var times: [Double] = []
+        while true {
+            var reference: Unmanaged<CMSampleBuffer>?
+            var metadata = PBFFmpegAudioSampleMetadata()
+            let result = PBFFmpegAudioReaderCopyNextSample(
+                reader, &reference, &metadata, &error, error.count
+            )
+            if result == PBFFmpegReadResultEnd { break }
+            try #require(result == PBFFmpegReadResultSample)
+            let sample = try #require(reference?.takeRetainedValue())
+            times.append(CMSampleBufferGetPresentationTimeStamp(sample).seconds)
+        }
+
+        for (previous, current) in zip(times, times.dropFirst()) {
+            #expect(
+                current > previous,
+                Comment(rawValue: "audio PTS repeated or moved backwards: \(previous) -> \(current)")
+            )
+        }
+
+        let boundary = times.filter { $0 >= 64.9 && $0 <= 65.1 }
+        let expectedBoundary = [64.904, 64.936, 64.968, 65.000, 65.032, 65.064, 65.096]
+        #expect(boundary.count == expectedBoundary.count)
+        for (actual, expected) in zip(boundary, expectedBoundary) {
+            #expect(abs(actual - expected) < 0.000_001)
+        }
+        #expect(times.filter { abs($0 - 65.0) < 0.000_001 }.count == 1)
+    }
+}
