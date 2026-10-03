@@ -11,7 +11,6 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
-import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,14 +23,15 @@ from Scripts.regression.core.contracts import BoundLane
 from Scripts.regression.core.plan import ScenarioAttemptNode
 from Scripts.regression.core.runtime import open_run
 from Scripts.regression.runctl import compile_execution_plan
+from Scripts.regression.tools import server as regression_server
 from Scripts.regression.tools.pixel_heuristics import all_black
 from Scripts.regression.tools.raster import decode_png
-from Scripts.verification.prepare_bluray_supplement import CASES
+from Scripts.verification.prepare_bluray_supplement import CASES, BluRayCase
 from Scripts.verification.verify_bluray_corpus import parse_mpls
 
 
 CORPUS = ROOT.parent / "TestMedia/Samples/DiscImages"
-CASES_BY_SCENARIO = {f"scenario:bluray-disc:{case[0]}": case for case in CASES}
+CASES_BY_SCENARIO = {f"scenario:bluray-disc:{case.slug}": case for case in CASES}
 
 
 class BluRayE2EError(ValueError):
@@ -46,35 +46,18 @@ def _rendered_duration(seconds: float) -> str:
     return f"{minutes // 60} hr {minutes % 60} min" if minutes >= 60 else f"{minutes} min"
 
 
-def _oracle(case: tuple, corpus: Path) -> tuple[int, dict[int, str]]:
-    slug, _, _, _, playlist, expected_count, _ = case
-    release, folder = (
-        ("AVS-HD-709", "HDMV-2d") if slug.startswith("avs")
-        else ("DolbyVision-Profile7-FEL", "FEL_test_for_AVS")
-    )
-    playlists = corpus / release / folder / "BDMV/PLAYLIST"
+def _oracle(case: BluRayCase, corpus: Path) -> tuple[int, dict[int, str]]:
+    playlists = corpus / case.corpus_release / case.corpus_folder / "BDMV/PLAYLIST"
     authored = sorted(playlists.glob("*.mpls"))
-    if len(authored) != expected_count:
+    if len(authored) != case.authored_playlist_count:
         raise BluRayE2EError("authored playlist count differs from the registered corpus")
-    ids = [playlist] + ([43] if slug.startswith("avs") else [])
+    ids = [case.selected_playlist] + [item[0] for item in case.companion_titles]
     durations = {
         identifier: _rendered_duration(
             parse_mpls(playlists / f"{identifier:05d}.mpls")["duration90k"] / 90_000
         ) for identifier in ids
     }
     return len(authored), durations
-
-
-def _result(document: dict) -> dict:
-    if document.get("error"):
-        raise BluRayE2EError(str(document["error"]))
-    blocks = document.get("content")
-    if not isinstance(blocks, list) or not blocks or blocks[0].get("type") != "text":
-        raise BluRayE2EError("Operation gateway returned no typed text result")
-    result = json.loads(blocks[0]["text"])
-    if result.get("refused") or result.get("succeeded") is not True:
-        raise BluRayE2EError(f"Operation failed or was refused: {result}")
-    return result
 
 
 def _matched_label(fields: dict) -> str:
@@ -107,7 +90,7 @@ def verify_transcript(transcript: dict, corpus: Path = CORPUS) -> dict:
     case = CASES_BY_SCENARIO.get(scenario)
     if case is None:
         raise BluRayE2EError("Transcript scenario is not a registered Blu-ray case")
-    _, _, _, _, selected_id, _, _ = case
+    selected_id = case.selected_playlist
     count, durations = _oracle(case, corpus)
     outcomes = transcript.get("outcomes")
     if not isinstance(outcomes, list):
@@ -117,7 +100,12 @@ def verify_transcript(transcript: dict, corpus: Path = CORPUS) -> dict:
     selections: list[str] = []
     captured: list[dict] = []
     real_tap_ids: list[str] = []
-    for outcome in outcomes:
+    group_labels: dict[str, list[str]] = {kind: [] for kind, _ in case.group_counts}
+    inspect_positions: dict[str, list[int]] = {}
+    tap_positions: dict[str, list[int]] = {}
+    selection_positions: list[int] = []
+    frame_outcome_positions: list[int] = []
+    for outcome_index, outcome in enumerate(outcomes):
         if outcome.get("succeeded") is not True or outcome.get("refused"):
             raise BluRayE2EError("Transcript contains a failed or refused Operation")
         operation = outcome.get("operation")
@@ -125,40 +113,117 @@ def verify_transcript(transcript: dict, corpus: Path = CORPUS) -> dict:
         if not isinstance(fields, dict):
             raise BluRayE2EError("Operation has no fields")
         if operation == "operation:accessibility.activate@2":
-            real_tap_ids.extend(outcome.get("arguments", {}).get("identifiers", []))
+            for identifier in outcome.get("arguments", {}).get("identifiers", []):
+                real_tap_ids.append(identifier)
+                tap_positions.setdefault(identifier, []).append(outcome_index)
         elif operation == "operation:media.open@2":
-            real_tap_ids.append(outcome.get("arguments", {}).get("identifier", ""))
+            identifier = outcome.get("arguments", {}).get("identifier", "")
+            if "grid-bluray-playlist" in identifier:
+                raise BluRayE2EError("Old playlist card identifier cannot select projected content")
+            real_tap_ids.append(identifier)
+            tap_positions.setdefault(identifier, []).append(outcome_index)
         elif operation == "operation:accessibility.inspect@2":
             identifier = fields.get("requestedIdentifier")
+            if isinstance(identifier, str) and "grid-bluray-playlist" in identifier:
+                raise BluRayE2EError("Old playlist card identifier cannot prove projected content")
             label = _matched_label(fields)
+            if "Playlist ID" in label:
+                raise BluRayE2EError("Content label exposes a visible Playlist ID")
+            if isinstance(identifier, str):
+                inspect_positions.setdefault(identifier, []).append(outcome_index)
             if identifier == "FileBrowsing-FilesScreen-itemCount":
                 counts.append(label)
+            for kind in group_labels:
+                if identifier == f"FileBrowsing-grid-bluray-group-{kind}":
+                    group_labels[kind].append(label)
             for title_id in durations:
-                if identifier == f"FileBrowsing-grid-bluray-playlist-{title_id}":
+                if identifier == f"FileBrowsing-grid-bluray-content-{title_id}":
                     title_labels[title_id].append(label)
         elif operation == "operation:diagnostics.playback-state@1":
             state = fields.get("fields")
             if not isinstance(state, dict):
                 raise BluRayE2EError("Playback diagnostic has no state fields")
             selections.append(str(state.get("bluRayPlaylistID")))
+            selection_positions.append(outcome_index)
         elif operation == "operation:evidence.capture-frames@1":
             captured.extend(fields.get("frames", []))
-    expected_count_reads = 2 if case[3].endswith(".iso") is False else 1
-    if len(counts) < expected_count_reads or any(f"{count} items" not in item for item in counts):
-        raise BluRayE2EError(f"Title count mismatch: expected {count} twice for BDMV parent/self, got {counts}")
-    for title_id, duration in durations.items():
-        labels = title_labels[title_id]
-        required_reads = expected_count_reads if title_id == selected_id else 1
-        if len(labels) < required_reads or any(
-            f"Playlist ID {title_id}" not in label or f"Duration {duration}" not in label
+            frame_outcome_positions.append(outcome_index)
+    expected_counts = [case.root_item_count]
+    if case.is_directory:
+        expected_counts.append(case.root_item_count)
+    if case.selected_group:
+        expected_counts.append(dict(case.group_counts)[case.selected_group])
+    if len(counts) != len(expected_counts) or any(
+        f"{expected} items" not in observed
+        for expected, observed in zip(expected_counts, counts)
+    ):
+        raise BluRayE2EError(
+            f"Projected content count mismatch: expected {expected_counts}, got {counts}"
+        )
+
+    expected_group_reads = 2 if case.is_directory else 1
+    for kind, expected_count in case.group_counts:
+        labels = group_labels[kind]
+        display_name = {
+            "videos": "Videos",
+            "sequences": "Sequences",
+            "stillImages": "Still images",
+            "additional": "Additional content",
+        }[kind]
+        if len(labels) != expected_group_reads or any(
+            display_name not in label or f"{expected_count} items" not in label
             for label in labels
         ):
-            raise BluRayE2EError(f"Title {title_id} label or authored duration mismatch: {labels}")
-    selected_card = f"FileBrowsing-grid-bluray-playlist-{selected_id}"
+            raise BluRayE2EError(f"Projected {kind} group mismatch: {labels}")
+
+    expected_titles = {
+        case.selected_playlist: (case.selected_duration, case.selected_name),
+        **{identifier: (duration, name)
+           for identifier, duration, name in case.companion_titles},
+    }
+    for title_id, duration in durations.items():
+        labels = title_labels[title_id]
+        expected_duration, expected_name = expected_titles[title_id]
+        if duration != expected_duration:
+            raise BluRayE2EError(f"Authored duration oracle changed for content {title_id}")
+        if len(labels) != 1 or any(
+            expected_name not in label or f"Duration {duration}" not in label
+            or "Playlist" in label for label in labels
+        ):
+            raise BluRayE2EError(f"Content {title_id} label or authored duration mismatch: {labels}")
+
+    selected_card = f"FileBrowsing-grid-bluray-content-{selected_id}"
     if selected_card not in real_tap_ids:
-        raise BluRayE2EError("The selected title card was not tapped through the product")
+        raise BluRayE2EError("The selected content card was not tapped through the product")
+    selected_inspection = inspect_positions.get(selected_card, [])
+    selected_tap = tap_positions.get(selected_card, [])
+    if len(selected_inspection) != 1 or len(selected_tap) != 1 or selected_inspection[0] >= selected_tap[0]:
+        raise BluRayE2EError("The selected content card was not inspected before playback")
+    if case.selected_group:
+        group_card = f"FileBrowsing-grid-bluray-group-{case.selected_group}"
+        group_taps = tap_positions.get(group_card, [])
+        if len(group_taps) != 1 or selected_inspection[0] < group_taps[0]:
+            raise BluRayE2EError("Content was inspected before its content group was opened")
+        count_positions = inspect_positions.get("FileBrowsing-FilesScreen-itemCount", [])
+        if not count_positions or not group_taps[0] < count_positions[-1] < selected_inspection[0]:
+            raise BluRayE2EError("Opened content group count was not verified before selection")
+        for kind, _ in case.group_counts:
+            group_id = f"FileBrowsing-grid-bluray-group-{kind}"
+            positions = inspect_positions.get(group_id, [])
+            if len(positions) != expected_group_reads or any(
+                position > group_taps[0] for position in positions
+            ):
+                raise BluRayE2EError("Root content groups were not verified before selection")
+    if case.is_directory:
+        required = {"FileBrowsing-grid-bluray-browseFiles", "FileBrowsing-grid-folder-BDMV"}
+        if not required.issubset(real_tap_ids):
+            raise BluRayE2EError("BDMV parent/self traversal was not performed")
     if selections != [str(selected_id)]:
         raise BluRayE2EError(f"Playback selected a different playlist: {selections}")
+    if len(selection_positions) != 1 or len(frame_outcome_positions) != 1 or not (
+        selected_tap[0] < selection_positions[0] < frame_outcome_positions[0]
+    ):
+        raise BluRayE2EError("Playback diagnostics and screenshots are not from the selected attempt")
     if len(captured) != 3:
         raise BluRayE2EError("Three playback screenshots are required")
     image_hashes: set[str] = set()
@@ -179,13 +244,14 @@ def verify_transcript(transcript: dict, corpus: Path = CORPUS) -> dict:
         image_hashes.add(hashlib.sha256(image).hexdigest())
     if positions[-1] <= positions[0]:
         raise BluRayE2EError("Playback position did not advance across screenshots")
-    if case[0].startswith("avs") and len(image_hashes) < 2:
+    if case.slug.startswith("avs") and len(image_hashes) < 2:
         raise BluRayE2EError("AVS short H.264 title has no changing captured frame")
     return {
         "scenario": scenario,
         "playlistID": selected_id,
         "authoredTitleCount": count,
         "authoredRenderedDurations": durations,
+        "rootItemCounts": expected_counts,
         "screenshotDimensions": dimensions,
         "screenshotDigestCount": len(image_hashes),
         "scope": "same-attempt mechanical E2E evidence; no Regression verdict or merge receipt",
@@ -215,29 +281,29 @@ def _run(arguments: argparse.Namespace) -> dict:
     arguments.transcript.parent.mkdir(parents=True, exist_ok=True)
     try:
         for call in calls:
-            command = [
-                sys.executable, str(ROOT / "Scripts/regression/tools/server.py"),
-                "--once", "op", "--repository-root", str(ROOT),
-                "--execution-input", str(arguments.execution_input),
-                "--catalog-root", str(arguments.catalog_root),
-                "--policy", str(arguments.policy),
-                "--reviews-root", str(arguments.reviews_root),
-                "--blueprint", str(arguments.blueprint),
-                "--run-directory", str(arguments.run_directory),
-                "--node", str(node.id), "--call", str(call.call_id),
-                "--lane", "simulator", "--requested-lane", "simulator",
-                "--target", arguments.target, "--sidekick", "sidekick:bluray-simulator",
-            ]
-            completed = subprocess.run(command, capture_output=True, text=True, check=False)
-            document = json.loads(completed.stdout)
-            result = _result(document)
+            tool_result = regression_server.call_tool("op", {
+                "repositoryRoot": str(ROOT),
+                "executionInput": str(arguments.execution_input),
+                "catalogRoot": str(arguments.catalog_root),
+                "policy": str(arguments.policy),
+                "reviewsRoot": str(arguments.reviews_root),
+                "blueprint": str(arguments.blueprint),
+                "runDirectory": str(arguments.run_directory),
+                "node": str(node.id),
+                "call": str(call.call_id),
+                "lane": "simulator",
+                "requestedLane": "simulator",
+                "target": arguments.target,
+                "sidekick": "sidekick:bluray-simulator",
+            })
+            result = dict(tool_result.json)
+            if result.get("refused") or result.get("succeeded") is not True:
+                raise BluRayE2EError(f"Operation failed or was refused: {result}")
             transcript["outcomes"].append({
                 **result, "operation": str(call.operation),
                 "arguments": json.loads(call.arguments_bytes),
             })
             arguments.transcript.write_text(json.dumps(transcript, indent=2, sort_keys=True) + "\n")
-            if completed.returncode != 0:
-                raise BluRayE2EError(completed.stderr.strip() or "Operation gateway failed")
     finally:
         arguments.transcript.write_text(json.dumps(transcript, indent=2, sort_keys=True) + "\n")
     return verify_transcript(transcript, arguments.corpus)

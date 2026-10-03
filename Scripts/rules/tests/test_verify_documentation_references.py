@@ -142,6 +142,14 @@ class CurrentRepositoryFiles(unittest.TestCase):
         errors, _ = checker.unresolved_references()
         self.assertEqual(errors, [])
 
+    def test_ignored_runtime_directory_does_not_become_a_repository_root(self) -> None:
+        self.write(".gitignore", "tmp/\n")
+        self.write("tmp/runtime.json", "{}\n")
+        self.write("docs/current.md", "# Current\n")
+        self.track(".gitignore", "docs/current.md")
+        self.assertNotIn("tmp", checker.repository_top_level_segments())
+        self.assertIn("docs", checker.repository_top_level_segments())
+
     def test_missing_tracked_style_reference_still_fails_beside_ignored_one(self) -> None:
         self.write(".gitignore", "*.local.json\n")
         self.track(".gitignore")

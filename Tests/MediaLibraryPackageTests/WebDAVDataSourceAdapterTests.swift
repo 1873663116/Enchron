@@ -631,7 +631,9 @@ struct WebDAVDataSourceAdapterTests {
     <?xml version="1.0" encoding="utf-8"?>
     <d:multistatus xmlns:d="DAV:">
       <d:response><d:href>/dav/library/Feature/BDMV/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
-      <d:response><d:href>/dav/library/Feature/BDMV/index.bdmv</d:href><d:propstat><d:prop><d:getcontentlength>8</d:getcontentlength><d:resourcetype/></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
+      <d:response><d:href>/dav/library/Feature/BDMV/index.bdmv</d:href>
+        <d:propstat><d:prop><d:getcontentlength>8</d:getcontentlength><d:resourcetype/></d:prop>
+        <d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>
     </d:multistatus>
     """
 }

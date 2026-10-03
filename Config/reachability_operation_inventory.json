@@ -1618,6 +1618,18 @@
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
+      "template": "FileBrowsing-grid-bluray-content-{title.playlistID.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
+        }
+      ],
       "template": "FileBrowsing-grid-bluray-disc-{file.name}"
     },
     {
@@ -1630,7 +1642,7 @@
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
-      "template": "FileBrowsing-grid-bluray-playlist-{title.playlistID.rawValue}"
+      "template": "FileBrowsing-grid-bluray-group-{group.kind.rawValue}"
     },
     {
       "action": "activate",
@@ -1885,6 +1897,18 @@
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
+      "template": "MediaLibrary-grid-bluray-content-{title.playlistID.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "MediaLibrary",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
+        }
+      ],
       "template": "MediaLibrary-grid-bluray-disc-{reference.name}"
     },
     {
@@ -1897,7 +1921,7 @@
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
-      "template": "MediaLibrary-grid-bluray-playlist-{title.playlistID.rawValue}"
+      "template": "MediaLibrary-grid-bluray-group-{group.kind.rawValue}"
     },
     {
       "action": "activate",
@@ -4353,6 +4377,24 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:FileBrowsing-grid-bluray-content-{title.playlistID.rawValue}",
+      "identifierTemplate": "FileBrowsing-grid-bluray-content-{title.playlistID.rawValue}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:FileBrowsing-grid-bluray-disc-{file.name}",
       "identifierTemplate": "FileBrowsing-grid-bluray-disc-{file.name}",
       "kind": "activate",
@@ -4371,8 +4413,8 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "id": "accessibility:FileBrowsing-grid-bluray-playlist-{title.playlistID.rawValue}",
-      "identifierTemplate": "FileBrowsing-grid-bluray-playlist-{title.playlistID.rawValue}",
+      "id": "accessibility:FileBrowsing-grid-bluray-group-{group.kind.rawValue}",
+      "identifierTemplate": "FileBrowsing-grid-bluray-group-{group.kind.rawValue}",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
@@ -4799,6 +4841,24 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:MediaLibrary-grid-bluray-content-{title.playlistID.rawValue}",
+      "identifierTemplate": "MediaLibrary-grid-bluray-content-{title.playlistID.rawValue}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:MediaLibrary-grid-bluray-disc-{reference.name}",
       "identifierTemplate": "MediaLibrary-grid-bluray-disc-{reference.name}",
       "kind": "activate",
@@ -4817,8 +4877,8 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "id": "accessibility:MediaLibrary-grid-bluray-playlist-{title.playlistID.rawValue}",
-      "identifierTemplate": "MediaLibrary-grid-bluray-playlist-{title.playlistID.rawValue}",
+      "id": "accessibility:MediaLibrary-grid-bluray-group-{group.kind.rawValue}",
+      "identifierTemplate": "MediaLibrary-grid-bluray-group-{group.kind.rawValue}",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",

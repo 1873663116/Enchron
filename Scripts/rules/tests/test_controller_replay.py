@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 import subprocess
 import sys
 import tempfile
@@ -97,7 +98,9 @@ class FaithfulnessThroughControllerTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="replay-client-")
         self.addCleanup(self.temporary.cleanup)
         self.transcript = Path(self.temporary.name) / "transcript.jsonl"
-        self.budgets = BudgetProvider(timings_directory=Path(self.temporary.name))
+        self.budgets = BudgetProvider(
+            timings_directory=Path(self.temporary.name), today=lambda: date(2026, 9, 1)
+        )
 
     def record(self) -> None:
         inner = ScriptedInner()

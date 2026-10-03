@@ -1,6 +1,54 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Additional content": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Zusätzliche Inhalte"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Contenu supplémentaire"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "追加コンテンツ"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "추가 콘텐츠"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дополнительные материалы"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "附加内容"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "附加內容"}}
+      }
+    },
+    "Blu-ray disc": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Blu-ray-Disc"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Disque Blu-ray"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ブルーレイディスク"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "블루레이 디스크"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Диск Blu-ray"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "蓝光光盘"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "藍光光碟"}}
+      }
+    },
+    "Sequences": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Sequenzen"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Séquences"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "シーケンス"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "시퀀스"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Последовательности"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "连续序列"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "連續序列"}}
+      }
+    },
+    "Still images": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Standbilder"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Images fixes"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "静止画"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "정지 이미지"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Статичные изображения"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "静态画面"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "靜態畫面"}}
+      }
+    },
     "\"Open water under a slow sky, the screen mirrored in the swell.\"": {
       "comment": "Modules/Playback/Views/EnvironmentComponents.swift:38",
       "localizations": {

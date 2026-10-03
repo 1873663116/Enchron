@@ -52,11 +52,17 @@ RETIRED_DOCUMENTS_PATH = REPOSITORY_ROOT / "Config/retired_documents.json"
 CATALOG_SOURCE_ROOT = "Config/regression/catalog-root"
 CATALOG_MATERIALIZED_ROOT = "Regression"
 
-TOP_LEVEL_SEGMENTS = frozenset(
-    entry.name
-    for entry in REPOSITORY_ROOT.iterdir()
-    if entry.name not in {".git", ".scratch", "DerivedData"}
-) | {".agents", ".claude", ".github", ".githooks", ".audit", ".cursor"}
+def repository_top_level_segments() -> frozenset[str]:
+    listing = subprocess.check_output(
+        ["git", "-C", str(REPOSITORY_ROOT), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        text=True,
+    )
+    return frozenset(path.split("/", 1)[0] for path in listing.split("\0") if path) | {
+        ".agents", ".claude", ".github", ".githooks", ".audit", ".cursor"
+    }
+
+
+TOP_LEVEL_SEGMENTS = repository_top_level_segments()
 
 MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 BACKTICKED = re.compile(r"`([^`\s]+)`")

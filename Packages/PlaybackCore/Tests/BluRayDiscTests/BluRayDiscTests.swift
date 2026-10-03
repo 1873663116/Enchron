@@ -28,6 +28,36 @@ private struct MarkerFile: BluRayDiscRandomAccessFile {
     }
 }
 
+private struct DataDiscFile: BluRayDiscRandomAccessFile {
+    let data: Data
+
+    var size: Int64 { get async throws { Int64(data.count) } }
+
+    func read(at offset: Int64, count: Int) async throws -> Data {
+        guard offset >= 0, count >= 0, offset <= Int64(data.count) else { return Data() }
+        let lowerBound = Int(offset)
+        let upperBound = lowerBound + min(count, data.count - lowerBound)
+        return data[lowerBound..<upperBound]
+    }
+}
+
+private struct MetadataDiscTree: BluRayDiscFileSystem {
+    let base: LocalDiscTree
+    let metadata: Data
+
+    func contents(of relativePath: String) async throws -> [String] {
+        if relativePath == "BDMV/META/DL" { return ["bdmt_eng.xml"] }
+        return try await base.contents(of: relativePath)
+    }
+
+    func openFile(at relativePath: String) async throws -> any BluRayDiscRandomAccessFile {
+        if relativePath == "BDMV/META/DL/bdmt_eng.xml" {
+            return DataDiscFile(data: metadata)
+        }
+        return try await base.openFile(at: relativePath)
+    }
+}
+
 private struct EncryptedDiscTree: BluRayDiscFileSystem {
     let base: LocalDiscTree
 
@@ -109,10 +139,12 @@ private final class LocalDiscFile: BluRayDiscRandomAccessFile, @unchecked Sendab
         let rangedImageCatalog = try await BluRayDisc.catalog(image: LocalDiscFile(url: image))
         #expect(imageCatalog == directoryCatalog)
         #expect(imageCatalog == rangedImageCatalog)
+        #expect(imageCatalog.optionalName == nil)
         #expect(imageCatalog.titles.count == 1)
         let title = try #require(imageCatalog.titles.first)
         #expect(title.playlistID.rawValue == 0)
         #expect(title.isMain)
+        #expect(title.chapterCount == 1)
         #expect(abs(title.durationSeconds - 119.911_444_444) < 0.000_001)
         #expect(title.clips.count == 1)
         let clip = try #require(title.clips.first)
@@ -122,6 +154,11 @@ private final class LocalDiscFile: BluRayDiscRandomAccessFile, @unchecked Sendab
         #expect(abs(clip.outTimeSeconds - 4319.911_444_444) < 0.000_001)
         #expect(clip.byteStart == 0)
         #expect(clip.byteEnd == 169_881_600)
+        #expect(clip.stillMode == 0)
+        #expect(clip.stillTime == 0)
+        #expect(!clip.hasInteractiveGraphics)
+        #expect(clip.streams.map(\.format) == [8])
+        #expect(clip.streams.map(\.rate) == [1])
 
         let reader = try await BluRayDisc.open(source: .url(image), playlistID: title.playlistID)
         let handle = try #require(reader.takeNativeHandle())
@@ -150,6 +187,15 @@ private final class LocalDiscFile: BluRayDiscRandomAccessFile, @unchecked Sendab
         #expect(clip.outTimeSeconds == 4203.6)
         #expect(clip.byteStart == 0)
         #expect(clip.byteEnd == 58_841_088)
+
+        let playlist99 = try #require(
+            imageCatalog.titles.first { $0.playlistID.rawValue == 99 }
+        )
+        #expect(playlist99.chapterCount == 2)
+        let playlist99FirstClip = try #require(playlist99.clips.first)
+        #expect(playlist99FirstClip.stillMode == 0)
+        #expect(playlist99FirstClip.stillTime == 0)
+        #expect(playlist99FirstClip.hasInteractiveGraphics)
 
         let reader = try await BluRayDisc.open(source: .url(image),
                                                playlistID: BluRayPlaylistID(rawValue: 99))
@@ -183,6 +229,60 @@ private final class LocalDiscFile: BluRayDiscRandomAccessFile, @unchecked Sendab
         var bytes = [UInt8](repeating: 0, count: 192)
         #expect(PBBlurayRead(handle, &bytes, Int32(bytes.count)) == 192)
         #expect(Array(bytes.prefix(5)) == [0x26, 0x5c, 0x57, 0xbc, 0x47])
+    }
+
+    @Test(.enabled(if: corpusRoot != nil))
+    func callbackCatalogReadsAuthoritativeDiscName() async throws {
+        let root = try #require(corpusRoot)
+        let folder = root.appending(path: "DolbyVision-Profile7-FEL/FEL_test_for_AVS")
+        let metadata = Data("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <disclib xmlns="urn:BDA:bdmv;disclib"
+                     xmlns:di="urn:BDA:bdmv;discinfo">
+              <di:discinfo><di:title><di:name>Injected Authoritative Name</di:name></di:title></di:discinfo>
+            </disclib>
+            """.utf8)
+        let tree = MetadataDiscTree(base: LocalDiscTree(root: folder), metadata: metadata)
+        let catalog = try await BluRayDisc.catalog(files: tree)
+        #expect(catalog.optionalName == "Injected Authoritative Name")
+    }
+
+    @Test func metadataParserReadsOnlyStandardDiscNamePath() {
+        let metadata = Data("""
+            <?xml version="1.0" encoding="UTF-8"?>
+            <disclib xmlns="urn:BDA:bdmv;disclib"
+                     xmlns:di="urn:BDA:bdmv;discinfo">
+              <di:discinfo>
+                <di:title><di:name>  Sintel Blu-ray  </di:name></di:title>
+                <di:toc><di:title di:title_number="7"><di:name>Not a disc name</di:name></di:title></di:toc>
+              </di:discinfo>
+            </disclib>
+            """.utf8)
+        #expect(BluRayDiscMetadataParser.parseDiscName(metadata) == "Sintel Blu-ray")
+    }
+
+    @Test func metadataParserRejectsMalformedXMLAndWrongNamePath() {
+        let malformed = Data("<disclib><discinfo><title>".utf8)
+        let wrongPath = Data("""
+            <disclib xmlns="urn:BDA:bdmv;disclib"
+                     xmlns:di="urn:BDA:bdmv;discinfo">
+              <di:discinfo><di:toc><di:title><di:name>Playlist label</di:name></di:title></di:toc></di:discinfo>
+            </disclib>
+            """.utf8)
+        #expect(BluRayDiscMetadataParser.parseDiscName(malformed) == nil)
+        #expect(BluRayDiscMetadataParser.parseDiscName(wrongPath) == nil)
+    }
+
+    @Test func metadataParserRejectsExternalEntities() {
+        let metadata = Data("""
+            <?xml version="1.0"?>
+            <!DOCTYPE disclib [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+            <disclib xmlns="urn:BDA:bdmv;disclib"
+                     xmlns:di="urn:BDA:bdmv;discinfo">
+              <di:discinfo><di:title><di:name>&xxe;</di:name></di:title></di:discinfo>
+            </disclib>
+            """.utf8)
+        #expect(BluRayDiscMetadataParser.parseDiscName(metadata) == nil)
     }
 
     @Test(.enabled(if: corpusRoot != nil))

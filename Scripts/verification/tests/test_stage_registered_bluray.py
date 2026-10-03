@@ -59,6 +59,9 @@ class BluRayStageTests(unittest.TestCase):
             )
         self.assertEqual(receipt["fileCount"], 3)
         self.assertEqual(receipt["destination"], "Documents/TestMediaInbox/Disc")
+        self.assertEqual(receipt["productSetup"], {
+            "verb": "importStagedFolder", "arguments": {"directory": "Disc", "entry": "root"}
+        })
         self.assertEqual(transport.files["Documents/TestMediaInbox/Disc/BDMV/STREAM/00000.m2ts"], b"stream")
         self.assertRegex(receipt["copyBackManifestDigest"], r"^sha256:[0-9a-f]{64}$")
 

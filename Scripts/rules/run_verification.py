@@ -194,7 +194,7 @@ STRUCTURE_CHECKS = (
         runs_in_quick_mode=False,
     ),
     StructureCheck("disc-image-format", "check_disc_image_format.py"),
-    StructureCheck("bluray-corpus", "../verification/verify_bluray_corpus.py", runs_in_quick_mode=False),
+    StructureCheck("bluray-corpus", "../build/verify_bluray_corpus.py", runs_in_quick_mode=False),
     StructureCheck(
         "dolby-vision-premises",
         "check_dolby_vision_premises.py",

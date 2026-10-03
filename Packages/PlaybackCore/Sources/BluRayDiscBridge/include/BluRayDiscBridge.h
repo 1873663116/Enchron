@@ -17,7 +17,7 @@ typedef enum {
     PBBlurayAccessFiles = 2,
 } PBBlurayAccessKind;
 
-/* Calls are synchronous. The caller runs opens off the main actor.
+/** Calls are synchronous. The caller runs opens off the main actor.
    A non-NULL contextClose transfers context ownership at OpenWithIO entry;
    it is called exactly once on close or on open failure. */
 typedef struct {
@@ -45,6 +45,8 @@ typedef struct {
     uint16_t pid;
     uint8_t codingType;
     uint8_t kind;
+    uint8_t format;
+    uint8_t rate;
     char language[4];
 } PBBlurayStreamInfo;
 
@@ -52,6 +54,7 @@ typedef struct {
     uint32_t playlistID;
     uint64_t duration90k;
     uint32_t clipCount;
+    uint32_t chapterCount;
     bool isMain;
     char optionalName[256];
 } PBBlurayTitleInfo;
@@ -61,16 +64,24 @@ typedef struct {
     uint64_t startTime90k;
     uint64_t inTime90k;
     uint64_t outTime90k;
-    uint64_t byteStart; /* Inclusive virtual-title byte position. */
-    uint64_t byteEnd;   /* Exclusive virtual-title byte position. */
+    /** Inclusive virtual-title byte position. */
+    uint64_t byteStart;
+    /** Exclusive virtual-title byte position. */
+    uint64_t byteEnd;
     uint32_t packetCount;
     uint32_t streamCount;
+    uint8_t stillMode;
+    uint16_t stillTime;
+    bool hasInteractiveGraphics;
 } PBBlurayClipInfo;
 
 PBBlurayCatalog *PBBlurayCatalogOpen(const char *path, char *error, size_t errorCapacity);
 PBBlurayCatalog *PBBlurayCatalogOpenWithIO(PBBlurayAccessKind kind,
     const PBBlurayIOCallbacks *io, char *error, size_t errorCapacity);
 uint32_t PBBlurayCatalogCount(const PBBlurayCatalog *catalog);
+/** The returned bytes remain valid until PBBlurayCatalogClose. */
+const uint8_t *PBBlurayCatalogMetadataXML(const PBBlurayCatalog *catalog,
+    int64_t *size);
 bool PBBlurayCatalogTitleAt(const PBBlurayCatalog *catalog, uint32_t index,
     PBBlurayTitleInfo *result);
 bool PBBlurayCatalogClipAt(const PBBlurayCatalog *catalog, uint32_t titleIndex,
@@ -86,7 +97,8 @@ PBBlurayReader *PBBlurayOpenWithIO(PBBlurayAccessKind kind,
     char *error, size_t errorCapacity);
 int PBBlurayRead(PBBlurayReader *reader, uint8_t *buffer, int count);
 int64_t PBBluraySeekBytes(PBBlurayReader *reader, uint64_t offset);
-int64_t PBBluraySeekTime(PBBlurayReader *reader, uint64_t time90k); /* Returns byte position. */
+/** Returns byte position. */
+int64_t PBBluraySeekTime(PBBlurayReader *reader, uint64_t time90k);
 uint64_t PBBlurayTell(const PBBlurayReader *reader);
 uint64_t PBBluraySize(const PBBlurayReader *reader);
 uint64_t PBBlurayDuration(const PBBlurayReader *reader);
@@ -95,7 +107,7 @@ bool PBBlurayReaderClipAt(const PBBlurayReader *reader, uint32_t clipIndex,
     PBBlurayClipInfo *result);
 bool PBBlurayReaderStreamAt(const PBBlurayReader *reader, uint32_t clipIndex,
     uint32_t streamIndex, PBBlurayStreamInfo *result);
-/* May be called from another thread while a remote read is blocked. */
+/** May be called from another thread while a remote read is blocked. */
 void PBBlurayReaderSetInterrupted(PBBlurayReader *reader, bool interrupted);
 void PBBlurayClose(PBBlurayReader *reader);
 

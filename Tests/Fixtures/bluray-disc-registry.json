@@ -29,6 +29,34 @@
       "indexSHA256": "009c233d7aaa7f00ed084a2b116c18efe70231b7ab5e833fdf13919ed00c8082",
       "playlistCount": 1,
       "streamCount": 1
+    },
+    {
+      "id": "bluray-sintel-iso",
+      "relativePath": "Samples/DiscImages/Sintel/Sintel-Bluray.iso",
+      "kind": "iso",
+      "sha256": "693ac48a9ecc53071d014ef485d7850f916abef624c8dafa1d5801d828158c69"
+    },
+    {
+      "id": "bluray-sintel-directory",
+      "relativePath": "Samples/DiscImages/Sintel/Sintel-Bluray",
+      "kind": "directory",
+      "indexSHA256": "06d93a945547bc14fa70776f95369d15c7ea4dd3ad1107cfcac6f8ef52114ad4",
+      "playlistCount": 2,
+      "streamCount": 2
+    },
+    {
+      "id": "bluray-sintel-editions-iso",
+      "relativePath": "Samples/DiscImages/Sintel-Editions/Sintel-Editions.iso",
+      "kind": "iso",
+      "sha256": "166f900599162daba421531c1409fa9c49a7ecfdc499781c8bdf71315caaef29"
+    },
+    {
+      "id": "bluray-sintel-editions-directory",
+      "relativePath": "Samples/DiscImages/Sintel-Editions/Sintel-Editions",
+      "kind": "directory",
+      "indexSHA256": "06d93a945547bc14fa70776f95369d15c7ea4dd3ad1107cfcac6f8ef52114ad4",
+      "playlistCount": 3,
+      "streamCount": 1
     }
   ]
 }

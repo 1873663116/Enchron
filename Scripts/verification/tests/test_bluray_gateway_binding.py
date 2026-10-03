@@ -11,7 +11,7 @@ import regression_operation_adapter as adapter
 
 
 class GatewayBindingTests(unittest.TestCase):
-    def test_controller_subprocess_receives_its_exact_execution_input(self) -> None:
+    def test_controller_command_receives_its_exact_execution_input(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             frozen = root / "execution-input.json"

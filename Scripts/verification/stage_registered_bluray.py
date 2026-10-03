@@ -134,6 +134,11 @@ def stage_registered_bluray(
         "destination": destination_root,
         "fileCount": len(files),
         "byteLength": byte_count,
+        "productSetup": {
+            "verb": "importMedia" if kind == "iso" else "importStagedFolder",
+            "arguments": {"file": source.name} if kind == "iso"
+                else {"directory": source.name, "entry": "root"},
+        },
         "copyBackManifestDigest": "sha256:" + manifest.hexdigest(),
         "injectionBlindSpot": "Container staging bypasses Files import and source connection; subsequent title-card activation is real UI input.",
     }

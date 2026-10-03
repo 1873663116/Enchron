@@ -38,6 +38,8 @@ struct PBBlurayCatalog {
     BLURAY *disc;
     TitleRecord *titles;
     uint32_t count;
+    uint8_t *metadataXML;
+    int64_t metadataXMLSize;
 };
 
 struct PBBlurayReader {
@@ -407,12 +409,59 @@ static BLURAY *open_disc(DiscSource *source, char *error, size_t capacity) {
     return disc;
 }
 
+static bool metadata_filename(const char *name) {
+    if (!name || strlen(name) != 12 || memcmp(name, "bdmt_", 5) ||
+        memcmp(name + 8, ".xml", 4)) return false;
+    for (size_t index = 5; index < 8; index++) {
+        char character = name[index];
+        if (!((character >= 'a' && character <= 'z') ||
+              (character >= 'A' && character <= 'Z'))) return false;
+    }
+    return true;
+}
+
+static uint8_t *read_metadata_xml(BLURAY *disc, int64_t *resultSize) {
+    enum { MAX_METADATA_XML_SIZE = 1024 * 1024 };
+    *resultSize = 0;
+    BD_DIR_H *directory = bd_open_dir(disc, "BDMV/META/DL");
+    if (!directory) return NULL;
+    char selected[sizeof(((BD_DIRENT *)0)->d_name)] = {0};
+    BD_DIRENT entry;
+    while (directory->read(directory, &entry) == 0) {
+        if (!metadata_filename(entry.d_name)) continue;
+        if (!strcmp(entry.d_name, "bdmt_eng.xml")) {
+            memcpy(selected, entry.d_name, sizeof(selected));
+            break;
+        }
+        if (!selected[0] || strcmp(entry.d_name, selected) < 0) {
+            memcpy(selected, entry.d_name, sizeof(selected));
+        }
+    }
+    directory->close(directory);
+    if (!selected[0]) return NULL;
+
+    char path[sizeof("BDMV/META/DL/") + sizeof(selected)] = {0};
+    int pathLength = snprintf(path, sizeof(path), "BDMV/META/DL/%s", selected);
+    if (pathLength < 0 || (size_t)pathLength >= sizeof(path)) return NULL;
+    void *data = NULL;
+    int64_t size = 0;
+    if (!bd_read_file(disc, path, &data, &size) || !data || size <= 0 ||
+        size > MAX_METADATA_XML_SIZE) {
+        free(data);
+        return NULL;
+    }
+    *resultSize = size;
+    return data;
+}
+
 static PBBlurayStreamInfo stream_info(const BLURAY_STREAM_INFO *stream,
                                       PBBlurayStreamKind kind) {
     PBBlurayStreamInfo result = {0};
     result.pid = stream->pid;
     result.codingType = stream->coding_type;
     result.kind = kind;
+    result.format = stream->format;
+    result.rate = stream->rate;
     memcpy(result.language, stream->lang, sizeof(result.language));
     return result;
 }
@@ -432,6 +481,7 @@ static bool title_fill(TitleRecord *record, BLURAY *disc,
     record->info.playlistID = title->playlist;
     record->info.duration90k = title->duration;
     record->info.clipCount = title->clip_count;
+    record->info.chapterCount = title->chapter_count;
     record->info.isMain = isMain;
     record->clips = calloc(title->clip_count, sizeof(*record->clips));
     if (title->clip_count && !record->clips) return false;
@@ -444,6 +494,9 @@ static bool title_fill(TitleRecord *record, BLURAY *disc,
         out->info.inTime90k = clip->in_time;
         out->info.outTime90k = clip->out_time;
         out->info.packetCount = clip->pkt_count;
+        out->info.stillMode = clip->still_mode;
+        out->info.stillTime = clip->still_time;
+        out->info.hasInteractiveGraphics = clip->ig_stream_count > 0;
         out->info.streamCount = clip->video_stream_count + clip->audio_stream_count
             + clip->pg_stream_count;
         out->streams = calloc(out->info.streamCount, sizeof(*out->streams));
@@ -518,6 +571,7 @@ static PBBlurayCatalog *catalog_open(DiscSource *source,
     }
     catalog->source = source;
     catalog->disc = disc;
+    catalog->metadataXML = read_metadata_xml(disc, &catalog->metadataXMLSize);
     catalog->titles = calloc(rawCount, sizeof(*catalog->titles));
     if (!catalog->titles) {
         set_error(error, capacity, "io: Unable to allocate Blu-ray titles");
@@ -600,6 +654,13 @@ uint32_t PBBlurayCatalogCount(const PBBlurayCatalog *catalog) {
     return catalog ? catalog->count : 0;
 }
 
+const uint8_t *PBBlurayCatalogMetadataXML(const PBBlurayCatalog *catalog,
+                                          int64_t *size) {
+    if (!size) return NULL;
+    *size = catalog ? catalog->metadataXMLSize : 0;
+    return catalog ? catalog->metadataXML : NULL;
+}
+
 bool PBBlurayCatalogTitleAt(const PBBlurayCatalog *catalog,
     uint32_t index, PBBlurayTitleInfo *result) {
     if (!catalog || !result || index >= catalog->count) return false;
@@ -631,6 +692,7 @@ void PBBlurayCatalogClose(PBBlurayCatalog *catalog) {
         title_free(&catalog->titles[index]);
     }
     free(catalog->titles);
+    free(catalog->metadataXML);
     bd_close(catalog->disc);
     source_close(catalog->source);
     free(catalog);

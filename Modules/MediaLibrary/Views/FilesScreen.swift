@@ -111,11 +111,13 @@ public struct FilesScreen: View {
         if isBrowsingSource {
             if viewModel.isBrowsingBluRayDisc {
                 return viewModel.displayedBluRayTitles.count
+                    + viewModel.displayedBluRayGroups.count
+                    + (viewModel.canBrowseFilesInCurrentBluRayDisc ? 1 : 0)
             }
             return viewModel.displayedFolders.count + viewModel.displayedFiles.count
         }
         if mediaLibrary.currentBluRayDiscName != nil {
-            return displayedLibraryBluRayTitles.count
+            return displayedLibraryBluRayTitles.count + displayedLibraryBluRayGroups.count
         }
         return displayedLibraryFolders.count + displayedLibraryReferences.count
     }
@@ -124,12 +126,13 @@ public struct FilesScreen: View {
         if isBrowsingSource {
             if viewModel.isBrowsingBluRayDisc {
                 return viewModel.currentBluRayTitles.isEmpty
+                    && viewModel.currentBluRayGroups.isEmpty
                     && viewModel.canBrowseFilesInCurrentBluRayDisc == false
             }
             return viewModel.files.isEmpty && viewModel.folders.isEmpty
         }
         if mediaLibrary.currentBluRayDiscName != nil {
-            return mediaLibrary.currentBluRayTitles.isEmpty
+            return mediaLibrary.currentBluRayTitles.isEmpty && mediaLibrary.currentBluRayGroups.isEmpty
         }
         return mediaLibrary.folders.isEmpty && mediaLibrary.references.isEmpty
     }
@@ -153,8 +156,13 @@ public struct FilesScreen: View {
     }
 
     private var displayedLibraryBluRayTitles: [BluRayTitleItem] {
-        mediaLibrary.currentBluRayTitles.filter {
-            MediaLibrarySearch.matches($0, query: viewModel.searchText)
+        mediaLibrary.bluRaySearchResults(query: viewModel.searchText)
+    }
+
+    private var displayedLibraryBluRayGroups: [BluRayContentGroup] {
+        mediaLibrary.currentBluRayGroups.filter {
+            viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || $0.kind.displayName.localizedCaseInsensitiveContains(viewModel.searchText)
         }
     }
 
@@ -765,7 +773,8 @@ public struct FilesScreen: View {
             return PathBreadcrumbMenu(
                 path: [String(localized: "Local Files")]
                     + folders.map(\.name)
-                    + [mediaLibrary.currentBluRayDiscName].compactMap { $0 },
+                    + [mediaLibrary.currentBluRayDiscName, mediaLibrary.currentBluRayGroup?.displayName]
+                        .compactMap { $0 },
                 onSelectLevel: { position in
                     recordReachability(.breadcrumb(.mediaLibrary))
                     if position == 0 {
@@ -773,7 +782,9 @@ public struct FilesScreen: View {
                     } else if folders.indices.contains(position - 1) {
                         mediaLibrary.navigate(to: folders[position - 1].id)
                     } else if mediaLibrary.currentBluRayDiscName != nil {
-                        return
+                        if position == folders.count + 1, mediaLibrary.currentBluRayGroup != nil {
+                            mediaLibrary.navigateBack()
+                        }
                     }
                 },
                 accessibilityIdentifier: "MediaLibrary-Breadcrumb-current"
@@ -900,27 +911,6 @@ public struct FilesScreen: View {
             CardGrid {
                 if isBrowsingSource {
                     if viewModel.isBrowsingBluRayDisc {
-                        if viewModel.canBrowseFilesInCurrentBluRayDisc {
-                            GridCard.folder(
-                                title: String(localized: "Browse Files"),
-                                count: nil,
-                                accessibilityIdentifier: "FileBrowsing-grid-bluray-browseFiles",
-                                action: {
-                                    Task { await viewModel.browseFilesInCurrentBluRayDisc() }
-                                }
-                            )
-                            .contextMenu {
-                                if let dataSource = viewModel.activeDataSource,
-                                   let folder = viewModel.currentBluRayFolder {
-                                    Button("Add to Media Library", systemImage: "plus.rectangle.on.folder") {
-                                        mediaLibrary.addSourceBluRayFolder(
-                                            folder,
-                                            dataSource: dataSource
-                                        )
-                                    }
-                                }
-                            }
-                        }
                         ForEach(viewModel.displayedBluRayTitles) { title in
                             GridCard.video(
                                 title: title.displayName,
@@ -929,13 +919,37 @@ public struct FilesScreen: View {
                                 duration: durationText(title.durationSeconds),
                                 watchedProgress: nil,
                                 accessibilityIdentifier:
-                                    "FileBrowsing-grid-bluray-playlist-\(title.playlistID.rawValue)",
+                                    "FileBrowsing-grid-bluray-content-\(title.playlistID.rawValue)",
                                 action: { viewModel.selectBluRayTitle(title) }
                             )
                             .accessibilityLabel(BluRayTitleAccessibility.label(
                                 for: title,
                                 durationText: durationText(title.durationSeconds)
                             ))
+                        }
+                        ForEach(viewModel.displayedBluRayGroups) { group in
+                            GridCard.folder(
+                                title: group.kind.displayName,
+                                count: group.titles.count,
+                                accessibilityIdentifier: "FileBrowsing-grid-bluray-group-\(group.kind.rawValue)",
+                                action: { viewModel.openBluRayGroup(group.kind) }
+                            )
+                        }
+                        if viewModel.canBrowseFilesInCurrentBluRayDisc {
+                            GridCard.folder(
+                                title: String(localized: "Browse Files"),
+                                count: nil,
+                                accessibilityIdentifier: "FileBrowsing-grid-bluray-browseFiles",
+                                action: { Task { await viewModel.browseFilesInCurrentBluRayDisc() } }
+                            )
+                            .contextMenu {
+                                if let dataSource = viewModel.activeDataSource,
+                                   let folder = viewModel.currentBluRayFolder {
+                                    Button("Add to Media Library", systemImage: "plus.rectangle.on.folder") {
+                                        mediaLibrary.addSourceBluRayFolder(folder, dataSource: dataSource)
+                                    }
+                                }
+                            }
                         }
                     } else {
                         ForEach(viewModel.displayedFolders) { folder in
@@ -1008,13 +1022,21 @@ public struct FilesScreen: View {
                                 duration: durationText(title.durationSeconds),
                                 watchedProgress: nil,
                                 accessibilityIdentifier:
-                                    "MediaLibrary-grid-bluray-playlist-\(title.playlistID.rawValue)",
+                                    "MediaLibrary-grid-bluray-content-\(title.playlistID.rawValue)",
                                 action: { mediaLibrary.selectBluRayTitle(title) }
                             )
                             .accessibilityLabel(BluRayTitleAccessibility.label(
                                 for: title,
                                 durationText: durationText(title.durationSeconds)
                             ))
+                        }
+                        ForEach(displayedLibraryBluRayGroups) { group in
+                            GridCard.folder(
+                                title: group.kind.displayName,
+                                count: group.titles.count,
+                                accessibilityIdentifier: "MediaLibrary-grid-bluray-group-\(group.kind.rawValue)",
+                                action: { mediaLibrary.openBluRayGroup(group.kind) }
+                            )
                         }
                     } else {
                         ForEach(displayedLibraryFolders) { folder in
@@ -1112,9 +1134,17 @@ public struct FilesScreen: View {
             } else {
                 []
             }
-            return browseFiles + viewModel.displayedBluRayTitles.map { title in
-                .video(
-                    id: "bluray-playlist-\(title.playlistID.rawValue)",
+            let groups = viewModel.displayedBluRayGroups.map { group in
+                FileListGroup.Item.folder(
+                    id: "bluray-group-\(group.kind.rawValue)",
+                    title: group.kind.displayName,
+                    itemCount: group.titles.count,
+                    action: { viewModel.openBluRayGroup(group.kind) }
+                )
+            }
+            let titles = viewModel.displayedBluRayTitles.map { title in
+                FileListGroup.Item.video(
+                    id: "bluray-content-\(title.playlistID.rawValue)",
                     title: title.displayName,
                     fileSize: title.isMain ? String(localized: "Main") : "",
                     duration: durationText(title.durationSeconds),
@@ -1125,6 +1155,7 @@ public struct FilesScreen: View {
                     action: { viewModel.selectBluRayTitle(title) }
                 )
             }
+            return titles + groups + browseFiles
         }
         return viewModel.displayedFolders.map { folder in
                         FileListGroup.Item.folder(
@@ -1155,9 +1186,17 @@ public struct FilesScreen: View {
 
     private var libraryListItems: [FileListGroup.Item] {
         if mediaLibrary.currentBluRayDiscName != nil {
-            return displayedLibraryBluRayTitles.map { title in
-                .video(
-                    id: "library-bluray-playlist-\(title.playlistID.rawValue)",
+            let groups = displayedLibraryBluRayGroups.map { group in
+                FileListGroup.Item.folder(
+                    id: "library-bluray-group-\(group.kind.rawValue)",
+                    title: group.kind.displayName,
+                    itemCount: group.titles.count,
+                    action: { mediaLibrary.openBluRayGroup(group.kind) }
+                )
+            }
+            let titles = displayedLibraryBluRayTitles.map { title in
+                FileListGroup.Item.video(
+                    id: "library-bluray-content-\(title.playlistID.rawValue)",
                     title: title.displayName,
                     fileSize: title.isMain ? String(localized: "Main") : "",
                     duration: durationText(title.durationSeconds),
@@ -1168,6 +1207,7 @@ public struct FilesScreen: View {
                     action: { mediaLibrary.selectBluRayTitle(title) }
                 )
             }
+            return titles + groups
         }
         return displayedLibraryFolders.map { folder in
             FileListGroup.Item.folder(
@@ -1534,6 +1574,6 @@ public struct FilesScreen: View {
 
 nonisolated enum BluRayTitleAccessibility {
     static func label(for title: BluRayTitleItem, durationText: String) -> String {
-        "\(title.displayName), Playlist ID \(title.playlistID.rawValue), Duration \(durationText)"
+        "\(title.displayName), Duration \(durationText)"
     }
 }

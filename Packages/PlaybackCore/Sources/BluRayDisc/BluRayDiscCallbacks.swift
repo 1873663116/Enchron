@@ -22,7 +22,10 @@ private final class BlockingValue<Value: Sendable>: @unchecked Sendable {
                     cancel()
                     throw CancellationError()
                 }
-                return try lock.withLock { result! }.get()
+                guard let result = lock.withLock({ self.result }) else {
+                    throw BluRayDiscError.io("The Blu-ray callback completed without a value.")
+                }
+                return try result.get()
             }
         }
     }
@@ -36,8 +39,11 @@ func waitFor<Value: Sendable>(
     if box.isInterrupted(since: generation) { throw CancellationError() }
     let value = BlockingValue<Value>()
     let task = Task.detached(priority: .utility) {
-        do { value.complete(.success(try await operation())) }
-        catch { value.complete(.failure(error)) }
+        do {
+            value.complete(.success(try await operation()))
+        } catch {
+            value.complete(.failure(error))
+        }
     }
     return try value.wait(
         untilCancelled: { box.isInterrupted(since: generation) },

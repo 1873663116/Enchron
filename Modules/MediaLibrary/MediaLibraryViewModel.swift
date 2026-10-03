@@ -179,9 +179,36 @@ public final class MediaLibraryViewModel {
     private var playbackCollection: [FileBrowsingDomain.MediaReference] = []
     public private(set) var referenceViewingStates: [UUID: VideoCardViewingState] = [:]
     public private(set) var referenceArtworkURLs: [UUID: URL] = [:]
-    public private(set) var currentBluRayTitles: [BluRayTitleItem] = []
+    public var currentBluRayTitles: [BluRayTitleItem] {
+        guard let level = currentBluRayLevel else { return [] }
+        let programs = currentBluRayGroup.map { kind in
+            level.content.groups.first { $0.kind == kind }?.titles ?? []
+        } ?? level.content.primaryTitles
+        let ids = Set(programs.map(\.playlistID))
+        return level.titles.filter { ids.contains($0.playlistID) }
+    }
+
+    public private(set) var currentBluRayGroup: BluRayContentGroupKind?
+
+    public var currentBluRayGroups: [BluRayContentGroup] {
+        guard currentBluRayGroup == nil else { return [] }
+        return currentBluRayLevel?.content.groups ?? []
+    }
+
+    public func bluRaySearchResults(query: String) -> [BluRayTitleItem] {
+        let titles = currentBluRayGroup != nil || query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? currentBluRayTitles : currentBluRayLevel?.titles ?? []
+        return titles.filter { MediaLibrarySearch.matches($0, query: query) }
+    }
+
+    public func openBluRayGroup(_ kind: BluRayContentGroupKind) {
+        guard currentBluRayGroups.contains(where: { $0.kind == kind }) else { return }
+        currentBluRayGroup = kind
+        forwardBluRayGroup = nil
+    }
     public private(set) var currentBluRayDiscName: String?
     private var currentBluRayLevel: LibraryBluRayBrowseLevel?
+    private var forwardBluRayGroup: BluRayContentGroupKind?
     private var bluRayOpenGeneration: UInt64 = 0
     private var referenceIdentities: [UUID: MediaIdentity] = [:]
 
@@ -191,14 +218,14 @@ public final class MediaLibraryViewModel {
     private let durationProbe: MediaDurationProbe?
     private let artworkStore: ArtworkStore
     private let onPlay: @MainActor (MediaPlaybackItem) -> Void
-    private let bluRayCatalog: @Sendable (BluRayDiscSource) async throws -> [BluRayTitleItem]
+    private let bluRayCatalog: @Sendable (BluRayDiscSource) async throws -> LoadedBluRayCatalog
 
     init(
         store: MediaLibraryStoring = UserDefaultsMediaLibraryStore(),
         resolver: MediaReferenceResolver,
         viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
         durationProbe: MediaDurationProbe? = nil,
-        bluRayCatalogAtURL: (@Sendable (URL) async throws -> [BluRayTitleItem])? = nil,
+        bluRayCatalogAtURL: (@Sendable (URL) async throws -> BluRayDiscCatalog)? = nil,
         artworkStore: ArtworkStore = .shared,
         initialLibrary: FileBrowsingDomain.MediaLibrary? = nil,
         onPlay: @escaping @MainActor (MediaPlaybackItem) -> Void
@@ -212,7 +239,11 @@ public final class MediaLibraryViewModel {
                 guard case .url(let url) = source else {
                     throw BluRayDiscBrowsingError.remoteDirectoryCatalogUnavailable
                 }
-                return try await bluRayCatalogAtURL(url)
+                let catalog = try await bluRayCatalogAtURL(url)
+                return LoadedBluRayCatalog(
+                    catalog: catalog,
+                    manifest: BluRayCatalogProjectionLoader.fallbackManifest(for: catalog.titles)
+                )
             }
         } else {
             bluRayCatalog = BluRayCatalogProjectionLoader.load
@@ -249,7 +280,9 @@ public final class MediaLibraryViewModel {
     public var canNavigateBack: Bool {
         currentBluRayLevel != nil || !backwardFolderIDs.isEmpty
     }
-    public var canNavigateForward: Bool { !forwardFolderIDs.isEmpty }
+    public var canNavigateForward: Bool {
+        currentBluRayLevel != nil ? forwardBluRayGroup != nil : !forwardFolderIDs.isEmpty
+    }
 
     public var breadcrumbFolders: [FileBrowsingDomain.LibraryFolder] {
         (folderPath + [currentFolderID].compactMap { $0 }).compactMap { library.folder(id: $0) }
@@ -280,6 +313,11 @@ public final class MediaLibraryViewModel {
     }
 
     public func navigateBack() {
+        if let group = currentBluRayGroup {
+            forwardBluRayGroup = group
+            currentBluRayGroup = nil
+            return
+        }
         if currentBluRayLevel != nil {
             closeBluRayDisc()
             return
@@ -290,6 +328,11 @@ public final class MediaLibraryViewModel {
     }
 
     public func navigateForward() {
+        if let group = forwardBluRayGroup, currentBluRayLevel != nil {
+            currentBluRayGroup = group
+            forwardBluRayGroup = nil
+            return
+        }
         guard let target = forwardFolderIDs.popLast() else { return }
         backwardFolderIDs.append(currentFolderID)
         setCurrentFolder(target)
@@ -509,32 +552,20 @@ public final class MediaLibraryViewModel {
             let disc = try await resolver.resolveBluRayDisc(reference)
             let resolved = disc.resolved
             let source = disc.source
-            let projectedTitles = try await bluRayCatalog(source)
-            let manifest = projectedTitles.first?.catalogManifest
-                ?? BluRayCatalogProjectionLoader.fallbackManifest(for: projectedTitles)
+            let loaded = try await bluRayCatalog(source)
             let discIdentity: VersionedMediaIdentity? = if reference.fileExtension
                 .caseInsensitiveCompare("bdmv") == .orderedSame {
                 VersionedMediaIdentity(
                     mediaIdentity: mediaIdentity(for: reference, resolved: resolved),
-                    contentRevision: .directoryManifest(manifest)
+                    contentRevision: .directoryManifest(loaded.manifest)
                 )
             } else {
                 versionedIdentity(for: reference, resolved: resolved)
             }
-            let titles = projectedTitles.map { title in
-                BluRayTitleItem(
-                    playlistID: title.playlistID,
-                    ordinal: title.ordinal,
-                    optionalName: title.optionalName,
-                    durationSeconds: title.durationSeconds,
-                    isMain: title.isMain,
-                    versionedIdentity: discIdentity.map {
-                        .bluRayPlaylist(disc: $0, playlistID: title.playlistID.rawValue)
-                    },
-                    mediaItemID: title.mediaItemID,
-                    catalogManifest: manifest
-                )
-            }
+            let presentation = try loaded.present(
+                sourceName: reference.name,
+                identity: discIdentity
+            )
             guard bluRayOpenGeneration == openGeneration else {
                 resolved.byteStreamHandle?.release()
                 return
@@ -543,10 +574,12 @@ public final class MediaLibraryViewModel {
                 reference: reference,
                 resolved: resolved,
                 source: source,
-                titles: titles
+                content: presentation.content,
+                titles: presentation.titles
             )
-            currentBluRayTitles = titles
-            currentBluRayDiscName = (reference.name as NSString).deletingPathExtension
+            currentBluRayGroup = nil
+            forwardBluRayGroup = nil
+            currentBluRayDiscName = presentation.content.name
             lastErrorMessage = nil
         } catch {
             guard bluRayOpenGeneration == openGeneration else { return }
@@ -557,7 +590,8 @@ public final class MediaLibraryViewModel {
     public func closeBluRayDisc() {
         bluRayOpenGeneration &+= 1
         currentBluRayLevel = nil
-        currentBluRayTitles = []
+        currentBluRayGroup = nil
+        forwardBluRayGroup = nil
         currentBluRayDiscName = nil
     }
 

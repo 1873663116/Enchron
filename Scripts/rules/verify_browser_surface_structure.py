@@ -177,7 +177,7 @@ def check_level_transitions() -> None:
         "would otherwise fade in over the previous level's rows",
     )
     for opening, closing in (
-        ("public func navigateToFolder(", "public func navigateUp("),
+        ("private func navigateToFolderContents(", "public func navigateUp("),
         ("public func navigateUp(", "public func navigateForward("),
         ("public func navigateForward(", "public var breadcrumbSegments:"),
         ("public func navigateToBreadcrumb(", "public func selectLocalFolder("),

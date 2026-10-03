@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import sys
 from collections.abc import Mapping
+from dataclasses import dataclass
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -23,15 +24,86 @@ from Scripts.regression.core.frontmatter import load_frontmatter
 from Scripts.verification.regression_operation_adapter import catalog_operation_shape
 
 
+@dataclass(frozen=True)
+class BluRayCase:
+    slug: str
+    source_kind: str
+    fixture: str | None
+    disc_name: str
+    selected_playlist: int
+    authored_playlist_count: int
+    selected_duration: str
+    selected_name: str
+    corpus_release: str
+    corpus_folder: str
+    primary_count: int
+    group_counts: tuple[tuple[str, int], ...] = ()
+    selected_group: str | None = None
+    companion_titles: tuple[tuple[int, str, str], ...] = ()
+
+    @property
+    def is_directory(self) -> bool:
+        return not self.disc_name.endswith(".iso")
+
+    @property
+    def root_item_count(self) -> int:
+        return self.primary_count + len(self.group_counts) + int(self.is_directory)
+
+
+AVS_GROUPS = (("videos", 97), ("sequences", 2), ("stillImages", 11))
 CASES = (
-    ("avs-iso", "local", "bluray-avs-iso", "HDMV-2d.iso", 99, 110, "30 sec"),
-    ("avs-directory", "local", "bluray-avs-directory", "HDMV-2d", 99, 110, "30 sec"),
-    ("fel-iso", "local", "bluray-fel-iso", "FEL_test_for_AVS.iso", 0, 1, "2 min"),
-    ("fel-directory", "local", "bluray-fel-directory", "FEL_test_for_AVS", 0, 1, "2 min"),
-    ("smb-fel-iso", "smb", None, "FEL_test_for_AVS.iso", 0, 1, "2 min"),
-    ("smb-fel-directory", "smb", None, "FEL_test_for_AVS", 0, 1, "2 min"),
-    ("webdav-fel-iso", "webdav", None, "FEL_test_for_AVS.iso", 0, 1, "2 min"),
-    ("webdav-fel-directory", "webdav", None, "FEL_test_for_AVS", 0, 1, "2 min"),
+    BluRayCase(
+        "avs-iso", "local", "bluray-avs-iso", "HDMV-2d.iso", 99, 110,
+        "30 sec", "Sequences · 30s · H.264 1080p", "AVS-HD-709", "HDMV-2d", 0,
+        AVS_GROUPS, "sequences",
+        ((43, "25 min", "Sequences · 25m 00s · H.264 1080p"),),
+    ),
+    BluRayCase(
+        "avs-directory", "local", "bluray-avs-directory", "HDMV-2d", 99, 110,
+        "30 sec", "Sequences · 30s · H.264 1080p", "AVS-HD-709", "HDMV-2d", 0,
+        AVS_GROUPS, "sequences",
+        ((43, "25 min", "Sequences · 25m 00s · H.264 1080p"),),
+    ),
+    BluRayCase("fel-iso", "local", "bluray-fel-iso", "FEL_test_for_AVS.iso",
+               0, 1, "2 min", "FEL_test_for_AVS", "DolbyVision-Profile7-FEL",
+               "FEL_test_for_AVS", 1),
+    BluRayCase("fel-directory", "local", "bluray-fel-directory", "FEL_test_for_AVS",
+               0, 1, "2 min", "FEL_test_for_AVS", "DolbyVision-Profile7-FEL",
+               "FEL_test_for_AVS", 1),
+    BluRayCase("smb-fel-iso", "smb", None, "FEL_test_for_AVS.iso",
+               0, 1, "2 min", "FEL_test_for_AVS", "DolbyVision-Profile7-FEL",
+               "FEL_test_for_AVS", 1),
+    BluRayCase("smb-fel-directory", "smb", None, "FEL_test_for_AVS",
+               0, 1, "2 min", "FEL_test_for_AVS", "DolbyVision-Profile7-FEL",
+               "FEL_test_for_AVS", 1),
+    BluRayCase("webdav-fel-iso", "webdav", None, "FEL_test_for_AVS.iso",
+               0, 1, "2 min", "FEL_test_for_AVS", "DolbyVision-Profile7-FEL",
+               "FEL_test_for_AVS", 1),
+    BluRayCase("webdav-fel-directory", "webdav", None, "FEL_test_for_AVS",
+               0, 1, "2 min", "FEL_test_for_AVS", "DolbyVision-Profile7-FEL",
+               "FEL_test_for_AVS", 1),
+    BluRayCase(
+        "sintel-iso", "local", "bluray-sintel-iso", "Sintel-Bluray.iso",
+        0, 2, "14 min", "Sintel-Bluray", "Sintel", "Sintel-Bluray", 1,
+        (("additional", 1),),
+    ),
+    BluRayCase(
+        "sintel-directory", "local", "bluray-sintel-directory", "Sintel-Bluray",
+        0, 2, "14 min", "Sintel-Bluray", "Sintel", "Sintel-Bluray", 1,
+        (("additional", 1),),
+    ),
+    BluRayCase(
+        "sintel-editions-iso", "local", "bluray-sintel-editions-iso",
+        "Sintel-Editions.iso", 1, 3, "1 min", "Sintel – Edition tests · 1m 15s",
+        "Sintel-Editions", "Sintel-Editions", 2, (("additional", 1),), None,
+        ((0, "1 min", "Sintel – Edition tests · 1m 00s"),),
+    ),
+    BluRayCase(
+        "sintel-editions-directory", "local", "bluray-sintel-editions-directory",
+        "Sintel-Editions", 1, 3, "1 min", "Sintel – Edition tests · 1m 15s",
+        "Sintel-Editions", "Sintel-Editions", 2, (("additional", 1),), None,
+        ((0, "1 min", "Sintel – Edition tests · 1m 00s"),),
+    ),
 )
 
 AX = ("accessibility.tree", "accessibility-tree@1", "oracle:agent-structured-accessibility-tree@1")
@@ -66,11 +138,15 @@ def _call(slug: str, number: int, operation: str, arguments: dict) -> dict:
     }
 
 
-def _scenario(root: Path, case: tuple) -> tuple[dict, set[str], set[str]]:
-    slug, source_kind, fixture, disc_name, playlist, title_count, duration = case
+def _scenario(root: Path, case: BluRayCase) -> tuple[dict, set[str], set[str]]:
+    slug = case.slug
+    source_kind = case.source_kind
+    fixture = case.fixture
+    disc_name = case.disc_name
     calls: list[dict] = []
     operations: set[str] = set()
     oracles: set[str] = set()
+    bindings: list[tuple[str, str, tuple[str, str, str], list[str], list[str]]] = []
 
     def add(operation: str, arguments: dict) -> str:
         call = _call(slug, len(calls) + 1, operation, arguments)
@@ -100,36 +176,90 @@ def _scenario(root: Path, case: tuple) -> tuple[dict, set[str], set[str]]:
         if disc_name.endswith(".iso") else f"FileBrowsing-grid-folder-{disc_name}"
     )
     add("accessibility.activate@2", {"context": "main-window-browser", "identifiers": [entry_id]})
-    count_call = add("accessibility.inspect@2", {
-        "context": "main-window-browser", "identifier": "FileBrowsing-FilesScreen-itemCount",
-        "requireMatchedElement": True, "deadlineSeconds": 90,
-    })
-    title_id = f"FileBrowsing-grid-bluray-playlist-{playlist}"
-    title_call = add("accessibility.inspect@2", {
-        "context": "main-window-browser", "identifier": title_id,
-        "requireMatchedElement": True, "deadlineSeconds": 90,
-    })
-    if slug.startswith("avs"):
-        add("accessibility.inspect@2", {
-            "context": "main-window-browser", "identifier": "FileBrowsing-grid-bluray-playlist-43",
+
+    def inspect(identifier: str) -> str:
+        return add("accessibility.inspect@2", {
+            "context": "main-window-browser", "identifier": identifier,
             "requireMatchedElement": True, "deadlineSeconds": 90,
         })
-    if disc_name.endswith(".iso") is False:
+
+    group_names = {
+        "videos": "Videos",
+        "sequences": "Sequences",
+        "stillImages": "Still images",
+        "additional": "Additional content",
+    }
+
+    def inspect_root(instance: int) -> None:
+        count_call = inspect("FileBrowsing-FilesScreen-itemCount")
+        bindings.append((
+            f"root-count-{instance}", count_call, AX,
+            [f"matchedElement label or value is exactly '{case.root_item_count} items'."],
+            [
+                "A default page showing 110 raw playlist cards violates content projection; "
+                "a missing count element or a count from another folder is Indeterminate."
+            ],
+        ))
+        for kind, count in case.group_counts:
+            identifier = f"FileBrowsing-grid-bluray-group-{kind}"
+            call = inspect(identifier)
+            rubric_kind = "still-images" if kind == "stillImages" else kind
+            bindings.append((
+                f"root-{rubric_kind}-{instance}", call, AX,
+                [
+                    f"matchedElement identifier is {identifier}, its label contains "
+                    f"'{group_names[kind]}', and its visible count is {count}."
+                ],
+                [
+                    "A raw playlist card, a missing content group, or a group count derived "
+                    "from the currently selected playlist violates root content projection."
+                ],
+            ))
+
+    inspect_root(1)
+    if case.is_directory:
         add("accessibility.activate@2", {
             "context": "main-window-browser", "identifiers": ["FileBrowsing-grid-bluray-browseFiles"],
         })
         add("accessibility.activate@2", {
             "context": "main-window-browser", "identifiers": ["FileBrowsing-grid-folder-BDMV"],
         })
-        add("accessibility.inspect@2", {
-            "context": "main-window-browser", "identifier": "FileBrowsing-FilesScreen-itemCount",
-            "requireMatchedElement": True, "deadlineSeconds": 90,
+        inspect_root(2)
+
+    if case.selected_group:
+        group_id = f"FileBrowsing-grid-bluray-group-{case.selected_group}"
+        add("accessibility.activate@2", {
+            "context": "main-window-browser", "identifiers": [group_id],
         })
-        add("accessibility.inspect@2", {
-            "context": "main-window-browser", "identifier": title_id,
-            "requireMatchedElement": True, "deadlineSeconds": 90,
-        })
-    add("media.open@2", {"identifier": title_id, "expectedLanding": "window", "deadlineSeconds": 90})
+        group_count = dict(case.group_counts)[case.selected_group]
+        count_call = inspect("FileBrowsing-FilesScreen-itemCount")
+        bindings.append((
+            "group-count", count_call, AX,
+            [f"matchedElement label or value is exactly '{group_count} items'."],
+            ["The root count or raw authored-playlist count cannot prove the opened group."],
+        ))
+
+    title_contracts = [
+        (case.selected_playlist, case.selected_duration, case.selected_name)
+    ] + list(case.companion_titles)
+    for playlist_id, duration, content_name in title_contracts:
+        title_id = f"FileBrowsing-grid-bluray-content-{playlist_id}"
+        title_call = inspect(title_id)
+        bindings.append((
+            f"content-{playlist_id}", title_call, AX,
+            [
+                f"matchedElement identifier is {title_id}, its label contains "
+                f"'{content_name}' and 'Duration {duration}', and its label does not contain 'Playlist'."
+            ],
+            [
+                "A visible Playlist ID, a grid-bluray-playlist identifier, an authored duration "
+                "mismatch, or a card observed before opening its content group violates this claim."
+            ],
+        ))
+
+    selected_title_id = f"FileBrowsing-grid-bluray-content-{case.selected_playlist}"
+    add("media.open@2", {"identifier": selected_title_id,
+                          "expectedLanding": "window", "deadlineSeconds": 90})
     add("playback.await-window-state@1", {
         "presentation": "window", "lifecycle": "playing", "controls": "either", "deadlineSeconds": 90,
     })
@@ -138,20 +268,14 @@ def _scenario(root: Path, case: tuple) -> tuple[dict, set[str], set[str]]:
         "context": "window", "count": 3, "minimumIntervalMillis": 1000,
     })
 
-    bindings = (
-        ("count", count_call, AX, [f"matchedElement label or value is exactly '{title_count} items'."],
-         ["A missing count element or a count from another folder is Indeterminate."]),
-        ("title", title_call, AX,
-         [f"matchedElement identifier is {title_id}, and its label contains 'Playlist ID {playlist}' and 'Duration {duration}'."] +
-         (["The independently authored playlist 43 card also reads 'Duration 25 min'."] if slug.startswith("avs") else []),
-         ["A mismatched playlist ID or duration violates the title-card claim; a missing element is Indeterminate."]),
+    bindings.extend((
         ("selection", playback_call, PLAYBACK,
-         [f"fields.bluRayPlaylistID is exactly {playlist}, with an active media session and lifecycle Playing."],
+         [f"fields.bluRayPlaylistID is exactly {case.selected_playlist}, with an active media session and lifecycle Playing."],
          ["A generic file selection, absent identity, or a different playlist ID violates selection."]),
         ("picture", frames_call, FRAMES,
-         ["Three captured PNGs are larger than 1x1, nonblack and belong to one selected media session."],
-         ["A 1x1, corrupt, black, or unrelated screenshot cannot prove decoded playback."]),
-    )
+         ["Three captured PNGs are larger than 1x1, nonblack and belong to the selected media session."],
+         ["A 1x1, corrupt, black, stale, or differently selected screenshot cannot prove decoded playback."]),
+    ))
     obligations = []
     for index, (label, producer, pair, criteria, negative) in enumerate(bindings, 1):
         evidence_type, evidence_schema, oracle = pair
@@ -202,10 +326,10 @@ def prepare(output_root: Path) -> dict:
         "feature": "bluray-disc", "title": "Blu-ray disc browsing and playback",
         "promises": [
             {"id": "promise:bluray-disc:c01", "title": "Local disc titles",
-             "statement": "Local ISO and BDMV parent/self entries expose complete playlist cards and selected supported titles play with stable playlist identity.",
+             "statement": "Local ISO and BDMV parent/self entries project authored playlists into honest films, versions and content groups; selected content plays with stable internal playlist identity.",
              "automation": {"scope": "included"}},
             {"id": "promise:bluray-disc:c02", "title": "Remote disc titles",
-             "statement": "SMB and WebDAV ISO and BDMV entries expose playlist cards and selected supported titles play through their source adapters.",
+             "statement": "SMB and WebDAV ISO and BDMV entries expose the same content projection and selected supported content plays through its source adapter.",
              "automation": {"scope": "included"}},
         ],
     }, "This supplemental Promise set is limited to the user's current Blu-ray request; the baseline Catalog remains unchanged.")
@@ -259,7 +383,7 @@ def prepare(output_root: Path) -> dict:
         "id": "journey:bluray-disc", "title": "Blu-ray simulator verification",
         "scenarioRefs": [item["id"] for item in scenarios],
         "ordering": [], "sharedState": [],
-    }, "Each scenario has one source and one selected playlist. The local AVS ISO case is the simulator gate.")
+    }, "Each scenario verifies projected root content before selecting one internal playlist identity. The local AVS ISO case is the simulator gate, and its default page shows content groups instead of 110 raw playlist cards.")
     catalog = load_catalog(output_root)
     blueprint = {
         "schemaVersion": 2,

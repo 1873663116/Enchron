@@ -66,19 +66,19 @@ struct BluRayBrowsingTests {
         #expect(first != other)
     }
 
-    @Test("Blu-ray title accessibility names the playlist ID and displayed duration")
+    @Test("Blu-ray accessibility exposes the content name and duration without internal IDs")
     func bluRayTitleAccessibility() {
         let title = BluRayTitleItem(
             playlistID: BluRayPlaylistID(rawValue: 42),
             ordinal: 7,
-            optionalName: "Bonus Feature",
+            displayName: "Bonus Feature",
             durationSeconds: 6_005.25,
             isMain: false
         )
 
         #expect(
             BluRayTitleAccessibility.label(for: title, durationText: "1 hr 40 min")
-                == "Bonus Feature, Playlist ID 42, Duration 1 hr 40 min"
+                == "Bonus Feature, Duration 1 hr 40 min"
         )
     }
 
@@ -183,48 +183,60 @@ struct BluRayBrowsingTests {
     }
 
     @MainActor
-    @Test("an ISO opens as a virtual folder with one card per authored playlist")
+    @Test("a film disc exposes its film and places independent short content behind a group")
     func isoOpensAsVirtualFolder() async throws {
         let source = TestBluRayFileSource()
         let captured = CapturedPlaybackItem()
         let viewModel = makeViewModel(source: source, captured: captured) { _ in
-            [
-                BluRayTitleItem(
-                    playlistID: BluRayPlaylistID(rawValue: 8),
-                    ordinal: 0,
-                    optionalName: nil,
-                    durationSeconds: 6_005.25,
-                    isMain: true
-                ),
-                BluRayTitleItem(
-                    playlistID: BluRayPlaylistID(rawValue: 42),
-                    ordinal: 1,
-                    optionalName: "Bonus Feature",
-                    durationSeconds: 602.5,
-                    isMain: false
-                )
-            ]
+            BluRayDiscCatalog(titles: [
+                Self.rawTitle(id: 8, duration: 6_005.25, main: true),
+                Self.rawTitle(id: 42, name: "Behind the scenes", duration: 602.5)
+            ])
         }
         let image = source.image
 
         await viewModel.loadFiles()
         await viewModel.openBluRayDisc(for: image)
 
-        #expect(viewModel.currentBluRayTitles.map(\.playlistID.rawValue) == [8, 42])
-        #expect(viewModel.currentBluRayTitles.map(\.durationSeconds) == [6_005.25, 602.5])
-        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Playlist 00008", "Bonus Feature"])
+        #expect(viewModel.currentBluRayTitles.map(\.playlistID.rawValue) == [8])
+        #expect(viewModel.currentBluRayTitles.map(\.durationSeconds) == [6_005.25])
+        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Feature"])
+        #expect(viewModel.currentBluRayGroups.map(\.kind) == [.additional])
+        #expect(viewModel.currentBluRayGroups.first?.titles.map(\.displayName) == ["Behind the scenes"])
         #expect(viewModel.isBrowsingBluRayDisc)
         #expect(viewModel.canNavigateUp)
         #expect(viewModel.currentLevelHasSettled)
 
-        viewModel.searchText = " 00008 "
+        viewModel.searchText = " Feature "
         #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [8])
-        viewModel.searchText = "BONUS"
+        viewModel.searchText = "BEHIND"
         #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [42])
         viewModel.searchText = "unavailable title"
         #expect(viewModel.displayedBluRayTitles.isEmpty)
         viewModel.searchText = " "
-        #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [8, 42])
+        #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [8])
+
+        viewModel.openBluRayGroup(.additional)
+        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Behind the scenes"])
+        #expect(viewModel.currentBluRayGroups.isEmpty)
+        #expect(viewModel.breadcrumbSegments.last?.name == "Additional content")
+        viewModel.searchText = "Feature"
+        #expect(viewModel.displayedBluRayTitles.isEmpty)
+        viewModel.searchText = "BEHIND"
+        #expect(viewModel.displayedBluRayTitles.map(\.displayName) == ["Behind the scenes"])
+        await viewModel.navigateUp()
+        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Feature"])
+        #expect(viewModel.canNavigateForward)
+        await viewModel.navigateForward()
+        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Behind the scenes"])
+        await viewModel.navigateUp()
+        await viewModel.navigateUp()
+        #expect(!viewModel.isBrowsingBluRayDisc)
+        await viewModel.navigateForward()
+        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Feature"])
+        #expect(viewModel.canNavigateForward)
+        await viewModel.navigateForward()
+        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Behind the scenes"])
     }
 
     @MainActor
@@ -233,15 +245,7 @@ struct BluRayBrowsingTests {
         let source = TestBluRayFileSource()
         let captured = CapturedPlaybackItem()
         let viewModel = makeViewModel(source: source, captured: captured) { _ in
-            [
-                BluRayTitleItem(
-                    playlistID: BluRayPlaylistID(rawValue: 42),
-                    ordinal: 7,
-                    optionalName: nil,
-                    durationSeconds: 602.5,
-                    isMain: false
-                )
-            ]
+            BluRayDiscCatalog(titles: [Self.rawTitle(id: 42, duration: 602.5)])
         }
 
         await viewModel.loadFiles()
@@ -254,7 +258,7 @@ struct BluRayBrowsingTests {
             BluRayPlaylistID(rawValue: 42),
             source: .url(source.image.url)
         ))
-        #expect(item.displayName == "Playlist 00042")
+        #expect(item.displayName == "Feature")
     }
 
     @MainActor
@@ -296,12 +300,30 @@ struct BluRayBrowsingTests {
     private func makeViewModel(
         source: TestBluRayFileSource,
         captured: CapturedPlaybackItem,
-        catalog: @escaping @Sendable (URL) async throws -> [BluRayTitleItem]
+        catalog: @escaping @Sendable (URL) async throws -> BluRayDiscCatalog
     ) -> FileBrowsingViewModel {
         FileBrowsingViewModel(
             localDataSource: source,
             bluRayCatalogAtURL: catalog,
             onPlayFile: { captured.item = $0 }
+        )
+    }
+
+    private nonisolated static func rawTitle(
+        id: UInt32,
+        name: String? = nil,
+        duration: Double,
+        main: Bool = false
+    ) -> BluRayDiscTitle {
+        BluRayDiscTitle(
+            playlistID: .init(rawValue: id), ordinal: Int(id), optionalName: name,
+            durationSeconds: duration, isMain: main,
+            clips: [BluRayClip(
+                clipID: String(format: "%05u", id), startTimeSeconds: 0,
+                inTimeSeconds: 0, outTimeSeconds: duration, byteStart: 0,
+                byteEnd: 192, packetCount: 1,
+                streams: [BluRayStream(pid: 4113, codingType: 27, kind: .video, language: nil)]
+            )]
         )
     }
 }

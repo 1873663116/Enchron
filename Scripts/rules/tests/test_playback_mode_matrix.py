@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import date
 import subprocess
 import tempfile
 import unittest
@@ -12,7 +13,10 @@ class HarnessContainerTests(unittest.TestCase):
         self._tmpdir = tempfile.TemporaryDirectory()
         self._tmp = Path(self._tmpdir.name)
         real_provisional = matrix.REPOSITORY_ROOT / "Scripts/verification/harness/provisional_budgets.json"
-        self._budgets = matrix.BudgetProvider(timings_directory=self._tmp, provisional_path=real_provisional)
+        self._budgets = matrix.BudgetProvider(
+            timings_directory=self._tmp, provisional_path=real_provisional,
+            today=lambda: date(2026, 9, 1),
+        )
         self._tools = matrix.LocalToolRunner("device", budgets=self._budgets)
         self._policy = matrix.RecoveryPolicy()
         import enchron_target

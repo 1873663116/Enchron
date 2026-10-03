@@ -20,12 +20,23 @@ public struct BluRayStream: Sendable, Equatable {
     public let codingType: UInt8
     public let kind: BluRayStreamKind
     public let language: String?
+    public let format: UInt8
+    public let rate: UInt8
 
-    public init(pid: UInt16, codingType: UInt8, kind: BluRayStreamKind, language: String?) {
+    public init(
+        pid: UInt16,
+        codingType: UInt8,
+        kind: BluRayStreamKind,
+        language: String?,
+        format: UInt8 = 0,
+        rate: UInt8 = 0
+    ) {
         self.pid = pid
         self.codingType = codingType
         self.kind = kind
         self.language = language
+        self.format = format
+        self.rate = rate
     }
 }
 
@@ -38,6 +49,9 @@ public struct BluRayClip: Sendable, Equatable {
     public let byteEnd: UInt64
     public let packetCount: UInt32
     public let streams: [BluRayStream]
+    public let stillMode: UInt8
+    public let stillTime: UInt16
+    public let hasInteractiveGraphics: Bool
 
     public init(
         clipID: String,
@@ -47,7 +61,10 @@ public struct BluRayClip: Sendable, Equatable {
         byteStart: UInt64,
         byteEnd: UInt64,
         packetCount: UInt32,
-        streams: [BluRayStream]
+        streams: [BluRayStream],
+        stillMode: UInt8 = 0,
+        stillTime: UInt16 = 0,
+        hasInteractiveGraphics: Bool = false
     ) {
         self.clipID = clipID
         self.startTimeSeconds = startTimeSeconds
@@ -57,6 +74,9 @@ public struct BluRayClip: Sendable, Equatable {
         self.byteEnd = byteEnd
         self.packetCount = packetCount
         self.streams = streams
+        self.stillMode = stillMode
+        self.stillTime = stillTime
+        self.hasInteractiveGraphics = hasInteractiveGraphics
     }
 }
 
@@ -68,6 +88,7 @@ public struct BluRayDiscTitle: Sendable, Equatable, Identifiable {
     public let durationSeconds: Double
     public let isMain: Bool
     public let clips: [BluRayClip]
+    public let chapterCount: UInt32
 
     public init(
         playlistID: BluRayPlaylistID,
@@ -75,7 +96,8 @@ public struct BluRayDiscTitle: Sendable, Equatable, Identifiable {
         optionalName: String? = nil,
         durationSeconds: Double,
         isMain: Bool = false,
-        clips: [BluRayClip] = []
+        clips: [BluRayClip] = [],
+        chapterCount: UInt32 = 0
     ) {
         self.playlistID = playlistID
         self.ordinal = ordinal
@@ -83,14 +105,156 @@ public struct BluRayDiscTitle: Sendable, Equatable, Identifiable {
         self.durationSeconds = durationSeconds
         self.isMain = isMain
         self.clips = clips
+        self.chapterCount = chapterCount
     }
 }
 
 public struct BluRayDiscCatalog: Sendable, Equatable {
     public let titles: [BluRayDiscTitle]
+    public let optionalName: String?
 
-    public init(titles: [BluRayDiscTitle]) {
+    public init(titles: [BluRayDiscTitle], optionalName: String? = nil) {
         self.titles = titles
+        self.optionalName = optionalName
+    }
+}
+
+enum BluRayDiscMetadataParser {
+    static let maximumByteCount = 1024 * 1024
+
+    static func parseDiscName(_ data: Data) -> String? {
+        guard !data.isEmpty, data.count <= maximumByteCount else { return nil }
+        let delegate = DiscNameXMLDelegate()
+        let parser = XMLParser(data: data)
+        parser.delegate = delegate
+        parser.shouldProcessNamespaces = true
+        parser.shouldReportNamespacePrefixes = false
+        parser.shouldResolveExternalEntities = false
+        parser.externalEntityResolvingPolicy = .never
+        guard parser.parse(), !delegate.rejected else { return nil }
+        return delegate.discName
+    }
+}
+
+private final class DiscNameXMLDelegate: NSObject, XMLParserDelegate {
+    private struct Element: Equatable {
+        let name: String
+        let namespace: String
+    }
+
+    private static let discNamePath = [
+        Element(name: "disclib", namespace: "urn:BDA:bdmv;disclib"),
+        Element(name: "discinfo", namespace: "urn:BDA:bdmv;discinfo"),
+        Element(name: "title", namespace: "urn:BDA:bdmv;discinfo"),
+        Element(name: "name", namespace: "urn:BDA:bdmv;discinfo")
+    ]
+    private static let maximumDepth = 32
+    private static let maximumNameByteCount = 256
+
+    private var elements: [Element] = []
+    private var nameBuffer = ""
+    private var capturesName = false
+    private(set) var rejected = false
+    private(set) var discName: String?
+
+    func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        elements.append(Element(name: elementName, namespace: namespaceURI ?? ""))
+        guard elements.count <= Self.maximumDepth else {
+            reject(parser)
+            return
+        }
+        if capturesName {
+            reject(parser)
+        } else if discName == nil, elements == Self.discNamePath {
+            capturesName = true
+            nameBuffer = ""
+        }
+    }
+
+    func parser(_ parser: XMLParser, foundCharacters string: String) {
+        guard capturesName else { return }
+        guard nameBuffer.utf8.count + string.utf8.count <= Self.maximumNameByteCount else {
+            reject(parser)
+            return
+        }
+        nameBuffer += string
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        didEndElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?
+    ) {
+        if capturesName, elements == Self.discNamePath {
+            let name = nameBuffer
+                .components(separatedBy: .whitespacesAndNewlines)
+                .filter { !$0.isEmpty }
+                .joined(separator: " ")
+            if !name.isEmpty, name.utf8.count <= Self.maximumNameByteCount,
+               name.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) {
+                discName = name
+            }
+            capturesName = false
+            nameBuffer = ""
+        }
+        if !elements.isEmpty { elements.removeLast() }
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        foundInternalEntityDeclarationWithName name: String,
+        value: String?
+    ) {
+        reject(parser)
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        foundExternalEntityDeclarationWithName name: String,
+        publicID: String?,
+        systemID: String?
+    ) {
+        reject(parser)
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        foundUnparsedEntityDeclarationWithName name: String,
+        publicID: String?,
+        systemID: String?,
+        notationName: String?
+    ) {
+        reject(parser)
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        foundNotationDeclarationWithName name: String,
+        publicID: String?,
+        systemID: String?
+    ) {
+        reject(parser)
+    }
+
+    func parser(
+        _ parser: XMLParser,
+        resolveExternalEntityName name: String,
+        systemID: String?
+    ) -> Data? {
+        reject(parser)
+        return nil
+    }
+
+    private func reject(_ parser: XMLParser) {
+        rejected = true
+        parser.abortParsing()
     }
 }
 
@@ -284,15 +448,27 @@ public enum BluRayDisc {
                 optionalName: name.isEmpty ? nil : name,
                 durationSeconds: Double(raw.duration90k) / 90_000,
                 isMain: raw.isMain,
-                clips: clips
+                clips: clips,
+                chapterCount: raw.chapterCount
             )
         }
-        return BluRayDiscCatalog(titles: titles)
+        var metadataSize: Int64 = 0
+        let metadata = PBBlurayCatalogMetadataXML(pointer, &metadataSize).flatMap { bytes in
+            guard metadataSize > 0,
+                  metadataSize <= Int64(BluRayDiscMetadataParser.maximumByteCount) else {
+                return nil as Data?
+            }
+            return Data(bytes: bytes, count: Int(metadataSize))
+        }
+        return BluRayDiscCatalog(
+            titles: titles,
+            optionalName: metadata.flatMap(BluRayDiscMetadataParser.parseDiscName)
+        )
     }
 
     private static func errorMessage(_ bytes: [CChar]) -> String {
-        String(decoding: bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
-               as: UTF8.self)
+        String(bytes: bytes.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+               encoding: .utf8) ?? ""
     }
 
     private static func decodeClip(_ raw: PBBlurayClipInfo,
@@ -305,7 +481,10 @@ public enum BluRayDisc {
             byteStart: raw.byteStart,
             byteEnd: raw.byteEnd,
             packetCount: raw.packetCount,
-            streams: streams
+            streams: streams,
+            stillMode: raw.stillMode,
+            stillTime: raw.stillTime,
+            hasInteractiveGraphics: raw.hasInteractiveGraphics
         )
     }
 
@@ -319,12 +498,13 @@ public enum BluRayDisc {
         }
         let language = stringFromTuple(raw.language)
         return BluRayStream(pid: raw.pid, codingType: raw.codingType,
-                            kind: kind, language: language.isEmpty ? nil : language)
+                            kind: kind, language: language.isEmpty ? nil : language,
+                            format: raw.format, rate: raw.rate)
     }
 
     private static func stringFromTuple<T>(_ tuple: T) -> String {
         withUnsafeBytes(of: tuple) { bytes in
-            String(decoding: bytes.prefix { $0 != 0 }, as: UTF8.self)
+            String(bytes: bytes.prefix { $0 != 0 }, encoding: .utf8) ?? ""
         }
     }
 }

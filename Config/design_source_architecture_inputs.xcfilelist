@@ -53,6 +53,7 @@ $(SRCROOT)/Modules/MediaLibrary/FileBrowsingViewModel.swift
 $(SRCROOT)/Modules/MediaLibrary/MediaLibraryFeature.swift
 $(SRCROOT)/Modules/MediaLibrary/MediaLibraryViewModel.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/BluRayBrowsing.swift
+$(SRCROOT)/Modules/MediaLibrary/Model/BluRayDiscContent.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/ExternalSubtitleAssociation.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaBrowsing.swift
 $(SRCROOT)/Modules/MediaLibrary/Model/MediaLibrary.swift

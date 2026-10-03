@@ -61,6 +61,7 @@ Agent 回归的成功表达式只引用结构证据和可自动判定的物理�
 **取得媒体**
 - [media-import.md](media-import.md)：媒体进入资料库的路径。
 - [remote-source-connection.md](remote-source-connection.md)：SMB 与 WebDAV 的添加、浏览与打开。
+- [bluray-content.md](bluray-content.md)：蓝光 ISO、目录的影片、版本、内容分组与连续播放。
 - [emby-library.md](emby-library.md)：Emby 的浏览、播放与服务器端观看状态。
 
 **播放**

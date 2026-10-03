@@ -9,6 +9,12 @@ SPEC = importlib.util.spec_from_file_location("verify_bluray_corpus", SCRIPT)
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
 
+RUNNER_RELATIVE = "../build/verify_bluray_corpus.py"
+RUNNER = (Path(__file__).resolve().parents[1] / RUNNER_RELATIVE).resolve()
+RUNNER_SPEC = importlib.util.spec_from_file_location("build_verify_bluray_corpus", RUNNER)
+RUNNER_MODULE = importlib.util.module_from_spec(RUNNER_SPEC)
+RUNNER_SPEC.loader.exec_module(RUNNER_MODULE)
+
 
 def one_clip_mpls() -> bytes:
     data = bytearray(90)
@@ -55,7 +61,7 @@ class VerifyBluRayCorpusTests(unittest.TestCase):
                            "byteStart": 0, "byteEnd": 192, "streams": []}],
             }]}
             with self.assertRaisesRegex(AssertionError, "playlist 0 duration"):
-                MODULE.verify_catalog(catalog, bdmv, golden, "fixture")
+                RUNNER_MODULE.verify_catalog(catalog, bdmv, golden, "fixture")
 
     def test_truncated_mpls_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

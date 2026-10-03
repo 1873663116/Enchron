@@ -10,6 +10,6 @@ if __name__ == "__main__":
     repository = Path(__file__).resolve().parents[2]
     raise SystemExit(subprocess.call([
         sys.executable,
-        str(repository / "Scripts/verification/verify_bluray_corpus.py"),
+        str(repository / "Scripts/build/verify_bluray_corpus.py"),
         *sys.argv[1:],
     ]))

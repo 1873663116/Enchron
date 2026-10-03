@@ -1111,6 +1111,41 @@
       "context": "docked",
       "operation": "accessibility:EnvironmentCard-default-{environment.id}",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-bluray-browseFiles",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-bluray-content-{title.playlistID.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-bluray-disc-{file.name}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-grid-bluray-group-{group.kind.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-bluray-content-{title.playlistID.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-bluray-disc-{reference.name}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:MediaLibrary-grid-bluray-group-{group.kind.rawValue}",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

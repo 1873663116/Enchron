@@ -32,22 +32,40 @@ enum BluRayDiscErrorPresentation {
     }
 }
 
-nonisolated enum BluRayCatalogProjectionLoader {
-    nonisolated static func load(
-        from source: BluRayDiscSource
-    ) async throws -> [BluRayTitleItem] {
-        let catalog = try await BluRayDisc.catalog(source: source)
-        let manifest = await canonicalManifest(for: catalog.titles, source: source)
-        return catalog.titles.map { title in
+nonisolated struct LoadedBluRayCatalog: Sendable {
+    let catalog: BluRayDiscCatalog
+    let manifest: Data
+
+    func present(
+        sourceName: String,
+        identity: VersionedMediaIdentity?
+    ) throws -> (content: BluRayDiscContent, titles: [BluRayTitleItem]) {
+        let content = try BluRayDiscContent.project(catalog, sourceName: sourceName)
+        let programs = content.primaryTitles + content.groups.flatMap(\.titles)
+        let titles = programs.enumerated().map { ordinal, program in
             BluRayTitleItem(
-                playlistID: title.playlistID,
-                ordinal: title.ordinal,
-                optionalName: title.optionalName,
-                durationSeconds: title.durationSeconds,
-                isMain: title.isMain,
+                playlistID: program.playlistID,
+                ordinal: ordinal,
+                displayName: program.displayName,
+                durationSeconds: program.durationSeconds,
+                isMain: program.isMain,
+                versionedIdentity: identity.map {
+                    .bluRayPlaylist(disc: $0, playlistID: program.playlistID.rawValue)
+                },
                 catalogManifest: manifest
             )
         }
+        return (content, titles)
+    }
+}
+
+nonisolated enum BluRayCatalogProjectionLoader {
+    nonisolated static func load(
+        from source: BluRayDiscSource
+    ) async throws -> LoadedBluRayCatalog {
+        let catalog = try await BluRayDisc.catalog(source: source)
+        let manifest = await canonicalManifest(for: catalog.titles, source: source)
+        return LoadedBluRayCatalog(catalog: catalog, manifest: manifest)
     }
 
     nonisolated static func canonicalManifest(
@@ -196,7 +214,7 @@ nonisolated enum BluRayCatalogProjectionLoader {
     private nonisolated static let maximumControlFileBytes = 16 * 1_024 * 1_024
 
     nonisolated static func fallbackManifest(
-        for titles: [BluRayTitleItem]
+        for titles: [BluRayDiscTitle]
     ) -> Data {
         let lines = titles
             .sorted { $0.playlistID.rawValue < $1.playlistID.rawValue }
@@ -215,7 +233,7 @@ nonisolated enum BluRayDiscIdentityBasis: Sendable {
 public nonisolated struct BluRayTitleItem: Identifiable, Sendable, Equatable {
     public let playlistID: BluRayPlaylistID
     public let ordinal: Int
-    public let optionalName: String?
+    public let displayName: String
     public let durationSeconds: Double
     public let isMain: Bool
     public let versionedIdentity: VersionedMediaIdentity?
@@ -224,18 +242,10 @@ public nonisolated struct BluRayTitleItem: Identifiable, Sendable, Equatable {
 
     public var id: BluRayPlaylistID { playlistID }
 
-    public var displayName: String {
-        if let optionalName = optionalName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           optionalName.isEmpty == false {
-            return optionalName
-        }
-        return String(format: "Playlist %05u", playlistID.rawValue)
-    }
-
     public init(
         playlistID: BluRayPlaylistID,
         ordinal: Int,
-        optionalName: String?,
+        displayName: String,
         durationSeconds: Double,
         isMain: Bool,
         versionedIdentity: VersionedMediaIdentity? = nil,
@@ -244,7 +254,7 @@ public nonisolated struct BluRayTitleItem: Identifiable, Sendable, Equatable {
     ) {
         self.playlistID = playlistID
         self.ordinal = ordinal
-        self.optionalName = optionalName
+        self.displayName = displayName
         self.durationSeconds = durationSeconds
         self.isMain = isMain
         self.versionedIdentity = versionedIdentity
@@ -318,6 +328,7 @@ nonisolated struct BluRayBrowseLevel: @unchecked Sendable {
     }
 
     let source: Source
+    let content: BluRayDiscContent
     let titles: [BluRayTitleItem]
     let parentFiles: [FileBrowsingDomain.MediaFile]
     let parentFolders: [FileBrowsingDomain.MediaFolder]
@@ -333,5 +344,6 @@ nonisolated struct LibraryBluRayBrowseLevel: @unchecked Sendable {
     let reference: FileBrowsingDomain.MediaReference
     let resolved: ResolvedMediaSource
     let source: BluRayDiscSource
+    let content: BluRayDiscContent
     let titles: [BluRayTitleItem]
 }
