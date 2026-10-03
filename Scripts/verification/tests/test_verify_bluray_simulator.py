@@ -154,11 +154,11 @@ class BluRaySimulatorVerifierTests(unittest.TestCase):
             ),
             self._inspection(
                 "FileBrowsing-grid-bluray-content-1",
-                "Sintel – Edition tests · 1m 15s, Duration 1 min",
+                "1m 15s · Sintel – Edition tests, Duration 1 min",
             ),
             self._inspection(
                 "FileBrowsing-grid-bluray-content-0",
-                "Sintel – Edition tests · 1m 00s, Duration 1 min",
+                "1m 00s · Sintel – Edition tests, Duration 1 min",
             ),
             {
                 "succeeded": True,

@@ -122,13 +122,7 @@ public enum BluRayDiscContent: Sendable, Equatable {
 
         let main = cluster.first(where: \.isMain) ?? anchor
         let editions = cluster.filter { $0.playlistID != main.playlistID }
-        let versionNames = distinctNames(
-            ([main] + editions).map {
-                ($0, versionName(for: $0, discName: name,
-                                 hasEditions: !editions.isEmpty))
-            },
-            duplicateSuffix: String(localized: "Version")
-        )
+        let versionNames = distinctVersionNames([main] + editions, discName: name)
         let presentedMain = presented(versionNames[0].0, name: versionNames[0].1, isMain: true)
         let presentedEditions = versionNames.dropFirst().map { presented($0.0, name: $0.1) }
         let editionIDs = Set(editions.map(\.playlistID))
@@ -358,13 +352,31 @@ private extension BluRayDiscContent {
         )
     }
 
-    static func versionName(
-        for title: BluRayDiscTitle,
-        discName: String,
-        hasEditions: Bool
-    ) -> String {
-        let base = cleaned(title.optionalName) ?? discName
-        return hasEditions ? "\(base) · \(durationLabel(title.durationSeconds))" : base
+    static func distinctVersionNames(
+        _ titles: [BluRayDiscTitle],
+        discName: String
+    ) -> [(BluRayDiscTitle, String)] {
+        guard titles.count > 1 else {
+            return titles.map { ($0, cleaned($0.optionalName) ?? discName) }
+        }
+        let bases = titles.map { title in
+            (title, durationLabel(title.durationSeconds), cleaned(title.optionalName) ?? discName)
+        }
+        let counts = Dictionary(
+            bases.map { ("\($0.1)|\($0.2)", 1) },
+            uniquingKeysWith: +
+        )
+        var indices: [String: Int] = [:]
+        let versionWord = String(localized: "Version")
+        return bases.map { entry in
+            let (title, duration, name) = entry
+            let key = "\(duration)|\(name)"
+            indices[key, default: 0] += 1
+            let label = counts[key] == 1
+                ? "\(duration) · \(name)"
+                : "\(duration) · \(versionWord) \(indices[key, default: 0]) · \(name)"
+            return (title, label)
+        }
     }
 
     static func genericName(
@@ -422,7 +434,7 @@ private extension BluRayDiscContent {
             indices[base, default: 0] += 1
             let name = counts[base] == 1
                 ? base
-                : "\(base) · \(duplicateSuffix) \(indices[base, default: 0])"
+                : "\(duplicateSuffix) \(indices[base, default: 0]) · \(base)"
             result.append((title, name))
         }
         return result

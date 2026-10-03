@@ -56,7 +56,7 @@ struct BluRayDiscContentTests {
         #expect(content.name == "Feature")
         #expect(content.primaryTitles.map(\.playlistID.rawValue) == [10, 20])
         #expect(content.primaryTitles.map(\.displayName) == [
-            "Feature · 1m 40s", "Feature · 1m 50s"
+            "1m 40s · Feature", "1m 50s · Feature"
         ])
         #expect(content.groups.isEmpty)
     }
@@ -80,7 +80,7 @@ struct BluRayDiscContentTests {
 
         #expect(content.primaryTitles.map(\.playlistID.rawValue) == [3, 4])
         #expect(content.primaryTitles.map(\.displayName) == [
-            "Film · 2m 30s", "Film · 2m 40s"
+            "2m 30s · Film", "2m 40s · Film"
         ])
     }
 
@@ -156,8 +156,8 @@ struct BluRayDiscContentTests {
         #expect(content.groups[0].titles.map(\.playlistID.rawValue) == [9, 3])
         #expect(content.groups[0].titles.map(\.isMain) == [false, false])
         #expect(content.groups[0].titles.map(\.displayName) == [
-            "Videos · 1m 40s · H.264 1080p · Item 1",
-            "Videos · 1m 40s · H.264 1080p · Item 2"
+            "Item 1 · Videos · 1m 40s · H.264 1080p",
+            "Item 2 · Videos · 1m 40s · H.264 1080p"
         ])
         guard case .collection = content else {
             Issue.record("Independent programs must not appear as editions")
@@ -198,8 +198,8 @@ struct BluRayDiscContentTests {
 
         #expect(content.primaryTitles.map(\.playlistID.rawValue) == [1, 2])
         #expect(content.primaryTitles.map(\.displayName) == [
-            "Feature · 2m 00s · Version 1",
-            "Feature · 2m 00s · Version 2"
+            "2m 00s · Version 1 · Feature",
+            "2m 00s · Version 2 · Feature"
         ])
     }
 
@@ -418,7 +418,7 @@ struct BluRayDiscContentTests {
         #expect(contents[0].name == "Sintel – Edition tests")
         #expect(contents[0].primaryTitles.map(\.playlistID.rawValue) == [1, 0])
         #expect(contents[0].primaryTitles.map(\.displayName) == [
-            "Sintel – Edition tests · 1m 15s", "Sintel – Edition tests · 1m 00s"
+            "1m 15s · Sintel – Edition tests", "1m 00s · Sintel – Edition tests"
         ])
         #expect(contents[0].groups.map(\.kind) == [.additional])
         #expect(contents[0].groups.flatMap(\.titles).map(\.playlistID.rawValue) == [2])

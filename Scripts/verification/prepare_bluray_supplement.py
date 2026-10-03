@@ -94,15 +94,15 @@ CASES = (
     ),
     BluRayCase(
         "sintel-editions-iso", "local", "bluray-sintel-editions-iso",
-        "Sintel-Editions.iso", 1, 3, "1 min", "Sintel – Edition tests · 1m 15s",
+        "Sintel-Editions.iso", 1, 3, "1 min", "1m 15s · Sintel – Edition tests",
         "Sintel-Editions", "Sintel-Editions", 2, (("additional", 1),), None,
-        ((0, "1 min", "Sintel – Edition tests · 1m 00s"),),
+        ((0, "1 min", "1m 00s · Sintel – Edition tests"),),
     ),
     BluRayCase(
         "sintel-editions-directory", "local", "bluray-sintel-editions-directory",
-        "Sintel-Editions", 1, 3, "1 min", "Sintel – Edition tests · 1m 15s",
+        "Sintel-Editions", 1, 3, "1 min", "1m 15s · Sintel – Edition tests",
         "Sintel-Editions", "Sintel-Editions", 2, (("additional", 1),), None,
-        ((0, "1 min", "Sintel – Edition tests · 1m 00s"),),
+        ((0, "1 min", "1m 00s · Sintel – Edition tests"),),
     ),
 )
 
