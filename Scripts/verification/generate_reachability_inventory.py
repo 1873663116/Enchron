@@ -38,7 +38,7 @@ SETTINGS_MENU_FAMILIES = (
 SOURCE_ROOTS = (
     REPOSITORY_ROOT / "Apps/Enchron",
     REPOSITORY_ROOT / "Modules/DesignSystem",
-    REPOSITORY_ROOT / "Modules/Emby",
+    REPOSITORY_ROOT / "Modules/MediaServer",
     REPOSITORY_ROOT / "Modules/MediaLibrary",
     REPOSITORY_ROOT / "Modules/Playback",
 )
@@ -981,7 +981,7 @@ def presentation_derivation(
     ]
 
     browser_hosts = {
-        "Emby": ("EmbyScreen {", "Apps/Enchron/MainView.swift"),
+        "Emby": ("MediaServerScreen {", "Apps/Enchron/MainView.swift"),
         "FileBrowsing": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
         "MediaLibrary": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
         "Navigation": ("private var browser: some View", "Apps/Enchron/MainView.swift"),
@@ -1509,7 +1509,7 @@ def build_inventory() -> dict[str, object]:
             "kind": "scroll",
             "proofDomain": "browser",
             "proofContexts": [MAIN_WINDOW_BROWSER_CONTEXT],
-            "source": "Modules/Emby/EmbyScreens.swift",
+            "source": "Modules/MediaServer/MediaServerScreens.swift",
         },
         {
             "id": "negative:immersive-resident-window",

@@ -30,8 +30,8 @@ DOCUMENT = REPOSITORY_ROOT / "docs/archive/plans/04-regression-journeys/supporte
 
 class RepositoryCandidates(unittest.TestCase):
     def test_repository_anchored_path_counts(self) -> None:
-        found = repository_candidates("see `Modules/Emby/EmbyClient.swift`", DOCUMENT)
-        self.assertEqual(found, {"Modules/Emby/EmbyClient.swift"})
+        found = repository_candidates("see `Modules/MediaServer/MediaBrowserClient.swift`", DOCUMENT)
+        self.assertEqual(found, {"Modules/MediaServer/MediaBrowserClient.swift"})
 
     def test_enumeration_is_not_a_path(self) -> None:
         prose = "containers `hvcC/avcC/av1C`, schemes `file/http/https`, subs `srt/vtt/ass`"
@@ -55,7 +55,7 @@ class RepositoryCandidates(unittest.TestCase):
 
 class Locators(unittest.TestCase):
     def test_line_range_is_stripped(self) -> None:
-        self.assertEqual(strip_locator("Modules/Emby/EmbyScreens.swift:433-447"), "Modules/Emby/EmbyScreens.swift")
+        self.assertEqual(strip_locator("Modules/MediaServer/MediaServerScreens.swift:433-447"), "Modules/MediaServer/MediaServerScreens.swift")
 
     def test_anchor_is_stripped(self) -> None:
         self.assertEqual(strip_locator("docs/archive/adr/README.md#status"), "docs/archive/adr/README.md")

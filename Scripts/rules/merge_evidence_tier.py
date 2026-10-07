@@ -52,7 +52,7 @@ PATH_RULES = (
     ("Tests/", W1),
     ("Packages/PlaybackCore/Tests/", W1),
     ("Modules/DesignSystem/", W2),
-    ("Modules/Emby/", W2),
+    ("Modules/MediaServer/", W2),
     ("Modules/MediaLibrary/", W2),
     ("Modules/MediaSource/", W2),
     ("Packages/PlaybackCore/", W3),

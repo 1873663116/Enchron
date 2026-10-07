@@ -4,7 +4,7 @@ import ImageIO
 import MediaSource
 import Synchronization
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 #if DEBUG
 @Suite("Emby artwork evidence loader", .serialized)
@@ -22,17 +22,17 @@ struct EmbyArtworkEvidenceLoaderTests {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ArtworkEvidenceURLProtocol.self]
         configuration.urlCache = nil
-        let loader = EmbyArtworkEvidenceLoader(
+        let loader = MediaServerArtworkEvidenceLoader(
             store: store,
             session: URLSession(configuration: configuration)
         )
         let url = try #require(URL(
             string: "http://example.test/Items/episode/Images/Primary?api_key=secret&Tag=tag-a&MaxWidth=420"
         ))
-        let request = EmbyArtworkLoadRequest(
-            itemID: EmbyItemID(rawValue: "episode"),
+        let request = MediaServerArtworkLoadRequest(
+            itemID: MediaServerItemID(rawValue: "episode"),
             imageType: .primary,
-            imageTag: EmbyImageTag(rawValue: "tag-a"),
+            imageTag: MediaServerImageTag(rawValue: "tag-a"),
             url: url
         )
 

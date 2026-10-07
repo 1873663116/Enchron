@@ -11,7 +11,7 @@ VIOLATIONS: list[str] = []
 LEVEL_CONTENT_SITES = {
     "Modules/MediaLibrary/Views/FilesScreen.swift": ".levelContent(id: folderIdentity)",
     "Apps/Enchron/Screens/SettingsScreen.swift": ".levelContent(id: selectedCategoryID)",
-    "Modules/Emby/EmbyScreens.swift": ".levelContent(id: navigation.destination)",
+    "Modules/MediaServer/MediaServerScreens.swift": ".levelContent(id: navigation.destination)",
 }
 DESIGN_SYSTEM_ONLY = (
     "DesignTokens.TransitionToken.levelReplace",
@@ -22,7 +22,7 @@ DESIGN_SYSTEM_ONLY = (
 PRODUCT_SOURCES = (
     "Modules/MediaLibrary/Views/FilesScreen.swift",
     "Apps/Enchron/Screens/SettingsScreen.swift",
-    "Modules/Emby/EmbyScreens.swift",
+    "Modules/MediaServer/MediaServerScreens.swift",
 )
 
 
@@ -211,7 +211,7 @@ def check_level_transitions() -> None:
 def check_sidebar_layout() -> None:
     for path in (
         "Modules/MediaLibrary/Views/FilesScreen.swift",
-        "Modules/Emby/EmbyScreens.swift",
+        "Modules/MediaServer/MediaServerScreens.swift",
     ):
         source = read(path)
         require(
@@ -234,7 +234,7 @@ def check_sidebar_layout() -> None:
     )
     for path in (
         "Modules/MediaLibrary/Views/FilesScreen.swift",
-        "Modules/Emby/EmbyScreens.swift",
+        "Modules/MediaServer/MediaServerScreens.swift",
     ):
         source = read(path)
         require(
@@ -243,10 +243,10 @@ def check_sidebar_layout() -> None:
             f"{path}: card grids must be CardGrid; LazyVGrid rebuilds whole rows "
             "whenever the column count changes",
         )
-    emby = read("Modules/Emby/EmbyScreens.swift")
+    emby = read("Modules/MediaServer/MediaServerScreens.swift")
     detail = region(
         emby,
-        "private struct EmbyDetailScreen: View {",
+        "private struct MediaServerDetailScreen: View {",
         "    private func entrancePrefetchURLs() -> [URL] {",
     )
     require(

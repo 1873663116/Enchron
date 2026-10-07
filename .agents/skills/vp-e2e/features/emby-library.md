@@ -48,7 +48,7 @@ C tap --identifier PlayerUI-resumeDecision-secondary   # 有服务器进度时�
 
 ## 观看状态的媒体身份
 
-本地 viewing state 的每条记录只发布 `mediaIdentity` 的 sha256，不发布原文。Emby 条目的原文是 `emby`、serverID、itemID、mediaSourceID 四段以 U+001F 相连，取 UTF-8 的 SHA-256 小写十六进制；构造在 `Modules/MediaSource/VersionedMediaIdentity.swift` 的 `MediaIdentity.emby(serverID:itemID:mediaSourceID:)`。四段值可以从 `Emby-Evidence` 的 `playbackSessions[]` 读到，但把它们摘成那个 sha256 需要真的算一次哈希，读证据的一方做不到。所以"这条 Emby 条目在本地有没有观看记录"要用两次 `diagnostics.surface-probe@1 --includeViewingStorage` 判定：播放前取一次快照，退出后再取一次并通过 `relatedResults` 把前一次内联成 `priorSnapshots[0]`，比较两次的 `viewingState.entries` 与 `viewingRecordCount`。Emby 播放走 `viewingStateAuthority == .mediaServer`（`Modules/Emby/EmbyPlaybackBridge.swift`），`PlaybackLaunchCoordinator.persistCurrentSession` 在这条分支上不写 viewing state，两次快照因此必须逐条相等。
+本地 viewing state 的每条记录只发布 `mediaIdentity` 的 sha256，不发布原文。Emby 条目的原文是 `emby`、serverID、itemID、mediaSourceID 四段以 U+001F 相连，取 UTF-8 的 SHA-256 小写十六进制；构造在 `Modules/MediaSource/VersionedMediaIdentity.swift` 的 `MediaIdentity.emby(serverID:itemID:mediaSourceID:)`。四段值可以从 `Emby-Evidence` 的 `playbackSessions[]` 读到，但把它们摘成那个 sha256 需要真的算一次哈希，读证据的一方做不到。所以"这条 Emby 条目在本地有没有观看记录"要用两次 `diagnostics.surface-probe@1 --includeViewingStorage` 判定：播放前取一次快照，退出后再取一次并通过 `relatedResults` 把前一次内联成 `priorSnapshots[0]`，比较两次的 `viewingState.entries` 与 `viewingRecordCount`。Emby 播放走 `viewingStateAuthority == .mediaServer`（`Modules/MediaServer/MediaServerPlaybackBridge.swift`），`PlaybackLaunchCoordinator.persistCurrentSession` 在这条分支上不写 viewing state，两次快照因此必须逐条相等。
 
 ## Gotchas
 

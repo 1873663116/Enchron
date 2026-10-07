@@ -3,12 +3,13 @@ import Foundation
 import SwiftUI
 
 #if DEBUG
-public struct EmbyAccessibilityEvidence: Equatable, Sendable {
+public struct MediaServerAccessibilityEvidence: Equatable, Sendable {
     public static let productDeadlineSeconds = 45
     public static let harnessLivenessDeadlineSeconds = 90
 
     public struct Document: Codable, Equatable, Sendable {
         public struct Account: Codable, Equatable, Sendable {
+            public let provider: MediaServerKind
             public let serverID: String
             public let userID: String
         }
@@ -21,13 +22,13 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
         public struct Library: Codable, Equatable, Sendable {
             public let id: String
             public let name: String
-            public let collectionType: EmbyObservation<String>
+            public let collectionType: MediaServerObservation<String>
         }
 
         public struct ShelfItem: Codable, Equatable, Sendable {
             public let itemID: String
             public let itemKind: String
-            public let serverProgressTicks: EmbyObservation<Int64>
+            public let serverProgressTicks: MediaServerObservation<Int64>
         }
 
         public struct Shelf: Codable, Equatable, Sendable {
@@ -39,9 +40,9 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
 
         public struct Home: Codable, Equatable, Sendable {
             public let isLoading: Bool
-            public let error: EmbyObservation<String>
+            public let error: MediaServerObservation<String>
             public let shelves: [Shelf]
-            public let activations: [EmbyHomeActivationEvidence]
+            public let activations: [MediaServerHomeActivationEvidence]
         }
 
         public struct PreparedPlayback: Codable, Equatable, Sendable {
@@ -51,7 +52,7 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
             public let mediaSourceID: String
             public let playSessionID: String
             public let requestedAction: String
-            public let freshServerProgressTicks: EmbyObservation<Int64>
+            public let freshServerProgressTicks: MediaServerObservation<Int64>
             public let appliedStartTicks: Int64
         }
 
@@ -70,8 +71,8 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
             public let totalAcceptedReportCount: Int
             public let acceptedReportsWereTruncated: Bool
             public let latestPositionTicks: Int64
-            public let exitPositionTicks: EmbyObservation<Int64>
-            public let serverReadbackProgressTicks: EmbyObservation<Int64>
+            public let exitPositionTicks: MediaServerObservation<Int64>
+            public let serverReadbackProgressTicks: MediaServerObservation<Int64>
         }
 
         public let schema: String
@@ -79,13 +80,13 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
         public let navigation: Navigation
         public let libraries: [Library]
         public let home: Home
-        public let detail: EmbyObservation<EmbyDetailEvidence>
-        public let seasonTransitions: [EmbySeasonTransitionEvidence]
+        public let detail: MediaServerObservation<MediaServerDetailEvidence>
+        public let seasonTransitions: [MediaServerSeasonTransitionEvidence]
         public let preparedPlaybacks: [PreparedPlayback]
         public let playbackSessions: [PlaybackSession]
-        public let artworkLoads: [EmbyArtworkEvidence]
-        public let fixtureDigest: EmbyObservation<String>
-        public let localViewingStateWriteCount: EmbyObservation<Int>
+        public let artworkLoads: [MediaServerArtworkEvidence]
+        public let fixtureDigest: MediaServerObservation<String>
+        public let localViewingStateWriteCount: MediaServerObservation<Int>
         public let productDeadlineSeconds: Int
         public let harnessLivenessDeadlineSeconds: Int
     }
@@ -94,17 +95,18 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
 
     @MainActor
     public init(
-        server: EmbyAuthenticatedServer,
-        navigation: EmbyNavigationModel,
-        libraries: [EmbyLibraryView],
-        shelves: [EmbyHomeShelf],
+        server: MediaServerAuthenticatedServer,
+        navigation: MediaServerNavigationModel,
+        libraries: [MediaServerLibraryView],
+        shelves: [MediaServerHomeShelf],
         homeIsLoading: Bool,
         homeErrorMessage: String?,
-        journal: EmbyEvidenceJournal
+        journal: MediaServerEvidenceJournal
     ) {
         document = Document(
             schema: "enchron.emby.accessibility-evidence@2",
             account: Document.Account(
+                provider: server.kind,
                 serverID: server.id.rawValue,
                 userID: server.userID.rawValue
             ),
@@ -116,18 +118,18 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
                 Document.Library(
                     id: library.id.rawValue,
                     name: library.name,
-                    collectionType: library.collectionType.map(EmbyObservation.observed)
+                    collectionType: library.collectionType.map(MediaServerObservation.observed)
                         ?? .unavailable("server-did-not-declare-collection-type")
                 )
             },
             home: Document.Home(
                 isLoading: homeIsLoading,
-                error: homeErrorMessage.map(EmbyObservation.observed)
+                error: homeErrorMessage.map(MediaServerObservation.observed)
                     ?? .notApplicable("home-refresh-has-no-error"),
                 shelves: shelves.map(Self.shelfDocument),
                 activations: journal.homeActivations
             ),
-            detail: journal.detail.map(EmbyObservation.observed)
+            detail: journal.detail.map(MediaServerObservation.observed)
                 ?? .unavailable("no-detail-refresh-observed"),
             seasonTransitions: journal.seasonTransitions,
             preparedPlaybacks: journal.preparedPlaybacks.map { evidence in
@@ -139,7 +141,7 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
                     playSessionID: evidence.playSessionID.rawValue,
                     requestedAction: evidence.requestedAction.rawValue,
                     freshServerProgressTicks: evidence.freshServerProgressTicks
-                        .map(EmbyObservation.observed)
+                        .map(MediaServerObservation.observed)
                         ?? .unavailable("fresh-item-response-omitted-user-progress"),
                     appliedStartTicks: evidence.appliedStartTicks
                 )
@@ -161,7 +163,7 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
                     acceptedReportsWereTruncated: evidence.acceptedReportsWereTruncated,
                     latestPositionTicks: evidence.latestPositionTicks,
                     exitPositionTicks: evidence.exitPositionTicks
-                        .map(EmbyObservation.observed)
+                        .map(MediaServerObservation.observed)
                         ?? .unavailable("server-has-not-accepted-stopped-report"),
                     serverReadbackProgressTicks: .unavailable(
                         "post-report-item-readback-not-observed"
@@ -188,7 +190,7 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
         return value
     }
 
-    private static func shelfDocument(_ shelf: EmbyHomeShelf) -> Document.Shelf {
+    private static func shelfDocument(_ shelf: MediaServerHomeShelf) -> Document.Shelf {
         let kind: String
         let libraryID: String?
         switch shelf.kind {
@@ -211,14 +213,14 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
                     itemID: item.metadata.id.rawValue,
                     itemKind: itemKind(item),
                     serverProgressTicks: (item.metadata.userData?.playbackPositionTicks)
-                        .map(EmbyObservation.observed)
+                        .map(MediaServerObservation.observed)
                         ?? .unavailable("server-item-omitted-user-progress")
                 )
             }
         )
     }
 
-    private static func itemKind(_ item: EmbyLibraryItem) -> String {
+    private static func itemKind(_ item: MediaServerLibraryItem) -> String {
         switch item {
         case .movie: "movie"
         case .series: "series"
@@ -229,10 +231,10 @@ public struct EmbyAccessibilityEvidence: Equatable, Sendable {
     }
 }
 
-public struct EmbyAccessibilityEvidenceSurface: View {
-    private let evidence: EmbyAccessibilityEvidence
+public struct MediaServerAccessibilityEvidenceSurface: View {
+    private let evidence: MediaServerAccessibilityEvidence
 
-    public init(evidence: EmbyAccessibilityEvidence) {
+    public init(evidence: MediaServerAccessibilityEvidence) {
         self.evidence = evidence
     }
 
@@ -250,7 +252,7 @@ public struct EmbyAccessibilityEvidenceSurface: View {
 
 #if DEBUG
 @MainActor
-public final class EmbyReachabilityScrollRequest {
+public final class MediaServerReachabilityScrollRequest {
     public enum Direction: String {
         case forward
         case backward
@@ -294,7 +296,7 @@ private extension View {
     }
 }
 
-private struct EmbyHeroSnapBehavior: ScrollTargetBehavior {
+private struct MediaServerHeroSnapBehavior: ScrollTargetBehavior {
     let travel: CGFloat
     let inset: CGFloat
     let settleFraction: CGFloat
@@ -317,12 +319,12 @@ private struct EmbyHeroSnapBehavior: ScrollTargetBehavior {
     }
 }
 
-private struct EmbyPageHeader<Trailing: View>: View {
+private struct MediaServerPageHeader<Trailing: View>: View {
     let title: String
     let sidebarIsVisible: Binding<Bool>?
     @ViewBuilder let trailing: () -> Trailing
 
-    @Environment(EmbySessionViewModel.self) private var session
+    @Environment(MediaServerSessionViewModel.self) private var session
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.lg) {
@@ -352,14 +354,14 @@ private struct EmbyPageHeader<Trailing: View>: View {
     }
 }
 
-public struct EmbyScreen: View {
+public struct MediaServerScreen: View {
     public typealias PlayHandler = @MainActor (
-        Result<EmbyPlaybackSelection, EmbyError>
+        Result<MediaServerPlaybackSelection, MediaServerError>
     ) async -> Void
 
-    @Environment(EmbySessionViewModel.self) private var session
-    @Environment(EmbyHomeViewModel.self) private var home
-    @Environment(EmbyNavigationModel.self) private var navigation
+    @Environment(MediaServerSessionViewModel.self) private var session
+    @Environment(MediaServerHomeViewModel.self) private var home
+    @Environment(MediaServerNavigationModel.self) private var navigation
     @State private var sidebarIsVisible = true
     @State private var sidebarSuspended = false
 
@@ -373,7 +375,11 @@ public struct EmbyScreen: View {
         @Bindable var navigation = navigation
         Group {
             if session.server == nil {
-                EmbyConnectionScreen()
+                if let client = session.client as? PlexClient {
+                    PlexConnectionScreen(client: client, session: session)
+                } else {
+                    MediaServerConnectionScreen()
+                }
             } else {
                 SidebarSplitLayout(sidebarIsVisible: sidebarIsVisible && sidebarSuspended == false) {
                     sidebar
@@ -381,9 +387,9 @@ public struct EmbyScreen: View {
                     NavigationStack(path: $navigation.path) {
                         destinationContent
                             .levelContent(id: navigation.destination)
-                            .navigationDestination(for: EmbyLibraryItem.self) { item in
-                                EmbyDetailScreen(
-                                    viewModel: EmbyDetailViewModel(
+                            .navigationDestination(for: MediaServerLibraryItem.self) { item in
+                                MediaServerDetailScreen(
+                                    viewModel: MediaServerDetailViewModel(
                                         itemID: item.metadata.id,
                                         client: session.client,
                                         session: session,
@@ -406,7 +412,7 @@ public struct EmbyScreen: View {
 #if DEBUG
         .overlay(alignment: .bottomTrailing) {
             if let evidence = accessibilityEvidence {
-                EmbyAccessibilityEvidenceSurface(evidence: evidence)
+                MediaServerAccessibilityEvidenceSurface(evidence: evidence)
             }
         }
 #endif
@@ -415,7 +421,7 @@ public struct EmbyScreen: View {
 #endif
     }
 
-    private func open(_ item: EmbyLibraryItem) {
+    private func open(_ item: MediaServerLibraryItem) {
         warmDetailArtwork(for: item, session: session)
         Task { @MainActor in
             if sidebarIsVisible, sidebarSuspended == false {
@@ -437,9 +443,9 @@ public struct EmbyScreen: View {
     }
 
 #if DEBUG
-    private var accessibilityEvidence: EmbyAccessibilityEvidence? {
+    private var accessibilityEvidence: MediaServerAccessibilityEvidence? {
         guard let server = session.server else { return nil }
-        return EmbyAccessibilityEvidence(
+        return MediaServerAccessibilityEvidence(
             server: server,
             navigation: navigation,
             libraries: home.libraries,
@@ -453,14 +459,17 @@ public struct EmbyScreen: View {
 
 #if DEBUG
     private func openLaunchRoute() async {
-        guard let route = EmbyLaunchRoute.current else { return }
+        guard let route = MediaServerLaunchRoute.current, route.kind == session.client.kind else { return }
         if session.server == nil {
             guard let address = URL(string: route.address) else { return }
-            try? await session.connect(
-                address: address,
-                username: route.username,
-                password: route.password
-            )
+            let login: MediaServerLogin = if route.kind == .plex {
+                .plexToken(address: address, token: route.token ?? "", userID: route.username)
+            } else {
+                .password(address: address, username: route.username, password: route.password)
+            }
+            if let authenticated = try? await session.client.authenticate(login) {
+                try? await session.install(authenticated)
+            }
         }
         await home.refresh()
         if let libraryID = route.libraryID {
@@ -476,7 +485,7 @@ public struct EmbyScreen: View {
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            Text(session.server?.name ?? "Emby")
+            Text(session.server?.name ?? session.client.kind.title)
                 .font(DesignTokens.SourceSidebar.sectionTitleFont)
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
@@ -535,7 +544,7 @@ public struct EmbyScreen: View {
     private func sidebarRow(
         icon: String,
         title: String,
-        destination: EmbyNavigationModel.Destination
+        destination: MediaServerNavigationModel.Destination
     ) -> some View {
         EditableSourceSidebarRow(
             icon: icon,
@@ -563,11 +572,11 @@ public struct EmbyScreen: View {
     private var destinationContent: some View {
         switch navigation.destination {
         case .home:
-            EmbyHomeScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
+            MediaServerHomeScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
         case .library(let id):
             if let library = home.libraries.first(where: { $0.id == id }) {
-                EmbyLibraryScreen(
-                    viewModel: EmbyLibraryViewModel(
+                MediaServerLibraryScreen(
+                    viewModel: MediaServerLibraryViewModel(
                         library: library,
                         client: session.client,
                         session: session
@@ -580,20 +589,20 @@ public struct EmbyScreen: View {
                 ContentUnavailableView("Library Unavailable", systemImage: "rectangle.stack")
             }
         case .search:
-            EmbySearchScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
+            MediaServerSearchScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
         }
     }
 }
 
-private struct EmbyConnectionScreen: View {
-    @Environment(EmbyConnectionViewModel.self) private var viewModel
-    @Environment(EmbySessionViewModel.self) private var session
+private struct MediaServerConnectionScreen: View {
+    @Environment(MediaServerConnectionViewModel.self) private var viewModel
+    @Environment(MediaServerSessionViewModel.self) private var session
 
     var body: some View {
         @Bindable var viewModel = viewModel
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                Text("Connect to Emby")
+                Text("Connect to \(session.client.kind.title)")
                     .font(DesignTokens.Typography.title)
                 Text("Enter the address and account for your media server.")
                     .foregroundStyle(.secondary)
@@ -650,12 +659,12 @@ private struct EmbyConnectionScreen: View {
     }
 }
 
-private struct EmbyHomeScreen: View {
-    @Environment(EmbyHomeViewModel.self) private var viewModel
-    @Environment(EmbySessionViewModel.self) private var session
-    @Environment(EmbyNavigationModel.self) private var navigation
+private struct MediaServerHomeScreen: View {
+    @Environment(MediaServerHomeViewModel.self) private var viewModel
+    @Environment(MediaServerSessionViewModel.self) private var session
+    @Environment(MediaServerNavigationModel.self) private var navigation
     let sidebarIsVisible: Binding<Bool>?
-    let onSelect: (EmbyLibraryItem) -> Void
+    let onSelect: (MediaServerLibraryItem) -> Void
     @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
     @State private var initialRefreshCompleted = false
 
@@ -664,7 +673,7 @@ private struct EmbyHomeScreen: View {
             LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
                 if initialRefreshCompleted {
                     ForEach(viewModel.shelves) { shelf in
-                        EmbyShelf(title: shelf.title) {
+                        MediaServerShelf(title: shelf.title) {
                             ForEach(shelf.items, id: \.metadata.id) { item in
                                 if shelf.kind == .continueWatching {
                                     stillCard(item, session: session) {
@@ -683,7 +692,7 @@ private struct EmbyHomeScreen: View {
                 if initialRefreshCompleted,
                    viewModel.shelves.isEmpty,
                    viewModel.isLoading == false {
-                    ContentUnavailableView("No Emby titles", systemImage: "film.stack")
+                    ContentUnavailableView("No titles", systemImage: "film.stack")
                         .padding(.horizontal, DesignTokens.Spacing.xxl)
                 }
             }
@@ -694,7 +703,7 @@ private struct EmbyHomeScreen: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .embyReachabilityScroll)
         ) { notification in
-            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+            guard let request = notification.object as? MediaServerReachabilityScrollRequest else {
                 return
             }
             request.handle(on: "home") {
@@ -708,7 +717,7 @@ private struct EmbyHomeScreen: View {
         .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
         .embyPageBounds()
         .overlay(alignment: .top) {
-            EmbyPageHeader(title: String(localized: "Home"), sidebarIsVisible: sidebarIsVisible) { EmptyView() }
+            MediaServerPageHeader(title: String(localized: "Home"), sidebarIsVisible: sidebarIsVisible) { EmptyView() }
         }
         .task(id: session.resumeCatalogRevision) {
             initialRefreshCompleted = false
@@ -720,11 +729,11 @@ private struct EmbyHomeScreen: View {
         .accessibilityIdentifier("Emby-Home")
     }
 
-    private func select(_ item: EmbyLibraryItem, from shelf: EmbyHomeShelf) {
+    private func select(_ item: MediaServerLibraryItem, from shelf: MediaServerHomeShelf) {
         onSelect(item)
 #if DEBUG
         guard let resultingItemID = navigation.path.last?.metadata.id else { return }
-        let surface: EmbyHomeCardSurface = switch shelf.kind {
+        let surface: MediaServerHomeCardSurface = switch shelf.kind {
         case .continueWatching: .continueWatching
         case .nextUp: .nextUp
         case .recentlyAdded: .poster
@@ -742,16 +751,16 @@ private struct EmbyHomeScreen: View {
     }
 }
 
-private struct EmbyLibraryScreen: View {
-    @Environment(EmbySessionViewModel.self) private var session
-    @State private var viewModel: EmbyLibraryViewModel
+private struct MediaServerLibraryScreen: View {
+    @Environment(MediaServerSessionViewModel.self) private var session
+    @State private var viewModel: MediaServerLibraryViewModel
     let sidebarIsVisible: Binding<Bool>?
-    let onSelect: (EmbyLibraryItem) -> Void
+    let onSelect: (MediaServerLibraryItem) -> Void
 
     init(
-        viewModel: EmbyLibraryViewModel,
+        viewModel: MediaServerLibraryViewModel,
         sidebarIsVisible: Binding<Bool>?,
-        onSelect: @escaping (EmbyLibraryItem) -> Void
+        onSelect: @escaping (MediaServerLibraryItem) -> Void
     ) {
         _viewModel = State(initialValue: viewModel)
         self.sidebarIsVisible = sidebarIsVisible
@@ -760,7 +769,7 @@ private struct EmbyLibraryScreen: View {
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        EmbyPosterGrid(
+        MediaServerPosterGrid(
             items: viewModel.items,
             isLoading: viewModel.isLoading,
             session: session,
@@ -770,7 +779,7 @@ private struct EmbyLibraryScreen: View {
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
             .overlay(alignment: .top) {
-                EmbyPageHeader(title: viewModel.library.name, sidebarIsVisible: sidebarIsVisible) {
+                MediaServerPageHeader(title: viewModel.library.name, sidebarIsVisible: sidebarIsVisible) {
                     Picker("Sort", selection: Binding(
                         get: { viewModel.sort },
                         set: { value in
@@ -784,7 +793,7 @@ private struct EmbyLibraryScreen: View {
                             Task { await viewModel.refresh() }
                         }
                     )) {
-                        ForEach(EmbyLibrarySort.allCases, id: \.self) { sort in
+                        ForEach(MediaServerLibrarySort.allCases, id: \.self) { sort in
                             Text(sort.title).tag(sort)
                         }
                     }
@@ -799,15 +808,15 @@ private struct EmbyLibraryScreen: View {
     }
 }
 
-private struct EmbySearchScreen: View {
-    @Environment(EmbySearchViewModel.self) private var viewModel
-    @Environment(EmbySessionViewModel.self) private var session
+private struct MediaServerSearchScreen: View {
+    @Environment(MediaServerSearchViewModel.self) private var viewModel
+    @Environment(MediaServerSessionViewModel.self) private var session
     let sidebarIsVisible: Binding<Bool>?
-    let onSelect: (EmbyLibraryItem) -> Void
+    let onSelect: (MediaServerLibraryItem) -> Void
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        EmbyPosterGrid(
+        MediaServerPosterGrid(
             items: viewModel.results,
             isLoading: false,
             session: session,
@@ -817,10 +826,10 @@ private struct EmbySearchScreen: View {
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
             .overlay(alignment: .top) {
-                EmbyPageHeader(title: String(localized: "Search"), sidebarIsVisible: sidebarIsVisible) {
+                MediaServerPageHeader(title: String(localized: "Search"), sidebarIsVisible: sidebarIsVisible) {
                     GlassSearchField(
                         text: $viewModel.query,
-                        placeholder: String(localized: "Search Emby"),
+                        placeholder: String(localized: "Search library"),
                         accessibilityIdentifier: "Emby-Search-Field"
                     )
                     .frame(width: 360)
@@ -845,16 +854,16 @@ private struct EmbySearchScreen: View {
     }
 }
 
-private struct EmbyPosterGrid: View {
-    let items: [EmbyLibraryItem]
+private struct MediaServerPosterGrid: View {
+    let items: [MediaServerLibraryItem]
     let isLoading: Bool
-    let session: EmbySessionViewModel
+    let session: MediaServerSessionViewModel
     let reachabilityPage: String
-    let onSelect: (EmbyLibraryItem) -> Void
+    let onSelect: (MediaServerLibraryItem) -> Void
     @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
     @State private var revealed = false
 
-    private var revealKey: [EmbyItemID] {
+    private var revealKey: [MediaServerItemID] {
         isLoading ? [] : items.map(\.metadata.id)
     }
 
@@ -889,7 +898,7 @@ private struct EmbyPosterGrid: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .embyReachabilityScroll)
         ) { notification in
-            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+            guard let request = notification.object as? MediaServerReachabilityScrollRequest else {
                 return
             }
             request.handle(on: reachabilityPage) {
@@ -904,9 +913,9 @@ private struct EmbyPosterGrid: View {
     }
 }
 
-private struct EmbyDetailScreen: View {
-    @Environment(EmbySessionViewModel.self) private var session
-    @State private var viewModel: EmbyDetailViewModel
+private struct MediaServerDetailScreen: View {
+    @Environment(MediaServerSessionViewModel.self) private var session
+    @State private var viewModel: MediaServerDetailViewModel
     @State private var overviewIsExpanded = false
     @State private var scrollOffset: CGFloat = 0
     @State private var hasBeenScrolled = false
@@ -914,13 +923,13 @@ private struct EmbyDetailScreen: View {
     @State private var revealed = false
     @State private var backdropLoaded = false
 
-    let onSelect: (EmbyLibraryItem) -> Void
-    let onPlay: EmbyScreen.PlayHandler
+    let onSelect: (MediaServerLibraryItem) -> Void
+    let onPlay: MediaServerScreen.PlayHandler
 
     init(
-        viewModel: EmbyDetailViewModel,
-        onSelect: @escaping (EmbyLibraryItem) -> Void,
-        onPlay: @escaping EmbyScreen.PlayHandler
+        viewModel: MediaServerDetailViewModel,
+        onSelect: @escaping (MediaServerLibraryItem) -> Void,
+        onPlay: @escaping MediaServerScreen.PlayHandler
     ) {
         _viewModel = State(initialValue: viewModel)
         self.onSelect = onSelect
@@ -1015,7 +1024,7 @@ private struct EmbyDetailScreen: View {
             scrollOffset = offset
         }
         .scrollTargetBehavior(
-            EmbyHeroSnapBehavior(
+            MediaServerHeroSnapBehavior(
                 travel: travel,
                 inset: topMargin,
                 settleFraction: DesignTokens.EmbyDetail.heroSettleFraction,
@@ -1029,7 +1038,7 @@ private struct EmbyDetailScreen: View {
         .onReceive(
             NotificationCenter.default.publisher(for: .embyReachabilityScroll)
         ) { notification in
-            guard let request = notification.object as? EmbyReachabilityScrollRequest else {
+            guard let request = notification.object as? MediaServerReachabilityScrollRequest else {
                 return
             }
             request.handle(on: "detail") {
@@ -1043,7 +1052,7 @@ private struct EmbyDetailScreen: View {
         .accessibilityIdentifier("Emby-Detail-list")
 #if DEBUG
         .task(id: viewModel.item) {
-            guard let name = EmbyLaunchRoute.current?.sectionName else { return }
+            guard let name = MediaServerLaunchRoute.current?.sectionName else { return }
             try? await Task.sleep(for: .milliseconds(600))
             if let offset = Double(name) {
                 scroll(to: CGFloat(offset), topMargin: topMargin)
@@ -1105,7 +1114,7 @@ private struct EmbyDetailScreen: View {
         scrollPosition.scrollTo(y: offset - topMargin)
     }
 
-    private func backdrop(_ item: EmbyLibraryItem) -> some View {
+    private func backdrop(_ item: MediaServerLibraryItem) -> some View {
         AsyncArtworkImage(
             url: heroArtworkURL(for: item, session: session),
             maxPixelSize: nil,
@@ -1122,7 +1131,7 @@ private struct EmbyDetailScreen: View {
         case about
     }
 
-    private func hero(_ item: EmbyLibraryItem) -> some View {
+    private func hero(_ item: MediaServerLibraryItem) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             if revealed {
                 titleArtwork(item)
@@ -1180,7 +1189,7 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func titleArtwork(_ item: EmbyLibraryItem) -> some View {
+    private func titleArtwork(_ item: MediaServerLibraryItem) -> some View {
         if let logoURL = imageURL(for: item, type: .logo, session: session) {
             AsyncArtworkImage(url: logoURL, contentMode: .fit)
                 .frame(
@@ -1196,7 +1205,7 @@ private struct EmbyDetailScreen: View {
         }
     }
 
-    private func genreLine(_ item: EmbyLibraryItem) -> some View {
+    private func genreLine(_ item: MediaServerLibraryItem) -> some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
             Text(kindLabel(item))
             ForEach(item.metadata.genres.prefix(3), id: \.self) { genre in
@@ -1217,8 +1226,8 @@ private struct EmbyDetailScreen: View {
         .font(DesignTokens.Typography.headline)
     }
 
-    private func technicalLine(_ metadata: EmbyItemMetadata) -> some View {
-        let badges = EmbyTechnicalBadges(source: selectedSource(metadata))
+    private func technicalLine(_ metadata: MediaServerItemMetadata) -> some View {
+        let badges = MediaServerTechnicalBadges(source: selectedSource(metadata))
         return HStack(spacing: DesignTokens.Spacing.md) {
             if let year = metadata.productionYear { Text(String(year)) }
             if let ticks = metadata.runTimeTicks { Text(runtime(ticks)) }
@@ -1240,7 +1249,7 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func overview(_ metadata: EmbyItemMetadata) -> some View {
+    private func overview(_ metadata: MediaServerItemMetadata) -> some View {
         if let overview = metadata.overview, overview.isEmpty == false {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text(overview)
@@ -1263,7 +1272,7 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func creditSummary(_ people: [EmbyPerson]) -> some View {
+    private func creditSummary(_ people: [MediaServerPerson]) -> some View {
         let cast = people.filter { $0.type?.caseInsensitiveCompare("Actor") == .orderedSame }
         let directors = people.filter { $0.type?.caseInsensitiveCompare("Director") == .orderedSame }
         if cast.isEmpty == false || directors.isEmpty == false {
@@ -1285,7 +1294,7 @@ private struct EmbyDetailScreen: View {
             .lineLimit(2)
     }
 
-    private func actionRow(_ item: EmbyLibraryItem) -> some View {
+    private func actionRow(_ item: MediaServerLibraryItem) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             HStack(spacing: DesignTokens.Spacing.md) {
                 if item.isPlayable {
@@ -1331,7 +1340,7 @@ private struct EmbyDetailScreen: View {
 #endif
     }
 
-    private var mediaSourceSelection: Binding<EmbyMediaSourceID?> {
+    private var mediaSourceSelection: Binding<MediaServerMediaSourceID?> {
         Binding(
             get: { viewModel.selectedMediaSourceID },
             set: {
@@ -1343,7 +1352,7 @@ private struct EmbyDetailScreen: View {
         )
     }
 
-    private func kindLabel(_ item: EmbyLibraryItem) -> String {
+    private func kindLabel(_ item: MediaServerLibraryItem) -> String {
         switch item {
         case .movie: "Movie"
         case .series: "Series"
@@ -1353,7 +1362,7 @@ private struct EmbyDetailScreen: View {
         }
     }
 
-    private func versionSummary(_ source: EmbyMediaSourceDescription) -> String {
+    private func versionSummary(_ source: MediaServerMediaSourceDescription) -> String {
         let video = source.mediaStreams.first { $0.kind == .video }
         var parts: [String] = []
         if let height = video?.height {
@@ -1373,14 +1382,14 @@ private struct EmbyDetailScreen: View {
         return parts.isEmpty ? source.displayName : parts.joined(separator: " · ")
     }
 
-    private func aboutSources(_ metadata: EmbyItemMetadata) -> [EmbyMediaSourceDescription] {
+    private func aboutSources(_ metadata: MediaServerItemMetadata) -> [MediaServerMediaSourceDescription] {
         if metadata.mediaSources.isEmpty == false {
             return [selectedSource(metadata)].compactMap { $0 }
         }
         return viewModel.children.episodes.flatMap(\.metadata.mediaSources)
     }
 
-    private func selectedSource(_ metadata: EmbyItemMetadata) -> EmbyMediaSourceDescription? {
+    private func selectedSource(_ metadata: MediaServerItemMetadata) -> MediaServerMediaSourceDescription? {
         metadata.mediaSources.first { $0.id == viewModel.selectedMediaSourceID }
             ?? metadata.mediaSources.first
     }
@@ -1388,7 +1397,7 @@ private struct EmbyDetailScreen: View {
     private func playButton(
         _ title: String,
         systemImage: String,
-        action: EmbyPlaybackStartAction
+        action: MediaServerPlaybackStartAction
     ) -> some View {
         Button {
 #if DEBUG
@@ -1397,7 +1406,7 @@ private struct EmbyDetailScreen: View {
             Task {
                 do {
                     await onPlay(.success(try viewModel.playbackSelection(startAction: action)))
-                } catch let error as EmbyError {
+                } catch let error as MediaServerError {
                     await onPlay(.failure(error))
                 } catch {
                     await onPlay(.failure(.invalidResponse))
@@ -1438,7 +1447,7 @@ private struct EmbyDetailScreen: View {
         }
     }
 
-    private func seasonPicker(_ seasons: [EmbySeason], selected: EmbyItemID?) -> some View {
+    private func seasonPicker(_ seasons: [MediaServerSeason], selected: MediaServerItemID?) -> some View {
         Menu {
             Picker("Season", selection: seasonSelection(selected)) {
                 ForEach(seasons, id: \.metadata.id) { season in
@@ -1490,7 +1499,7 @@ private struct EmbyDetailScreen: View {
 #endif
     }
 
-    private func seasonSelection(_ selected: EmbyItemID?) -> Binding<EmbyItemID?> {
+    private func seasonSelection(_ selected: MediaServerItemID?) -> Binding<MediaServerItemID?> {
         Binding(
             get: { selected },
             set: { value in
@@ -1533,9 +1542,9 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func episodeShelf(_ episodes: [EmbyEpisode], title: String?) -> some View {
+    private func episodeShelf(_ episodes: [MediaServerEpisode], title: String?) -> some View {
         if episodes.isEmpty == false {
-            EmbyShelf(title: title) {
+            MediaServerShelf(title: title) {
                 ForEach(episodes, id: \.metadata.id) { episode in
                     episodeCard(episode)
                 }
@@ -1543,7 +1552,7 @@ private struct EmbyDetailScreen: View {
         }
     }
 
-    private func episodeCard(_ episode: EmbyEpisode) -> GridCard {
+    private func episodeCard(_ episode: MediaServerEpisode) -> GridCard {
         let metadata = episode.metadata
         return GridCard.episode(
             title: metadata.name,
@@ -1565,9 +1574,9 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func posterShelf(title: String, items: [EmbyLibraryItem]) -> some View {
+    private func posterShelf(title: String, items: [MediaServerLibraryItem]) -> some View {
         if items.isEmpty == false {
-            EmbyShelf(title: title) {
+            MediaServerShelf(title: title) {
                 ForEach(items, id: \.metadata.id) { item in
                     posterCard(item, session: session, onSelect: onSelect)
                 }
@@ -1576,7 +1585,7 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func castAndCrew(_ people: [EmbyPerson]) -> some View {
+    private func castAndCrew(_ people: [MediaServerPerson]) -> some View {
         if people.isEmpty == false {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                 Text("Cast & Crew").font(DesignTokens.Typography.title)
@@ -1605,8 +1614,8 @@ private struct EmbyDetailScreen: View {
         }
     }
 
-    private func about(_ metadata: EmbyItemMetadata) -> some View {
-        let sections = EmbyAboutSections(metadata: metadata, sources: aboutSources(metadata))
+    private func about(_ metadata: MediaServerItemMetadata) -> some View {
+        let sections = MediaServerAboutSections(metadata: metadata, sources: aboutSources(metadata))
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
             Text("About").font(DesignTokens.Typography.title)
 
@@ -1653,7 +1662,7 @@ private struct EmbyDetailScreen: View {
     @ViewBuilder
     private func aboutColumn(
         _ title: String,
-        _ entries: [EmbyAboutSections.Entry],
+        _ entries: [MediaServerAboutSections.Entry],
         labelsAreBadges: Bool = false
     ) -> some View {
         if entries.isEmpty == false {
@@ -1690,9 +1699,9 @@ private struct EmbyDetailScreen: View {
 
 @MainActor
 private func posterCard(
-    _ item: EmbyLibraryItem,
-    session: EmbySessionViewModel,
-    onSelect: @escaping (EmbyLibraryItem) -> Void
+    _ item: MediaServerLibraryItem,
+    session: MediaServerSessionViewModel,
+    onSelect: @escaping (MediaServerLibraryItem) -> Void
 ) -> GridCard {
     let metadata = item.metadata
     return GridCard.poster(
@@ -1712,9 +1721,9 @@ private func posterCard(
 
 @MainActor
 private func stillCard(
-    _ item: EmbyLibraryItem,
-    session: EmbySessionViewModel,
-    onSelect: @escaping (EmbyLibraryItem) -> Void
+    _ item: MediaServerLibraryItem,
+    session: MediaServerSessionViewModel,
+    onSelect: @escaping (MediaServerLibraryItem) -> Void
 ) -> GridCard {
     let metadata = item.metadata
     return GridCard.episode(
@@ -1735,19 +1744,19 @@ private func stillCard(
 }
 
 @MainActor
-private func posterURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
+private func posterURL(for item: MediaServerLibraryItem, session: MediaServerSessionViewModel) -> URL? {
     imageURL(for: item, type: .primary, session: session, maxWidth: DesignTokens.Card.posterWidth)
 }
 
 @MainActor
 private func imageURL(
-    for item: EmbyLibraryItem,
-    type: EmbyImageType,
-    session: EmbySessionViewModel,
+    for item: MediaServerLibraryItem,
+    type: MediaServerImageType,
+    session: MediaServerSessionViewModel,
     maxWidth: CGFloat? = nil
 ) -> URL? {
     guard let server = session.server else { return nil }
-    let tag: EmbyImageTag? = switch type {
+    let tag: MediaServerImageTag? = switch type {
     case .primary: item.metadata.imageTags.primary
     case .logo: item.metadata.imageTags.logo
     case .thumb: item.metadata.imageTags.thumb
@@ -1758,20 +1767,20 @@ private func imageURL(
         for: item.metadata.id,
         type: type,
         tag: tag,
-        size: maxWidth.flatMap { try? EmbyImageSize.width(Int($0 * 2)) },
+        size: maxWidth.flatMap { try? MediaServerImageSize.width(Int($0 * 2)) },
         on: server
     )
 }
 
 @MainActor
-private func heroArtworkURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
+private func heroArtworkURL(for item: MediaServerLibraryItem, session: MediaServerSessionViewModel) -> URL? {
     guard let server = session.server else { return nil }
     if let tag = item.metadata.imageTags.backdrops.first,
        let url = try? session.client.backdropImageURL(
            for: item.metadata.id,
            index: 0,
            tag: tag,
-           size: try? EmbyImageSize.width(DesignTokens.EmbyDetail.backdropRequestWidth),
+           size: try? MediaServerImageSize.width(DesignTokens.EmbyDetail.backdropRequestWidth),
            on: server
        ) {
         return url
@@ -1781,7 +1790,7 @@ private func heroArtworkURL(for item: EmbyLibraryItem, session: EmbySessionViewM
 }
 
 @MainActor
-func warmDetailArtwork(for item: EmbyLibraryItem, session: EmbySessionViewModel) {
+func warmDetailArtwork(for item: MediaServerLibraryItem, session: MediaServerSessionViewModel) {
     let urls = [
         heroArtworkURL(for: item, session: session),
         imageURL(for: item, type: .logo, session: session)
@@ -1791,22 +1800,22 @@ func warmDetailArtwork(for item: EmbyLibraryItem, session: EmbySessionViewModel)
 }
 
 @MainActor
-private func thumbURL(for metadata: EmbyItemMetadata, session: EmbySessionViewModel) -> URL? {
+private func thumbURL(for metadata: MediaServerItemMetadata, session: MediaServerSessionViewModel) -> URL? {
     guard let server = session.server else { return nil }
-    let type: EmbyImageType = metadata.imageTags.thumb == nil ? .primary : .thumb
+    let type: MediaServerImageType = metadata.imageTags.thumb == nil ? .primary : .thumb
     let tag = metadata.imageTags.thumb ?? metadata.imageTags.primary
     guard let tag else { return nil }
     return try? session.client.imageURL(
         for: metadata.id,
         type: type,
         tag: tag,
-        size: try? EmbyImageSize.width(Int(DesignTokens.Card.stillWidth * 2)),
+        size: try? MediaServerImageSize.width(Int(DesignTokens.Card.stillWidth * 2)),
         on: server
     )
 }
 
 @MainActor
-private func personURL(_ person: EmbyPerson, session: EmbySessionViewModel) -> URL? {
+private func personURL(_ person: MediaServerPerson, session: MediaServerSessionViewModel) -> URL? {
     guard let server = session.server,
           let id = person.id,
           let tag = person.primaryImageTag else { return nil }
@@ -1826,7 +1835,7 @@ private func runtime(_ ticks: Int64) -> String {
     return hours > 0 ? "\(hours) hr \(minutes) min" : "\(minutes) min"
 }
 
-private func watchedProgress(_ metadata: EmbyItemMetadata) -> Double? {
+private func watchedProgress(_ metadata: MediaServerItemMetadata) -> Double? {
     guard let position = metadata.userData?.playbackPositionTicks,
           let duration = metadata.runTimeTicks,
           duration > 0,

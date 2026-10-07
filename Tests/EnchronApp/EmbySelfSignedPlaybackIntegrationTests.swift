@@ -1,6 +1,6 @@
 import Foundation
 import MediaSource
-@testable import Emby
+@testable import MediaServer
 import XCTest
 
 nonisolated final class EmbySelfSignedPlaybackIntegrationTests: XCTestCase {
@@ -21,7 +21,7 @@ nonisolated final class EmbySelfSignedPlaybackIntegrationTests: XCTestCase {
         ServerTrustPolicy.shared.approvalHandler = { _ in true }
         defer { ServerTrustPolicy.shared.approvalHandler = nil }
 
-        let client = EmbyClient(clientIdentity: EmbyClientIdentity(
+        let client = MediaBrowserClient(clientIdentity: MediaServerClientIdentity(
             name: "Enchron",
             version: "1",
             deviceName: "Self Signed Playback Tests",
@@ -33,9 +33,9 @@ nonisolated final class EmbySelfSignedPlaybackIntegrationTests: XCTestCase {
             password: password
         )
         let views = try await client.views(on: server)
-        var playable: EmbyPlaybackSession?
+        var playable: MediaServerPlaybackSession?
         for view in views where playable == nil {
-            let page = try await client.items(in: view.id, on: server, query: EmbyItemQuery(limit: 50))
+            let page = try await client.items(in: view.id, on: server, query: MediaServerItemQuery(limit: 50))
             for item in page.items {
                 switch item {
                 case .movie, .episode:
@@ -48,7 +48,7 @@ nonisolated final class EmbySelfSignedPlaybackIntegrationTests: XCTestCase {
         }
         let session = try XCTUnwrap(playable, "The server exposed no directly playable title.")
         let source = try XCTUnwrap(session.mediaSources.first)
-        let byteSource = EmbyMediaByteSource(
+        let byteSource = MediaServerByteSource(
             streamURL: source.directPlayURL,
             accessToken: server.accessToken,
             contentLength: source.sizeInBytes

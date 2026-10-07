@@ -38,7 +38,7 @@ def main() -> int:
         "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift"
     )
     local = read("Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift")
-    emby = swift_sources("Modules/Emby")
+    emby = swift_sources("Modules/MediaServer")
     playback_feature = swift_sources("Modules/Playback")
     project = read("Enchron.xcodeproj/project.pbxproj")
     architecture_inputs = read("Config/design_source_architecture_inputs.xcfilelist")
@@ -88,7 +88,7 @@ def main() -> int:
         "local playback no longer returns a resolved file URL",
     )
     require(
-        "final class EmbyMediaByteSource: MediaByteRangeSource" in emby,
+        "final class MediaServerByteSource: MediaByteRangeSource" in emby,
         "Emby lacks a byte-range source",
     )
     require(
@@ -114,7 +114,7 @@ def main() -> int:
         "MediaSource/MediaByteStreamHandle.swift" not in project,
         "Xcode still includes the duplicate handle file",
     )
-    require("Emby/EmbyMediaByteSource.swift" in project, "Xcode omits the Emby byte source")
+    require("MediaServer/MediaServerMediaByteSource.swift" in project, "Xcode omits the Emby byte source")
     require(
         "MediaLibrary/Services/HTTPRangeStreamingServer.swift" not in project,
         "Xcode still references the MediaLibrary endpoint",
@@ -128,7 +128,7 @@ def main() -> int:
         "architecture checks still include the duplicate handle file",
     )
     require(
-        "Modules/Emby/EmbyMediaByteSource.swift" in architecture_inputs,
+        "Modules/MediaServer/MediaServerMediaByteSource.swift" in architecture_inputs,
         "architecture checks omit the Emby byte source",
     )
     require(

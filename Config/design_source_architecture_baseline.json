@@ -34,49 +34,49 @@
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".font(.system(size: 56, weight: .heavy, design: .default))",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".frame(maxWidth: 220)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".frame(width: 132, height: 132)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".frame(width: 150)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".frame(width: 360)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".frame(width: 360, height: DesignTokens.Interactive.regular)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".frame(width: 520)",
       "count": 1
     },
     {
       "rule": "production-hardcoded-visual",
-      "path": "Modules/Emby/EmbyScreens.swift",
+      "path": "Modules/MediaServer/MediaServerScreens.swift",
       "signature": ".init(color: .black.opacity(DesignTokens.EmbyDetail.titleWashStrength * 0.45), location: 0.5),",
       "count": 1
     },

@@ -5,7 +5,7 @@ import Observation
 @Observable
 public final class AppModel {
     public enum NavigationTab: String, CaseIterable {
-        case files, emby, settings, environment
+        case files, emby, plex, jellyfin, settings, environment
 
         var isContentDestination: Bool {
             self != .environment

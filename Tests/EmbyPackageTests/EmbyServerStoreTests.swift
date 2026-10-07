@@ -2,19 +2,36 @@ import Foundation
 import MediaSource
 import Synchronization
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 struct EmbyServerStoreTests {
+    @Test("service credentials remain isolated even for identical server and user identifiers")
+    func serviceIsolation() throws {
+        let credentials = InMemoryCredentialStore()
+        for kind in MediaServerKind.allCases {
+            let store = KeychainMediaServerStore(credentials: credentials, sourceID: kind.credentialKey)
+            try store.saveServer(.init(kind: kind, id: .init(rawValue: "same"), name: kind.title,
+                                       baseAddress: URL(string: "http://example.test")!, accessToken: kind.rawValue,
+                                       userID: .init(rawValue: "same")))
+        }
+        try KeychainMediaServerStore(credentials: credentials, sourceID: MediaServerKind.plex.credentialKey).deleteServer()
+        let jellyfin = try KeychainMediaServerStore(credentials: credentials, sourceID: MediaServerKind.jellyfin.credentialKey).loadServer()
+        let emby = try KeychainMediaServerStore(credentials: credentials, sourceID: MediaServerKind.emby.credentialKey).loadServer()
+        #expect(jellyfin?.kind == .jellyfin)
+        #expect(jellyfin?.accessToken == "jellyfin")
+        #expect(emby?.accessToken == "emby")
+    }
+
     @Test("the keychain adapter round-trips address, user, and token")
     func roundTrip() throws {
         let credentials = InMemoryCredentialStore()
-        let store = KeychainEmbyServerStore(credentials: credentials, sourceID: "test-emby")
-        let server = EmbyAuthenticatedServer(
-            id: EmbyServerID(rawValue: "server"),
+        let store = KeychainMediaServerStore(credentials: credentials, sourceID: "test-emby")
+        let server = MediaServerAuthenticatedServer(
+            id: MediaServerServerID(rawValue: "server"),
             name: "Living Room",
             baseAddress: URL(string: "http://example.test:8096")!,
             accessToken: "access-token",
-            userID: EmbyUserID(rawValue: "user")
+            userID: MediaServerUserID(rawValue: "user")
         )
 
         try store.saveServer(server)

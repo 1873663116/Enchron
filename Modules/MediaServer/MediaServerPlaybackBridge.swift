@@ -3,21 +3,21 @@ import MediaSource
 import Playback
 import Synchronization
 
-public enum EmbyPlaybackStartAction: String, Codable, Sendable, Equatable {
+public enum MediaServerPlaybackStartAction: String, Codable, Sendable, Equatable {
     case resume
     case fromBeginning
 }
 
-public struct EmbyPlaybackSelection: Sendable, Equatable {
-    public let item: EmbyLibraryItem
-    public let mediaSourceID: EmbyMediaSourceID?
-    public let startAction: EmbyPlaybackStartAction
-    public let seasonEpisodes: [EmbyEpisode]?
+public struct MediaServerPlaybackSelection: Sendable, Equatable {
+    public let item: MediaServerLibraryItem
+    public let mediaSourceID: MediaServerMediaSourceID?
+    public let startAction: MediaServerPlaybackStartAction
+    public let seasonEpisodes: [MediaServerEpisode]?
 
     public init(
-        item: EmbyLibraryItem,
-        mediaSourceID: EmbyMediaSourceID? = nil,
-        startAction: EmbyPlaybackStartAction
+        item: MediaServerLibraryItem,
+        mediaSourceID: MediaServerMediaSourceID? = nil,
+        startAction: MediaServerPlaybackStartAction
     ) {
         self.item = item
         self.mediaSourceID = mediaSourceID
@@ -26,10 +26,10 @@ public struct EmbyPlaybackSelection: Sendable, Equatable {
     }
 
     public init(
-        episode: EmbyEpisode,
-        mediaSourceID: EmbyMediaSourceID? = nil,
-        startAction: EmbyPlaybackStartAction,
-        seasonEpisodes: [EmbyEpisode]
+        episode: MediaServerEpisode,
+        mediaSourceID: MediaServerMediaSourceID? = nil,
+        startAction: MediaServerPlaybackStartAction,
+        seasonEpisodes: [MediaServerEpisode]
     ) {
         item = .episode(episode)
         self.mediaSourceID = mediaSourceID
@@ -38,10 +38,10 @@ public struct EmbyPlaybackSelection: Sendable, Equatable {
     }
 
     private init(
-        item: EmbyLibraryItem,
-        mediaSourceID: EmbyMediaSourceID?,
-        startAction: EmbyPlaybackStartAction,
-        seasonEpisodes: [EmbyEpisode]?
+        item: MediaServerLibraryItem,
+        mediaSourceID: MediaServerMediaSourceID?,
+        startAction: MediaServerPlaybackStartAction,
+        seasonEpisodes: [MediaServerEpisode]?
     ) {
         self.item = item
         self.mediaSourceID = mediaSourceID
@@ -56,8 +56,8 @@ public struct EmbyPlaybackSelection: Sendable, Equatable {
         return Double(ticks) / 10_000_000
     }
 
-    public func replacingStartAction(_ startAction: EmbyPlaybackStartAction) -> EmbyPlaybackSelection {
-        EmbyPlaybackSelection(
+    public func replacingStartAction(_ startAction: MediaServerPlaybackStartAction) -> MediaServerPlaybackSelection {
+        MediaServerPlaybackSelection(
             item: item,
             mediaSourceID: mediaSourceID,
             startAction: startAction,
@@ -66,23 +66,23 @@ public struct EmbyPlaybackSelection: Sendable, Equatable {
     }
 }
 
-public struct EmbyPreparedPlaybackEvidence: Equatable, Sendable {
-    public let serverID: EmbyServerID
-    public let userID: EmbyUserID
-    public let itemID: EmbyItemID
-    public let mediaSourceID: EmbyMediaSourceID
-    public let playSessionID: EmbyPlaySessionID
-    public let requestedAction: EmbyPlaybackStartAction
+public struct MediaServerPreparedPlaybackEvidence: Equatable, Sendable {
+    public let serverID: MediaServerServerID
+    public let userID: MediaServerUserID
+    public let itemID: MediaServerItemID
+    public let mediaSourceID: MediaServerMediaSourceID
+    public let playSessionID: MediaServerPlaySessionID
+    public let requestedAction: MediaServerPlaybackStartAction
     public let freshServerProgressTicks: Int64?
     public let appliedStartTicks: Int64
 
     public init(
-        serverID: EmbyServerID,
-        userID: EmbyUserID,
-        itemID: EmbyItemID,
-        mediaSourceID: EmbyMediaSourceID,
-        playSessionID: EmbyPlaySessionID,
-        requestedAction: EmbyPlaybackStartAction,
+        serverID: MediaServerServerID,
+        userID: MediaServerUserID,
+        itemID: MediaServerItemID,
+        mediaSourceID: MediaServerMediaSourceID,
+        playSessionID: MediaServerPlaySessionID,
+        requestedAction: MediaServerPlaybackStartAction,
         freshServerProgressTicks: Int64?,
         appliedStartTicks: Int64
     ) {
@@ -97,7 +97,7 @@ public struct EmbyPreparedPlaybackEvidence: Equatable, Sendable {
     }
 }
 
-public struct EmbyAcceptedPlaybackReport: Equatable, Sendable {
+public struct MediaServerAcceptedPlaybackReport: Equatable, Sendable {
     public enum Event: String, Codable, Equatable, Sendable {
         case started
         case progress
@@ -105,43 +105,47 @@ public struct EmbyAcceptedPlaybackReport: Equatable, Sendable {
     }
 
     public let event: Event
-    public let serverID: EmbyServerID
-    public let userID: EmbyUserID
-    public let itemID: EmbyItemID
-    public let mediaSourceID: EmbyMediaSourceID
-    public let playSessionID: EmbyPlaySessionID
+    public let serverID: MediaServerServerID
+    public let userID: MediaServerUserID
+    public let itemID: MediaServerItemID
+    public let mediaSourceID: MediaServerMediaSourceID
+    public let playSessionID: MediaServerPlaySessionID
     public let positionTicks: Int64
 }
 
-public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unchecked Sendable {
+public final class MediaServerPlaybackSessionReporter: PlaybackSessionReporting, @unchecked Sendable {
     public typealias UnauthorizedHandler = @Sendable () async -> Void
     public typealias AcceptedReportHandler = @Sendable (
-        EmbyAcceptedPlaybackReport
+        MediaServerAcceptedPlaybackReport
     ) async -> Void
 
     private enum Event: Sendable {
         case started
-        case progress(EmbyPlaybackReport.ProgressEvent)
+        case progress(MediaServerPlaybackReport.ProgressEvent)
         case stopped
     }
 
-    private let client: any EmbyClientProtocol
-    private let server: EmbyAuthenticatedServer
-    private let itemID: EmbyItemID
-    private let mediaSourceID: EmbyMediaSourceID
-    private let playSessionID: EmbyPlaySessionID
+    private let client: any MediaServerClientProtocol
+    private let server: MediaServerAuthenticatedServer
+    private let itemID: MediaServerItemID
+    private let mediaSourceID: MediaServerMediaSourceID
+    private let playSessionID: MediaServerPlaySessionID
     private let externalSubtitleStreamIndexBySourceID: [String: Int]
+    private let serverIndexByPlaybackIndex: [Int: Int]
+    private let durationTicks: Int64?
     private let onUnauthorized: UnauthorizedHandler?
     private let onAcceptedReport: AcceptedReportHandler?
     private let pendingTask = Mutex<Task<Void, Never>?>(nil)
 
     public init(
-        client: any EmbyClientProtocol,
-        server: EmbyAuthenticatedServer,
-        itemID: EmbyItemID,
-        mediaSourceID: EmbyMediaSourceID,
-        playSessionID: EmbyPlaySessionID,
+        client: any MediaServerClientProtocol,
+        server: MediaServerAuthenticatedServer,
+        itemID: MediaServerItemID,
+        mediaSourceID: MediaServerMediaSourceID,
+        playSessionID: MediaServerPlaySessionID,
         externalSubtitleStreamIndexBySourceID: [String: Int] = [:],
+        serverIndexByPlaybackIndex: [Int: Int] = [:],
+        durationTicks: Int64? = nil,
         onUnauthorized: UnauthorizedHandler? = nil,
         onAcceptedReport: AcceptedReportHandler? = nil
     ) {
@@ -151,6 +155,8 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
         self.mediaSourceID = mediaSourceID
         self.playSessionID = playSessionID
         self.externalSubtitleStreamIndexBySourceID = externalSubtitleStreamIndexBySourceID
+        self.serverIndexByPlaybackIndex = serverIndexByPlaybackIndex
+        self.durationTicks = durationTicks
         self.onUnauthorized = onUnauthorized
         self.onAcceptedReport = onAcceptedReport
     }
@@ -160,7 +166,7 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
     }
 
     public func playbackProgressed(_ report: PlaybackSessionReport, reason: PlaybackProgressReason) {
-        let event: EmbyPlaybackReport.ProgressEvent = switch reason {
+        let event: MediaServerPlaybackReport.ProgressEvent = switch reason {
         case .timeUpdate: .timeUpdate
         case .pause: .pause
         case .unpause: .unpause
@@ -180,17 +186,18 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
     }
 
     private func enqueue(_ event: Event, report: PlaybackSessionReport) {
-        let progressEvent: EmbyPlaybackReport.ProgressEvent? = if case .progress(let reason) = event {
+        let progressEvent: MediaServerPlaybackReport.ProgressEvent? = if case .progress(let reason) = event {
             reason
         } else {
             nil
         }
-        let embyReport = EmbyPlaybackReport(
+        let embyReport = MediaServerPlaybackReport(
             itemID: itemID,
             mediaSourceID: mediaSourceID,
             playSessionID: playSessionID,
             positionTicks: Self.ticks(from: report.positionSeconds),
-            audioStreamIndex: report.selectedAudioTrackID.flatMap(Int.init),
+            durationTicks: durationTicks,
+            audioStreamIndex: report.selectedAudioTrackID.flatMap(Int.init).map { serverIndexByPlaybackIndex[$0] ?? $0 },
             subtitleStreamIndex: subtitleStreamIndex(for: report.selectedSubtitleTrackID),
             isPaused: report.isPaused,
             progressEvent: progressEvent
@@ -216,12 +223,12 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
                     case .stopped:
                         try await client.sendStopped(embyReport, on: server)
                     }
-                    let acceptedEvent: EmbyAcceptedPlaybackReport.Event = switch event {
+                    let acceptedEvent: MediaServerAcceptedPlaybackReport.Event = switch event {
                     case .started: .started
                     case .progress: .progress
                     case .stopped: .stopped
                     }
-                    await onAcceptedReport?(EmbyAcceptedPlaybackReport(
+                    await onAcceptedReport?(MediaServerAcceptedPlaybackReport(
                         event: acceptedEvent,
                         serverID: server.id,
                         userID: server.userID,
@@ -230,7 +237,7 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
                         playSessionID: playSessionID,
                         positionTicks: embyReport.positionTicks
                     ))
-                } catch EmbyError.httpStatus(401) {
+                } catch MediaServerError.httpStatus(401) {
                     await onUnauthorized?()
                 } catch {}
             }
@@ -239,9 +246,9 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
 
     private func subtitleStreamIndex(for trackID: String?) -> Int? {
         guard let trackID else { return -1 }
-        if let index = Int(trackID) { return index }
+        if let index = Int(trackID) { return serverIndexByPlaybackIndex[index] ?? index }
         if trackID.hasPrefix("ffmpeg.subtitle.") {
-            return trackID.split(separator: ".").last.flatMap { Int($0) }
+            return trackID.split(separator: ".").last.flatMap { Int($0) }.map { serverIndexByPlaybackIndex[$0] ?? $0 }
         }
         for (sourceID, index) in externalSubtitleStreamIndexBySourceID
         where trackID == sourceID || trackID.contains(".\(sourceID).") {
@@ -257,26 +264,26 @@ public final class EmbyPlaybackSessionReporter: PlaybackSessionReporting, @unche
     }
 }
 
-public actor EmbyPlaybackBridge {
+public actor MediaServerPlaybackBridge {
     private struct QueuedEpisode: Sendable {
         let id: UUID
-        let episode: EmbyEpisode
+        let episode: MediaServerEpisode
     }
 
-    private let client: any EmbyClientProtocol
-    private var server: EmbyAuthenticatedServer?
-    private var onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler?
-    private var onAcceptedReport: EmbyPlaybackSessionReporter.AcceptedReportHandler?
-    private var onPreparedPlayback: (@Sendable (EmbyPreparedPlaybackEvidence) async -> Void)?
+    private let client: any MediaServerClientProtocol
+    private var server: MediaServerAuthenticatedServer?
+    private var onUnauthorized: MediaServerPlaybackSessionReporter.UnauthorizedHandler?
+    private var onAcceptedReport: MediaServerPlaybackSessionReporter.AcceptedReportHandler?
+    private var onPreparedPlayback: (@Sendable (MediaServerPreparedPlaybackEvidence) async -> Void)?
     private var queue: [QueuedEpisode] = []
     private var currentQueueID: UUID?
 
     public init(
-        client: any EmbyClientProtocol,
-        server: EmbyAuthenticatedServer?,
-        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil,
-        onAcceptedReport: EmbyPlaybackSessionReporter.AcceptedReportHandler? = nil,
-        onPreparedPlayback: (@Sendable (EmbyPreparedPlaybackEvidence) async -> Void)? = nil
+        client: any MediaServerClientProtocol,
+        server: MediaServerAuthenticatedServer?,
+        onUnauthorized: MediaServerPlaybackSessionReporter.UnauthorizedHandler? = nil,
+        onAcceptedReport: MediaServerPlaybackSessionReporter.AcceptedReportHandler? = nil,
+        onPreparedPlayback: (@Sendable (MediaServerPreparedPlaybackEvidence) async -> Void)? = nil
     ) {
         self.client = client
         self.server = server
@@ -285,7 +292,7 @@ public actor EmbyPlaybackBridge {
         self.onPreparedPlayback = onPreparedPlayback
     }
 
-    public init(client: any EmbyClientProtocol) {
+    public init(client: any MediaServerClientProtocol) {
         self.client = client
         server = nil
         onUnauthorized = nil
@@ -294,10 +301,10 @@ public actor EmbyPlaybackBridge {
     }
 
     public func configure(
-        server: EmbyAuthenticatedServer?,
-        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil,
-        onAcceptedReport: EmbyPlaybackSessionReporter.AcceptedReportHandler? = nil,
-        onPreparedPlayback: (@Sendable (EmbyPreparedPlaybackEvidence) async -> Void)? = nil
+        server: MediaServerAuthenticatedServer?,
+        onUnauthorized: MediaServerPlaybackSessionReporter.UnauthorizedHandler? = nil,
+        onAcceptedReport: MediaServerPlaybackSessionReporter.AcceptedReportHandler? = nil,
+        onPreparedPlayback: (@Sendable (MediaServerPreparedPlaybackEvidence) async -> Void)? = nil
     ) {
         if self.server != server {
             queue = []
@@ -309,7 +316,7 @@ public actor EmbyPlaybackBridge {
         self.onPreparedPlayback = onPreparedPlayback
     }
 
-    public func request(for selection: EmbyPlaybackSelection) async throws -> PlaybackLaunchRequest {
+    public func request(for selection: MediaServerPlaybackSelection) async throws -> PlaybackLaunchRequest {
         let request = try await makeRequest(
             for: selection.item,
             mediaSourceID: selection.mediaSourceID,
@@ -359,7 +366,7 @@ public actor EmbyPlaybackBridge {
             try Task.checkCancellation()
             currentQueueID = queued.id
             return request
-        } catch EmbyError.httpStatus(401) {
+        } catch MediaServerError.httpStatus(401) {
             await onUnauthorized?()
             return nil
         } catch {
@@ -368,23 +375,23 @@ public actor EmbyPlaybackBridge {
     }
 
     private func makeRequest(
-        for item: EmbyLibraryItem,
-        mediaSourceID: EmbyMediaSourceID?,
-        startAction: EmbyPlaybackStartAction,
+        for item: MediaServerLibraryItem,
+        mediaSourceID: MediaServerMediaSourceID?,
+        startAction: MediaServerPlaybackStartAction,
         collectionOrigin: PlaybackCollectionOrigin
     ) async throws -> PlaybackLaunchRequest {
-        guard let server else { throw EmbyError.notAuthenticated }
+        guard let server else { throw MediaServerError.notAuthenticated }
         let freshItem = try await client.item(withID: item.metadata.id, on: server)
         let playback = try await client.playbackInfo(for: freshItem, on: server)
-        let source: EmbyMediaSource
+        let source: MediaServerMediaSource
         if let mediaSourceID {
             guard let selectedSource = playback.mediaSources.first(where: { $0.id == mediaSourceID }) else {
-                throw EmbyError.mediaSourceUnavailable(freshItem.metadata.id, mediaSourceID)
+                throw MediaServerError.mediaSourceUnavailable(freshItem.metadata.id, mediaSourceID)
             }
             source = selectedSource
         } else {
             guard let firstSource = playback.mediaSources.first else {
-                throw EmbyError.directPlayUnavailable(freshItem.metadata.id)
+                throw MediaServerError.directPlayUnavailable(freshItem.metadata.id)
             }
             source = firstSource
         }
@@ -396,11 +403,11 @@ public actor EmbyPlaybackBridge {
             let subtitleURL: URL
             do {
                 subtitleURL = try client.externalSubtitleURL(for: stream, on: server)
-            } catch EmbyError.externalSubtitleUnavailable {
+            } catch MediaServerError.externalSubtitleUnavailable {
                 continue
             }
             let subtitleHandle = try await byteStreamServer.register(
-                source: EmbyByteRangeSource(url: subtitleURL, reportedContentLength: nil),
+                source: MediaServerByteRangeSource(url: subtitleURL, reportedContentLength: nil),
                 filename: stream.displayTitle ?? "Subtitle \(stream.index)"
             )
             subtitles.append(ResolvedExternalSubtitleSource(
@@ -416,13 +423,17 @@ public actor EmbyPlaybackBridge {
             return (Self.externalSubtitleSourceID(for: stream.index), stream.index)
             }
         )
-        let reporter = EmbyPlaybackSessionReporter(
+        let reporter = MediaServerPlaybackSessionReporter(
             client: client,
             server: server,
             itemID: freshItem.metadata.id,
             mediaSourceID: source.id,
             playSessionID: playback.id,
             externalSubtitleStreamIndexBySourceID: externalIndexes,
+            serverIndexByPlaybackIndex: Dictionary(uniqueKeysWithValues: source.mediaStreams.compactMap { stream in
+                stream.playbackIndex.map { ($0, stream.index) }
+            }),
+            durationTicks: freshItem.metadata.runTimeTicks,
             onUnauthorized: onUnauthorized,
             onAcceptedReport: onAcceptedReport
         )
@@ -434,9 +445,10 @@ public actor EmbyPlaybackBridge {
             0
         }
         let startPosition = Double(appliedStartTicks) / 10_000_000
-        let byteSource = EmbyMediaByteSource(
+        let byteSource = MediaServerByteSource(
             streamURL: source.directPlayURL,
             accessToken: server.accessToken,
+            kind: server.kind,
             contentLength: source.sizeInBytes ?? freshItem.metadata.sizeInBytes
         )
         let byteStreamHandle = try await byteStreamServer.register(
@@ -444,7 +456,7 @@ public actor EmbyPlaybackBridge {
             filename: source.displayName,
             preferredBufferDepth: .automatic
         )
-        await onPreparedPlayback?(EmbyPreparedPlaybackEvidence(
+        await onPreparedPlayback?(MediaServerPreparedPlaybackEvidence(
             serverID: server.id,
             userID: server.userID,
             itemID: freshItem.metadata.id,
@@ -467,26 +479,29 @@ public actor EmbyPlaybackBridge {
             viewingStateAuthority: .mediaServer,
             startPositionSeconds: startPosition,
             initialTrackSelection: TrackSelectionPreference(
-                audioTrackID: source.defaultStreamIndexes.audio.map(String.init),
+                audioTrackID: source.defaultStreamIndexes.audio.map { index in
+                    String(source.mediaStreams.first { $0.index == index }?.playbackIndex ?? index)
+                },
                 subtitleTrack: Self.subtitleSelection(for: source)
             ),
             sessionReporter: reporter
         )
     }
 
-    private static func subtitleSelection(for source: EmbyMediaSource) -> SubtitleTrackSelectionPreference {
+    private static func subtitleSelection(for source: MediaServerMediaSource) -> SubtitleTrackSelectionPreference {
         guard let index = source.defaultStreamIndexes.subtitle, index >= 0 else { return .off }
         if source.mediaStreams.contains(where: { $0.index == index && $0.isExternal }) {
             return .externalSource(id: externalSubtitleSourceID(for: index))
         }
-        return .track(id: "ffmpeg.subtitle.\(index)")
+        let fileIndex = source.mediaStreams.first(where: { $0.index == index })?.playbackIndex ?? index
+        return .track(id: "ffmpeg.subtitle.\(fileIndex)")
     }
 
-    private func installQueue(_ episodes: [EmbyEpisode], currentItemID: EmbyItemID) throws {
+    private func installQueue(_ episodes: [MediaServerEpisode], currentItemID: MediaServerItemID) throws {
         guard let currentEpisode = episodes.first(where: { $0.metadata.id == currentItemID }),
               let seasonID = currentEpisode.seasonID,
               episodes.allSatisfy({ $0.seasonID == seasonID }) else {
-            throw EmbyError.childrenUnavailable(currentItemID)
+            throw MediaServerError.childrenUnavailable(currentItemID)
         }
         queue = episodes.map { QueuedEpisode(id: UUID(), episode: $0) }
         currentQueueID = queue.first { $0.episode.metadata.id == currentItemID }?.id
@@ -497,7 +512,7 @@ public actor EmbyPlaybackBridge {
     }
 }
 
-private final class EmbyByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+private final class MediaServerByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
     let byteStreamAttributes: MediaByteStreamAttributes
     private let url: URL
     private let session: URLSession
@@ -544,7 +559,7 @@ private final class EmbyByteRangeSource: MediaByteRangeSource, @unchecked Sendab
             ) {
                 throw failure
             }
-            throw EmbyError.httpStatus(response.statusCode)
+            throw MediaServerError.httpStatus(response.statusCode)
         }
         guard let contentRange = response.value(forHTTPHeaderField: "Content-Range"),
               contentRange.lowercased().hasPrefix("bytes \(range.lowerBound)-") else {

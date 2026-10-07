@@ -1,7 +1,7 @@
 import DesignSystem
 import SwiftUI
 
-public struct EmbyShelf<Content: View>: View {
+public struct MediaServerShelf<Content: View>: View {
     private let title: String?
     private let inset: CGFloat
     private let content: Content
