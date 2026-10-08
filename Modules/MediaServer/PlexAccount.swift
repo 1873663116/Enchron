@@ -141,8 +141,12 @@ final class PlexAccount {
         state = .servers([resource], userID: userID)
     }
 
-    private func request<Value: Decodable & Sendable>(path: String, method: String = "GET", token: String? = nil,
-                                                     parameters: [URLQueryItem] = []) async throws -> Value {
+    private func request<Value: Decodable & Sendable>(
+        path: String,
+        method: String = "GET",
+        token: String? = nil,
+        parameters: [URLQueryItem] = []
+    ) async throws -> Value {
         var components = URLComponents()
         components.scheme = "https"
         components.host = "plex.tv"

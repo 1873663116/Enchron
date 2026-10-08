@@ -93,7 +93,8 @@ struct EmbyClientTests {
         }
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
-        let authenticated = try await client.authenticate(.password(address: URL(string: "http://example.test")!, username: "TestUser", password: "secret"))
+        let address = try #require(URL(string: "http://example.test"))
+        let authenticated = try await client.authenticate(.password(address: address, username: "TestUser", password: "secret"))
 
         #expect(authenticated.id.rawValue == "server-live")
         #expect(authenticated.name == "Live")
@@ -806,9 +807,13 @@ extension EmbyClientTests {
     @Test("Plex library browsing includes requested collections")
     func plexCollections() async throws {
         MockURLProtocol.setHandler { request in
-            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let query = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.queryItems ?? []
             let json = query.contains(.init(name: "type", value: "1,18")) ?
-                "{\"MediaContainer\":{\"size\":2,\"totalSize\":2,\"Metadata\":[{\"ratingKey\":\"21\",\"type\":\"movie\",\"title\":\"Film\"},{\"ratingKey\":\"45\",\"type\":\"collection\",\"title\":\"Collection\"}]}}" :
+                """
+                {"MediaContainer":{"size":2,"totalSize":2,"Metadata":[
+                {"ratingKey":"21","type":"movie","title":"Film"},
+                {"ratingKey":"45","type":"collection","title":"Collection"}]}}
+                """ :
                 "{\"MediaContainer\":{\"size\":0,\"totalSize\":0,\"Metadata\":[]}}"
             let collectionJSON = "{\"MediaContainer\":{\"size\":1,\"totalSize\":1,\"Metadata\":[{\"ratingKey\":\"45\",\"type\":\"collection\",\"title\":\"Collection\"}]}}"
             return try response(request, status: 200, json: query.contains(.init(name: "type", value: "18")) ? collectionJSON : json)
@@ -866,32 +871,57 @@ extension EmbyClientTests {
         #expect(source.defaultStreamIndexes.audio == 3)
     }
 
-    @Test("Plex converts milliseconds and sends a duration when reporting progress")
+    @Test("Plex decodes library metadata and reports progress with a duration")
     func plexPlaybackContract() async throws {
         let recorder = RequestRecorder()
         MockURLProtocol.setHandler { request in
             recorder.record(request)
-            if request.url?.path == "/library/metadata/42" {
+            switch request.url?.path {
+            case "/library/sections":
+                return try response(request, status: 200, json: """
+                    {"MediaContainer":{"Directory":[{"key":"3","title":"Films","type":"movie"}]}}
+                    """)
+            case "/library/metadata/42/related":
+                return try response(request, status: 200, json: """
+                    {"MediaContainer":{"Hub":[{"hubIdentifier":"movie.similar","Metadata":[
+                    {"ratingKey":"44","type":"movie","title":"Related Film"}]}]}}
+                    """)
+            case "/library/metadata/42":
                 return try response(request, status: 200, json: """
                     {"MediaContainer":{"size":1,"Metadata":[{"ratingKey":"42","type":"movie","title":"Film",
-                    "duration":960000,"viewOffset":120000,"updatedAt":100,"Media":[{"id":7,"container":"mkv",
+                    "duration":960000,"viewOffset":120000,"updatedAt":100,
+                    "Genre":[{"tag":"Drama"}],"Country":[{"tag":"Japan"}],"Role":[{"id":5,"tag":"Actor","role":"Lead"}],
+                    "Image":[{"type":"clearLogo","url":"/library/metadata/42/logo"}],
+                    "Extras":{"Metadata":[{"ratingKey":"43","type":"clip","title":"Trailer"}]},
+                    "Media":[{"id":7,"container":"mkv",
                     "Part":[{"key":"/library/parts/8/file.mkv","size":4096,"Stream":[
                     {"id":9,"index":0,"streamType":1,"codec":"h264"},
                     {"id":10,"index":1,"streamType":2,"codec":"aac","default":true},
                     {"id":11,"index":2,"streamType":2,"codec":"aac","selected":true}]}]}]}]}}
                     """)
+            default:
+                return try response(request, status: 200, json: "{}")
             }
-            return try response(request, status: 200, json: "{}")
         }
         defer { MockURLProtocol.setHandler(nil) }
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
         let client = PlexClient(session: URLSession(configuration: configuration),
                                 clientIdentity: .init(name: "Enchron", version: "1", deviceName: "Tests", deviceID: "tests"))
+        let libraries = try await client.views(on: server)
+        #expect(libraries.map(\.name) == ["Films"])
         let item = try await client.item(withID: .init(rawValue: "42"), on: server)
         #expect(item.metadata.name == "Film")
+        #expect(item.metadata.genres == ["Drama"])
+        #expect(item.metadata.productionLocations == ["Japan"])
+        #expect(item.metadata.people.map(\.name) == ["Actor"])
+        #expect(item.metadata.imageTags.logo?.rawValue == "/library/metadata/42/logo")
         #expect(item.metadata.runTimeTicks == 9_600_000_000)
         #expect(item.metadata.userData?.playbackPositionTicks == 1_200_000_000)
+        let extras = try await client.specialFeatures(for: item.metadata.id, on: server)
+        #expect(extras.map(\.metadata.name) == ["Trailer"])
+        let related = try await client.similarItems(to: item.metadata.id, on: server, limit: 5)
+        #expect(related.items.map(\.metadata.name) == ["Related Film"])
         let playback = try await client.playbackInfo(for: item, on: server)
         let source = try #require(playback.mediaSources.first)
         #expect(source.directPlayURL.path == "/library/parts/8/file.mkv")

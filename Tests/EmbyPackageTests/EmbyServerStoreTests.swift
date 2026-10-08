@@ -11,7 +11,7 @@ struct EmbyServerStoreTests {
         for kind in MediaServerKind.allCases {
             let store = KeychainMediaServerStore(credentials: credentials, sourceID: kind.credentialKey)
             try store.saveServer(.init(kind: kind, id: .init(rawValue: "same"), name: kind.title,
-                                       baseAddress: URL(string: "http://example.test")!, accessToken: kind.rawValue,
+                                       baseAddress: #require(URL(string: "http://example.test")), accessToken: kind.rawValue,
                                        userID: .init(rawValue: "same")))
         }
         try KeychainMediaServerStore(credentials: credentials, sourceID: MediaServerKind.plex.credentialKey).deleteServer()

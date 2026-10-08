@@ -18,9 +18,10 @@ struct EmbyArtworkEvidenceLoaderTests {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ArtworkEvidenceURLProtocol.self]
         let loader = MediaServerArtworkEvidenceLoader(store: ArtworkStore(debugRootURL: root), session: URLSession(configuration: configuration))
+        let url = try #require(URL(string: "http://example.test/library/metadata/21/thumb/100?X-Plex-Token=secret"))
         let evidence = await loader.load(.init(itemID: .init(rawValue: "21"), imageType: .primary,
                                                imageTag: .init(rawValue: "/library/metadata/21/thumb/100"),
-                                               url: URL(string: "http://example.test/library/metadata/21/thumb/100?X-Plex-Token=secret")!))
+                                               url: url))
         #expect(evidence.network.value?.statusCode == 200)
         #expect(evidence.sanitizedRequestURL == "http://example.test/library/metadata/21/thumb/100")
         #expect(evidence.persistedCache.value?.width == 4)
