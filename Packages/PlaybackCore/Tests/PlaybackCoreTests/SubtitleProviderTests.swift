@@ -877,6 +877,59 @@ private final class SettledFlag: @unchecked Sendable {
 }
 
 @MainActor
+@Test func externalSubtitleSourceJoinsASessionWithAnAlreadyOpenSharedDemux() async throws {
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: SubtitleTestVideoProvider(),
+            subtitleProvider: FFmpegSubtitleProvider(
+                sourceReadMeter: meter,
+                demuxSession: demuxSession
+            ),
+            mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+                sourceReadMeter: meter,
+                demuxSession: demuxSession
+            ),
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        )
+    }
+    let fixture = try subtitleFixtureURL()
+    let session = try await controller.open(fixture)
+    defer { session.close() }
+    #expect(demuxSession.isOpen(for: FFmpegSourceLocator.argument(for: fixture)))
+    #expect(controller.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+    ])
+
+    let externalTracks = try await controller.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(
+            id: "shared-demux-english",
+            url: try externalSubtitleFixtureURL(),
+            displayName: "English sidecar"
+        )
+    )
+
+    #expect(externalTracks.map(\.id) == ["external.subtitle.shared-demux-english.0"])
+    #expect(controller.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+        "external.subtitle.shared-demux-english.0",
+    ])
+    try await controller.selectSubtitleTrack(id: "external.subtitle.shared-demux-english.0")
+    session.synchronizer.setRate(
+        0,
+        time: CMTime(seconds: 1.5, preferredTimescale: 600)
+    )
+    #expect(controller.activeSubtitleCues.map(\.text) == ["English subtitle"])
+    #expect(demuxSession.isOpen(for: FFmpegSourceLocator.argument(for: fixture)))
+    await controller.closeAndWait()
+}
+
+@MainActor
 @Test func failedExternalSubtitleSourceLeavesTheCurrentSelectionAndSessionUntouched() async throws {
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
