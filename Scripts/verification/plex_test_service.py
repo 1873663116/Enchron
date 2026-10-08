@@ -109,6 +109,7 @@ def emby_inventory():
     result = []
     for folder in folders:
         files = set()
+        records = []
         items = 0
         start = 0
         while True:
@@ -118,11 +119,12 @@ def emby_inventory():
                 for path in sources or [item.get('Path')]:
                     if path and path.startswith('/'):
                         files.add(unicodedata.normalize('NFC', os.path.normpath(path)))
+                records.append({'paths': sources or [item.get('Path')], 'type': item.get('Type'), 'name': item.get('Name'), 'series': item.get('SeriesName'), 'season': item.get('ParentIndexNumber'), 'episode': item.get('IndexNumber')})
                 items += 1
             start += len(page['Items'])
             if start >= page['TotalRecordCount'] or not page['Items']:
                 break
-        result.append({'name': folder['Name'], 'collectionType': folder.get('CollectionType'), 'locations': folder['Locations'], 'items': items, 'files': sorted(files)})
+        result.append({'name': folder['Name'], 'collectionType': folder.get('CollectionType'), 'locations': folder['Locations'], 'items': items, 'files': sorted(files), 'records': records})
     return {'capturedAt': time.time(), 'libraries': result, 'totalItems': sum(x['items'] for x in result), 'totalFiles': len({path for x in result for path in x['files']})}
 
 
@@ -142,8 +144,10 @@ def libraries(refresh=False):
             spec = {'type': 'movie', 'agent': 'tv.plex.agents.movie', 'scanner': 'Plex Movie', 'language': 'en-US'}
         else:
             spec = {'type': 'movie', 'agent': 'com.plexapp.agents.none', 'scanner': 'Plex Video Files Scanner', 'language': 'xn'}
-        additional = [x['destination'] for x in normalization['libraries'] if x['name'] == library['name']]
-        target_locations = library['locations'] + additional
+        normalized = [x for x in normalization['libraries'] if x['name'] == library['name']]
+        additional = [x['destination'] for x in normalized]
+        primary_locations = [x['sourceView'] for x in normalized if x.get('sourceView')] or library['locations']
+        target_locations = primary_locations + additional
         spec.update({'name': library['name'], 'location': target_locations})
         existing = next((x for x in sections if x['title'] == library['name']), None)
         if existing is None:
@@ -175,17 +179,35 @@ def coverage(source_manifest=None):
     sections = request('/library/sections')['MediaContainer'].get('Directory', [])
     activities = request('/activities').get('MediaContainer', {}).get('Activity', [])
     active_scan = any(x.get('type') == 'library.update.section' for x in activities)
+    config_file = DATA / 'normalized-media-config.json'
+    normalization = json.loads(config_file.read_text()) if config_file.exists() else {'libraries': []}
     result = []
     known_unplayable = {str(REPOSITORY.parent / 'TestMedia/TestVectors/Enchron/PlaybackBehavior/broken-clip.mp4')}
+    physical_paths = {unicodedata.normalize('NFC', os.path.normpath(path)) for library in physical['libraries'] for path in library['paths']} if physical else set()
+    link_targets = {}
+    receipt_file = DATA / 'normalized-media-receipt.json'
+    if receipt_file.exists():
+        for entry in json.loads(receipt_file.read_text()).get('mappings', []):
+            link_targets[entry['link']] = entry['source']
     def canonical(path):
+        if path in link_targets:
+            path = link_targets[path]
         sample_root = str(DATA / 'samples') + '/'
         if path.startswith(sample_root):
             path = str(MEDIA / path[len(sample_root):])
-        if path.startswith('/') and not path.startswith(str(MEDIA) + '/'):
+        for entry in normalization['libraries']:
+            if entry.get('sourceView') and path.startswith(entry['sourceView'] + '/'):
+                path = entry['sourceRoot'] + path[len(entry['sourceView']):]
+        key = unicodedata.normalize('NFC', os.path.normpath(path))
+        if key in physical_paths:
+            return key
+        if path.startswith('/'):
             path = str(Path(path).resolve())
         return unicodedata.normalize('NFC', os.path.normpath(path))
     for library in expected['libraries']:
-        section = next((x for x in sections if x['title'] == library['name']), None)
+        origin_ids = {x['sectionID'] for x in normalization['libraries'] if x.get('origin') == library['name']}
+        matching_sections = [x for x in sections if x['title'] == library['name'] or x['key'] in origin_ids]
+        section = next((x for x in matching_sections if x['title'] == library['name']), None)
         normal = set()
         extras = set()
         inaccessible = set()
@@ -193,8 +215,14 @@ def coverage(source_manifest=None):
         media_items = 0
         def collect(items, destination):
             for item in items:
+                if item.get('deletedAt'):
+                    continue
                 for media in item.get('Media', []):
+                    if media.get('deletedAt'):
+                        continue
                     for part in media.get('Part', []):
+                        if part.get('deletedAt'):
+                            continue
                         path = part.get('file')
                         if path:
                             original_path = path
@@ -207,11 +235,11 @@ def coverage(source_manifest=None):
                             else:
                                 destination.add(path)
                 collect(item.get('Extras', {}).get('Metadata', []), extras)
-        if section:
-            for item_type, destination in [(4 if section['type'] == 'show' else 1, normal), (12, extras)]:
+        for active_section in matching_sections:
+            for item_type, destination in [(4 if active_section['type'] == 'show' else 1, normal), (12, extras)]:
                 start = 0
                 while True:
-                    page = request('/library/sections/' + section['key'] + '/all', {'type': item_type, 'includeExtras': 1, 'X-Plex-Container-Start': start, 'X-Plex-Container-Size': 500})['MediaContainer']
+                    page = request('/library/sections/' + active_section['key'] + '/all', {'type': item_type, 'includeExtras': 1, 'X-Plex-Container-Start': start, 'X-Plex-Container-Size': 500})['MediaContainer']
                     values = page.get('Metadata', [])
                     if destination is normal:
                         media_items += len(values)
@@ -219,6 +247,18 @@ def coverage(source_manifest=None):
                     start += len(values)
                     if start >= page.get('totalSize', page.get('size', 0)) or not values:
                         break
+            if active_section['type'] == 'show':
+                shows = request('/library/sections/' + active_section['key'] + '/all', {'type': 2, 'X-Plex-Container-Size': 1000})['MediaContainer'].get('Metadata', [])
+                for show in shows:
+                    detail = request('/library/metadata/' + show['ratingKey'], {'includeExtras': 1})['MediaContainer'].get('Metadata', [])
+                    for parent in detail:
+                        clips = parent.get('Extras', {}).get('Metadata', [])
+                        for clip in clips:
+                            if not clip.get('Media') and clip.get('ratingKey'):
+                                child = request('/library/metadata/' + clip['ratingKey'])['MediaContainer'].get('Metadata', [])
+                                collect(child, extras)
+                            else:
+                                collect([clip], extras)
         actual = normal | extras
         emby_files = {canonical(path) for path in library['files']}
         physical_library = next((x for x in physical['libraries'] if x['name'] == library['name']), None) if physical else None
@@ -229,7 +269,7 @@ def coverage(source_manifest=None):
         valid_missing = sorted(valid_physical - actual) if valid_physical is not None else None
         remaining = len(valid_missing if valid_missing is not None else missing)
         state = 'scanning' if section and section.get('refreshing', False) else 'queued' if active_scan and remaining else 'indexed' if remaining == 0 else 'incomplete'
-        result.append({'name': library['name'], 'sectionID': section['key'] if section else None, 'expectedFiles': len(emby_files), 'physicalFiles': len(physical_files) if physical_files is not None else None, 'validPhysicalFiles': len(valid_physical) if valid_physical is not None else None, 'validPhysicalCoveredFiles': len(valid_physical & actual) if valid_physical is not None else None, 'knownUnplayableFiles': sorted(physical_files & known_unplayable) if physical_files is not None else [], 'visibleFiles': len(actual), 'visibleItems': media_items, 'normalFiles': len(normal), 'extrasFiles': len(extras), 'inaccessibleFiles': sorted(inaccessible), 'coveredFiles': len(emby_files & actual), 'physicalCoveredFiles': len(physical_files & actual) if physical_files is not None else None, 'missingFiles': missing, 'physicalMissingFiles': physical_missing, 'validPhysicalMissingFiles': valid_missing, 'extraFiles': sorted(actual - emby_files), 'scanning': section.get('refreshing', False) if section else False, 'state': state, 'duplicatePhysicalFiles': {path:list(refs.values()) for path,refs in references.items() if len(refs) > 1}, 'legacySampleReferences': {path:[ref for ref in refs.values() if ref['legacySample']] for path,refs in references.items() if any(ref['legacySample'] for ref in refs.values())}})
+        result.append({'name': library['name'], 'sectionID': section['key'] if section else None, 'sectionIDs': [x['key'] for x in matching_sections], 'expectedFiles': len(emby_files), 'physicalFiles': len(physical_files) if physical_files is not None else None, 'validPhysicalFiles': len(valid_physical) if valid_physical is not None else None, 'validPhysicalCoveredFiles': len(valid_physical & actual) if valid_physical is not None else None, 'knownUnplayableFiles': sorted(physical_files & known_unplayable) if physical_files is not None else [], 'visibleFiles': len(actual), 'visibleItems': media_items, 'normalFiles': len(normal), 'extrasFiles': len(extras), 'inaccessibleFiles': sorted(inaccessible), 'coveredFiles': len(emby_files & actual), 'physicalCoveredFiles': len(physical_files & actual) if physical_files is not None else None, 'missingFiles': missing, 'physicalMissingFiles': physical_missing, 'validPhysicalMissingFiles': valid_missing, 'extraFiles': sorted(actual - emby_files), 'scanning': any(x.get('refreshing', False) for x in matching_sections), 'state': state, 'duplicatePhysicalFiles': {path:list(refs.values()) for path,refs in references.items() if len(refs) > 1}, 'legacySampleReferences': {path:[ref for ref in refs.values() if ref['legacySample']] for path,refs in references.items() if any(ref['legacySample'] for ref in refs.values())}})
     report = {'capturedAt': time.time(), 'physicalInventoryCapturedAt': physical.get('observedAt') if physical else None, 'libraries': result, 'totalExpectedFiles': expected['totalFiles'], 'totalCoveredFiles': sum(x['coveredFiles'] for x in result), 'missingFiles': sum(len(x['missingFiles']) for x in result), 'totalPhysicalFiles': sum(x['physicalFiles'] for x in result) if physical else None, 'totalPhysicalCoveredFiles': sum(x['physicalCoveredFiles'] for x in result) if physical else None, 'totalValidPhysicalFiles': sum(x['validPhysicalFiles'] for x in result) if physical else None, 'totalValidPhysicalCoveredFiles': sum(x['validPhysicalCoveredFiles'] for x in result) if physical else None, 'physicalMissingFiles': sum(len(x['physicalMissingFiles']) for x in result) if physical else None, 'validPhysicalMissingFiles': sum(len(x['validPhysicalMissingFiles']) for x in result) if physical else None, 'scanning': active_scan or any(x['scanning'] for x in result), 'activities': [{k:x.get(k) for k in ['type','title','subtitle','progress']} for x in activities]}
     save('full-sync-coverage.json', report)
     with (SCRATCH / 'full-sync-progress.jsonl').open('a') as output:
@@ -241,30 +281,55 @@ def coverage(source_manifest=None):
     return report
 
 
-def normalize():
+def normalize(profile=None):
     runtime = DATA / 'refresh_normalized_media.py'
     config_file = DATA / 'normalized-media-config.json'
     DATA.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(Path(__file__).with_name('plex_normalized_media.py'), runtime)
     sections = request('/library/sections')['MediaContainer'].get('Directory', [])
-    section = next(x for x in sections if x['title'] == '电视剧')
-    destination = DATA / 'normalized/电视剧'
-    config = json.loads(config_file.read_text()) if config_file.exists() else {'libraries': []}
-    if not any(x['sectionID'] == section['key'] for x in config['libraries']):
-        config['libraries'].append({'name': '电视剧', 'sectionID': section['key'], 'destination': str(destination), 'rules': [{'source': str(MEDIA / '电视剧/凡人修仙传 (2020)'), 'series': '凡人修仙传 (2020)', 'season': 1}]})
+    source_config = profile or config_file
+    if not source_config.exists():
+        raise RuntimeError('Supply the complete local import profile with --normalization-profile')
+    config = json.loads(source_config.read_text())
+    for library in config['libraries']:
+        section = next((x for x in sections if x['title'] == library['name']), None)
+        if section is None:
+            spec = {'name': library['name'], 'type': library.get('type', 'show'), 'agent': library.get('agent', 'tv.plex.agents.series'), 'scanner': library.get('scanner', 'Plex TV Series'), 'language': library.get('language', 'en-US'), 'location': library['destination']}
+            Path(library['destination']).mkdir(parents=True, exist_ok=True)
+            section = request('/library/sections', spec, method='POST')['MediaContainer']['Directory'][0]
+            sections.append(section)
+        library['sectionID'] = section['key']
+    for library in config['libraries']:
+        for fallback in library.get('fallbackSources', []):
+            fallback['primarySectionIDs'] = [next(x['key'] for x in sections if x['title'] == name) for name in fallback['primaryLibraries']]
     config_file.write_text(json.dumps(config, ensure_ascii=False, indent=2) + '\n')
-    subprocess.run(['/usr/bin/python3', str(runtime), '--config', str(config_file), '--no-refresh'], check=True)
-    locations = [x['path'] for x in section.get('Location', [])]
-    if str(destination) not in locations:
-        request('/library/sections/' + section['key'], {'name': section['title'], 'type': section['type'], 'location': locations + [str(destination)], 'agent': section['agent'], 'scanner': section['scanner'], 'language': section['language']}, method='PUT')
-        request('/library/sections/' + section['key'] + '/refresh', raw=True)
+    python_executable = shutil.which('python3') or sys.executable
+    subprocess.run([python_executable, str(runtime), '--config', str(config_file), '--no-refresh'], check=True)
+    normalized = json.loads((DATA / 'normalized-media-receipt.json').read_text())
+    requested = set()
+    for library in config['libraries']:
+        section = next(x for x in sections if x['key'] == library['sectionID'])
+        locations = [x['path'] for x in section.get('Location', [])]
+        targets = [library['sourceView'], library['destination']] if library.get('sourceView') else list(dict.fromkeys(locations + [library['destination']]))
+        if sorted(locations) != sorted(targets):
+            request('/library/sections/' + section['key'], {'name': section['title'], 'type': section['type'], 'location': targets, 'agent': section['agent'], 'scanner': section['scanner'], 'language': section['language']}, method='PUT')
+            request('/library/sections/' + section['key'] + '/refresh', raw=True)
+            requested.add(section['key'])
+    for section_id in set(normalized['changedSections']) - requested:
+        request('/library/sections/' + section_id + '/refresh', raw=True)
     label = 'com.enchron.plex-normalized-media'
     launch = Path.home() / 'Library/LaunchAgents' / (label + '.plist')
-    launch.write_bytes(plistlib.dumps({'Label': label, 'ProgramArguments': ['/usr/bin/python3', str(runtime), '--config', str(config_file)], 'RunAtLoad': True, 'StartInterval': 3600, 'StandardOutPath': str(DATA / 'normalized-media.stdout.log'), 'StandardErrorPath': str(DATA / 'normalized-media.stderr.log')}))
+    content = plistlib.dumps({'Label': label, 'ProgramArguments': [python_executable, str(runtime), '--config', str(config_file)], 'RunAtLoad': True, 'StartInterval': 3600, 'StandardOutPath': str(DATA / 'normalized-media.stdout.log'), 'StandardErrorPath': str(DATA / 'normalized-media.stderr.log')})
+    changed = not launch.exists() or launch.read_bytes() != content
     domain = 'gui/' + str(os.getuid())
-    if subprocess.run(['launchctl', 'print', domain + '/' + label], capture_output=True).returncode != 0:
+    registered = subprocess.run(['launchctl', 'print', domain + '/' + label], capture_output=True).returncode == 0
+    if registered and changed:
+        subprocess.run(['launchctl', 'bootout', domain + '/' + label], check=True)
+        registered = False
+    launch.write_bytes(content)
+    if not registered:
         subprocess.run(['launchctl', 'bootstrap', domain, str(launch)], check=True)
-    save('normalization.json', {'runtime': str(runtime), 'config': str(config_file), 'label': label, 'refreshSeconds': 3600, 'location': str(destination)})
+    save('normalization.json', {'runtime': str(runtime), 'pythonExecutable': python_executable, 'config': str(config_file), 'label': label, 'refreshSeconds': 3600, 'libraries': [x['name'] for x in config['libraries']]})
 
 
 def collection():
@@ -362,11 +427,66 @@ def probe():
         raise RuntimeError('Plex samples are not fully ready; inspect health.json and retry after scan')
 
 
+def verify_imports():
+    config = json.loads((DATA / 'normalized-media-config.json').read_text())
+    receipt = json.loads((DATA / 'normalized-media-receipt.json').read_text())
+    clips = []
+    ordinary = []
+    ordering = []
+    absolute_ids = set()
+    representative = {}
+    for library in config['libraries']:
+        if library.get('origin'):
+            ordinary.extend(request('/library/sections/' + library['sectionID'] + '/all', {'type': 1, 'X-Plex-Container-Size': 1000})['MediaContainer'].get('Metadata', []))
+        if library.get('sourceView'):
+            episodes = request('/library/sections/' + library['sectionID'] + '/all', {'type': 4, 'X-Plex-Container-Size': 1000})['MediaContainer'].get('Metadata', [])
+            absolute_links = {x['link'] for x in receipt['mappings'] if x.get('ordering') == 'absolute'}
+            absolute_ids.update(x['grandparentRatingKey'] for x in episodes if any(part.get('file') in absolute_links for media in x.get('Media', []) for part in media.get('Part', [])))
+            shows = request('/library/sections/' + library['sectionID'] + '/all', {'type': 2, 'X-Plex-Container-Size': 1000})['MediaContainer'].get('Metadata', [])
+            for show in shows:
+                detail = request('/library/metadata/' + show['ratingKey'], {'includeExtras': 1, 'includePreferences': 1})['MediaContainer']['Metadata'][0]
+                for clip in detail.get('Extras', {}).get('Metadata', []):
+                    if any(part.get('file', '').startswith(library['destination'] + '/') for media in clip.get('Media', []) for part in media.get('Part', [])):
+                        clips.append({'parentID': show['ratingKey'], 'item': clip})
+                if show['ratingKey'] in absolute_ids:
+                    value = next((x.get('value') for x in detail.get('Preferences', {}).get('Setting', []) if x['id'] == 'showOrdering'), None)
+                    ordering.append({'seriesID': show['ratingKey'], 'ordering': value})
+            for mapping in receipt['mappings']:
+                if mapping['sectionID'] == library['sectionID'] and mapping['mode'] in ['absolute', 'seasoned'] and mapping['mode'] not in representative:
+                    item = next((x for x in episodes if any(part.get('file') == mapping['link'] for media in x.get('Media', []) for part in media.get('Part', []))), None)
+                    if item:
+                        representative[mapping['mode']] = item
+    reads = []
+    def read_item(item, kind, parent_id=None):
+        detail = request('/library/metadata/' + item['ratingKey'])['MediaContainer']['Metadata'][0]
+        for media in detail.get('Media', []):
+            for part in media.get('Part', []):
+                status, headers, body = request(part['key'], raw=True, extra_headers={'Range': 'bytes=0-4095'})
+                with Path(part['file']).open('rb') as source:
+                    expected = source.read(4096)
+                reads.append({'kind': kind, 'parentID': parent_id, 'itemID': detail['ratingKey'], 'type': detail['type'], 'partID': part['id'], 'status': status, 'bytes': len(body), 'contentRange': headers.get('Content-Range'), 'matchesSource': body == expected, 'source': str(Path(part['file']).resolve())})
+    for clip in clips:
+        read_item(clip['item'], 'specialFeatures', clip['parentID'])
+    for item in ordinary:
+        read_item(item, 'ordinary-video')
+    for kind, item in representative.items():
+        read_item(item, kind)
+    if clips:
+        save('local-special-features-detail.json', request('/library/metadata/' + clips[0]['parentID'], {'includeExtras': 1}))
+        save('local-special-feature-stream-detail.json', request('/library/metadata/' + clips[0]['item']['ratingKey']))
+    report = {'capturedAt': time.time(), 'specialFeatures': len(clips), 'ordinaryItems': len(ordinary), 'absoluteOrdering': ordering, 'reads': reads, 'errors': receipt['errors']}
+    save('import-validation.json', report)
+    print(json.dumps({'specialFeatures': len(clips), 'ordinaryItems': len(ordinary), 'partsRead': len(reads), 'matchingParts': sum(x['matchesSource'] for x in reads), 'absoluteOrdering': ordering, 'errors': receipt['errors']}))
+    if not clips or not ordinary or not reads or len(ordering) != len(absolute_ids) or any(x['status'] != 206 or not x['matchesSource'] for x in reads) or any(x['ordering'] != 'absolute' for x in ordering) or receipt['errors']:
+        raise RuntimeError('Plex import validation failed; inspect import-validation.json')
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['install', 'libraries', 'normalize', 'collection', 'coverage', 'probe'])
+    parser.add_argument('action', choices=['install', 'libraries', 'normalize', 'collection', 'coverage', 'probe', 'verify-imports'])
     parser.add_argument('--refresh', action='store_true')
     parser.add_argument('--source-manifest', type=Path, default=SCRATCH / 'source-manifest.local.json')
+    parser.add_argument('--normalization-profile', type=Path)
     arguments = parser.parse_args()
     if arguments.action == 'libraries':
         libraries(arguments.refresh)
@@ -374,7 +494,10 @@ def main():
     if arguments.action == 'coverage':
         coverage(arguments.source_manifest)
         return
-    {'install': install, 'libraries': libraries, 'collection': collection, 'coverage': coverage, 'normalize': normalize, 'probe': probe}[arguments.action]()
+    if arguments.action == 'normalize':
+        normalize(arguments.normalization_profile)
+        return
+    {'install': install, 'libraries': libraries, 'collection': collection, 'coverage': coverage, 'normalize': normalize, 'probe': probe, 'verify-imports': verify_imports}[arguments.action]()
 
 
 if __name__ == '__main__':
