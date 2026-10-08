@@ -78,8 +78,13 @@ final class PlexAccount {
                 let deadline = Date().addingTimeInterval(TimeInterval(pin.expiresIn ?? 300))
                 while Date() < deadline {
                     try await Task.sleep(for: .seconds(1))
-                    let result: PlexPIN = try await request(path: "/api/v2/pins/\(pin.id)",
-                                                           parameters: [.init(name: "code", value: pin.code)])
+                    let result: PlexPIN
+                    do {
+                        result = try await request(path: "/api/v2/pins/\(pin.id)",
+                                                   parameters: [.init(name: "code", value: pin.code)])
+                    } catch MediaServerError.httpStatus(404) {
+                        continue
+                    }
                     if let token = result.authToken, !token.isEmpty {
                         async let user: PlexUser = request(path: "/api/v2/user", token: token)
                         async let resources: [PlexResource] = request(path: "/api/v2/resources", token: token,
@@ -174,8 +179,12 @@ struct PlexConnectionScreen: View {
                     .accessibilityIdentifier("Plex-Connection-SignIn")
             case .authorizing(let url):
                 ProgressView("Waiting for Plex sign-in…")
+                    .accessibilityIdentifier("Plex-Connection-Authorizing")
                 Link("Open Plex sign-in", destination: url)
+                    .accessibilityIdentifier("Plex-Connection-AuthorizationLink")
+                    .accessibilityValue(url.absoluteString)
                 Button("Cancel") { account.cancel() }
+                    .accessibilityIdentifier("Plex-Connection-Cancel")
             case .servers(let servers, let userID):
                 Text(servers.isEmpty ? "No Plex media servers are available for this account." : "Choose a server")
                 ForEach(servers) { server in
