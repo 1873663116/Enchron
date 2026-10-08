@@ -5,21 +5,24 @@ import os
 from pathlib import Path
 import plistlib
 import secrets
+import shutil
 import subprocess
 import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from jellyfin_refresh import AUTHORIZATION
 
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = Path.home() / "Library/Application Support/Enchron Test Services/Jellyfin"
-PRIVATE = ROOT / "tmp/archive/jellyfin-setup/service.local.json"
+EVIDENCE = ROOT / "tmp/archive/jellyfin-setup"
+PRIVATE = STATE / "config/service.local.json"
 APP = Path("/Applications/Jellyfin.app/Contents/MacOS")
 LABEL = "com.enchron.test-services.jellyfin"
 ADDRESS = "http://127.0.0.1:8097"
-AUTHORIZATION = 'MediaBrowser Client="EnchronVerification", Device="Mac", DeviceId="enchron-jellyfin-verification", Version="1.0"'
+EXCLUDED_FIXTURES = {str(ROOT.parent / "TestMedia/TestVectors/Enchron/PlaybackBehavior/broken-clip.mp4"): "intentionalUnplayableFixture"}
 
 
 def request(path, payload=None, token=None, params=None, method=None, raw=False, headers=None):
@@ -83,7 +86,32 @@ def start():
     raise RuntimeError("Jellyfin did not become reachable; inspect its launchd logs")
 
 
-def configure(all_libraries=False):
+def emby_folders():
+    import emby_probe
+    username, password = emby_probe.credentials()
+    emby = emby_probe.request("http://127.0.0.1:8096", "/Users/AuthenticateByName", payload={"Username": username, "Pw": password})
+    return emby_probe.request("http://127.0.0.1:8096", "/Library/VirtualFolders", token=emby["AccessToken"])
+
+
+def configure():
+    import jellyfin_refresh
+    folders = emby_folders()
+    source_file = EVIDENCE / "source-manifest.local.json"
+    source = json.loads(source_file.read_text()) if source_file.exists() else None
+    expected_locations = {folder["Name"]: sorted(folder["Locations"]) for folder in folders}
+    recorded_locations = {library["name"]: sorted(library["locations"]) for library in source["libraries"]} if source else None
+    if recorded_locations != expected_locations or source.get("errors"):
+        manifest(folders)
+        source = json.loads(source_file.read_text())
+    if source["errors"]:
+        raise RuntimeError("Source enumeration failed; service configuration was not changed")
+    legacy = EVIDENCE / "service.local.json"
+    PRIVATE.parent.mkdir(parents=True, exist_ok=True)
+    if not PRIVATE.exists() and legacy.is_file():
+        shutil.copy2(legacy, PRIVATE)
+        PRIVATE.chmod(0o600)
+        legacy.unlink()
+        legacy.symlink_to(PRIVATE)
     info = request("/System/Info/Public")
     if not info["StartupWizardCompleted"]:
         PRIVATE.parent.mkdir(parents=True, exist_ok=True)
@@ -98,26 +126,47 @@ def configure(all_libraries=False):
         request("/Startup/RemoteAccess", {"EnableRemoteAccess": True, "EnableAutomaticPortMapping": False})
         request("/Startup/Complete", method="POST")
     token, _ = session()
+    configuration = request("/System/Configuration", token=token)
+    configuration.update(LibraryScanFanoutConcurrency=2, LibraryMetadataRefreshConcurrency=2)
+    for option in configuration["MetadataOptions"]:
+        if option["ItemType"] in ("Movie", "Episode", "Video"):
+            option["DisabledImageFetchers"] = sorted(set(option.get("DisabledImageFetchers", [])) - {"Screen Grab"})
+    request("/System/Configuration", configuration, token=token)
     for task in request("/ScheduledTasks", token=token):
         if task["Name"] == "Scan Media Library":
             request(f'/ScheduledTasks/{task["Id"]}/Triggers', payload=[], token=token)
-    import emby_probe
-    username, password = emby_probe.credentials()
-    emby = emby_probe.request("http://127.0.0.1:8096", "/Users/AuthenticateByName", payload={"Username": username, "Pw": password})
-    folders = emby_probe.request("http://127.0.0.1:8096", "/Library/VirtualFolders", token=emby["AccessToken"])
-    existing = {entry["Name"] for entry in request("/Library/VirtualFolders", token=token)}
+    existing = {entry["Name"]: entry for entry in request("/Library/VirtualFolders", token=token)}
     for folder in folders:
-        if not all_libraries and not folder["Name"].startswith("Enchron"):
-            continue
         paths = [path for path in folder["Locations"] if Path(path).is_dir()]
-        if not paths or folder["Name"] in existing:
+        if len(paths) != len(folder["Locations"]):
+            raise RuntimeError(f'An Emby media directory is unavailable: {folder["Name"]}')
+        if not paths:
             continue
-        options = {"PathInfos": [{"Path": path} for path in paths], "EnableRealtimeMonitor": False, "SaveLocalMetadata": False, "MetadataSavers": [], "EnableChapterImageExtraction": False, "ExtractChapterImagesDuringLibraryScan": False, "EnableTrickplayImageExtraction": False, "ExtractTrickplayImagesDuringLibraryScan": False, "EnableLUFSScan": False, "SaveSubtitlesWithMedia": False, "PreferredMetadataLanguage": "zh", "MetadataCountryCode": "CN"}
-        request("/Library/VirtualFolders", {"LibraryOptions": options}, token=token, params={"name": folder["Name"], "collectionType": folder.get("CollectionType", ""), "refreshLibrary": "false"})
-    if not all_libraries:
-        for folder in request("/Library/VirtualFolders", token=token):
-            if folder["Name"].startswith("Enchron"):
-                request(f'/Items/{folder["ItemId"]}/Refresh', token=token, method="POST", params={"Recursive": "true"})
+        current = existing.get(folder["Name"])
+        options = dict(current.get("LibraryOptions", {})) if current else {}
+        cloud = any("/CloudStorage/EmbyMedia/" in path for path in paths)
+        options.update(PathInfos=[{"Path": path} for path in paths], EnableRealtimeMonitor=not cloud, SaveLocalMetadata=False, MetadataSavers=[], EnableChapterImageExtraction=False, ExtractChapterImagesDuringLibraryScan=False, EnableTrickplayImageExtraction=False, ExtractTrickplayImagesDuringLibraryScan=False, EnableLUFSScan=False, SaveSubtitlesWithMedia=False, PreferredMetadataLanguage="zh", MetadataCountryCode="CN")
+        if current:
+            request("/Library/VirtualFolders/LibraryOptions", {"Id": current["ItemId"], "LibraryOptions": options}, token=token)
+        else:
+            request("/Library/VirtualFolders", {"LibraryOptions": options}, token=token, params={"name": folder["Name"], "collectionType": folder.get("CollectionType", ""), "refreshLibrary": "false"})
+    runtime = STATE / "runtime"
+    runtime.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(jellyfin_refresh.__file__), runtime / "jellyfin_refresh.py")
+    (STATE / "config/refresh-sources.local.json").write_text(json.dumps({"mountPoint": str(Path.home() / "Library/CloudStorage/EmbyMedia"), "libraries": [{"name": library["name"], "locations": library["locations"], "knownFiles": library["paths"]} for library in source["libraries"]]}, ensure_ascii=False))
+    scan_label = LABEL + ".refresh"
+    plist = Path.home() / f"Library/LaunchAgents/{scan_label}.plist"
+    content = plistlib.dumps({"Label": scan_label, "ProgramArguments": [shutil.which("python3") or sys.executable, str(runtime / "jellyfin_refresh.py"), "--state", str(STATE)], "RunAtLoad": True, "StartInterval": 3600, "StandardOutPath": str(STATE / "logs/refresh.out.log"), "StandardErrorPath": str(STATE / "logs/refresh.err.log")})
+    domain = f"gui/{os.getuid()}"
+    running = subprocess.run(["launchctl", "print", f"{domain}/{scan_label}"], capture_output=True).returncode == 0
+    changed = not plist.is_file() or plist.read_bytes() != content
+    if changed and running:
+        subprocess.run(["launchctl", "bootout", f"{domain}/{scan_label}"], check=True)
+        running = False
+    plist.write_bytes(content)
+    if not running:
+        subprocess.run(["launchctl", "bootstrap", domain, str(plist)], check=True)
+    refresh()
     print(json.dumps({"credentialsFile": str(PRIVATE), "libraries": [{"name": item["Name"], "paths": item["Locations"]} for item in request("/Library/VirtualFolders", token=token)]}, ensure_ascii=False))
 
 
@@ -154,9 +203,6 @@ def health():
 
 def representative():
     token, _ = session()
-    configuration = request("/System/Configuration", token=token)
-    configuration.update(LibraryScanFanoutConcurrency=1, LibraryMetadataRefreshConcurrency=1)
-    request("/System/Configuration", configuration, token=token)
     source = Path.home() / "Library/CloudStorage/EmbyMedia"
     fixtures = STATE / "fixtures"
     movies = fixtures / "Movies/Blade Runner (1982)"
@@ -191,8 +237,8 @@ def contract():
     token, user = session()
     item = request("/Items", token=token, params={"UserId": user, "Recursive": "true", "SearchTerm": "sdr-bframe-aggregate-30s", "Fields": "Path", "Limit": 10})["Items"][0]
     playback = request(f'/Items/{item["Id"]}/PlaybackInfo', token=token, payload={"UserId": user, "EnableDirectPlay": True, "EnableDirectStream": False, "EnableTranscoding": False})
-    (PRIVATE.parent / "playback-info.local.json").write_text(json.dumps(playback, ensure_ascii=False, indent=2))
-    report = {"playbackInfoFile": str(PRIVATE.parent / "playback-info.local.json"), "urlAuthentication": [], "resume": {}}
+    (EVIDENCE / "playback-info.local.json").write_text(json.dumps(playback, ensure_ascii=False, indent=2))
+    report = {"playbackInfoFile": str(EVIDENCE / "playback-info.local.json"), "urlAuthentication": [], "resume": {}}
     source = playback["MediaSources"][0]
     external = next(stream for stream in source["MediaStreams"] if stream.get("IsExternal") and stream.get("Codec") == "subrip")
     paths = [f'/Items/{item["Id"]}/Images/Primary', f'/Videos/{item["Id"]}/stream?Static=true', f'/Videos/{item["Id"]}/{source["Id"]}/Subtitles/{external["Index"]}/Stream.srt']
@@ -243,21 +289,99 @@ def collection():
     if detail["Type"] != "BoxSet" or set(item["Id"] for item in children["Items"]) != set(members):
         raise RuntimeError("Collection membership differs from the two representative movies")
     evidence = {"parentId": parent, "detail": detail, "members": children}
-    (PRIVATE.parent / "collection.local.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2))
+    (EVIDENCE / "collection.local.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2))
     print(json.dumps({"id": identifier, "name": detail["Name"], "type": detail["Type"], "members": [{"id": item["Id"], "name": item["Name"], "type": item["Type"]} for item in children["Items"]]}, ensure_ascii=False))
 
 
+def manifest(folders=None):
+    extensions = {".mkv", ".mp4", ".avi", ".mov", ".m4v", ".mpeg", ".mpg", ".wmv", ".ts", ".m2ts", ".vob", ".webm", ".flv", ".ogv", ".m2v", ".3gp", ".3g2", ".strm", ".iso"}
+    result = {"observedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "libraries": [], "errors": [], "excludedFromSuccessfulScan": EXCLUDED_FIXTURES}
+    EVIDENCE.mkdir(parents=True, exist_ok=True)
+    for folder in folders if folders is not None else emby_folders():
+        paths = set()
+        for location in folder["Locations"]:
+            def failed(error):
+                result["errors"].append({"path": error.filename, "error": str(error)})
+            for directory, _, files in os.walk(location, onerror=failed, followlinks=True):
+                for name in files:
+                    file = Path(directory) / name
+                    if file.suffix.lower() in extensions:
+                        paths.add(str(file.resolve()))
+        result["libraries"].append({"name": folder["Name"], "locations": folder["Locations"], "paths": sorted(paths)})
+        print(json.dumps({"library": folder["Name"], "sourceMediaFiles": len(paths)}, ensure_ascii=False), flush=True)
+    destination = EVIDENCE / "source-manifest.local.json"
+    destination.write_text(json.dumps(result, ensure_ascii=False, indent=2))
+    if result["errors"]:
+        raise RuntimeError(f"Source inventory failed for {len(result['errors'])} directories; inspect {destination}")
+
+
+def indexed_files(parent, token, user):
+    source_file = EVIDENCE / "source-manifest.local.json"
+    known = {path for library in json.loads(source_file.read_text())["libraries"] for path in library["paths"]} if source_file.exists() else set()
+    files = set()
+    probed = set()
+    item_count = 0
+    types = {}
+    offset = 0
+    while True:
+        page = request("/Items", token=token, params={"UserId": user, "ParentId": parent, "Recursive": "true", "Filters": "IsNotFolder", "Fields": "Path,MediaSources,MediaStreams", "StartIndex": offset, "Limit": 1000, "SortBy": "SortName", "SortOrder": "Ascending"})
+        for item in page["Items"]:
+            if item.get("IsFolder"):
+                continue
+            item_count += 1
+            types[item.get("Type")] = types.get(item.get("Type"), 0) + 1
+            paths = [item.get("Path")] + [media.get("Path") for media in item.get("MediaSources", [])]
+            for path in paths:
+                if path and path.startswith("/"):
+                    files.add(path if path in known else str(Path(path).resolve()))
+            sources = item.get("MediaSources") or [{"Path": item.get("Path"), "MediaStreams": item.get("MediaStreams", [])}]
+            for source in sources:
+                path = source.get("Path")
+                if path and path.startswith("/") and any(stream.get("Type") == "Video" and stream.get("Codec") for stream in source.get("MediaStreams", [])):
+                    probed.add(path if path in known else str(Path(path).resolve()))
+        offset += len(page["Items"])
+        if not page["Items"] or offset >= page["TotalRecordCount"]:
+            break
+    return files, item_count, types, probed
+
+
+def refresh():
+    import jellyfin_refresh
+    print(json.dumps(jellyfin_refresh.refresh(STATE), ensure_ascii=False))
+
+
+def coverage():
+    source = json.loads((EVIDENCE / "source-manifest.local.json").read_text())
+    token, user = session()
+    folders = {folder["Name"]: folder for folder in request("/Library/VirtualFolders", token=token)}
+    rows = []
+    for library in source["libraries"]:
+        folder = folders.get(library["name"])
+        files, count, types, probed = indexed_files(folder["ItemId"], token, user) if folder else (set(), 0, {}, set())
+        expected = set(library["paths"])
+        excluded = expected & set(EXCLUDED_FIXTURES)
+        required = expected - excluded
+        rows.append({"name": library["name"], "sourceFiles": len(expected), "requiredFiles": len(required), "excludedFixtures": [{"path": path, "reason": EXCLUDED_FIXTURES[path]} for path in sorted(excluded)], "indexedMediaItems": count, "indexedFilePaths": len(files), "coveredFiles": len(required & files), "videoProbedFiles": len(required & probed), "visibleWithoutVideoProbe": sorted((required & files) - probed), "remainingFiles": sorted(required - files), "indexedItemTypes": types})
+    originals = {library["name"] for library in source["libraries"]}
+    extras = []
+    for name, folder in folders.items():
+        if name not in originals:
+            files, count, types, _ = indexed_files(folder["ItemId"], token, user)
+            extras.append({"name": name, "indexedMediaItems": count, "indexedFilePaths": len(files), "indexedItemTypes": types})
+    scan = next(task for task in request("/ScheduledTasks", token=token) if task["Name"] == "Scan Media Library")
+    report = {"observedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "sourceObservedAt": source["observedAt"], "sourceFilesAcrossLibraries": sum(row["sourceFiles"] for row in rows), "requiredFilesAcrossLibraries": sum(row["requiredFiles"] for row in rows), "coveredFilesAcrossLibraries": sum(row["coveredFiles"] for row in rows), "videoProbedFilesAcrossLibraries": sum(row["videoProbedFiles"] for row in rows), "remainingFilesAcrossLibraries": sum(len(row["remainingFiles"]) for row in rows), "scan": {key: scan.get(key) for key in ("State", "CurrentProgressPercentage", "LastExecutionResult", "Triggers")}, "libraries": rows, "extraTestLibraries": extras}
+    (EVIDENCE / "coverage.local.json").write_text(json.dumps(report, ensure_ascii=False, indent=2))
+    summary = {**report, "libraries": [{**row, "remainingFiles": len(row["remainingFiles"]), "visibleWithoutVideoProbe": len(row["visibleWithoutVideoProbe"])} for row in rows]}
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Manage the isolated Jellyfin test server. configure scans verification libraries; configure --all-libraries only maps the other Emby paths. representative scans selected shared cloud media files. contract restores the tested viewing state.")
-    parser.add_argument("command", choices=("start", "configure", "representative", "collection", "health", "contract"))
-    parser.add_argument("--all-libraries", action="store_true")
+    parser = argparse.ArgumentParser(description="Manage the isolated Jellyfin test server. configure synchronizes all Emby library paths and installs an hourly scan with mount checks. manifest inventories source video files; coverage compares canonical file paths. refresh starts a scan when the source is available. contract restores the tested viewing state.")
+    parser.add_argument("command", choices=("start", "configure", "representative", "collection", "health", "contract", "manifest", "coverage", "refresh"))
     arguments = parser.parse_args()
     command = arguments.command
     try:
-        if command == "configure":
-            configure(arguments.all_libraries)
-        else:
-            {"start": start, "representative": representative, "collection": collection, "health": health, "contract": contract}[command]()
+        {"start": start, "configure": configure, "representative": representative, "collection": collection, "health": health, "contract": contract, "manifest": manifest, "coverage": coverage, "refresh": refresh}[command]()
     except (RuntimeError, urllib.error.URLError, OSError) as error:
         print(json.dumps({"healthy": False, "error": str(error)}), file=sys.stderr)
         return 1

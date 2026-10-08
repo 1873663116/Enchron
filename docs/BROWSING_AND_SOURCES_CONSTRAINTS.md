@@ -135,3 +135,4 @@
 - Jellyfin 可以省略媒体流地址与外挂字幕 `DeliveryUrl`。直接播放使用 `/Videos/{itemId}/stream?Static=true`；字幕使用 `/Videos/{itemId}/{sourceId}/Subtitles/{index}/Stream.{format}`。
 - Jellyfin 的外挂字幕可能排在内嵌流之前，并占用服务器的 Index。内嵌流的文件编号需要排除此前的外挂字幕；回报选择时需要反向转换。
 - 同一媒体目录仅保证原文件相同。服务数据库、刮削结果、媒体 ID 与观看记录独立。测试样本目录只读，服务缓存与配置分别保存。
+- macOS 对 launchd 后台程序访问 CloudStorage／网络宗卷的授权与交互式终端环境不同。自动刷新必须以实际后台进程的目录读取结果验收；目录不可达时不得把一次失败扫描当作媒体删除。Plex 自动清空回收站保持关闭，Jellyfin 在刷新前检查挂载和原始目录。

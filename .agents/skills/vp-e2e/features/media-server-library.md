@@ -53,6 +53,7 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 
 | 范围 | 执行范围 | 必须观察的结果 |
 |---|---|---|
+| 媒体同步 | 每个原始库 | 映射 Emby 的全部源目录；扫描结束后按底层文件核对覆盖，包括多版本、多个 Part 和附加视频；额外样本库不抵消原始库遗漏。云盘不可达时保留已有索引。 |
 | 连接与退出 | 每个服务 | 从未连接状态完成真实登录，重启后恢复，退出只清除当前服务。Plex 还需覆盖浏览器授权、取消和服务器选择。 |
 | 浏览与搜索 | 每个服务 | 电影、系列、季、剧集、合集能从列表和搜索到达；分页无重复和遗漏；缺失海报、简介时仍能操作。 |
 | 播放入口 | 每个服务 | 从头播放、续播和多版本选择打开预期文件；服务、服务器、账号、媒体和版本身份正确；有实际画面。 |
@@ -74,4 +75,6 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 - Plex 接受缺少总时长的 timeline 请求，但续播位置可能不保存。
 - Jellyfin 外挂字幕可能改变服务器轨道编号。服务器编号不能直接作为文件轨道编号。
 - 测试服务的短片续播门槛不同。续播验证使用 16 分钟样本，分别设置并恢复状态。
-- Plex 与 Jellyfin 的部署脚本分别为 `Scripts/verification/plex_test_service.py` 和 `Scripts/verification/jellyfin_test_service.py`。两者优先扫描与 Emby 共用的验证目录及代表性电影、剧集；完整云盘扫描按需执行。
+- Plex 与 Jellyfin 的部署脚本分别为 `Scripts/verification/plex_test_service.py` 和 `Scripts/verification/jellyfin_test_service.py`。两者映射 Emby 的全部原始媒体目录，并配置每小时刷新。代表性样本库用于固定测试入口。
+- 同步覆盖按每个原始库的实际文件路径计算，同时保留 Emby 已索引清单与源目录文件清单。影片条目数不能代替文件数；多个版本可能合并到一个条目，附加视频也可能不出现在普通列表。
+- 后台刷新需在实际 launchd 环境验证媒体目录访问。终端执行成功不能证明后台权限就绪。Jellyfin 的目录检查与 Plex 中文集数链接更新分别由 `jellyfin_refresh.py` 和 `plex_normalized_media.py` 承担，部署副本位于各自服务目录，不依赖当前 Git 分支。
