@@ -18,6 +18,11 @@
 
 - **`FileFilter.playable` 按容器受理，`MediaDiscoveryAdmissionPolicy.mediaFiles` 不列任何基本流扩展名**。裸的 `.dts` 与 `.thd` 因此永远不会出现在库里，DTS 与 TrueHD 要被编码矩阵打开，只能以 Matroska 封装入库。`Scripts/verification/regression_preparation_adapter.py` 的 format-corpus 必需固件集据此选片。
 
+## Plex 账号授权
+
+- 同一个刚创建且未过期的 PIN，轮询接口可能交替返回 HTTP 200 与 404。2026-10-08 的真机、Foundation 和 Python 请求均复现了这一行为。404 响应中的 `Code not found or expired` 不能单独证明 PIN 已过期；等待上限采用创建响应的 `expiresIn`。`EmbyClientTests.plexSignInWaitsForPINAuthorization` 验证首次轮询 404 后仍能完成授权。
+- Plex 官方授权网页也通过 PIN 查询确认请求。该查询失败时，网页可能显示 `We were unable to complete this request`，随后跳转至 Plex 网站。网页跳转不代表账号授权成功；原生端收到授权令牌并取得服务器列表才是完成判据。
+
 ## 凭据表单与系统 Save-Password 面板
 
 - **Emby 连接表单声明 `textContentType(.username)` 与 `textContentType(.password)`，提交它会引出系统的 Save-Password 面板**。WebDAV 与 SMB 的连接表单同样如此：产品提交的每一个凭据表单都会引出这张面板。见 `Scripts/verification/regression_preparation_adapter.py` 与 `Scripts/rules/tests/test_regression_preparation_adapter.py`。

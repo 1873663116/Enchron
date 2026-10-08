@@ -26,7 +26,7 @@ C tap --identifier Jellyfin-Navigation-Tab
 
 三个 Tab 内的共用浏览控件使用 `Emby-` 前缀标识。取 `Emby-Evidence` 后，先检查 `account.provider`，再检查 `serverID`、`userID` 和媒体 ID。三种服务的媒体 ID 各自独立。
 
-Emby 与 Jellyfin 的连接控件为 `Emby-Connection-Address`、`Emby-Connection-Username`、`Emby-Connection-Password` 和 `Emby-Connection-Connect`。Plex 入口为 `Plex-Connection-SignIn`，服务器按钮为 `Plex-Connection-Server-<clientIdentifier>`。浏览器授权的外部页面由 Plex 提供。
+Emby 与 Jellyfin 的连接控件为 `Emby-Connection-Address`、`Emby-Connection-Username`、`Emby-Connection-Password` 和 `Emby-Connection-Connect`。Plex 入口为 `Plex-Connection-SignIn`。等待授权时读取 `Plex-Connection-AuthorizationLink` 的 value，在已登录的浏览器中打开这条当前链接；`Plex-Connection-Cancel` 取消该次等待。浏览器确认后，原生页面须出现 `Plex-Connection-Server-<clientIdentifier>`，选择服务器后再读取账号证据。取消或过期的链接不能用于后续连接的验收。
 
 DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或 `jellyfin`），以及同前缀的 `ADDRESS`、`USERNAME`、`PASSWORD`、`TOKEN`、`LIBRARY`、`ITEM`。Plex 的 `USERNAME` 是账号 ID，`TOKEN` 是所选服务器的访问令牌。此方式属于 `injected`，不能证明真实登录操作。凭证只通过本地私有文件提供，不写入命令记录或截图。
 
@@ -37,6 +37,7 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 | 结构 | 三种服务的凭证互不覆盖，退出一种不删除另外两种 | `EmbyServerStoreTests` |
 | 结构 | Jellyfin 服务器轨道与文件轨道正确对应，外挂字幕使用服务器编号 | `EmbyClientTests`、播放桥测试 |
 | 结构 | Plex 进度回报包含总时长，媒体时间单位转换正确 | `EmbyClientTests` |
+| 结构 | Plex PIN 首次轮询返回 404 后仍可授权；选择服务器前不保存会话 | `EmbyClientTests.plexSignInWaitsForPINAuthorization` |
 | 物理 | 三个生产客户端读取同一影片，媒体字节相同，详情和海报可读取 | `MediaServerLiveIntegrationTests` |
 | 物理 | 真实操作到达正确服务的详情、播放与续播终态 | Simulator／device 的 Operation 证据 |
 | 感知 | 不进入自动裁决 | |
@@ -69,6 +70,8 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 
 ## Gotchas
 
+- Plex 授权网页的错误与跳转判据见[浏览与来源的外部约束](../../../../docs/BROWSING_AND_SOURCES_CONSTRAINTS.md#plex-账号授权)。
+- 真机首次访问服务器可能出现局域网权限卡。窗口输入无法获得焦点时先看截图；App 层级可能没有这张卡，外侧 Tab 仍可点击。系统 Scene 的处理边界见[真机 lane](../references/device.md#已证伪路径)。
 - 同一文件会被各服务赋予不同 ID，刮削内容也可能不同。跨服务样本以底层文件对应。
 - Plex 的 On Deck 包含未开始的下一集；Continue Watching 使用独立接口。
 - Jellyfin 可以把合集放在独立的合集库。浏览入口使用服务器返回的库结构。
