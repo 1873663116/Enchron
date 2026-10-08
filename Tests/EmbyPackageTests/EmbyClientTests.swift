@@ -742,6 +742,67 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 extension EmbyClientTests {
+    @Test("Plex sign-in survives a temporarily unavailable PIN until authorization arrives")
+    @MainActor
+    func plexSignInWaitsForPINAuthorization() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.setHandler { request in
+            recorder.record(request)
+            switch request.url?.path {
+            case "/api/v2/pins":
+                return try response(request, status: 201, json: """
+                    {"id":27,"code":"test-code","expiresIn":30}
+                    """)
+            case "/api/v2/pins/27":
+                let attempts = recorder.requests.filter { $0.url?.path == "/api/v2/pins/27" }.count
+                if attempts == 1 {
+                    return try response(request, status: 404, json: """
+                        {"errors":[{"code":1020,"message":"Code not found or expired","status":404}]}
+                        """)
+                }
+                return try response(request, status: 200, json: """
+                    {"id":27,"code":"test-code","authToken":"account-token"}
+                    """)
+            case "/api/v2/user":
+                return try response(request, status: 200, json: "{\"id\":43}")
+            case "/api/v2/resources":
+                return try response(request, status: 200, json: """
+                    [{"name":"Home","clientIdentifier":"server-1","provides":"server",
+                    "accessToken":"server-token","connections":[]}]
+                    """)
+            default:
+                return try response(request, status: 400, json: "{}")
+            }
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        let client = PlexClient(session: network,
+                                clientIdentity: .init(name: "Enchron", version: "1", deviceName: "Tests", deviceID: "tests"))
+        let session = MediaServerSessionViewModel(client: client, store: PlexAccountTestStore())
+        let account = PlexAccount(client: client, session: session, networkSession: network)
+        defer { account.cancel() }
+        var opened: [URL] = []
+        account.start { opened.append($0) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < deadline {
+            if account.error != nil { break }
+            if case .servers = account.state { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(opened.count == 1)
+        #expect(opened.first?.host == "app.plex.tv")
+        #expect(account.error == nil)
+        guard case .servers(let servers, let userID) = account.state else {
+            Issue.record("Authorization must reach server selection after a pending PIN response")
+            return
+        }
+        #expect(userID == "43")
+        #expect(servers.map(\.name) == ["Home"])
+        #expect(session.server == nil)
+    }
+
     @Test("Plex library browsing includes requested collections")
     func plexCollections() async throws {
         MockURLProtocol.setHandler { request in
@@ -843,4 +904,10 @@ extension EmbyClientTests {
         #expect(query.contains(.init(name: "time", value: "130000")))
         #expect(query.contains(.init(name: "state", value: "paused")))
     }
+}
+
+private struct PlexAccountTestStore: MediaServerServerStoring {
+    func loadServer() throws -> MediaServerAuthenticatedServer? { nil }
+    func saveServer(_ server: MediaServerAuthenticatedServer) throws { throw MediaServerError.invalidResponse }
+    func deleteServer() throws {}
 }

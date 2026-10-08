@@ -42,11 +42,14 @@ final class PlexAccount {
     private(set) var error: String?
     private let client: PlexClient
     private let session: MediaServerSessionViewModel
+    private let networkSession: URLSession
     private var task: Task<Void, Never>?
 
-    init(client: PlexClient, session: MediaServerSessionViewModel) {
+    init(client: PlexClient, session: MediaServerSessionViewModel,
+         networkSession: URLSession = MediaSourceNetwork.shared.session) {
         self.client = client
         self.session = session
+        self.networkSession = networkSession
     }
 
     func cancel() {
@@ -147,7 +150,7 @@ final class PlexAccount {
         request.setValue(client.clientIdentity.name, forHTTPHeaderField: "X-Plex-Product")
         request.setValue(client.clientIdentity.deviceID, forHTTPHeaderField: "X-Plex-Client-Identifier")
         if let token { request.setValue(token, forHTTPHeaderField: "X-Plex-Token") }
-        let (data, response) = try await MediaSourceNetwork.shared.session.data(for: request)
+        let (data, response) = try await networkSession.data(for: request)
         guard let response = response as? HTTPURLResponse else { throw MediaServerError.invalidResponse }
         guard (200..<300).contains(response.statusCode) else { throw MediaServerError.httpStatus(response.statusCode) }
         return try JSONDecoder().decode(Value.self, from: data)
