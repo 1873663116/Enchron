@@ -29,12 +29,21 @@ public final class MediaServerFeature {
 public final class MediaServerSources {
     public let jellyfin: MediaServerFeature
     public let plex: MediaServerFeature
-    public var playbackSession: MediaServerSessionViewModel
+    private let embySession: MediaServerSessionViewModel
 
     public init(embySession: MediaServerSessionViewModel, identity: MediaServerClientIdentity) {
-        playbackSession = embySession
+        self.embySession = embySession
         jellyfin = MediaServerFeature(client: MediaBrowserClient(dialect: .jellyfin, clientIdentity: identity))
         plex = MediaServerFeature(client: PlexClient(clientIdentity: identity))
+    }
+
+    public func playbackSession(for request: PlaybackLaunchRequest?) -> MediaServerSessionViewModel? {
+        guard let reporter = request?.sessionReporter as? MediaServerPlaybackSessionReporter else { return nil }
+        return switch reporter.serverKind {
+        case .emby: embySession
+        case .jellyfin: jellyfin.session
+        case .plex: plex.session
+        }
     }
 }
 

@@ -476,7 +476,7 @@ struct EmbyClientTests {
         #expect(playback.mediaSources.count == 1)
         #expect(source.displayName == "Director's Cut")
         #expect(source.defaultStreamIndexes.video == 0)
-        #expect(source.defaultStreamIndexes.audio == 1)
+        #expect(source.defaultStreamIndexes.audio == 2)
         #expect(source.defaultStreamIndexes.subtitle == 2)
         #expect(source.mediaStreams[1].language == "eng")
         #expect(source.mediaStreams[2].deliveryURL == "/subtitle")
@@ -790,7 +790,8 @@ extension EmbyClientTests {
                     "duration":960000,"viewOffset":120000,"updatedAt":100,"Media":[{"id":7,"container":"mkv",
                     "Part":[{"key":"/library/parts/8/file.mkv","size":4096,"Stream":[
                     {"id":9,"index":0,"streamType":1,"codec":"h264"},
-                    {"id":10,"index":1,"streamType":2,"codec":"aac","selected":true}]}]}]}]}}
+                    {"id":10,"index":1,"streamType":2,"codec":"aac","default":true},
+                    {"id":11,"index":2,"streamType":2,"codec":"aac","selected":true}]}]}]}]}}
                     """)
             }
             return try response(request, status: 200, json: "{}")
@@ -807,7 +808,7 @@ extension EmbyClientTests {
         let playback = try await client.playbackInfo(for: item, on: server)
         let source = try #require(playback.mediaSources.first)
         #expect(source.directPlayURL.path == "/library/parts/8/file.mkv")
-        #expect(source.defaultStreamIndexes.audio == 1)
+        #expect(source.defaultStreamIndexes.audio == 2)
         try await client.sendProgress(.init(itemID: item.metadata.id, mediaSourceID: source.id, playSessionID: playback.id,
                                            positionTicks: 1_300_000_000, durationTicks: item.metadata.runTimeTicks, isPaused: true), on: server)
         let request = try #require(recorder.requests.last)

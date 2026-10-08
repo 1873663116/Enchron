@@ -104,7 +104,6 @@ public struct MainView: View {
         playbackLauncher.requestPlayback {
             do {
                 let request = try await session.playbackRequest(for: selection)
-                serverSources.playbackSession = session
                 SurfaceInputProbes.record("openRequestForwarded")
                 return request
             } catch {

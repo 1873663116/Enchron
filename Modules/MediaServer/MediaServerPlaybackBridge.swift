@@ -125,6 +125,8 @@ public final class MediaServerPlaybackSessionReporter: PlaybackSessionReporting,
         case stopped
     }
 
+    public var serverKind: MediaServerKind { server.kind }
+
     private let client: any MediaServerClientProtocol
     private let server: MediaServerAuthenticatedServer
     private let itemID: MediaServerItemID

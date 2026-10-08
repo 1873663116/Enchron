@@ -355,7 +355,9 @@ public final class PlexClient: MediaServerClientProtocol, Sendable {
             return .init(index: index, kind: kind, codec: stream.codec, language: stream.languageCode,
                          displayLanguage: stream.language, displayTitle: stream.displayTitle, channels: stream.channels,
                          width: stream.width, height: stream.height, bitRate: stream.bitrate.map { $0 * 1000 },
-                         isDefault: stream.selected == true || stream.default == true, isForced: stream.forced == true,
+                         isDefault: stream.selected == true || (stream.streamType != 3 && stream.default == true &&
+                            !streams.contains { $0.streamType == stream.streamType && $0.selected == true }),
+                         isForced: stream.forced == true,
                          isExternal: stream.key != nil, deliveryURL: stream.key)
         }
     }

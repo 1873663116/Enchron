@@ -452,7 +452,7 @@ final class EnchronApplication {
             case .mediaLibrary:
                 return await mediaLibrary?.nextPlaybackItem()?.playbackLaunchRequest
             case .mediaServer:
-                return await serverSources?.playbackSession.nextPlaybackRequest()
+                return await serverSources?.playbackSession(for: playbackRuntime?.currentLaunchRequest)?.nextPlaybackRequest()
             case .sourceDirectory:
                 return await browser?.nextPlaybackItem()?.playbackLaunchRequest
             case .standalone, nil:
@@ -465,7 +465,7 @@ final class EnchronApplication {
             case .mediaLibrary:
                 return mediaLibrary?.hasNextPlaybackItem ?? false
             case .mediaServer:
-                return serverSources?.playbackSession.hasNextPlaybackRequest ?? false
+                return serverSources?.playbackSession(for: playbackRuntime?.currentLaunchRequest)?.hasNextPlaybackRequest ?? false
             case .sourceDirectory:
                 return browser?.hasNextPlaybackItem ?? false
             case .standalone, nil:
@@ -478,7 +478,7 @@ final class EnchronApplication {
             case .mediaLibrary:
                 return mediaLibrary?.mediaCollectionSnapshot.playbackQueueSnapshot ?? .empty
             case .mediaServer:
-                return serverSources?.playbackSession.playbackQueue ?? .empty
+                return serverSources?.playbackSession(for: playbackRuntime?.currentLaunchRequest)?.playbackQueue ?? .empty
             case .sourceDirectory:
                 return browser?.mediaCollectionSnapshot.playbackQueueSnapshot ?? .empty
             case .standalone, nil:
@@ -491,7 +491,7 @@ final class EnchronApplication {
             case .mediaLibrary:
                 return await mediaLibrary?.playbackItem(forCollectionItemID: id)?.playbackLaunchRequest
             case .mediaServer:
-                return await serverSources?.playbackSession.playbackRequest(forQueueID: id)
+                return await serverSources?.playbackSession(for: playbackRuntime?.currentLaunchRequest)?.playbackRequest(forQueueID: id)
             case .sourceDirectory:
                 return await browser?.playbackItem(forCollectionItemID: id)?.playbackLaunchRequest
             case .standalone, nil:
