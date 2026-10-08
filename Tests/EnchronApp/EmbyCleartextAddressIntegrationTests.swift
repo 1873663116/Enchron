@@ -34,11 +34,7 @@ nonisolated final class EmbyCleartextAddressIntegrationTests: XCTestCase {
                 deviceID: "enchron-cleartext-address-tests"
             )
         )
-        let server = try await client.authenticate(
-            address: address,
-            username: username,
-            password: password
-        )
+        let server = try await client.authenticate(.password(address: address, username: username, password: password))
 
         XCTAssertFalse(server.accessToken.isEmpty)
         XCTAssertEqual(server.baseAddress.scheme, "http")

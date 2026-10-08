@@ -27,11 +27,7 @@ nonisolated final class EmbySelfSignedPlaybackIntegrationTests: XCTestCase {
             deviceName: "Self Signed Playback Tests",
             deviceID: "enchron-self-signed-playback-tests"
         ))
-        let server = try await client.authenticate(
-            address: address,
-            username: username,
-            password: password
-        )
+        let server = try await client.authenticate(.password(address: address, username: username, password: password))
         let views = try await client.views(on: server)
         var playable: MediaServerPlaybackSession?
         for view in views where playable == nil {
