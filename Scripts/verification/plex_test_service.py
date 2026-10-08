@@ -135,6 +135,28 @@ def libraries():
     print(json.dumps({'libraries': [s['title'] for s in result['MediaContainer'].get('Directory', [])]}, ensure_ascii=False))
 
 
+def collection():
+    sections = request('/library/sections')['MediaContainer'].get('Directory', [])
+    section = next(x for x in sections if x['title'] == '电影')
+    items = request('/library/sections/' + section['key'] + '/all', {'type': 1})['MediaContainer'].get('Metadata', [])
+    members = [x for x in items if x['title'] in ['Blade Runner', 'Blade Runner 2049']]
+    if len(members) != 2:
+        raise RuntimeError('Both Blade Runner sample movies must be ready')
+    title = 'Enchron Verification Collection'
+    existing = request('/library/sections/' + section['key'] + '/all', {'type': 18})['MediaContainer'].get('Metadata', [])
+    entry = next((x for x in existing if x['title'] == title), None)
+    if entry is None:
+        identity = request('/identity')['MediaContainer']['machineIdentifier']
+        uri = 'server://' + identity + '/com.plexapp.plugins.library/library/metadata/' + ','.join(x['ratingKey'] for x in members)
+        result = request('/library/collections', {'type': 1, 'title': title, 'smart': 0, 'sectionId': section['key'], 'uri': uri}, method='POST')
+        entry = result['MediaContainer']['Metadata'][0]
+    actual = request('/library/metadata/' + entry['ratingKey'] + '/children')['MediaContainer'].get('Metadata', [])
+    if {x['ratingKey'] for x in actual} != {x['ratingKey'] for x in members}:
+        raise RuntimeError('Existing test collection has unexpected members')
+    save('collection-detail.json', request('/library/metadata/' + entry['ratingKey']))
+    print(json.dumps({'collectionID': entry['ratingKey'], 'title': title, 'members': [x['title'] for x in actual]}, ensure_ascii=False))
+
+
 def probe():
     identity = request('/identity')['MediaContainer']
     sections = request('/library/sections')['MediaContainer'].get('Directory', [])
@@ -210,9 +232,9 @@ def probe():
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['install', 'libraries', 'probe'])
+    parser.add_argument('action', choices=['install', 'libraries', 'collection', 'probe'])
     arguments = parser.parse_args()
-    {'install': install, 'libraries': libraries, 'probe': probe}[arguments.action]()
+    {'install': install, 'libraries': libraries, 'collection': collection, 'probe': probe}[arguments.action]()
 
 
 if __name__ == '__main__':

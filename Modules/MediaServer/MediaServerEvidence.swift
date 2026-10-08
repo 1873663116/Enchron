@@ -312,10 +312,17 @@ public struct MediaServerArtworkEvidenceLoader: Sendable {
               components.host != nil,
               components.user == nil,
               components.password == nil,
-              components.fragment == nil,
-              components.path == "/Items/\(request.itemID.rawValue)/Images/\(request.imageType.rawValue)" else {
+              components.fragment == nil else {
             return nil
         }
+        let mediaBrowserPath = "/Items/\(request.itemID.rawValue)/Images/\(request.imageType.rawValue)"
+        if components.path == request.imageTag.rawValue,
+           components.path.range(of: #"^/library/(metadata|collections)/[0-9]+/(thumb|art|clearLogo|squareArt)(/[0-9]+)?$"#,
+                                 options: .regularExpression) != nil {
+            components.queryItems = nil
+            return components.url
+        }
+        guard components.path.hasSuffix(mediaBrowserPath) else { return nil }
         let publicNames: Set<String> = ["Tag", "MaxWidth", "MaxHeight"]
         components.queryItems = components.queryItems?.filter { publicNames.contains($0.name) }
         guard components.queryItems?.first(where: { $0.name == "Tag" })?.value
@@ -331,11 +338,13 @@ public struct MediaServerArtworkEvidenceLoader: Sendable {
         guard var components = URLComponents(
             url: request.url,
             resolvingAgainstBaseURL: false
-        ),
-        let queryItems = components.queryItems,
-        queryItems.contains(where: { $0.name == "Tag" }) else {
-            return nil
+        ) else { return nil }
+        if components.path == request.imageTag.rawValue, components.path.hasPrefix("/library/") {
+            components.path += "-alternate"
+            return components.url.map { ArtworkKey(remoteImageURL: $0).debugStorageKey }
         }
+        guard let queryItems = components.queryItems,
+              queryItems.contains(where: { $0.name == "Tag" }) else { return nil }
         components.queryItems = queryItems.map { item in
             item.name == "Tag"
                 ? URLQueryItem(name: "Tag", value: "\(item.value ?? "")-alternate")

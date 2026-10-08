@@ -742,6 +742,32 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 extension EmbyClientTests {
+    @Test("Plex library browsing includes requested collections")
+    func plexCollections() async throws {
+        MockURLProtocol.setHandler { request in
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let json = query.contains(.init(name: "type", value: "1,18")) ?
+                "{\"MediaContainer\":{\"size\":2,\"totalSize\":2,\"Metadata\":[{\"ratingKey\":\"21\",\"type\":\"movie\",\"title\":\"Film\"},{\"ratingKey\":\"45\",\"type\":\"collection\",\"title\":\"Collection\"}]}}" :
+                "{\"MediaContainer\":{\"size\":0,\"totalSize\":0,\"Metadata\":[]}}"
+            let collectionJSON = "{\"MediaContainer\":{\"size\":1,\"totalSize\":1,\"Metadata\":[{\"ratingKey\":\"45\",\"type\":\"collection\",\"title\":\"Collection\"}]}}"
+            return try response(request, status: 200, json: query.contains(.init(name: "type", value: "18")) ? collectionJSON : json)
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let client = PlexClient(session: URLSession(configuration: configuration),
+                                clientIdentity: .init(name: "Enchron", version: "1", deviceName: "Tests", deviceID: "tests"))
+        let page = try await client.items(in: .init(rawValue: "3"), on: server, query: .init(includeItemTypes: [.movie, .boxSet]))
+        #expect(page.totalRecordCount == 2)
+        #expect(page.items.map(\.metadata.name) == ["Film", "Collection"])
+        let search = try await client.search("Collection", on: server, query: .init(includeItemTypes: [.boxSet]))
+        #expect(search.items.map(\.metadata.id.rawValue) == ["45"])
+        guard case .boxSet = try #require(page.items.last) else {
+            Issue.record("Plex collection must remain a browsable collection")
+            return
+        }
+    }
+
     @Test("Jellyfin authenticates with its current header and maps external subtitle offsets")
     func jellyfinTrackMapping() async throws {
         MockURLProtocol.setHandler { request in

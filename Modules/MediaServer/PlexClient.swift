@@ -39,8 +39,21 @@ public final class PlexClient: MediaServerClientProtocol, Sendable {
 
     public func items(in viewID: MediaServerItemID, on server: MediaServerAuthenticatedServer,
                       query: MediaServerItemQuery) async throws -> MediaServerItemPage {
-        try await page(path: "/library/sections/\(viewID.rawValue)/all", server: server, query: query,
-                       parameters: sortParameters(query))
+        var parameters = sortParameters(query)
+        if let kinds = query.includeItemTypes {
+            let types = kinds.map { kind -> String in
+                switch kind {
+                case .movie: "1"
+                case .series: "2"
+                case .season: "3"
+                case .episode: "4"
+                case .boxSet: "18"
+                }
+            }
+            parameters.append(.init(name: "type", value: types.joined(separator: ",")))
+        }
+        return try await page(path: "/library/sections/\(viewID.rawValue)/all", server: server, query: query,
+                              parameters: parameters)
     }
 
     public func item(withID itemID: MediaServerItemID, on server: MediaServerAuthenticatedServer) async throws -> MediaServerLibraryItem {
@@ -82,8 +95,14 @@ public final class PlexClient: MediaServerClientProtocol, Sendable {
 
     public func search(_ searchTerm: String, on server: MediaServerAuthenticatedServer,
                         query: MediaServerItemQuery) async throws -> MediaServerItemPage {
-        let values = try await allMetadata(path: "/search", server: server,
+        var values = try await allMetadata(path: "/search", server: server,
                                           parameters: [.init(name: "query", value: searchTerm)])
+        if query.includeItemTypes?.contains(.boxSet) ?? true {
+            let collections = try await allMetadata(path: "/library/all", server: server,
+                                                     parameters: [.init(name: "type", value: "18"),
+                                                                  .init(name: "title", value: searchTerm)])
+            values.append(contentsOf: collections)
+        }
         var seen = Set<MediaServerItemID>()
         let items = try values.compactMap(mapItem).filter { item in
             let type: MediaServerItemKind = switch item {

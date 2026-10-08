@@ -164,6 +164,12 @@ def representative():
     movies.mkdir(parents=True, exist_ok=True)
     shows.mkdir(parents=True, exist_ok=True)
     links = [(movies / "Blade Runner (1982).mp4", source / "电影/Blade Runner (1982)/Blade Runner (1982).mp4"), (shows / "Black Mirror - S01E01.mkv", source / "电视剧/黑镜 (2011)/Season 01/Black.Mirror.2011.S01E01.V2.1080p.NF.WEB-DL.H264.DDP-NexusNF.mkv")]
+    sequel = fixtures / "Movies/Blade Runner 2049 (2017)"
+    sequel.mkdir(parents=True, exist_ok=True)
+    links.append((sequel / "Blade Runner 2049 (2017).mp4", source / "电影/Blade Runner 2049 (2017)/Blade Runner 2049 (2017).mp4"))
+    for episode in (2, 3):
+        name = f"Black.Mirror.2011.S01E{episode:02}.V2.1080p.NF.WEB-DL.H264.DDP-NexusNF.mkv"
+        links.append((shows / name, source / "电视剧/黑镜 (2011)/Season 01" / name))
     for destination, original in links:
         if not original.is_file():
             raise RuntimeError(f"Representative source is missing: {original}")
@@ -217,9 +223,33 @@ def contract():
     print(json.dumps(report, ensure_ascii=False, indent=2))
 
 
+def collection():
+    token, user = session()
+    parent = next(folder["ItemId"] for folder in request("/Library/VirtualFolders", token=token) if folder["Name"] == "Enchron Representative Movies")
+    movies = request("/Items", token=token, params={"UserId": user, "ParentId": parent, "Recursive": "true", "IncludeItemTypes": "Movie", "Fields": "Path"})["Items"]
+    members = [movie["Id"] for movie in movies if "/Blade Runner (1982)/" in movie["Path"] or "/Blade Runner 2049 (2017)/" in movie["Path"]]
+    if len(members) != 2:
+        raise RuntimeError("Both representative Blade Runner movies must be scanned first")
+    name = "Enchron Verification Collection"
+    existing = request("/Items", token=token, params={"UserId": user, "Recursive": "true", "IncludeItemTypes": "BoxSet", "SearchTerm": name})["Items"]
+    matches = [item for item in existing if item["Name"] == name]
+    if matches:
+        identifier = matches[0]["Id"]
+        request(f"/Collections/{identifier}/Items", token=token, method="POST", params={"ids": ",".join(members)})
+    else:
+        identifier = request("/Collections", token=token, method="POST", params={"name": name, "parentId": parent, "ids": ",".join(members), "isLocked": "true"})["Id"]
+    detail = request(f"/Items/{identifier}", token=token, params={"UserId": user})
+    children = request("/Items", token=token, params={"UserId": user, "ParentId": identifier, "Recursive": "false", "IncludeItemTypes": "Movie,Series,BoxSet", "Fields": "Path,MediaSources,MediaStreams"})
+    if detail["Type"] != "BoxSet" or set(item["Id"] for item in children["Items"]) != set(members):
+        raise RuntimeError("Collection membership differs from the two representative movies")
+    evidence = {"parentId": parent, "detail": detail, "members": children}
+    (PRIVATE.parent / "collection.local.json").write_text(json.dumps(evidence, ensure_ascii=False, indent=2))
+    print(json.dumps({"id": identifier, "name": detail["Name"], "type": detail["Type"], "members": [{"id": item["Id"], "name": item["Name"], "type": item["Type"]} for item in children["Items"]]}, ensure_ascii=False))
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Manage the isolated Jellyfin test server. configure scans verification libraries; configure --all-libraries only maps the other Emby paths. representative scans two shared cloud media files. contract restores the tested viewing state.")
-    parser.add_argument("command", choices=("start", "configure", "representative", "health", "contract"))
+    parser = argparse.ArgumentParser(description="Manage the isolated Jellyfin test server. configure scans verification libraries; configure --all-libraries only maps the other Emby paths. representative scans selected shared cloud media files. contract restores the tested viewing state.")
+    parser.add_argument("command", choices=("start", "configure", "representative", "collection", "health", "contract"))
     parser.add_argument("--all-libraries", action="store_true")
     arguments = parser.parse_args()
     command = arguments.command
@@ -227,7 +257,7 @@ def main():
         if command == "configure":
             configure(arguments.all_libraries)
         else:
-            {"start": start, "representative": representative, "health": health, "contract": contract}[command]()
+            {"start": start, "representative": representative, "collection": collection, "health": health, "contract": contract}[command]()
     except (RuntimeError, urllib.error.URLError, OSError) as error:
         print(json.dumps({"healthy": False, "error": str(error)}), file=sys.stderr)
         return 1
