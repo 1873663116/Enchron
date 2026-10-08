@@ -121,8 +121,7 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         self.sourceReadMeter = sourceReadMeter
         self.demuxSession = demuxSession
         informationLoader = SystemMediaSourceInformationLoader(
-            sourceReadMeter: sourceReadMeter,
-            demuxSession: demuxSession
+            sourceReadMeter: sourceReadMeter
         )
     }
 
