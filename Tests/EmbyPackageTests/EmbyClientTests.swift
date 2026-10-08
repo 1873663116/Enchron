@@ -476,7 +476,7 @@ struct EmbyClientTests {
         #expect(playback.mediaSources.count == 1)
         #expect(source.displayName == "Director's Cut")
         #expect(source.defaultStreamIndexes.video == 0)
-        #expect(source.defaultStreamIndexes.audio == 2)
+        #expect(source.defaultStreamIndexes.audio == 1)
         #expect(source.defaultStreamIndexes.subtitle == 2)
         #expect(source.mediaStreams[1].language == "eng")
         #expect(source.mediaStreams[2].deliveryURL == "/subtitle")
