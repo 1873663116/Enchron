@@ -13,6 +13,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "verification"))
 
 import reachability_matrix as matrix
+import interactive_visionpro_ui as controller
 
 
 def immediate_tools(seconds: float = 120.0) -> SimpleNamespace:
@@ -214,7 +215,7 @@ class ImmersiveResidentWindowEvidenceTests(unittest.TestCase):
         document = {
             "hierarchy": "\n".join(
                 (
-                    "identifier: 'com.xiongzhipeng.Enchron:SFBSystemService-1234'",
+                    f"identifier: '{controller.APP_BUNDLE_ID}:SFBSystemService-1234'",
                     "identifier: 'PlayerUI-product-target'",
                 )
             )
@@ -1936,6 +1937,27 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
         run.hold = Mock()
         arm_recovery(run)
         return run
+
+    def test_probe_copy_reads_the_container_launched_by_the_controller(self) -> None:
+        run = self._copying_run()
+        completed = SimpleNamespace(returncode=0, stdout="", stderr="")
+
+        def copy_from_container(**arguments):
+            contents = (
+                "debug journal media-library-tabs-save=10"
+                if arguments["bundle_id"] == controller.APP_BUNDLE_ID
+                else "production journal media-library-tabs-save=0"
+            )
+            arguments["destination"].write_text(contents, encoding="utf-8")
+            return completed
+
+        with TemporaryDirectory() as directory, patch.object(
+            matrix.enchron_target, "copy_from_container", side_effect=copy_from_container
+        ):
+            destination = Path(directory) / "probe.log"
+            result = run.device_copy_from(matrix.PROBE_REMOTE_PATH, destination, label="probeChunk")
+            self.assertEqual(result.returncode, 0)
+            self.assertEqual(destination.read_text(), "debug journal media-library-tabs-save=10")
 
     def test_every_copy_records_what_it_cost(self) -> None:
         run = self._copying_run()

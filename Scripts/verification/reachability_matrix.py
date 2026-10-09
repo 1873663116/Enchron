@@ -20,6 +20,7 @@ if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
 from enchron_artifact_paths import evidence_root
 import enchron_target
+import interactive_visionpro_ui
 import regression_emby_source as emby_source
 from harness import (
     TIMING_SAMPLES_FILENAME,
@@ -49,7 +50,7 @@ DEFAULT_EVIDENCE = evidence_root() / f"reachability-{date.today():%Y%m%d}"
 DEVICE = enchron_target.target_device()
 CORE_DEVICE = enchron_target.core_device()
 DEVELOPER_DIR = enchron_target.developer_directory()
-APP_BUNDLE = "com.xiongzhipeng.Enchron"
+APP_BUNDLE = interactive_visionpro_ui.APP_BUNDLE_ID
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 MEDIA_LIBRARY_TAB_IDENTIFIERS = {
