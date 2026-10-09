@@ -91,7 +91,7 @@ final class ServerCertificateChangePlaybackBoundary {
             setUserVisibleIssue(.serverCertificateChanged)
         case .stopped:
             protectsCertificateChangeIssue = false
-        case .diagnostics, .lifecycle, .activeFailure, .seekCompleted:
+        case .diagnostics, .lifecycle, .activeFailure, .seekCompleted, .subtitleSelectionChanged:
             break
         }
     }
