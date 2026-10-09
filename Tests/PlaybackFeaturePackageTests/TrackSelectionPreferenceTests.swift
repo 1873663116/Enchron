@@ -1657,3 +1657,63 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         )
     }
 }
+
+extension TrackSelectionPreferenceTests {
+    @Test("deferred subtitle intent resolves when its source becomes available")
+    func deferredSubtitleIntentResolvesReadySource() {
+        let intent = SubtitleSelectionIntent(preference: .externalSource(id: "delayed"))
+        #expect(intent.trackID(in: []) == nil)
+        #expect(intent.trackID(in: [
+            PlaybackModel.SubtitleTrack(id: "external.subtitle.delayed.0", languageCode: nil, displayName: "Movie.srt")
+        ]) == "external.subtitle.delayed.0")
+    }
+
+    @Test("user subtitle choices override both late defaults and saved restoration")
+    func userSubtitleChoicesOverrideLateDefaults() {
+        let readyTracks = [
+            PlaybackModel.SubtitleTrack(id: "external.subtitle.delayed.0", languageCode: nil, displayName: "Movie.srt"),
+            PlaybackModel.SubtitleTrack(id: "chosen", languageCode: nil, displayName: "Chosen")
+        ]
+        var intent = SubtitleSelectionIntent(preference: .externalSource(id: "delayed"))
+        intent.select(.off)
+        intent.restore(.externalSource(id: "delayed"))
+        #expect(intent.preference == .off)
+        #expect(intent.trackID(in: readyTracks) == nil)
+        intent.select(.track(id: "chosen"))
+        intent.restore(.externalSource(id: "delayed"))
+        #expect(intent.trackID(in: readyTracks) == "chosen")
+    }
+
+    @Test("a delayed external subtitle selection reports immediate media-server progress")
+    func delayedSubtitleSelectionReportsServerProgress() async throws {
+        let suiteName = "app.enchron.tests.server-delayed-subtitle.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let reporter = RecordingPlaybackSessionReporter()
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        coordinator.beginPlayback(Self.request(
+            revision: "delayed",
+            authority: .mediaServer,
+            initialTrackSelection: TrackSelectionPreference(subtitleTrack: .externalSource(id: "delayed")),
+            reporter: reporter
+        ))
+        try await runtime.waitUntilConfigured()
+        runtime.emitLifecycle(.playing)
+        try await reporter.waitUntilStarted()
+        let generation = runtime.observationGeneration
+        runtime.emitSubtitleSelectionChange(id: "external.subtitle.delayed.0")
+        #expect(reporter.calls.last?.progressedReport?.selectedSubtitleTrackID == "external.subtitle.delayed.0")
+        #expect(reporter.progressReasons == [.subtitleTrackChange])
+        runtime.emitSubtitleSelectionChange(id: "external.subtitle.stale.0", generation: generation &- 1)
+        #expect(reporter.calls.last?.progressedReport?.selectedSubtitleTrackID == "external.subtitle.delayed.0")
+        #expect(reporter.progressReasons == [.subtitleTrackChange])
+        coordinator.stopPlayback(reason: .backButton)
+    }
+}
+
+private extension TrackSelectionRuntime {
+    func emitSubtitleSelectionChange(id: String?, generation: UInt64? = nil) {
+        currentSubtitleTrackID = id
+        emit(.subtitleSelectionChanged, generation: generation)
+    }
+}

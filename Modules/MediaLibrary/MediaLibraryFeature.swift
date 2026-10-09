@@ -215,11 +215,11 @@ public final class MediaLibraryFeature {
                 reference: reference
             )
         }
-        resolver.resolveExternalSubtitleSources = { [weak browser] sourceID, path, reference in
+        resolver.makeExternalSubtitleDiscovery = { [weak browser] sourceID, path, reference in
             guard let browser else {
                 throw MediaReferenceResolver.ResolutionError.unavailableSource
             }
-            return try await browser.resolveExternalSubtitleSources(
+            return try browser.externalSubtitleDiscovery(
                 dataSourceID: sourceID,
                 path: path,
                 reference: reference

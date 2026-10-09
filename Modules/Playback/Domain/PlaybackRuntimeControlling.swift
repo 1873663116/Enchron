@@ -292,6 +292,7 @@ public struct PlaybackRuntimeObservation: Sendable, Equatable {
         case lifecycle(ProductPlaybackLifecycle)
         case activeFailure(PlaybackActiveFailure)
         case seekCompleted(positionSeconds: Double)
+        case subtitleSelectionChanged
         case stopped
     }
 
@@ -349,6 +350,7 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func useSourceFormat() async throws
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
+    func restoreSubtitleSelection(_ preference: SubtitleTrackSelectionPreference?) async throws
     func replay()
     func displayedArtworkImage() -> CGImage?
     func leavePlayback(reason: PlaybackLeaveReason)
@@ -358,5 +360,13 @@ public protocol PlaybackRuntimeControlling: AnyObject {
 }
 
 public extension PlaybackRuntimeControlling {
+    func restoreSubtitleSelection(_ preference: SubtitleTrackSelectionPreference?) async throws {
+        let intent = SubtitleSelectionIntent(preference: preference)
+        let trackID = intent.trackID(in: availableSubtitleTracks)
+        if preference == .off || trackID != nil {
+            try await selectSubtitleTrack(availableSubtitleTracks.first { $0.id == trackID })
+        }
+    }
+
     func displayedArtworkImage() -> CGImage? { nil }
 }

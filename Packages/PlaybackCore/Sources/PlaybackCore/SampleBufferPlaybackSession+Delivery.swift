@@ -67,18 +67,26 @@ extension SampleBufferPlaybackSession {
             debugStore.recordCleanupStep(.audioProviderCancelled)
         }
         PlaybackTrace.event("session.close.queuesSynced id=\(traceID)")
-        subtitleStateLock.withLock {
+        let externalPreparations = subtitleStateLock.withLock {
+            let preparations = Array(subtitleState.externalPreparations.values)
             subtitleState.selectionGeneration &+= 1
             subtitleState.streamEpoch &+= 1
             subtitleState.availableTracks = []
             subtitleState.sourceURLByTrackID = [:]
             subtitleState.externalSourceIDByTrackID = [:]
+            subtitleState.preparedExternalTracks = [:]
+            for preparation in subtitleState.externalPreparations.values {
+                preparation.task.cancel()
+            }
+            subtitleState.externalPreparationIDBySource = [:]
+            subtitleState.pendingSelectionTrackID = nil
             subtitleState.selectedTrackID = nil
             subtitleState.cues = []
             subtitleState.frameRenderer = nil
             subtitleState.activeFrame = nil
             subtitleState.suppressesActiveCues = true
             subtitleState.isClosed = true
+            return preparations
         }
         subtitleProvider.cancel()
         recordSubtitleState(at: synchronizer.currentTime())
@@ -87,6 +95,9 @@ extension SampleBufferPlaybackSession {
         debugStore.recordCleanupStep(.audioRendererFlushed)
         Task { [self] in
             await rendererSink.flush(removingDisplayedImage: true)
+            for preparation in externalPreparations {
+                _ = try? await preparation.task.value
+            }
             discardVideoFramesInFlight()
             finishCloseAfterFlush()
         }
@@ -2054,6 +2065,12 @@ extension SampleBufferPlaybackSession {
             subtitleState.availableTracks = []
             subtitleState.sourceURLByTrackID = [:]
             subtitleState.externalSourceIDByTrackID = [:]
+            subtitleState.preparedExternalTracks = [:]
+            for preparation in subtitleState.externalPreparations.values {
+                preparation.task.cancel()
+            }
+            subtitleState.externalPreparationIDBySource = [:]
+            subtitleState.pendingSelectionTrackID = nil
             subtitleState.selectedTrackID = nil
             subtitleState.cues = []
             subtitleState.frameRenderer = nil

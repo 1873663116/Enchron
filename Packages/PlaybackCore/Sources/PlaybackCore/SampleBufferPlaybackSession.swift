@@ -126,7 +126,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var availableTracks: [PlaybackSubtitleTrack] = []
         var sourceURLByTrackID: [PlaybackSubtitleTrack.ID: URL] = [:]
         var externalSourceIDByTrackID: [PlaybackSubtitleTrack.ID: String] = [:]
+        var preparedExternalTracks: [PlaybackSubtitleTrack.ID: PreparedSubtitleTrack] = [:]
+        var externalPreparations: [UUID: ExternalSubtitlePreparation] = [:]
+        var externalPreparationIDBySource: [String: UUID] = [:]
         var selectedTrackID: PlaybackSubtitleTrack.ID?
+        var pendingSelectionTrackID: PlaybackSubtitleTrack.ID?
         var cues: [PlaybackSubtitleCue] = []
         var frameRenderer: SubtitleFrameRendering?
         var activeFrame: PlaybackSubtitleFrame?
@@ -136,6 +140,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var suppressesActiveCues = false
         var isClosed = false
         var lastPublishedCueIDs: [PlaybackSubtitleCue.ID] = []
+    }
+
+    struct ExternalSubtitlePreparation {
+        let id: UUID
+        let task: Task<PreparedExternalSubtitleSource, Error>
     }
 
     public let traceID: String
@@ -428,6 +437,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     public private(set) var availableAudioTracks: [PlaybackAudioTrack] = []
     let subtitleStateLock = NSLock()
     var subtitleState = SubtitleState()
+    let externalSubtitlePreparationDeadline: Duration
     var lastReportedEmptySubtitleSecond: Int?
     let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
     let activationReapplyVerificationConfiguration:
@@ -477,6 +487,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil,
         firstVideoFrameDeadline: Duration = .seconds(5),
+        externalSubtitlePreparationDeadline: Duration = .seconds(30),
         firstVideoFrameObservation: (@Sendable () -> Bool)? = nil,
         videoPrerollDisplayObservation: (@Sendable () -> Bool)? = nil,
         videoRendererReadyObservation: (@Sendable () -> Bool)? = nil,
@@ -500,6 +511,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             startedAt: ProcessInfo.processInfo.systemUptime
         )
         self.firstVideoFrameDeadline = firstVideoFrameDeadline
+        self.externalSubtitlePreparationDeadline = externalSubtitlePreparationDeadline
         self.firstVideoFrameObservation = firstVideoFrameObservation
         self.videoPrerollDisplayObservation = videoPrerollDisplayObservation
         self.videoRendererReadyObservation = videoRendererReadyObservation
@@ -647,6 +659,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             subtitleState.availableTracks = subtitleTracks
             subtitleState.sourceURLByTrackID = [:]
             subtitleState.externalSourceIDByTrackID = [:]
+            subtitleState.preparedExternalTracks = [:]
+            for preparation in subtitleState.externalPreparations.values {
+                preparation.task.cancel()
+            }
+            subtitleState.externalPreparationIDBySource = [:]
+            subtitleState.pendingSelectionTrackID = nil
             subtitleState.selectedTrackID = nil
             subtitleState.cues = []
             subtitleState.frameRenderer = nil

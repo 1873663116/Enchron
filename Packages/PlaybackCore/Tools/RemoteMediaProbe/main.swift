@@ -79,6 +79,7 @@ func enumerateTracks(source: String, monitor: OpaquePointer) throws -> String {
         PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
             $0,
             monitor,
+            nil,
             &error,
             error.count
         )

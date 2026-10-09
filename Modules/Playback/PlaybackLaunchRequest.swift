@@ -149,7 +149,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             initialMetadata: initialMetadata, collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity, sourceAccess: sourceAccess,
             externalSubtitleSources: subtitles,
-            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
+            externalSubtitleDiscovery: externalSubtitleDiscovery,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             initialTrackSelection: initialTrackSelection, sessionReporter: sessionReporter
@@ -167,7 +167,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let versionedIdentity: VersionedMediaIdentity?
     public let sourceAccess: MediaAccessLease?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
-    public let externalSubtitleResolutionFailed: Bool
+    public let externalSubtitleDiscovery: ExternalSubtitleDiscovery?
     public let viewingStateAuthority: ViewingStateAuthority
     public let startPositionSeconds: Double?
     public let initialTrackSelection: TrackSelectionPreference?
@@ -182,7 +182,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleResolutionFailed: Bool = false,
+        externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         initialTrackSelection: TrackSelectionPreference? = nil,
@@ -198,7 +198,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.versionedIdentity = versionedIdentity
         self.sourceAccess = nil
         self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
+        self.externalSubtitleDiscovery = externalSubtitleDiscovery
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
         self.initialTrackSelection = initialTrackSelection
@@ -215,7 +215,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleResolutionFailed: Bool = false,
+        externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         initialTrackSelection: TrackSelectionPreference? = nil,
@@ -229,7 +229,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
+            externalSubtitleDiscovery: externalSubtitleDiscovery,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             initialTrackSelection: initialTrackSelection,
@@ -248,7 +248,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         versionedIdentity: VersionedMediaIdentity? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleResolutionFailed: Bool = false,
+        externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         initialTrackSelection: TrackSelectionPreference? = nil,
@@ -264,7 +264,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.versionedIdentity = versionedIdentity
         self.sourceAccess = sourceAccess
         self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
+        self.externalSubtitleDiscovery = externalSubtitleDiscovery
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
         self.initialTrackSelection = initialTrackSelection
@@ -282,7 +282,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         versionedIdentity: VersionedMediaIdentity? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleResolutionFailed: Bool = false,
+        externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         initialTrackSelection: TrackSelectionPreference? = nil,
@@ -297,7 +297,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             versionedIdentity: versionedIdentity,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
+            externalSubtitleDiscovery: externalSubtitleDiscovery,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             initialTrackSelection: initialTrackSelection,
@@ -317,7 +317,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             versionedIdentity: versionedIdentity,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed,
+            externalSubtitleDiscovery: externalSubtitleDiscovery,
             viewingStateAuthority: viewingStateAuthority,
             startPositionSeconds: startPositionSeconds,
             initialTrackSelection: initialTrackSelection,
@@ -346,7 +346,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.collectionOrigin == rhs.collectionOrigin &&
             lhs.versionedIdentity == rhs.versionedIdentity &&
             lhs.externalSubtitleSources == rhs.externalSubtitleSources &&
-            lhs.externalSubtitleResolutionFailed == rhs.externalSubtitleResolutionFailed &&
+            lhs.externalSubtitleDiscovery == rhs.externalSubtitleDiscovery &&
             lhs.viewingStateAuthority == rhs.viewingStateAuthority &&
             lhs.startPositionSeconds == rhs.startPositionSeconds &&
             lhs.initialTrackSelection == rhs.initialTrackSelection

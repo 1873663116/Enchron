@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 
-struct ResolvedSecurityScopedFile {
+struct ResolvedSecurityScopedFile: Sendable {
     let url: URL
     let access: MediaAccessLease?
 }
@@ -24,7 +24,7 @@ final class SecurityScopedFileReferenceResolver {
         []
     }
 
-    func resolve(bookmark: Data, relativePath: String) throws -> ResolvedSecurityScopedFile {
+    nonisolated func resolve(bookmark: Data, relativePath: String) throws -> ResolvedSecurityScopedFile {
         var stale = false
         let selectedURL = try URL(
             resolvingBookmarkData: bookmark,

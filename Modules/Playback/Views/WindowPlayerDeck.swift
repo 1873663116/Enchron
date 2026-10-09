@@ -320,7 +320,10 @@ public struct WindowPlayerDeckView: View {
                         self.logger.error(
                             "subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
                         )
-                        self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        if !(error is CancellationError), !Task.isCancelled,
+                           !track.id.hasPrefix("external.subtitle.") {
+                            self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        }
                     }
                 }
             }
@@ -335,7 +338,9 @@ public struct WindowPlayerDeckView: View {
                         self.logger.error(
                             "subtitle disable failed error=\(error.localizedDescription, privacy: .public)"
                         )
-                        self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        if !(error is CancellationError), !Task.isCancelled {
+                            self.playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        }
                     }
                 }
             }
@@ -550,7 +555,10 @@ struct ProductionPlaybackMoreMenu: View {
                         logger.error(
                             "subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
                         )
-                        playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        if !(error is CancellationError), !Task.isCancelled,
+                           !track.id.hasPrefix("external.subtitle.") {
+                            playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        }
                     }
                 }
             }
@@ -565,7 +573,9 @@ struct ProductionPlaybackMoreMenu: View {
                         logger.error(
                             "subtitle disable failed error=\(error.localizedDescription, privacy: .public)"
                         )
-                        playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        if !(error is CancellationError), !Task.isCancelled {
+                            playbackRuntime.setUserVisibleIssue(.subtitleTrackSelectionFailed)
+                        }
                     }
                 }
             }

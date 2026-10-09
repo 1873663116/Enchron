@@ -28,23 +28,53 @@ extension SampleBufferPlaybackSession {
     func addExternalSubtitleSource(
         _ source: PlaybackExternalSubtitleSource
     ) async throws -> [PlaybackSubtitleTrack] {
-        let discoveredTracks = try await subtitleProvider.tracks(in: source.url, asset: nil)
-        guard discoveredTracks.isEmpty == false else {
-            throw PlaybackControlError.externalSubtitleHasNoSupportedTracks(source.displayName)
+        let preparation = try subtitleStateLock.withLock {
+            guard !subtitleState.isClosed else {
+                throw PlaybackControlError.mediaSessionClosed
+            }
+            if let previousID = subtitleState.externalPreparationIDBySource[source.id] {
+                subtitleState.externalPreparations[previousID]?.task.cancel()
+            }
+            let task = Task.detached { [self] in
+                try await withThrowingTaskGroup(of: PreparedExternalSubtitleSource.self) { group in
+                    group.addTask { [self] in
+                        try await subtitleProvider.prepareExternalSource(source)
+                    }
+                    group.addTask { [externalSubtitlePreparationDeadline] in
+                        try await Task.sleep(for: externalSubtitlePreparationDeadline)
+                        throw SubtitleProviderError.preparationTimedOut
+                    }
+                    defer { group.cancelAll() }
+                    guard let prepared = try await group.next() else { throw CancellationError() }
+                    return prepared
+                }
+            }
+            let preparation = ExternalSubtitlePreparation(id: UUID(), task: task)
+            subtitleState.externalPreparations[preparation.id] = preparation
+            subtitleState.externalPreparationIDBySource[source.id] = preparation.id
+            return preparation
+        }
+        defer {
+            subtitleStateLock.withLock {
+                subtitleState.externalPreparations.removeValue(forKey: preparation.id)
+                if subtitleState.externalPreparationIDBySource[source.id] == preparation.id {
+                    subtitleState.externalPreparationIDBySource.removeValue(forKey: source.id)
+                }
+            }
+        }
+        let prepared = try await withTaskCancellationHandler {
+            try await preparation.task.value
+        } onCancel: {
+            preparation.task.cancel()
         }
         try Task.checkCancellation()
-        let externalTracks = discoveredTracks.map { track in
-            PlaybackSubtitleTrack(
-                id: "external.subtitle.\(source.id).\(track.streamIndex)",
-                streamIndex: track.streamIndex,
-                codecName: track.codecName,
-                language: track.language,
-                title: track.title ?? source.displayName
-            )
-        }
+        let externalTracks = prepared.tracks.map(\.track)
         let clearedSelectedTrack = try subtitleStateLock.withLock { () -> Bool in
             guard !subtitleState.isClosed else {
                 throw PlaybackControlError.mediaSessionClosed
+            }
+            guard subtitleState.externalPreparationIDBySource[source.id] == preparation.id else {
+                throw CancellationError()
             }
             let replacedTrackIDs = Set(
                 subtitleState.externalSourceIDByTrackID.compactMap { trackID, sourceID in
@@ -54,20 +84,26 @@ extension SampleBufferPlaybackSession {
             let selectedTrackWasReplaced = subtitleState.selectedTrackID.map(
                 replacedTrackIDs.contains
             ) == true
+            let pendingSelectionWasReplaced = subtitleState.pendingSelectionTrackID.map(
+                replacedTrackIDs.contains
+            ) == true
             subtitleState.availableTracks.removeAll { replacedTrackIDs.contains($0.id) }
             for trackID in replacedTrackIDs {
                 subtitleState.sourceURLByTrackID.removeValue(forKey: trackID)
                 subtitleState.externalSourceIDByTrackID.removeValue(forKey: trackID)
+                subtitleState.preparedExternalTracks.removeValue(forKey: trackID)
             }
             subtitleState.availableTracks.append(contentsOf: externalTracks)
-            for track in externalTracks {
-                subtitleState.sourceURLByTrackID[track.id] = source.url
-                subtitleState.externalSourceIDByTrackID[track.id] = source.id
+            for ready in prepared.tracks {
+                subtitleState.sourceURLByTrackID[ready.track.id] = source.url
+                subtitleState.externalSourceIDByTrackID[ready.track.id] = source.id
+                subtitleState.preparedExternalTracks[ready.track.id] = ready
             }
-            subtitleState.selectionGeneration &+= 1
-            if selectedTrackWasReplaced {
+            if selectedTrackWasReplaced || pendingSelectionWasReplaced {
+                subtitleState.selectionGeneration &+= 1
                 subtitleState.streamEpoch &+= 1
                 subtitleState.selectedTrackID = nil
+                subtitleState.pendingSelectionTrackID = nil
                 subtitleState.cues = []
                 subtitleState.frameRenderer = nil
                 subtitleState.activeFrame = nil
@@ -96,6 +132,9 @@ extension SampleBufferPlaybackSession {
             guard !subtitleState.isClosed else {
                 throw PlaybackControlError.mediaSessionClosed
             }
+            if let preparationID = subtitleState.externalPreparationIDBySource.removeValue(forKey: sourceID) {
+                subtitleState.externalPreparations[preparationID]?.task.cancel()
+            }
             let removedTrackIDs = Set(
                 subtitleState.externalSourceIDByTrackID.compactMap { trackID, storedSourceID in
                     storedSourceID == sourceID ? trackID : nil
@@ -109,11 +148,16 @@ extension SampleBufferPlaybackSession {
             for trackID in removedTrackIDs {
                 subtitleState.sourceURLByTrackID.removeValue(forKey: trackID)
                 subtitleState.externalSourceIDByTrackID.removeValue(forKey: trackID)
+                subtitleState.preparedExternalTracks.removeValue(forKey: trackID)
             }
-            subtitleState.selectionGeneration &+= 1
-            if selectedTrackWasRemoved {
+            let pendingSelectionWasRemoved = subtitleState.pendingSelectionTrackID.map(
+                removedTrackIDs.contains
+            ) == true
+            if selectedTrackWasRemoved || pendingSelectionWasRemoved {
+                subtitleState.selectionGeneration &+= 1
                 subtitleState.streamEpoch &+= 1
                 subtitleState.selectedTrackID = nil
+                subtitleState.pendingSelectionTrackID = nil
                 subtitleState.cues = []
                 subtitleState.frameRenderer = nil
                 subtitleState.activeFrame = nil
@@ -147,6 +191,7 @@ extension SampleBufferPlaybackSession {
                 subtitleState.selectionGeneration &+= 1
                 subtitleState.streamEpoch &+= 1
                 subtitleState.selectedTrackID = nil
+                subtitleState.pendingSelectionTrackID = nil
                 subtitleState.cues = []
                 subtitleState.frameRenderer = nil
                 subtitleState.suppressesActiveCues = false
@@ -177,6 +222,7 @@ extension SampleBufferPlaybackSession {
             subtitleState.selectionGeneration &+= 1
             subtitleState.streamEpoch &+= 1
             subtitleState.selectedTrackID = nil
+            subtitleState.pendingSelectionTrackID = trackID
             subtitleState.cues = []
             subtitleState.frameRenderer = nil
             subtitleState.suppressesActiveCues = true
@@ -185,7 +231,8 @@ extension SampleBufferPlaybackSession {
                 track,
                 subtitleState.sourceURLByTrackID[track.id] ?? sourceURL,
                 subtitleState.selectionGeneration,
-                subtitleState.streamEpoch
+                subtitleState.streamEpoch,
+                subtitleState.preparedExternalTracks[track.id]
             )
         }
         recordSubtitleState(at: synchronizer.currentTime())
@@ -201,22 +248,30 @@ extension SampleBufferPlaybackSession {
             ]
         )
         do {
-            let cues = try await subtitleProvider.cues(
-                in: selection.1,
-                asset: selection.1 == sourceURL ? sourceAsset : nil,
-                track: selection.0
-            )
-            let frameRenderer = try await subtitleProvider.frameRenderer(
-                in: selection.1,
-                asset: selection.1 == sourceURL ? sourceAsset : nil,
-                track: selection.0
-            )
+            let cues: [PlaybackSubtitleCue]
+            let frameRenderer: SubtitleFrameRendering?
+            if let ready = selection.4 {
+                cues = ready.cues
+                frameRenderer = ready.renderer
+            } else {
+                cues = try await subtitleProvider.cues(
+                    in: selection.1,
+                    asset: sourceAsset,
+                    track: selection.0
+                )
+                frameRenderer = try await subtitleProvider.frameRenderer(
+                    in: selection.1,
+                    asset: sourceAsset,
+                    track: selection.0
+                )
+            }
             try Task.checkCancellation()
             let committed = subtitleStateLock.withLock {
                 guard !subtitleState.isClosed,
                       subtitleState.selectionGeneration == selection.2,
                       subtitleState.streamEpoch == selection.3 else { return false }
                 subtitleState.selectedTrackID = selection.0.id
+                subtitleState.pendingSelectionTrackID = nil
                 subtitleState.cues = cues.sorted {
                     CMTimeCompare($0.timeRange.start, $1.timeRange.start) < 0
                 }
@@ -246,6 +301,7 @@ extension SampleBufferPlaybackSession {
             subtitleStateLock.withLock {
                 guard subtitleState.selectionGeneration == selection.2 else { return }
                 subtitleState.selectedTrackID = nil
+                subtitleState.pendingSelectionTrackID = nil
                 subtitleState.cues = []
                 subtitleState.frameRenderer = nil
                 subtitleState.activeFrame = nil
@@ -262,6 +318,7 @@ extension SampleBufferPlaybackSession {
         let state = subtitleStateLock.withLock { () -> (UInt64, UInt64) in
             subtitleState.selectionGeneration &+= 1
             subtitleState.streamEpoch &+= 1
+            subtitleState.pendingSelectionTrackID = nil
             subtitleState.suppressesActiveCues = true
             return (subtitleState.selectionGeneration, subtitleState.streamEpoch)
         }
@@ -322,6 +379,7 @@ extension SampleBufferPlaybackSession {
         do {
             arrived = try renderer.ingestPendingCues(for: track)
         } catch {
+            discardFailedExternalSubtitleTrack(generation: generation)
             debugStore.emit(
                 mediaSessionID: traceID,
                 kind: "subtitle.cues.ingestFailed",
@@ -404,6 +462,7 @@ extension SampleBufferPlaybackSession {
                 )
             }
         } catch {
+            discardFailedExternalSubtitleTrack(generation: snapshot.1)
             debugStore.emit(
                 mediaSessionID: traceID,
                 kind: "subtitle.frame.failed",
@@ -443,6 +502,32 @@ extension SampleBufferPlaybackSession {
         if shouldPublish {
             onSubtitleFrameChange?(frame)
         }
+    }
+
+    func discardFailedExternalSubtitleTrack(generation: UInt64) {
+        let discarded = subtitleStateLock.withLock { () -> Bool in
+            guard subtitleState.selectionGeneration == generation,
+                  let trackID = subtitleState.selectedTrackID,
+                  subtitleState.preparedExternalTracks[trackID] != nil else { return false }
+            subtitleState.availableTracks.removeAll { $0.id == trackID }
+            subtitleState.preparedExternalTracks.removeValue(forKey: trackID)
+            subtitleState.sourceURLByTrackID.removeValue(forKey: trackID)
+            subtitleState.externalSourceIDByTrackID.removeValue(forKey: trackID)
+            subtitleState.selectionGeneration &+= 1
+            subtitleState.streamEpoch &+= 1
+            subtitleState.selectedTrackID = nil
+            subtitleState.pendingSelectionTrackID = nil
+            subtitleState.cues = []
+            subtitleState.frameRenderer = nil
+            subtitleState.activeFrame = nil
+            subtitleState.suppressesActiveCues = false
+            subtitleState.outcome = .unsupported
+            return true
+        }
+        guard discarded else { return }
+        recordSubtitleState(at: synchronizer.currentTime())
+        onSubtitleCuesChange?([])
+        onSubtitleFrameChange?(nil)
     }
 
     func noteSubtitleOutcome(

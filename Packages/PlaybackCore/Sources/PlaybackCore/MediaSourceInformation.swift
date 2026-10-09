@@ -218,49 +218,64 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
     }
 
     func load(from url: URL) async throws -> MediaSourceInformation {
+        try Task.checkCancellation()
         let source = FFmpegSourceLocator.argument(for: url)
-        return try await withCheckedThrowingContinuation { continuation in
-            queue.async { [sourceReadMeter, demuxSession] in
-                var error = [CChar](repeating: 0, count: 512)
-                let handle: OpaquePointer?
-                do {
-                    handle = if let demuxSession {
-                        try demuxSession.withSource(argument: source) {
-                            PBFFmpegDemuxSourceCopyInformation(
-                                $0,
-                                &error,
-                                error.count
-                            )
+        let cancellation = FFmpegReadCancellation()
+        return try await withTaskCancellationHandler {
+            let information: MediaSourceInformation
+            do {
+                information = try await withCheckedThrowingContinuation { continuation in
+                    queue.async { [sourceReadMeter, demuxSession, cancellation] in
+                        var error = [CChar](repeating: 0, count: 512)
+                        let handle: OpaquePointer?
+                        do {
+                            handle = if let demuxSession {
+                                try demuxSession.withSource(argument: source) {
+                                    PBFFmpegDemuxSourceCopyInformation(
+                                        $0,
+                                        &error,
+                                        error.count
+                                    )
+                                }
+                            } else {
+                                source.withCString {
+                                    PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+                                        $0,
+                                        sourceReadMeter.bridgeMonitor,
+                                        cancellation.handle,
+                                        &error,
+                                        error.count
+                                    )
+                                }
+                            }
+                        } catch {
+                            continuation.resume(throwing: error)
+                            return
                         }
-                    } else {
-                        source.withCString {
-                            PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
-                                $0,
-                                sourceReadMeter.bridgeMonitor,
-                                &error,
-                                error.count
+                        guard let handle else {
+                            continuation.resume(
+                                throwing: MediaSourceInformationError.open(
+                                    ffmpegErrorMessage(error)
+                                )
                             )
+                            return
+                        }
+                        defer { PBFFmpegMediaSourceInformationDestroy(handle) }
+                        do {
+                            continuation.resume(returning: try Self.copy(handle))
+                        } catch {
+                            continuation.resume(throwing: error)
                         }
                     }
-                } catch {
-                    continuation.resume(throwing: error)
-                    return
                 }
-                guard let handle else {
-                    continuation.resume(
-                        throwing: MediaSourceInformationError.open(
-                            ffmpegErrorMessage(error)
-                        )
-                    )
-                    return
-                }
-                defer { PBFFmpegMediaSourceInformationDestroy(handle) }
-                do {
-                    continuation.resume(returning: try Self.copy(handle))
-                } catch {
-                    continuation.resume(throwing: error)
-                }
+            } catch {
+                try Task.checkCancellation()
+                throw error
             }
+            try Task.checkCancellation()
+            return information
+        } onCancel: {
+            cancellation.cancel()
         }
     }
 

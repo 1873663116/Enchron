@@ -17,6 +17,7 @@ final class RecordingRangeServer: @unchecked Sendable {
     private let responseChunkSize: Int
     private let responseChunkDelay: TimeInterval
     private var stallsNextResponse = false
+    private var stalledRangeOrdinal: Int?
     private var pausesResponses = false
     private let pausedResponse = DispatchSemaphore(value: 0)
     private let stalledResponse = DispatchSemaphore(value: 0)
@@ -132,6 +133,10 @@ final class RecordingRangeServer: @unchecked Sendable {
         lock.withLock { stallsNextResponse = true }
     }
 
+    func stallRangeResponse(number: Int) {
+        lock.withLock { stalledRangeOrdinal = number }
+    }
+
     func waitForStalledResponse(timeout: DispatchTime) -> Bool {
         stalledResponse.wait(timeout: timeout) == .success
     }
@@ -194,8 +199,9 @@ final class RecordingRangeServer: @unchecked Sendable {
             return false
         }
         let shouldStall = lock.withLock {
-            guard stallsNextResponse else { return false }
+            guard stallsNextResponse || stalledRangeOrdinal == observedRanges.count else { return false }
             stallsNextResponse = false
+            stalledRangeOrdinal = nil
             return true
         }
         if shouldStall {

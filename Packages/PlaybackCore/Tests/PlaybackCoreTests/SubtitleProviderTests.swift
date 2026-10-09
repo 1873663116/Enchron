@@ -877,6 +877,59 @@ private final class SettledFlag: @unchecked Sendable {
 }
 
 @MainActor
+@Test func externalSubtitleSourceJoinsASessionWithAnAlreadyOpenSharedDemux() async throws {
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: SubtitleTestVideoProvider(),
+            subtitleProvider: FFmpegSubtitleProvider(
+                sourceReadMeter: meter,
+                demuxSession: demuxSession
+            ),
+            mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+                sourceReadMeter: meter,
+                demuxSession: demuxSession
+            ),
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        )
+    }
+    let fixture = try subtitleFixtureURL()
+    let session = try await controller.open(fixture)
+    defer { session.close() }
+    #expect(demuxSession.isOpen(for: FFmpegSourceLocator.argument(for: fixture)))
+    #expect(controller.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+    ])
+
+    let externalTracks = try await controller.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(
+            id: "shared-demux-english",
+            url: try externalSubtitleFixtureURL(),
+            displayName: "English sidecar"
+        )
+    )
+
+    #expect(externalTracks.map(\.id) == ["external.subtitle.shared-demux-english.0"])
+    #expect(controller.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+        "external.subtitle.shared-demux-english.0",
+    ])
+    try await controller.selectSubtitleTrack(id: "external.subtitle.shared-demux-english.0")
+    session.synchronizer.setRate(
+        0,
+        time: CMTime(seconds: 1.5, preferredTimescale: 600)
+    )
+    #expect(controller.activeSubtitleCues.map(\.text) == ["English subtitle"])
+    #expect(demuxSession.isOpen(for: FFmpegSourceLocator.argument(for: fixture)))
+    await controller.closeAndWait()
+}
+
+@MainActor
 @Test func failedExternalSubtitleSourceLeavesTheCurrentSelectionAndSessionUntouched() async throws {
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
@@ -1312,6 +1365,397 @@ private func externalSubtitleFixtureURL() throws -> URL {
             subdirectory: "Fixtures"
         )
     )
+}
+
+@Test func anExternalSubtitleIsReadyBeforeItBecomesAvailableAndSelectionUsesNoNetwork() async throws {
+    let server = try RecordingRangeServer(serving: Data(contentsOf: externalSubtitleFixtureURL()))
+    defer { server.stop() }
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-subtitle-ready",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FFmpegSubtitleProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    let tracks = try await session.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(id: "ready", url: server.url, displayName: "Ready")
+    )
+    #expect(tracks.map(\.id) == ["external.subtitle.ready.0"])
+    let connectionsAfterPreparation = server.connections
+    #expect(connectionsAfterPreparation == 2)
+    server.rejectResponsesAndDisconnect()
+
+    try await session.selectSubtitleTrack(id: "external.subtitle.ready.0")
+
+    #expect(session.activeSubtitleCues(at: CMTime(seconds: 1.5, preferredTimescale: 600))
+        .map(\.text) == ["English subtitle"])
+    #expect(server.connections == connectionsAfterPreparation)
+}
+
+@Test func anExternalSubtitleWhoseCuePreparationFailsNeverBecomesAvailable() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-subtitle-invalid-cues",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FailingExternalSubtitlePreparationProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+
+    await #expect(throws: SubtitleProviderError.self) {
+        try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(
+                id: "invalid-cues",
+                url: try externalSubtitleFixtureURL(),
+                displayName: "Invalid cues"
+            )
+        )
+    }
+
+    #expect(session.availableSubtitleTracks.map(\.id) == ["ffmpeg.subtitle.1"])
+}
+
+@Test(arguments: ["remove", "close", "replace"])
+func invalidatingAnExternalPreparationRejectsItsLateResult(action: String) async throws {
+    let oldURL = URL(fileURLWithPath: "/old")
+    let gate = ExternalSubtitlePreparationTestGate()
+    let provider = GatedExternalSubtitlePreparationProvider(gates: [oldURL: gate])
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-late-\(action)",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: provider
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    let pending = Task {
+        try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(id: "late", url: oldURL, displayName: "Old")
+        )
+    }
+    try await gate.waitUntilBlocked()
+    #expect(session.availableSubtitleTracks.map(\.id) == ["ffmpeg.subtitle.1"])
+    if action == "close" {
+        session.close()
+    } else if action == "remove" {
+        try session.removeExternalSubtitleSource(id: "late")
+    } else {
+        _ = try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(
+                id: "late", url: URL(fileURLWithPath: "/replacement"), displayName: "Replacement"
+            )
+        )
+    }
+    gate.release()
+    await #expect(throws: (any Error).self) { try await pending.value }
+    if action == "replace" {
+        try await session.selectSubtitleTrack(id: "external.subtitle.late.1")
+        #expect(session.activeSubtitleCues(at: CMTime(seconds: 1, preferredTimescale: 600))
+            .map(\.text) == ["replacement"])
+    } else {
+        #expect(session.availableSubtitleTracks.map(\.id) == (action == "close" ? [] : ["ffmpeg.subtitle.1"]))
+    }
+}
+
+@Test func closingWaitsForRemovedExternalPreparationToExit() async throws {
+    let oldURL = URL(fileURLWithPath: "/closing-read")
+    let gate = ExternalSubtitlePreparationTestGate()
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-close-drain",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: GatedExternalSubtitlePreparationProvider(gates: [oldURL: gate])
+    )
+    try await session.prepare(url: try subtitleFixtureURL())
+    let pending = Task {
+        try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(id: "drain", url: oldURL, displayName: "Closing read")
+        )
+    }
+    try await gate.waitUntilBlocked()
+    try session.removeExternalSubtitleSource(id: "drain")
+    let closed = SettledFlag()
+    let closing = Task {
+        await session.closeAndWait()
+        closed.set()
+    }
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(!closed.isSet)
+    gate.release()
+    _ = try? await pending.value
+    await closing.value
+    #expect(closed.isSet)
+    #expect(session.availableSubtitleTracks.isEmpty)
+}
+
+@Test func aFailedExternalReplacementPreservesTheReadyTrackAndSelection() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-failed-replacement",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: GatedExternalSubtitlePreparationProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    _ = try await session.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(id: "stable", url: URL(fileURLWithPath: "/first"), displayName: "First")
+    )
+    try await session.selectSubtitleTrack(id: "external.subtitle.stable.1")
+    await #expect(throws: SubtitleProviderError.self) {
+        try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(id: "stable", url: URL(fileURLWithPath: "/fail"), displayName: "Fail")
+        )
+    }
+    #expect(session.availableSubtitleTracks.map(\.label) == ["Subtitle 1", "First"])
+    #expect(session.selectedSubtitleTrackID == "external.subtitle.stable.1")
+    #expect(session.activeSubtitleCues(at: CMTime(seconds: 1, preferredTimescale: 600))
+        .map(\.text) == ["first"])
+}
+
+@Test func addingAnUnrelatedReadySourceDoesNotCancelAnEmbeddedSelection() async throws {
+    let mediaURL = try subtitleFixtureURL()
+    let gate = ExternalSubtitlePreparationTestGate()
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-unrelated-selection",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: GatedExternalSubtitlePreparationProvider(gates: [mediaURL: gate])
+    )
+    defer { session.close() }
+    try await session.prepare(url: mediaURL)
+    let selection = Task { try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1") }
+    try await gate.waitUntilBlocked()
+    _ = try await session.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(id: "unrelated", url: URL(fileURLWithPath: "/unrelated"), displayName: "Other")
+    )
+    gate.release()
+    try await selection.value
+    #expect(session.selectedSubtitleTrackID == "ffmpeg.subtitle.1")
+    #expect(session.activeSubtitleCues(at: CMTime(seconds: 1, preferredTimescale: 600))
+        .map(\.text) == ["subtitle-subrip.mkv"])
+}
+
+@MainActor
+@Test(arguments: [1, 2])
+func anExternalPreparationDeadlineCancelsNativeReadsWithoutInterruptingMediaReads(stalledRequest: Int) async throws {
+    let server = try RecordingRangeServer(serving: Data(contentsOf: externalSubtitleFixtureURL()))
+    defer { server.stop() }
+    let meter = PlaybackSourceReadMeter()
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-native-deadline",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FFmpegSubtitleProvider(sourceReadMeter: meter),
+        externalSubtitlePreparationDeadline: .milliseconds(250)
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    server.stallRangeResponse(number: stalledRequest)
+    let began = ContinuousClock.now
+    await #expect(throws: SubtitleProviderError.preparationTimedOut) {
+        try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(id: "deadline", url: server.url, displayName: "Stalled")
+        )
+    }
+    #expect(ContinuousClock.now - began < .seconds(2))
+    #expect(server.ranges == Array(repeating: "bytes=0-", count: stalledRequest))
+    #expect(session.availableSubtitleTracks.map(\.id) == ["ffmpeg.subtitle.1", "ffmpeg.subtitle.2"])
+    let information = try await SystemMediaSourceInformationLoader(sourceReadMeter: meter)
+        .load(from: try subtitleFixtureURL())
+    #expect(information.playbackSubtitleTracks.map(\.id) == ["ffmpeg.subtitle.1", "ffmpeg.subtitle.2"])
+}
+
+@MainActor
+@Test(arguments: [1, 2])
+func cancellingExternalPreparationStopsItsNativeRead(stalledRequest: Int) async throws {
+    let server = try RecordingRangeServer(serving: Data(contentsOf: externalSubtitleFixtureURL()))
+    defer { server.stop() }
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-native-cancellation",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FFmpegSubtitleProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    server.stallRangeResponse(number: stalledRequest)
+    let pending = Task {
+        try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(id: "cancel", url: server.url, displayName: "Cancel")
+        )
+    }
+    let reached = ContinuousClock.now + .seconds(2)
+    while server.ranges.count < stalledRequest, ContinuousClock.now < reached {
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(server.ranges.count == stalledRequest)
+    let began = ContinuousClock.now
+    pending.cancel()
+    await #expect(throws: CancellationError.self) { try await pending.value }
+    #expect(ContinuousClock.now - began < .seconds(2))
+    #expect(session.availableSubtitleTracks.map(\.id) == ["ffmpeg.subtitle.1", "ffmpeg.subtitle.2"])
+    await session.closeAndWait()
+}
+
+@Test func externalASSPreparationKeepsItsCachedFrameAcrossReselectionAndBackwardTime() async throws {
+    let fixture = try hanASSSubtitleFixtureURL()
+    defer { try? FileManager.default.removeItem(at: fixture) }
+    let server = try RecordingRangeServer(serving: Data(contentsOf: fixture))
+    defer { server.stop() }
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-ass-ready",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FFmpegSubtitleProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    let tracks = try await session.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(id: "ass", url: server.url, displayName: "ASS")
+    )
+    let track = try #require(tracks.first)
+    #expect(track.codecName == "ass")
+    let connections = server.connections
+    server.rejectResponsesAndDisconnect()
+    try await session.selectSubtitleTrack(id: track.id)
+    session.publishSubtitleFrame(at: CMTime(seconds: 1.25, preferredTimescale: 600))
+    let initial = try #require(session.activeSubtitleFrame)
+    #expect(initial.kind == .libass)
+    session.publishSubtitleFrame(at: CMTime(seconds: 5.25, preferredTimescale: 600))
+    try await session.selectSubtitleTrack(id: nil)
+    try await session.selectSubtitleTrack(id: track.id)
+    session.publishSubtitleFrame(at: CMTime(seconds: 1.25, preferredTimescale: 600))
+    let revisited = try #require(session.activeSubtitleFrame)
+    #expect(revisited.premultipliedBGRA == initial.premultipliedBGRA)
+    #expect(server.connections == connections)
+}
+
+@Test func externalBitmapPreparationKeepsItsFrameAvailableAfterTheServerStops() async throws {
+    let server = try RecordingRangeServer(serving: Data(contentsOf: bitmapSubtitleFixtureURL()))
+    defer { server.stop() }
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-bitmap-ready",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FFmpegSubtitleProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    let tracks = try await session.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(id: "bitmap", url: server.url, displayName: "Bitmap")
+    )
+    let track = try #require(tracks.first)
+    #expect(track.codecName == "dvb_subtitle")
+    let connections = server.connections
+    server.rejectResponsesAndDisconnect()
+    try await session.selectSubtitleTrack(id: track.id)
+    session.publishSubtitleFrame(at: CMTime(seconds: 0.5, preferredTimescale: 600))
+    let frame = try #require(session.activeSubtitleFrame)
+    #expect(frame.kind == .bitmap)
+    #expect(frame.premultipliedBGRA.count == frame.bytesPerRow * frame.contentHeight)
+    session.publishSubtitleFrame(at: CMTime(seconds: 5, preferredTimescale: 600))
+    try await session.selectSubtitleTrack(id: nil)
+    try await session.selectSubtitleTrack(id: track.id)
+    session.publishSubtitleFrame(at: CMTime(seconds: 0.5, preferredTimescale: 600))
+    let revisited = try #require(session.activeSubtitleFrame)
+    #expect(revisited.premultipliedBGRA == frame.premultipliedBGRA)
+    #expect(server.connections == connections)
+}
+
+@Test func aRuntimeExternalRendererFailureDiscardsItsTrack() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-frame-failure",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: GatedExternalSubtitlePreparationProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    _ = try await session.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(id: "bad-frame", url: URL(fileURLWithPath: "/frame-fail"), displayName: "Bad frame")
+    )
+    try await session.selectSubtitleTrack(id: "external.subtitle.bad-frame.1")
+    session.publishSubtitleFrame(at: CMTime(seconds: 1, preferredTimescale: 600))
+    #expect(session.availableSubtitleTracks.map(\.id) == ["ffmpeg.subtitle.1"])
+    #expect(session.selectedSubtitleTrackID == nil)
+}
+
+private final class ExternalSubtitlePreparationTestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var blocked = false
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.withLock {
+                self.continuation = continuation
+                blocked = true
+            }
+        }
+    }
+
+    func waitUntilBlocked() async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while !lock.withLock({ blocked }), ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        try #require(lock.withLock { blocked })
+    }
+
+    func release() {
+        let continuation = lock.withLock {
+            defer { self.continuation = nil }
+            return self.continuation
+        }
+        continuation?.resume()
+    }
+}
+
+private final class GatedExternalSubtitlePreparationProvider: SubtitleProvider {
+    private let gates: [URL: ExternalSubtitlePreparationTestGate]
+
+    init(gates: [URL: ExternalSubtitlePreparationTestGate] = [:]) {
+        self.gates = gates
+    }
+
+    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
+        [PlaybackSubtitleTrack(id: "ffmpeg.subtitle.1", streamIndex: 1, codecName: "subrip", language: nil, title: nil)]
+    }
+
+    func cues(in url: URL, asset: PlaybackAsset?, track: PlaybackSubtitleTrack) async throws -> [PlaybackSubtitleCue] {
+        if let gate = gates[url] { await gate.wait() }
+        if url.lastPathComponent == "fail" { throw SubtitleProviderError.read("Invalid replacement") }
+        return [PlaybackSubtitleCue(
+            id: "\(track.id).cue.0",
+            trackID: track.id,
+            timeRange: CMTimeRange(start: .zero, duration: CMTime(seconds: 3, preferredTimescale: 600)),
+            text: url.lastPathComponent
+        )]
+    }
+
+    func frameRenderer(in url: URL, asset: PlaybackAsset?, track: PlaybackSubtitleTrack) async throws -> SubtitleFrameRendering? {
+        url.lastPathComponent == "frame-fail" ? FailingExternalSubtitleFrameRenderer() : nil
+    }
+
+    func cancel() {}
+}
+
+private final class FailingExternalSubtitleFrameRenderer: SubtitleFrameRendering {
+    func frame(at time: CMTime, viewportWidth: Int, viewportHeight: Int) throws -> PlaybackSubtitleFrame? {
+        throw SubtitleProviderError.read("Invalid external subtitle frame")
+    }
+}
+
+private final class FailingExternalSubtitlePreparationProvider: SubtitleProvider {
+    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
+        [PlaybackSubtitleTrack(
+            id: "ffmpeg.subtitle.1",
+            streamIndex: 1,
+            codecName: "subrip",
+            language: nil,
+            title: nil
+        )]
+    }
+
+    func cues(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> [PlaybackSubtitleCue] {
+        throw SubtitleProviderError.read("Invalid subtitle cue data")
+    }
+
+    func cancel() {}
 }
 
 private func bitmapSubtitleFixtureURL() throws -> URL {

@@ -91,7 +91,7 @@ final class ServerCertificateChangePlaybackBoundary {
             setUserVisibleIssue(.serverCertificateChanged)
         case .stopped:
             protectsCertificateChangeIssue = false
-        case .diagnostics, .lifecycle, .activeFailure, .seekCompleted:
+        case .diagnostics, .lifecycle, .activeFailure, .seekCompleted, .subtitleSelectionChanged:
             break
         }
     }
@@ -1009,7 +1009,7 @@ private extension MediaPlaybackItem {
             versionedIdentity: versionedIdentity,
             sourceAccess: accessLease,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed
+            externalSubtitleDiscovery: externalSubtitleDiscovery
         )
     }
 }
