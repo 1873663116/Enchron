@@ -35,7 +35,7 @@ class InstrumentFault(Exception):
 
 两份 kind 清单的权威是 `Scripts/verification/harness/failures.py` 的 `INSTRUMENT_KINDS` 与 `PRODUCT_KINDS`，本文与代码同步列出。
 
-仪器故障 kind 十项：`transport-timeout`（调用方库观测到的 subprocess 超时）、`response-timeout`（runner 自身的应答死线到期，由 runner 以 instrument 类发出）、`runner-crashed`（非零退出且无可解析 JSON）、`response-undecodable`（JSON 解码失败）、`contract-mismatch`（退出码与 JSON 内 success 字段矛盾）、`wait-expired`（等待原语到期）、`app-not-running`、`session-lost`、`provisional-budget-expired`、`evidence-destroyed`（证据作用域内声明了销毁）。产品失败 kind 两项：`assertion-mismatch` 与 `app-crashed`。
+仪器故障 kind 十项：`transport-timeout`（调用方库观测到的 subprocess 超时）、`response-timeout`（runner 自身的应答死线到期，由 runner 以 instrument 类发出）、`runner-crashed`（非零退出且无可解析 JSON）、`response-undecodable`（JSON 解码失败）、`contract-mismatch`（退出码与 JSON 内 success 字段矛盾）、`wait-expired`（等待原语到期）、`app-not-running`、`session-lost`、`budget-undeclared`、`evidence-destroyed`（证据作用域内声明了销毁）。产品失败 kind 两项：`assertion-mismatch` 与 `app-crashed`。
 
 `ControllerClient` 原样转抛 runner 给出的 kind，因此 runner 端新增的 kind 会在不进入 `INSTRUMENT_KINDS` 的情况下到达调用方；`runner-gone` 目前就是这样一项（runner 在 `stage == "runnerGone"` 时发出，class 为 instrument，清单里没有它）。按 kind 分支的调用方按此实际取值对账，不要以清单为穷举。
 
@@ -67,16 +67,9 @@ runner 输出的 JSON 文档在失败时必须携带：
 
 - `censored: true` 表示该次动作在预算内未完成，`seconds` 记录的是预算值（下界）。成功与失败都记样本；旧代码只记成功的偏差就此修正。
 - `BudgetProvider.budget(lane, verb) -> Budget(seconds, provenance)`。导出规则：非删失与删失样本合并取 p95，乘系数 1.5，夹在 [5s, 600s]。`provenance` 是人读字符串，格式 `p95 <x>s × 1.5, lane=<lane>, n=<n>, censored=<c>`，出现在每条超时报错里。
-- 样本数不足 5 时查临时预算表 `Scripts/verification/harness/provisional_budgets.json`：`{"<verb>": {"seconds": <n>, "expires": "<日期>"}}`。条目可再带 `floorSeconds`：样本足够时导出的预算低于它就抬到它，`Budget.at_floor` 记录这次抬升。已过期→抛 `InstrumentFault("provisional-budget-expired")`；无条目→抛同类故障。
-- 表内还有一个非 verb 的顶层键 `_expiry`，值是说明字符串，内容与下一节一致。`BudgetProvider` 只按 verb 名取条目，取到的值不是对象即按无条目处理，这个键因此不会被当成预算。
-
-### 临时预算的统一到期日
-
-表内 63 个条目共用同一个到期日 `2026-10-01`，没有分批。`BudgetProvider.provisional_budget` 的判据是 `today() >= expires`，2026-10-01 当天条目即为过期。
-
-此后任何在该 lane 实测样本不足 5 条的 verb，一取预算就抛 `InstrumentFault("provisional-budget-expired")`。这是仪器故障，不是产品失败：当前段落的观测整体作废并进入恢复，同一位置同一 kind 连续第二次由 `RecoveryPolicy` 判 `Halt`。截至 2026-09-11，device lane 有 36 个、simulator lane 有 50 个条目的实测样本不足 5 条。
-
-到期日按测量债到期设定。消解方式是把样本测够 5 条，让预算改由测量导出；整体顺延日期不构成消解。
+- 样本数不足 5 时，预算取临时预算表 `Scripts/verification/harness/provisional_budgets.json` 中该 verb 条目的 `seconds`。表内没有到期日。条目可再带 `floorSeconds`：样本足够时导出的预算低于它就抬到它，`Budget.at_floor` 记录这次抬升。
+- 表内无该 verb 的对象条目时抛 `InstrumentFault("budget-undeclared")`。这是配置错误，不属于超时类，同一节点不因此推迟给人。
+- 冻结运行（设置了 `ENCHRON_EXECUTION_INPUT`）只把样本写入运行目录下的 `timing-samples.jsonl`。这些样本计入 5 条之前，须经 `Scripts/verification/fold_timing_samples.py` 并入 `controller_timings.<lane>.json`。
 
 ## 控制器调用（harness/controller.py）
 

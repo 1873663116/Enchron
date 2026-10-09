@@ -58,8 +58,7 @@ MEDIA_LIBRARY_TAB_IDENTIFIERS = {
     "plex": "Plex-Navigation-Tab",
     "jellyfin": "Jellyfin-Navigation-Tab",
 }
-MEDIA_LIBRARY_CHECKBOX_OPERATION = "accessibility:Settings-mediaLibraryTabs-checkbox-{id}"
-MEDIA_LIBRARY_SAVE_OPERATION = "accessibility:Settings-mediaLibraryTabs-save"
+MEDIA_LIBRARY_CHOICE_OPERATION = "accessibility:Settings-mediaLibraryTabs-choice-{id}"
 PROOF_CONTEXTS = (MAIN_WINDOW_BROWSER_CONTEXT, *PRESENTATIONS)
 UNMEASURED_REASON = "The first-run fixture has not produced delivery evidence."
 
@@ -162,7 +161,7 @@ LIBRARY_VIEW_MODE_PATTERN = re.compile(
 )
 
 
-def media_library_checkbox_state(document: dict[str, Any]) -> tuple[bool, str] | None:
+def media_library_choice_state(document: dict[str, Any]) -> tuple[bool, str] | None:
     element = document.get("matchedElement")
     if not isinstance(element, dict):
         return None
@@ -590,6 +589,7 @@ def replay_deferred_evidence(
         )
 
         requirement_results: list[bool] = []
+        consumed_records: set[int] = set()
         for requirement in delivery.get("probeRequirements", []):
             after_text = str(requirement.get("after", started_at))
             after = datetime.fromisoformat(
@@ -601,10 +601,16 @@ def replay_deferred_evidence(
                 if before_text is not None else end
             )
             needles = [str(value) for value in requirement.get("needles", [])]
-            requirement_results.append(any(
-                after <= timestamp <= before and all(needle in detail for needle in needles)
-                for timestamp, detail in records
-            ))
+            distinct = requirement.get("distinctEvent") is True
+            matched_record = next((
+                index for index, (timestamp, detail) in enumerate(records)
+                if (not distinct or index not in consumed_records)
+                and after <= timestamp <= before
+                and all(needle in detail for needle in needles)
+            ), None)
+            requirement_results.append(matched_record is not None)
+            if distinct and matched_record is not None:
+                consumed_records.add(matched_record)
         probe_passes = all(requirement_results)
         passed = (
             session_aligned
@@ -4846,16 +4852,16 @@ class ReachabilityRun:
             response = self.controller("tap", "--identifier", identifier, "--no-screenshot")
             if response.get("success") is not True:
                 return False
-        visible = self.wait_for_identifier("Settings-mediaLibraryTabs-checkbox-emby")
+        visible = self.wait_for_identifier("Settings-mediaLibraryTabs-choice-emby")
         return isinstance(visible.get("matchedElement"), dict)
 
     def read_media_library_tab_choices(self) -> dict[str, tuple[bool, str]] | None:
         choices = {}
         for name in MEDIA_LIBRARY_TAB_IDENTIFIERS:
             document = self.controller(
-                "snapshot", "--identifier", f"Settings-mediaLibraryTabs-checkbox-{name}", "--no-screenshot"
+                "snapshot", "--identifier", f"Settings-mediaLibraryTabs-choice-{name}", "--no-screenshot"
             )
-            state = media_library_checkbox_state(document)
+            state = media_library_choice_state(document)
             if state is None:
                 return None
             choices[name] = state
@@ -4882,18 +4888,12 @@ class ReachabilityRun:
         choices = self.read_media_library_tab_choices()
         if choices is None:
             return False
-        changed = False
         for name, selected in original.items():
             if choices[name][0] == selected:
                 continue
-            changed = True
             response = self.controller(
-                "tap", "--identifier", f"Settings-mediaLibraryTabs-checkbox-{name}", "--no-screenshot"
+                "tap", "--identifier", f"Settings-mediaLibraryTabs-choice-{name}", "--no-screenshot"
             )
-            if response.get("success") is not True:
-                return False
-        if changed:
-            response = self.controller("tap", "--identifier", "Settings-mediaLibraryTabs-save", "--no-screenshot")
             if response.get("success") is not True:
                 return False
         choices = self.read_media_library_tab_choices()
@@ -4909,8 +4909,7 @@ class ReachabilityRun:
             if initialized.get("success") is not True:
                 return
         context = MAIN_WINDOW_BROWSER_CONTEXT
-        self.mark_driven(context, MEDIA_LIBRARY_CHECKBOX_OPERATION)
-        self.mark_driven(context, MEDIA_LIBRARY_SAVE_OPERATION)
+        self.mark_driven(context, MEDIA_LIBRARY_CHOICE_OPERATION)
         if not self.enter_media_library_tab_settings():
             return
         choices = self.read_media_library_tab_choices()
@@ -4919,72 +4918,49 @@ class ReachabilityRun:
         original = {name: state[0] for name, state in choices.items()}
         if media_library_tab_visibility(self.last_controller_document) != original:
             return
-        checkbox_verified = False
-        save_verified = False
-        save_evidence = ""
+        requirements = []
+        evidence = ""
         try:
             for name, previous in choices.items():
-                identifier = f"Settings-mediaLibraryTabs-checkbox-{name}"
-                tapped = self.tap(context, identifier, operation_id=MEDIA_LIBRARY_CHECKBOX_OPERATION)
-                changed = self.controller("snapshot", "--identifier", identifier, "--no-screenshot")
-                state = media_library_checkbox_state(changed)
-                if (
-                    tapped.get("success") is not True
-                    or (tapped.get("matchedElement") or {}).get("isHittable") is not True
-                    or state is None or state[0] == previous[0] or state[1] == previous[1]
-                    or media_library_tab_visibility(changed) != original
-                ):
-                    return
-                reverted = self.controller("tap", "--identifier", identifier, "--no-screenshot")
-                checked = self.controller("snapshot", "--identifier", identifier, "--no-screenshot")
-                if reverted.get("success") is not True or media_library_checkbox_state(checked) != previous:
-                    return
-            checkbox_verified = True
-            changed = dict(original)
-            changed["emby"] = not changed["emby"]
-            draft = self.controller(
-                "tap", "--identifier", "Settings-mediaLibraryTabs-checkbox-emby", "--no-screenshot"
-            )
-            draft_choices = self.read_media_library_tab_choices()
-            if (
-                draft.get("success") is not True or draft_choices is None
-                or {name: state[0] for name, state in draft_choices.items()} != changed
-                or media_library_tab_visibility(self.last_controller_document) != original
-            ):
-                return
-            before = self.copy_probe("media-library-tabs-save-before")
-            saved = self.tap(context, "Settings-mediaLibraryTabs-save", operation_id=MEDIA_LIBRARY_SAVE_OPERATION)
-            visibility_matches = self.wait_for_media_library_tab_visibility(changed)
-            probe = self.copy_probe("media-library-tabs-save-after")
-            save_verified = (
-                saved.get("success") is True
-                and (saved.get("matchedElement") or {}).get("isHittable") is True
-                and visibility_matches
-                and any(
-                    "reachability settings delivered action=action.media-library-tabs-save" in line
-                    for line in probe[len(before):]
-                )
-            )
-            save_evidence = self.events[-1]["evidence"]
-            if isinstance(probe, DeferredProbeView):
-                for requirement in self.deferred_probe_requirements:
-                    requirement["before"] = self.probe_markers[probe.marker]
+                identifier = f"Settings-mediaLibraryTabs-choice-{name}"
+                for selected in (not previous[0], previous[0]):
+                    expected = dict(original)
+                    expected[name] = selected
+                    before = self.copy_probe(f"media-library-tabs-{name}-before")
+                    tapped = self.tap(context, identifier, operation_id=MEDIA_LIBRARY_CHOICE_OPERATION)
+                    changed = self.read_media_library_tab_choices()
+                    visibility_matches = self.wait_for_media_library_tab_visibility(expected)
+                    probe = self.copy_probe(f"media-library-tabs-{name}-after")
+                    if (
+                        tapped.get("success") is not True
+                        or (tapped.get("matchedElement") or {}).get("isHittable") is not True
+                        or changed is None
+                        or {key: state[0] for key, state in changed.items()} != expected
+                        or (selected != previous[0] and changed[name][1] == previous[1])
+                        or (selected == previous[0] and changed[name] != previous)
+                        or not visibility_matches
+                        or not any(
+                            "reachability settings delivered action=action.media-library-tabs-change" in line
+                            for line in probe[len(before):]
+                        )
+                    ):
+                        return
+                    evidence = self.events[-1]["evidence"]
+                    if isinstance(probe, DeferredProbeView):
+                        for requirement in self.deferred_probe_requirements:
+                            requirement["before"] = self.probe_markers[probe.marker]
+                            requirement["distinctEvent"] = True
+                        requirements.extend(self.deferred_probe_requirements)
         finally:
             restored = self.restore_media_library_tabs(original)
             self.settings_restorations.append({
                 "family": "media-library-tabs", "previous": original, "restored": restored,
             })
-        if not restored:
-            return
-        if save_verified:
+        if restored:
+            self.deferred_probe_requirements = requirements
             self.delivered(
-                context, MEDIA_LIBRARY_SAVE_OPERATION, save_evidence,
-                "Real Save emitted its product probe, changed the visible Tab set, and the original visibility was restored through real controls.",
-            )
-        if checkbox_verified:
-            self.delivered(
-                context, MEDIA_LIBRARY_CHECKBOX_OPERATION, self.events[-1]["evidence"],
-                "All three real checkbox taps changed the product draft values while the saved Tab set remained unchanged; the original visibility was restored.",
+                context, MEDIA_LIBRARY_CHOICE_OPERATION, evidence,
+                "All three real choices immediately changed their preference and visible Tab, emitted a change probe, and returned to the original combination through real controls.",
             )
 
     def settings_category_scenario(self) -> None:

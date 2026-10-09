@@ -1,11 +1,11 @@
 # 媒体服务器
 
-Emby、Plex、Jellyfin 分别有独立的入口显示偏好、登录状态和浏览位置，共用媒体库、详情、搜索与播放界面。设置的通用分类可勾选标签栏中的三个入口，保存后立即生效。媒体文件由服务器提供，观看状态由当前服务器保存。
+Emby、Plex、Jellyfin 分别有独立的入口显示偏好、登录状态和浏览位置，共用媒体库、详情、搜索与播放界面。设置的通用分类可选择标签栏中的三个入口，每次选择立即生效。媒体文件由服务器提供，观看状态由当前服务器保存。
 
 ## Sub-features
 
 - 分别连接三种服务，切换 Tab 后保留各自的导航位置。
-- 在设置的通用分类编辑三个入口的勾选草稿，显式保存八种合法组合，包括全部隐藏。隐藏入口保留登录凭证。
+- 在设置的通用分类选择三个入口的八种合法组合，包括全部隐藏。每行左侧为来源品牌图标，右侧为 MenuCheckmark；点击立即更新入口显示偏好与 Tab。隐藏入口保留登录凭证。
 - 浏览电影、系列、季、剧集和合集，查看详情与图片。
 - 搜索、选择媒体版本、从头播放与续播。
 - 播放时选择音轨和字幕，退出后刷新服务器观看进度。
@@ -31,28 +31,27 @@ C tap --identifier Jellyfin-Navigation-Tab
 C tap --identifier Navigation-Ornament-tab-settings
 C tap --identifier Settings-category-general
 C snapshot --identifier Settings-mediaLibraryTabs-group
-C tap --identifier Settings-mediaLibraryTabs-checkbox-emby
-C tap --identifier Settings-mediaLibraryTabs-checkbox-plex
-C tap --identifier Settings-mediaLibraryTabs-checkbox-jellyfin
-C tap --identifier Settings-mediaLibraryTabs-save
+C tap --identifier Settings-mediaLibraryTabs-choice-emby
+C tap --identifier Settings-mediaLibraryTabs-choice-plex
+C tap --identifier Settings-mediaLibraryTabs-choice-jellyfin
 ```
 
-勾选框的 AX value 为当前语言的 Selected 或 Not selected。先读取当前值，只点击与目标组合不同的框。勾选期间，已保存的 Tab 集合须保持不变。草稿与已保存值不同时，Save 可用；点击后须出现 Saved 反馈，并在当前窗口立即显示对应入口。检查三个来源的 `*-Navigation-Tab` 是否存在，同时核对 Files、Settings 和 Environments 仍存在。切换来源前记录账号身份，隐藏和重新显示期间不执行退出或 `resetState`。
+选择行的 AX value 为当前语言的 Selected 或 Not selected，selected trait 同步表达当前选择。先读取当前值，只点击与目标组合不同的行。每次点击后，立即核对该行的两个 AX 信号与三个来源的 `*-Navigation-Tab` 集合，同时核对 Files、Settings 和 Environments 仍存在。本次点击的 `action.media-library-tabs-change` 探针须在点击后、下一次操作前出现。切换来源前记录账号身份，隐藏和重新显示期间不执行退出或 `resetState`。
 
-八种保存组合必须各有保存后的 AX 层级证据，并在重启后核对同一集合：
+八种选择组合必须各有选择后的 AX 层级证据，并在重启后核对同一集合：
 
-| Emby | Plex | Jellyfin | 保存后显示的来源 |
+| Emby | Plex | Jellyfin | 选择后显示的来源 |
 |---|---|---|---|
-| 未勾选 | 未勾选 | 未勾选 | 无 |
-| 未勾选 | 未勾选 | 勾选 | Jellyfin |
-| 未勾选 | 勾选 | 未勾选 | Plex |
-| 未勾选 | 勾选 | 勾选 | Plex、Jellyfin |
-| 勾选 | 未勾选 | 未勾选 | Emby |
-| 勾选 | 未勾选 | 勾选 | Emby、Jellyfin |
-| 勾选 | 勾选 | 未勾选 | Emby、Plex |
-| 勾选 | 勾选 | 勾选 | Emby、Plex、Jellyfin |
+| 未选择 | 未选择 | 未选择 | 无 |
+| 未选择 | 未选择 | 选择 | Jellyfin |
+| 未选择 | 选择 | 未选择 | Plex |
+| 未选择 | 选择 | 选择 | Plex、Jellyfin |
+| 选择 | 未选择 | 未选择 | Emby |
+| 选择 | 未选择 | 选择 | Emby、Jellyfin |
+| 选择 | 选择 | 未选择 | Emby、Plex |
+| 选择 | 选择 | 选择 | Emby、Plex、Jellyfin |
 
-未保存草稿需分别通过离开 General 分类和切换离开 Settings Tab 验证。再次进入 General 后，三个框须恢复已保存组合，Tab 集合未变化。多窗口验证中，一窗口的保存须更新另一窗口的 Tab 集合；另一窗口已经修改的草稿须保留，尚未修改的草稿须同步保存值。隐藏当前选中来源或外部路由指向隐藏来源时，内容目的地须回到 Files。
+多窗口验证中，一窗口的选择须立即更新其他窗口的选择状态与 Tab 集合。隐藏当前选中来源或外部路由指向隐藏来源时，内容目的地须回到 Files。场景结束时，通过真实选择行恢复初始组合，并核对选择状态与 Tab 集合一致。恢复失败时，该场景不能通过。
 
 三个 Tab 内的共用浏览控件使用 `Emby-` 前缀标识。取 `Emby-Evidence` 后，先检查 `account.provider`，再检查 `serverID`、`userID` 和媒体 ID。三种服务的媒体 ID 各自独立。
 
@@ -65,8 +64,8 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 | 种类 | 判据 | 谁守 |
 |---|---|---|
 | 结构 | 三种服务的凭证互不覆盖，退出一种不删除另外两种 | `EmbyServerStoreTests` |
-| 结构 | 八种入口组合往返存取；缺失或错误类型字段默认显示；保存入口保留编辑期间的其他偏好；隐藏来源及环境动作回退 Files | `PreferencesPersistenceTests` |
-| 物理 | 三个勾选框与 Save 可真实点击；勾选不改 Tab；保存后当前及其他窗口立即更新；草稿退出时丢弃；八种组合重启后保留 | 主窗口浏览的 AX 层级、保存反馈与 Operation 证据 |
+| 结构 | 八种入口组合往返存取；缺失或错误类型字段默认显示；切换入口保留其他偏好；隐藏来源及环境动作回退 Files | `PreferencesPersistenceTests` |
+| 物理 | 三个选择行可真实点击；每次选择立即更新偏好、当前及其他窗口的 Tab；八种组合重启后保留；场景恢复初始组合 | 主窗口浏览的 AX 层级、change 探针与 Operation 证据 |
 | 物理 | 隐藏后重新显示同一服务，provider、serverID、userID 保持一致且无需登录便可浏览；正在播放的会话继续 | 隐藏前后的 `Emby-Evidence`、浏览结果及播放画面 |
 | 结构 | Jellyfin 服务器轨道与文件轨道正确对应，外挂字幕使用服务器编号 | `EmbyClientTests`、播放桥测试 |
 | 结构 | Plex 进度回报包含总时长，媒体时间单位转换正确 | `EmbyClientTests` |
@@ -78,7 +77,7 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 
 ## 证明的终态
 
-入口显示验收须绑定勾选前、保存后与重启后的 AX 层级。Save 的点击返回值和 reachability 探针只证明动作送达，入口集合与 Saved 反馈共同证明保存终态。凭证保留以重新显示后的账号身份及真实浏览结果证明，截图中不记录令牌或密码。
+入口显示验收须绑定选择前、每次选择后与重启后的 AX 层级。点击返回值和 reachability 探针只证明动作送达，选择行的 Selected/Not selected value、selected trait 与入口集合共同证明即时更新终态。每次变化的探针须绑定独立时间边界，恢复事件只能证明恢复操作。凭证保留以重新显示后的账号身份及真实浏览结果证明，截图中不记录令牌或密码。
 
 共同旅程必须分别绑定服务、服务器、账号和媒体身份。播放需有实际画面证据。进度保存需通过服务器重新读取确认。切换服务后，退出、续播与连播不得影响另一服务。
 
