@@ -1367,6 +1367,74 @@ private func externalSubtitleFixtureURL() throws -> URL {
     )
 }
 
+@Test func anExternalSubtitleIsReadyBeforeItBecomesAvailableAndSelectionUsesNoNetwork() async throws {
+    let server = try RecordingRangeServer(serving: Data(contentsOf: externalSubtitleFixtureURL()))
+    defer { server.stop() }
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-subtitle-ready",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FFmpegSubtitleProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+    let tracks = try await session.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(id: "ready", url: server.url, displayName: "Ready")
+    )
+    #expect(tracks.map(\.id) == ["external.subtitle.ready.0"])
+    let connectionsAfterPreparation = server.connections
+    server.rejectResponsesAndDisconnect()
+
+    try await session.selectSubtitleTrack(id: "external.subtitle.ready.0")
+
+    #expect(session.activeSubtitleCues(at: CMTime(seconds: 1.5, preferredTimescale: 600))
+        .map(\.text) == ["English subtitle"])
+    #expect(server.connections == connectionsAfterPreparation)
+}
+
+@Test func anExternalSubtitleWhoseCuePreparationFailsNeverBecomesAvailable() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "external-subtitle-invalid-cues",
+        provider: SubtitleTestVideoProvider(),
+        subtitleProvider: FailingExternalSubtitlePreparationProvider()
+    )
+    defer { session.close() }
+    try await session.prepare(url: try subtitleFixtureURL())
+
+    await #expect(throws: SubtitleProviderError.self) {
+        try await session.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(
+                id: "invalid-cues",
+                url: try externalSubtitleFixtureURL(),
+                displayName: "Invalid cues"
+            )
+        )
+    }
+
+    #expect(session.availableSubtitleTracks.map(\.id) == ["ffmpeg.subtitle.1"])
+}
+
+private final class FailingExternalSubtitlePreparationProvider: SubtitleProvider {
+    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
+        [PlaybackSubtitleTrack(
+            id: "ffmpeg.subtitle.1",
+            streamIndex: 1,
+            codecName: "subrip",
+            language: nil,
+            title: nil
+        )]
+    }
+
+    func cues(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> [PlaybackSubtitleCue] {
+        throw SubtitleProviderError.read("Invalid subtitle cue data")
+    }
+
+    func cancel() {}
+}
+
 private func bitmapSubtitleFixtureURL() throws -> URL {
     let encodedPackets = try #require(
         Bundle.module.url(
