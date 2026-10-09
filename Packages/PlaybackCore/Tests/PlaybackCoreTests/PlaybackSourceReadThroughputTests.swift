@@ -33,6 +33,7 @@ import Testing
         PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
             $0,
             monitor,
+            nil,
             &error,
             error.count
         )
@@ -53,6 +54,7 @@ import Testing
         PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
             $0,
             monitor,
+            nil,
             &error,
             error.count
         )

@@ -59,7 +59,33 @@ public struct PlaybackSubtitleCue: Identifiable, Sendable, Equatable {
     }
 }
 
+struct PreparedSubtitleTrack: Sendable {
+    let track: PlaybackSubtitleTrack
+    let cues: [PlaybackSubtitleCue]
+    let renderer: SubtitleFrameRendering?
+}
+
+struct PreparedExternalSubtitleSource: Sendable {
+    let source: PlaybackExternalSubtitleSource
+    let tracks: [PreparedSubtitleTrack]
+}
+
+extension PlaybackSubtitleTrack {
+    func externalTrack(in source: PlaybackExternalSubtitleSource) -> PlaybackSubtitleTrack {
+        PlaybackSubtitleTrack(
+            id: "external.subtitle.\(source.id).\(streamIndex)",
+            streamIndex: streamIndex,
+            codecName: codecName,
+            language: language,
+            title: title ?? source.displayName
+        )
+    }
+}
+
 protocol SubtitleProvider: AnyObject {
+    func prepareExternalSource(
+        _ source: PlaybackExternalSubtitleSource
+    ) async throws -> PreparedExternalSubtitleSource
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack]
     func tracks(
         in url: URL,
@@ -80,6 +106,25 @@ protocol SubtitleProvider: AnyObject {
 }
 
 extension SubtitleProvider {
+    func prepareExternalSource(
+        _ source: PlaybackExternalSubtitleSource
+    ) async throws -> PreparedExternalSubtitleSource {
+        let tracks = try await tracks(in: source.url, asset: nil)
+        guard !tracks.isEmpty else {
+            throw PlaybackControlError.externalSubtitleHasNoSupportedTracks(source.displayName)
+        }
+        var prepared: [PreparedSubtitleTrack] = []
+        for track in tracks {
+            try Task.checkCancellation()
+            let externalTrack = track.externalTrack(in: source)
+            let cues = try await cues(in: source.url, asset: nil, track: externalTrack)
+            let renderer = try await frameRenderer(in: source.url, asset: nil, track: externalTrack)
+            prepared.append(PreparedSubtitleTrack(track: externalTrack, cues: cues, renderer: renderer))
+        }
+        try Task.checkCancellation()
+        return PreparedExternalSubtitleSource(source: source, tracks: prepared)
+    }
+
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
@@ -113,6 +158,57 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
     private let informationLoader: SystemMediaSourceInformationLoader
     private let rendererLock = NSLock()
     private var sharedRenderers: [PlaybackSubtitleTrack.ID: FFmpegSubtitleFrameRenderer] = [:]
+
+    func prepareExternalSource(
+        _ source: PlaybackExternalSubtitleSource
+    ) async throws -> PreparedExternalSubtitleSource {
+        let tracks = try await tracks(in: source.url, asset: nil)
+        try Task.checkCancellation()
+        guard !tracks.isEmpty else {
+            throw PlaybackControlError.externalSubtitleHasNoSupportedTracks(source.displayName)
+        }
+        var prepared: [PreparedSubtitleTrack] = []
+        for track in tracks {
+            let externalTrack = track.externalTrack(in: source)
+            let cancellation = FFmpegReadCancellation()
+            let ready = try await withTaskCancellationHandler {
+                let prepared = try await withCheckedThrowingContinuation {
+                    (continuation: CheckedContinuation<PreparedSubtitleTrack, Error>) in
+                    DispatchQueue.global(qos: .userInitiated).async { [sourceReadMeter] in
+                        do {
+                            let renderer = try FFmpegSubtitleFrameRenderer(
+                                url: source.url,
+                                track: externalTrack,
+                                sourceReadMeter: sourceReadMeter,
+                                cancellation: cancellation
+                            )
+                            let cues = try renderer.textCues(for: externalTrack)
+                            let frameRenderer: SubtitleFrameRendering =
+                                if CoreTextSubtitleFrameRenderer.rendersTextTrack(codecName: externalTrack.codecName) {
+                                    try CoreTextSubtitleFrameRenderer(source: renderer, track: externalTrack)
+                                } else {
+                                    renderer
+                                }
+                            continuation.resume(returning: PreparedSubtitleTrack(
+                                track: externalTrack,
+                                cues: cues,
+                                renderer: frameRenderer
+                            ))
+                        } catch {
+                            continuation.resume(throwing: error)
+                        }
+                    }
+                }
+                try Task.checkCancellation()
+                return prepared
+            } onCancel: {
+                cancellation.cancel()
+            }
+            prepared.append(ready)
+        }
+        try Task.checkCancellation()
+        return PreparedExternalSubtitleSource(source: source, tracks: prepared)
+    }
 
     init(
         sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
@@ -271,14 +367,16 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
     }
 }
 
-enum SubtitleProviderError: LocalizedError, Sendable {
+enum SubtitleProviderError: LocalizedError, Sendable, Equatable {
     case open(String)
     case read(String)
+    case preparationTimedOut
 
     var errorDescription: String? {
         switch self {
         case .open(let message): "Open subtitle provider: \(message)"
         case .read(let message): "Read subtitle provider: \(message)"
+        case .preparationTimedOut: "Subtitle preparation timed out."
         }
     }
 }

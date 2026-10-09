@@ -193,6 +193,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
 PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
     const char *path,
     PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegReadCancellation *cancellation,
     char *errorBuffer,
     size_t errorBufferSize
 );

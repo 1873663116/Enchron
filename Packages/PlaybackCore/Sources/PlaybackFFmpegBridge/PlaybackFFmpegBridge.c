@@ -4000,6 +4000,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
     return PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
         path,
         NULL,
+        NULL,
         errorBuffer,
         errorBufferSize
     );
@@ -4008,6 +4009,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
 PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
     const char *path,
     PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegReadCancellation *cancellation,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -4015,8 +4017,13 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         set_error(errorBuffer, errorBufferSize, "Invalid media source information call");
         return NULL;
     }
+    atomic_bool *cancelled = cancellation ? &cancellation->cancelled : NULL;
+    if (cancellation_requested(cancelled)) {
+        set_error(errorBuffer, errorBufferSize, "The media information read was cancelled");
+        return NULL;
+    }
     PBFFmpegSourceReadContext sourceReadContext = {.monitor = monitor};
-    AVFormatContext *context = allocate_format_context(NULL, &sourceReadContext);
+    AVFormatContext *context = allocate_format_context(cancelled, &sourceReadContext);
     if (!context) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate media information context");
         return NULL;
