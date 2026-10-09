@@ -249,6 +249,79 @@ private enum PlaybackControlPanelSurface {
     case playerControlDock
 }
 
+private struct CenteredRevealShape: InsettableShape {
+    var size: CGSize
+    var cornerRadius: CGFloat
+
+    nonisolated var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(size.width, size.height) }
+        set { size = CGSize(width: newValue.first, height: newValue.second) }
+    }
+
+    nonisolated func path(in rect: CGRect) -> Path {
+        let clamped = CGSize(
+            width: min(size.width, rect.width),
+            height: min(size.height, rect.height)
+        )
+        let centered = CGRect(
+            x: rect.midX - clamped.width / 2,
+            y: rect.midY - clamped.height / 2,
+            width: clamped.width,
+            height: clamped.height
+        )
+        return Path(roundedRect: centered, cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    nonisolated func inset(by amount: CGFloat) -> CenteredRevealShape {
+        var copy = self
+        copy.size = CGSize(
+            width: max(size.width - amount * 2, 0),
+            height: max(size.height - amount * 2, 0)
+        )
+        return copy
+    }
+}
+
+private struct RevealShell: ViewModifier {
+    let surface: PlaybackControlPanelSurface
+    let shape: RoundedRectangle
+    let revealClipSize: CGSize
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        switch surface {
+        case .windowOrnament:
+            content
+                .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+                .padding(.vertical, DesignTokens.ControlBar.paddingV)
+                .enchronGlassBackground(in: shape)
+                .clipShape(
+                    shape.size(
+                        width: revealClipSize.width,
+                        height: revealClipSize.height,
+                        anchor: .center
+                    )
+                )
+        case .playerControlDock:
+            content
+                .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+                .padding(.vertical, DesignTokens.ControlBar.paddingV)
+                .clipShape(
+                    CenteredRevealShape(
+                        size: revealClipSize,
+                        cornerRadius: DesignTokens.Radius.card
+                    )
+                )
+                .enchronGlassBackground(
+                    in: CenteredRevealShape(
+                        size: revealClipSize,
+                        cornerRadius: DesignTokens.Radius.card
+                    )
+                )
+        }
+    }
+}
+
 enum PlaybackPanelSettingsPolicy {
     static func showsVideoFormatEditor(
         for presentation: PlaybackPresentation
@@ -478,17 +551,17 @@ public struct FusedPlayerPanel: View {
         RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
     }
 
-    private var glassScale: CGSize {
-        guard let revealSize, let shellSize, shellSize.width > 0, shellSize.height > 0 else {
-            return CGSize(width: 1, height: 1)
-        }
+    private static let unclippedRevealSize = CGSize(width: 100_000, height: 100_000)
+
+    private var revealClipSize: CGSize {
+        guard let revealSize, let shellSize else { return Self.unclippedRevealSize }
         let paddedShell = CGSize(
             width: shellSize.width + DesignTokens.ControlBar.paddingH * 2,
             height: shellSize.height + DesignTokens.ControlBar.paddingV * 2
         )
         return CGSize(
-            width: min((revealSize.width + DesignTokens.ControlBar.paddingH * 2) / paddedShell.width, 1),
-            height: min((revealSize.height + DesignTokens.ControlBar.paddingV * 2) / paddedShell.height, 1)
+            width: min(revealSize.width + DesignTokens.ControlBar.paddingH * 2, paddedShell.width),
+            height: min(revealSize.height + DesignTokens.ControlBar.paddingV * 2, paddedShell.height)
         )
     }
 
@@ -535,12 +608,11 @@ public struct FusedPlayerPanel: View {
                 .transition(panelContentTransition)
         }
         .frame(width: shellSize?.width, height: shellSize?.height)
-        .scaleEffect(x: 1 / glassScale.width, y: 1 / glassScale.height)
-        .padding(.horizontal, DesignTokens.ControlBar.paddingH)
-        .padding(.vertical, DesignTokens.ControlBar.paddingV)
-        .clipShape(shape)
-        .enchronGlassBackground(in: shape)
-        .scaleEffect(x: glassScale.width, y: glassScale.height)
+        .modifier(RevealShell(
+            surface: surface,
+            shape: shape,
+            revealClipSize: revealClipSize
+        ))
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
 #if DEBUG

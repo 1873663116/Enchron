@@ -46,8 +46,8 @@ public enum DesignTokens {
     public enum AnimationToken {
         public static let controlsTransition: Animation = .easeInOut(duration: 0.4)
         public static let panelSpring: Animation = .spring(duration: 0.4, bounce: 0.15)
-        public static let panelContentExit: Animation = .easeOut(duration: 0.12)
-        public static let panelContentEntrance: Animation = .easeIn(duration: 0.15)
+        public static let panelContentExit: Animation = .easeOut(duration: 0.18)
+        public static let panelContentEntrance: Animation = .easeIn(duration: 0.25).delay(0.12)
         public static let menuPopup: Animation = .spring(duration: 0.35, bounce: 0.15)
         public static let selection: Animation = .spring(.bouncy(duration: 0.4, extraBounce: 0.1))
         public static let listMutation: Animation = .spring(response: 0.34, dampingFraction: 0.86)
