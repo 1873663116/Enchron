@@ -1146,6 +1146,16 @@
       "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-grid-bluray-group-{group.kind.rawValue}",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-mediaLibraryTabs-checkbox-{id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-mediaLibraryTabs-save",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",
