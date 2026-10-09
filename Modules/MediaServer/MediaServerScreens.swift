@@ -543,8 +543,7 @@ public struct MediaServerScreen: View {
                 }
             )
             .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
-            .padding(.top, DesignTokens.Spacing.sm)
-            .padding(.bottom, DesignTokens.SourceSidebar.contentPaddingV)
+            .padding(.vertical, DesignTokens.Spacing.sm)
             .accessibilityIdentifier("Emby-SignOut")
         }
         .frame(width: DesignTokens.SourceSidebar.width)
@@ -873,20 +872,18 @@ private struct MediaServerPosterGrid: View {
     @State private var revealed = false
 
     private var revealKey: [MediaServerItemID] {
-        isLoading ? [] : items.map(\.metadata.id)
+        items.map(\.metadata.id)
     }
 
     var body: some View {
         ScrollView {
-            if isLoading == false {
-                CardGrid {
-                    ForEach(items, id: \.metadata.id) { item in
-                        posterCard(item, session: session, onSelect: onSelect)
-                    }
+            CardGrid {
+                ForEach(items, id: \.metadata.id) { item in
+                    posterCard(item, session: session, onSelect: onSelect)
                 }
-                .padding(DesignTokens.Spacing.xxl)
-                .opacity(revealed ? 1 : 0)
             }
+            .padding(DesignTokens.Spacing.xxl)
+            .opacity(isLoading == false && revealed ? 1 : 0)
         }
         .task(id: revealKey) {
             revealed = false
