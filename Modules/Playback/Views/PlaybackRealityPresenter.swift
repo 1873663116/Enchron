@@ -1382,6 +1382,16 @@ final class PlaybackSubtitleSurface {
             videoEntity.addChild(entity)
         }
         entity.position = nextLayout.position
+#if DEBUG
+        let extent = entity.visualBounds(recursive: false, relativeTo: entity).extents
+        let pixelAspect = (extent.x / Float(frame.contentWidth)) / (extent.y / Float(frame.contentHeight))
+        emitEnablementWrite(
+            "subtitlePixelMapping presentation=\(presentation.rawValue) kind=\(frame.kind.rawValue)"
+                + " canvas=\(frame.canvasWidth)x\(frame.canvasHeight)"
+                + " content=\(frame.contentWidth)x\(frame.contentHeight)"
+                + " extent=\(extent.x)x\(extent.y) pixelAspect=\(pixelAspect)"
+        )
+#endif
         setEnabled(
             true,
             writer: "PlaybackSubtitleSurface.update.frameReady",
