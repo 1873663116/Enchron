@@ -125,6 +125,32 @@ struct EmbyViewModelTests {
         #expect(client.itemQueries[1].sortOrder == .ascending)
     }
 
+    @Test("resume decisions use current server progress instead of the displayed item", arguments: [false, true])
+    func freshResumeDecision(isEpisode: Bool) async throws {
+        let staleEpisode = episode(id: "episode-1", seasonID: "season-1")
+        let freshEpisode = MediaServerEpisode(
+            metadata: itemMetadata(id: "episode-1", resumeTicks: 1_547_000_000),
+            seriesID: staleEpisode.seriesID,
+            seasonID: staleEpisode.seasonID,
+            seasonNumber: staleEpisode.seasonNumber,
+            episodeNumber: staleEpisode.episodeNumber
+        )
+        let stale = isEpisode ? MediaServerLibraryItem.episode(staleEpisode) : movie(id: "movie")
+        let fresh = isEpisode ? MediaServerLibraryItem.episode(freshEpisode) : movie(id: "movie", resumeTicks: 1_547_000_000)
+        let client = ViewModelFakeEmbyClient(itemByID: [fresh.metadata.id: fresh])
+        let session = makeSession(client: client, server: authenticatedServer)
+        let detail = MediaServerDetailViewModel(itemID: stale.metadata.id, client: client, session: session, knownItem: stale)
+
+        let selection = if isEpisode {
+            try await detail.playbackSelection(for: staleEpisode)
+        } else {
+            try await detail.playbackSelection(startAction: .resume)
+        }
+
+        #expect(selection.resumeCandidateSeconds == 154.7)
+        #expect(selection.item.metadata.id == stale.metadata.id)
+    }
+
     @Test("detail resume and restart preserve server authority and choose the server position")
     func detailPlaybackActions() async throws {
         let item = movie(id: "movie", resumeTicks: 75_000_000, mediaSourceID: "source")
