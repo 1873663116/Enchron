@@ -484,31 +484,41 @@ public struct MediaServerScreen: View {
 #endif
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            Text(session.server?.name ?? session.client.kind.title)
-                .font(DesignTokens.SourceSidebar.sectionTitleFont)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .lineLimit(2)
-                .minimumScaleFactor(0.8)
-                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                    Text(session.server?.name ?? session.client.kind.title)
+                        .font(DesignTokens.SourceSidebar.sectionTitleFont)
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.8)
+                        .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 
-            VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
-                sidebarRow(icon: "house.fill", title: String(localized: "Home"), destination: .home)
+                    VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
+                        sidebarRow(icon: "house.fill", title: String(localized: "Home"), destination: .home)
 
-                ForEach(home.libraries, id: \.id) { library in
-                    sidebarRow(
-                        icon: "rectangle.stack.fill",
-                        title: library.name,
-                        destination: .library(library.id)
-                    )
+                        ForEach(home.libraries, id: \.id) { library in
+                            sidebarRow(
+                                icon: "rectangle.stack.fill",
+                                title: library.name,
+                                destination: .library(library.id)
+                            )
+                        }
+
+                        sidebarRow(icon: "magnifyingglass", title: String(localized: "Search"), destination: .search)
+                    }
+                    .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
                 }
-
-                sidebarRow(icon: "magnifyingglass", title: String(localized: "Search"), destination: .search)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, DesignTokens.SourceSidebar.contentPaddingV)
+                .padding(.bottom, DesignTokens.Spacing.lg)
             }
-            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
+            .scrollIndicators(.hidden)
 
-            Spacer(minLength: 0)
+            Rectangle()
+                .fill(DesignTokens.Surface.chromeBorder)
+                .frame(height: DesignTokens.Stroke.subtle)
 
             EditableSourceSidebarRow(
                 icon: "rectangle.portrait.and.arrow.right",
@@ -533,9 +543,10 @@ public struct MediaServerScreen: View {
                 }
             )
             .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
+            .padding(.top, DesignTokens.Spacing.sm)
+            .padding(.bottom, DesignTokens.SourceSidebar.contentPaddingV)
             .accessibilityIdentifier("Emby-SignOut")
         }
-        .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .enchronSidebarSurface()
@@ -787,9 +798,7 @@ private struct MediaServerLibraryScreen: View {
 #if DEBUG
                             session.recordReachability("library.sort.\(value)")
 #endif
-                            withAnimation(DesignTokens.AnimationToken.selection) {
-                                viewModel.setSort(value)
-                            }
+                            viewModel.setSort(value)
                             Task { await viewModel.refresh() }
                         }
                     )) {
