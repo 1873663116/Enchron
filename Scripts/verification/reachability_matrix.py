@@ -1316,13 +1316,14 @@ class ReachabilityRun:
         self.halted = False
         self.service_hosts: dict[str, str] = {}
         self.service_receipts: dict[str, dict[str, object]] = {}
-        try:
-            hosts, receipts = _resolved_service_hosts(emby_identity_file(arguments))
-            self.service_hosts = hosts
-            self.service_receipts = receipts
-        except Exception:
-            self.service_hosts = {}
-            self.service_receipts = {}
+        if self.segment is None or self.segment.get("scenarios") != ["settings-media-library-tabs"]:
+            try:
+                hosts, receipts = _resolved_service_hosts(emby_identity_file(arguments))
+                self.service_hosts = hosts
+                self.service_receipts = receipts
+            except Exception:
+                self.service_hosts = {}
+                self.service_receipts = {}
         plan_document = getattr(arguments, "segment_plan_document", None)
         if self.segment is not None and isinstance(plan_document, dict):
             (self.output / "segment-plan.json").write_text(

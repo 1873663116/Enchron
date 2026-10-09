@@ -28,6 +28,49 @@ def arm_recovery(run: matrix.ReachabilityRun) -> None:
     run.halted = False
 
 
+class SettingsSegmentServicePreflightTests(unittest.TestCase):
+    def construct_run(self, directory, scenarios):
+        resolution = Path(directory) / "service-resolution-started"
+
+        def resolve(identity):
+            resolution.write_text(str(identity), encoding="utf-8")
+            return (
+                {"emby": "media.example"},
+                {"emby": {"action": "unavailable", "reason": "identity-mismatch"}},
+            )
+
+        arguments = SimpleNamespace(
+            output_directory=Path(directory) / "evidence",
+            execution_input=Path(directory) / "execution-input.json",
+            emby_credentials=Path(directory) / "empty-identity.json",
+            segment_spec={"scenarios": scenarios} if scenarios is not None else None,
+        )
+        with patch.object(matrix.enchron_target, "require_target_device", return_value="test-device"), patch.object(
+            matrix.enchron_target, "is_simulator", return_value=False
+        ), patch.object(matrix, "read_webdav_credentials", return_value=()), patch.object(
+            matrix, "select_run", return_value=(matrix.run_runner, "live")
+        ), patch.object(matrix, "_resolved_service_hosts", side_effect=resolve):
+            run = matrix.ReachabilityRun(arguments)
+        return run, resolution
+
+    def test_pure_settings_constructor_has_no_service_prerequisite(self):
+        with TemporaryDirectory() as directory:
+            run, resolution = self.construct_run(directory, ["settings-media-library-tabs"])
+            self.assertEqual(resolution.exists(), False)
+            self.assertEqual(run.service_hosts, {})
+            self.assertEqual(run.service_receipts, {})
+            self.assertEqual(run._service_preflight_failed(), False)
+
+    def test_other_constructor_scenarios_keep_service_resolution(self):
+        for scenarios in (None, [], ["settings-menus"], ["settings-media-library-tabs", "settings-menus"], ["settings-media-library-tabs", "settings-media-library-tabs"]):
+            with self.subTest(scenarios=scenarios), TemporaryDirectory() as directory:
+                run, resolution = self.construct_run(directory, scenarios)
+                self.assertEqual(resolution.read_text(), str(Path(directory) / "empty-identity.json"))
+                self.assertEqual(run.service_hosts, {"emby": "media.example"})
+                self.assertEqual(run.service_receipts, {"emby": {"action": "unavailable", "reason": "identity-mismatch"}})
+                self.assertEqual(run._service_preflight_failed(), True)
+
+
 class MediaLibraryTabsScenarioTests(unittest.TestCase):
     def run_scenario(self, original, *, save_effect=True, probe=True, eager_save=False, fail_restore=False, stale_value=False):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
