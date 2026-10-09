@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-09-05T23:59:49.808036+00:00",
-  "acceptedFrom": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/.scratch/2026-09-06-nightly/merge-accept/delivery.json",
+  "acceptedAt": "2026-10-09T06:24:17.721139+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/media-servers-device-validation/.scratch/media-servers-device-e2e/tab-controls-evidence-delivery/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -1150,12 +1150,12 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-mediaLibraryTabs-checkbox-{id}",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     },
     {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-mediaLibraryTabs-save",
-      "verdict": "known-defect"
+      "verdict": "reachable"
     }
   ],
   "coordinateSystem": "proof-context-v1",
