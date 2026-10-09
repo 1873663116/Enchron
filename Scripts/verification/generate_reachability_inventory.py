@@ -804,6 +804,8 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "-close",
             "-refresh",
             "-action-",
+            "-checkbox-",
+            "-save",
             "-toggle",
             "-surface",
         )
@@ -813,7 +815,8 @@ def identifier_role(template: str) -> tuple[str, str | None]:
 
 
 INTERACTIVE_CONSTRUCT = re.compile(
-    r"\b(Button|Menu|Toggle|Picker|Slider|TextField|SecureField|NavigationLink)\b"
+    r"\b(Button|Menu|Toggle|Picker|Slider|TextField|SecureField|NavigationLink"
+    r"|ListGroupRowShell|GlassCapsuleIconLabelButton)\b"
     r"|\.onTapGesture"
     r"|\.accessibilityAddTraits\(\.isButton\)"
     r"|\.accessibilityAction"
@@ -859,7 +862,11 @@ def modifier_chain(text: str, line: int) -> list[str]:
         depth = len(candidate) - len(candidate.lstrip())
         if depth > indent:
             continue
-        if depth < indent or not CHAIN_CONTINUATION.match(stripped):
+        if depth < indent:
+            break
+        if not CHAIN_CONTINUATION.match(stripped):
+            if re.match(r"(?:ListGroupRowShell|GlassCapsuleIconLabelButton)\s*\(", stripped):
+                chain.append(stripped)
             break
         chain.append(stripped)
     return chain

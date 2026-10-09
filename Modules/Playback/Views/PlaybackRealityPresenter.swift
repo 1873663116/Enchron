@@ -1244,8 +1244,9 @@ enum PlaybackSubtitlePlacement {
         }
         let canvasWidth = Float(frame.canvasWidth)
         let canvasHeight = Float(frame.canvasHeight)
-        let contentWidth = resolvedScreenSize.x * Float(frame.contentWidth) / canvasWidth
-        let contentHeight = resolvedScreenSize.y * Float(frame.contentHeight) / canvasHeight
+        let pixelScale = min(resolvedScreenSize.x / canvasWidth, resolvedScreenSize.y / canvasHeight)
+        let contentWidth = pixelScale * Float(frame.contentWidth)
+        let contentHeight = pixelScale * Float(frame.contentHeight)
         let centerX: Float
         let centerY: Float
         if pinsToLowerCenter(presentation) {
@@ -1382,6 +1383,16 @@ final class PlaybackSubtitleSurface {
             videoEntity.addChild(entity)
         }
         entity.position = nextLayout.position
+#if DEBUG
+        let extent = entity.visualBounds(recursive: false, relativeTo: entity).extents
+        let pixelAspect = (extent.x / Float(frame.contentWidth)) / (extent.y / Float(frame.contentHeight))
+        emitEnablementWrite(
+            "subtitlePixelMapping presentation=\(presentation.rawValue) kind=\(frame.kind.rawValue)"
+                + " canvas=\(frame.canvasWidth)x\(frame.canvasHeight)"
+                + " content=\(frame.contentWidth)x\(frame.contentHeight)"
+                + " extent=\(extent.x)x\(extent.y) pixelAspect=\(pixelAspect)"
+        )
+#endif
         setEnabled(
             true,
             writer: "PlaybackSubtitleSurface.update.frameReady",

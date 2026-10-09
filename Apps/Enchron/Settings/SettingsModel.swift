@@ -2,6 +2,18 @@ import Foundation
 import Playback
 import Observation
 
+public nonisolated struct MediaLibraryTabVisibility: Sendable, Equatable {
+    public var emby: Bool
+    public var plex: Bool
+    public var jellyfin: Bool
+
+    public init(emby: Bool = true, plex: Bool = true, jellyfin: Bool = true) {
+        self.emby = emby
+        self.plex = plex
+        self.jellyfin = jellyfin
+    }
+}
+
 public nonisolated struct UserPreferences: Sendable, Equatable {
     public var resumePolicy: ResumePolicy
     public var playbackEndBehavior: PlaybackEndBehavior
@@ -9,6 +21,7 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
     public var controlsAutoHideSeconds: Int
     public var developerModeEnabled: Bool
     public var surroundingsDimmingEnabled: Bool
+    public var mediaLibraryTabs: MediaLibraryTabVisibility
 
     public init(
         resumePolicy: ResumePolicy = .askEveryTime,
@@ -16,7 +29,8 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         defaultPlaybackSpeed: Double = 1.0,
         controlsAutoHideSeconds: Int = 8,
         developerModeEnabled: Bool = false,
-        surroundingsDimmingEnabled: Bool = true
+        surroundingsDimmingEnabled: Bool = true,
+        mediaLibraryTabs: MediaLibraryTabVisibility = .init()
     ) {
         self.resumePolicy = resumePolicy
         self.playbackEndBehavior = playbackEndBehavior
@@ -24,6 +38,7 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         self.controlsAutoHideSeconds = controlsAutoHideSeconds
         self.developerModeEnabled = developerModeEnabled
         self.surroundingsDimmingEnabled = surroundingsDimmingEnabled
+        self.mediaLibraryTabs = mediaLibraryTabs
     }
 }
 

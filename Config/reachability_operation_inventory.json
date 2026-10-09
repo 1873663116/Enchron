@@ -3216,6 +3216,42 @@
       "scope": "product",
       "sources": [
         {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-mediaLibraryTabs-checkbox-{id}"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-mediaLibraryTabs-group"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-mediaLibraryTabs-save"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         }
       ],
@@ -6176,6 +6212,42 @@
     {
       "id": "accessibility:Settings-category-{item.id}",
       "identifierTemplate": "Settings-category-{item.id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-mediaLibraryTabs-checkbox-{id}",
+      "identifierTemplate": "Settings-mediaLibraryTabs-checkbox-{id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-mediaLibraryTabs-save",
+      "identifierTemplate": "Settings-mediaLibraryTabs-save",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
