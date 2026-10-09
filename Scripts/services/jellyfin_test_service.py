@@ -12,10 +12,15 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from jellyfin_refresh import AUTHORIZATION
 
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from Scripts.services.jellyfin_refresh import AUTHORIZATION
+
+
 STATE = Path.home() / "Library/Application Support/Enchron Test Services/Jellyfin"
 EVIDENCE = ROOT / "tmp/archive/jellyfin-setup"
 PRIVATE = STATE / "config/service.local.json"
@@ -90,14 +95,14 @@ def start():
 
 
 def emby_folders():
-    import emby_probe
+    from Scripts.verification import emby_probe
     username, password = emby_probe.credentials()
     emby = emby_probe.request("http://127.0.0.1:8096", "/Users/AuthenticateByName", payload={"Username": username, "Pw": password})
     return emby_probe.request("http://127.0.0.1:8096", "/Library/VirtualFolders", token=emby["AccessToken"])
 
 
 def configure():
-    import jellyfin_refresh
+    from Scripts.services import jellyfin_refresh
     folders = emby_folders()
     source_file = EVIDENCE / "source-manifest.local.json"
     source = json.loads(source_file.read_text()) if source_file.exists() else None
@@ -349,7 +354,7 @@ def indexed_files(parent, token, user):
 
 
 def refresh():
-    import jellyfin_refresh
+    from Scripts.services import jellyfin_refresh
     print(json.dumps(jellyfin_refresh.refresh(STATE), ensure_ascii=False))
 
 
