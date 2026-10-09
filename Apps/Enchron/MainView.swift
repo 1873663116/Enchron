@@ -182,33 +182,45 @@ public struct MainView: View {
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
 
-            Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
-                MediaServerScreen { selectionResult in
-                    guard let selection = try? selectionResult.get() else {
-                        playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
-                        return
+            if settingsViewModel.preferences.mediaLibraryTabs.emby {
+                Tab(value: AppModel.NavigationTab.emby) {
+                    MediaServerScreen { selectionResult in
+                        guard let selection = try? selectionResult.get() else {
+                            playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
+                            return
+                        }
+                        playbackLauncher.decideResume(fromSeconds: selection.resumeCandidateSeconds) { resume in
+                            launchServerSelection(
+                                selection.replacingStartAction(resume ? .resume : .fromBeginning),
+                                session: embySession
+                            )
+                        }
                     }
-                    playbackLauncher.decideResume(fromSeconds: selection.resumeCandidateSeconds) { resume in
-                        launchServerSelection(
-                            selection.replacingStartAction(resume ? .resume : .fromBeginning),
-                            session: embySession
-                        )
-                    }
+                    .enchronScreenAppearance()
+                    .browserTabBarVisibility(browserVisibility)
+                } label: {
+                    Label("Emby", image: "EmbyTabIcon")
                 }
-                .enchronScreenAppearance()
-                .browserTabBarVisibility(browserVisibility)
+                .accessibilityIdentifier("Emby-Navigation-Tab")
             }
-            .accessibilityIdentifier("Emby-Navigation-Tab")
 
-            Tab("Plex", systemImage: "play.tv.fill", value: AppModel.NavigationTab.plex) {
-                serverScreen(serverSources.plex)
+            if settingsViewModel.preferences.mediaLibraryTabs.plex {
+                Tab(value: AppModel.NavigationTab.plex) {
+                    serverScreen(serverSources.plex)
+                } label: {
+                    Label("Plex", image: "PlexTabIcon")
+                }
+                .accessibilityIdentifier("Plex-Navigation-Tab")
             }
-            .accessibilityIdentifier("Plex-Navigation-Tab")
 
-            Tab("Jellyfin", systemImage: "play.tv.fill", value: AppModel.NavigationTab.jellyfin) {
-                serverScreen(serverSources.jellyfin)
+            if settingsViewModel.preferences.mediaLibraryTabs.jellyfin {
+                Tab(value: AppModel.NavigationTab.jellyfin) {
+                    serverScreen(serverSources.jellyfin)
+                } label: {
+                    Label("Jellyfin", image: "JellyfinTabIcon")
+                }
+                .accessibilityIdentifier("Jellyfin-Navigation-Tab")
             }
-            .accessibilityIdentifier("Jellyfin-Navigation-Tab")
 
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()
@@ -227,6 +239,12 @@ public struct MainView: View {
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
         .browserTabBarVisibility(browserVisibility)
+        .onChange(of: settingsViewModel.preferences.mediaLibraryTabs, initial: true) { _, visibility in
+            appModel.selectedTab = appModel.selectedTab.contentDestination(in: visibility)
+        }
+        .onChange(of: appModel.selectedTab, initial: true) { _, tab in
+            appModel.selectedTab = tab.contentDestination(in: settingsViewModel.preferences.mediaLibraryTabs)
+        }
         .task {
             guard embySession.server != nil, embyHome.shelves.isEmpty else { return }
             await embyHome.refresh()
@@ -270,9 +288,7 @@ public struct MainView: View {
     private var browserTabSelection: Binding<AppModel.NavigationTab> {
         Binding(
             get: {
-                appModel.selectedTab.isContentDestination
-                    ? appModel.selectedTab
-                    : .files
+                appModel.selectedTab.contentDestination(in: settingsViewModel.preferences.mediaLibraryTabs)
             },
             set: selectBrowserTab
         )
@@ -298,7 +314,7 @@ public struct MainView: View {
             retention: .evidence
         )
 #endif
-        appModel.selectedTab = tab
+        appModel.selectedTab = tab.contentDestination(in: settingsViewModel.preferences.mediaLibraryTabs)
     }
 }
 
