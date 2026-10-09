@@ -1244,8 +1244,9 @@ enum PlaybackSubtitlePlacement {
         }
         let canvasWidth = Float(frame.canvasWidth)
         let canvasHeight = Float(frame.canvasHeight)
-        let contentWidth = resolvedScreenSize.x * Float(frame.contentWidth) / canvasWidth
-        let contentHeight = resolvedScreenSize.y * Float(frame.contentHeight) / canvasHeight
+        let pixelScale = min(resolvedScreenSize.x / canvasWidth, resolvedScreenSize.y / canvasHeight)
+        let contentWidth = pixelScale * Float(frame.contentWidth)
+        let contentHeight = pixelScale * Float(frame.contentHeight)
         let centerX: Float
         let centerY: Float
         if pinsToLowerCenter(presentation) {
