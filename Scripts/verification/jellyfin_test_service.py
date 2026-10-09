@@ -67,14 +67,17 @@ def start():
     network = STATE / "config/network.xml"
     if not network.exists():
         network.write_text('<NetworkConfiguration><InternalHttpPort>8097</InternalHttpPort><PublicHttpPort>8097</PublicHttpPort><EnableHttps>false</EnableHttps><AutoDiscovery>false</AutoDiscovery><EnableUPnP>false</EnableUPnP><EnableRemoteAccess>true</EnableRemoteAccess><EnableIPv4>true</EnableIPv4><EnableIPv6>false</EnableIPv6></NetworkConfiguration>')
-    plist = Path.home() / f"Library/LaunchAgents/{LABEL}.plist"
-    plist.parent.mkdir(parents=True, exist_ok=True)
-    arguments = [str(APP / "jellyfin"), "--service", "--datadir", str(STATE / "data"), "--configdir", str(STATE / "config"), "--cachedir", str(STATE / "cache"), "--logdir", str(STATE / "logs"), "--webdir", str(APP.parent / "Resources/jellyfin-web"), "--ffmpeg", str(APP / "ffmpeg"), "--published-server-url", "http://Mac-mini.local:8097"]
-    plist.write_bytes(plistlib.dumps({"Label": LABEL, "ProgramArguments": arguments, "RunAtLoad": True, "KeepAlive": True, "StandardOutPath": str(STATE / "logs/launchd.out.log"), "StandardErrorPath": str(STATE / "logs/launchd.err.log")}))
-    domain = f"gui/{os.getuid()}"
-    existing = subprocess.run(["launchctl", "print", f"{domain}/{LABEL}"], capture_output=True)
-    if existing.returncode:
-        subprocess.run(["launchctl", "bootstrap", domain, str(plist)], check=True)
+    if (STATE / "gui-entrypoint.json").is_file():
+        subprocess.run(["open", str(APP.parent.parent)], check=True)
+    else:
+        plist = Path.home() / f"Library/LaunchAgents/{LABEL}.plist"
+        plist.parent.mkdir(parents=True, exist_ok=True)
+        arguments = [str(APP / "jellyfin"), "--service", "--datadir", str(STATE / "data"), "--configdir", str(STATE / "config"), "--cachedir", str(STATE / "cache"), "--logdir", str(STATE / "logs"), "--webdir", str(APP.parent / "Resources/jellyfin-web"), "--ffmpeg", str(APP / "ffmpeg"), "--published-server-url", "http://Mac-mini.local:8097"]
+        plist.write_bytes(plistlib.dumps({"Label": LABEL, "ProgramArguments": arguments, "RunAtLoad": True, "KeepAlive": True, "StandardOutPath": str(STATE / "logs/launchd.out.log"), "StandardErrorPath": str(STATE / "logs/launchd.err.log")}))
+        domain = f"gui/{os.getuid()}"
+        existing = subprocess.run(["launchctl", "print", f"{domain}/{LABEL}"], capture_output=True)
+        if existing.returncode:
+            subprocess.run(["launchctl", "bootstrap", domain, str(plist)], check=True)
     for _ in range(60):
         try:
             info = request("/System/Info/Public")
