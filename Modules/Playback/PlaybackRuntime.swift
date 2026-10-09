@@ -1984,8 +1984,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         activeSubtitleFrame = prepared.resource.driver.activeSubtitleFrame
         do {
             try await applySubtitleSelectionIntent(technicalSessionID: activation.activeResource.sessionID)
-        }
-        catch {
+        } catch {
             logger.error(
                 "replacement subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
             )

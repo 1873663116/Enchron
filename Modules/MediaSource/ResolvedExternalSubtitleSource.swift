@@ -33,7 +33,7 @@ public struct ResolvedExternalSubtitleSource: @unchecked Sendable, Equatable, Id
 }
 
 @MainActor
-public final class ExternalSubtitleDiscovery: Sendable, Equatable {
+public final class ExternalSubtitleDiscovery: Equatable {
     public enum DiscoveryError: Error, Sendable, Equatable {
         case deadlineExceeded
     }
@@ -80,8 +80,7 @@ public final class ExternalSubtitleDiscovery: Sendable, Equatable {
                     }
                 }
                 resolution.deadline = Task {
-                    do { try await Task.sleep(for: deadline) }
-                    catch { return }
+                    do { try await Task.sleep(for: deadline) } catch { return }
                     resolution.task?.cancel()
                     resolution.finish(.failure(DiscoveryError.deadlineExceeded))
                 }
