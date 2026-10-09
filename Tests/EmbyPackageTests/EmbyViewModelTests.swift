@@ -29,11 +29,8 @@ struct EmbyViewModelTests {
         await viewModel.refresh()
 
         #expect(client.viewsCallCount == 2)
-        #expect(viewModel.shelves.map { $0.title } == [
-            "Continue Watching",
-            "Next Up",
-            "Recently Added in Movies"
-        ])
+        #expect(viewModel.shelves.map(\.kind) == [.continueWatching, .nextUp, .recentlyAdded(library.id)])
+        #expect(viewModel.shelves.map { $0.items.map(\.metadata.name) } == [["resume"], ["next"], ["latest"]])
     }
 
     @Test("only an accepted stopped report invalidates Continue Watching")

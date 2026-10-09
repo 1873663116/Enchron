@@ -403,22 +403,42 @@ public final class MediaServerDetailViewModel {
 
     public func playbackSelection(
         startAction: MediaServerPlaybackStartAction
-    ) throws -> MediaServerPlaybackSelection {
+    ) async throws -> MediaServerPlaybackSelection {
         guard let item else { throw MediaServerError.notAuthenticated }
+        let freshItem = try await currentPlaybackItem(withID: item.metadata.id)
+        self.item = freshItem
         return MediaServerPlaybackSelection(
-            item: item,
+            item: freshItem,
             mediaSourceID: selectedMediaSourceID,
             startAction: startAction
         )
     }
 
-    public func playbackSelection(for episode: MediaServerEpisode) -> MediaServerPlaybackSelection {
-        MediaServerPlaybackSelection(
-            episode: episode,
-            mediaSourceID: episode.metadata.mediaSources.first?.id,
+    public func playbackSelection(for episode: MediaServerEpisode) async throws -> MediaServerPlaybackSelection {
+        guard case let .episode(freshEpisode) = try await currentPlaybackItem(withID: episode.metadata.id) else {
+            throw MediaServerError.invalidResponse
+        }
+        return MediaServerPlaybackSelection(
+            episode: freshEpisode,
+            mediaSourceID: freshEpisode.metadata.mediaSources.first?.id,
             startAction: .resume,
             seasonEpisodes: children.episodes
         )
+    }
+
+    private func currentPlaybackItem(withID itemID: MediaServerItemID) async throws -> MediaServerLibraryItem {
+        guard let server = session.server else { throw MediaServerError.notAuthenticated }
+        do {
+            let item = try await client.item(withID: itemID, on: server)
+            try Task.checkCancellation()
+            guard session.server == server else { throw MediaServerError.notAuthenticated }
+            return item
+        } catch {
+            if session.server == server {
+                _ = await session.handleRequestError(error)
+            }
+            throw error
+        }
     }
 
     private func loadChildren(

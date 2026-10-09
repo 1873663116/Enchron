@@ -1405,7 +1405,8 @@ private struct MediaServerDetailScreen: View {
 #endif
             Task {
                 do {
-                    await onPlay(.success(try viewModel.playbackSelection(startAction: action)))
+                    let selection = try await viewModel.playbackSelection(startAction: action)
+                    await onPlay(.success(selection))
                 } catch let error as MediaServerError {
                     await onPlay(.failure(error))
                 } catch {
@@ -1567,7 +1568,14 @@ private struct MediaServerDetailScreen: View {
                 session.recordReachability("episode.select.\(metadata.id.rawValue)")
 #endif
                 Task {
-                    await onPlay(.success(viewModel.playbackSelection(for: episode)))
+                    do {
+                        let selection = try await viewModel.playbackSelection(for: episode)
+                        await onPlay(.success(selection))
+                    } catch let error as MediaServerError {
+                        await onPlay(.failure(error))
+                    } catch {
+                        await onPlay(.failure(.invalidResponse))
+                    }
                 }
             }
         )
