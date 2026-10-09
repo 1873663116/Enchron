@@ -1167,7 +1167,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     spec.identifier,
                     len(calls) + 7,
                     "operation:host.preflight@1",
-                    {"check": "emby-aggregate"},
+                    {"check": "emby-aggregate", "mediaServerProvider": "emby"},
                 ),
             )
         )

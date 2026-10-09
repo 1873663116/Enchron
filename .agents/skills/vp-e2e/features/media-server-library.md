@@ -38,6 +38,7 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 | 结构 | Jellyfin 服务器轨道与文件轨道正确对应，外挂字幕使用服务器编号 | `EmbyClientTests`、播放桥测试 |
 | 结构 | Plex 进度回报包含总时长，媒体时间单位转换正确 | `EmbyClientTests` |
 | 结构 | Plex PIN 首次轮询返回 404 后仍可授权；选择服务器前不保存会话 | `EmbyClientTests.plexSignInWaitsForPINAuthorization` |
+| 结构 | 电影和剧集的续播决策使用当前服务器进度；详情页缓存不决定续播位置 | `EmbyViewModelTests.freshResumeDecision` |
 | 物理 | 三个生产客户端读取同一影片，媒体字节相同，详情和海报可读取 | `MediaServerLiveIntegrationTests` |
 | 物理 | 真实操作到达正确服务的详情、播放与续播终态 | Simulator／device 的 Operation 证据 |
 | 感知 | 不进入自动裁决 | |
@@ -46,7 +47,13 @@ DEBUG 启动前置可以使用 `ENCHRON_MEDIA_SERVER_KIND`（`emby`、`plex` 或
 
 共同旅程必须分别绑定服务、服务器、账号和媒体身份。播放需有实际画面证据。进度保存需通过服务器重新读取确认。切换服务后，退出、续播与连播不得影响另一服务。
 
+基础真机路径为真实登录、搜索同一底层文件、详情播放、暂停、前进、退出、服务器进度读回、再次播放并接受续播、切换 Tab、重启后恢复账号。再次播放应从刚退出的详情页发起，才能发现详情缓存导致的过期续播决策。分别保存三个服务的账号证据与播放画面，结束后恢复样本的原始观看状态。
+
+自动隐藏的播放控件可通过 `app-command toggleControls` 建立操作前置，再点击真实暂停、前进和返回按钮。此路径的控件展开属于 `injected`，不覆盖真实唤出手势；按钮操作及其终态分别取证。
+
 完整验收还需覆盖各服务的真实登录、断线、凭证失效、多版本选择和季内连播。正式场景及成功条件以 `Regression/` 为准。现有 Emby 场景的收据仅覆盖 Emby。
+
+正式 Emby 场景声明 `mediaServerProvider=emby`。其证据必须包含版本为 `enchron.regression.emby-source-preflight@2` 的服务器报告，并与应用的 provider、服务器 ID 和账号 ID 一致。缺少来源身份或使用另一来源的证据会被拒绝。
 
 ## 待纳入正式回归的验收矩阵
 

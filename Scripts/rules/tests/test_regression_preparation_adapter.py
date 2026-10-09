@@ -1153,7 +1153,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 {"context": "main-window-browser", "labels": ["以后"]},
             ],
         )
-        self.assertEqual(plan.calls[-1].arguments, {"check": "emby-aggregate"})
+        self.assertEqual(plan.calls[-1].arguments, {"check": "emby-aggregate", "mediaServerProvider": "emby"})
         self.assertEqual(plan.state.produced_by_call, plan.calls[-1].call_id)
         prerequisites = {
             (item.kind, item.identity): item.digest for item in plan.prerequisites

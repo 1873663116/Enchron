@@ -30,7 +30,8 @@
   "operations": [
     {
       "arguments": {
-        "check": "emby-aggregate"
+        "check": "emby-aggregate",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:01",
       "maxInvocations": 1,
@@ -55,6 +56,7 @@
         "context": "window",
         "deadlineSeconds": 20,
         "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby",
         "requireMatchedElement": true
       },
       "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:04",
@@ -77,6 +79,7 @@
       "arguments": {
         "context": "window",
         "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby",
         "relatedResults": [
           "result://call:emby-server-lifecycle:emby-artwork-bypasses-loopback:01/report"
         ]

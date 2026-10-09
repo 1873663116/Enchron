@@ -30,7 +30,8 @@
   "operations": [
     {
       "arguments": {
-        "check": "emby-aggregate"
+        "check": "emby-aggregate",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:01",
       "maxInvocations": 1,
@@ -53,7 +54,8 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:04",
       "maxInvocations": 1,
@@ -73,7 +75,8 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:home-poster-and-next-up:06",
       "maxInvocations": 1,
@@ -108,6 +111,7 @@
       "arguments": {
         "context": "window",
         "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby",
         "relatedResults": [
           "result://call:emby-server-lifecycle:home-poster-and-next-up:01/report",
           "result://call:emby-server-lifecycle:home-poster-and-next-up:04/matchedElement",
