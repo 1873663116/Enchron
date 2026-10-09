@@ -1302,6 +1302,21 @@ extension RendererTransferCoordinator {
         try await requireActiveDriver().selectAudioTrack(streamIndex: streamIndex)
     }
 
+    func selectSubtitleTrack(
+        id: PlaybackSubtitleTrack.ID?,
+        expectedTechnicalSessionID: String
+    ) async throws {
+        let driver = try requireActiveDriver()
+        guard driver.sessionID == expectedTechnicalSessionID else { throw CancellationError() }
+        do {
+            try await driver.selectSubtitleTrack(id: id)
+        } catch {
+            guard isActive(driver) else { throw CancellationError() }
+            throw error
+        }
+        guard isActive(driver) else { throw CancellationError() }
+    }
+
     func recordRealityKitBinding(entityIdentity: String, active: Bool) {
         activeDriver?.recordRealityKitBinding(
             entityIdentity: entityIdentity,

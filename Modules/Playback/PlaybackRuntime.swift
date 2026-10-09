@@ -424,13 +424,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 onSubtitleCuesChange: { [weak self, weak driver] cues in
                     guard let self, let driver,
                           rendererTransferCoordinator.isActive(driver) else { return }
-                    refreshSubtitleTracks(from: driver)
+                    refreshSubtitleTracks()
                     activeSubtitleCues = cues
                 },
                 onSubtitleFrameChange: { [weak self, weak driver] frame in
                     guard let self, let driver,
                           rendererTransferCoordinator.isActive(driver) else { return }
-                    refreshSubtitleTracks(from: driver)
+                    refreshSubtitleTracks()
                     activeSubtitleFrame = frame
                 },
                 onAudioSpectrumFrameChange: { [weak self] frame in
@@ -1396,17 +1396,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws {
         subtitleSelectionIntent.select(track.map { .track(id: $0.id) } ?? .off)
-        guard let driver = rendererTransferCoordinator.activeDriver else {
+        guard let technicalSessionID = rendererTransferCoordinator.activeDriverSessionID else {
             throw RuntimeError.noSession
         }
         let selectionRevision = subtitleSelectionIntent.revision
         do {
-            try await driver.selectSubtitleTrack(id: track?.id)
+            try await rendererTransferCoordinator.selectSubtitleTrack(
+                id: track?.id, expectedTechnicalSessionID: technicalSessionID
+            )
         } catch {
-            guard rendererTransferCoordinator.isActive(driver) else { throw CancellationError() }
+            guard rendererTransferCoordinator.activeDriverSessionID == technicalSessionID else {
+                throw CancellationError()
+            }
             if error is CancellationError || Task.isCancelled { throw CancellationError() }
             if let track, track.id.hasPrefix("external.subtitle.") {
-                refreshSubtitleTracks(from: driver)
+                refreshSubtitleTracks()
                 logger.error(
                     "external subtitle selection failed track=\(track.id, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                 )
@@ -1417,50 +1421,54 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             throw error
         }
-        guard rendererTransferCoordinator.isActive(driver) else { throw CancellationError() }
-        if subtitleSelectionIntent.revision != selectionRevision {
-            try await applySubtitleSelectionIntent(on: driver)
+        guard rendererTransferCoordinator.activeDriverSessionID == technicalSessionID else {
+            throw CancellationError()
         }
-        refreshSubtitleTracks(from: driver)
+        if subtitleSelectionIntent.revision != selectionRevision {
+            try await applySubtitleSelectionIntent(technicalSessionID: technicalSessionID)
+        }
+        refreshSubtitleTracks()
     }
 
     public func restoreSubtitleSelection(_ preference: SubtitleTrackSelectionPreference?) async throws {
         subtitleSelectionIntent.restore(preference)
-        guard let driver = rendererTransferCoordinator.activeDriver else { return }
-        try await applySubtitleSelectionIntent(on: driver)
+        guard let technicalSessionID = rendererTransferCoordinator.activeDriverSessionID else { return }
+        try await applySubtitleSelectionIntent(technicalSessionID: technicalSessionID)
     }
 
-    private func applySubtitleSelectionIntent(on driver: PlaybackMediaSessionDriver) async throws {
-        guard rendererTransferCoordinator.isActive(driver) else { return }
+    private func applySubtitleSelectionIntent(technicalSessionID: String) async throws {
+        guard rendererTransferCoordinator.activeDriverSessionID == technicalSessionID else { return }
         let selectionRevision = subtitleSelectionIntent.revision
         let preference = subtitleSelectionIntent.preference
         let trackID = subtitleSelectionIntent.trackID(in: availableSubtitleTracks)
         guard preference == .off || trackID != nil else { return }
-        let previousTrackID = driver.selectedSubtitleTrackID
+        let previousTrackID = rendererTransferCoordinator.selectedSubtitleTrackID
         guard trackID != previousTrackID else { return }
-        try await driver.selectSubtitleTrack(id: trackID)
-        guard rendererTransferCoordinator.isActive(driver) else { return }
+        try await rendererTransferCoordinator.selectSubtitleTrack(
+            id: trackID, expectedTechnicalSessionID: technicalSessionID
+        )
+        guard rendererTransferCoordinator.activeDriverSessionID == technicalSessionID else { return }
         if subtitleSelectionIntent.revision != selectionRevision {
-            try await applySubtitleSelectionIntent(on: driver)
+            try await applySubtitleSelectionIntent(technicalSessionID: technicalSessionID)
             return
         }
-        refreshSubtitleTracks(from: driver)
+        refreshSubtitleTracks()
         if previousTrackID != currentSubtitleTrackID {
             emitPlaybackObservation(.subtitleSelectionChanged)
         }
     }
 
-    private func refreshSubtitleTracks(from driver: PlaybackMediaSessionDriver) {
-        guard rendererTransferCoordinator.isActive(driver) else { return }
+    private func refreshSubtitleTracks() {
+        guard rendererTransferCoordinator.hasActiveDriver else { return }
         let previousTrackID = currentSubtitleTrackID
-        availableSubtitleTracks = driver.availableSubtitleTracks.map(Self.subtitleTrack)
-        currentSubtitleTrackID = driver.selectedSubtitleTrackID
+        availableSubtitleTracks = rendererTransferCoordinator.availableSubtitleTracks.map(Self.subtitleTrack)
+        currentSubtitleTrackID = rendererTransferCoordinator.selectedSubtitleTrackID
         if let previousTrackID, previousTrackID != currentSubtitleTrackID,
            !availableSubtitleTracks.contains(where: { $0.id == previousTrackID }) {
             emitPlaybackObservation(.subtitleSelectionChanged)
         }
-        activeSubtitleCues = driver.activeSubtitleCues
-        activeSubtitleFrame = driver.activeSubtitleFrame
+        activeSubtitleCues = rendererTransferCoordinator.activeSubtitleCues
+        activeSubtitleFrame = rendererTransferCoordinator.activeSubtitleFrame
     }
 
     private func startAutomaticExternalSubtitles(
@@ -1565,9 +1573,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                         driver: driver, logicalSessionID: logicalSessionID,
                         generation: openGeneration, epoch: epoch
                       ) else { return }
-                self.refreshSubtitleTracks(from: driver)
-                do { try await self.applySubtitleSelectionIntent(on: driver) }
-                catch {
+                self.refreshSubtitleTracks()
+                do {
+                    if let technicalSessionID = driver.sessionID {
+                        try await self.applySubtitleSelectionIntent(technicalSessionID: technicalSessionID)
+                    }
+                } catch {
                     self.logger.error(
                         "saved subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
                     )
@@ -1971,7 +1982,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = prepared.resource.driver.selectedSubtitleTrackID
         activeSubtitleCues = prepared.resource.driver.activeSubtitleCues
         activeSubtitleFrame = prepared.resource.driver.activeSubtitleFrame
-        do { try await applySubtitleSelectionIntent(on: activation.activeResource.driver) }
+        do {
+            try await applySubtitleSelectionIntent(technicalSessionID: activation.activeResource.sessionID)
+        }
         catch {
             logger.error(
                 "replacement subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
