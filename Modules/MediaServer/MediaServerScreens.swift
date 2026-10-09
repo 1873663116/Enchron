@@ -361,6 +361,7 @@ public struct MediaServerScreen: View {
 
     @Environment(MediaServerSessionViewModel.self) private var session
     @Environment(MediaServerHomeViewModel.self) private var home
+    @Environment(MediaServerSearchViewModel.self) private var search
     @Environment(MediaServerNavigationModel.self) private var navigation
     @State private var sidebarIsVisible = true
     @State private var sidebarSuspended = false
@@ -401,6 +402,11 @@ public struct MediaServerScreen: View {
                             }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .overlay(alignment: .top) {
+                        if navigation.path.isEmpty {
+                            destinationHeader
+                        }
+                    }
                 }
             }
         }
@@ -582,16 +588,11 @@ public struct MediaServerScreen: View {
     private var destinationContent: some View {
         switch navigation.destination {
         case .home:
-            MediaServerHomeScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
+            MediaServerHomeScreen(onSelect: open)
         case .library(let id):
             if let library = home.libraries.first(where: { $0.id == id }) {
                 MediaServerLibraryScreen(
-                    viewModel: MediaServerLibraryViewModel(
-                        library: library,
-                        client: session.client,
-                        session: session
-                    ),
-                    sidebarIsVisible: $sidebarIsVisible,
+                    viewModel: home.libraryViewModel(for: library),
                     onSelect: open
                 )
                 .id(id)
@@ -599,8 +600,59 @@ public struct MediaServerScreen: View {
                 ContentUnavailableView("Library Unavailable", systemImage: "rectangle.stack")
             }
         case .search:
-            MediaServerSearchScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
+            MediaServerSearchScreen(onSelect: open)
         }
+    }
+
+    @ViewBuilder
+    private var destinationHeader: some View {
+        @Bindable var search = search
+        switch navigation.destination {
+        case .home:
+            MediaServerPageHeader(title: String(localized: "Home"), sidebarIsVisible: $sidebarIsVisible) {
+                EmptyView()
+            }
+        case .library(let id):
+            if let library = home.libraries.first(where: { $0.id == id }) {
+                MediaServerPageHeader(title: library.name, sidebarIsVisible: $sidebarIsVisible) {
+                    librarySortPicker(for: library)
+                }
+            }
+        case .search:
+            MediaServerPageHeader(title: String(localized: "Search"), sidebarIsVisible: $sidebarIsVisible) {
+                GlassSearchField(
+                    text: $search.query,
+                    placeholder: String(localized: "Search library"),
+                    accessibilityIdentifier: "Emby-Search-Field"
+                )
+                .frame(width: 360)
+                .onSubmit { Task { await search.refresh() } }
+            }
+        }
+    }
+
+    private func librarySortPicker(for library: MediaServerLibraryView) -> some View {
+        let viewModel = home.libraryViewModel(for: library)
+        return Picker("Sort", selection: Binding(
+            get: { viewModel.sort },
+            set: { value in
+                guard viewModel.sort != value else { return }
+#if DEBUG
+                session.recordReachability("library.sort.\(value)")
+#endif
+                viewModel.setSort(value)
+                Task { await viewModel.refresh() }
+            }
+        )) {
+            ForEach(MediaServerLibrarySort.allCases, id: \.self) { sort in
+                Text(sort.title).tag(sort)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 360, height: DesignTokens.Interactive.regular)
+        .enchronGlassControl()
+        .accessibilityIdentifier("Emby-Library-Sort")
     }
 }
 
@@ -673,7 +725,6 @@ private struct MediaServerHomeScreen: View {
     @Environment(MediaServerHomeViewModel.self) private var viewModel
     @Environment(MediaServerSessionViewModel.self) private var session
     @Environment(MediaServerNavigationModel.self) private var navigation
-    let sidebarIsVisible: Binding<Bool>?
     let onSelect: (MediaServerLibraryItem) -> Void
     @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
     @State private var initialRefreshCompleted = false
@@ -726,9 +777,6 @@ private struct MediaServerHomeScreen: View {
 #endif
         .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
         .embyPageBounds()
-        .overlay(alignment: .top) {
-            MediaServerPageHeader(title: String(localized: "Home"), sidebarIsVisible: sidebarIsVisible) { EmptyView() }
-        }
         .task(id: session.resumeCatalogRevision) {
             initialRefreshCompleted = false
             await viewModel.refresh()
@@ -763,22 +811,10 @@ private struct MediaServerHomeScreen: View {
 
 private struct MediaServerLibraryScreen: View {
     @Environment(MediaServerSessionViewModel.self) private var session
-    @State private var viewModel: MediaServerLibraryViewModel
-    let sidebarIsVisible: Binding<Bool>?
+    let viewModel: MediaServerLibraryViewModel
     let onSelect: (MediaServerLibraryItem) -> Void
 
-    init(
-        viewModel: MediaServerLibraryViewModel,
-        sidebarIsVisible: Binding<Bool>?,
-        onSelect: @escaping (MediaServerLibraryItem) -> Void
-    ) {
-        _viewModel = State(initialValue: viewModel)
-        self.sidebarIsVisible = sidebarIsVisible
-        self.onSelect = onSelect
-    }
-
     var body: some View {
-        @Bindable var viewModel = viewModel
         MediaServerPosterGrid(
             items: viewModel.items,
             isLoading: viewModel.isLoading,
@@ -788,30 +824,6 @@ private struct MediaServerLibraryScreen: View {
         )
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
-            .overlay(alignment: .top) {
-                MediaServerPageHeader(title: viewModel.library.name, sidebarIsVisible: sidebarIsVisible) {
-                    Picker("Sort", selection: Binding(
-                        get: { viewModel.sort },
-                        set: { value in
-                            guard viewModel.sort != value else { return }
-#if DEBUG
-                            session.recordReachability("library.sort.\(value)")
-#endif
-                            viewModel.setSort(value)
-                            Task { await viewModel.refresh() }
-                        }
-                    )) {
-                        ForEach(MediaServerLibrarySort.allCases, id: \.self) { sort in
-                            Text(sort.title).tag(sort)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(width: 360, height: DesignTokens.Interactive.regular)
-                    .enchronGlassControl()
-                    .accessibilityIdentifier("Emby-Library-Sort")
-                }
-        }
         .task { await viewModel.refresh() }
     }
 }
@@ -819,11 +831,9 @@ private struct MediaServerLibraryScreen: View {
 private struct MediaServerSearchScreen: View {
     @Environment(MediaServerSearchViewModel.self) private var viewModel
     @Environment(MediaServerSessionViewModel.self) private var session
-    let sidebarIsVisible: Binding<Bool>?
     let onSelect: (MediaServerLibraryItem) -> Void
 
     var body: some View {
-        @Bindable var viewModel = viewModel
         MediaServerPosterGrid(
             items: viewModel.results,
             isLoading: false,
@@ -833,17 +843,6 @@ private struct MediaServerSearchScreen: View {
         )
             .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             .embyPageBounds()
-            .overlay(alignment: .top) {
-                MediaServerPageHeader(title: String(localized: "Search"), sidebarIsVisible: sidebarIsVisible) {
-                    GlassSearchField(
-                        text: $viewModel.query,
-                        placeholder: String(localized: "Search library"),
-                        accessibilityIdentifier: "Emby-Search-Field"
-                    )
-                    .frame(width: 360)
-                    .onSubmit { Task { await viewModel.refresh() } }
-                }
-            }
         .task { await viewModel.refresh() }
         .task(id: viewModel.query) {
             guard viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
@@ -872,18 +871,20 @@ private struct MediaServerPosterGrid: View {
     @State private var revealed = false
 
     private var revealKey: [MediaServerItemID] {
-        items.map(\.metadata.id)
+        isLoading ? [] : items.map(\.metadata.id)
     }
 
     var body: some View {
         ScrollView {
-            CardGrid {
-                ForEach(items, id: \.metadata.id) { item in
-                    posterCard(item, session: session, onSelect: onSelect)
+            if isLoading == false {
+                CardGrid {
+                    ForEach(items, id: \.metadata.id) { item in
+                        posterCard(item, session: session, onSelect: onSelect)
+                    }
                 }
+                .padding(DesignTokens.Spacing.xxl)
+                .opacity(revealed ? 1 : 0)
             }
-            .padding(DesignTokens.Spacing.xxl)
-            .opacity(isLoading == false && revealed ? 1 : 0)
         }
         .task(id: revealKey) {
             revealed = false
