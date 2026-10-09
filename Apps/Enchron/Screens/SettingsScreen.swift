@@ -576,19 +576,20 @@ private struct MediaLibraryTabSettingsGroup: View {
             accessibilityValue: selection.wrappedValue
                 ? String(localized: "Selected")
                 : String(localized: "Not selected"),
-            action: { selection.wrappedValue.toggle() }
-        ) { _ in
-            HStack(spacing: DesignTokens.Spacing.md) {
-                Image(systemName: selection.wrappedValue ? "checkmark.square.fill" : "square")
-                    .font(DesignTokens.Typography.sectionHeader)
-                    .accessibilityHidden(true)
-                Text(title)
-                    .font(DesignTokens.Typography.headline)
-                Spacer(minLength: DesignTokens.Spacing.md)
+            action: { selection.wrappedValue.toggle() },
+            content: { _ in
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Image(systemName: selection.wrappedValue ? "checkmark.square.fill" : "square")
+                        .font(DesignTokens.Typography.sectionHeader)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .font(DesignTokens.Typography.headline)
+                    Spacer(minLength: DesignTokens.Spacing.md)
+                }
+                .padding(.horizontal, DesignTokens.Spacing.lg)
+                .frame(minHeight: DesignTokens.Interactive.large)
             }
-            .padding(.horizontal, DesignTokens.Spacing.lg)
-            .frame(minHeight: DesignTokens.Interactive.large)
-        }
+        )
         .accessibilityAddTraits(selection.wrappedValue ? .isSelected : [])
         .accessibilityIdentifier("Settings-mediaLibraryTabs-checkbox-\(id)")
     }
