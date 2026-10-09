@@ -1437,6 +1437,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let trackID = subtitleSelectionIntent.trackID(in: availableSubtitleTracks)
         guard preference == .off || trackID != nil else { return }
         let previousTrackID = driver.selectedSubtitleTrackID
+        guard trackID != previousTrackID else { return }
         try await driver.selectSubtitleTrack(id: trackID)
         guard rendererTransferCoordinator.isActive(driver) else { return }
         if subtitleSelectionIntent.revision != selectionRevision {

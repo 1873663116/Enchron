@@ -37,12 +37,6 @@ final class MediaReferenceResolver {
     ) throws -> ExternalSubtitleDiscovery)?
 
     private let fileResolver = SecurityScopedFileReferenceResolver()
-    private let fileManager: FileManager
-
-    init(fileManager: FileManager = .default) {
-        self.fileManager = fileManager
-    }
-
     fileprivate func resolve(_ reference: FileBrowsingDomain.MediaReference) async throws -> ResolvedMediaSource {
         switch reference.locator {
         case .file(let bookmark, let relativePath):
@@ -77,11 +71,10 @@ final class MediaReferenceResolver {
         case .file(_, let relativePath):
             guard !relativePath.isEmpty else { return nil }
             let fileResolver = fileResolver
-            let fileManager = fileManager
             return ExternalSubtitleDiscovery {
                 let work = Task.detached {
                     try Self.localExternalSubtitleSources(
-                        for: reference, fileResolver: fileResolver, fileManager: fileManager
+                        for: reference, fileResolver: fileResolver
                     )
                 }
                 return try await withTaskCancellationHandler {
@@ -97,9 +90,9 @@ final class MediaReferenceResolver {
 
     nonisolated private static func localExternalSubtitleSources(
         for reference: FileBrowsingDomain.MediaReference,
-        fileResolver: SecurityScopedFileReferenceResolver,
-        fileManager: FileManager
+        fileResolver: SecurityScopedFileReferenceResolver
     ) throws -> [ResolvedExternalSubtitleSource] {
+        let fileManager = FileManager()
         switch reference.locator {
         case .file(let bookmark, let relativePath):
             guard !relativePath.isEmpty else { return [] }
