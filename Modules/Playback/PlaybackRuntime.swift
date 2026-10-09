@@ -96,7 +96,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case retiringSource
         case openingReplacement
         case installingRenderer
-        case restoringExternalSubtitles
         case restoringAudioTrack
         case restoringSubtitleTrack
         case completed
@@ -222,9 +221,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     @ObservationIgnored
     private var resumeHealingArmed = false
     @ObservationIgnored
-    private var externalSubtitleSourceIDByURL: [URL: String] = [:]
+    private var externalSubtitleSourcesByID: [String: ResolvedExternalSubtitleSource] = [:]
     @ObservationIgnored
-    private var externalSubtitleAccessBySourceID: [String: MediaAccessLease] = [:]
+    private var externalSubtitleTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored
+    private var externalSubtitleDiscoveryTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var externalSubtitleDiscoveryCompleted = false
+    @ObservationIgnored
+    private var externalSubtitleTaskEpoch: UInt64 = 0
+    @ObservationIgnored
+    private var failedExternalSubtitleSourceIDs: Set<String> = []
+    @ObservationIgnored
+    private var subtitleSelectionIntent = SubtitleSelectionIntent()
     #if DEBUG
         @ObservationIgnored
         private var seekGate: (@MainActor () async -> Void)?
@@ -412,11 +421,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     }
                     effectiveVideoFormatRevision = revision
                 },
-                onSubtitleCuesChange: { [weak self] cues in
-                    self?.activeSubtitleCues = cues
+                onSubtitleCuesChange: { [weak self, weak driver] cues in
+                    guard let self, let driver,
+                          rendererTransferCoordinator.isActive(driver) else { return }
+                    refreshSubtitleTracks(from: driver)
+                    activeSubtitleCues = cues
                 },
-                onSubtitleFrameChange: { [weak self] frame in
-                    self?.activeSubtitleFrame = frame
+                onSubtitleFrameChange: { [weak self, weak driver] frame in
+                    guard let self, let driver,
+                          rendererTransferCoordinator.isActive(driver) else { return }
+                    refreshSubtitleTracks(from: driver)
+                    activeSubtitleFrame = frame
                 },
                 onAudioSpectrumFrameChange: { [weak self] frame in
                     guard let self, self.mediaKind == .audioOnly else { return }
@@ -439,6 +454,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             observationGeneration &+= 1
         }
         currentLaunchRequest = request
+        subtitleSelectionIntent = SubtitleSelectionIntent(preference: request.initialTrackSelection?.subtitleTrack)
         enterPlayingResidency()
         updateLoadingState { stateMachine in
             stateMachine.beginOpening(
@@ -454,10 +470,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let retainedActiveFailure = userVisibleIssue?.activePlaybackFailure.flatMap {
             $0.requestID == request.id ? userVisibleIssue : nil
         }
-        setUserVisibleIssue(
-            retainedActiveFailure
-                ?? (request.externalSubtitleResolutionFailed ? .externalSubtitleFailed : nil)
-        )
+        setUserVisibleIssue(retainedActiveFailure)
         lastResolvedProfile = nil
         startsWhenAttached = true
         actualPlaybackSeconds = 0
@@ -739,22 +752,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             activeSubtitleCues = driver.activeSubtitleCues
             activeSubtitleFrame = driver.activeSubtitleFrame
             PlaybackTrace.event(
-                "runtime.open.subtitleSources.begin count=\(request.externalSubtitleSources.count)"
-            )
-            await addAutomaticExternalSubtitleSources(
-                request.externalSubtitleSources,
-                mediaSessionID: sessionResource.sessionID,
-                openGeneration: openGeneration
-            )
-            PlaybackTrace.event("runtime.open.subtitleSources.end")
-            guard generation == openGeneration,
-                  activeSessionID == sessionResource.sessionID,
-                  rendererTransferCoordinator.isActive(driver) else {
-                await driver.close()
-                releaseSourceAccessIfUnowned(request.sourceAccess)
-                return
-            }
-            PlaybackTrace.event(
                 "runtime.open.audioActivate.begin tracks=\(availableAudioTracks.count)"
             )
             try await audioSessionLifecycle.activateIfNeeded(
@@ -781,6 +778,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     + "/\(Self.probeEntity(rendererConsumerEntityID))",
                 retention: .evidence
             )
+            startAutomaticExternalSubtitles(on: driver, logicalSessionID: sessionResource.sessionID)
             logger.info("session prepared id=\(sessionResource.sessionID, privacy: .public)")
             if mediaKind == .audioOnly {
                 try rendererTransferCoordinator.audioOnlyPresentationDidBecomeReady()
@@ -1397,108 +1395,236 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws {
-        do {
-            try await rendererTransferCoordinator.selectSubtitleTrack(id: track?.id)
-        } catch let error as RendererTransferCoordinator.TransferError {
-            throw runtimeError(for: error)
-        }
-        guard rendererTransferCoordinator.hasActiveDriver else {
+        subtitleSelectionIntent.select(track.map { .track(id: $0.id) } ?? .off)
+        guard let driver = rendererTransferCoordinator.activeDriver else {
             throw RuntimeError.noSession
         }
-        currentSubtitleTrackID = rendererTransferCoordinator.selectedSubtitleTrackID
-        activeSubtitleCues = rendererTransferCoordinator.activeSubtitleCues
+        let selectionRevision = subtitleSelectionIntent.revision
+        do {
+            try await driver.selectSubtitleTrack(id: track?.id)
+        } catch {
+            guard rendererTransferCoordinator.isActive(driver) else { throw CancellationError() }
+            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            if let track, track.id.hasPrefix("external.subtitle.") {
+                refreshSubtitleTracks(from: driver)
+                logger.error(
+                    "external subtitle selection failed track=\(track.id, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
+                return
+            }
+            if let error = error as? RendererTransferCoordinator.TransferError {
+                throw runtimeError(for: error)
+            }
+            throw error
+        }
+        guard rendererTransferCoordinator.isActive(driver) else { throw CancellationError() }
+        if subtitleSelectionIntent.revision != selectionRevision {
+            try await applySubtitleSelectionIntent(on: driver)
+        }
+        refreshSubtitleTracks(from: driver)
     }
 
-    private func addAutomaticExternalSubtitleSources(
-        _ sources: [ResolvedExternalSubtitleSource],
-        mediaSessionID: String,
-        openGeneration: Int
-    ) async {
-        guard rendererTransferCoordinator.hasActiveDriver else {
-            for source in sources {
-                source.accessLease?.release()
-            }
+    public func restoreSubtitleSelection(_ preference: SubtitleTrackSelectionPreference?) async throws {
+        subtitleSelectionIntent.restore(preference)
+        guard let driver = rendererTransferCoordinator.activeDriver else { return }
+        try await applySubtitleSelectionIntent(on: driver)
+    }
+
+    private func applySubtitleSelectionIntent(on driver: PlaybackMediaSessionDriver) async throws {
+        guard rendererTransferCoordinator.isActive(driver) else { return }
+        let selectionRevision = subtitleSelectionIntent.revision
+        let preference = subtitleSelectionIntent.preference
+        let trackID = subtitleSelectionIntent.trackID(in: availableSubtitleTracks)
+        guard preference == .off || trackID != nil else { return }
+        let previousTrackID = driver.selectedSubtitleTrackID
+        try await driver.selectSubtitleTrack(id: trackID)
+        guard rendererTransferCoordinator.isActive(driver) else { return }
+        if subtitleSelectionIntent.revision != selectionRevision {
+            try await applySubtitleSelectionIntent(on: driver)
             return
         }
-        var encounteredFailure = false
-        for source in sources {
-            guard generation == openGeneration,
-                  activeSessionID == mediaSessionID,
-                  rendererTransferCoordinator.activeDriverSessionID == mediaSessionID else {
-                source.accessLease?.release()
-                continue
-            }
-            guard source.accessLease?.ensureActive() != false else {
-                encounteredFailure = true
-                logger.error(
-                    "external subtitle source access unavailable source=\(source.displayName, privacy: .public)"
-                )
-                source.accessLease?.release()
-                continue
-            }
+        refreshSubtitleTracks(from: driver)
+        if previousTrackID != currentSubtitleTrackID {
+            emitPlaybackObservation(.subtitleSelectionChanged)
+        }
+    }
+
+    private func refreshSubtitleTracks(from driver: PlaybackMediaSessionDriver) {
+        guard rendererTransferCoordinator.isActive(driver) else { return }
+        let previousTrackID = currentSubtitleTrackID
+        availableSubtitleTracks = driver.availableSubtitleTracks.map(Self.subtitleTrack)
+        currentSubtitleTrackID = driver.selectedSubtitleTrackID
+        if let previousTrackID, previousTrackID != currentSubtitleTrackID,
+           !availableSubtitleTracks.contains(where: { $0.id == previousTrackID }) {
+            emitPlaybackObservation(.subtitleSelectionChanged)
+        }
+        activeSubtitleCues = driver.activeSubtitleCues
+        activeSubtitleFrame = driver.activeSubtitleFrame
+    }
+
+    private func startAutomaticExternalSubtitles(
+        on driver: PlaybackMediaSessionDriver,
+        logicalSessionID: String
+    ) {
+        guard let request = currentLaunchRequest,
+              rendererTransferCoordinator.isActive(driver) else { return }
+        let openGeneration = generation
+        let epoch = externalSubtitleTaskEpoch
+        for source in request.externalSubtitleSources
+            where externalSubtitleSourcesByID[source.id] == nil
+                && !failedExternalSubtitleSourceIDs.contains(source.id) {
+            externalSubtitleSourcesByID[source.id] = source
+        }
+        for source in Array(externalSubtitleSourcesByID.values) {
+            startExternalSubtitle(source, on: driver, logicalSessionID: logicalSessionID)
+        }
+        guard !externalSubtitleDiscoveryCompleted,
+              externalSubtitleDiscoveryTask == nil,
+              let discovery = request.externalSubtitleDiscovery else { return }
+        externalSubtitleDiscoveryTask = Task { [weak self] in
             do {
-                _ = try await rendererTransferCoordinator.addExternalSubtitleSource(
+                let sources = try await discovery.resolve(discardingLateSources: { [weak self] sources in
+                    for source in sources {
+                        if let self {
+                            self.releaseExternalSubtitleIfUnowned(source)
+                        } else {
+                            source.accessLease?.release()
+                            source.byteStreamHandle?.release()
+                        }
+                    }
+                })
+                guard let self else {
+                    for source in sources {
+                        source.accessLease?.release()
+                        source.byteStreamHandle?.release()
+                    }
+                    return
+                }
+                guard self.subtitleTaskIsCurrent(
+                    driver: driver, logicalSessionID: logicalSessionID,
+                    generation: openGeneration, epoch: epoch
+                ) else {
+                    for source in sources { self.releaseExternalSubtitleIfUnowned(source) }
+                    return
+                }
+                self.externalSubtitleDiscoveryCompleted = true
+                self.externalSubtitleDiscoveryTask = nil
+                for source in sources {
+                    if self.externalSubtitleSourcesByID[source.id] != nil
+                        || self.failedExternalSubtitleSourceIDs.contains(source.id) {
+                        self.releaseExternalSubtitleIfUnowned(source)
+                        continue
+                    }
+                    self.externalSubtitleSourcesByID[source.id] = source
+                    self.startExternalSubtitle(source, on: driver, logicalSessionID: logicalSessionID)
+                }
+            } catch {
+                guard let self,
+                      self.subtitleTaskIsCurrent(
+                        driver: driver, logicalSessionID: logicalSessionID,
+                        generation: openGeneration, epoch: epoch
+                      ) else { return }
+                self.externalSubtitleDiscoveryCompleted = true
+                self.externalSubtitleDiscoveryTask = nil
+                if error is CancellationError { return }
+                if case ExternalSubtitleDiscovery.DiscoveryError.deadlineExceeded = error {
+                    self.logger.error("external subtitle discovery deadline exceeded; cancellation requested; late results discarded")
+                } else {
+                    self.logger.error(
+                        "external subtitle discovery failed error=\(String(describing: error), privacy: .public)"
+                    )
+                }
+            }
+        }
+    }
+
+    private func startExternalSubtitle(
+        _ source: ResolvedExternalSubtitleSource,
+        on driver: PlaybackMediaSessionDriver,
+        logicalSessionID: String
+    ) {
+        guard externalSubtitleTasks[source.id] == nil,
+              !failedExternalSubtitleSourceIDs.contains(source.id) else { return }
+        let openGeneration = generation
+        let epoch = externalSubtitleTaskEpoch
+        externalSubtitleTasks[source.id] = Task { [weak self] in
+            do {
+                try Task.checkCancellation()
+                guard source.accessLease?.ensureActive() != false else {
+                    throw RuntimeError.sourceAccessUnavailable
+                }
+                try Task.checkCancellation()
+                _ = try await driver.addExternalSubtitleSource(
                     PlaybackExternalSubtitleSource(
-                        id: source.id,
-                        url: source.url,
-                        displayName: source.displayName
+                        id: source.id, url: source.url, displayName: source.displayName
                     )
                 )
-                guard generation == openGeneration,
-                      activeSessionID == mediaSessionID,
-                      rendererTransferCoordinator.activeDriverSessionID == mediaSessionID else {
-                    source.accessLease?.release()
-                    continue
-                }
-                if let accessLease = source.accessLease {
-                    let previousAccessLease = externalSubtitleAccessBySourceID.updateValue(
-                        accessLease,
-                        forKey: source.id
+                guard let self,
+                      self.subtitleTaskIsCurrent(
+                        driver: driver, logicalSessionID: logicalSessionID,
+                        generation: openGeneration, epoch: epoch
+                      ) else { return }
+                self.refreshSubtitleTracks(from: driver)
+                do { try await self.applySubtitleSelectionIntent(on: driver) }
+                catch {
+                    self.logger.error(
+                        "saved subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
                     )
-                    if let previousAccessLease,
-                       previousAccessLease !== accessLease {
-                        previousAccessLease.release()
-                    }
                 }
-                let normalizedURL = source.url.isFileURL
-                    ? source.url.standardizedFileURL
-                    : source.url
-                externalSubtitleSourceIDByURL[normalizedURL] = source.id
+                guard self.subtitleTaskIsCurrent(
+                    driver: driver, logicalSessionID: logicalSessionID,
+                    generation: openGeneration, epoch: epoch
+                ) else { return }
+                self.externalSubtitleTasks[source.id] = nil
             } catch {
-                source.accessLease?.release()
-                encounteredFailure = true
-                logger.error(
+                guard let self,
+                      self.subtitleTaskIsCurrent(
+                        driver: driver, logicalSessionID: logicalSessionID,
+                        generation: openGeneration, epoch: epoch
+                      ) else { return }
+                self.externalSubtitleTasks[source.id] = nil
+                self.externalSubtitleSourcesByID[source.id] = nil
+                self.failedExternalSubtitleSourceIDs.insert(source.id)
+                self.releaseExternalSubtitleIfUnowned(source)
+                if error is CancellationError { return }
+                self.logger.error(
                     "external subtitle load failed source=\(source.displayName, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                 )
             }
         }
-        guard generation == openGeneration,
-              activeSessionID == mediaSessionID,
-              rendererTransferCoordinator.activeDriverSessionID == mediaSessionID else { return }
-        availableSubtitleTracks = rendererTransferCoordinator.availableSubtitleTracks
-            .map(Self.subtitleTrack)
-        currentSubtitleTrackID = rendererTransferCoordinator.selectedSubtitleTrackID
-        activeSubtitleCues = rendererTransferCoordinator.activeSubtitleCues
-        activeSubtitleFrame = rendererTransferCoordinator.activeSubtitleFrame
-        if encounteredFailure,
-           userVisibleIssue?.activePlaybackFailure == nil {
-            setUserVisibleIssue(.externalSubtitleFailed)
-        }
     }
 
-    private func prepareExternalSubtitleSources(
-        _ sources: [ResolvedExternalSubtitleSource],
-        on driver: PlaybackMediaSessionDriver
-    ) async {
-        for source in sources {
-            guard source.accessLease?.ensureActive() != false else { continue }
-            _ = try? await driver.addExternalSubtitleSource(
-                PlaybackExternalSubtitleSource(
-                    id: source.id,
-                    url: source.url,
-                    displayName: source.displayName
-                )
-            )
+    private func subtitleTaskIsCurrent(
+        driver: PlaybackMediaSessionDriver,
+        logicalSessionID: String,
+        generation expectedGeneration: Int,
+        epoch: UInt64
+    ) -> Bool {
+        generation == expectedGeneration && activeSessionID == logicalSessionID
+            && externalSubtitleTaskEpoch == epoch && rendererTransferCoordinator.isActive(driver)
+            && !Task.isCancelled
+    }
+
+    private func cancelAutomaticExternalSubtitles() {
+        externalSubtitleTaskEpoch &+= 1
+        externalSubtitleDiscoveryTask?.cancel()
+        externalSubtitleDiscoveryTask = nil
+        for task in externalSubtitleTasks.values { task.cancel() }
+        externalSubtitleTasks = [:]
+    }
+
+    private func releaseExternalSubtitleIfUnowned(_ source: ResolvedExternalSubtitleSource) {
+        let owned = Array(externalSubtitleSourcesByID.values)
+            + (currentLaunchRequest?.externalSubtitleSources ?? [])
+        if let access = source.accessLease,
+           access !== currentLaunchRequest?.sourceAccess,
+           !owned.contains(where: { $0.accessLease === access }) {
+            access.release()
+        }
+        if let handle = source.byteStreamHandle,
+           handle !== currentLaunchRequest?.source.byteStreamHandle,
+           !owned.contains(where: { $0.byteStreamHandle === handle }) {
+            handle.release()
         }
     }
 
@@ -1681,12 +1807,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 throw RuntimeError.mediaSessionChanged
             }
 
-            technicalSessionReplacementStage = .restoringExternalSubtitles
-            await prepareExternalSubtitleSources(
-                request.externalSubtitleSources,
-                on: replacementDriver
-            )
-
             if let selectedAudioTrackID,
                let streamIndex = Int(selectedAudioTrackID),
                replacementDriver.availableAudioTracks.contains(where: {
@@ -1801,6 +1921,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             throw RuntimeError.mediaSessionChanged
         }
 
+        cancelAutomaticExternalSubtitles()
+        if subtitleSelectionIntent.preference == nil, let selectedSubtitleTrackID = currentSubtitleTrackID {
+            subtitleSelectionIntent.restore(.track(id: selectedSubtitleTrackID))
+        }
         let activation: RendererTransferCoordinator.Activation
         do {
             activation = try rendererTransferCoordinator.activateTechnicalSession(
@@ -1846,6 +1970,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = prepared.resource.driver.selectedSubtitleTrackID
         activeSubtitleCues = prepared.resource.driver.activeSubtitleCues
         activeSubtitleFrame = prepared.resource.driver.activeSubtitleFrame
+        do { try await applySubtitleSelectionIntent(on: activation.activeResource.driver) }
+        catch {
+            logger.error(
+                "replacement subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
+            )
+        }
+        startAutomaticExternalSubtitles(on: activation.activeResource.driver, logicalSessionID: key.logicalSessionID)
         if case .ended(let continuity) = activation.continuity,
            let snapshot = currentCutoverSnapshot() {
             adoptEndedContinuity(continuity, cutover: snapshot)
@@ -2192,6 +2323,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             emitPlaybackObservation(.stopped)
         }
         generation += 1
+        cancelAutomaticExternalSubtitles()
         startsWhenAttached = false
         resetFrameStepping()
         detach()
@@ -2200,13 +2332,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             : nil
         if releasingSourceAccess {
             currentLaunchRequest?.source.byteStreamHandle?.release()
-            for subtitle in currentLaunchRequest?.externalSubtitleSources ?? [] {
-                subtitle.byteStreamHandle?.release()
-            }
         }
-        let externalSubtitleAccesses = Array(externalSubtitleAccessBySourceID.values)
-        externalSubtitleAccessBySourceID = [:]
-        externalSubtitleSourceIDByURL = [:]
+        let subtitleSources = Array(externalSubtitleSourcesByID.values)
+            + (currentLaunchRequest?.externalSubtitleSources ?? [])
+        var seenHandles = Set<ObjectIdentifier>()
+        let externalSubtitleHandles = releasingSourceAccess
+            ? subtitleSources.compactMap(\.byteStreamHandle).filter {
+                seenHandles.insert(ObjectIdentifier($0)).inserted
+            } : []
+        var seenAccesses = Set<ObjectIdentifier>()
+        let externalSubtitleAccesses = subtitleSources.compactMap(\.accessLease).filter {
+            seenAccesses.insert(ObjectIdentifier($0)).inserted
+        }
+        externalSubtitleSourcesByID = [:]
+        externalSubtitleDiscoveryCompleted = false
+        failedExternalSubtitleSourceIDs = []
         let hadActiveDriver = rendererTransferCoordinator.hasActiveDriver
         let rendererCloseTask = rendererTransferCoordinator.beginClose()
         let openingDriver = openingTechnicalSessionDriver
@@ -2243,6 +2383,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 for subtitleAccess in externalSubtitleAccesses {
                     subtitleAccess.release()
                 }
+                for handle in externalSubtitleHandles { handle.release() }
             }
             PlaybackTrace.event("runtime.close.end")
             settlement.settle(.closed)
@@ -2266,7 +2407,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     elapsed: ContinuousClock.now - closeStartedAt,
                     openingDriver: openingDriver,
                     sourceAccess: sourceAccess,
-                    externalSubtitleAccesses: externalSubtitleAccesses
+                    externalSubtitleAccesses: externalSubtitleAccesses,
+                    externalSubtitleHandles: externalSubtitleHandles
                 )
             }
         }
@@ -2294,7 +2436,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         elapsed: Duration,
         openingDriver: PlaybackMediaSessionDriver?,
         sourceAccess: MediaAccessLease?,
-        externalSubtitleAccesses: [MediaAccessLease]
+        externalSubtitleAccesses: [MediaAccessLease],
+        externalSubtitleHandles: [MediaByteStreamHandle]
     ) {
         let elapsedMilliseconds = PlaybackCloseBudget.milliseconds(elapsed)
         let reasonDescription = reason?.rawValue ?? "requestReplacement"
@@ -2305,6 +2448,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         for subtitleAccess in externalSubtitleAccesses {
             subtitleAccess.release()
         }
+        for handle in externalSubtitleHandles { handle.release() }
         PlaybackTrace.event(
             "runtime.close.overran elapsed=\(elapsedMilliseconds)"
                 + " reason=\(reasonDescription)"

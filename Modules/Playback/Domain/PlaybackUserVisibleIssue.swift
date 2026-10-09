@@ -19,7 +19,6 @@ public enum PlaybackUserVisibleIssueCategory: String, CaseIterable, Sendable, Eq
     case mediaFormatChangeFailed
     case audioTrackSelectionFailed
     case subtitleTrackSelectionFailed
-    case externalSubtitleFailed
     case presentationTransitionFailed
     case presentationConversionFailed
     case surfaceAttachmentFailed
@@ -151,7 +150,6 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
     case mediaFormatChangeFailed
     case audioTrackSelectionFailed
     case subtitleTrackSelectionFailed
-    case externalSubtitleFailed
     case presentationTransitionFailed
     case presentationConversionFailed
     case surfaceAttachmentFailed
@@ -181,7 +179,6 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
         case .mediaFormatChangeFailed: .mediaFormatChangeFailed
         case .audioTrackSelectionFailed: .audioTrackSelectionFailed
         case .subtitleTrackSelectionFailed: .subtitleTrackSelectionFailed
-        case .externalSubtitleFailed: .externalSubtitleFailed
         case .presentationTransitionFailed: .presentationTransitionFailed
         case .presentationConversionFailed: .presentationConversionFailed
         case .surfaceAttachmentFailed: .surfaceAttachmentFailed
@@ -237,8 +234,6 @@ public enum PlaybackUserVisibleIssue: Sendable, Equatable {
             "The audio track could not be changed."
         case .subtitleTrackSelectionFailed:
             "The subtitle track could not be changed."
-        case .externalSubtitleFailed:
-            "Some external subtitle files could not be loaded."
         case .presentationTransitionFailed:
             "The playback display could not be changed."
         case .presentationConversionFailed:
@@ -362,14 +357,6 @@ public extension PlaybackUserVisibleIssueCategory {
                 interruptsPlayback: false
             )
         case .subtitleTrackSelectionFailed:
-            .init(
-                title: String(localized: "Subtitle Error"),
-                messageStrategy: .fixedProductCopy,
-                allowedActions: [.confirm],
-                presentationLocations: [.playerDeck],
-                interruptsPlayback: false
-            )
-        case .externalSubtitleFailed:
             .init(
                 title: String(localized: "Subtitle Error"),
                 messageStrategy: .fixedProductCopy,

@@ -1,5 +1,5 @@
 import Foundation
-import MediaSource
+@testable import MediaSource
 import Testing
 
 @MainActor
@@ -75,4 +75,83 @@ private final class PreparationGate {
         continuation?.resume()
         continuation = nil
     }
+}
+
+@MainActor
+struct ExternalSubtitleDiscoveryTests {
+    @Test("a successful discovery returns the source and keeps its access active")
+    func successfulDiscoveryTransfersAccess() async throws {
+        let counter = SubtitleDiscoveryReleaseCounter()
+        let lease = MediaAccessLease(release: { counter.increment() })
+        let discovery = ExternalSubtitleDiscovery {
+            [ResolvedExternalSubtitleSource(
+                id: "ready", url: URL(fileURLWithPath: "/Movie.srt"),
+                displayName: "Movie.srt", accessLease: lease
+            )]
+        }
+        let sources = try await discovery.resolve()
+        #expect(sources.map(\.id) == ["ready"])
+        #expect(counter.value == 0)
+        sources.first?.accessLease?.release()
+        #expect(counter.value == 1)
+    }
+
+    @Test("a discovery deadline returns before unresponsive work and releases its late access")
+    func deadlineDiscardsLateResources() async throws {
+        let gate = PreparationGate()
+        let counter = SubtitleDiscoveryReleaseCounter()
+        let lease = MediaAccessLease(release: { counter.increment() })
+        let discovery = ExternalSubtitleDiscovery {
+            await gate.wait()
+            return [ResolvedExternalSubtitleSource(
+                id: "late", url: URL(fileURLWithPath: "/Movie.srt"),
+                displayName: "Movie.srt", accessLease: lease
+            )]
+        }
+        let resolving = Task { try await discovery.resolve(deadline: .milliseconds(30)) }
+        while !gate.waiting { await Task.yield() }
+        do {
+            _ = try await resolving.value
+            Issue.record("Timed out subtitle discovery returned a source")
+        } catch {
+            #expect(error as? ExternalSubtitleDiscovery.DiscoveryError == .deadlineExceeded)
+        }
+        #expect(counter.value == 0)
+        gate.release()
+        let deadline = ContinuousClock.now + .seconds(1)
+        while counter.value == 0, ContinuousClock.now < deadline { await Task.yield() }
+        #expect(counter.value == 1)
+    }
+
+    @Test("cancelling discovery returns before unresponsive work and releases its late access")
+    func cancellationDiscardsLateResources() async throws {
+        let gate = PreparationGate()
+        let counter = SubtitleDiscoveryReleaseCounter()
+        let lease = MediaAccessLease(release: { counter.increment() })
+        let discovery = ExternalSubtitleDiscovery {
+            await gate.wait()
+            return [ResolvedExternalSubtitleSource(
+                id: "cancelled", url: URL(fileURLWithPath: "/Movie.srt"),
+                displayName: "Movie.srt", accessLease: lease
+            )]
+        }
+        let resolving = Task { try await discovery.resolve() }
+        while !gate.waiting { await Task.yield() }
+        resolving.cancel()
+        do {
+            _ = try await resolving.value
+            Issue.record("Cancelled subtitle discovery returned a source")
+        } catch { #expect(error is CancellationError) }
+        gate.release()
+        let deadline = ContinuousClock.now + .seconds(1)
+        while counter.value == 0, ContinuousClock.now < deadline { await Task.yield() }
+        #expect(counter.value == 1)
+    }
+}
+
+private final class SubtitleDiscoveryReleaseCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
 }

@@ -30,15 +30,14 @@ final class MediaReferenceResolver {
         String,
         FileBrowsingDomain.MediaReference
     ) async throws -> BluRayDiscSource)?
-    var resolveExternalSubtitleSources: (@MainActor (
+    var makeExternalSubtitleDiscovery: (@MainActor (
         UUID,
         String,
         FileBrowsingDomain.MediaReference
-    ) async throws -> ExternalSubtitleResolution)?
+    ) throws -> ExternalSubtitleDiscovery)?
 
     private let fileResolver = SecurityScopedFileReferenceResolver()
     private let fileManager: FileManager
-    private let logger = Logger(subsystem: "app.enchron", category: "MediaReferenceResolver")
 
     init(fileManager: FileManager = .default) {
         self.fileManager = fileManager
@@ -71,12 +70,39 @@ final class MediaReferenceResolver {
         return (resolved, .url(resolved.url))
     }
 
-    fileprivate func externalSubtitleSources(
+    fileprivate func externalSubtitleDiscovery(
         for reference: FileBrowsingDomain.MediaReference
-    ) async throws -> ExternalSubtitleResolution {
+    ) throws -> ExternalSubtitleDiscovery? {
+        switch reference.locator {
+        case .file(_, let relativePath):
+            guard !relativePath.isEmpty else { return nil }
+            let fileResolver = fileResolver
+            let fileManager = fileManager
+            return ExternalSubtitleDiscovery {
+                let work = Task.detached {
+                    try Self.localExternalSubtitleSources(
+                        for: reference, fileResolver: fileResolver, fileManager: fileManager
+                    )
+                }
+                return try await withTaskCancellationHandler {
+                    try await work.value
+                } onCancel: {
+                    work.cancel()
+                }
+            }
+        case .sourceItem(let dataSourceID, let path):
+            return try makeExternalSubtitleDiscovery?(dataSourceID, path, reference)
+        }
+    }
+
+    nonisolated private static func localExternalSubtitleSources(
+        for reference: FileBrowsingDomain.MediaReference,
+        fileResolver: SecurityScopedFileReferenceResolver,
+        fileManager: FileManager
+    ) throws -> [ResolvedExternalSubtitleSource] {
         switch reference.locator {
         case .file(let bookmark, let relativePath):
-            guard !relativePath.isEmpty else { return .none }
+            guard !relativePath.isEmpty else { return [] }
             let root = try fileResolver.resolve(bookmark: bookmark, relativePath: "")
             defer { root.access?.release() }
             let mediaURL = root.url.appending(path: relativePath).standardizedFileURL
@@ -118,11 +144,11 @@ final class MediaReferenceResolver {
                 )
             }
             var sources: [ResolvedExternalSubtitleSource] = []
-            var hadFailures = false
             for candidate in ExternalSubtitleAssociation.matching(
                 mediaFile: mediaFile,
                 subtitleFiles: subtitleFiles
             ) {
+                if Task.isCancelled { break }
                 let candidateRelativePath = String(
                     candidate.url.path.dropFirst(root.url.path.count)
                 ).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
@@ -133,8 +159,7 @@ final class MediaReferenceResolver {
                         relativePath: candidateRelativePath
                     )
                 } catch {
-                    hadFailures = true
-                    logger.error(
+                    Logger(subsystem: "app.enchron", category: "ExternalSubtitleDiscovery").error(
                         "external subtitle resolution failed source=\(candidate.name, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                     )
                     continue
@@ -152,13 +177,9 @@ final class MediaReferenceResolver {
                     accessLease: resolved.access
                 ))
             }
-            return ExternalSubtitleResolution(
-                sources: sources,
-                hadFailures: hadFailures
-            )
-        case .sourceItem(let dataSourceID, let path):
-            guard let resolveExternalSubtitleSources else { return .none }
-            return try await resolveExternalSubtitleSources(dataSourceID, path, reference)
+            return sources
+        case .sourceItem:
+            return []
         }
     }
 }
@@ -685,17 +706,14 @@ public final class MediaLibraryViewModel {
 
     private func playbackItem(for reference: FileBrowsingDomain.MediaReference) async throws -> MediaPlaybackItem {
         let source = try await resolver.resolve(reference)
-        let externalSubtitles: ExternalSubtitleResolution
+        let discovery: ExternalSubtitleDiscovery?
         do {
-            externalSubtitles = try await resolver.externalSubtitleSources(for: reference)
+            discovery = try resolver.externalSubtitleDiscovery(for: reference)
         } catch {
             logger.error(
-                "external subtitle discovery failed error=\(error.localizedDescription, privacy: .public)"
+                "external subtitle discovery unavailable error=\(error.localizedDescription, privacy: .public)"
             )
-            externalSubtitles = ExternalSubtitleResolution(
-                sources: [],
-                hadFailures: true
-            )
+            discovery = nil
         }
         let versionedIdentity: VersionedMediaIdentity? = switch reference.locator {
         case .file:
@@ -721,8 +739,7 @@ public final class MediaLibraryViewModel {
             versionedIdentity: versionedIdentity,
             accessLease: source.accessLease,
             byteStreamHandle: source.byteStreamHandle,
-            externalSubtitleSources: externalSubtitles.sources,
-            externalSubtitleResolutionFailed: externalSubtitles.hadFailures
+            externalSubtitleDiscovery: discovery
         )
     }
 

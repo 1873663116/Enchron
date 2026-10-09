@@ -1125,6 +1125,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             case .idle, .loading, .ready:
                 mediaServerReportingSession = session
             }
+        case .subtitleSelectionChanged:
+            reportImmediateMediaServerProgress(reason: .subtitleTrackChange)
         case .seekCompleted(let positionSeconds):
             session.lastReport = currentPlaybackSessionReport(
                 positionSeconds: positionSeconds
@@ -1181,9 +1183,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         case .ready, .playing, .paused:
             activeFailureRetry = nil
             activeFailureRecovery = nil
-            playbackRuntime.setUserVisibleIssue(
-                request.externalSubtitleResolutionFailed ? .externalSubtitleFailed : nil
-            )
+            playbackRuntime.setUserVisibleIssue(nil)
         case .idle, .loading, .ended, .failed:
             break
         }
@@ -1435,22 +1435,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             }
         }
         guard generation == expectedGeneration else { return false }
-        let subtitle = trackSelectionPreference?.subtitleTrack
-        let subtitleTrack = playbackRuntime.availableSubtitleTracks.first { track in
-            switch subtitle {
-            case .track(let id): track.id == id
-            case .externalSource(let id): track.id.hasPrefix("external.subtitle.\(id).")
-            case .off, nil: false
-            }
-        }
-        if subtitle == .off || subtitleTrack != nil {
-            do {
-                try await playbackRuntime.selectSubtitleTrack(subtitleTrack)
-            } catch {
-                logger.error(
-                    "saved subtitle selection could not be restored error=\(error.localizedDescription, privacy: .public)"
-                )
-            }
+        do {
+            try await playbackRuntime.restoreSubtitleSelection(trackSelectionPreference?.subtitleTrack)
+        } catch {
+            logger.error(
+                "saved subtitle selection could not be restored error=\(error.localizedDescription, privacy: .public)"
+            )
         }
         guard generation == expectedGeneration else { return false }
         guard playbackRuntime.mediaKind == .video else {

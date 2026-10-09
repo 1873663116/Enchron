@@ -24,7 +24,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let accessLease: MediaAccessLease?
     public let byteStreamHandle: MediaByteStreamHandle?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
-    public let externalSubtitleResolutionFailed: Bool
+    public let externalSubtitleDiscovery: ExternalSubtitleDiscovery?
     public let selection: MediaPlaybackSelection
 
     public init(
@@ -38,7 +38,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         accessLease: MediaAccessLease? = nil,
         byteStreamHandle: MediaByteStreamHandle? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleResolutionFailed: Bool = false,
+        externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
         selection: MediaPlaybackSelection = .file
     ) {
         self.id = id
@@ -51,7 +51,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         self.accessLease = accessLease
         self.byteStreamHandle = byteStreamHandle
         self.externalSubtitleSources = externalSubtitleSources
-        self.externalSubtitleResolutionFailed = externalSubtitleResolutionFailed
+        self.externalSubtitleDiscovery = externalSubtitleDiscovery
         self.selection = selection
     }
 
@@ -64,7 +64,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
             && lhs.collectionOrigin == rhs.collectionOrigin
             && lhs.versionedIdentity == rhs.versionedIdentity
             && lhs.externalSubtitleSources == rhs.externalSubtitleSources
-            && lhs.externalSubtitleResolutionFailed == rhs.externalSubtitleResolutionFailed
+            && lhs.externalSubtitleDiscovery == rhs.externalSubtitleDiscovery
             && lhs.selection == rhs.selection
     }
 }

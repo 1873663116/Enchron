@@ -729,11 +729,15 @@ public final class FileBrowsingViewModel {
 
         let playableURL = resolvedSource.url
         let stableIdentifier = makeStableIdentifier(for: file, playableURL: playableURL)
-        let externalSubtitles = await resolvedExternalSubtitleSources(
-            for: file,
-            provider: activeRemoteAdapter ?? localDataSource,
-            dataSource: activeDataSource
-        )
+        let provider: any FileProviding = activeRemoteAdapter ?? localDataSource
+        let dataSource = activeDataSource
+        let discovery = ExternalSubtitleDiscovery {
+            await Self.resolvedExternalSubtitleSources(
+                for: file,
+                provider: provider,
+                dataSource: dataSource
+            )
+        }
         let sourceAccess = resolvedSource.accessLease ?? (playableURL.isFileURL
             ? MediaAccessLease.securityScoped(securityScopedRootURL ?? playableURL)
             : nil)
@@ -761,8 +765,7 @@ public final class FileBrowsingViewModel {
             versionedIdentity: versionedIdentity,
             accessLease: sourceAccess,
             byteStreamHandle: resolvedSource.byteStreamHandle,
-            externalSubtitleSources: externalSubtitles.sources,
-            externalSubtitleResolutionFailed: externalSubtitles.hadFailures
+            externalSubtitleDiscovery: discovery
         )
     }
 
@@ -780,37 +783,33 @@ public final class FileBrowsingViewModel {
         return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity))
     }
 
-    private func resolvedExternalSubtitleSources(
+    private static func resolvedExternalSubtitleSources(
         for mediaFile: FileBrowsingDomain.MediaFile,
         provider: any FileProviding,
         dataSource: FileBrowsingDomain.DataSource?
-    ) async -> ExternalSubtitleResolution {
+    ) async -> [ResolvedExternalSubtitleSource] {
         let directoryPath = mediaFile.url.deletingLastPathComponent().path
         let listedFiles: [FileBrowsingDomain.MediaFile]
         do {
             listedFiles = try await provider.listSubtitleFiles(at: directoryPath)
         } catch {
-            logger.error(
+            Logger(subsystem: "app.enchron", category: "ExternalSubtitleDiscovery").error(
                 "external subtitle discovery failed error=\(error.localizedDescription, privacy: .public)"
             )
-            return ExternalSubtitleResolution(
-                sources: [],
-                hadFailures: true
-            )
+            return []
         }
         let candidates = ExternalSubtitleAssociation.matching(
             mediaFile: mediaFile,
             subtitleFiles: listedFiles
         )
         var sources: [ResolvedExternalSubtitleSource] = []
-        var hadFailures = false
         for candidate in candidates {
+            if Task.isCancelled { break }
             let resolved: ResolvedMediaSource
             do {
                 resolved = try await provider.resolveSubtitleSource(for: candidate)
             } catch {
-                hadFailures = true
-                logger.error(
+                Logger(subsystem: "app.enchron", category: "ExternalSubtitleDiscovery").error(
                     "external subtitle resolution failed source=\(candidate.name, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
                 )
                 continue
@@ -836,13 +835,10 @@ public final class FileBrowsingViewModel {
                 )
             )
         }
-        return ExternalSubtitleResolution(
-            sources: sources,
-            hadFailures: hadFailures
-        )
+        return sources
     }
 
-    private func externalSubtitleIdentity(
+    private static func externalSubtitleIdentity(
         for file: FileBrowsingDomain.MediaFile,
         resolvedURL: URL,
         dataSource: FileBrowsingDomain.DataSource?
@@ -859,7 +855,7 @@ public final class FileBrowsingViewModel {
         return .local(resolvedURL)
     }
 
-    private func fallbackExternalSubtitleIdentity(
+    private static func fallbackExternalSubtitleIdentity(
         for file: FileBrowsingDomain.MediaFile,
         dataSource: FileBrowsingDomain.DataSource?
     ) -> MediaIdentity {
@@ -1016,11 +1012,11 @@ public final class FileBrowsingViewModel {
         }
     }
 
-    func resolveExternalSubtitleSources(
+    func externalSubtitleDiscovery(
         dataSourceID: UUID,
         path: String,
         reference: FileBrowsingDomain.MediaReference
-    ) async throws -> ExternalSubtitleResolution {
+    ) throws -> ExternalSubtitleDiscovery {
         guard let url = URL(string: path) else {
             throw MediaReferenceResolver.ResolutionError.unavailableSource
         }
@@ -1033,40 +1029,36 @@ public final class FileBrowsingViewModel {
             remoteEntityTag: reference.remoteEntityTag
         )
         if dataSourceID == localDataSourceID {
-            return await resolvedExternalSubtitleSources(
-                for: file,
-                provider: localDataSource,
-                dataSource: nil
-            )
+            let provider = localDataSource
+            return ExternalSubtitleDiscovery {
+                await Self.resolvedExternalSubtitleSources(for: file, provider: provider, dataSource: nil)
+            }
         }
         guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
             throw MediaReferenceResolver.ResolutionError.unavailableSource
         }
-        let adapter: any DataSourceConnecting & FileProviding
-        switch dataSource.sourceType {
-        case .webDAV:
-            let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
-            webDAV.ownerDataSourceID = dataSource.id
-            adapter = webDAV
-        case .smb:
-            let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
-            smb.ownerDataSourceID = dataSource.id
-            adapter = smb
-        case .local:
-            throw MediaReferenceResolver.ResolutionError.unavailableSource
-        }
-        do {
+        let credentialStore = credentialStore
+        return ExternalSubtitleDiscovery {
+            let adapter: any DataSourceConnecting & FileProviding
+            switch dataSource.sourceType {
+            case .webDAV:
+                let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+                webDAV.ownerDataSourceID = dataSource.id
+                adapter = webDAV
+            case .smb:
+                let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
+                smb.ownerDataSourceID = dataSource.id
+                adapter = smb
+            case .local:
+                throw MediaReferenceResolver.ResolutionError.unavailableSource
+            }
+            defer { adapter.disconnect() }
+            try Task.checkCancellation()
             try await adapter.connect(with: dataSource.connectionInfo)
-            let sources = await resolvedExternalSubtitleSources(
-                for: file,
-                provider: adapter,
-                dataSource: dataSource
+            try Task.checkCancellation()
+            return await Self.resolvedExternalSubtitleSources(
+                for: file, provider: adapter, dataSource: dataSource
             )
-            adapter.disconnect()
-            return sources
-        } catch {
-            adapter.disconnect()
-            throw error
         }
     }
 

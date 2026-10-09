@@ -31,13 +31,14 @@ struct ExternalSubtitleAssociationTests {
         )
 
         let playbackItem = try await viewModel.playbackItem(for: video)
+        let sources = try await #require(playbackItem.externalSubtitleDiscovery).resolve()
 
-        #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
+        #expect(sources.map(\.displayName) == [
             "Movie.forced.VTT",
             "Movie.srt",
             "Movie.zh-CN.ass"
         ])
-        #expect(playbackItem.externalSubtitleSources.allSatisfy {
+        #expect(sources.allSatisfy {
             $0.url.deletingLastPathComponent() == video.url.deletingLastPathComponent()
         })
     }
@@ -97,21 +98,22 @@ struct ExternalSubtitleAssociationTests {
             try await Task.sleep(for: .milliseconds(10))
         }
         let playbackItem = try #require(capturedItem)
+        let sources = try await #require(playbackItem.externalSubtitleDiscovery).resolve()
 
-        #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
+        #expect(sources.map(\.displayName) == [
             "Episode 01.styled.ass",
             "Episode 01.zh-CN.srt"
         ])
-        #expect(playbackItem.externalSubtitleSources.map { $0.url.standardizedFileURL } == [
+        #expect(sources.map { $0.url.standardizedFileURL } == [
             matchingASS.standardizedFileURL,
             matchingSRT.standardizedFileURL
         ])
-        #expect(Set(playbackItem.externalSubtitleSources.map(\.id)).count == 2)
-        #expect(playbackItem.externalSubtitleSources.allSatisfy {
+        #expect(Set(sources.map(\.id)).count == 2)
+        #expect(sources.allSatisfy {
             $0.id.isEmpty == false && $0.versionedIdentity != nil
         })
         playbackItem.accessLease?.release()
-        playbackItem.externalSubtitleSources.forEach { $0.accessLease?.release() }
+        sources.forEach { $0.accessLease?.release() }
     }
 
     @MainActor
@@ -154,7 +156,7 @@ struct ExternalSubtitleAssociationTests {
 
         #expect(playbackItem.url.standardizedFileURL == video.standardizedFileURL)
         #expect(playbackItem.externalSubtitleSources.isEmpty)
-        #expect(playbackItem.externalSubtitleResolutionFailed == false)
+        #expect(playbackItem.externalSubtitleDiscovery == nil)
         playbackItem.accessLease?.release()
     }
 
@@ -187,8 +189,8 @@ struct ExternalSubtitleAssociationTests {
                 reference: reference
             )
         }
-        resolver.resolveExternalSubtitleSources = { sourceID, path, reference in
-            try await browser.resolveExternalSubtitleSources(
+        resolver.makeExternalSubtitleDiscovery = { sourceID, path, reference in
+            try browser.externalSubtitleDiscovery(
                 dataSourceID: sourceID,
                 path: path,
                 reference: reference
@@ -217,8 +219,9 @@ struct ExternalSubtitleAssociationTests {
             try await Task.sleep(for: .milliseconds(10))
         }
         let playbackItem = try #require(capturedItem)
+        let sources = try await #require(playbackItem.externalSubtitleDiscovery).resolve()
 
-        #expect(playbackItem.externalSubtitleSources.map(\.displayName) == [
+        #expect(sources.map(\.displayName) == [
             "Remote Movie.en.srt"
         ])
     }
@@ -246,7 +249,8 @@ struct ExternalSubtitleAssociationTests {
 
         #expect(playbackItem.url == video.url)
         #expect(playbackItem.externalSubtitleSources.isEmpty)
-        #expect(playbackItem.externalSubtitleResolutionFailed)
+        let sources = try await #require(playbackItem.externalSubtitleDiscovery).resolve()
+        #expect(sources.isEmpty)
     }
 }
 

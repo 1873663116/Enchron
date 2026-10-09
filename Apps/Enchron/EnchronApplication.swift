@@ -1009,7 +1009,7 @@ private extension MediaPlaybackItem {
             versionedIdentity: versionedIdentity,
             sourceAccess: accessLease,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleResolutionFailed: externalSubtitleResolutionFailed
+            externalSubtitleDiscovery: externalSubtitleDiscovery
         )
     }
 }

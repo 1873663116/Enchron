@@ -1,13 +1,6 @@
 import Foundation
 import MediaSource
 
-struct ExternalSubtitleResolution {
-    let sources: [ResolvedExternalSubtitleSource]
-    let hadFailures: Bool
-
-    static let none = ExternalSubtitleResolution(sources: [], hadFailures: false)
-}
-
 enum ExternalSubtitleAssociation {
     static func matching(
         mediaFile: FileBrowsingDomain.MediaFile,

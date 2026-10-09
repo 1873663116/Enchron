@@ -460,3 +460,249 @@ private final class ReopenByteSource: MediaByteRangeSource {
         )
     }
 }
+
+extension PlaybackResidencyTests {
+    @Test("video or audio opens before delayed subtitle discovery and restores a ready default")
+    func playbackStartsBeforeDelayedSubtitleDiscovery() async throws {
+        let audio = try Self.audioFixture(named: "subtitle-background-open")
+        let subtitle = audio.deletingPathExtension().appendingPathExtension("srt")
+        try Data("1\n00:00:00,000 --> 00:00:10,000\nReady subtitle\n".utf8).write(to: subtitle)
+        defer {
+            try? FileManager.default.removeItem(at: audio)
+            try? FileManager.default.removeItem(at: subtitle)
+        }
+        let gate = SubtitleDiscoveryGate()
+        let runtime = PlaybackRuntime(
+            controller: PlaybackCoreController(),
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(session: SettledAudioSession())
+        )
+        var observations: [PlaybackRuntimeObservation.Event] = []
+        runtime.onPlaybackObservation = { observations.append($0.event) }
+        let request = PlaybackLaunchRequest(
+            source: try PlaybackAddress(localFileURL: audio), displayName: "Movie",
+            externalSubtitleDiscovery: ExternalSubtitleDiscovery {
+                await gate.wait()
+                return [ResolvedExternalSubtitleSource(id: "delayed", url: subtitle, displayName: "Movie.srt")]
+            },
+            initialTrackSelection: TrackSelectionPreference(subtitleTrack: .externalSource(id: "delayed"))
+        )
+        try await runtime.open(request)
+        #expect(runtime.productLifecycle == .playing)
+        #expect(runtime.currentSubtitleTrackID == nil)
+        let discoveryWaiting = await Self.wait(until: { gate.waiting })
+        #expect(discoveryWaiting)
+        #expect(runtime.availableSubtitleTracks.isEmpty)
+        gate.release()
+        let selected = await Self.wait(until: { runtime.currentSubtitleTrackID == "external.subtitle.delayed.0" })
+        #expect(selected)
+        #expect(runtime.availableSubtitleTracks.map(\.id) == ["external.subtitle.delayed.0"])
+        #expect(runtime.userVisibleIssue == nil)
+        #expect(observations.contains(.subtitleSelectionChanged))
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+
+    @Test("turning subtitles off overrides a delayed default while failed sources stay absent")
+    func subtitlesOffOverridesLateDefaultAndFailureIsSilent() async throws {
+        let audio = try Self.audioFixture(named: "subtitle-background-off")
+        let subtitle = audio.deletingPathExtension().appendingPathExtension("srt")
+        try Data("1\n00:00:00,000 --> 00:00:10,000\nReady subtitle\n".utf8).write(to: subtitle)
+        defer {
+            try? FileManager.default.removeItem(at: audio)
+            try? FileManager.default.removeItem(at: subtitle)
+        }
+        let gate = SubtitleDiscoveryGate()
+        let counter = SubtitleRuntimeReleaseCounter()
+        let failedAccess = MediaAccessLease(release: { counter.increment() })
+        let runtime = PlaybackRuntime(
+            controller: PlaybackCoreController(),
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(session: SettledAudioSession())
+        )
+        try await runtime.open(PlaybackLaunchRequest(
+            source: try PlaybackAddress(localFileURL: audio), displayName: "Movie",
+            externalSubtitleSources: [ResolvedExternalSubtitleSource(
+                id: "broken", url: audio.appendingPathExtension("missing.srt"), displayName: "Missing.srt", accessLease: failedAccess
+            )],
+            externalSubtitleDiscovery: ExternalSubtitleDiscovery {
+                await gate.wait()
+                return [ResolvedExternalSubtitleSource(id: "delayed", url: subtitle, displayName: "Movie.srt")]
+            },
+            initialTrackSelection: TrackSelectionPreference(subtitleTrack: .externalSource(id: "delayed"))
+        ))
+        let discoveryWaiting = await Self.wait(until: { gate.waiting })
+        #expect(discoveryWaiting)
+        try await runtime.selectSubtitleTrack(nil)
+        gate.release()
+        let ready = await Self.wait(until: { runtime.availableSubtitleTracks.map(\.id) == ["external.subtitle.delayed.0"] })
+        #expect(ready)
+        #expect(runtime.currentSubtitleTrackID == nil)
+        #expect(runtime.userVisibleIssue == nil)
+        #expect(counter.value == 0)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+        #expect(counter.value == 1)
+    }
+
+    @Test("late discovery from an exited session releases access and cannot change the next menu")
+    func lateDiscoveryCannotPolluteTheNextSession() async throws {
+        let first = try Self.audioFixture(named: "subtitle-background-old")
+        let next = try Self.audioFixture(named: "subtitle-background-next")
+        defer {
+            try? FileManager.default.removeItem(at: first)
+            try? FileManager.default.removeItem(at: next)
+        }
+        let gate = SubtitleDiscoveryGate()
+        let counter = SubtitleRuntimeReleaseCounter()
+        let lease = MediaAccessLease(release: { counter.increment() })
+        let runtime = PlaybackRuntime(
+            controller: PlaybackCoreController(),
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(session: SettledAudioSession())
+        )
+        try await runtime.open(PlaybackLaunchRequest(
+            source: try PlaybackAddress(localFileURL: first), displayName: "Old",
+            externalSubtitleDiscovery: ExternalSubtitleDiscovery {
+                await gate.wait()
+                return [ResolvedExternalSubtitleSource(
+                    id: "late", url: first.appendingPathExtension("srt"), displayName: "Old.srt", accessLease: lease
+                )]
+            }
+        ))
+        let discoveryWaiting = await Self.wait(until: { gate.waiting })
+        #expect(discoveryWaiting)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+        try await runtime.open(try Self.request(for: next))
+        let nextSession = runtime.activeSessionID
+        gate.release()
+        let released = await Self.wait(until: { counter.value == 1 })
+        #expect(released)
+        #expect(runtime.currentLaunchRequest?.displayName == next.lastPathComponent)
+        #expect(runtime.activeSessionID == nextSession)
+        #expect(runtime.availableSubtitleTracks.isEmpty)
+        #expect(runtime.userVisibleIssue == nil)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+    }
+}
+
+@MainActor
+private final class SubtitleDiscoveryGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private(set) var didReturn = false
+    var waiting: Bool { continuation != nil }
+    func wait() async {
+        await withCheckedContinuation { continuation = $0 }
+        didReturn = true
+    }
+    func release() {
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+private final class SubtitleRuntimeReleaseCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    var value: Int { lock.withLock { count } }
+    func increment() { lock.withLock { count += 1 } }
+}
+
+extension PlaybackResidencyTests {
+    @Test("failed request subtitles keep their loopback handles available for video recovery")
+    func failedRequestSubtitleDoesNotBreakLoopbackRefresh() async throws {
+        let audioPayload = Self.pcmWaveData()
+        let subtitlePayload = Data("broken subtitle without any cues".utf8)
+        let audioHandle = try await MediaByteStreamServer().register(
+            source: ReopenByteSource(payload: audioPayload), filename: "Movie.wav"
+        )
+        let subtitleHandle = try await MediaByteStreamServer().register(
+            source: ReopenByteSource(payload: subtitlePayload), filename: "Broken.srt"
+        )
+        let driver = SubtitleCompletionDriver()
+        let runtime = PlaybackRuntime(
+            openingDriver: driver,
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(session: SettledAudioSession())
+        )
+        let request = PlaybackLaunchRequest(
+            source: PlaybackAddress(byteStreamHandle: audioHandle), displayName: "Movie",
+            externalSubtitleSources: [ResolvedExternalSubtitleSource(
+                id: "broken", url: subtitleHandle.url, displayName: "Broken.srt", byteStreamHandle: subtitleHandle
+            )]
+        )
+        try await runtime.open(request)
+        let failed = await Self.wait(until: { driver.failedSourceIDs.contains("broken") })
+        #expect(failed)
+        #expect(runtime.userVisibleIssue == nil)
+        #expect(runtime.availableSubtitleTracks.isEmpty)
+        let refreshed = try #require(await request.refreshedLoopbackEndpoints())
+        let (audioBytes, _) = try await URLSession.shared.data(from: refreshed.url)
+        let (subtitleBytes, _) = try await URLSession.shared.data(from: #require(refreshed.externalSubtitleSources.first).url)
+        #expect(audioBytes == audioPayload)
+        #expect(subtitleBytes == subtitlePayload)
+        #expect(refreshed.externalSubtitleSources.map(\.id) == ["broken"])
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+        refreshed.source.byteStreamHandle?.release()
+        refreshed.externalSubtitleSources.forEach { $0.byteStreamHandle?.release() }
+    }
+}
+
+@MainActor
+private final class SubtitleCompletionDriver: PlaybackMediaSessionDriver {
+    private(set) var failedSourceIDs: Set<String> = []
+    override func addExternalSubtitleSource(
+        _ source: PlaybackExternalSubtitleSource
+    ) async throws -> [PlaybackSubtitleTrack] {
+        do {
+            return try await super.addExternalSubtitleSource(source)
+        } catch {
+            failedSourceIDs.insert(source.id)
+            throw error
+        }
+    }
+}
+
+extension PlaybackResidencyTests {
+    @Test("a cancelled discovery cannot release subtitle access reused by the next session")
+    func cancelledDiscoveryKeepsReusedSubtitleAccessActive() async throws {
+        let first = try Self.audioFixture(named: "subtitle-shared-old")
+        let next = try Self.audioFixture(named: "subtitle-shared-next")
+        let subtitle = next.deletingPathExtension().appendingPathExtension("srt")
+        try Data("1\n00:00:00,000 --> 00:00:10,000\nShared subtitle\n".utf8).write(to: subtitle)
+        defer {
+            try? FileManager.default.removeItem(at: first)
+            try? FileManager.default.removeItem(at: next)
+            try? FileManager.default.removeItem(at: subtitle)
+        }
+        let gate = SubtitleDiscoveryGate()
+        let counter = SubtitleRuntimeReleaseCounter()
+        let lease = MediaAccessLease(release: { counter.increment() })
+        let source = ResolvedExternalSubtitleSource(
+            id: "shared", url: subtitle, displayName: "Shared.srt", accessLease: lease
+        )
+        let runtime = PlaybackRuntime(
+            controller: PlaybackCoreController(),
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(session: SettledAudioSession())
+        )
+        try await runtime.open(PlaybackLaunchRequest(
+            source: try PlaybackAddress(localFileURL: first), displayName: "Old",
+            externalSubtitleDiscovery: ExternalSubtitleDiscovery {
+                await gate.wait()
+                return [source]
+            }
+        ))
+        let discoveryWaiting = await Self.wait(until: { gate.waiting })
+        #expect(discoveryWaiting)
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+        try await runtime.open(PlaybackLaunchRequest(
+            source: try PlaybackAddress(localFileURL: next), displayName: "Next",
+            externalSubtitleSources: [source]
+        ))
+        let ready = await Self.wait(until: { runtime.availableSubtitleTracks.map(\.id) == ["external.subtitle.shared.0"] })
+        #expect(ready)
+        gate.release()
+        let lateReturned = await Self.wait(until: { gate.didReturn })
+        #expect(lateReturned)
+        await Task.yield()
+        #expect(counter.value == 0)
+        #expect(runtime.availableSubtitleTracks.map(\.id) == ["external.subtitle.shared.0"])
+        #expect(runtime.currentLaunchRequest?.displayName == "Next")
+        await runtime.leavePlaybackAndWait(reason: .backButton)
+        #expect(counter.value == 1)
+    }
+}

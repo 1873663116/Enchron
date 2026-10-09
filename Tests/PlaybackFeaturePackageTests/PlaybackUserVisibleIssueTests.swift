@@ -192,15 +192,6 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
         locations: [.playerDeck]
     ),
     .init(
-        issue: .externalSubtitleFailed,
-        category: .externalSubtitleFailed,
-        title: "Subtitle Error",
-        message: "Some external subtitle files could not be loaded.",
-        messageStrategy: .fixedProductCopy,
-        actions: [.confirm],
-        locations: [.playerDeck]
-    ),
-    .init(
         issue: .presentationTransitionFailed,
         category: .presentationTransitionFailed,
         title: "Unable to Change Display",
