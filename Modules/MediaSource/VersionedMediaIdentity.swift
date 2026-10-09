@@ -89,7 +89,7 @@ public struct ContentRevision: Codable, Equatable, Hashable, Sendable {
         make(components: ["emby-item", itemEntityTag, String(runTimeTicks)])
     }
 
-    private static func make(components: [String]) -> Self {
+    fileprivate static func make(components: [String]) -> Self {
         let canonicalValue = components.joined(separator: "\u{1f}")
         let digest = SHA256.hash(data: Data(canonicalValue.utf8))
         return Self(storageKey: digest.map { String(format: "%02x", $0) }.joined())
@@ -186,6 +186,34 @@ public struct VersionedMediaIdentity: Codable, Equatable, Hashable, Sendable {
                 itemID: itemID,
                 mediaSourceID: mediaSourceID
             ),
+            contentRevision: revision
+        )
+    }
+
+    public static func mediaServer(
+        provider: String,
+        serverID: String,
+        itemID: String,
+        mediaSourceID: String,
+        itemEntityTag: String?,
+        sizeInBytes: Int64?,
+        runTimeTicks: Int64?
+    ) -> Self? {
+        if provider == "emby" {
+            return emby(serverID: serverID, itemID: itemID, mediaSourceID: mediaSourceID,
+                        itemEntityTag: itemEntityTag, sizeInBytes: sizeInBytes, runTimeTicks: runTimeTicks)
+        }
+        guard let tag = itemEntityTag, !tag.isEmpty else { return nil }
+        let revision: ContentRevision
+        if let sizeInBytes {
+            revision = .make(components: [provider, tag, "size", String(sizeInBytes)])
+        } else if let runTimeTicks {
+            revision = .make(components: [provider, tag, "duration", String(runTimeTicks)])
+        } else {
+            return nil
+        }
+        return Self(
+            mediaIdentity: .make(scope: provider, components: [serverID, itemID, mediaSourceID]),
             contentRevision: revision
         )
     }

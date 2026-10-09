@@ -1,5 +1,5 @@
 import Foundation
-@testable import Emby
+@testable import MediaServer
 import XCTest
 
 nonisolated final class EmbyCleartextAddressIntegrationTests: XCTestCase {
@@ -26,19 +26,15 @@ nonisolated final class EmbyCleartextAddressIntegrationTests: XCTestCase {
             "\(host) loads even under NSAllowsLocalNetworking, so it cannot show whether cleartext is permitted."
         )
 
-        let client = EmbyClient(
-            clientIdentity: EmbyClientIdentity(
+        let client = MediaBrowserClient(
+            clientIdentity: MediaServerClientIdentity(
                 name: "Enchron",
                 version: "1",
                 deviceName: "Cleartext Address Tests",
                 deviceID: "enchron-cleartext-address-tests"
             )
         )
-        let server = try await client.authenticate(
-            address: address,
-            username: username,
-            password: password
-        )
+        let server = try await client.authenticate(.password(address: address, username: username, password: password))
 
         XCTAssertFalse(server.accessToken.isEmpty)
         XCTAssertEqual(server.baseAddress.scheme, "http")

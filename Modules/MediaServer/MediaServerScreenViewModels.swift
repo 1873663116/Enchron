@@ -4,10 +4,10 @@ import Observation
 
 @MainActor
 @Observable
-public final class EmbyNavigationModel {
+public final class MediaServerNavigationModel {
     public enum Destination: Hashable, Sendable {
         case home
-        case library(EmbyItemID)
+        case library(MediaServerItemID)
         case search
 
         var id: String {
@@ -20,9 +20,9 @@ public final class EmbyNavigationModel {
     }
 
     public var destination: Destination
-    public var path: [EmbyLibraryItem]
+    public var path: [MediaServerLibraryItem]
 
-    public init(destination: Destination = .home, path: [EmbyLibraryItem] = []) {
+    public init(destination: Destination = .home, path: [MediaServerLibraryItem] = []) {
         self.destination = destination
         self.path = path
     }
@@ -32,7 +32,7 @@ public final class EmbyNavigationModel {
         path = []
     }
 
-    public func open(_ item: EmbyLibraryItem) {
+    public func open(_ item: MediaServerLibraryItem) {
         path.append(item)
     }
 
@@ -42,20 +42,20 @@ public final class EmbyNavigationModel {
     }
 }
 
-public struct EmbyHomeShelf: Identifiable, Equatable, Sendable {
+public struct MediaServerHomeShelf: Identifiable, Equatable, Sendable {
     public enum Kind: Equatable, Hashable, Sendable {
         case continueWatching
         case nextUp
-        case recentlyAdded(EmbyItemID)
+        case recentlyAdded(MediaServerItemID)
     }
 
     public let kind: Kind
     public let title: String
-    public let items: [EmbyLibraryItem]
+    public let items: [MediaServerLibraryItem]
 
     public var id: Kind { kind }
 
-    public init(kind: Kind, title: String, items: [EmbyLibraryItem]) {
+    public init(kind: Kind, title: String, items: [MediaServerLibraryItem]) {
         self.kind = kind
         self.title = title
         self.items = items
@@ -64,16 +64,16 @@ public struct EmbyHomeShelf: Identifiable, Equatable, Sendable {
 
 @MainActor
 @Observable
-public final class EmbyHomeViewModel {
-    public private(set) var libraries: [EmbyLibraryView] = []
-    public private(set) var shelves: [EmbyHomeShelf] = []
+public final class MediaServerHomeViewModel {
+    public private(set) var libraries: [MediaServerLibraryView] = []
+    public private(set) var shelves: [MediaServerHomeShelf] = []
     public private(set) var isLoading = false
     public private(set) var errorMessage: String?
 
-    private let client: any EmbyClientProtocol
-    private let session: EmbySessionViewModel
+    private let client: any MediaServerClientProtocol
+    private let session: MediaServerSessionViewModel
 
-    public init(client: any EmbyClientProtocol, session: EmbySessionViewModel) {
+    public init(client: any MediaServerClientProtocol, session: MediaServerSessionViewModel) {
         self.client = client
         self.session = session
     }
@@ -90,28 +90,28 @@ public final class EmbyHomeViewModel {
             let loadedLibraries = try await client.views(on: server)
             let continueWatching = try await client.resumeItems(
                 on: server,
-                query: EmbyItemQuery(
+                query: MediaServerItemQuery(
                     sortBy: [.datePlayed],
                     sortOrder: .descending,
                     limit: 20
                 )
             ).items
-            let nextUp = try await client.nextUp(
+            let nextUp = client.capabilities.nextUp ? try await client.nextUp(
                 on: server,
                 seriesID: nil,
                 startIndex: nil,
                 limit: 20
-            ).items
-            var loadedShelves: [EmbyHomeShelf] = []
+            ).items : []
+            var loadedShelves: [MediaServerHomeShelf] = []
             if continueWatching.isEmpty == false {
-                loadedShelves.append(EmbyHomeShelf(
+                loadedShelves.append(MediaServerHomeShelf(
                     kind: .continueWatching,
                     title: String(localized: "Continue Watching"),
                     items: continueWatching
                 ))
             }
             if nextUp.isEmpty == false {
-                loadedShelves.append(EmbyHomeShelf(
+                loadedShelves.append(MediaServerHomeShelf(
                     kind: .nextUp,
                     title: String(localized: "Next Up"),
                     items: nextUp
@@ -124,7 +124,7 @@ public final class EmbyHomeViewModel {
                     limit: 20
                 )
                 if latest.isEmpty == false {
-                    loadedShelves.append(EmbyHomeShelf(
+                    loadedShelves.append(MediaServerHomeShelf(
                         kind: .recentlyAdded(library.id),
                         title: String(localized: "Recently Added in \(library.name)"),
                         items: latest
@@ -142,24 +142,24 @@ public final class EmbyHomeViewModel {
         }
     }
 
-    private func warmArtwork(of shelves: [EmbyHomeShelf], on server: EmbyAuthenticatedServer) async {
+    private func warmArtwork(of shelves: [MediaServerHomeShelf], on server: MediaServerAuthenticatedServer) async {
 #if DEBUG
-        let requests = shelves.flatMap { shelf -> [EmbyArtworkLoadRequest] in
+        let requests = shelves.flatMap { shelf -> [MediaServerArtworkLoadRequest] in
             let isStill = shelf.kind == .continueWatching
             let width = Int((isStill ? DesignTokens.Card.stillWidth : DesignTokens.Card.posterWidth) * 2)
-            return shelf.items.compactMap { item -> EmbyArtworkLoadRequest? in
+            return shelf.items.compactMap { item -> MediaServerArtworkLoadRequest? in
                 let metadata = item.metadata
-                let type: EmbyImageType = isStill && metadata.imageTags.thumb != nil ? .thumb : .primary
+                let type: MediaServerImageType = isStill && metadata.imageTags.thumb != nil ? .thumb : .primary
                 let tag = type == .thumb ? metadata.imageTags.thumb : metadata.imageTags.primary
                 guard let tag,
                       let url = try? client.imageURL(
                     for: metadata.id,
                     type: type,
                     tag: tag,
-                    size: try? EmbyImageSize.width(width),
+                    size: try? MediaServerImageSize.width(width),
                     on: server
                       ) else { return nil }
-                return EmbyArtworkLoadRequest(
+                return MediaServerArtworkLoadRequest(
                     itemID: metadata.id,
                     imageType: type,
                     imageTag: tag,
@@ -174,14 +174,14 @@ public final class EmbyHomeViewModel {
             let width = Int((isStill ? DesignTokens.Card.stillWidth : DesignTokens.Card.posterWidth) * 2)
             return shelf.items.compactMap { item -> URL? in
                 let metadata = item.metadata
-                let type: EmbyImageType = isStill && metadata.imageTags.thumb != nil ? .thumb : .primary
+                let type: MediaServerImageType = isStill && metadata.imageTags.thumb != nil ? .thumb : .primary
                 let tag = type == .thumb ? metadata.imageTags.thumb : metadata.imageTags.primary
                 guard tag != nil else { return nil }
                 return try? client.imageURL(
                     for: metadata.id,
                     type: type,
                     tag: tag,
-                    size: try? EmbyImageSize.width(width),
+                    size: try? MediaServerImageSize.width(width),
                     on: server
                 )
             }
@@ -191,7 +191,7 @@ public final class EmbyHomeViewModel {
     }
 }
 
-public enum EmbyLibrarySort: String, CaseIterable, Sendable {
+public enum MediaServerLibrarySort: String, CaseIterable, Sendable {
     case recentlyAdded
     case alphabetical
 
@@ -205,20 +205,20 @@ public enum EmbyLibrarySort: String, CaseIterable, Sendable {
 
 @MainActor
 @Observable
-public final class EmbyLibraryViewModel {
-    public let library: EmbyLibraryView
-    public private(set) var items: [EmbyLibraryItem] = []
-    public private(set) var sort: EmbyLibrarySort = .recentlyAdded
+public final class MediaServerLibraryViewModel {
+    public let library: MediaServerLibraryView
+    public private(set) var items: [MediaServerLibraryItem] = []
+    public private(set) var sort: MediaServerLibrarySort = .recentlyAdded
     public private(set) var isLoading = false
     public private(set) var errorMessage: String?
 
-    private let client: any EmbyClientProtocol
-    private let session: EmbySessionViewModel
+    private let client: any MediaServerClientProtocol
+    private let session: MediaServerSessionViewModel
 
     public init(
-        library: EmbyLibraryView,
-        client: any EmbyClientProtocol,
-        session: EmbySessionViewModel
+        library: MediaServerLibraryView,
+        client: any MediaServerClientProtocol,
+        session: MediaServerSessionViewModel
     ) {
         self.library = library
         self.client = client
@@ -235,13 +235,13 @@ public final class EmbyLibraryViewModel {
         do {
             let query = switch sort {
             case .recentlyAdded:
-                EmbyItemQuery(
+                MediaServerItemQuery(
                     sortBy: [.dateCreated],
                     sortOrder: .descending,
                     includeItemTypes: library.topLevelItemKinds
                 )
             case .alphabetical:
-                EmbyItemQuery(
+                MediaServerItemQuery(
                     sortBy: [.sortName],
                     sortOrder: .ascending,
                     includeItemTypes: library.topLevelItemKinds
@@ -256,23 +256,23 @@ public final class EmbyLibraryViewModel {
         }
     }
 
-    public func setSort(_ sort: EmbyLibrarySort) {
+    public func setSort(_ sort: MediaServerLibrarySort) {
         self.sort = sort
     }
 }
 
 @MainActor
 @Observable
-public final class EmbySearchViewModel {
+public final class MediaServerSearchViewModel {
     public var query = ""
-    public private(set) var results: [EmbyLibraryItem] = []
+    public private(set) var results: [MediaServerLibraryItem] = []
     public private(set) var isSearching = false
     public private(set) var errorMessage: String?
 
-    private let client: any EmbyClientProtocol
-    private let session: EmbySessionViewModel
+    private let client: any MediaServerClientProtocol
+    private let session: MediaServerSessionViewModel
 
-    public init(client: any EmbyClientProtocol, session: EmbySessionViewModel) {
+    public init(client: any MediaServerClientProtocol, session: MediaServerSessionViewModel) {
         self.client = client
         self.session = session
     }
@@ -290,7 +290,7 @@ public final class EmbySearchViewModel {
             results = try await client.search(
                 term,
                 on: server,
-                query: EmbyItemQuery(
+                query: MediaServerItemQuery(
                     sortBy: [.sortName],
                     sortOrder: .ascending,
                     includeItemTypes: [.movie, .series, .boxSet]
@@ -305,13 +305,13 @@ public final class EmbySearchViewModel {
     }
 }
 
-public enum EmbyDetailChildren: Equatable, Sendable {
+public enum MediaServerDetailChildren: Equatable, Sendable {
     case none
-    case seasons(all: [EmbySeason], selected: EmbyItemID?, episodes: [EmbyEpisode])
-    case episodes([EmbyEpisode])
-    case collection([EmbyLibraryItem])
+    case seasons(all: [MediaServerSeason], selected: MediaServerItemID?, episodes: [MediaServerEpisode])
+    case episodes([MediaServerEpisode])
+    case collection([MediaServerLibraryItem])
 
-    public var episodes: [EmbyEpisode] {
+    public var episodes: [MediaServerEpisode] {
         switch self {
         case .seasons(_, _, let episodes): episodes
         case .episodes(let episodes): episodes
@@ -319,7 +319,7 @@ public enum EmbyDetailChildren: Equatable, Sendable {
         }
     }
 
-    var selectedSeasonID: EmbyItemID? {
+    var selectedSeasonID: MediaServerItemID? {
         guard case .seasons(_, let selected, _) = self else { return nil }
         return selected
     }
@@ -327,24 +327,24 @@ public enum EmbyDetailChildren: Equatable, Sendable {
 
 @MainActor
 @Observable
-public final class EmbyDetailViewModel {
-    public let itemID: EmbyItemID
-    public private(set) var item: EmbyLibraryItem?
-    public private(set) var children: EmbyDetailChildren = .none
-    public private(set) var specialFeatures: [EmbyLibraryItem] = []
-    public private(set) var relatedItems: [EmbyLibraryItem] = []
-    public var selectedMediaSourceID: EmbyMediaSourceID?
+public final class MediaServerDetailViewModel {
+    public let itemID: MediaServerItemID
+    public private(set) var item: MediaServerLibraryItem?
+    public private(set) var children: MediaServerDetailChildren = .none
+    public private(set) var specialFeatures: [MediaServerLibraryItem] = []
+    public private(set) var relatedItems: [MediaServerLibraryItem] = []
+    public var selectedMediaSourceID: MediaServerMediaSourceID?
     public private(set) var isLoading = false
     public private(set) var errorMessage: String?
 
-    private let client: any EmbyClientProtocol
-    private let session: EmbySessionViewModel
+    private let client: any MediaServerClientProtocol
+    private let session: MediaServerSessionViewModel
 
     public init(
-        itemID: EmbyItemID,
-        client: any EmbyClientProtocol,
-        session: EmbySessionViewModel,
-        knownItem: EmbyLibraryItem? = nil
+        itemID: MediaServerItemID,
+        client: any MediaServerClientProtocol,
+        session: MediaServerSessionViewModel,
+        knownItem: MediaServerLibraryItem? = nil
     ) {
         self.itemID = itemID
         self.client = client
@@ -368,8 +368,8 @@ public final class EmbyDetailViewModel {
                 selectedMediaSourceID = availableSources.first?.id
             }
 
-            async let features = client.specialFeatures(for: itemID, on: server)
-            async let related = client.similarItems(to: itemID, on: server, limit: 20)
+            async let features = client.capabilities.specialFeatures ? client.specialFeatures(for: itemID, on: server) : []
+            async let related = client.capabilities.similarItems ? client.similarItems(to: itemID, on: server, limit: 20) : MediaServerItemPage(items: [], totalRecordCount: 0)
             let loadedChildren = try await loadChildren(of: freshItem, on: server)
             specialFeatures = try await features
             relatedItems = try await related.items
@@ -382,7 +382,7 @@ public final class EmbyDetailViewModel {
         }
     }
 
-    public func selectSeason(_ seasonID: EmbyItemID) async {
+    public func selectSeason(_ seasonID: MediaServerItemID) async {
         guard case .seasons(let all, let selected, let shown) = children,
               selected != seasonID,
               let season = all.first(where: { $0.metadata.id == seasonID }),
@@ -402,29 +402,49 @@ public final class EmbyDetailViewModel {
     }
 
     public func playbackSelection(
-        startAction: EmbyPlaybackStartAction
-    ) throws -> EmbyPlaybackSelection {
-        guard let item else { throw EmbyError.notAuthenticated }
-        return EmbyPlaybackSelection(
-            item: item,
+        startAction: MediaServerPlaybackStartAction
+    ) async throws -> MediaServerPlaybackSelection {
+        guard let item else { throw MediaServerError.notAuthenticated }
+        let freshItem = try await currentPlaybackItem(withID: item.metadata.id)
+        self.item = freshItem
+        return MediaServerPlaybackSelection(
+            item: freshItem,
             mediaSourceID: selectedMediaSourceID,
             startAction: startAction
         )
     }
 
-    public func playbackSelection(for episode: EmbyEpisode) -> EmbyPlaybackSelection {
-        EmbyPlaybackSelection(
-            episode: episode,
-            mediaSourceID: episode.metadata.mediaSources.first?.id,
+    public func playbackSelection(for episode: MediaServerEpisode) async throws -> MediaServerPlaybackSelection {
+        guard case let .episode(freshEpisode) = try await currentPlaybackItem(withID: episode.metadata.id) else {
+            throw MediaServerError.invalidResponse
+        }
+        return MediaServerPlaybackSelection(
+            episode: freshEpisode,
+            mediaSourceID: freshEpisode.metadata.mediaSources.first?.id,
             startAction: .resume,
             seasonEpisodes: children.episodes
         )
     }
 
+    private func currentPlaybackItem(withID itemID: MediaServerItemID) async throws -> MediaServerLibraryItem {
+        guard let server = session.server else { throw MediaServerError.notAuthenticated }
+        do {
+            let item = try await client.item(withID: itemID, on: server)
+            try Task.checkCancellation()
+            guard session.server == server else { throw MediaServerError.notAuthenticated }
+            return item
+        } catch {
+            if session.server == server {
+                _ = await session.handleRequestError(error)
+            }
+            throw error
+        }
+    }
+
     private func loadChildren(
-        of item: EmbyLibraryItem,
-        on server: EmbyAuthenticatedServer
-    ) async throws -> EmbyDetailChildren {
+        of item: MediaServerLibraryItem,
+        on server: MediaServerAuthenticatedServer
+    ) async throws -> MediaServerDetailChildren {
         switch item {
         case .movie, .episode:
             return .none
@@ -449,23 +469,23 @@ public final class EmbyDetailViewModel {
     }
 
     private func episodes(
-        of season: EmbyLibraryItem,
-        on server: EmbyAuthenticatedServer
-    ) async throws -> [EmbyEpisode] {
+        of season: MediaServerLibraryItem,
+        on server: MediaServerAuthenticatedServer
+    ) async throws -> [MediaServerEpisode] {
         try await childPage(of: season, on: server, sortBy: [])
             .items
             .compactMap(\.episode)
     }
 
     private func childPage(
-        of parent: EmbyLibraryItem,
-        on server: EmbyAuthenticatedServer,
-        sortBy: [EmbyItemSort] = [.sortName]
-    ) async throws -> EmbyItemPage {
+        of parent: MediaServerLibraryItem,
+        on server: MediaServerAuthenticatedServer,
+        sortBy: [MediaServerItemSort] = [.sortName]
+    ) async throws -> MediaServerItemPage {
         try await client.children(
             of: parent,
             on: server,
-            query: EmbyItemQuery(
+            query: MediaServerItemQuery(
                 sortBy: sortBy,
                 sortOrder: .ascending,
                 recursive: false

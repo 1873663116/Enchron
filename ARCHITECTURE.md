@@ -11,7 +11,7 @@ Apps/Enchron/                产品 App：组合、SwiftUI Scene 声明、系统
 Apps/Enchron/DebugSupport/   整文件 #if DEBUG 门控的调试与诊断子系统
 Modules/MediaSource/         公共名词：来源身份、授权与字节访问
 Modules/MediaLibrary/        feature：虚拟媒体库与来源浏览
-Modules/Emby/                feature：Emby 远程源
+Modules/MediaServer/         feature：Emby、Jellyfin、Plex 媒体服务器
 Modules/Playback/            feature：播放的领域、呈现与平台代码
 Modules/DesignSystem/        公共名词：设计 token 与多消费者组件
 Packages/PlaybackCore/       播放引擎，独立 Package
@@ -29,7 +29,7 @@ Config/                      检查器的基线与清单
 
 ## 编译所有权
 
-`Modules/` 下的每一个 Swift 文件恰好由一个包 target 编译。[`Package.swift`](Package.swift) 声明五个 library target（`MediaSource`、`MediaLibrary`、`Emby`、`Playback`、`DesignSystem`），每个 target 的 `path` 恰为 `Modules/<name>`，`exclude` 为空，不声明 `sources` 子集——即整目录编译，新增文件不需要登记。
+`Modules/` 下的每一个 Swift 文件恰好由一个包 target 编译。[`Package.swift`](Package.swift) 声明五个 library target（`MediaSource`、`MediaLibrary`、`MediaServer`、`Playback`、`DesignSystem`），每个 target 的 `path` 恰为 `Modules/<name>`，`exclude` 为空，不声明 `sources` 子集——即整目录编译，新增文件不需要登记。
 
 [`Enchron.xcodeproj`](Enchron.xcodeproj) 声明五个原生 target：`Enchron` 与测试宿主 `EnchronDebug` 两个 App，`EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests` 三个测试 bundle。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里，条目数与 `Modules` 下 Swift 文件数相等，因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
 
@@ -45,7 +45,7 @@ flowchart LR
     BluRayDisc["BluRayDisc"]
     MediaLibrary["MediaLibrary"]
     Playback["Playback"]
-    Emby["Emby"]
+    MediaServer["MediaServer"]
     App["Apps/Enchron"]
 
     MediaLibrary --> MediaSource
@@ -56,12 +56,12 @@ flowchart LR
     Playback --> PlaybackCore
     Playback --> BluRayDisc
     PlaybackCore --> BluRayDisc
-    Emby --> MediaSource
-    Emby --> DesignSystem
-    Emby --> Playback
+    MediaServer --> MediaSource
+    MediaServer --> DesignSystem
+    MediaServer --> Playback
     App --> MediaLibrary
     App --> Playback
-    App --> Emby
+    App --> MediaServer
     App --> MediaSource
     App --> DesignSystem
     App --> PlaybackCore
@@ -69,7 +69,7 @@ flowchart LR
 
 图里只画本仓模块之间的边。此外 `MediaLibrary` 依赖 AMSMB2，`Playback` 依赖 EnvironmentSceneContract、OceanEnvironment、QuietRoomEnvironment 与 RealityKitScripting，`Enchron` 依赖 RealityKitScripting。`Packages/PlaybackCore` 提供播放引擎 `PlaybackCore` 与光盘读取 `BluRayDisc` 两个 library 产品；前者依赖 PlaybackFFmpeg、PlaybackSubtitleRenderer，后者经 BluRayDiscBridge 依赖含 libbluray 与 libudfread 的 PlaybackBluRay。三个二进制均以 vendored xcframework 提供。场景包只依赖 EnvironmentSceneContract 与 RealityKit，互不依赖，也不依赖本仓模块；Ocean 包内 `Sources/OceanEnvironment/Vendor/OceanProbe` 是从 Xrplay_scene 的 OceanProbePlugin 运行时复制来的海面模拟，去掉了只在 Reality Composer Pro 内有意义的编辑器状态分支。
 
-`MediaSource` 与 `DesignSystem` 不依赖任何本仓模块，是两个公共名词层。`MediaLibrary` 与 `Emby` 互不依赖：Emby 自带完整的浏览与详情实现，不复用 MediaLibrary 的浏览。`Emby` 依赖 `Playback` 是单向的——`EmbyPlaybackBridge` 与 `EmbySessionViewModel` 把 Emby 的播放选择翻成播放启动请求。
+`MediaSource` 与 `DesignSystem` 不依赖任何本仓模块，是两个公共名词层。`MediaLibrary` 与 `MediaServer` 互不依赖。`MediaServer` 拥有三种服务器共用的浏览、详情、会话与播放桥。`MediaBrowserClient` 处理 Emby 与 Jellyfin 的传输差异，`PlexClient` 处理 Plex API，`PlexAccount` 处理账号授权与服务器选择。`MediaServerPlaybackBridge` 将统一媒体模型转换成 `PlaybackLaunchRequest`。App 组合三个独立 Tab，并将连播请求交给当前播放所属的会话。
 
 
 ## 归属判据
@@ -80,7 +80,7 @@ flowchart LR
 
 **它是否只描述来源本身**——地址、凭据、信任、字节读取、媒体身份与版本？属 [`Modules/MediaSource`](Modules/MediaSource)。它不认识库、不认识播放，被所有 feature 依赖。
 
-**它是否是跨 feature 的视觉原语或组件**？属 [`Modules/DesignSystem`](Modules/DesignSystem)。准入门槛是至少两个产品 feature（MediaLibrary、Emby、Playback）在代码里消费它。只有一个 feature 消费的，放进那个 feature；没有 feature 消费而 DesignSystem 自身在用的，降为 internal；两者皆无的，删除。该规则目前由人执行，没有检查器把关；判断消费者数量时必须先剥掉注释与字符串再统计，按名字直接 grep 会把注释里的名字算成消费者。
+**它是否是跨 feature 的视觉原语或组件**？属 [`Modules/DesignSystem`](Modules/DesignSystem)。准入门槛是至少两个产品 feature（MediaLibrary、MediaServer、Playback）在代码里消费它。只有一个 feature 消费的，放进那个 feature；没有 feature 消费而 DesignSystem 自身在用的，降为 internal；两者皆无的，删除。该规则目前由人执行，没有检查器把关；判断消费者数量时必须先剥掉注释与字符串再统计，按名字直接 grep 会把注释里的名字算成消费者。
 
 **它是否是一个观影环境场景本身**——`.reality` 资源、场景内实体名、材质参数名、把屏幕位置与视频纹理写进材质、按亮度压暗自己？属该场景的 Package（[`Packages/OceanEnvironment`](Packages/OceanEnvironment)、[`Packages/QuietRoomEnvironment`](Packages/QuietRoomEnvironment)），并实现 [`Packages/EnvironmentSceneContract`](Packages/EnvironmentSceneContract) 的 `EnvironmentScene`。屏幕的静止位姿由场景交付：场景包在 `load()` 里从 `ScreenPreview` 的世界变换求出 `EnvironmentScreenRestPose`，Enchron 不再要求场景内有空的挂载实体。Enchron 只认契约：身份到场景包的注册表是 `Modules/Playback/Model/CinemaEnvironment.swift` 的 `EnvironmentSceneMapping`，屏幕位姿求解是 `Modules/Playback/Platform/PlaybackDockedPoseSolver.swift`，反射用的低分辨率视频纹理由 `Modules/Playback/Platform/VideoReflectionTextureSource.swift` 从渲染器已显示的像素缓冲生成。纯色占位环境没有场景包，由 `ImmersiveSpaceView` 里的 `EnvironmentSceneAppearanceApplier` 生成球体，静止位姿取内置的回退值。
 
@@ -97,7 +97,7 @@ flowchart LR
 
 **它是否属于本地与网络文件浏览**——库模型、来源浏览、目录扫描、SMB/WebDAV/本地适配器、字幕关联，以及 Files 页的库与来源行为？属 [`Modules/MediaLibrary`](Modules/MediaLibrary)。`Views/FilesScreen.swift` 拥有 Files 页行为；App 只负责产品入口、模态协调与 feature 装配。
 
-**它是否只对 Emby 有意义**——Emby 的 REST 模型、认证、图片与流地址、货架与详情页？属 [`Modules/Emby`](Modules/Emby)。
+**它是否属于媒体服务器**——三种服务的 API 转换、认证、图片与流地址、共用浏览模型、货架与详情页？属 [`Modules/MediaServer`](Modules/MediaServer)。
 
 **它是否是解码、解复用、渲染、时钟、字幕栅格化或蓝光结构读取**？属 [`Packages/PlaybackCore`](Packages/PlaybackCore)。该 Package 只依赖 vendored 二进制与自己的 C 桥，不依赖本仓任何模块。`BluRayDisc` 负责 ISO／目录验证、播放列表与轨道描述、选定播放列表的随机读取；`PlaybackCore` 通过自定义 AVIO 接入选定的整片字节流，并保持连续的整片时间轴。文件页识别、卡片与播放项目身份属 `MediaLibrary`，`Modules/Playback` 的 `PlaybackRuntime` 是播放引擎的适配层。
 

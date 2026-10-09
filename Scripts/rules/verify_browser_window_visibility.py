@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
 
-"""One intent -- the browser disappears while playback owns the space -- reaches
-the screen through ten application points that the platform refuses to let the
-app collapse into one. `toolbarVisibility(_:for:.tabBar)` binds to each Tab's
-own content, `persistentSystemOverlays` binds to the scene, and the rest bind to
-the gate's content. A browser that hides its screens and keeps its tab bar is
-what a partial implementation looks like, and it shipped once. This guard makes
-the partial version unexpressible: the modifiers name the whole set, and every
-Tab has to carry the tab-bar one."""
-
 from pathlib import Path
 import re
 import sys
+
+from check_hover_region_clipping import mask_comments_and_strings
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -133,23 +126,73 @@ def check_the_tab_bar_modifier_has_no_second_spelling() -> None:
         )
 
 
+def closing_delimiter(source: str, opening: int) -> int:
+    left = source[opening]
+    right = {"(": ")", "{": "}"}[left]
+    depth = 0
+    for index in range(opening, len(source)):
+        if source[index] == left:
+            depth += 1
+        elif source[index] == right:
+            depth -= 1
+            if depth == 0:
+                return index
+    raise AssertionError("unclosed Swift delimiter")
+
+
+def content_bounds(source: str, opening: int) -> tuple[int, int]:
+    if source[opening] == "(":
+        opening = source.find("{", closing_delimiter(source, opening) + 1)
+    if opening < 0:
+        raise AssertionError("missing Swift content closure")
+    return opening, closing_delimiter(source, opening)
+
+
+def owns_tab_bar_modifier(source: str, cursor: int) -> bool:
+    while match := re.match(r"\s*\.(\w+)\s*([({])", source[cursor:]):
+        opening = cursor + match.end() - 1
+        closing = closing_delimiter(source, opening)
+        if match.group(1) == "browserTabBarVisibility" and source[opening + 1:closing].strip() == "browserVisibility":
+            return True
+        cursor = closing + 1
+        trailing = re.match(r"\s*\{", source[cursor:])
+        if trailing:
+            cursor = closing_delimiter(source, cursor + trailing.end() - 1) + 1
+    return False
+
+
 def check_every_tab_carries_the_tab_bar_modifier() -> None:
-    browser = region(read("Apps/Enchron/MainView.swift"), "private var browser: some View {", "\n    private var browserVisibility")
-    tabs = re.split(r"\n            Tab\(", browser)
-    require(
-        len(tabs) - 1 == 4,
-        "the browser no longer declares four Tabs; the tab-bar coverage check "
-        "reads their count from the source and has to be re-derived",
-    )
-    for index, tab in enumerate(tabs[1:], start=1):
-        name = tab.split(",", 1)[0].strip()
+    source = mask_comments_and_strings(read("Apps/Enchron/MainView.swift"))
+    marker = re.search(r"\bvar\s+browser\s*:\s*some\s+View\s*\{", source)
+    require(marker is not None, "the browser content declaration is missing")
+    if marker is None:
+        return
+    opening = marker.end() - 1
+    browser = source[opening + 1:closing_delimiter(source, opening)]
+    tabs = list(re.finditer(r"\bTab\s*\(", browser))
+    require(bool(tabs), "the browser no longer declares any Tabs")
+    for index, tab in enumerate(tabs, start=1):
+        opening, closing = content_bounds(browser, tab.end() - 1)
+        content = browser[opening + 1:closing]
+        visible = ".browserTabBarVisibility(browserVisibility)" in content
+        if not visible:
+            call = re.match(r"\s*(?:self\.)?(\w+)\s*\(", content)
+            helper = re.search(r"\bfunc\s+" + re.escape(call.group(1)) + r"\s*\(", source) if call else None
+            if helper:
+                start, end = content_bounds(source, helper.end() - 1)
+                visible = ".browserTabBarVisibility(browserVisibility)" in source[start + 1:end]
         require(
-            ".browserTabBarVisibility(browserVisibility)" in tab,
-            "Tab " + name + " does not hide the tab bar while playback owns the "
-            "space, so the browser disappears with its tab bar left behind",
+            visible,
+            f"Tab {index} does not hide the tab bar while playback owns the space, "
+            "so the browser disappears with its tab bar left behind",
         )
+    tabview = re.search(r"\bTabView\s*([({])", browser)
+    visible = False
+    if tabview:
+        _, closing = content_bounds(browser, tabview.end() - 1)
+        visible = owns_tab_bar_modifier(browser, closing + 1)
     require(
-        browser.rstrip().count(".browserTabBarVisibility(browserVisibility)") == 5,
+        visible,
         "the TabView itself no longer hides the tab bar alongside its Tabs",
     )
 

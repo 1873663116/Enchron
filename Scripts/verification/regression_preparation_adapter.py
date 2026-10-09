@@ -323,7 +323,7 @@ EMBY_IMPLEMENTATION_IDENTITIES = MappingProxyType(
             _implementation_binding(REPOSITORY_ROOT / "Apps/Enchron/DebugSupport/TestCommandChannel.swift")
         ),
         "emby-account-session": MappingProxyType(
-            _implementation_binding(REPOSITORY_ROOT / "Modules/Emby/EmbySessionViewModel.swift")
+            _implementation_binding(REPOSITORY_ROOT / "Modules/MediaServer/MediaServerSessionViewModel.swift")
         ),
         "interactive-command-controller": MappingProxyType(
             _implementation_binding(
@@ -1167,7 +1167,7 @@ def _materialize_calls(spec: PreparationSpec) -> tuple[PreparationCall, ...]:
                     spec.identifier,
                     len(calls) + 7,
                     "operation:host.preflight@1",
-                    {"check": "emby-aggregate"},
+                    {"check": "emby-aggregate", "mediaServerProvider": "emby"},
                 ),
             )
         )

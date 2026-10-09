@@ -511,7 +511,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Connection-Address"
@@ -523,7 +523,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Connection-Connect"
@@ -535,7 +535,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Connection-Error"
@@ -547,7 +547,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Connection-Password"
@@ -559,7 +559,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Connection-Username"
@@ -571,7 +571,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Detail-About"
@@ -583,7 +583,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Detail-Overview-Expand"
@@ -595,10 +595,10 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyEvidence.swift"
+          "path": "Modules/MediaServer/MediaServerEvidence.swift"
         },
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Detail-Play"
@@ -610,7 +610,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Detail-TechnicalLine"
@@ -622,7 +622,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Detail-Version"
@@ -634,7 +634,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Detail-list"
@@ -646,7 +646,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Detail-{viewModel.itemID.rawValue}"
@@ -658,7 +658,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Episode-{metadata.id.rawValue}"
@@ -670,7 +670,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Evidence"
@@ -682,7 +682,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Home"
@@ -694,7 +694,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Library-Sort"
@@ -730,7 +730,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-PosterCard-{metadata.id.rawValue}"
@@ -742,7 +742,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Root"
@@ -754,7 +754,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Search-Field"
@@ -766,7 +766,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Season-Picker"
@@ -778,7 +778,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Season-{season.metadata.id.rawValue}"
@@ -790,7 +790,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Sidebar-Toggle"
@@ -802,7 +802,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-Sidebar-{destination.id}"
@@ -814,7 +814,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-SignOut"
@@ -826,7 +826,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-StillCard-{metadata.id.rawValue}"
@@ -838,7 +838,7 @@
       "scope": "product",
       "sources": [
         {
-          "path": "Modules/Emby/EmbyScreens.swift"
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
       "template": "Emby-{reachabilityPage}-list"
@@ -3208,6 +3208,42 @@
         }
       ],
       "template": "Settings-category-{item.id}"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-mediaLibraryTabs-checkbox-{id}"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-mediaLibraryTabs-group"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-mediaLibraryTabs-save"
     },
     {
       "action": "activate",
@@ -6192,6 +6228,42 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:Settings-mediaLibraryTabs-checkbox-{id}",
+      "identifierTemplate": "Settings-mediaLibraryTabs-checkbox-{id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-mediaLibraryTabs-save",
+      "identifierTemplate": "Settings-mediaLibraryTabs-save",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:Settings-menu-{id}",
       "identifierTemplate": "Settings-menu-{id}",
       "kind": "activate",
@@ -6504,7 +6576,7 @@
         "host": "explicitOperationContract",
         "sources": [
           {
-            "path": "Modules/Emby/EmbyScreens.swift"
+            "path": "Modules/MediaServer/MediaServerScreens.swift"
           }
         ]
       },
@@ -6512,7 +6584,7 @@
         "main-window-browser"
       ],
       "proofDomain": "browser",
-      "source": "Modules/Emby/EmbyScreens.swift"
+      "source": "Modules/MediaServer/MediaServerScreens.swift"
     },
     {
       "id": "scroll:file-list",
@@ -6535,7 +6607,7 @@
   "sourceRoots": [
     "Apps/Enchron",
     "Modules/DesignSystem",
-    "Modules/Emby",
+    "Modules/MediaServer",
     "Modules/MediaLibrary",
     "Modules/Playback"
   ],

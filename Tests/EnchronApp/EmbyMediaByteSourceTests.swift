@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 @Suite(.serialized)
 struct EmbyMediaByteSourceTests {
@@ -17,7 +17,7 @@ struct EmbyMediaByteSourceTests {
         let streamURL = try #require(URL(
             string: "https://emby.example.test/Videos/movie/stream.mkv?Static=true&api_key=stale"
         ))
-        let source = EmbyMediaByteSource(
+        let source = MediaServerByteSource(
             streamURL: streamURL,
             accessToken: "fresh-token",
             contentLength: 10,
@@ -71,7 +71,7 @@ struct EmbyMediaByteSourceTests {
         let streamURL = try #require(URL(
             string: "https://emby.example.test/Videos/movie/stream.mkv"
         ))
-        let source = EmbyMediaByteSource(
+        let source = MediaServerByteSource(
             streamURL: streamURL,
             accessToken: "token",
             contentLength: 12,
@@ -94,7 +94,7 @@ struct EmbyMediaByteSourceTests {
         let streamURL = try #require(URL(
             string: "https://emby.example.test/Videos/movie/stream.mkv"
         ))
-        let source = EmbyMediaByteSource(
+        let source = MediaServerByteSource(
             streamURL: streamURL,
             accessToken: "token",
             contentLength: 12,
@@ -214,7 +214,7 @@ nonisolated private class EmbyByteURLProtocol: URLProtocol {
 
     override func startLoading() {
         guard let handler = Self.handlerStore.get() else {
-            client?.urlProtocol(self, didFailWithError: EmbyMediaByteSourceError.invalidResponse)
+            client?.urlProtocol(self, didFailWithError: MediaServerByteSourceError.invalidResponse)
             return
         }
         do {

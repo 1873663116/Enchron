@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 @Suite(.serialized)
 struct EmbyClientTests {
@@ -60,7 +60,7 @@ struct EmbyClientTests {
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
         let item = try await client.item(
-            withID: EmbyItemID(rawValue: "movie-1"),
+            withID: MediaServerItemID(rawValue: "movie-1"),
             on: server
         )
         let playback = try await client.playbackInfo(for: item, on: server)
@@ -93,11 +93,8 @@ struct EmbyClientTests {
         }
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
-        let authenticated = try await client.authenticate(
-            address: URL(string: "http://example.test")!,
-            username: "TestUser",
-            password: "secret"
-        )
+        let address = try #require(URL(string: "http://example.test"))
+        let authenticated = try await client.authenticate(.password(address: address, username: "TestUser", password: "secret"))
 
         #expect(authenticated.id.rawValue == "server-live")
         #expect(authenticated.name == "Live")
@@ -122,11 +119,7 @@ struct EmbyClientTests {
         let address = try #require(URL(string: "http://media.local:8096"))
 
         await #expect(throws: RemoteConnectionFailure.requiresHTTPS) {
-            try await client.authenticate(
-                address: address,
-                username: "TestUser",
-                password: "secret"
-            )
+            try await client.authenticate(.password(address: address, username: "TestUser", password: "secret"))
         }
     }
 
@@ -185,9 +178,9 @@ struct EmbyClientTests {
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
         let page = try await client.items(
-            in: EmbyItemID(rawValue: "view-1"),
+            in: MediaServerItemID(rawValue: "view-1"),
             on: server,
-            query: EmbyItemQuery(
+            query: MediaServerItemQuery(
                 sortBy: [.premiereDate, .sortName],
                 sortOrder: .descending,
                 startIndex: 10,
@@ -210,7 +203,7 @@ struct EmbyClientTests {
         #expect(query["SortOrder"] == "Descending")
         #expect(query["StartIndex"] == "10")
         #expect(query["Limit"] == "20")
-        #expect(query["IncludeItemTypes"] == "Movie,BoxSet")
+        #expect(query["IncludeItemTypes"] == "Movie,Video,BoxSet")
         #expect(query["Recursive"] == "false")
     }
 
@@ -228,7 +221,7 @@ struct EmbyClientTests {
         defer { MockURLProtocol.setHandler(nil) }
 
         let item = try await makeClient().item(
-            withID: EmbyItemID(rawValue: "movie-1"),
+            withID: MediaServerItemID(rawValue: "movie-1"),
             on: server
         )
 
@@ -277,7 +270,7 @@ struct EmbyClientTests {
         defer { MockURLProtocol.setHandler(nil) }
 
         let item = try await makeClient().item(
-            withID: EmbyItemID(rawValue: "movie-1"),
+            withID: MediaServerItemID(rawValue: "movie-1"),
             on: server
         )
         let metadata = item.metadata
@@ -302,7 +295,7 @@ struct EmbyClientTests {
         }
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
-        let series = EmbyLibraryItem.series(EmbySeries(metadata: metadata(id: "series-1")))
+        let series = MediaServerLibraryItem.series(MediaServerSeries(metadata: metadata(id: "series-1")))
         _ = try await client.children(of: series, on: server)
 
         let url = try #require(recorder.requests.first?.url)
@@ -329,9 +322,9 @@ struct EmbyClientTests {
             """)
         }
         defer { MockURLProtocol.setHandler(nil) }
-        let season = EmbyLibraryItem.season(EmbySeason(
+        let season = MediaServerLibraryItem.season(MediaServerSeason(
             metadata: metadata(id: "season-1"),
-            seriesID: EmbyItemID(rawValue: "series-1"),
+            seriesID: MediaServerItemID(rawValue: "series-1"),
             indexNumber: nil
         ))
         let page = try await makeClient().children(of: season, on: server)
@@ -355,7 +348,7 @@ struct EmbyClientTests {
         let client = makeClient()
         _ = try await client.views(on: server)
         _ = try await client.resumeItems(on: server)
-        _ = try await client.nextUp(on: server, seriesID: EmbyItemID(rawValue: "series-1"))
+        _ = try await client.nextUp(on: server, seriesID: MediaServerItemID(rawValue: "series-1"))
         _ = try await client.search("matrix", on: server)
 
         let paths = recorder.requests.compactMap(\.url?.path)
@@ -398,24 +391,24 @@ struct EmbyClientTests {
         let client = makeClient()
 
         _ = try await client.latestItems(
-            in: EmbyItemID(rawValue: "view-1"),
+            in: MediaServerItemID(rawValue: "view-1"),
             on: server,
             limit: 12
         )
         _ = try await client.specialFeatures(
-            for: EmbyItemID(rawValue: "movie-1"),
+            for: MediaServerItemID(rawValue: "movie-1"),
             on: server
         )
         _ = try await client.similarItems(
-            to: EmbyItemID(rawValue: "movie-1"),
+            to: MediaServerItemID(rawValue: "movie-1"),
             on: server,
             limit: 20
         )
         let backdrop = try client.backdropImageURL(
-            for: EmbyItemID(rawValue: "movie-1"),
+            for: MediaServerItemID(rawValue: "movie-1"),
             index: 0,
-            tag: EmbyImageTag(rawValue: "backdrop-tag"),
-            size: try EmbyImageSize.width(1920),
+            tag: MediaServerImageTag(rawValue: "backdrop-tag"),
+            size: try MediaServerImageSize.width(1920),
             on: server
         )
 
@@ -472,7 +465,7 @@ struct EmbyClientTests {
         }
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
-        let item = EmbyLibraryItem.movie(EmbyMovie(metadata: metadata(
+        let item = MediaServerLibraryItem.movie(MediaServerMovie(metadata: metadata(
             id: "movie-1",
             entityTag: "etag-1",
             runTimeTicks: 90_000_000
@@ -535,9 +528,9 @@ struct EmbyClientTests {
         }
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
-        let item = EmbyLibraryItem.movie(EmbyMovie(metadata: metadata(id: "movie-1")))
+        let item = MediaServerLibraryItem.movie(MediaServerMovie(metadata: metadata(id: "movie-1")))
 
-        await #expect(throws: EmbyError.directPlayUnavailable(EmbyItemID(rawValue: "movie-1"))) {
+        await #expect(throws: MediaServerError.directPlayUnavailable(MediaServerItemID(rawValue: "movie-1"))) {
             try await client.playbackInfo(for: item, on: server)
         }
     }
@@ -545,11 +538,11 @@ struct EmbyClientTests {
     @Test("image URL size is typed and identity components do not collide")
     func typedURLsAndIdentity() throws {
         let client = makeClient()
-        let size = try EmbyImageSize.fitting(maxWidth: 600, maxHeight: 900)
+        let size = try MediaServerImageSize.fitting(maxWidth: 600, maxHeight: 900)
         let url = try client.imageURL(
-            for: EmbyItemID(rawValue: "movie-1"),
+            for: MediaServerItemID(rawValue: "movie-1"),
             type: .primary,
-            tag: EmbyImageTag(rawValue: "image-tag"),
+            tag: MediaServerImageTag(rawValue: "image-tag"),
             size: size,
             on: server
         )
@@ -558,7 +551,7 @@ struct EmbyClientTests {
         #expect(query["MaxWidth"] == "600")
         #expect(query["MaxHeight"] == "900")
         #expect(query["Tag"] == "image-tag")
-        #expect(throws: EmbyError.invalidImageSize) { try EmbyImageSize.width(0) }
+        #expect(throws: MediaServerError.invalidImageSize) { try MediaServerImageSize.width(0) }
 
         let first = MediaIdentity.emby(serverID: "server", itemID: "item", mediaSourceID: "source")
         let otherServer = MediaIdentity.emby(serverID: "other", itemID: "item", mediaSourceID: "source")
@@ -580,10 +573,10 @@ struct EmbyClientTests {
         }
         defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
-        let report = EmbyPlaybackReport(
-            itemID: EmbyItemID(rawValue: "movie-1"),
-            mediaSourceID: EmbyMediaSourceID(rawValue: "source-1"),
-            playSessionID: EmbyPlaySessionID(rawValue: "session-1"),
+        let report = MediaServerPlaybackReport(
+            itemID: MediaServerItemID(rawValue: "movie-1"),
+            mediaSourceID: MediaServerMediaSourceID(rawValue: "source-1"),
+            playSessionID: MediaServerPlaySessionID(rawValue: "session-1"),
             positionTicks: 42,
             audioStreamIndex: 1,
             subtitleStreamIndex: -1,
@@ -617,24 +610,24 @@ struct EmbyClientTests {
         }
     }
 
-    private var server: EmbyAuthenticatedServer {
-        EmbyAuthenticatedServer(
-            id: EmbyServerID(rawValue: "server-1"),
+    private var server: MediaServerAuthenticatedServer {
+        MediaServerAuthenticatedServer(
+            id: MediaServerServerID(rawValue: "server-1"),
             name: "Server",
             baseAddress: URL(string: "http://example.test")!,
             accessToken: "token",
-            userID: EmbyUserID(rawValue: "user-1")
+            userID: MediaServerUserID(rawValue: "user-1")
         )
     }
 
     private func makeClient(
         failureDiagnoser: RemoteConnectionFailureDiagnoser = .live
-    ) -> EmbyClient {
+    ) -> MediaBrowserClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
-        return EmbyClient(
+        return MediaBrowserClient(
             session: URLSession(configuration: configuration),
-            clientIdentity: EmbyClientIdentity(
+            clientIdentity: MediaServerClientIdentity(
                 name: "Enchron",
                 version: "1",
                 deviceName: "Tests",
@@ -648,11 +641,11 @@ struct EmbyClientTests {
         id: String,
         entityTag: String? = nil,
         runTimeTicks: Int64? = nil
-    ) -> EmbyItemMetadata {
-        EmbyItemMetadata(
-            id: EmbyItemID(rawValue: id),
+    ) -> MediaServerItemMetadata {
+        MediaServerItemMetadata(
+            id: MediaServerItemID(rawValue: id),
             name: id,
-            imageTags: EmbyImageTags(),
+            imageTags: MediaServerImageTags(),
             overview: nil,
             runTimeTicks: runTimeTicks,
             userData: nil,
@@ -715,7 +708,7 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
 
     override func startLoading() {
         guard let handler = Self.handlerStore.get() else {
-            client?.urlProtocol(self, didFailWithError: EmbyError.invalidResponse)
+            client?.urlProtocol(self, didFailWithError: MediaServerError.invalidResponse)
             return
         }
         do {
@@ -738,7 +731,7 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         var buffer = [UInt8](repeating: 0, count: 4_096)
         while stream.hasBytesAvailable {
             let count = stream.read(&buffer, maxLength: buffer.count)
-            if count < 0 { throw stream.streamError ?? EmbyError.invalidResponse }
+            if count < 0 { throw stream.streamError ?? MediaServerError.invalidResponse }
             if count == 0 { break }
             data.append(buffer, count: count)
         }
@@ -747,4 +740,204 @@ private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
         request.httpBody = data
         return request
     }
+}
+
+extension EmbyClientTests {
+    @Test("Plex sign-in survives a temporarily unavailable PIN until authorization arrives")
+    @MainActor
+    func plexSignInWaitsForPINAuthorization() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.setHandler { request in
+            recorder.record(request)
+            switch request.url?.path {
+            case "/api/v2/pins":
+                return try response(request, status: 201, json: """
+                    {"id":27,"code":"test-code","expiresIn":30}
+                    """)
+            case "/api/v2/pins/27":
+                let attempts = recorder.requests.filter { $0.url?.path == "/api/v2/pins/27" }.count
+                if attempts == 1 {
+                    return try response(request, status: 404, json: """
+                        {"errors":[{"code":1020,"message":"Code not found or expired","status":404}]}
+                        """)
+                }
+                return try response(request, status: 200, json: """
+                    {"id":27,"code":"test-code","authToken":"account-token"}
+                    """)
+            case "/api/v2/user":
+                return try response(request, status: 200, json: "{\"id\":43}")
+            case "/api/v2/resources":
+                return try response(request, status: 200, json: """
+                    [{"name":"Home","clientIdentifier":"server-1","provides":"server",
+                    "accessToken":"server-token","connections":[]}]
+                    """)
+            default:
+                return try response(request, status: 400, json: "{}")
+            }
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let network = URLSession(configuration: configuration)
+        let client = PlexClient(session: network,
+                                clientIdentity: .init(name: "Enchron", version: "1", deviceName: "Tests", deviceID: "tests"))
+        let session = MediaServerSessionViewModel(client: client, store: PlexAccountTestStore())
+        let account = PlexAccount(client: client, session: session, networkSession: network)
+        defer { account.cancel() }
+        var opened: [URL] = []
+        account.start { opened.append($0) }
+        let deadline = ContinuousClock.now.advanced(by: .seconds(5))
+        while ContinuousClock.now < deadline {
+            if account.error != nil { break }
+            if case .servers = account.state { break }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(opened.count == 1)
+        #expect(opened.first?.host == "app.plex.tv")
+        #expect(account.error == nil)
+        guard case .servers(let servers, let userID) = account.state else {
+            Issue.record("Authorization must reach server selection after a pending PIN response")
+            return
+        }
+        #expect(userID == "43")
+        #expect(servers.map(\.name) == ["Home"])
+        #expect(session.server == nil)
+    }
+
+    @Test("Plex library browsing includes requested collections")
+    func plexCollections() async throws {
+        MockURLProtocol.setHandler { request in
+            let query = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.queryItems ?? []
+            let json = query.contains(.init(name: "type", value: "1,18")) ?
+                """
+                {"MediaContainer":{"size":2,"totalSize":2,"Metadata":[
+                {"ratingKey":"21","type":"movie","title":"Film"},
+                {"ratingKey":"45","type":"collection","title":"Collection"}]}}
+                """ :
+                "{\"MediaContainer\":{\"size\":0,\"totalSize\":0,\"Metadata\":[]}}"
+            let collectionJSON = "{\"MediaContainer\":{\"size\":1,\"totalSize\":1,\"Metadata\":[{\"ratingKey\":\"45\",\"type\":\"collection\",\"title\":\"Collection\"}]}}"
+            return try response(request, status: 200, json: query.contains(.init(name: "type", value: "18")) ? collectionJSON : json)
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let client = PlexClient(session: URLSession(configuration: configuration),
+                                clientIdentity: .init(name: "Enchron", version: "1", deviceName: "Tests", deviceID: "tests"))
+        let page = try await client.items(in: .init(rawValue: "3"), on: server, query: .init(includeItemTypes: [.movie, .boxSet]))
+        #expect(page.totalRecordCount == 2)
+        #expect(page.items.map(\.metadata.name) == ["Film", "Collection"])
+        let search = try await client.search("Collection", on: server, query: .init(includeItemTypes: [.boxSet]))
+        #expect(search.items.map(\.metadata.id.rawValue) == ["45"])
+        guard case .boxSet = try #require(page.items.last) else {
+            Issue.record("Plex collection must remain a browsable collection")
+            return
+        }
+    }
+
+    @Test("Jellyfin authenticates with its current header and maps external subtitle offsets")
+    func jellyfinTrackMapping() async throws {
+        MockURLProtocol.setHandler { request in
+            #expect(request.value(forHTTPHeaderField: "Authorization")?.contains("Token=\"token\"") == true)
+            switch request.url?.path {
+            case "/Users/user-1/Items/movie":
+                return try response(request, status: 200, json: """
+                    {"Id":"movie","Name":"Film","Type":"Movie","RunTimeTicks":9600000000}
+                    """)
+            case "/Items/movie/PlaybackInfo":
+                return try response(request, status: 200, json: """
+                    {"PlaySessionId":"play","MediaSources":[{"Id":"file","SupportsDirectPlay":true,
+                    "DefaultAudioStreamIndex":3,"DefaultSubtitleStreamIndex":0,"MediaStreams":[
+                    {"Index":0,"Type":"Subtitle","Codec":"srt","IsExternal":true},
+                    {"Index":1,"Type":"Subtitle","Codec":"ass","IsExternal":true},
+                    {"Index":2,"Type":"Video","Codec":"h264"},
+                    {"Index":3,"Type":"Audio","Codec":"aac"},
+                    {"Index":4,"Type":"Subtitle","Codec":"srt"}]}]}
+                    """)
+            default: return try response(request, status: 404, json: "{}")
+            }
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let client = MediaBrowserClient(session: URLSession(configuration: configuration), dialect: .jellyfin,
+                                        clientIdentity: .init(name: "Enchron", version: "1", deviceName: "Tests", deviceID: "tests"))
+        let item = try await client.item(withID: .init(rawValue: "movie"), on: server)
+        let playback = try await client.playbackInfo(for: item, on: server)
+        let source = try #require(playback.mediaSources.first)
+        #expect(source.mediaStreams.map(\.index) == [0, 1, 2, 3, 4])
+        #expect(source.mediaStreams.map(\.playbackIndex) == [nil, nil, 0, 1, 2])
+        let subtitle = try client.externalSubtitleURL(for: #require(source.mediaStreams.first), on: server)
+        #expect(subtitle.path == "/Videos/movie/file/Subtitles/0/Stream.srt")
+        #expect(source.defaultStreamIndexes.audio == 3)
+    }
+
+    @Test("Plex decodes library metadata and reports progress with a duration")
+    func plexPlaybackContract() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.setHandler { request in
+            recorder.record(request)
+            switch request.url?.path {
+            case "/library/sections":
+                return try response(request, status: 200, json: """
+                    {"MediaContainer":{"Directory":[{"key":"3","title":"Films","type":"movie"}]}}
+                    """)
+            case "/library/metadata/42/related":
+                return try response(request, status: 200, json: """
+                    {"MediaContainer":{"Hub":[{"hubIdentifier":"movie.similar","Metadata":[
+                    {"ratingKey":"44","type":"movie","title":"Related Film"}]}]}}
+                    """)
+            case "/library/metadata/42":
+                return try response(request, status: 200, json: """
+                    {"MediaContainer":{"size":1,"Metadata":[{"ratingKey":"42","type":"movie","title":"Film",
+                    "duration":960000,"viewOffset":120000,"updatedAt":100,
+                    "Genre":[{"tag":"Drama"}],"Country":[{"tag":"Japan"}],"Role":[{"id":5,"tag":"Actor","role":"Lead"}],
+                    "Image":[{"type":"clearLogo","url":"/library/metadata/42/logo"}],
+                    "Extras":{"Metadata":[{"ratingKey":"43","type":"clip","title":"Trailer"}]},
+                    "Media":[{"id":7,"container":"mkv",
+                    "Part":[{"key":"/library/parts/8/file.mkv","size":4096,"Stream":[
+                    {"id":9,"index":0,"streamType":1,"codec":"h264"},
+                    {"id":10,"index":1,"streamType":2,"codec":"aac","default":true},
+                    {"id":11,"index":2,"streamType":2,"codec":"aac","selected":true}]}]}]}]}}
+                    """)
+            default:
+                return try response(request, status: 200, json: "{}")
+            }
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let client = PlexClient(session: URLSession(configuration: configuration),
+                                clientIdentity: .init(name: "Enchron", version: "1", deviceName: "Tests", deviceID: "tests"))
+        let libraries = try await client.views(on: server)
+        #expect(libraries.map(\.name) == ["Films"])
+        let item = try await client.item(withID: .init(rawValue: "42"), on: server)
+        #expect(item.metadata.name == "Film")
+        #expect(item.metadata.genres == ["Drama"])
+        #expect(item.metadata.productionLocations == ["Japan"])
+        #expect(item.metadata.people.map(\.name) == ["Actor"])
+        #expect(item.metadata.imageTags.logo?.rawValue == "/library/metadata/42/logo")
+        #expect(item.metadata.runTimeTicks == 9_600_000_000)
+        #expect(item.metadata.userData?.playbackPositionTicks == 1_200_000_000)
+        let extras = try await client.specialFeatures(for: item.metadata.id, on: server)
+        #expect(extras.map(\.metadata.name) == ["Trailer"])
+        let related = try await client.similarItems(to: item.metadata.id, on: server, limit: 5)
+        #expect(related.items.map(\.metadata.name) == ["Related Film"])
+        let playback = try await client.playbackInfo(for: item, on: server)
+        let source = try #require(playback.mediaSources.first)
+        #expect(source.directPlayURL.path == "/library/parts/8/file.mkv")
+        #expect(source.defaultStreamIndexes.audio == 2)
+        try await client.sendProgress(.init(itemID: item.metadata.id, mediaSourceID: source.id, playSessionID: playback.id,
+                                           positionTicks: 1_300_000_000, durationTicks: item.metadata.runTimeTicks, isPaused: true), on: server)
+        let request = try #require(recorder.requests.last)
+        let query = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(query.contains(.init(name: "duration", value: "960000")))
+        #expect(query.contains(.init(name: "time", value: "130000")))
+        #expect(query.contains(.init(name: "state", value: "paused")))
+    }
+}
+
+private struct PlexAccountTestStore: MediaServerServerStoring {
+    func loadServer() throws -> MediaServerAuthenticatedServer? { nil }
+    func saveServer(_ server: MediaServerAuthenticatedServer) throws { throw MediaServerError.invalidResponse }
+    func deleteServer() throws {}
 }

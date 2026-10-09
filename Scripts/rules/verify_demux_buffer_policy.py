@@ -60,7 +60,7 @@ def main() -> int:
     for path in (
         "Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift",
         "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift",
-        "Modules/Emby/EmbyPlaybackBridge.swift",
+        "Modules/MediaServer/MediaServerPlaybackBridge.swift",
     ):
         require(
             "preferredBufferDepth: .automatic" in read(path),

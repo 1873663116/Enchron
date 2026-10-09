@@ -3,9 +3,9 @@ import MediaSource
 import Playback
 import Synchronization
 import Testing
-@testable import Emby
+@testable import MediaServer
 
-struct EmbyPlaybackBridgeTests {
+struct MediaServerPlaybackBridgeTests {
     @Test("launch requests carry server track choices for embedded, external, and disabled subtitles", arguments: [-1, 3, 7])
     func serverTrackChoicesReachLaunchRequest(subtitleIndex: Int) async throws {
         let item = movie(id: "movie", resumeTicks: 50_000_000)
@@ -15,16 +15,16 @@ struct EmbyPlaybackBridgeTests {
                 mediaStream(index: 3, kind: .subtitle, external: false),
                 mediaStream(index: 7, kind: .subtitle, external: true, deliveryURL: "/subtitle/7")
             ],
-            defaults: EmbyDefaultStreamIndexes(video: 0, audio: 2, subtitle: subtitleIndex)
+            defaults: MediaServerDefaultStreamIndexes(video: 0, audio: 2, subtitle: subtitleIndex)
         )
         let client = FakeEmbyClient(
             items: [item.metadata.id: item],
-            playback: [item.metadata.id: EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "session"), mediaSources: [source]
+            playback: [item.metadata.id: MediaServerPlaybackSession(
+                id: MediaServerPlaySessionID(rawValue: "session"), mediaSources: [source]
             )]
         )
-        let bridge = EmbyPlaybackBridge(client: client, server: server)
-        let request = try await bridge.request(for: EmbyPlaybackSelection(
+        let bridge = MediaServerPlaybackBridge(client: client, server: server)
+        let request = try await bridge.request(for: MediaServerPlaybackSelection(
             item: item, mediaSourceID: source.id, startAction: .resume
         ))
         let expectedSubtitle: SubtitleTrackSelectionPreference = switch subtitleIndex {
@@ -50,14 +50,14 @@ struct EmbyPlaybackBridgeTests {
         )
         let client = FakeEmbyClient(
             items: [item.metadata.id: item],
-            playback: [item.metadata.id: EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "session"),
+            playback: [item.metadata.id: MediaServerPlaybackSession(
+                id: MediaServerPlaySessionID(rawValue: "session"),
                 mediaSources: [source]
             )]
         )
-        let bridge = EmbyPlaybackBridge(client: client, server: server)
+        let bridge = MediaServerPlaybackBridge(client: client, server: server)
 
-        let request = try await bridge.request(for: EmbyPlaybackSelection(
+        let request = try await bridge.request(for: MediaServerPlaybackSelection(
             item: item,
             mediaSourceID: source.id,
             startAction: .fromBeginning
@@ -87,19 +87,19 @@ struct EmbyPlaybackBridgeTests {
         )
         let client = FakeEmbyClient(
             items: [item.metadata.id: item],
-            playback: [item.metadata.id: EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "play-session"),
+            playback: [item.metadata.id: MediaServerPlaybackSession(
+                id: MediaServerPlaySessionID(rawValue: "play-session"),
                 mediaSources: [firstSource, selectedSource]
             )]
         )
-        let bridge = EmbyPlaybackBridge(client: client, server: server)
+        let bridge = MediaServerPlaybackBridge(client: client, server: server)
 
-        let resumed = try await bridge.request(for: EmbyPlaybackSelection(
+        let resumed = try await bridge.request(for: MediaServerPlaybackSelection(
             item: item,
             mediaSourceID: selectedSource.id,
             startAction: .resume
         ))
-        let restarted = try await bridge.request(for: EmbyPlaybackSelection(
+        let restarted = try await bridge.request(for: MediaServerPlaybackSelection(
             item: item,
             mediaSourceID: selectedSource.id,
             startAction: .fromBeginning
@@ -134,14 +134,14 @@ struct EmbyPlaybackBridgeTests {
         )
         let client = FakeEmbyClient(
             items: [item.metadata.id: item],
-            playback: [item.metadata.id: EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "play-session"),
+            playback: [item.metadata.id: MediaServerPlaybackSession(
+                id: MediaServerPlaySessionID(rawValue: "play-session"),
                 mediaSources: [source]
             )]
         )
-        let bridge = EmbyPlaybackBridge(client: client, server: server)
+        let bridge = MediaServerPlaybackBridge(client: client, server: server)
 
-        let request = try await bridge.request(for: EmbyPlaybackSelection(
+        let request = try await bridge.request(for: MediaServerPlaybackSelection(
             item: item,
             mediaSourceID: source.id,
             startAction: .fromBeginning
@@ -157,13 +157,13 @@ struct EmbyPlaybackBridgeTests {
         let source = mediaSource(id: "source", container: "mkv")
         let client = FakeEmbyClient(
             items: [item.metadata.id: item],
-            playback: [item.metadata.id: EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "play-session"),
+            playback: [item.metadata.id: MediaServerPlaybackSession(
+                id: MediaServerPlaySessionID(rawValue: "play-session"),
                 mediaSources: [source]
             )]
         )
-        let observations = Mutex<[EmbyPreparedPlaybackEvidence]>([])
-        let bridge = EmbyPlaybackBridge(client: client)
+        let observations = Mutex<[MediaServerPreparedPlaybackEvidence]>([])
+        let bridge = MediaServerPlaybackBridge(client: client)
         await bridge.configure(
             server: server,
             onPreparedPlayback: { observation in
@@ -171,12 +171,12 @@ struct EmbyPlaybackBridgeTests {
             }
         )
 
-        _ = try await bridge.request(for: EmbyPlaybackSelection(
+        _ = try await bridge.request(for: MediaServerPlaybackSelection(
             item: item,
             mediaSourceID: source.id,
             startAction: .resume
         ))
-        _ = try await bridge.request(for: EmbyPlaybackSelection(
+        _ = try await bridge.request(for: MediaServerPlaybackSelection(
             item: item,
             mediaSourceID: source.id,
             startAction: .fromBeginning
@@ -194,13 +194,13 @@ struct EmbyPlaybackBridgeTests {
     @Test("the reporter preserves callback order and maps runtime track IDs")
     func orderedReporting() async throws {
         let client = FakeEmbyClient()
-        let acceptedReports = Mutex<[EmbyAcceptedPlaybackReport]>([])
-        let reporter = EmbyPlaybackSessionReporter(
+        let acceptedReports = Mutex<[MediaServerAcceptedPlaybackReport]>([])
+        let reporter = MediaServerPlaybackSessionReporter(
             client: client,
             server: server,
-            itemID: EmbyItemID(rawValue: "movie"),
-            mediaSourceID: EmbyMediaSourceID(rawValue: "source"),
-            playSessionID: EmbyPlaySessionID(rawValue: "session"),
+            itemID: MediaServerItemID(rawValue: "movie"),
+            mediaSourceID: MediaServerMediaSourceID(rawValue: "source"),
+            playSessionID: MediaServerPlaySessionID(rawValue: "session"),
             externalSubtitleStreamIndexBySourceID: ["emby.subtitle.4": 4],
             onAcceptedReport: { report in
                 acceptedReports.withLock { $0.append(report) }
@@ -251,13 +251,13 @@ struct EmbyPlaybackBridgeTests {
     @Test("rejected reports never become accepted product evidence")
     func rejectedReportsAreNotEvidence() async {
         let client = FakeEmbyClient(failingReportEvent: .progress)
-        let acceptedReports = Mutex<[EmbyAcceptedPlaybackReport]>([])
-        let reporter = EmbyPlaybackSessionReporter(
+        let acceptedReports = Mutex<[MediaServerAcceptedPlaybackReport]>([])
+        let reporter = MediaServerPlaybackSessionReporter(
             client: client,
             server: server,
-            itemID: EmbyItemID(rawValue: "movie"),
-            mediaSourceID: EmbyMediaSourceID(rawValue: "source"),
-            playSessionID: EmbyPlaySessionID(rawValue: "session"),
+            itemID: MediaServerItemID(rawValue: "movie"),
+            mediaSourceID: MediaServerMediaSourceID(rawValue: "source"),
+            playSessionID: MediaServerPlaySessionID(rawValue: "session"),
             onAcceptedReport: { report in
                 acceptedReports.withLock { $0.append(report) }
             }
@@ -277,14 +277,14 @@ struct EmbyPlaybackBridgeTests {
 
     @Test("accepted playback evidence retains the ordered report positions")
     func acceptedReportSequence() {
-        let itemID = EmbyItemID(rawValue: "movie")
-        let sourceID = EmbyMediaSourceID(rawValue: "source")
-        let sessionID = EmbyPlaySessionID(rawValue: "session")
+        let itemID = MediaServerItemID(rawValue: "movie")
+        let sourceID = MediaServerMediaSourceID(rawValue: "source")
+        let sessionID = MediaServerPlaySessionID(rawValue: "session")
         func report(
-            _ event: EmbyAcceptedPlaybackReport.Event,
+            _ event: MediaServerAcceptedPlaybackReport.Event,
             _ position: Int64
-        ) -> EmbyAcceptedPlaybackReport {
-            EmbyAcceptedPlaybackReport(
+        ) -> MediaServerAcceptedPlaybackReport {
+            MediaServerAcceptedPlaybackReport(
                 event: event,
                 serverID: server.id,
                 userID: server.userID,
@@ -295,7 +295,7 @@ struct EmbyPlaybackBridgeTests {
             )
         }
 
-        var evidence = EmbyPlaybackEvidence(report: report(.started, 10_000_000))
+        var evidence = MediaServerPlaybackEvidence(report: report(.started, 10_000_000))
         evidence.record(report(.progress, 20_000_000))
         evidence.record(report(.stopped, 30_000_000))
 
@@ -314,22 +314,22 @@ struct EmbyPlaybackBridgeTests {
     func seasonQueue() async throws {
         let episodes = (1...3).map { episode(number: $0) }
         let items = Dictionary(uniqueKeysWithValues: episodes.map {
-            ($0.metadata.id, EmbyLibraryItem.episode($0))
+            ($0.metadata.id, MediaServerLibraryItem.episode($0))
         })
         let playback = Dictionary(uniqueKeysWithValues: episodes.map {
-            ($0.metadata.id, EmbyPlaybackSession(
-                id: EmbyPlaySessionID(rawValue: "session-\($0.episodeNumber!)"),
+            ($0.metadata.id, MediaServerPlaybackSession(
+                id: MediaServerPlaySessionID(rawValue: "session-\($0.episodeNumber!)"),
                 mediaSources: [mediaSource(id: "source", container: "mkv")]
             ))
         })
-        let bridge = EmbyPlaybackBridge(
+        let bridge = MediaServerPlaybackBridge(
             client: FakeEmbyClient(items: items, playback: playback),
             server: server
         )
 
-        let initial = try await bridge.request(for: EmbyPlaybackSelection(
+        let initial = try await bridge.request(for: MediaServerPlaybackSelection(
             episode: episodes[1],
-            mediaSourceID: EmbyMediaSourceID(rawValue: "source"),
+            mediaSourceID: MediaServerMediaSourceID(rawValue: "source"),
             startAction: .resume,
             seasonEpisodes: episodes
         ))
@@ -357,18 +357,18 @@ private enum FakeReportEvent: Equatable, Sendable {
 
 private struct FakeReport: Equatable, Sendable {
     let event: FakeReportEvent
-    let report: EmbyPlaybackReport
+    let report: MediaServerPlaybackReport
 }
 
-private final class FakeEmbyClient: EmbyClientProtocol, @unchecked Sendable {
-    private let itemsByID: [EmbyItemID: EmbyLibraryItem]
-    private let playbackByID: [EmbyItemID: EmbyPlaybackSession]
+private final class FakeEmbyClient: MediaServerClientProtocol, @unchecked Sendable {
+    private let itemsByID: [MediaServerItemID: MediaServerLibraryItem]
+    private let playbackByID: [MediaServerItemID: MediaServerPlaybackSession]
     private let failingReportEvent: FakeReportEvent?
     private let recordedReports = Mutex<[FakeReport]>([])
 
     init(
-        items: [EmbyItemID: EmbyLibraryItem] = [:],
-        playback: [EmbyItemID: EmbyPlaybackSession] = [:],
+        items: [MediaServerItemID: MediaServerLibraryItem] = [:],
+        playback: [MediaServerItemID: MediaServerPlaybackSession] = [:],
         failingReportEvent: FakeReportEvent? = nil
     ) {
         itemsByID = items
@@ -378,66 +378,66 @@ private final class FakeEmbyClient: EmbyClientProtocol, @unchecked Sendable {
 
     var reports: [FakeReport] { recordedReports.withLock { $0 } }
 
-    func authenticate(address: URL, username: String, password: String) async throws -> EmbyAuthenticatedServer {
+    func authenticate(_ login: MediaServerLogin) async throws -> MediaServerAuthenticatedServer {
         throw FakeEmbyError.unexpected
     }
 
-    func views(on server: EmbyAuthenticatedServer) async throws -> [EmbyLibraryView] {
+    func views(on server: MediaServerAuthenticatedServer) async throws -> [MediaServerLibraryView] {
         throw FakeEmbyError.unexpected
     }
 
-    func items(in viewID: EmbyItemID, on server: EmbyAuthenticatedServer, query: EmbyItemQuery) async throws -> EmbyItemPage {
+    func items(in viewID: MediaServerItemID, on server: MediaServerAuthenticatedServer, query: MediaServerItemQuery) async throws -> MediaServerItemPage {
         throw FakeEmbyError.unexpected
     }
 
-    func item(withID itemID: EmbyItemID, on server: EmbyAuthenticatedServer) async throws -> EmbyLibraryItem {
+    func item(withID itemID: MediaServerItemID, on server: MediaServerAuthenticatedServer) async throws -> MediaServerLibraryItem {
         guard let item = itemsByID[itemID] else { throw FakeEmbyError.unexpected }
         return item
     }
 
-    func children(of parent: EmbyLibraryItem, on server: EmbyAuthenticatedServer, query: EmbyItemQuery) async throws -> EmbyItemPage {
+    func children(of parent: MediaServerLibraryItem, on server: MediaServerAuthenticatedServer, query: MediaServerItemQuery) async throws -> MediaServerItemPage {
         throw FakeEmbyError.unexpected
     }
 
-    func resumeItems(on server: EmbyAuthenticatedServer, query: EmbyItemQuery) async throws -> EmbyItemPage {
+    func resumeItems(on server: MediaServerAuthenticatedServer, query: MediaServerItemQuery) async throws -> MediaServerItemPage {
         throw FakeEmbyError.unexpected
     }
 
-    func nextUp(on server: EmbyAuthenticatedServer, seriesID: EmbyItemID?, startIndex: Int?, limit: Int?) async throws -> EmbyItemPage {
+    func nextUp(on server: MediaServerAuthenticatedServer, seriesID: MediaServerItemID?, startIndex: Int?, limit: Int?) async throws -> MediaServerItemPage {
         throw FakeEmbyError.unexpected
     }
 
-    func search(_ searchTerm: String, on server: EmbyAuthenticatedServer, query: EmbyItemQuery) async throws -> EmbyItemPage {
+    func search(_ searchTerm: String, on server: MediaServerAuthenticatedServer, query: MediaServerItemQuery) async throws -> MediaServerItemPage {
         throw FakeEmbyError.unexpected
     }
 
-    func imageURL(for itemID: EmbyItemID, type: EmbyImageType, tag: EmbyImageTag?, size: EmbyImageSize?, on server: EmbyAuthenticatedServer) throws -> URL {
+    func imageURL(for itemID: MediaServerItemID, type: MediaServerImageType, tag: MediaServerImageTag?, size: MediaServerImageSize?, on server: MediaServerAuthenticatedServer) throws -> URL {
         throw FakeEmbyError.unexpected
     }
 
-    func playbackInfo(for item: EmbyLibraryItem, on server: EmbyAuthenticatedServer) async throws -> EmbyPlaybackSession {
+    func playbackInfo(for item: MediaServerLibraryItem, on server: MediaServerAuthenticatedServer) async throws -> MediaServerPlaybackSession {
         guard let playback = playbackByID[item.metadata.id] else { throw FakeEmbyError.unexpected }
         return playback
     }
 
-    func externalSubtitleURL(for stream: EmbyMediaStream, on server: EmbyAuthenticatedServer) throws -> URL {
+    func externalSubtitleURL(for stream: MediaServerMediaStream, on server: MediaServerAuthenticatedServer) throws -> URL {
         guard let deliveryURL = stream.deliveryURL else {
-            throw EmbyError.externalSubtitleUnavailable(stream.index)
+            throw MediaServerError.externalSubtitleUnavailable(stream.index)
         }
         return URL(string: "http://example.test/emby\(deliveryURL)?api_key=token")!
     }
 
-    func sendPlayingStarted(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {
+    func sendPlayingStarted(_ report: MediaServerPlaybackReport, on server: MediaServerAuthenticatedServer) async throws {
         if failingReportEvent == .started { throw FakeEmbyError.unexpected }
         recordedReports.withLock { $0.append(FakeReport(event: .started, report: report)) }
     }
 
-    func sendProgress(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {
+    func sendProgress(_ report: MediaServerPlaybackReport, on server: MediaServerAuthenticatedServer) async throws {
         if failingReportEvent == .progress { throw FakeEmbyError.unexpected }
         recordedReports.withLock { $0.append(FakeReport(event: .progress, report: report)) }
     }
 
-    func sendStopped(_ report: EmbyPlaybackReport, on server: EmbyAuthenticatedServer) async throws {
+    func sendStopped(_ report: MediaServerPlaybackReport, on server: MediaServerAuthenticatedServer) async throws {
         if failingReportEvent == .stopped { throw FakeEmbyError.unexpected }
         recordedReports.withLock { $0.append(FakeReport(event: .stopped, report: report)) }
     }
@@ -447,16 +447,16 @@ private enum FakeEmbyError: Error {
     case unexpected
 }
 
-private let server = EmbyAuthenticatedServer(
-    id: EmbyServerID(rawValue: "server"),
+private let server = MediaServerAuthenticatedServer(
+    id: MediaServerServerID(rawValue: "server"),
     name: "Server",
     baseAddress: URL(string: "http://example.test")!,
     accessToken: "token",
-    userID: EmbyUserID(rawValue: "user")
+    userID: MediaServerUserID(rawValue: "user")
 )
 
-private func movie(id: String, resumeTicks: Int64) -> EmbyLibraryItem {
-    .movie(EmbyMovie(metadata: metadata(
+private func movie(id: String, resumeTicks: Int64) -> MediaServerLibraryItem {
+    .movie(MediaServerMovie(metadata: metadata(
         id: id,
         name: "Movie",
         resumeTicks: resumeTicks,
@@ -464,16 +464,16 @@ private func movie(id: String, resumeTicks: Int64) -> EmbyLibraryItem {
     )))
 }
 
-private func episode(number: Int) -> EmbyEpisode {
-    EmbyEpisode(
+private func episode(number: Int) -> MediaServerEpisode {
+    MediaServerEpisode(
         metadata: metadata(
             id: "episode-\(number)",
             name: "Episode \(number)",
             resumeTicks: Int64(number) * 10_000_000,
             entityTag: "etag-\(number)"
         ),
-        seriesID: EmbyItemID(rawValue: "series"),
-        seasonID: EmbyItemID(rawValue: "season"),
+        seriesID: MediaServerItemID(rawValue: "series"),
+        seasonID: MediaServerItemID(rawValue: "season"),
         seasonNumber: 1,
         episodeNumber: number
     )
@@ -484,14 +484,14 @@ private func metadata(
     name: String,
     resumeTicks: Int64,
     entityTag: String
-) -> EmbyItemMetadata {
-    EmbyItemMetadata(
-        id: EmbyItemID(rawValue: id),
+) -> MediaServerItemMetadata {
+    MediaServerItemMetadata(
+        id: MediaServerItemID(rawValue: id),
         name: name,
-        imageTags: EmbyImageTags(),
+        imageTags: MediaServerImageTags(),
         overview: nil,
         runTimeTicks: 900_000_000,
-        userData: EmbyUserData(
+        userData: MediaServerUserData(
             playbackPositionTicks: resumeTicks,
             played: false,
             unplayedItemCount: nil
@@ -504,11 +504,11 @@ private func metadata(
 private func mediaSource(
     id: String,
     container: String,
-    streams: [EmbyMediaStream] = [],
-    defaults: EmbyDefaultStreamIndexes = EmbyDefaultStreamIndexes(video: 0, audio: 1, subtitle: nil)
-) -> EmbyMediaSource {
-    EmbyMediaSource(
-        id: EmbyMediaSourceID(rawValue: id),
+    streams: [MediaServerMediaStream] = [],
+    defaults: MediaServerDefaultStreamIndexes = MediaServerDefaultStreamIndexes(video: 0, audio: 1, subtitle: nil)
+) -> MediaServerMediaSource {
+    MediaServerMediaSource(
+        id: MediaServerMediaSourceID(rawValue: id),
         displayName: id,
         container: container,
         sizeInBytes: 1_000,
@@ -528,12 +528,12 @@ private func mediaSource(
 
 private func mediaStream(
     index: Int,
-    kind: EmbyMediaStreamKind,
+    kind: MediaServerMediaStreamKind,
     external: Bool,
     deliveryURL: String? = nil,
     codec: String = "srt"
-) -> EmbyMediaStream {
-    EmbyMediaStream(
+) -> MediaServerMediaStream {
+    MediaServerMediaStream(
         index: index,
         kind: kind,
         codec: codec,

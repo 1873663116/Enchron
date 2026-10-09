@@ -13,7 +13,7 @@
   ],
   "implementation": {
     "locator": "Scripts/verification/regression_oracle_adapter.py",
-    "digest": "sha256:c6b70eab5f3d996720df6f989ecbdbab4a29574bd20391fb5840424935c25212"
+    "digest": "sha256:f1bf08d2e6e3e280f0de9115951c5b8cb3cca93d612340b8663bc7b35504645d"
   }
 }
 ---

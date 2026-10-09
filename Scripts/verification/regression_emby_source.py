@@ -40,7 +40,7 @@ SEEDED_PROGRESS_TICKS = 100_000_000
 PRODUCT_DEADLINE_SECONDS = 45
 HARNESS_LIVENESS_DEADLINE_SECONDS = 90
 RUNTIME_IDENTITY_SCHEMA = "enchron.regression.emby-runtime-identity@1"
-PREFLIGHT_REPORT_SCHEMA = "enchron.regression.emby-source-preflight@1"
+PREFLIGHT_REPORT_SCHEMA = "enchron.regression.emby-source-preflight@2"
 SEED_RECEIPT_SCHEMA = "enchron.regression.emby-seed-receipt@2"
 SHA256 = "sha256:"
 ORIGINAL_PLAYBACK_STATE_FIELDS = frozenset(
@@ -446,6 +446,7 @@ def _receipt_id(
 def _report(receipt: Mapping[str, object]) -> dict[str, object]:
     return {
         "schema": PREFLIGHT_REPORT_SCHEMA,
+        "provider": "emby",
         "check": "emby-aggregate",
         "ready": True,
         "receipt": dict(receipt),
@@ -1130,8 +1131,9 @@ def _secrets_from_identity_and_session(identity: RuntimeIdentity | None, session
 def validate_preflight_report(report: object, *, runtime_file: Path) -> bool:
     return (
         isinstance(report, Mapping)
-        and set(report) == {"schema", "check", "ready", "receipt"}
+        and set(report) == {"schema", "provider", "check", "ready", "receipt"}
         and report.get("schema") == PREFLIGHT_REPORT_SCHEMA
+        and report.get("provider") == "emby"
         and report.get("check") == "emby-aggregate"
         and report.get("ready") is True
         and validate_seed_receipt(
@@ -1178,6 +1180,7 @@ def run_preflight(
     except (EmbySourceError, OSError, HTTPError, URLError) as error:
         return {
             "schema": PREFLIGHT_REPORT_SCHEMA,
+            "provider": "emby",
             "check": "emby-aggregate",
             "ready": False,
             "reason": _safe_failure_reason(error, configuration=configuration),

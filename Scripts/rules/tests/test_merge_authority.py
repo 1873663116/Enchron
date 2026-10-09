@@ -35,7 +35,7 @@ class MergeAuthorityTests(unittest.TestCase):
         seed = self.commit("README.md", "seed")
         w0 = self.commit("docs/note.md", "docs")
         w1 = self.commit("Scripts/example.py", "print('test')")
-        w2 = self.commit("Modules/Emby/Shelf.swift", "feature")
+        w2 = self.commit("Modules/MediaServer/Shelf.swift", "feature")
         w3 = self.commit("Modules/Playback/Runtime.swift", "playback")
         self.ranges = {
             tiers.W0: f"{seed}..{w0}",

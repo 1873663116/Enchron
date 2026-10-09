@@ -190,7 +190,7 @@ class IdentityScopeTests(unittest.TestCase):
 
     def test_a_version_number_is_not_an_address(self) -> None:
         self.write("Tests/EmbyPackageTests/Fixtures/Info.json", f"{{\"Version\": \"{EMBY_RELEASE}\"}}")
-        self.write("Modules/Emby/Decoding.swift", f"info.version == \"{EMBY_RELEASE}\"\n")
+        self.write("Modules/MediaServer/Decoding.swift", f"info.version == \"{EMBY_RELEASE}\"\n")
         self.assertEqual(checker.failures(), [])
 
     def test_a_version_word_set_beside_a_quad_by_a_dash_does_not_exempt_it(self) -> None:
@@ -213,7 +213,7 @@ class IdentityScopeTests(unittest.TestCase):
 
     def test_a_version_word_bound_to_the_quad_still_exempts_it(self) -> None:
         self.write("Config/info.json", f"{{\"Version\": \"{EMBY_RELEASE}\"}}")
-        self.write("Modules/Emby/Client.swift", f"\\\"Version\\\":\\\"{EMBY_RELEASE}\\\"\n")
+        self.write("Modules/MediaServer/Client.swift", f"\\\"Version\\\":\\\"{EMBY_RELEASE}\\\"\n")
         self.assertEqual(checker.failures(), [])
 
     def test_a_tag_in_a_url_path_is_not_an_address(self) -> None:

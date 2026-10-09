@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:47948baba2761d00dfb2b4057f84b830b0c596d52ecd9051b98ebedc759f7400",
+  "contentDigest": "sha256:38ea4b6c10fe749c5bcff9fc0a38a260fec06a0b902a91faefa069ca9baa17f1",
   "copyDocuments": [
     {
       "digest": "sha256:3cddd3e1bd6227b0b62c6323d2a4481e87b786b7716923ef267d6065ce9083c7",
@@ -1142,6 +1142,7 @@
     },
     {
       "criteria": [
+        "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
         "The bound emby.evidence carries an artworkLoads entry whose itemID is the inlined host report's receipt.catalog.seriesID and whose imageTag is that report's receipt.catalog.imageTag; its sanitizedRequestURL is the server image endpoint /Items/<that seriesID>/Images/Primary carrying Tag=<that imageTag>; and its persistedCache is observed with artworkKey equal to that same entry's cacheKey, a 64-character lowercase hex digest. The stored entry is keyed by the tag-bearing request rather than by the item; that the tag itself participates in the key is the separate alternateTagCacheKey criterion, because the evidence never exposes the digest's preimage.",
         "The bound emby.evidence inlines viewingStorageObservation; directory content and viewing progress remain absent from that snapshot (viewingRecordCount 0 and no viewingState entries).",
         "The same artworkLoads entry carries alternateTagCacheKey different from its cacheKey, which establishes that the image tag participates in the persisted key without reading the tag back out of a SHA-256 whose preimage carries the api_key."
@@ -1157,6 +1158,7 @@
     },
     {
       "criteria": [
+        "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
         "The bound emby.evidence carries an artworkLoads entry whose sanitizedRequestURL is present and is the server image endpoint /Items/<that entry's itemID>/Images/<that entry's imageType> carrying Tag=<that entry's imageTag>, and whose host is none of localhost, 127.0.0.1 or ::1. That entry's loopbackHitCount is observed 0, or is notApplicable for no-network-request while its cacheHit is observed true, and no artworkLoads entry in the artifact reports a loopbackHitCount above 0. The route is decided from the sanitized URL and the loopback counter because the product publishes no other reading of where the image came from.",
         "That same artworkLoads entry binds to the prepared item and tag: its itemID equals the inlined host report's receipt.catalog.seriesID and its imageTag equals that report's receipt.catalog.imageTag, and its persistedCache is observed with artworkKey equal to that entry's own cacheKey, a 64-character lowercase hex digest. The binding decided here is that itemID, imageTag and cacheKey equality, never a decoding of the digest: the evidence never exposes the key's preimage, so no field of the persisted entry can be read back as an item or a tag."
       ],
@@ -1171,6 +1173,7 @@
     },
     {
       "criteria": [
+        "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
         "For a server item with reviewed progress, Resume starts within the five-second observed-position bound of receipt.catalog.progressTicks from the inlined host report, as witnessed by the inlined playback.probe fields after the episode detail page's single Play entry followed by the Resume choice in the Resume Playback? alert, which that entry raises only while the Resume Playback preference is Ask Every Time -- its shipped default, which the ordered transcript carries no Settings-menu-resume-strategy activation to have moved.",
         "Play followed by the Play from Start choice in the same alert starts from 0 through 5 seconds inclusive under the observed-position bound decided by HC-021, as witnessed by the inlined second playback.probe fields."
       ],
@@ -1185,7 +1188,8 @@
     },
     {
       "criteria": [
-        "The bound emby.evidence inlines the inspect matchedElement object from episode detail whose identifier field is Emby-Detail-Play, present before the action is opened, and the Play activate response from call 06 that succeeded, after which the Resume Playback? alert offers PlayerUI-resumeDecision-primary and PlayerUI-resumeDecision-secondary. Emby-Detail-Play is the episode detail page's only play entry and always opens on the server-reported position as its resume candidate (Modules/Emby/EmbyScreens.swift:1292 and :1410); the two choices are the alert's, not the page's, and the alert is raised only while the Resume Playback preference is Ask Every Time -- its shipped default, which the ordered transcript carries no Settings-menu-resume-strategy activation to have moved.",
+        "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
+        "The bound emby.evidence inlines the inspect matchedElement object from episode detail whose identifier field is Emby-Detail-Play, present before the action is opened, and the Play activate response from call 06 that succeeded, after which the Resume Playback? alert offers PlayerUI-resumeDecision-primary and PlayerUI-resumeDecision-secondary. Emby-Detail-Play is the episode detail page's only play entry and always opens on the server-reported position as its resume candidate (Modules/MediaServer/MediaServerScreens.swift:1292 and :1410); the two choices are the alert's, not the page's, and the alert is raised only while the Resume Playback preference is Ask Every Time -- its shipped default, which the ordered transcript carries no Settings-menu-resume-strategy activation to have moved.",
         "The bound document inlines the host emby-aggregate report and two playback.probe fields: the Resume choice's position is within the five-second observed-position bound of receipt.catalog.progressTicks, the Play from Start choice's position is from 0 through 5 seconds inclusive, and both probes share the same Emby item identity as that report.",
         "The bound document inlines the same-attempt Resume choice activate's activatedAtMonotonicMillis from call 07, that same attempt's playback.await-window-state elapsedMillis, and the capture-frames list, and it decides HC-018's 45000 ms bound from the one interval this instrument resolves: frames[0].capturedAtMonotonicMillis minus activatedAtMonotonicMillis is at most 45000 ms, and frame 0 itself reports lifecycle Playing with displayedPixel true, so the bound is read against a frame that already carries a picture. That interval is an upper bound on click-to-first-frame and never an understatement, because frame 0 is the first capture taken after the wait has already observed playing: it contains the product's whole open plus the instrument's share, of which the inlined elapsedMillis is the wait and the remainder is the activate's return and one diagnostics.playback-state@1 snapshot, device median 3.91 s in Scripts/verification/controller_timings.json. The changing half of the claim is decided without a time bound: at least one later frame has a screenshotDigest differing from frame 0's and a strictly greater position. No spacing between adjacent frames is read as a product latency, because each capture iteration costs two controller snapshots at that same median, so the spacing is the instrument's. 90000 ms is only the harness liveness deadline."
       ],
@@ -1201,6 +1205,7 @@
     },
     {
       "criteria": [
+        "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
         "The bound emby.evidence inlines the host emby-aggregate report and the home inspect: home.shelves itemIDs include receipt.catalog.seriesID and episodeID from that report.",
         "The bound document inlines the pre-relaunch inspect whose home.activations holds an activation with surface poster, cardIdentifier Emby-PosterCard-<itemID>, and resultingItemID equal to the inlined host report's receipt.catalog.seriesID. The producer inspect's own home.activations holds an activation with surface nextUp whose itemID is listed by the home.shelves entry of kind nextUp and whose cardIdentifier is Emby-PosterCard- followed by that itemID: the Next Up shelf renders poster cards, so no still card can witness it. An in-memory activation journal cleared by relaunch cannot be the sole witness for the earlier poster activation."
       ],
@@ -1215,6 +1220,7 @@
     },
     {
       "criteria": [
+        "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
         "The server reports an active session and advancing position for the opened item, then records the exit position within the five-second observed-position bound decided by HC-021.",
         "After exit, operation:diagnostics.surface-probe@1 runs with includeViewingStorage=true and its viewingStorageObservation inlines the same attempt's pre-playback probe as priorSnapshots[0]. That prior viewingState's viewingRecordCount equals snapshot.viewingState.viewingRecordCount and the two entries lists are element-for-element identical, so the opened and exited Emby session added, removed, or changed no local viewing record. Entries publish only a sha256 mediaIdentity, so the decision is this list comparison, never a decoding of that hash."
       ],
@@ -1229,6 +1235,7 @@
     },
     {
       "criteria": [
+        "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
         "In the Emby-Evidence reading inlined from the call taken on the series detail before the season change, the observed detail has itemKind series, its itemID equals the inlined host report's receipt.catalog.seriesID, its declaredSeasonIDs hold at least two identifiers and contain that report's receipt.catalog.seasonID, and its selectedSeasonID is one of those declaredSeasonIDs with a non-empty episodeIDs. The reading has to be the inlined one: the producer's own detail is the episode opened by the last tap, and an episode detail declares no seasons.",
         "The bound emby.evidence carries a seasonTransitions entry for that same series whose requestedSeasonID is a declaredSeasonID other than its beforeSelectedSeasonID, whose afterSelectedSeasonID equals that requestedSeasonID, and whose afterEpisodeIDs are non-empty and share no identifier with its beforeEpisodeIDs, which is the episode list being replaced rather than appended to. In the inlined Emby-Evidence responses taken before and after that season change, the observed detail has itemKind series and publishes an empty playbackActionIDs, because the detail screen renders play actions only for a playable item and a series is not one; the series-level play action the criterion forbids would appear there."
       ],
@@ -5538,7 +5545,8 @@
       "operations": [
         {
           "arguments": {
-            "check": "emby-aggregate"
+            "check": "emby-aggregate",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:01",
           "maxInvocations": 1,
@@ -5561,7 +5569,8 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:04",
           "maxInvocations": 1,
@@ -5581,7 +5590,8 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:home-poster-and-next-up:06",
           "maxInvocations": 1,
@@ -5616,6 +5626,7 @@
           "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "relatedResults": [
               "result://call:emby-server-lifecycle:home-poster-and-next-up:01/report",
               "result://call:emby-server-lifecycle:home-poster-and-next-up:04/matchedElement",
@@ -5701,7 +5712,8 @@
       "operations": [
         {
           "arguments": {
-            "check": "emby-aggregate"
+            "check": "emby-aggregate",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:01",
           "maxInvocations": 1,
@@ -5724,7 +5736,8 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:04",
           "maxInvocations": 1,
@@ -5755,7 +5768,8 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
           "maxInvocations": 1,
@@ -5779,7 +5793,8 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:series-season-episode-navigation:09",
           "maxInvocations": 1,
@@ -5800,6 +5815,7 @@
           "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "relatedResults": [
               "result://call:emby-server-lifecycle:series-season-episode-navigation:01/report",
               "result://call:emby-server-lifecycle:series-season-episode-navigation:07/response",
@@ -5885,7 +5901,8 @@
       "operations": [
         {
           "arguments": {
-            "check": "emby-aggregate"
+            "check": "emby-aggregate",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:01",
           "maxInvocations": 1,
@@ -6021,6 +6038,7 @@
           "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "relatedResults": [
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:01/report",
               "result://call:emby-server-lifecycle:episode-resume-and-start-actions:05/matchedElement",
@@ -6111,7 +6129,8 @@
       "operations": [
         {
           "arguments": {
-            "check": "emby-aggregate"
+            "check": "emby-aggregate",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:01",
           "maxInvocations": 1,
@@ -6134,7 +6153,8 @@
         {
           "arguments": {
             "context": "window",
-            "identifier": "Emby-Evidence"
+            "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:progress-authority-server:04",
           "maxInvocations": 1,
@@ -6239,6 +6259,7 @@
           "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "relatedResults": [
               "result://call:emby-server-lifecycle:progress-authority-server:01/report",
               "result://call:emby-server-lifecycle:progress-authority-server:11/fields",
@@ -6325,7 +6346,8 @@
       "operations": [
         {
           "arguments": {
-            "check": "emby-aggregate"
+            "check": "emby-aggregate",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:artwork-by-image-tag:01",
           "maxInvocations": 1,
@@ -6369,6 +6391,7 @@
           "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "relatedResults": [
               "result://call:emby-server-lifecycle:artwork-by-image-tag:01/report",
               "result://call:emby-server-lifecycle:artwork-by-image-tag:05/viewingStorageObservation"
@@ -6453,7 +6476,8 @@
       "operations": [
         {
           "arguments": {
-            "check": "emby-aggregate"
+            "check": "emby-aggregate",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:01",
           "maxInvocations": 1,
@@ -6570,6 +6594,7 @@
           "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "relatedResults": [
               "result://call:emby-server-lifecycle:emby-resume-entry-semantics:01/report",
               "result://call:emby-server-lifecycle:emby-resume-entry-semantics:07/fields",
@@ -6655,7 +6680,8 @@
       "operations": [
         {
           "arguments": {
-            "check": "emby-aggregate"
+            "check": "emby-aggregate",
+            "mediaServerProvider": "emby"
           },
           "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:01",
           "maxInvocations": 1,
@@ -6680,6 +6706,7 @@
             "context": "window",
             "deadlineSeconds": 20,
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "requireMatchedElement": true
           },
           "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:04",
@@ -6702,6 +6729,7 @@
           "arguments": {
             "context": "window",
             "identifier": "Emby-Evidence",
+            "mediaServerProvider": "emby",
             "relatedResults": [
               "result://call:emby-server-lifecycle:emby-artwork-bypasses-loopback:01/report"
             ]

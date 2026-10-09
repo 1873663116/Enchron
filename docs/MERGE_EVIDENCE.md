@@ -29,7 +29,7 @@ Tier 只回答“需要多强的实测证据”。ChangeKind 只回答“机器�
 |---|---|
 | `docs/`、`.agents/skills/` | W0 |
 | `Regression/`、`Scripts/`、`Config/`、`Tests/`、`Packages/PlaybackCore/Tests/` | W1 |
-| `Modules/DesignSystem/`、`Modules/Emby/`、`Modules/MediaLibrary/`、`Modules/MediaSource/`、`Apps/Enchron/Screens/` | W2 |
+| `Modules/DesignSystem/`、`Modules/MediaServer/`、`Modules/MediaLibrary/`、`Modules/MediaSource/`、`Apps/Enchron/Screens/` | W2 |
 | `Packages/PlaybackCore/`、`Apps/Enchron/`、`Modules/Playback/`、`Packages/EnvironmentSceneContract/`、`Packages/OceanEnvironment/`、`Packages/QuietRoomEnvironment/` | W3 |
 | 其他路径 | W3 |
 

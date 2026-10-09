@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 @Suite(.serialized)
 struct EmbyMediaSourceReadFailureTests {
@@ -68,10 +68,10 @@ struct EmbyMediaSourceReadFailureTests {
         }
     }
 
-    private func makeSource() throws -> EmbyMediaByteSource {
+    private func makeSource() throws -> MediaServerByteSource {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [EmbyReadFailureURLProtocol.self]
-        return EmbyMediaByteSource(
+        return MediaServerByteSource(
             streamURL: try #require(URL(string: "https://emby.example.test/video.mkv")),
             accessToken: "test-token",
             contentLength: 1,

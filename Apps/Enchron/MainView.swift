@@ -1,5 +1,5 @@
 import DesignSystem
-import Emby
+import MediaServer
 import Foundation
 import MediaSource
 import OSLog
@@ -13,8 +13,9 @@ public struct MainView: View {
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    @Environment(EmbySessionViewModel.self) private var embySession
-    @Environment(EmbyHomeViewModel.self) private var embyHome
+    @Environment(MediaServerSources.self) private var serverSources
+    @Environment(MediaServerSessionViewModel.self) private var embySession
+    @Environment(MediaServerHomeViewModel.self) private var embyHome
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @Environment(ConnectionSecurityPrompt.self) private var connectionSecurityPrompt
@@ -99,10 +100,10 @@ public struct MainView: View {
         }
     }
 
-    private func launchEmbySelection(_ selection: EmbyPlaybackSelection) {
+    private func launchServerSelection(_ selection: MediaServerPlaybackSelection, session: MediaServerSessionViewModel) {
         playbackLauncher.requestPlayback {
             do {
-                let request = try await embySession.playbackRequest(for: selection)
+                let request = try await session.playbackRequest(for: selection)
                 SurfaceInputProbes.record("openRequestForwarded")
                 return request
             } catch {
@@ -181,22 +182,45 @@ public struct MainView: View {
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
 
-            Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
-                EmbyScreen { selectionResult in
-                    guard let selection = try? selectionResult.get() else {
-                        playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
-                        return
+            if settingsViewModel.preferences.mediaLibraryTabs.emby {
+                Tab(value: AppModel.NavigationTab.emby) {
+                    MediaServerScreen { selectionResult in
+                        guard let selection = try? selectionResult.get() else {
+                            playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
+                            return
+                        }
+                        playbackLauncher.decideResume(fromSeconds: selection.resumeCandidateSeconds) { resume in
+                            launchServerSelection(
+                                selection.replacingStartAction(resume ? .resume : .fromBeginning),
+                                session: embySession
+                            )
+                        }
                     }
-                    playbackLauncher.decideResume(fromSeconds: selection.resumeCandidateSeconds) { resume in
-                        launchEmbySelection(
-                            selection.replacingStartAction(resume ? .resume : .fromBeginning)
-                        )
-                    }
+                    .enchronScreenAppearance()
+                    .browserTabBarVisibility(browserVisibility)
+                } label: {
+                    Label("Emby", image: "EmbyTabIcon")
                 }
-                .enchronScreenAppearance()
-                .browserTabBarVisibility(browserVisibility)
+                .accessibilityIdentifier("Emby-Navigation-Tab")
             }
-            .accessibilityIdentifier("Emby-Navigation-Tab")
+
+            if settingsViewModel.preferences.mediaLibraryTabs.plex {
+                Tab(value: AppModel.NavigationTab.plex) {
+                    serverScreen(serverSources.plex)
+                } label: {
+                    Label("Plex", image: "PlexTabIcon")
+                }
+                .accessibilityIdentifier("Plex-Navigation-Tab")
+            }
+
+            if settingsViewModel.preferences.mediaLibraryTabs.jellyfin {
+                Tab(value: AppModel.NavigationTab.jellyfin) {
+                    serverScreen(serverSources.jellyfin)
+                } label: {
+                    Label("Jellyfin", image: "JellyfinTabIcon")
+                }
+                .accessibilityIdentifier("Jellyfin-Navigation-Tab")
+            }
 
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()
@@ -215,14 +239,24 @@ public struct MainView: View {
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
         .browserTabBarVisibility(browserVisibility)
+        .onChange(of: settingsViewModel.preferences.mediaLibraryTabs, initial: true) { _, visibility in
+            appModel.selectedTab = appModel.selectedTab.contentDestination(in: visibility)
+        }
+        .onChange(of: appModel.selectedTab, initial: true) { _, tab in
+            appModel.selectedTab = tab.contentDestination(in: settingsViewModel.preferences.mediaLibraryTabs)
+        }
         .task {
             guard embySession.server != nil, embyHome.shelves.isEmpty else { return }
             await embyHome.refresh()
         }
 #if DEBUG
         .task {
-            guard EmbyLaunchRoute.current != nil else { return }
-            appModel.selectedTab = .emby
+            guard let route = MediaServerLaunchRoute.current else { return }
+            appModel.selectedTab = switch route.kind {
+            case .emby: .emby
+            case .jellyfin: .jellyfin
+            case .plex: .plex
+            }
         }
 #endif
     }
@@ -234,12 +268,27 @@ public struct MainView: View {
         )
     }
 
+    private func serverScreen(_ feature: MediaServerFeature) -> some View {
+        MediaServerFeatureScreen(feature: feature) { result in
+            guard let selection = try? result.get() else {
+                playbackRuntime.setUserVisibleIssue(.mediaRequestFailed)
+                return
+            }
+            playbackLauncher.decideResume(fromSeconds: selection.resumeCandidateSeconds) { resume in
+                launchServerSelection(
+                    selection.replacingStartAction(resume ? .resume : .fromBeginning),
+                    session: feature.session
+                )
+            }
+        }
+        .enchronScreenAppearance()
+        .browserTabBarVisibility(browserVisibility)
+    }
+
     private var browserTabSelection: Binding<AppModel.NavigationTab> {
         Binding(
             get: {
-                appModel.selectedTab.isContentDestination
-                    ? appModel.selectedTab
-                    : .files
+                appModel.selectedTab.contentDestination(in: settingsViewModel.preferences.mediaLibraryTabs)
             },
             set: selectBrowserTab
         )
@@ -265,7 +314,7 @@ public struct MainView: View {
             retention: .evidence
         )
 #endif
-        appModel.selectedTab = tab
+        appModel.selectedTab = tab.contentDestination(in: settingsViewModel.preferences.mediaLibraryTabs)
     }
 }
 

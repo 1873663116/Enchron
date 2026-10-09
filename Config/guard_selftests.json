@@ -749,7 +749,7 @@
       "guard": "Scripts/rules/verify_browser_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Modules/Emby/EmbyScreens.swift",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
         "find": "                CardGrid {\n                    ForEach(items, id: \\.metadata.id) { item in\n",
         "replaceWith": "                FlowGridLayout(spacing: DesignTokens.Card.gridSpacing) {\n                    ForEach(items, id: \\.metadata.id) { item in\n"
       },
@@ -797,7 +797,7 @@
       "guard": "Scripts/rules/verify_browser_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Modules/Emby/EmbyScreens.swift",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
         "find": "                sidebarSuspended = true\n                try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))\n            }\n            navigation.open(item)\n",
         "replaceWith": "                sidebarSuspended = true\n            }\n            navigation.open(item)\n"
       },
@@ -813,7 +813,7 @@
       "guard": "Scripts/rules/verify_browser_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Modules/Emby/EmbyScreens.swift",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
         "find": "            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children)\n            }\n#endif\n            await runEntrance()\n",
         "replaceWith": "            Task { await runEntrance() }\n            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children)\n            }\n#endif\n"
       },
@@ -1021,7 +1021,7 @@
       "guard": "Scripts/rules/verify_browser_surface_structure.py",
       "defect": {
         "type": "replace-text",
-        "file": "Modules/Emby/EmbyScreens.swift",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
         "find": "            async let warmed: Void = ArtworkPrefetch.warm(posters)\n",
         "replaceWith": "            await ArtworkPrefetch.warm(posters)\n"
       },

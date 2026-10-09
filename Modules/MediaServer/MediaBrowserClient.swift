@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 
-public final class EmbyClient: EmbyClientProtocol, Sendable {
+public final class MediaBrowserClient: MediaServerClientProtocol, Sendable {
     private static let itemFields = [
         "Overview",
         "MediaStreams",
@@ -15,15 +15,19 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         "ProductionLocations"
     ].joined(separator: ",")
 
+    public let dialect: MediaBrowserDialect
+    public var kind: MediaServerKind { dialect == .emby ? .emby : .jellyfin }
     private let session: URLSession
-    private let clientIdentity: EmbyClientIdentity
+    private let clientIdentity: MediaServerClientIdentity
     private let failureDiagnoser: RemoteConnectionFailureDiagnoser
 
     public init(
         session: URLSession = MediaSourceNetwork.shared.session,
-        clientIdentity: EmbyClientIdentity,
+        dialect: MediaBrowserDialect = .emby,
+        clientIdentity: MediaServerClientIdentity,
         failureDiagnoser: RemoteConnectionFailureDiagnoser = .live
     ) {
+        self.dialect = dialect
         self.session = session
         self.clientIdentity = clientIdentity
         self.failureDiagnoser = failureDiagnoser
@@ -41,11 +45,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         return try JSONDecoder().decode([EmbyPublicUser].self, from: data)
     }
 
-    public func authenticate(
-        address: URL,
-        username: String,
-        password: String
-    ) async throws -> EmbyAuthenticatedServer {
+    public func authenticate(_ login: MediaServerLogin) async throws -> MediaServerAuthenticatedServer {
+        guard case let .password(address, username, password) = login else {
+            throw MediaServerError.notAuthenticated
+        }
         do {
             return try await MediaSourceNetwork.shared.withConnectionApproval(
                 to: address
@@ -66,19 +69,20 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                     from: data
                 )
                 guard let token = result.accessToken, token.isEmpty == false else {
-                    throw EmbyError.missingRequiredField("AccessToken")
+                    throw MediaServerError.missingRequiredField("AccessToken")
                 }
                 guard let userID = result.user?.id, userID.isEmpty == false else {
-                    throw EmbyError.missingRequiredField("User.Id")
+                    throw MediaServerError.missingRequiredField("User.Id")
                 }
                 let serverID = result.serverId.flatMap { $0.isEmpty ? nil : $0 }
                     ?? systemInfo.id.rawValue
-                return EmbyAuthenticatedServer(
-                    id: EmbyServerID(rawValue: serverID),
+                return MediaServerAuthenticatedServer(
+                    kind: kind,
+                    id: MediaServerServerID(rawValue: serverID),
                     name: systemInfo.serverName,
                     baseAddress: try normalizedAddress(address),
                     accessToken: token,
-                    userID: EmbyUserID(rawValue: userID)
+                    userID: MediaServerUserID(rawValue: userID)
                 )
             }
         } catch {
@@ -98,7 +102,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         if let failure = error as? RemoteConnectionFailure {
             return failure
         }
-        guard let embyError = error as? EmbyError else { return nil }
+        guard let embyError = error as? MediaServerError else { return nil }
 
         switch embyError {
         case .invalidBaseAddress:
@@ -112,7 +116,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         }
     }
 
-    public func views(on server: EmbyAuthenticatedServer) async throws -> [EmbyLibraryView] {
+    public func views(on server: MediaServerAuthenticatedServer) async throws -> [MediaServerLibraryView] {
         let request = try authorizedRequest(
             server: server,
             path: "/Users/\(server.userID.rawValue)/Views",
@@ -123,10 +127,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func items(
-        in viewID: EmbyItemID,
-        on server: EmbyAuthenticatedServer,
-        query: EmbyItemQuery = EmbyItemQuery()
-    ) async throws -> EmbyItemPage {
+        in viewID: MediaServerItemID,
+        on server: MediaServerAuthenticatedServer,
+        query: MediaServerItemQuery = MediaServerItemQuery()
+    ) async throws -> MediaServerItemPage {
         try await itemPage(
             path: "/Users/\(server.userID.rawValue)/Items",
             server: server,
@@ -138,9 +142,9 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func item(
-        withID itemID: EmbyItemID,
-        on server: EmbyAuthenticatedServer
-    ) async throws -> EmbyLibraryItem {
+        withID itemID: MediaServerItemID,
+        on server: MediaServerAuthenticatedServer
+    ) async throws -> MediaServerLibraryItem {
         let request = try authorizedRequest(
             server: server,
             path: "/Users/\(server.userID.rawValue)/Items/\(itemID.rawValue)",
@@ -152,16 +156,16 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         )
         let result: ItemDTO = try await response(for: request)
         guard let item = try mapItem(result) else {
-            throw EmbyError.missingRequiredField("Item.Type")
+            throw MediaServerError.missingRequiredField("Item.Type")
         }
         return item
     }
 
     public func children(
-        of parent: EmbyLibraryItem,
-        on server: EmbyAuthenticatedServer,
-        query: EmbyItemQuery = EmbyItemQuery(sortBy: [])
-    ) async throws -> EmbyItemPage {
+        of parent: MediaServerLibraryItem,
+        on server: MediaServerAuthenticatedServer,
+        query: MediaServerItemQuery = MediaServerItemQuery(sortBy: [])
+    ) async throws -> MediaServerItemPage {
         let path: String
         let itemTypes: String
         let parentQuery: [URLQueryItem]
@@ -182,7 +186,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             itemTypes = "Movie,Series,BoxSet"
             parentQuery = [URLQueryItem(name: "ParentId", value: parent.metadata.id.rawValue)]
         case .movie, .episode:
-            throw EmbyError.childrenUnavailable(parent.metadata.id)
+            throw MediaServerError.childrenUnavailable(parent.metadata.id)
         }
         return try await itemPage(
             path: path,
@@ -194,9 +198,9 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func resumeItems(
-        on server: EmbyAuthenticatedServer,
-        query: EmbyItemQuery = EmbyItemQuery(sortBy: [.datePlayed], sortOrder: .descending)
-    ) async throws -> EmbyItemPage {
+        on server: MediaServerAuthenticatedServer,
+        query: MediaServerItemQuery = MediaServerItemQuery(sortBy: [.datePlayed], sortOrder: .descending)
+    ) async throws -> MediaServerItemPage {
         try await itemPage(
             path: "/Users/\(server.userID.rawValue)/Items",
             server: server,
@@ -206,10 +210,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func latestItems(
-        in viewID: EmbyItemID,
-        on server: EmbyAuthenticatedServer,
+        in viewID: MediaServerItemID,
+        on server: MediaServerAuthenticatedServer,
         limit: Int? = nil
-    ) async throws -> [EmbyLibraryItem] {
+    ) async throws -> [MediaServerLibraryItem] {
         var queryItems = [
             URLQueryItem(name: "ParentId", value: viewID.rawValue),
             URLQueryItem(name: "Fields", value: Self.itemFields),
@@ -229,11 +233,11 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func nextUp(
-        on server: EmbyAuthenticatedServer,
-        seriesID: EmbyItemID? = nil,
+        on server: MediaServerAuthenticatedServer,
+        seriesID: MediaServerItemID? = nil,
         startIndex: Int? = nil,
         limit: Int? = nil
-    ) async throws -> EmbyItemPage {
+    ) async throws -> MediaServerItemPage {
         var items = [URLQueryItem(name: "UserId", value: server.userID.rawValue)]
         if let seriesID {
             items.append(URLQueryItem(name: "SeriesId", value: seriesID.rawValue))
@@ -255,7 +259,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             queryItems: items
         )
         let result: ItemQueryResultDTO = try await response(for: request)
-        return EmbyItemPage(
+        return MediaServerItemPage(
             items: try result.items.compactMap(mapItem),
             totalRecordCount: result.totalRecordCount
         )
@@ -263,9 +267,9 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
 
     public func search(
         _ searchTerm: String,
-        on server: EmbyAuthenticatedServer,
-        query: EmbyItemQuery = EmbyItemQuery()
-    ) async throws -> EmbyItemPage {
+        on server: MediaServerAuthenticatedServer,
+        query: MediaServerItemQuery = MediaServerItemQuery()
+    ) async throws -> MediaServerItemPage {
         try await itemPage(
             path: "/Users/\(server.userID.rawValue)/Items",
             server: server,
@@ -277,9 +281,9 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func specialFeatures(
-        for itemID: EmbyItemID,
-        on server: EmbyAuthenticatedServer
-    ) async throws -> [EmbyLibraryItem] {
+        for itemID: MediaServerItemID,
+        on server: MediaServerAuthenticatedServer
+    ) async throws -> [MediaServerLibraryItem] {
         let request = try authorizedRequest(
             server: server,
             path: "/Users/\(server.userID.rawValue)/Items/\(itemID.rawValue)/SpecialFeatures",
@@ -299,10 +303,10 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func similarItems(
-        to itemID: EmbyItemID,
-        on server: EmbyAuthenticatedServer,
+        to itemID: MediaServerItemID,
+        on server: MediaServerAuthenticatedServer,
         limit: Int? = nil
-    ) async throws -> EmbyItemPage {
+    ) async throws -> MediaServerItemPage {
         var queryItems = [
             URLQueryItem(name: "UserId", value: server.userID.rawValue),
             URLQueryItem(name: "Fields", value: Self.itemFields),
@@ -318,18 +322,18 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             queryItems: queryItems
         )
         let result: ItemQueryResultDTO = try await response(for: request)
-        return EmbyItemPage(
+        return MediaServerItemPage(
             items: try result.items.compactMap(mapItem),
             totalRecordCount: result.totalRecordCount
         )
     }
 
     public func imageURL(
-        for itemID: EmbyItemID,
-        type: EmbyImageType,
-        tag: EmbyImageTag? = nil,
-        size: EmbyImageSize? = nil,
-        on server: EmbyAuthenticatedServer
+        for itemID: MediaServerItemID,
+        type: MediaServerImageType,
+        tag: MediaServerImageTag? = nil,
+        size: MediaServerImageSize? = nil,
+        on server: MediaServerAuthenticatedServer
     ) throws -> URL {
         var queryItems = [URLQueryItem(name: "api_key", value: server.accessToken)]
         if let tag {
@@ -349,11 +353,11 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func backdropImageURL(
-        for itemID: EmbyItemID,
+        for itemID: MediaServerItemID,
         index: Int,
-        tag: EmbyImageTag? = nil,
-        size: EmbyImageSize? = nil,
-        on server: EmbyAuthenticatedServer
+        tag: MediaServerImageTag? = nil,
+        size: MediaServerImageSize? = nil,
+        on server: MediaServerAuthenticatedServer
     ) throws -> URL {
         var queryItems = [URLQueryItem(name: "api_key", value: server.accessToken)]
         if let tag {
@@ -373,9 +377,9 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func playbackInfo(
-        for item: EmbyLibraryItem,
-        on server: EmbyAuthenticatedServer
-    ) async throws -> EmbyPlaybackSession {
+        for item: MediaServerLibraryItem,
+        on server: MediaServerAuthenticatedServer
+    ) async throws -> MediaServerPlaybackSession {
         let itemID = item.metadata.id
         let body = try Self.makeEncoder().encode(PlaybackInfoRequestDTO(
             userId: server.userID.rawValue,
@@ -392,33 +396,33 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         )
         let result: PlaybackInfoResponseDTO = try await response(for: request)
         guard let playSessionId = result.playSessionId, playSessionId.isEmpty == false else {
-            throw EmbyError.missingRequiredField("PlaySessionId")
+            throw MediaServerError.missingRequiredField("PlaySessionId")
         }
         let mediaSources = try result.mediaSources.compactMap { source in
             try mapMediaSource(source, item: item, server: server)
         }
         guard mediaSources.isEmpty == false else {
-            throw EmbyError.directPlayUnavailable(itemID)
+            throw MediaServerError.directPlayUnavailable(itemID)
         }
-        return EmbyPlaybackSession(
-            id: EmbyPlaySessionID(rawValue: playSessionId),
+        return MediaServerPlaybackSession(
+            id: MediaServerPlaySessionID(rawValue: playSessionId),
             mediaSources: mediaSources
         )
     }
 
     public func externalSubtitleURL(
-        for stream: EmbyMediaStream,
-        on server: EmbyAuthenticatedServer
+        for stream: MediaServerMediaStream,
+        on server: MediaServerAuthenticatedServer
     ) throws -> URL {
         guard stream.kind == .subtitle,
               stream.isExternal,
               let deliveryURL = stream.deliveryURL,
               deliveryURL.isEmpty == false else {
-            throw EmbyError.externalSubtitleUnavailable(stream.index)
+            throw MediaServerError.externalSubtitleUnavailable(stream.index)
         }
         if let absoluteURL = URL(string: deliveryURL), absoluteURL.scheme != nil {
             guard var components = URLComponents(url: absoluteURL, resolvingAgainstBaseURL: false) else {
-                throw EmbyError.externalSubtitleUnavailable(stream.index)
+                throw MediaServerError.externalSubtitleUnavailable(stream.index)
             }
             var queryItems = components.queryItems ?? []
             if queryItems.contains(where: { $0.name == "api_key" }) == false {
@@ -426,12 +430,12 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             }
             components.queryItems = queryItems
             guard let url = components.url else {
-                throw EmbyError.externalSubtitleUnavailable(stream.index)
+                throw MediaServerError.externalSubtitleUnavailable(stream.index)
             }
             return url
         }
         guard let deliveryComponents = URLComponents(string: deliveryURL) else {
-            throw EmbyError.externalSubtitleUnavailable(stream.index)
+            throw MediaServerError.externalSubtitleUnavailable(stream.index)
         }
         var queryItems = deliveryComponents.queryItems ?? []
         if queryItems.contains(where: { $0.name == "api_key" }) == false {
@@ -445,33 +449,33 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     public func sendPlayingStarted(
-        _ report: EmbyPlaybackReport,
-        on server: EmbyAuthenticatedServer
+        _ report: MediaServerPlaybackReport,
+        on server: MediaServerAuthenticatedServer
     ) async throws {
         try await sendReport(report, event: .started, server: server)
     }
 
     public func sendProgress(
-        _ report: EmbyPlaybackReport,
-        on server: EmbyAuthenticatedServer
+        _ report: MediaServerPlaybackReport,
+        on server: MediaServerAuthenticatedServer
     ) async throws {
         try await sendReport(report, event: .progress, server: server)
     }
 
     public func sendStopped(
-        _ report: EmbyPlaybackReport,
-        on server: EmbyAuthenticatedServer
+        _ report: MediaServerPlaybackReport,
+        on server: MediaServerAuthenticatedServer
     ) async throws {
         try await sendReport(report, event: .stopped, server: server)
     }
 
     private func itemPage(
         path: String,
-        server: EmbyAuthenticatedServer,
-        query: EmbyItemQuery,
+        server: MediaServerAuthenticatedServer,
+        query: MediaServerItemQuery,
         additionalQueryItems: [URLQueryItem],
         forcedItemTypes: String? = nil
-    ) async throws -> EmbyItemPage {
+    ) async throws -> MediaServerItemPage {
         var queryItems = additionalQueryItems
         if query.sortBy.isEmpty == false {
             queryItems.append(URLQueryItem(
@@ -491,12 +495,12 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         } else if let includeItemTypes = query.includeItemTypes {
             queryItems.append(URLQueryItem(
                 name: "IncludeItemTypes",
-                value: includeItemTypes.map(\.rawValue).joined(separator: ",")
+                value: includeItemTypes.flatMap { $0 == .movie ? ["Movie", "Video"] : [$0.rawValue] }.joined(separator: ",")
             ))
         } else {
             queryItems.append(URLQueryItem(
                 name: "IncludeItemTypes",
-                value: EmbyItemKind.allCases.map(\.rawValue).joined(separator: ",")
+                value: (MediaServerItemKind.allCases.map(\.rawValue) + ["Video"]).joined(separator: ",")
             ))
         }
         queryItems.append(contentsOf: [
@@ -507,45 +511,45 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         ])
         let request = try authorizedRequest(server: server, path: path, queryItems: queryItems)
         let result: ItemQueryResultDTO = try await response(for: request)
-        return EmbyItemPage(
+        return MediaServerItemPage(
             items: try result.items.compactMap(mapItem),
             totalRecordCount: result.totalRecordCount
         )
     }
 
-    private func mapView(_ item: ItemDTO) throws -> EmbyLibraryView {
+    private func mapView(_ item: ItemDTO) throws -> MediaServerLibraryView {
         guard let id = item.id, id.isEmpty == false else {
-            throw EmbyError.missingRequiredField("Items[].Id")
+            throw MediaServerError.missingRequiredField("Items[].Id")
         }
         guard let name = item.name, name.isEmpty == false else {
-            throw EmbyError.missingRequiredField("Items[].Name")
+            throw MediaServerError.missingRequiredField("Items[].Name")
         }
-        return EmbyLibraryView(
-            id: EmbyItemID(rawValue: id),
+        return MediaServerLibraryView(
+            id: MediaServerItemID(rawValue: id),
             name: name,
             collectionType: item.collectionType,
             imageTags: imageTags(from: item)
         )
     }
 
-    private func mapItem(_ item: ItemDTO) throws -> EmbyLibraryItem? {
+    private func mapItem(_ item: ItemDTO) throws -> MediaServerLibraryItem? {
         guard let type = item.type else { return nil }
-        let supportedTypes = ["movie", "series", "season", "episode", "boxset"]
+        let supportedTypes = ["movie", "video", "series", "season", "episode", "boxset"]
         guard supportedTypes.contains(type.lowercased()) else { return nil }
         guard let id = item.id, id.isEmpty == false else {
-            throw EmbyError.missingRequiredField("Items[].Id")
+            throw MediaServerError.missingRequiredField("Items[].Id")
         }
         guard let name = item.name, name.isEmpty == false else {
-            throw EmbyError.missingRequiredField("Items[].Name")
+            throw MediaServerError.missingRequiredField("Items[].Name")
         }
-        let metadata = EmbyItemMetadata(
-            id: EmbyItemID(rawValue: id),
+        let metadata = MediaServerItemMetadata(
+            id: MediaServerItemID(rawValue: id),
             name: name,
             imageTags: imageTags(from: item),
             overview: item.overview,
             runTimeTicks: item.runTimeTicks,
             userData: item.userData.map {
-                EmbyUserData(
+                MediaServerUserData(
                     playbackPositionTicks: $0.playbackPositionTicks ?? 0,
                     played: $0.played ?? false,
                     unplayedItemCount: $0.unplayedItemCount
@@ -558,62 +562,62 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             communityRating: item.communityRating,
             genres: item.genres ?? [],
             studios: (item.studios ?? []).compactMap { studio in
-                studio.name?.nonEmpty.map(EmbyStudio.init(name:))
+                studio.name?.nonEmpty.map(MediaServerStudio.init(name:))
             },
             people: (item.people ?? []).compactMap(mapPerson),
             productionLocations: item.productionLocations ?? [],
             mediaSources: (item.mediaSources ?? []).compactMap(mapMediaSourceDescription)
         )
         switch type.lowercased() {
-        case "movie":
-            return .movie(EmbyMovie(metadata: metadata))
+        case "movie", "video":
+            return .movie(MediaServerMovie(metadata: metadata))
         case "series":
-            return .series(EmbySeries(metadata: metadata))
+            return .series(MediaServerSeries(metadata: metadata))
         case "season":
             guard let seriesId = item.seriesId, seriesId.isEmpty == false else {
-                throw EmbyError.missingRequiredField("Season.SeriesId")
+                throw MediaServerError.missingRequiredField("Season.SeriesId")
             }
-            return .season(EmbySeason(
+            return .season(MediaServerSeason(
                 metadata: metadata,
-                seriesID: EmbyItemID(rawValue: seriesId),
+                seriesID: MediaServerItemID(rawValue: seriesId),
                 indexNumber: item.indexNumber
             ))
         case "episode":
             guard let seriesId = item.seriesId, seriesId.isEmpty == false else {
-                throw EmbyError.missingRequiredField("Episode.SeriesId")
+                throw MediaServerError.missingRequiredField("Episode.SeriesId")
             }
-            return .episode(EmbyEpisode(
+            return .episode(MediaServerEpisode(
                 metadata: metadata,
-                seriesID: EmbyItemID(rawValue: seriesId),
-                seasonID: item.seasonId.map(EmbyItemID.init(rawValue:)),
+                seriesID: MediaServerItemID(rawValue: seriesId),
+                seasonID: item.seasonId.map(MediaServerItemID.init(rawValue:)),
                 seasonNumber: item.parentIndexNumber,
                 episodeNumber: item.indexNumber
             ))
         case "boxset":
-            return .boxSet(EmbyBoxSet(metadata: metadata))
+            return .boxSet(MediaServerBoxSet(metadata: metadata))
         default:
             return nil
         }
     }
 
-    private func mapPerson(_ person: PersonDTO) -> EmbyPerson? {
+    private func mapPerson(_ person: PersonDTO) -> MediaServerPerson? {
         guard let name = person.name?.nonEmpty else { return nil }
-        return EmbyPerson(
-            id: person.id?.nonEmpty.map { EmbyItemID(rawValue: $0) },
+        return MediaServerPerson(
+            id: person.id?.nonEmpty.map { MediaServerItemID(rawValue: $0) },
             name: name,
             role: person.role?.nonEmpty,
             type: person.type?.nonEmpty,
-            primaryImageTag: person.primaryImageTag?.nonEmpty.map(EmbyImageTag.init(rawValue:))
+            primaryImageTag: person.primaryImageTag?.nonEmpty.map(MediaServerImageTag.init(rawValue:))
         )
     }
 
     private func mapMediaSourceDescription(
         _ source: MediaSourceDTO
-    ) -> EmbyMediaSourceDescription? {
+    ) -> MediaServerMediaSourceDescription? {
         guard let id = source.id?.nonEmpty else { return nil }
         let streams = mapStreams(source.mediaStreams)
-        return EmbyMediaSourceDescription(
-            id: EmbyMediaSourceID(rawValue: id),
+        return MediaServerMediaSourceDescription(
+            id: MediaServerMediaSourceID(rawValue: id),
             displayName: source.name?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ?? source.path?.lastPathComponentFromServerPath
                 ?? source.container?.uppercased()
@@ -627,12 +631,12 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
 
     private func mapMediaSource(
         _ source: MediaSourceDTO,
-        item: EmbyLibraryItem,
-        server: EmbyAuthenticatedServer
-    ) throws -> EmbyMediaSource? {
+        item: MediaServerLibraryItem,
+        server: MediaServerAuthenticatedServer
+    ) throws -> MediaServerMediaSource? {
         guard source.supportsDirectPlay == true else { return nil }
         guard let id = source.id, id.isEmpty == false else {
-            throw EmbyError.missingRequiredField("MediaSources[].Id")
+            throw MediaServerError.missingRequiredField("MediaSources[].Id")
         }
         let itemID = item.metadata.id
         let directPlayURL = try url(
@@ -644,11 +648,11 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 URLQueryItem(name: "api_key", value: server.accessToken)
             ]
         )
-        let streams = mapStreams(source.mediaStreams)
+        let streams = mapStreams(source.mediaStreams, subtitlePath: "/Videos/\(itemID.rawValue)/\(id)")
         let videoIndex = streams.first { $0.kind == .video && $0.isDefault }?.index
             ?? streams.first { $0.kind == .video }?.index
-        return EmbyMediaSource(
-            id: EmbyMediaSourceID(rawValue: id),
+        return MediaServerMediaSource(
+            id: MediaServerMediaSourceID(rawValue: id),
             displayName: source.name?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
                 ?? source.path?.lastPathComponentFromServerPath
                 ?? source.container?.uppercased()
@@ -656,13 +660,14 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             container: source.container,
             sizeInBytes: Self.positiveByteCount(source.size),
             mediaStreams: streams,
-            defaultStreamIndexes: EmbyDefaultStreamIndexes(
+            defaultStreamIndexes: MediaServerDefaultStreamIndexes(
                 video: videoIndex,
                 audio: source.defaultAudioStreamIndex,
                 subtitle: source.defaultSubtitleStreamIndex
             ),
             directPlayURL: directPlayURL,
-            versionedIdentity: VersionedMediaIdentity.emby(
+            versionedIdentity: VersionedMediaIdentity.mediaServer(
+                provider: kind.rawValue,
                 serverID: server.id.rawValue,
                 itemID: itemID.rawValue,
                 mediaSourceID: id,
@@ -673,11 +678,14 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         )
     }
 
-    private func mapStreams(_ sourceStreams: [MediaStreamDTO]?) -> [EmbyMediaStream] {
+    private func mapStreams(_ sourceStreams: [MediaStreamDTO]?, subtitlePath: String? = nil) -> [MediaServerMediaStream] {
         (sourceStreams ?? []).map { stream in
-            EmbyMediaStream(
+            MediaServerMediaStream(
                 index: stream.index,
-                kind: EmbyMediaStreamKind(rawValue: stream.type ?? "") ?? .unknown,
+                playbackIndex: dialect == .jellyfin ? stream.index - (sourceStreams ?? []).filter {
+                    $0.isExternal == true && $0.index < stream.index
+                }.count : stream.index,
+                kind: MediaServerMediaStreamKind(rawValue: stream.type ?? "") ?? .unknown,
                 codec: stream.codec,
                 language: stream.language,
                 displayLanguage: stream.displayLanguage,
@@ -701,7 +709,12 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 isForced: stream.isForced ?? false,
                 isExternal: stream.isExternal ?? false,
                 isHearingImpaired: stream.isHearingImpaired ?? false,
-                deliveryURL: stream.deliveryUrl
+                deliveryURL: stream.deliveryUrl ?? subtitlePath.flatMap { base in
+                    guard stream.isExternal == true, let codec = stream.codec,
+                          ["srt", "subrip", "ass", "ssa", "vtt", "webvtt"].contains(codec) else { return nil }
+                    let format = codec == "subrip" ? "srt" : codec == "webvtt" ? "vtt" : codec
+                    return "\(base)/Subtitles/\(stream.index)/Stream.\(format)"
+                }
             )
         }
     }
@@ -710,12 +723,12 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         count.flatMap { $0 > 0 ? $0 : nil }
     }
 
-    private func imageTags(from item: ItemDTO) -> EmbyImageTags {
-        EmbyImageTags(
-            primary: item.imageTags?["Primary"].map(EmbyImageTag.init(rawValue:)),
-            logo: item.imageTags?["Logo"].map(EmbyImageTag.init(rawValue:)),
-            thumb: item.imageTags?["Thumb"].map(EmbyImageTag.init(rawValue:)),
-            backdrops: (item.backdropImageTags ?? []).map(EmbyImageTag.init(rawValue:))
+    private func imageTags(from item: ItemDTO) -> MediaServerImageTags {
+        MediaServerImageTags(
+            primary: item.imageTags?["Primary"].map(MediaServerImageTag.init(rawValue:)),
+            logo: item.imageTags?["Logo"].map(MediaServerImageTag.init(rawValue:)),
+            thumb: item.imageTags?["Thumb"].map(MediaServerImageTag.init(rawValue:)),
+            backdrops: (item.backdropImageTags ?? []).map(MediaServerImageTag.init(rawValue:))
         )
     }
 
@@ -734,9 +747,9 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     }
 
     private func sendReport(
-        _ report: EmbyPlaybackReport,
+        _ report: MediaServerPlaybackReport,
         event: ReportEvent,
-        server: EmbyAuthenticatedServer
+        server: MediaServerAuthenticatedServer
     ) async throws {
         let body: Data
         switch event {
@@ -777,16 +790,16 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     private func data(for request: URLRequest) async throws -> Data {
         let (data, response) = try await session.data(for: request)
         guard let response = response as? HTTPURLResponse else {
-            throw EmbyError.invalidResponse
+            throw MediaServerError.invalidResponse
         }
         guard 200..<300 ~= response.statusCode else {
-            throw EmbyError.httpStatus(response.statusCode)
+            throw MediaServerError.httpStatus(response.statusCode)
         }
         return data
     }
 
     private func authorizedRequest(
-        server: EmbyAuthenticatedServer,
+        server: MediaServerAuthenticatedServer,
         path: String,
         method: String = "GET",
         queryItems: [URLQueryItem] = [],
@@ -802,7 +815,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         request.setValue(server.accessToken, forHTTPHeaderField: "X-Emby-Token")
         request.setValue(
             authorizationValue(userID: server.userID.rawValue, token: server.accessToken),
-            forHTTPHeaderField: "X-Emby-Authorization"
+            forHTTPHeaderField: dialect == .jellyfin ? "Authorization" : "X-Emby-Authorization"
         )
         return request
     }
@@ -817,7 +830,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         var request = URLRequest(url: try url(address: address, path: path, queryItems: queryItems))
         request.httpMethod = method
         request.httpBody = body
-        request.setValue(authorizationValue(userID: nil, token: nil), forHTTPHeaderField: "X-Emby-Authorization")
+        request.setValue(authorizationValue(userID: nil, token: nil), forHTTPHeaderField: dialect == .jellyfin ? "Authorization" : "X-Emby-Authorization")
         if body != nil {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
@@ -847,16 +860,16 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
     ) throws -> URL {
         let address = try normalizedAddress(address)
         guard var components = URLComponents(url: address, resolvingAgainstBaseURL: false) else {
-            throw EmbyError.invalidBaseAddress
+            throw MediaServerError.invalidBaseAddress
         }
         var basePath = components.path
         while basePath.hasSuffix("/") { basePath.removeLast() }
-        if basePath.lowercased().hasSuffix("/emby") == false {
+        if dialect == .emby, basePath.lowercased().hasSuffix("/emby") == false {
             basePath += "/emby"
         }
         components.path = basePath + (path.hasPrefix("/") ? path : "/" + path)
         components.queryItems = queryItems.isEmpty ? nil : queryItems
-        guard let result = components.url else { throw EmbyError.invalidBaseAddress }
+        guard let result = components.url else { throw MediaServerError.invalidBaseAddress }
         return result
     }
 
@@ -864,14 +877,14 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         guard let scheme = address.scheme?.lowercased(), ["http", "https"].contains(scheme),
               address.host != nil,
               var components = URLComponents(url: address, resolvingAgainstBaseURL: false) else {
-            throw EmbyError.invalidBaseAddress
+            throw MediaServerError.invalidBaseAddress
         }
         components.query = nil
         components.fragment = nil
         while components.path.count > 1, components.path.hasSuffix("/") {
             components.path.removeLast()
         }
-        guard let result = components.url else { throw EmbyError.invalidBaseAddress }
+        guard let result = components.url else { throw MediaServerError.invalidBaseAddress }
         return result
     }
 
@@ -879,7 +892,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .custom { keys in
             let value = keys.last?.stringValue ?? ""
-            return EmbyCodingKey(lowercasingFirstCharacterOf: value)
+            return MediaServerCodingKey(lowercasingFirstCharacterOf: value)
         }
         decoder.dateDecodingStrategy = .iso8601
         return decoder
@@ -889,13 +902,13 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .custom { keys in
             let value = keys.last?.stringValue ?? ""
-            return EmbyCodingKey(uppercasingFirstCharacterOf: value)
+            return MediaServerCodingKey(uppercasingFirstCharacterOf: value)
         }
         return encoder
     }
 }
 
-private struct EmbyCodingKey: CodingKey {
+private struct MediaServerCodingKey: CodingKey {
     let stringValue: String
     let intValue: Int? = nil
 
@@ -1056,7 +1069,7 @@ private struct PlaybackStatusReportDTO: Encodable {
     let subtitleStreamIndex: Int?
     let isPaused: Bool
     let playMethod: String
-    let eventName: EmbyPlaybackReport.ProgressEvent?
+    let eventName: MediaServerPlaybackReport.ProgressEvent?
 }
 
 private struct PlaybackStoppedReportDTO: Encodable {

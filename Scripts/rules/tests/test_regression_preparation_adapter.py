@@ -181,7 +181,7 @@ def registered_fixture_identifiers() -> tuple[str, ...]:
 
 DECLARED_IMPLEMENTATION_PATHS = (
     "Apps/Enchron/DebugSupport/TestCommandChannel.swift",
-    "Modules/Emby/EmbySessionViewModel.swift",
+    "Modules/MediaServer/MediaServerSessionViewModel.swift",
     "Regression/semantic-authority.json",
     "Scripts/verification/device_hub_canvas.py",
     "Scripts/verification/bluray_webdav_tree.py",
@@ -1153,7 +1153,7 @@ assert adapter.SEMANTIC_AUTHORITY_PATH == generated_authority
                 {"context": "main-window-browser", "labels": ["以后"]},
             ],
         )
-        self.assertEqual(plan.calls[-1].arguments, {"check": "emby-aggregate"})
+        self.assertEqual(plan.calls[-1].arguments, {"check": "emby-aggregate", "mediaServerProvider": "emby"})
         self.assertEqual(plan.state.produced_by_call, plan.calls[-1].call_id)
         prerequisites = {
             (item.kind, item.identity): item.digest for item in plan.prerequisites

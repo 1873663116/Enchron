@@ -1,6 +1,6 @@
 import CoreMedia
 import Foundation
-@testable import Emby
+@testable import MediaServer
 @testable import MediaLibrary
 import MediaSource
 import PlaybackCore
@@ -1117,7 +1117,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             ParityEmbyURLProtocol.serve(fixture, token: "parity-token")
             defer { ParityEmbyURLProtocol.serve(nil, token: "") }
             let embyHandle = try await MediaByteStreamServer().register(
-                source: EmbyMediaByteSource(
+                source: MediaServerByteSource(
                     streamURL: try XCTUnwrap(URL(
                         string: "https://emby.parity.test/emby/Videos/1/stream?Static=true&MediaSourceId=source"
                     )),

@@ -4,13 +4,33 @@ import ImageIO
 import MediaSource
 import Synchronization
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 #if DEBUG
 @Suite("Emby artwork evidence loader", .serialized)
 struct EmbyArtworkEvidenceLoaderTests {
-    @Test("prefetch stores into the display cache and a repeat load performs no second request")
-    func prefetchAndDisplayShareOneCachePath() async throws {
+    @Test("Plex artwork evidence reads pixels without exposing its token")
+    func plexArtwork() async throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        ArtworkEvidenceURLProtocol.reset(data: try jpegData())
+        defer { ArtworkEvidenceURLProtocol.reset(data: Data()) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ArtworkEvidenceURLProtocol.self]
+        let loader = MediaServerArtworkEvidenceLoader(store: ArtworkStore(debugRootURL: root), session: URLSession(configuration: configuration))
+        let url = try #require(URL(string: "http://example.test/library/metadata/21/thumb/100?X-Plex-Token=secret"))
+        let evidence = await loader.load(.init(itemID: .init(rawValue: "21"), imageType: .primary,
+                                               imageTag: .init(rawValue: "/library/metadata/21/thumb/100"),
+                                               url: url))
+        #expect(evidence.network.value?.statusCode == 200)
+        #expect(evidence.sanitizedRequestURL == "http://example.test/library/metadata/21/thumb/100")
+        #expect(evidence.persistedCache.value?.width == 4)
+        #expect(evidence.alternateTagCacheKey != evidence.cacheKey)
+    }
+
+    @Test("prefetch stores into the display cache and a repeat load performs no second request",
+          arguments: ["", "/emby"])
+    func prefetchAndDisplayShareOneCachePath(prefix: String) async throws {
         let root = FileManager.default.temporaryDirectory.appending(
             path: UUID().uuidString,
             directoryHint: .isDirectory
@@ -22,24 +42,24 @@ struct EmbyArtworkEvidenceLoaderTests {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [ArtworkEvidenceURLProtocol.self]
         configuration.urlCache = nil
-        let loader = EmbyArtworkEvidenceLoader(
+        let loader = MediaServerArtworkEvidenceLoader(
             store: store,
             session: URLSession(configuration: configuration)
         )
         let url = try #require(URL(
-            string: "http://example.test/Items/episode/Images/Primary?api_key=secret&Tag=tag-a&MaxWidth=420"
+            string: "http://example.test\(prefix)/Items/episode/Images/Primary?api_key=secret&Tag=tag-a&MaxWidth=420"
         ))
-        let request = EmbyArtworkLoadRequest(
-            itemID: EmbyItemID(rawValue: "episode"),
+        let request = MediaServerArtworkLoadRequest(
+            itemID: MediaServerItemID(rawValue: "episode"),
             imageType: .primary,
-            imageTag: EmbyImageTag(rawValue: "tag-a"),
+            imageTag: MediaServerImageTag(rawValue: "tag-a"),
             url: url
         )
 
         let first = await loader.load(request)
         let cacheKey = ArtworkKey(remoteImageURL: url)
         let alternateTagURL = try #require(URL(
-            string: "http://example.test/Items/episode/Images/Primary?api_key=secret&Tag=tag-a-alternate&MaxWidth=420"
+            string: "http://example.test\(prefix)/Items/episode/Images/Primary?api_key=secret&Tag=tag-a-alternate&MaxWidth=420"
         ))
         let alternateTagKey = ArtworkKey(remoteImageURL: alternateTagURL)
         let displayed = store.image(for: cacheKey)
@@ -50,7 +70,7 @@ struct EmbyArtworkEvidenceLoaderTests {
         #expect(first.network.value?.responseDigest.hasPrefix("sha256:") == true)
         #expect(first.persistedCache.value?.artworkKey == cacheKey.debugStorageKey)
         #expect(first.loopbackHitCount.value == 0)
-        #expect(first.sanitizedRequestURL == "http://example.test/Items/episode/Images/Primary?Tag=tag-a&MaxWidth=420")
+        #expect(first.sanitizedRequestURL == "http://example.test\(prefix)/Items/episode/Images/Primary?Tag=tag-a&MaxWidth=420")
         #expect(first.cacheKey == cacheKey.debugStorageKey)
         #expect(first.alternateTagCacheKey == alternateTagKey.debugStorageKey)
         #expect(first.alternateTagCacheKey != first.cacheKey)

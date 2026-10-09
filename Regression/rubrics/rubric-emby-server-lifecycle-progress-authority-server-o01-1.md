@@ -5,6 +5,7 @@
   "id": "rubric:emby-server-lifecycle.progress-authority-server.o01@1",
   "title": "Progress Authority Server",
   "criteria": [
+    "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
     "The server reports an active session and advancing position for the opened item, then records the exit position within the five-second observed-position bound decided by HC-021.",
     "After exit, operation:diagnostics.surface-probe@1 runs with includeViewingStorage=true and its viewingStorageObservation inlines the same attempt's pre-playback probe as priorSnapshots[0]. That prior viewingState's viewingRecordCount equals snapshot.viewingState.viewingRecordCount and the two entries lists are element-for-element identical, so the opened and exited Emby session added, removed, or changed no local viewing record. Entries publish only a sha256 mediaIdentity, so the decision is this list comparison, never a decoding of that hash."
   ],

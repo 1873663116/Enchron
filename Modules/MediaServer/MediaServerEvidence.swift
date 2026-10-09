@@ -5,14 +5,14 @@ import Foundation
 import ImageIO
 import MediaSource
 
-public struct EmbySignInReceipt: Codable, Equatable, Sendable {
+public struct MediaServerSignInReceipt: Codable, Equatable, Sendable {
     public static let schemaValue = "enchron.regression.emby-sign-in@1"
     public let schema: String
     public let identityDigest: String
     public let serverID: String
     public let userID: String
     public let persisted: Bool
-    init(identityDigest: String, server: EmbyAuthenticatedServer) {
+    init(identityDigest: String, server: MediaServerAuthenticatedServer) {
         schema = Self.schemaValue
         self.identityDigest = identityDigest
         serverID = server.id.rawValue
@@ -20,7 +20,7 @@ public struct EmbySignInReceipt: Codable, Equatable, Sendable {
         persisted = true
     }
 }
-public enum EmbySignInError: Error, LocalizedError, Sendable {
+public enum MediaServerSignInError: Error, LocalizedError, Sendable {
     case identityDigestMismatch
     case invalidIdentity
     case authenticatedIdentityMismatch
@@ -36,7 +36,7 @@ public enum EmbySignInError: Error, LocalizedError, Sendable {
     }
 }
 
-struct EmbyAutomationRuntimeIdentity: Decodable {
+struct MediaServerAutomationRuntimeIdentity: Decodable {
     static let schemaValue = "enchron.regression.emby-runtime-identity@1"
     static let keys: Set<String> = [
         "schema", "address", "username", "password", "serverID", "userID"
@@ -50,7 +50,7 @@ struct EmbyAutomationRuntimeIdentity: Decodable {
     let userID: String
 }
 
-public struct EmbyObservation<Value: Codable & Equatable & Sendable>: Codable, Equatable, Sendable {
+public struct MediaServerObservation<Value: Codable & Equatable & Sendable>: Codable, Equatable, Sendable {
     public enum Status: String, Codable, Equatable, Sendable {
         case observed
         case unavailable
@@ -74,13 +74,13 @@ public struct EmbyObservation<Value: Codable & Equatable & Sendable>: Codable, E
     }
 }
 
-public enum EmbyHomeCardSurface: String, Codable, Equatable, Sendable {
+public enum MediaServerHomeCardSurface: String, Codable, Equatable, Sendable {
     case poster
     case nextUp
     case continueWatching
 }
 
-public struct EmbyHomeActivationEvidence: Codable, Equatable, Sendable {
+public struct MediaServerHomeActivationEvidence: Codable, Equatable, Sendable {
     public let surface: String
     public let cardIdentifier: String
     public let itemID: String
@@ -88,7 +88,7 @@ public struct EmbyHomeActivationEvidence: Codable, Equatable, Sendable {
     public let resultingItemID: String
 }
 
-public struct EmbyDetailEvidence: Codable, Equatable, Sendable {
+public struct MediaServerDetailEvidence: Codable, Equatable, Sendable {
     public let itemID: String
     public let itemKind: String
     public let seriesID: String?
@@ -98,7 +98,7 @@ public struct EmbyDetailEvidence: Codable, Equatable, Sendable {
     public let playbackActionIDs: [String]
 }
 
-public struct EmbySeasonTransitionEvidence: Codable, Equatable, Sendable {
+public struct MediaServerSeasonTransitionEvidence: Codable, Equatable, Sendable {
     public let seriesID: String
     public let declaredSeasonIDs: [String]
     public let requestedSeasonID: String
@@ -108,16 +108,16 @@ public struct EmbySeasonTransitionEvidence: Codable, Equatable, Sendable {
     public let afterEpisodeIDs: [String]
 }
 
-public struct EmbyArtworkLoadRequest: Sendable, Equatable {
-    public let itemID: EmbyItemID
-    public let imageType: EmbyImageType
-    public let imageTag: EmbyImageTag
+public struct MediaServerArtworkLoadRequest: Sendable, Equatable {
+    public let itemID: MediaServerItemID
+    public let imageType: MediaServerImageType
+    public let imageTag: MediaServerImageTag
     public let url: URL
 
     public init(
-        itemID: EmbyItemID,
-        imageType: EmbyImageType,
-        imageTag: EmbyImageTag,
+        itemID: MediaServerItemID,
+        imageType: MediaServerImageType,
+        imageTag: MediaServerImageTag,
         url: URL
     ) {
         self.itemID = itemID
@@ -127,14 +127,14 @@ public struct EmbyArtworkLoadRequest: Sendable, Equatable {
     }
 }
 
-public struct EmbyArtworkNetworkEvidence: Codable, Equatable, Sendable {
+public struct MediaServerArtworkNetworkEvidence: Codable, Equatable, Sendable {
     public let statusCode: Int
     public let responseDigest: String
     public let responseBytes: Int
-    public let sanitizedResponseURL: EmbyObservation<String>
+    public let sanitizedResponseURL: MediaServerObservation<String>
 }
 
-public struct EmbyArtworkPersistedEvidence: Codable, Equatable, Sendable {
+public struct MediaServerArtworkPersistedEvidence: Codable, Equatable, Sendable {
     public let artworkKey: String
     public let digest: String
     public let bytes: Int
@@ -142,20 +142,20 @@ public struct EmbyArtworkPersistedEvidence: Codable, Equatable, Sendable {
     public let height: Int
 }
 
-public struct EmbyArtworkEvidence: Codable, Equatable, Sendable {
+public struct MediaServerArtworkEvidence: Codable, Equatable, Sendable {
     public let itemID: String
     public let imageType: String
     public let imageTag: String
     public let sanitizedRequestURL: String?
     public let cacheKey: String
     public let alternateTagCacheKey: String?
-    public let cacheHit: EmbyObservation<Bool>
-    public let network: EmbyObservation<EmbyArtworkNetworkEvidence>
-    public let persistedCache: EmbyObservation<EmbyArtworkPersistedEvidence>
-    public let loopbackHitCount: EmbyObservation<Int>
+    public let cacheHit: MediaServerObservation<Bool>
+    public let network: MediaServerObservation<MediaServerArtworkNetworkEvidence>
+    public let persistedCache: MediaServerObservation<MediaServerArtworkPersistedEvidence>
+    public let loopbackHitCount: MediaServerObservation<Int>
 }
 
-public struct EmbyArtworkEvidenceLoader: Sendable {
+public struct MediaServerArtworkEvidenceLoader: Sendable {
     private let store: ArtworkStore
     private let session: URLSession
 
@@ -164,11 +164,11 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
         self.session = session
     }
 
-    public func load(_ request: EmbyArtworkLoadRequest) async -> EmbyArtworkEvidence {
+    public func load(_ request: MediaServerArtworkLoadRequest) async -> MediaServerArtworkEvidence {
         let key = ArtworkKey(remoteImageURL: request.url)
         let sanitizedURL = Self.sanitizedURL(for: request)
         guard let sanitizedURL else {
-            return EmbyArtworkEvidence(
+            return MediaServerArtworkEvidence(
                 itemID: request.itemID.rawValue,
                 imageType: request.imageType.rawValue,
                 imageTag: request.imageTag.rawValue,
@@ -182,7 +182,7 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
             )
         }
         if store.image(for: key) != nil {
-            return EmbyArtworkEvidence(
+            return MediaServerArtworkEvidence(
                 itemID: request.itemID.rawValue,
                 imageType: request.imageType.rawValue,
                 imageTag: request.imageTag.rawValue,
@@ -229,7 +229,7 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
             let digest = SHA256.hash(data: data)
                 .map { String(format: "%02x", $0) }
                 .joined()
-            return EmbyArtworkEvidence(
+            return MediaServerArtworkEvidence(
                 itemID: request.itemID.rawValue,
                 imageType: request.imageType.rawValue,
                 imageTag: request.imageTag.rawValue,
@@ -237,7 +237,7 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
                 cacheKey: key.debugStorageKey,
                 alternateTagCacheKey: Self.alternateTagCacheKey(for: request),
                 cacheHit: .observed(false),
-                network: .observed(EmbyArtworkNetworkEvidence(
+                network: .observed(MediaServerArtworkNetworkEvidence(
                     statusCode: response.statusCode,
                     responseDigest: "sha256:\(digest)",
                     responseBytes: data.count,
@@ -263,11 +263,11 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
 
     private func persistedEvidence(
         for key: ArtworkKey
-    ) -> EmbyObservation<EmbyArtworkPersistedEvidence> {
+    ) -> MediaServerObservation<MediaServerArtworkPersistedEvidence> {
         guard let identity = store.debugStoredIdentity(for: key) else {
             return .unavailable("persisted-cache-entry-missing")
         }
-        return .observed(EmbyArtworkPersistedEvidence(
+        return .observed(MediaServerArtworkPersistedEvidence(
             artworkKey: identity.artworkKey,
             digest: identity.digest,
             bytes: identity.bytes,
@@ -277,13 +277,13 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
     }
 
     private func failure(
-        request: EmbyArtworkLoadRequest,
+        request: MediaServerArtworkLoadRequest,
         key: ArtworkKey,
         sanitizedURL: URL,
         reason: String,
         responseWasObserved: Bool = true
-    ) -> EmbyArtworkEvidence {
-        EmbyArtworkEvidence(
+    ) -> MediaServerArtworkEvidence {
+        MediaServerArtworkEvidence(
             itemID: request.itemID.rawValue,
             imageType: request.imageType.rawValue,
             imageTag: request.imageTag.rawValue,
@@ -299,23 +299,30 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
         )
     }
 
-    private static func sanitizedURL(for request: EmbyArtworkLoadRequest) -> URL? {
+    private static func sanitizedURL(for request: MediaServerArtworkLoadRequest) -> URL? {
         sanitizedURL(request.url, matching: request)
     }
 
     private static func sanitizedURL(
         _ url: URL,
-        matching request: EmbyArtworkLoadRequest
+        matching request: MediaServerArtworkLoadRequest
     ) -> URL? {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false),
               components.scheme == "http" || components.scheme == "https",
               components.host != nil,
               components.user == nil,
               components.password == nil,
-              components.fragment == nil,
-              components.path == "/Items/\(request.itemID.rawValue)/Images/\(request.imageType.rawValue)" else {
+              components.fragment == nil else {
             return nil
         }
+        let mediaBrowserPath = "/Items/\(request.itemID.rawValue)/Images/\(request.imageType.rawValue)"
+        if components.path == request.imageTag.rawValue,
+           components.path.range(of: #"^/library/(metadata|collections)/[0-9]+/(thumb|art|clearLogo|squareArt)(/[0-9]+)?$"#,
+                                 options: .regularExpression) != nil {
+            components.queryItems = nil
+            return components.url
+        }
+        guard components.path.hasSuffix(mediaBrowserPath) else { return nil }
         let publicNames: Set<String> = ["Tag", "MaxWidth", "MaxHeight"]
         components.queryItems = components.queryItems?.filter { publicNames.contains($0.name) }
         guard components.queryItems?.first(where: { $0.name == "Tag" })?.value
@@ -326,16 +333,18 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
     }
 
     private static func alternateTagCacheKey(
-        for request: EmbyArtworkLoadRequest
+        for request: MediaServerArtworkLoadRequest
     ) -> String? {
         guard var components = URLComponents(
             url: request.url,
             resolvingAgainstBaseURL: false
-        ),
-        let queryItems = components.queryItems,
-        queryItems.contains(where: { $0.name == "Tag" }) else {
-            return nil
+        ) else { return nil }
+        if components.path == request.imageTag.rawValue, components.path.hasPrefix("/library/") {
+            components.path += "-alternate"
+            return components.url.map { ArtworkKey(remoteImageURL: $0).debugStorageKey }
         }
+        guard let queryItems = components.queryItems,
+              queryItems.contains(where: { $0.name == "Tag" }) else { return nil }
         components.queryItems = queryItems.map { item in
             item.name == "Tag"
                 ? URLQueryItem(name: "Tag", value: "\(item.value ?? "")-alternate")
@@ -357,25 +366,25 @@ public struct EmbyArtworkEvidenceLoader: Sendable {
     }
 }
 
-public struct EmbyEvidenceJournal: Equatable, Sendable {
+public struct MediaServerEvidenceJournal: Equatable, Sendable {
     private static let retainedEntryLimit = 64
 
-    public private(set) var homeActivations: [EmbyHomeActivationEvidence] = []
-    public private(set) var detail: EmbyDetailEvidence?
-    public private(set) var seasonTransitions: [EmbySeasonTransitionEvidence] = []
-    public private(set) var preparedPlaybacks: [EmbyPreparedPlaybackEvidence] = []
-    public private(set) var playbackSessions: [EmbyPlaybackEvidence] = []
-    public private(set) var artworkLoads: [EmbyArtworkEvidence] = []
+    public private(set) var homeActivations: [MediaServerHomeActivationEvidence] = []
+    public private(set) var detail: MediaServerDetailEvidence?
+    public private(set) var seasonTransitions: [MediaServerSeasonTransitionEvidence] = []
+    public private(set) var preparedPlaybacks: [MediaServerPreparedPlaybackEvidence] = []
+    public private(set) var playbackSessions: [MediaServerPlaybackEvidence] = []
+    public private(set) var artworkLoads: [MediaServerArtworkEvidence] = []
 
     public init() {}
 
     public mutating func recordHomeActivation(
-        surface: EmbyHomeCardSurface,
+        surface: MediaServerHomeCardSurface,
         cardIdentifier: String,
-        item: EmbyLibraryItem,
-        resultingItemID: EmbyItemID
+        item: MediaServerLibraryItem,
+        resultingItemID: MediaServerItemID
     ) {
-        homeActivations.append(EmbyHomeActivationEvidence(
+        homeActivations.append(MediaServerHomeActivationEvidence(
             surface: surface.rawValue,
             cardIdentifier: cardIdentifier,
             itemID: item.metadata.id.rawValue,
@@ -385,10 +394,10 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
         trim(&homeActivations)
     }
 
-    public mutating func recordDetail(item: EmbyLibraryItem, children: EmbyDetailChildren) {
-        let seasons: [EmbySeason]
-        let selectedSeasonID: EmbyItemID?
-        let episodes: [EmbyEpisode]
+    public mutating func recordDetail(item: MediaServerLibraryItem, children: MediaServerDetailChildren) {
+        let seasons: [MediaServerSeason]
+        let selectedSeasonID: MediaServerItemID?
+        let episodes: [MediaServerEpisode]
         switch children {
         case .seasons(let all, let selected, let shown):
             seasons = all
@@ -403,14 +412,14 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
             selectedSeasonID = nil
             episodes = []
         }
-        let seriesID: EmbyItemID? = switch item {
+        let seriesID: MediaServerItemID? = switch item {
         case .series: item.metadata.id
         case .season(let season): season.seriesID
         case .episode(let episode): episode.seriesID
         case .movie, .boxSet: nil
         }
         let playbackActionIDs: [String] = item.isPlayable ? ["Emby-Detail-Play"] : []
-        detail = EmbyDetailEvidence(
+        detail = MediaServerDetailEvidence(
             itemID: item.metadata.id.rawValue,
             itemKind: Self.kind(of: item),
             seriesID: seriesID?.rawValue,
@@ -422,15 +431,15 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
     }
 
     public mutating func recordSeasonTransition(
-        seriesID: EmbyItemID,
-        declaredSeasons: [EmbySeason],
-        requestedSeasonID: EmbyItemID,
-        beforeSelectedSeasonID: EmbyItemID?,
-        beforeEpisodes: [EmbyEpisode],
-        afterSelectedSeasonID: EmbyItemID?,
-        afterEpisodes: [EmbyEpisode]
+        seriesID: MediaServerItemID,
+        declaredSeasons: [MediaServerSeason],
+        requestedSeasonID: MediaServerItemID,
+        beforeSelectedSeasonID: MediaServerItemID?,
+        beforeEpisodes: [MediaServerEpisode],
+        afterSelectedSeasonID: MediaServerItemID?,
+        afterEpisodes: [MediaServerEpisode]
     ) {
-        seasonTransitions.append(EmbySeasonTransitionEvidence(
+        seasonTransitions.append(MediaServerSeasonTransitionEvidence(
             seriesID: seriesID.rawValue,
             declaredSeasonIDs: declaredSeasons.map { $0.metadata.id.rawValue },
             requestedSeasonID: requestedSeasonID.rawValue,
@@ -442,12 +451,12 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
         trim(&seasonTransitions)
     }
 
-    public mutating func recordPreparedPlayback(_ evidence: EmbyPreparedPlaybackEvidence) {
+    public mutating func recordPreparedPlayback(_ evidence: MediaServerPreparedPlaybackEvidence) {
         preparedPlaybacks.append(evidence)
         trim(&preparedPlaybacks)
     }
 
-    public mutating func recordAcceptedPlaybackReport(_ report: EmbyAcceptedPlaybackReport) {
+    public mutating func recordAcceptedPlaybackReport(_ report: MediaServerAcceptedPlaybackReport) {
         if let index = playbackSessions.firstIndex(where: {
             $0.serverID == report.serverID
                 && $0.userID == report.userID
@@ -457,17 +466,17 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
         }) {
             playbackSessions[index].record(report)
         } else {
-            playbackSessions.append(EmbyPlaybackEvidence(report: report))
+            playbackSessions.append(MediaServerPlaybackEvidence(report: report))
             trim(&playbackSessions)
         }
     }
 
-    public mutating func recordArtwork(_ evidence: EmbyArtworkEvidence) {
+    public mutating func recordArtwork(_ evidence: MediaServerArtworkEvidence) {
         artworkLoads.append(evidence)
         trim(&artworkLoads)
     }
 
-    private static func kind(of item: EmbyLibraryItem) -> String {
+    private static func kind(of item: MediaServerLibraryItem) -> String {
         switch item {
         case .movie: "movie"
         case .series: "series"
@@ -483,26 +492,26 @@ public struct EmbyEvidenceJournal: Equatable, Sendable {
         }
     }
 }
-public struct EmbyPlaybackEvidence: Equatable, Sendable {
+public struct MediaServerPlaybackEvidence: Equatable, Sendable {
     private static let retainedReportLimit = 64
 
-    public let serverID: EmbyServerID
-    public let userID: EmbyUserID
-    public let itemID: EmbyItemID
-    public let mediaSourceID: EmbyMediaSourceID
-    public let playSessionID: EmbyPlaySessionID
+    public let serverID: MediaServerServerID
+    public let userID: MediaServerUserID
+    public let itemID: MediaServerItemID
+    public let mediaSourceID: MediaServerMediaSourceID
+    public let playSessionID: MediaServerPlaySessionID
     public private(set) var activePositionTicks: Int64?
     public private(set) var latestPositionTicks: Int64
     public private(set) var exitPositionTicks: Int64?
     public private(set) var acceptedProgressReportCount: Int
-    public private(set) var acceptedReports: [EmbyAcceptedPlaybackReport]
+    public private(set) var acceptedReports: [MediaServerAcceptedPlaybackReport]
     public private(set) var totalAcceptedReportCount: Int
 
     public var acceptedReportsWereTruncated: Bool {
         totalAcceptedReportCount > acceptedReports.count
     }
 
-    public init(report: EmbyAcceptedPlaybackReport) {
+    public init(report: MediaServerAcceptedPlaybackReport) {
         serverID = report.serverID
         userID = report.userID
         itemID = report.itemID
@@ -516,7 +525,7 @@ public struct EmbyPlaybackEvidence: Equatable, Sendable {
         totalAcceptedReportCount = 1
     }
 
-    public mutating func record(_ report: EmbyAcceptedPlaybackReport) {
+    public mutating func record(_ report: MediaServerAcceptedPlaybackReport) {
         guard report.serverID == serverID,
               report.userID == userID,
               report.itemID == itemID,
