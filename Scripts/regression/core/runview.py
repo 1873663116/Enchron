@@ -114,7 +114,6 @@ HARNESS_TIMEOUT_KINDS = frozenset(
         "transport-timeout",
         "response-timeout",
         "wait-expired",
-        "provisional-budget-expired",
     }
 )
 
