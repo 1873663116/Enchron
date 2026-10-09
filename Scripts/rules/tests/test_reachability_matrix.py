@@ -72,9 +72,11 @@ class SettingsSegmentServicePreflightTests(unittest.TestCase):
 
 
 class MediaLibraryTabsScenarioTests(unittest.TestCase):
-    def run_scenario(self, original, *, save_effect=True, probe=True, eager_save=False, fail_restore=False, stale_value=False):
+    def run_scenario(self, original, *, save_effect=True, probe=True, eager_save=False, fail_restore=False, stale_value=False, segmented=False, ping_success=True):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
-        run.segment = None
+        run.segment = {"context": "main-window-browser"} if segmented else None
+        run.evidence_session = "tab-epoch"
+        run.session_id = "runner-session"
         run.lane = "device"
         run.operations = {operation: {} for operation in (
             matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION, matrix.MEDIA_LIBRARY_SAVE_OPERATION,
@@ -96,6 +98,7 @@ class MediaLibraryTabsScenarioTests(unittest.TestCase):
         run.last_deferred_command_id = None
         state = {"saved": dict(original), "draft": dict(original), "screen": "files", "saveCount": 0}
         journal = ["reachability settings delivered action=action.media-library-tabs-save"]
+        state.update(journal=journal, epoch=None, initializedEpochs=0)
 
         def document(identifier=None):
             identifiers = {
@@ -116,6 +119,13 @@ class MediaLibraryTabsScenarioTests(unittest.TestCase):
         def controller(action, *arguments):
             identifier = arguments[arguments.index("--identifier") + 1] if "--identifier" in arguments else None
             before = document(identifier)
+            if action == "app-command":
+                epoch = next(value.removeprefix("evidenceSession=") for value in arguments if value.startswith("evidenceSession="))
+                if state["epoch"] != epoch:
+                    state["epoch"] = epoch
+                    state["initializedEpochs"] += 1
+                    journal.clear()
+                journal.append(f"reachability evidence session={epoch}")
             if action == "tap":
                 if identifier == "Navigation-Ornament-tab-files":
                     state["screen"] = "files"
@@ -135,6 +145,8 @@ class MediaLibraryTabsScenarioTests(unittest.TestCase):
                     if probe:
                         journal.append("reachability settings delivered action=action.media-library-tabs-save")
             response = document(identifier)
+            if action == "app-command" and arguments[arguments.index("--verb") + 1] == "ping":
+                response["success"] = ping_success
             response["matchedElement"] = before["matchedElement"]
             run.events.append({"evidence": f"raw/{len(run.events)}-{action}.json"})
             run.last_controller_document = response
@@ -146,6 +158,27 @@ class MediaLibraryTabsScenarioTests(unittest.TestCase):
         run.copy_probe = lambda label: list(journal)
         run.settings_media_library_tabs_scenario()
         return run, state
+
+    def test_segment_initializes_evidence_session_before_save_and_restoration(self):
+        original = {"emby": True, "plex": False, "jellyfin": True}
+        run, state = self.run_scenario(original, segmented=True)
+        run.app_command("probeStatus", defer_response=False, track_reachability=False)
+        self.assertEqual(state["initializedEpochs"], 1)
+        self.assertEqual(state["journal"].count("reachability settings delivered action=action.media-library-tabs-save"), 2)
+        self.assertEqual(state["saved"], original)
+        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["verdict"], "reachable")
+        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["verdict"], "reachable")
+
+    def test_failed_segment_ping_leaves_controls_and_delivery_unproved(self):
+        original = {"emby": True, "plex": False, "jellyfin": True}
+        run, state = self.run_scenario(original, segmented=True, ping_success=False)
+        self.assertEqual(state["screen"], "files")
+        self.assertEqual(state["saveCount"], 0)
+        self.assertEqual(state["saved"], original)
+        self.assertEqual(run.settings_restorations, [])
+        self.assertEqual(run.driven_cells, set())
+        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["applicationReceived"], False)
+        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["applicationReceived"], False)
 
     def test_real_draft_and_save_contract_restores_all_original_subsets(self):
         for mask in range(8):

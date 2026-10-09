@@ -4904,6 +4904,10 @@ class ReachabilityRun:
         )
 
     def settings_media_library_tabs_scenario(self) -> None:
+        if self.segment is not None:
+            initialized = self.app_command("ping", defer_response=False, track_reachability=False)
+            if initialized.get("success") is not True:
+                return
         context = MAIN_WINDOW_BROWSER_CONTEXT
         self.mark_driven(context, MEDIA_LIBRARY_CHECKBOX_OPERATION)
         self.mark_driven(context, MEDIA_LIBRARY_SAVE_OPERATION)
