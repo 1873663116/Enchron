@@ -286,22 +286,34 @@ private struct RevealShell: ViewModifier {
     let surface: PlaybackControlPanelSurface
     let shape: RoundedRectangle
     let revealClipSize: CGSize
+    let visibleOrnamentSize: CGSize?
+
+    private enum WindowOrnamentRevealMode {
+        case clipPinned
+        case clip
+        case glassShape
+    }
+
+#if DEBUG
+    private static let windowOrnamentRevealMode: WindowOrnamentRevealMode = {
+        switch ProcessInfo.processInfo.environment["ENCHRON_PANEL_REVEAL_MODE"] {
+        case "clipPinned":
+            return .clipPinned
+        case "clip":
+            return .clip
+        default:
+            return .glassShape
+        }
+    }()
+#else
+    private static let windowOrnamentRevealMode: WindowOrnamentRevealMode = .glassShape
+#endif
 
     @ViewBuilder
     func body(content: Content) -> some View {
         switch surface {
         case .windowOrnament:
-            content
-                .padding(.horizontal, DesignTokens.ControlBar.paddingH)
-                .padding(.vertical, DesignTokens.ControlBar.paddingV)
-                .enchronGlassBackground(in: shape)
-                .clipShape(
-                    shape.size(
-                        width: revealClipSize.width,
-                        height: revealClipSize.height,
-                        anchor: .center
-                    )
-                )
+            windowOrnamentBody(content)
         case .playerControlDock:
             content
                 .padding(.horizontal, DesignTokens.ControlBar.paddingH)
@@ -320,7 +332,138 @@ private struct RevealShell: ViewModifier {
                 )
         }
     }
+
+    @ViewBuilder
+    private func windowOrnamentBody(_ content: Content) -> some View {
+        switch Self.windowOrnamentRevealMode {
+        case .clipPinned, .clip:
+            content
+                .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+                .padding(.vertical, DesignTokens.ControlBar.paddingV)
+                .enchronGlassBackground(in: shape)
+                .clipShape(
+                    shape.size(
+                        width: revealClipSize.width,
+                        height: revealClipSize.height,
+                        anchor: .center
+                    )
+                )
+                .frame(
+                    width: Self.windowOrnamentRevealMode == .clip
+                        ? visibleOrnamentSize?.width
+                        : nil,
+                    height: Self.windowOrnamentRevealMode == .clip
+                        ? visibleOrnamentSize?.height
+                        : nil
+                )
+        case .glassShape:
+            content
+                .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+                .padding(.vertical, DesignTokens.ControlBar.paddingV)
+                .clipShape(
+                    CenteredRevealShape(
+                        size: revealClipSize,
+                        cornerRadius: DesignTokens.Radius.card
+                    )
+                )
+                .enchronGlassBackground(
+                    in: CenteredRevealShape(
+                        size: revealClipSize,
+                        cornerRadius: DesignTokens.Radius.card
+                    )
+                )
+                .frame(
+                    width: visibleOrnamentSize?.width,
+                    height: visibleOrnamentSize?.height
+                )
+        }
+    }
 }
+
+/// Panel reveal timings, mirroring `DesignTokens.AnimationToken.panelSpring`,
+/// `panelContentExit` and `panelContentEntrance`. DEBUG builds honor
+/// `ENCHRON_PANEL_REVEAL_SLOWDOWN` as a multiplier on every duration and delay
+/// so mid-transition frames can be captured on device.
+private enum PanelRevealTiming {
+    static let springDuration: Double = 0.7
+    static let springBounce: Double = 0.15
+    static let contentExitDuration: Double = 0.315
+    static let contentEntranceDuration: Double = 0.4375
+    static let contentEntranceDelay: Double = 0.21
+
+#if DEBUG
+    static let slowdown: Double = {
+        let raw = ProcessInfo.processInfo.environment["ENCHRON_PANEL_REVEAL_SLOWDOWN"]
+        guard let raw, let value = Double(raw), value > 0 else { return 1 }
+        return value
+    }()
+#else
+    static let slowdown: Double = 1
+#endif
+
+    static var spring: Animation {
+        .spring(duration: springDuration * slowdown, bounce: springBounce)
+    }
+    static var contentExit: Animation {
+        .easeOut(duration: contentExitDuration * slowdown)
+    }
+    static var contentEntrance: Animation {
+        .easeIn(duration: contentEntranceDuration * slowdown)
+            .delay(contentEntranceDelay * slowdown)
+    }
+}
+
+#if DEBUG
+/// Temporary instrumentation for the panel-reveal experiment:
+/// echoes the applied reveal environment into Documents and polls
+/// `Documents/panel-reveal-trigger.txt` so a host can drive expansion without
+/// gaze-driven taps (write `expand`, `collapse`, `timeline` or `settings`;
+/// the file is consumed once and deleted).
+private enum PanelRevealDebugDriver {
+    private static var documentsURL: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+    }
+
+    static func recordEnvironment() {
+        guard let url = documentsURL?.appending(path: "panel-reveal-env.txt") else {
+            return
+        }
+        let environment = ProcessInfo.processInfo.environment
+        let contents = "ENCHRON_PANEL_REVEAL_MODE=\(environment["ENCHRON_PANEL_REVEAL_MODE"] ?? "")\n"
+            + "ENCHRON_PANEL_REVEAL_SLOWDOWN=\(environment["ENCHRON_PANEL_REVEAL_SLOWDOWN"] ?? "")\n"
+        try? contents.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    @MainActor
+    static func pollTriggerFile(
+        apply: @escaping (PlaybackPanelExpansion.Layout) -> Void
+    ) async {
+        guard let triggerURL = documentsURL?.appending(path: "panel-reveal-trigger.txt") else {
+            return
+        }
+        while Task.isCancelled == false {
+            if let contents = try? String(contentsOf: triggerURL, encoding: .utf8) {
+                try? FileManager.default.removeItem(at: triggerURL)
+                if let layout = layout(for: contents) {
+                    apply(layout)
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    private static func layout(
+        for contents: String
+    ) -> PlaybackPanelExpansion.Layout? {
+        let token = contents.trimmingCharacters(in: .whitespacesAndNewlines)
+        if token.hasPrefix("expand") { return .mediaInformation }
+        if token.hasPrefix("collapse") { return .collapsed }
+        if token.hasPrefix("timeline") { return .timeline }
+        if token.hasPrefix("settings") { return .settings }
+        return nil
+    }
+}
+#endif
 
 enum PlaybackPanelSettingsPolicy {
     static func showsVideoFormatEditor(
@@ -565,6 +708,11 @@ public struct FusedPlayerPanel: View {
         )
     }
 
+    private var visibleOrnamentSize: CGSize? {
+        guard revealSize != nil else { return nil }
+        return revealClipSize
+    }
+
     private func contentDidLayout(_ size: CGSize) {
         settledContentSize = size
         guard let origin = revealOrigin else { return }
@@ -578,7 +726,7 @@ public struct FusedPlayerPanel: View {
                 height: max(shellSize?.height ?? origin.height, size.height)
             )
         }
-        withAnimation(DesignTokens.AnimationToken.panelSpring, completionCriteria: .removed) {
+        withAnimation(PanelRevealTiming.spring, completionCriteria: .removed) {
             revealSize = size
         } completion: {
             guard generation == revealGeneration else { return }
@@ -591,8 +739,8 @@ public struct FusedPlayerPanel: View {
 
     private var panelContentTransition: AnyTransition {
         .asymmetric(
-            insertion: .opacity.animation(DesignTokens.AnimationToken.panelContentEntrance),
-            removal: .opacity.animation(DesignTokens.AnimationToken.panelContentExit)
+            insertion: .opacity.animation(PanelRevealTiming.contentEntrance),
+            removal: .opacity.animation(PanelRevealTiming.contentExit)
         )
     }
 
@@ -611,8 +759,10 @@ public struct FusedPlayerPanel: View {
         .modifier(RevealShell(
             surface: surface,
             shape: shape,
-            revealClipSize: revealClipSize
+            revealClipSize: revealClipSize,
+            visibleOrnamentSize: visibleOrnamentSize
         ))
+        .enchronHoverEffectDisabled(revealSize != nil)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
 #if DEBUG
@@ -624,6 +774,12 @@ public struct FusedPlayerPanel: View {
                 return
             }
             handleDebugMenuSelection(request, live: live)
+        }
+        .task {
+            PanelRevealDebugDriver.recordEnvironment()
+            await PanelRevealDebugDriver.pollTriggerFile { layout in
+                changeExpansion(to: layout)
+            }
         }
 #endif
         .enchronScrubSensoryFeedback(
@@ -946,7 +1102,7 @@ public struct FusedPlayerPanel: View {
         }
         revealOrigin = origin
         revealGeneration += 1
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+        withAnimation(PanelRevealTiming.spring) {
             expansion.request(layout)
         }
     }
@@ -999,7 +1155,7 @@ public struct FusedPlayerPanel: View {
             style: .continuous
         )
         return ZStack {
-            HStack(spacing: DesignTokens.Spacing.sm) {
+            let titleRow = HStack(spacing: DesignTokens.Spacing.sm) {
                 Text(live?.mediaName ?? "Unknown")
                     .font(DesignTokens.Typography.headline)
                     .lineLimit(1)
@@ -1011,33 +1167,48 @@ public struct FusedPlayerPanel: View {
                 }
             }
             .padding(.horizontal, DesignTokens.Spacing.xl)
-            .enchronHoverOffset(
-                activeY: -DesignTokens.Spacing.sm,
-                in: mediaInfoHoverRevealGroup,
-                forcedActive: mediaInfoHovered,
-                animation: DesignTokens.AnimationToken.informationReveal
-            )
 
-            PlaybackMediaMetadataRow(
+            if revealSize == nil {
+                titleRow
+                    .enchronHoverOffset(
+                        activeY: -DesignTokens.Spacing.sm,
+                        in: mediaInfoHoverRevealGroup,
+                        forcedActive: mediaInfoHovered,
+                        animation: DesignTokens.AnimationToken.informationReveal
+                    )
+            } else {
+                titleRow
+                    .offset(y: mediaInfoHovered ? -DesignTokens.Spacing.sm : 0)
+            }
+
+            let metadataRow = PlaybackMediaMetadataRow(
                 spatialMetadataLabel: spatialMetadataLabel,
                 technicalMetadataLabel: technicalMetadataLabel
             )
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, DesignTokens.Spacing.sm)
-            .enchronHoverOffset(
-                activeY: 0,
-                inactiveY: DesignTokens.Spacing.xxs,
-                in: mediaInfoHoverRevealGroup,
-                forcedActive: mediaInfoHovered,
-                animation: DesignTokens.AnimationToken.informationReveal
-            )
-            .enchronHoverOpacity(
-                active: 1,
-                inactive: 0,
-                in: mediaInfoHoverRevealGroup,
-                forcedActive: mediaInfoHovered,
-                animation: DesignTokens.AnimationToken.informationReveal
-            )
+
+            if revealSize == nil {
+                metadataRow
+                    .enchronHoverOffset(
+                        activeY: 0,
+                        inactiveY: DesignTokens.Spacing.xxs,
+                        in: mediaInfoHoverRevealGroup,
+                        forcedActive: mediaInfoHovered,
+                        animation: DesignTokens.AnimationToken.informationReveal
+                    )
+                    .enchronHoverOpacity(
+                        active: 1,
+                        inactive: 0,
+                        in: mediaInfoHoverRevealGroup,
+                        forcedActive: mediaInfoHovered,
+                        animation: DesignTokens.AnimationToken.informationReveal
+                    )
+            } else {
+                metadataRow
+                    .offset(y: mediaInfoHovered ? 0 : DesignTokens.Spacing.xxs)
+                    .opacity(mediaInfoHovered ? 1 : 0)
+            }
         }
         .frame(width: width, height: DesignTokens.Layout.playbackMediaInfoHeight)
         .background(.ultraThickMaterial, in: shape)
@@ -1048,6 +1219,7 @@ public struct FusedPlayerPanel: View {
         .enchronHoverContentShape(shape)
         .enchronHoverActivation(in: mediaInfoHoverActivationGroup)
         .onHover { hovering in
+            guard revealSize == nil else { return }
             withAnimation(DesignTokens.AnimationToken.informationReveal) {
                 mediaInfoHovered = hovering
             }
@@ -1609,7 +1781,7 @@ public struct FusedPlayerPanel: View {
                 scale: trackScale
             )
 
-            timeBubble
+            let bubble = timeBubble
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: {
                     timeBubbleWidth = $0
                 }
@@ -1617,14 +1789,21 @@ public struct FusedPlayerPanel: View {
                     x: min(max(thumbX, timeBubbleWidth / 2), overlayWidth - timeBubbleWidth / 2),
                     y: DesignTokens.ProgressBar.hitHeight / 2 + DesignTokens.ProgressBar.timeBubbleOffset
                 )
-                .enchronHoverOpacity(
-                    active: 1,
-                    inactive: 0,
-                    in: hoverRevealGroup,
-                    forcedActive: isDragging || isProgressHovered,
-                    animation: DesignTokens.AnimationToken.selection
-                )
                 .allowsHitTesting(false)
+
+            if revealSize == nil {
+                bubble
+                    .enchronHoverOpacity(
+                        active: 1,
+                        inactive: 0,
+                        in: hoverRevealGroup,
+                        forcedActive: isDragging || isProgressHovered,
+                        animation: DesignTokens.AnimationToken.selection
+                    )
+            } else {
+                bubble
+                    .opacity(isDragging || isProgressHovered ? 1 : 0)
+            }
 
             scrubberControl(width: width)
                 .position(
@@ -1636,7 +1815,10 @@ public struct FusedPlayerPanel: View {
         .enchronHoverContentShape(Capsule())
         .enchronHoverActivation(in: hoverActivationGroup)
         .contentShape(.interaction, Capsule())
-        .onHover { isProgressHovered = $0 }
+        .onHover { hovering in
+            guard revealSize == nil else { return }
+            isProgressHovered = hovering
+        }
         .gesture(
             ExclusiveGesture(
                 SpatialTapGesture(count: 2),
@@ -1677,19 +1859,26 @@ public struct FusedPlayerPanel: View {
                     playedColor: DesignTokens.ProgressBar.playedColor
                 )
 
-                progressTrackLayer(
+                let hoverLayer = progressTrackLayer(
                     railWidth: overlayWidth,
                     playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
                     scale: scale,
                     playedColor: DesignTokens.ProgressBar.playedHoverColor
                 )
-                .enchronHoverOpacity(
-                    active: 1,
-                    inactive: 0,
-                    in: hoverRevealGroup,
-                    forcedActive: isDragging || isProgressHovered,
-                    animation: DesignTokens.AnimationToken.selection
-                )
+
+                if revealSize == nil {
+                    hoverLayer
+                        .enchronHoverOpacity(
+                            active: 1,
+                            inactive: 0,
+                            in: hoverRevealGroup,
+                            forcedActive: isDragging || isProgressHovered,
+                            animation: DesignTokens.AnimationToken.selection
+                        )
+                } else {
+                    hoverLayer
+                        .opacity(isDragging || isProgressHovered ? 1 : 0)
+                }
             }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
             .scaleEffect(y: scale)
@@ -1767,7 +1956,10 @@ public struct FusedPlayerPanel: View {
             .enchronHoverContentShape(Capsule())
             .enchronHoverActivation(in: hoverActivationGroup)
             .contentShape(Capsule())
-            .onHover { isProgressHovered = $0 }
+            .onHover { hovering in
+                guard revealSize == nil else { return }
+                isProgressHovered = hovering
+            }
     }
 
     private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
