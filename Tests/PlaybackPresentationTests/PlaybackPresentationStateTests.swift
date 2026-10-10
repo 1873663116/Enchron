@@ -2512,6 +2512,7 @@ struct PlaybackPresentationStateTests {
             appModel.pendingSpatialPlatformEffect?.effect
                 == .enterImmersivePlayback(.panoramic)
         )
+        #expect(appModel.showControls == false)
         #expect(appModel.presentationSourceRendererMayRelease == false)
         #expect(appModel.presentationTargetRendererMayBind == false)
         #expect(appModel.presentationVisualCutoverMayBegin == false)
@@ -2521,10 +2522,10 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.presentationTargetRendererMayBind == false)
         #expect(appModel.allowPresentationTargetRendererBinding())
         #expect(appModel.presentationVisualCutoverMayBegin == false)
-        #expect(appModel.showControls)
+        #expect(appModel.showControls == false)
         #expect(appModel.beginPresentationVisualCutover())
         #expect(appModel.presentationVisualCutoverMayBegin)
-        #expect(appModel.showControls)
+        #expect(appModel.showControls == false)
         appModel.finishPresentationVisualCutover()
         #expect(appModel.showControls == false)
     }

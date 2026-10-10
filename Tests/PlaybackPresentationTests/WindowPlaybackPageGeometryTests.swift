@@ -299,6 +299,70 @@ struct WindowPlaybackPageGeometryTests {
         )
     }
 
+    @Test("immersive controls keep the departing variant while exiting to the window")
+    func immersiveControlsAttachmentHostedPresentation() {
+        let dockedExit = PlaybackPresentationTransition(
+            previousPresentation: .docked,
+            targetPresentation: .window,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.hostedPresentation(
+                requestedPresentation: .docked,
+                transition: dockedExit
+            ) == .docked
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.hostedPresentation(
+                requestedPresentation: .window,
+                transition: dockedExit
+            ) == .docked
+        )
+        let panoramaExit = PlaybackPresentationTransition(
+            previousPresentation: .panorama,
+            targetPresentation: .window,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.hostedPresentation(
+                requestedPresentation: .window,
+                transition: panoramaExit
+            ) == .panorama
+        )
+        let immersiveToImmersive = PlaybackPresentationTransition(
+            previousPresentation: .docked,
+            targetPresentation: .panorama,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.hostedPresentation(
+                requestedPresentation: .panorama,
+                transition: immersiveToImmersive
+            ) == .panorama
+        )
+        let windowEntry = PlaybackPresentationTransition(
+            previousPresentation: .window,
+            targetPresentation: .docked,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.hostedPresentation(
+                requestedPresentation: .docked,
+                transition: windowEntry
+            ) == .docked
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.hostedPresentation(
+                requestedPresentation: .window,
+                transition: nil
+            ) == .window
+        )
+    }
+
     @Test("immersive controls place only on visibility rising edges")
     func immersiveControlsPlacementUsesVisibilityRisingEdges() {
         var state = ImmersivePlaybackControlsPlacementState()
@@ -332,11 +396,18 @@ struct WindowPlaybackPageGeometryTests {
         )
     }
 
-    @Test("immersive controls keep their bottom edge horizontal without moving the summon position")
+    @Test("immersive controls orbit the gaze on a fixed sphere and stay roll-free")
     func immersiveControlsPlacementRemovesRoll() {
         let yaws: [Float] = [-.pi, -.pi / 3, 0, .pi / 3, .pi]
         let pitches: [Float] = [-.pi / 2, -.pi / 2 + 1e-6, -.pi / 5, 0,
                                 .pi / 5, .pi / 2 - 1e-6, .pi / 2]
+        let headPosition = SIMD3<Float>(0.4, 1.5, -0.3)
+        let forwardOffset = ImmersivePlaybackControlsAttachmentController
+            .forwardOffsetMeters
+        let verticalOffset = ImmersivePlaybackControlsAttachmentController
+            .verticalOffsetMeters
+        let tilt = ImmersivePlaybackControlsAttachmentController.panelTiltRadians
+        let offset = SIMD3<Float>(0, verticalOffset, forwardOffset)
         for yaw in yaws {
             for pitch in pitches {
                 for roll: Float in [-.pi / 2, -.pi / 6, 0, .pi / 6, .pi / 2] {
@@ -344,55 +415,77 @@ struct WindowPlaybackPageGeometryTests {
                         yaw: yaw,
                         pitch: pitch,
                         roll: roll,
-                        position: [0.4, 1.5, -0.3]
+                        position: headPosition
                     )
-                    let headRotation = simd_quatf(head)
 
                     let placement = ImmersivePlaybackControlsPlacementGeometry.transform(
                         originFromAnchorTransform: head,
-                        forwardOffsetMeters: ImmersivePlaybackControlsAttachmentController
-                            .forwardOffsetMeters,
-                        verticalOffsetMeters: ImmersivePlaybackControlsAttachmentController
-                            .verticalOffsetMeters
+                        forwardOffsetMeters: forwardOffset,
+                        verticalOffsetMeters: verticalOffset,
+                        tiltRadians: tilt,
+                        panelScale: ImmersivePlaybackControlsAttachmentController
+                            .panelScale
+                    )
+
+                    #expect(
+                        simd_distance(
+                            placement.scale,
+                            SIMD3<Float>(
+                                repeating:
+                                    ImmersivePlaybackControlsAttachmentController
+                                    .panelScale
+                            )
+                        ) < 1e-4
                     )
 
                     let right = placement.rotation.act(SIMD3<Float>(1, 0, 0))
                     #expect(abs(right.y) < 1e-4)
                     #expect(abs(simd_length(right) - 1) < 1e-4)
-                    let forward = placement.rotation.act(SIMD3<Float>(0, 0, -1))
-                    #expect(simd_distance(forward, headRotation.act(SIMD3<Float>(0, 0, -1))) < 1e-4)
 
-                    let expected = SIMD3<Float>(0.4, 1.5, -0.3)
-                        + headRotation.act(
-                            SIMD3<Float>(
-                                0,
-                                ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters,
-                                ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
-                            )
-                        )
-                    #expect(simd_distance(placement.translation, expected) < 1e-4)
+                    let radius = simd_distance(placement.translation, headPosition)
+                    #expect(abs(radius - simd_length(offset)) < 1e-4)
+
+                    guard abs(pitch) < .pi / 2 - 1e-4 else { continue }
+                    let gaze = simd_quatf(angle: yaw, axis: SIMD3<Float>(0, 1, 0))
+                        * simd_quatf(angle: pitch, axis: SIMD3<Float>(1, 0, 0))
+                    let expectedNormal = gaze.act(
+                        SIMD3<Float>(0, sin(tilt), cos(tilt))
+                    )
+                    let normal = placement.rotation.act(SIMD3<Float>(0, 0, 1))
+                    #expect(simd_distance(normal, expectedNormal) < 1e-4)
+                    #expect(
+                        simd_distance(
+                            placement.translation,
+                            headPosition + gaze.act(offset)
+                        ) < 1e-4
+                    )
                 }
             }
         }
     }
 
-    @Test("immersive controls stay below the wearer's view when looking straight up")
+    @Test("immersive controls hover above the wearer when looking straight up")
     func immersiveControlsPlacementFollowsSupineGaze() {
         let supine = headTransform(yaw: 0, pitch: .pi / 2, roll: 0, position: [0, 0.4, 0])
         let forwardOffset = ImmersivePlaybackControlsAttachmentController.forwardOffsetMeters
         let verticalOffset = ImmersivePlaybackControlsAttachmentController.verticalOffsetMeters
+        let tilt = ImmersivePlaybackControlsAttachmentController.panelTiltRadians
 
         let placement = ImmersivePlaybackControlsPlacementGeometry.transform(
             originFromAnchorTransform: supine,
             forwardOffsetMeters: forwardOffset,
-            verticalOffsetMeters: verticalOffset
+            verticalOffsetMeters: verticalOffset,
+            tiltRadians: tilt,
+            panelScale: ImmersivePlaybackControlsAttachmentController.panelScale
         )
 
         #expect(abs(placement.translation.x) < 1e-4)
         #expect(abs(placement.translation.y - (0.4 - forwardOffset)) < 1e-4)
         #expect(abs(placement.translation.z - verticalOffset) < 1e-4)
+
         let panelUp = placement.rotation.act(SIMD3<Float>(0, 1, 0))
-        #expect(abs(panelUp.z - 1) < 1e-4)
+        let expectedUp = SIMD3<Float>(0, sin(tilt), cos(tilt))
+        #expect(simd_distance(panelUp, expectedUp) < 1e-4)
     }
 
     @Test("immersive controls sit below eye level at a fixed world height")
@@ -404,12 +497,15 @@ struct WindowPlaybackPageGeometryTests {
         let levelPlacement = ImmersivePlaybackControlsPlacementGeometry.transform(
             originFromAnchorTransform: level,
             forwardOffsetMeters: forwardOffset,
-            verticalOffsetMeters: verticalOffset
+            verticalOffsetMeters: verticalOffset,
+            tiltRadians: ImmersivePlaybackControlsAttachmentController.panelTiltRadians,
+            panelScale: ImmersivePlaybackControlsAttachmentController.panelScale
         )
 
         #expect(abs(levelPlacement.translation.y - (1.5 + verticalOffset)) < 1e-4)
         #expect(verticalOffset < -0.22)
         #expect(atan(-verticalOffset / -forwardOffset) < 23 * .pi / 180)
+        #expect(atan(-verticalOffset / -forwardOffset) > 20 * .pi / 180)
     }
 
     private func headTransform(

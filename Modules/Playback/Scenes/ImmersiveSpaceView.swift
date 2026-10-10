@@ -769,7 +769,7 @@ public struct ImmersiveSpaceView: View {
                 id: ImmersivePlaybackControlsAttachmentController.attachmentID
             ) {
                 ImmersivePlaybackControlsAttachmentView(
-                    presentation: requestedPresentation
+                    presentation: controlsAttachmentPresentation
                 )
             }
 #if DEBUG
@@ -1153,9 +1153,16 @@ public struct ImmersiveSpaceView: View {
         )
     }
 
+    private var controlsAttachmentPresentation: PlaybackPresentation {
+        ImmersivePlaybackControlsAttachmentPolicy.hostedPresentation(
+            requestedPresentation: requestedPresentation,
+            transition: appModel.presentationTransition
+        )
+    }
+
     private var immersiveControlsAreVisible: Bool {
         ImmersivePlaybackControlsAttachmentPolicy.isVisible(
-            presentation: requestedPresentation,
+            presentation: controlsAttachmentPresentation,
             controlsVisible: appModel.showControls,
             transitionIsActive: appModel.presentationTransition != nil
         )

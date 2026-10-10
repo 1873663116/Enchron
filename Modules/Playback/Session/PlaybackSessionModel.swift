@@ -325,6 +325,9 @@ public final class PlaybackSessionModel {
         presentationTargetRendererMayBind = false
         presentationVisualCutoverMayBegin = false
         presentationTransitionStartedAt = Date()
+        withAnimation(controlsTransitionAnimation) {
+            showControls = false
+        }
         if transition.targetPresentation == .panorama,
            transition.previousEnvironment.environment != nil,
            transition.targetEnvironment == .none {
