@@ -3339,6 +3339,21 @@
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         }
       ],
+      "template": "Settings-menu-hold-speed"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
       "template": "Settings-menu-resume-strategy"
     },
     {
@@ -3364,33 +3379,6 @@
         }
       ],
       "template": "Settings-menuOption-{id}-{option.id}"
-    },
-    {
-      "action": "adjust",
-      "family": "Settings",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
-        },
-        {
-          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
-        }
-      ],
-      "template": "Settings-slider-hold-speed"
-    },
-    {
-      "action": "adjust",
-      "family": "Settings",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
-        }
-      ],
-      "template": "Settings-slider-{id}"
     },
     {
       "action": "activate",
@@ -6501,6 +6489,24 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:Settings-menu-hold-speed",
+      "identifierTemplate": "Settings-menu-hold-speed",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:Settings-menu-resume-strategy",
       "identifierTemplate": "Settings-menu-resume-strategy",
       "kind": "activate",
@@ -6540,42 +6546,6 @@
       "id": "accessibility:Settings-menuOption-{id}-{option.id}",
       "identifierTemplate": "Settings-menuOption-{id}-{option.id}",
       "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Settings-slider-hold-speed",
-      "identifierTemplate": "Settings-slider-hold-speed",
-      "kind": "adjust",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Settings-slider-{id}",
-      "identifierTemplate": "Settings-slider-{id}",
-      "kind": "adjust",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
@@ -6892,6 +6862,31 @@
         "selectVerb": "selectMenuItem"
       },
       "id": "menu:settings:end-behavior",
+      "kind": "menu-selection",
+      "proofContextDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
+    },
+    {
+      "debugEquivalent": {
+        "families": [
+          "hold-speed"
+        ],
+        "host": "settings",
+        "listVerb": "listMenuItems",
+        "selectVerb": "selectMenuItem"
+      },
+      "id": "menu:settings:hold-speed",
       "kind": "menu-selection",
       "proofContextDerivation": {
         "host": "explicitOperationContract",

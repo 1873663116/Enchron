@@ -1199,12 +1199,12 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Settings-slider-hold-speed",
+      "operation": "accessibility:Settings-menu-hold-speed",
       "verdict": "known-defect"
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Settings-slider-{id}",
+      "operation": "menu:settings:hold-speed",
       "verdict": "known-defect"
     }
   ],

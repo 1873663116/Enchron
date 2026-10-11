@@ -295,6 +295,7 @@ class DebugMenuEquivalentInventoryTests(unittest.TestCase):
             "resume-strategy",
             "end-behavior",
             "default-speed",
+            "hold-speed",
             "controls-auto-hide",
         )
 
@@ -945,13 +946,16 @@ class ProductInventoryInteractiveTests(unittest.TestCase):
         self.assertNotIn("accessibility:PlayerUI-surface-seek-feedback", operations)
         for operation_id in (
             "accessibility:Settings-toggle-surface-gestures",
-            "accessibility:Settings-slider-hold-speed",
+            "accessibility:Settings-menu-hold-speed",
+            "menu:settings:hold-speed",
         ):
             with self.subTest(operation_id=operation_id):
                 self.assertEqual(operations[operation_id]["proofDomain"], "browser")
                 self.assertEqual(operations[operation_id]["proofContexts"], ["main-window-browser"])
-        self.assertNotIn("menu:settings:hold-speed", operations)
-        self.assertEqual(operations["accessibility:Settings-slider-hold-speed"]["kind"], "adjust")
+        self.assertEqual(
+            operations["menu:settings:hold-speed"]["debugEquivalent"]["families"],
+            ["hold-speed"],
+        )
 
     def test_the_committed_inventory_files_no_attached_control_as_observation(
         self,
@@ -997,7 +1001,8 @@ class CommittedMatrixBaselineTests(unittest.TestCase):
         }
         for operation_id in (
             "accessibility:Settings-toggle-surface-gestures",
-            "accessibility:Settings-slider-hold-speed",
+            "accessibility:Settings-menu-hold-speed",
+            "menu:settings:hold-speed",
         ):
             with self.subTest(operation_id=operation_id):
                 self.assertEqual(verdicts[("main-window-browser", operation_id)], "known-defect")

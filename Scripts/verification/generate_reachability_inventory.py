@@ -622,9 +622,7 @@ def settings_control_identifiers(
         arguments = text[opening + 1 : closing]
         accessory = labelled_argument(arguments, "accessory") or ""
         kind = re.match(r"\s*\.(menu|boundToggle|toggle)\s*\(", accessory)
-        embedded = labelled_argument(arguments, "embeddedControl") or ""
-        is_slider = re.match(r"\s*\.rangeSlider\s*\(", embedded) is not None
-        if kind is None and not is_slider:
+        if kind is None:
             continue
         item_id = labelled_argument(arguments, "id") or ""
         literal = re.fullmatch(r'\s*"([^"\\]+)"\s*', item_id)
@@ -632,13 +630,12 @@ def settings_control_identifiers(
             raise RuntimeIdentifierResolutionError(
                 f"{path} has a setting control without a literal id: {item_id!r}"
             )
-        control = "slider" if is_slider else ("menu" if kind.group(1) == "menu" else "toggle")
+        control = "menu" if kind.group(1) == "menu" else "toggle"
         template = f"Settings-{control}-{literal.group(1)}"
         component = required_source_location(
             documents,
             "Modules/DesignSystem/Components/SettingsComponents.swift",
-            f'accessibilityIdentifier: "Settings-slider-\\(id)"' if is_slider
-            else f'.accessibilityIdentifier("Settings-{control}-\\(id)")',
+            f'.accessibilityIdentifier("Settings-{control}-\\(id)")',
         )
         identifiers.setdefault(template, []).extend([
             SourceLocation(path, text.count("\n", 0, match.start()) + 1),

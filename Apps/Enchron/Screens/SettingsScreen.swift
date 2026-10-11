@@ -168,7 +168,11 @@ struct SettingsScreen: View {
             )
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
-            SettingListGroup(accessibilityIdentifier: "Settings-PlaybackShortcuts-group", items: playbackShortcutItems)
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-PlaybackShortcuts-group",
+                items: playbackShortcutItems,
+                keyValueDetail: viewModel.preferences.playbackShortcutsEnabled ? playbackShortcutDescriptions : []
+            )
                 .animation(DesignTokens.AnimationToken.selection, value: viewModel.preferences.playbackShortcutsEnabled)
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
@@ -312,19 +316,6 @@ struct SettingsScreen: View {
         ]
     }
 
-    private var holdSpeedBinding: Binding<Double> {
-        Binding(
-            get: { viewModel.preferences.holdPlaybackSpeed },
-            set: { value in
-                let rounded = (value * 100).rounded() / 100
-                let speed = rounded == 1
-                    ? (value < 1 ? 0.99 : 1.01)
-                    : rounded
-                viewModel.update { $0.holdPlaybackSpeed = speed }
-            }
-        )
-    }
-
     private var playbackShortcutItems: [SettingListGroup.Item] {
         var items = [
             SettingListGroup.Item(
@@ -344,45 +335,45 @@ struct SettingsScreen: View {
             )
         ]
         if viewModel.preferences.playbackShortcutsEnabled {
-            items.append(contentsOf: [
+            items.append(
                 SettingListGroup.Item(
                     id: "hold-speed",
                     title: String(localized: "Hold playback speed"),
-                    accessory: .none,
-                    embeddedControl: .rangeSlider(
-                        value: holdSpeedBinding,
-                        range: 0.25...5,
-                        decimals: 2,
-                        unit: "×",
-                        labelAlwaysVisible: true,
-                        accessibilityLabel: String(localized: "Hold playback speed")
+                    systemName: "speedometer",
+                    accessory: .menu(
+                        title: speedTitle(viewModel.preferences.holdPlaybackSpeed),
+                        options: PlaybackModel.PlaybackSpeed.allCases.filter { $0.value != 1 }.map { speed in
+                            SettingListGroup.MenuOption(speedTitle(speed.value), id: "\(speed.value)") {
+                                viewModel.update { $0.holdPlaybackSpeed = speed.value }
+                                recordMenuReachability("hold-speed")
+                            }
+                        }
                     )
-                ),
-                SettingListGroup.Item(
-                    id: "shortcut-play-pause",
-                    title: String(localized: "Double-tap the video → Play or pause"),
-                    supportingText: String(localized: "Video gestures work while playback controls are hidden."),
-                    supportingTextLineLimit: nil,
-                    accessory: .none
-                ),
-                SettingListGroup.Item(
-                    id: "shortcut-hold",
-                    title: String(localized: "Pinch and hold → Play at the set speed"),
-                    accessory: .none
-                ),
-                SettingListGroup.Item(
-                    id: "shortcut-seek",
-                    title: String(localized: "Pinch and drag left or right → Adjust playback position"),
-                    accessory: .none
-                ),
-                SettingListGroup.Item(
-                    id: "shortcut-timeline",
-                    title: String(localized: "Double-tap the playback progress bar → Open the precise timeline"),
-                    accessory: .none
                 )
-            ])
+            )
         }
         return items
+    }
+
+    private var playbackShortcutDescriptions: [SettingListGroup.KeyValue] {
+        [
+            .init(
+                key: String(localized: "Double-tap the video"),
+                value: String(localized: "Play or pause")
+            ),
+            .init(
+                key: String(localized: "Pinch and hold"),
+                value: String(localized: "Play at the set speed")
+            ),
+            .init(
+                key: String(localized: "Pinch and drag left or right"),
+                value: String(localized: "Adjust playback position")
+            ),
+            .init(
+                key: String(localized: "Double-tap the playback progress bar"),
+                value: String(localized: "Open the precise timeline")
+            )
+        ]
     }
 
     private var storagePrivacyItems: [SettingListGroup.Item] {

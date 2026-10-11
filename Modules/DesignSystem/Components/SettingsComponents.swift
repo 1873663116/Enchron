@@ -620,7 +620,6 @@ public struct SettingListGroup: View {
             range: ClosedRange<Double>,
             decimals: Int = 0,
             unit: String? = nil,
-            labelAlwaysVisible: Bool = false,
             accessibilityLabel: String
         )
     }
@@ -678,6 +677,7 @@ public struct SettingListGroup: View {
 
     public var accessibilityIdentifier: String = "DesignSystem-SettingListGroup"
     let items: [Item]
+    let keyValueDetail: [KeyValue]
 
     private var cornerRadius: CGFloat {
         DesignTokens.Radius.element
@@ -691,10 +691,12 @@ public struct SettingListGroup: View {
 
     public init(
         accessibilityIdentifier: String = "DesignSystem-SettingListGroup",
-        items: [Item]
+        items: [Item],
+        keyValueDetail: [KeyValue] = []
     ) {
         self.accessibilityIdentifier = accessibilityIdentifier
         self.items = items
+        self.keyValueDetail = keyValueDetail
     }
 
     public var body: some View {
@@ -717,6 +719,10 @@ public struct SettingListGroup: View {
                     hoverNamespace: hoverNamespace,
                     action: item.action
                 )
+            }
+            if keyValueDetail.isEmpty == false {
+                SettingListKeyValueDetail(rows: keyValueDetail, singleLine: true)
+                    .padding(.top, DesignTokens.Spacing.xs)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1145,14 +1151,12 @@ struct SettingListGroupRow: View {
                 accessibilityLabel: accessibilityLabel
             )
 
-        case .rangeSlider(let value, let range, let decimals, let unit, let labelAlwaysVisible, let accessibilityLabel):
+        case .rangeSlider(let value, let range, let decimals, let unit, let accessibilityLabel):
             SettingListRangeSliderRow(
                 value: value,
                 range: range,
                 decimals: decimals,
                 unit: unit,
-                labelAlwaysVisible: labelAlwaysVisible,
-                accessibilityIdentifier: "Settings-slider-\(id)",
                 title: title,
                 accessibilityLabel: accessibilityLabel
             )
@@ -1170,24 +1174,7 @@ struct SettingListGroupRow: View {
     }
 
     private func expandedKeyValues(_ rows: [SettingListGroup.KeyValue]) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            ForEach(rows) { row in
-                HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.md) {
-                    Text(row.key)
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
-                        .frame(width: 160, alignment: .leading)
-
-                    Text(row.value)
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(DesignTokens.Surface.accessoryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, DesignTokens.Spacing.lg)
-        .padding(.bottom, DesignTokens.Spacing.md)
+        SettingListKeyValueDetail(rows: rows)
     }
 
     private var expansionTransition: AnyTransition {
@@ -1233,6 +1220,31 @@ struct SettingListGroupRow: View {
                 }
             }
         }
+    }
+}
+
+private struct SettingListKeyValueDetail: View {
+    let rows: [SettingListGroup.KeyValue]
+    var singleLine = false
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: DesignTokens.Spacing.md, verticalSpacing: DesignTokens.Spacing.xs) {
+            ForEach(rows) { row in
+                GridRow(alignment: .firstTextBaseline) {
+                    Text(row.key)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                        .frame(minWidth: 160, alignment: .leading)
+                    Text(row.value)
+                        .foregroundStyle(DesignTokens.Surface.accessoryText)
+                }
+                .lineLimit(singleLine ? 1 : nil)
+                .minimumScaleFactor(singleLine ? 0.75 : 1)
+            }
+        }
+        .font(DesignTokens.Typography.sectionHeader)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
     }
 }
 
@@ -1361,8 +1373,6 @@ private struct SettingListRangeSliderRow: View {
     let range: ClosedRange<Double>
     let decimals: Int
     let unit: String?
-    let labelAlwaysVisible: Bool
-    let accessibilityIdentifier: String
     let title: String
     let accessibilityLabel: String
 
@@ -1401,7 +1411,7 @@ private struct SettingListRangeSliderRow: View {
                 active: 1,
                 inactive: 0,
                 in: hoverGroup(.followsGroup),
-                forcedActive: labelAlwaysVisible || isDragging
+                forcedActive: isDragging
             )
 
             RangeSlider(
@@ -1409,7 +1419,6 @@ private struct SettingListRangeSliderRow: View {
                 range: range,
                 accessibilityLabel: accessibilityLabel,
                 accessibilityValue: readout,
-                accessibilityIdentifier: accessibilityIdentifier,
                 trackWidth: resolvedTrackWidth,
                 onDraggingChanged: { isDragging = $0 }
             )
