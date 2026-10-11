@@ -2,95 +2,213 @@ import SwiftUI
 
 public struct GlassSearchField: View {
     @Binding private var text: String
+    @Binding private var isEditing: Bool
+    @FocusState private var isFocused: Bool
     private let placeholder: String
     private let accessibilityIdentifier: String
+    private let buttonAccessibilityIdentifier: String
 
     @State private var pressFeedbackTrigger = 0
-    @State private var isInputActive = false
-    @FocusState private var isFocused: Bool
+    @State private var expansionPhase = ExpansionPhase.collapsed
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private enum ExpansionPhase: Equatable {
+        case collapsed
+        case expanding(UUID)
+        case expanded
+    }
+
+    private var hasQuery: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var isExpanded: Bool { isEditing || hasQuery }
+    private var showsFocusBorder: Bool { isEditing && isFocused && expansionPhase == .expanded }
 
     public init(
         text: Binding<String>,
+        isEditing: Binding<Bool>,
         placeholder: String = "Search",
-        accessibilityIdentifier: String = "DesignSystem-input-search"
+        accessibilityIdentifier: String,
+        buttonAccessibilityIdentifier: String
     ) {
         _text = text
+        _isEditing = isEditing
         self.placeholder = placeholder
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.buttonAccessibilityIdentifier = buttonAccessibilityIdentifier
     }
 
     public var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: "magnifyingglass")
+        HStack(spacing: 0) {
+            if isExpanded {
+                Group {
+                    if isEditing {
+                        TextField(placeholder, text: $text)
+                            .textFieldStyle(.plain)
+                            .focused($isFocused)
+                            .submitLabel(.search)
+                            .enchronLiteralTextInput()
+                            .enchronHoverEffectDisabled()
+                            .accessibilityIdentifier(accessibilityIdentifier)
+                            .task {
+                                isFocused = isEditing
+                            }
+                    } else {
+                        Button(action: activateInput) {
+                            Text(text)
+                                .lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(placeholder)
+                        .accessibilityValue(text)
+                        .accessibilityIdentifier(accessibilityIdentifier)
+                    }
+                }
                 .font(.body)
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(.secondary)
+                .frame(width: DesignTokens.Card.gridMin
+                    - DesignTokens.Interactive.regular
+                    - DesignTokens.Spacing.md
+                    - (text.isEmpty ? 0 : DesignTokens.Interactive.mini))
 
-            TextField(
-                placeholder,
-                text: $text,
-                onEditingChanged: handleEditingChanged,
-                onCommit: deactivateInput
-            )
-            .textFieldStyle(.plain)
-            .font(.body)
-            .foregroundStyle(.secondary)
-            .focused($isFocused)
-            .enchronLiteralTextInput()
-            .enchronHoverEffectDisabled()
-            .onTapGesture(perform: activateInput)
-            .accessibilityIdentifier(accessibilityIdentifier)
+                if !text.isEmpty {
+                    Button {
+                        text = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .frame(width: DesignTokens.Interactive.mini,
+                                   height: DesignTokens.Interactive.regular)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                    .accessibilityIdentifier("\(accessibilityIdentifier)-clear")
+                }
+            }
+            Button(action: activateInput) {
+                ButtonSymbol(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .frame(width: DesignTokens.Interactive.regular,
+                           height: DesignTokens.Interactive.regular)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Search")
+            .accessibilityValue(isEditing ? String(localized: "Editing")
+                : isExpanded ? String(localized: "Search active") : String(localized: "Collapsed"))
+            .accessibilityIdentifier(buttonAccessibilityIdentifier)
         }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(width: DesignTokens.Card.gridMin, height: DesignTokens.Interactive.regular)
-        .clipShape(Capsule())
-        .background(DesignTokens.Surface.elevated, in: Capsule())
-        .enchronHoverContentShape(Capsule())
-        .enchronHoverEffect(.automatic)
-        .contentShape(Capsule())
+        .padding(.leading, DesignTokens.Spacing.md)
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(width: expansionPhase == .collapsed ? DesignTokens.Interactive.regular : DesignTokens.Card.gridMin,
+               height: DesignTokens.Interactive.regular, alignment: .trailing)
+        .enchronGlassControl()
         .overlay {
             Capsule()
                 .strokeBorder(
-                    DesignTokens.Surface.focusBorder.opacity(isInputActive ? 1 : 0),
+                    DesignTokens.Surface.focusBorder.opacity(showsFocusBorder ? 1 : 0),
                     lineWidth: DesignTokens.Stroke.bold
                 )
-                .animation(DesignTokens.AnimationToken.selection, value: isInputActive)
+                .animation(DesignTokens.AnimationToken.selection, value: showsFocusBorder)
         }
-        .simultaneousGesture(TapGesture().onEnded(activateInput))
         .enchronPressSensoryFeedback(.button, trigger: pressFeedbackTrigger)
-        .onChange(of: isFocused) { _, focused in
-            if !focused {
-                setInputActive(false)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(
+                    key: SearchInputBoundsKey.self,
+                    value: proxy.frame(in: .named(SearchInputBoundsKey.coordinateSpace))
+                )
             }
         }
-        .onSubmit(deactivateInput)
-        .accessibilityLabel(placeholder)
+        .onChange(of: isExpanded, initial: true) { wasExpanded, expanded in
+            if wasExpanded == expanded {
+                expansionPhase = expanded ? .expanded : .collapsed
+                return
+            }
+            let phase = expanded ? ExpansionPhase.expanding(UUID()) : .collapsed
+            withAnimation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring,
+                          completionCriteria: .removed) {
+                expansionPhase = phase
+            } completion: {
+                if expanded, isExpanded, expansionPhase == phase {
+                    expansionPhase = .expanded
+                }
+            }
+        }
+        .onSubmit {
+            isEditing = false
+        }
+        .onChange(of: isFocused) { _, after in
+            if !after { isEditing = false }
+        }
+        .onChange(of: isEditing) { _, editing in
+            if !editing { isFocused = false }
+        }
+        .onDisappear { isEditing = false }
     }
 
     private func activateInput() {
-        if !isInputActive {
+        if !isEditing {
             pressFeedbackTrigger += 1
         }
-        setInputActive(true)
-        isFocused = true
+        isEditing = true
     }
+}
 
-    private func handleEditingChanged(_ isEditing: Bool) {
-        if isEditing {
-            setInputActive(true)
-        } else {
-            deactivateInput()
-        }
+private struct SearchInputBoundsKey: PreferenceKey {
+    static let coordinateSpace = "Enchron-search-input"
+    static var defaultValue: CGRect { .null }
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        value = value.union(nextValue())
     }
+}
 
-    private func deactivateInput() {
-        setInputActive(false)
-        isFocused = false
+private struct SearchInputScopeModifier: ViewModifier {
+    @Binding var isEditing: Bool
+    @State private var bounds: CGRect = .null
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.searchInputIsAvailable) private var isAvailable
+
+    func body(content: Content) -> some View {
+        content
+            .coordinateSpace(name: SearchInputBoundsKey.coordinateSpace)
+            .onPreferenceChange(SearchInputBoundsKey.self) { bounds = $0 }
+            .simultaneousGesture(
+                SpatialTapGesture(coordinateSpace: .named(SearchInputBoundsKey.coordinateSpace))
+                    .onEnded { value in
+                        if isEditing, !bounds.contains(value.location) {
+                            isEditing = false
+                        }
+                    }
+            )
+            .onDisappear { isEditing = false }
+            .onChange(of: scenePhase) { _, phase in
+                if phase != .active { isEditing = false }
+            }
+            .onChange(of: isAvailable) { _, available in
+                if !available { isEditing = false }
+            }
     }
+}
 
-    private func setInputActive(_ active: Bool) {
-        withAnimation(DesignTokens.AnimationToken.selection) {
-            isInputActive = active
-        }
+private struct SearchInputAvailabilityKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    public var searchInputIsAvailable: Bool {
+        get { self[SearchInputAvailabilityKey.self] }
+        set { self[SearchInputAvailabilityKey.self] = newValue }
+    }
+}
+
+extension View {
+    public func searchInputScope(isEditing: Binding<Bool>) -> some View {
+        modifier(SearchInputScopeModifier(isEditing: isEditing))
     }
 }
 

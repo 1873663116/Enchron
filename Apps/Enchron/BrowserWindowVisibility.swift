@@ -1,3 +1,4 @@
+import DesignSystem
 import Playback
 import SwiftUI
 
@@ -24,6 +25,7 @@ extension View {
         _ visibility: BrowserWindowVisibility
     ) -> some View {
         opacity(visibility.hidesBrowser ? 0 : 1)
+            .environment(\.searchInputIsAvailable, !visibility.hidesBrowser)
             .allowsHitTesting(visibility.hidesBrowser == false)
             .accessibilityHidden(visibility.hidesBrowser)
     }

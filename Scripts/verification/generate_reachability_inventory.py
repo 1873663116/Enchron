@@ -735,6 +735,10 @@ def identifier_role(template: str) -> tuple[str, str | None]:
         if lowered.endswith(("-breadcrumb-current", "-version")):
             return "operation", "activate"
         return "observation", None
+    if lowered.endswith(("-loading", "-noresults", "-nosearchresults")):
+        return "observation", None
+    if lowered.endswith(("-button", "-clear")):
+        return "operation", "activate"
     if any(
         marker in lowered
         for marker in (
@@ -825,6 +829,8 @@ INTERACTIVE_CONSTRUCT = re.compile(
 CHAIN_CONTINUATION = re.compile(r"^[.}\)\],]")
 
 REVIEWED_OBSERVATIONS: dict[str, str] = {
+    "Emby-Search-NoResults": "The empty search view has no actions. Retry belongs "
+    "to the separate search-error branch.",
     "Emby-Connection-Error": "Error text. The retry button beside it has its own "
     "identifier.",
     "FileBrowsing-error": "The dialog prefix is not an element. Its primary and "

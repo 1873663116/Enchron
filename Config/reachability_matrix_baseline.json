@@ -1151,6 +1151,26 @@
       "context": "main-window-browser",
       "operation": "accessibility:Settings-mediaLibraryTabs-choice-{id}",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Search-Field-button",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Emby-Search-Field-clear",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-search-button",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:FileBrowsing-FilesScreen-search-clear",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

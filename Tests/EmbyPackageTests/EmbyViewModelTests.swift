@@ -8,6 +8,59 @@ import Testing
 
 @MainActor
 struct EmbyViewModelTests {
+    @Test("search normalizes terms and clears results for whitespace")
+    func searchNormalizesAndClears() async {
+        let client = ViewModelFakeEmbyClient(items: [movie(id: "match")])
+        let session = makeSession(client: client, server: authenticatedServer)
+        let viewModel = MediaServerSearchViewModel(client: client, session: session)
+        viewModel.query = "  Matrix  "
+        await viewModel.refresh()
+        #expect(client.searchTerms == ["Matrix"])
+        #expect(viewModel.results.map(\.metadata.name) == ["match"])
+        viewModel.query = " \n "
+        #expect(viewModel.hasQuery == false)
+        #expect(viewModel.results.isEmpty)
+        #expect(viewModel.isSearching == false)
+    }
+
+    @Test("returning to an unchanged search retains its results")
+    func searchRetainsResults() async {
+        let client = ViewModelFakeEmbyClient(items: [movie(id: "match")])
+        let session = makeSession(client: client, server: authenticatedServer)
+        let viewModel = MediaServerSearchViewModel(client: client, session: session)
+        viewModel.query = "Matrix"
+        await viewModel.refreshIfNeeded()
+        await viewModel.refreshIfNeeded()
+        #expect(client.searchTerms == ["Matrix"])
+        #expect(viewModel.results.map(\.metadata.name) == ["match"])
+        #expect(viewModel.isSearching == false)
+    }
+
+    @Test("late search responses cannot replace newer results or restore a cleared query", arguments: [false, true])
+    func searchRejectsLateResponses(clearQuery: Bool) async {
+        let gate = SearchResponseGate()
+        let client = ViewModelFakeEmbyClient(searchResponse: { term in
+            await gate.response(for: term)
+        })
+        let session = makeSession(client: client, server: authenticatedServer)
+        let viewModel = MediaServerSearchViewModel(client: client, session: session)
+        viewModel.query = "old"
+        let oldRequest = Task { await viewModel.refresh() }
+        await gate.waitForRequest("old")
+        viewModel.query = clearQuery ? "" : "new"
+        if !clearQuery {
+            let newRequest = Task { await viewModel.refresh() }
+            await gate.waitForRequest("new")
+            await gate.complete("new", items: [movie(id: "new-match")])
+            await newRequest.value
+        }
+        await gate.complete("old", items: [movie(id: "old-match")])
+        await oldRequest.value
+        #expect(viewModel.results.map(\.metadata.name) == (clearQuery ? [] : ["new-match"]))
+        #expect(viewModel.isSearching == false)
+        #expect(viewModel.errorMessage == nil)
+    }
+
     @Test("home refreshes every time the screen appears")
     func homeRefreshOnAppear() async {
         let library = MediaServerLibraryView(
@@ -487,6 +540,7 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
     private struct State: Sendable {
         var viewsCallCount = 0
         var itemQueries: [MediaServerItemQuery] = []
+        var searchTerms: [String] = []
     }
 
     private let state = Mutex(State())
@@ -501,6 +555,7 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
     private let childrenByID: [MediaServerItemID: [MediaServerLibraryItem]]
     private let playbackByID: [MediaServerItemID: MediaServerPlaybackSession]
     private let failStoppedReport: Bool
+    private let searchResponse: (@Sendable (String) async -> MediaServerItemPage)?
 
     init(
         authenticatedServer: MediaServerAuthenticatedServer? = nil,
@@ -513,7 +568,8 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
         itemByID: [MediaServerItemID: MediaServerLibraryItem] = [:],
         childrenByID: [MediaServerItemID: [MediaServerLibraryItem]] = [:],
         playbackByID: [MediaServerItemID: MediaServerPlaybackSession] = [:],
-        failStoppedReport: Bool = false
+        failStoppedReport: Bool = false,
+        searchResponse: (@Sendable (String) async -> MediaServerItemPage)? = nil
     ) {
         self.authenticatedServer = authenticatedServer
         self.authenticationError = authenticationError
@@ -526,10 +582,12 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
         self.childrenByID = childrenByID
         self.playbackByID = playbackByID
         self.failStoppedReport = failStoppedReport
+        self.searchResponse = searchResponse
     }
 
     var viewsCallCount: Int { state.withLock { $0.viewsCallCount } }
     var itemQueries: [MediaServerItemQuery] { state.withLock { $0.itemQueries } }
+    var searchTerms: [String] { state.withLock { $0.searchTerms } }
 
     func authenticate(_ login: MediaServerLogin) async throws -> MediaServerAuthenticatedServer {
         if let authenticationError { throw authenticationError }
@@ -593,7 +651,9 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
         on server: MediaServerAuthenticatedServer,
         query: MediaServerItemQuery
     ) async throws -> MediaServerItemPage {
-        MediaServerItemPage(items: itemValues, totalRecordCount: itemValues.count)
+        state.withLock { $0.searchTerms.append(searchTerm) }
+        if let searchResponse { return await searchResponse(searchTerm) }
+        return MediaServerItemPage(items: itemValues, totalRecordCount: itemValues.count)
     }
 
     func specialFeatures(
@@ -638,6 +698,28 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
         if failStoppedReport {
             throw MediaServerError.httpStatus(500)
         }
+    }
+}
+
+private actor SearchResponseGate {
+    private var requests: [String: CheckedContinuation<MediaServerItemPage, Never>] = [:]
+    private var waiters: [String: CheckedContinuation<Void, Never>] = [:]
+
+    func response(for term: String) async -> MediaServerItemPage {
+        await withCheckedContinuation { continuation in
+            requests[term] = continuation
+            waiters.removeValue(forKey: term)?.resume()
+        }
+    }
+
+    func waitForRequest(_ term: String) async {
+        if requests[term] != nil { return }
+        await withCheckedContinuation { waiters[term] = $0 }
+    }
+
+    func complete(_ term: String, items: [MediaServerLibraryItem]) {
+        requests.removeValue(forKey: term)?.resume(returning:
+            MediaServerItemPage(items: items, totalRecordCount: items.count))
     }
 }
 

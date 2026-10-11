@@ -430,24 +430,6 @@
       "template": "DesignSystem-errorDialog-secondary"
     },
     {
-      "action": "typeText",
-      "family": "DesignSystem",
-      "role": "operation",
-      "scope": "component-default",
-      "sources": [
-        {
-          "path": "Modules/DesignSystem/Components/InputComponents.swift"
-        },
-        {
-          "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
-        },
-        {
-          "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift"
-        }
-      ],
-      "template": "DesignSystem-input-search"
-    },
-    {
       "action": null,
       "family": "DesignSystem",
       "role": "observation",
@@ -769,6 +751,57 @@
           "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
+      "template": "Emby-Search-Field-button"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        },
+        {
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
+        }
+      ],
+      "template": "Emby-Search-Field-clear"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
+        }
+      ],
+      "template": "Emby-Search-Loading"
+    },
+    {
+      "action": null,
+      "family": "Emby",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
+        }
+      ],
+      "template": "Emby-Search-NoResults"
+    },
+    {
+      "action": "activate",
+      "family": "Emby",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/MediaServer/MediaServerScreens.swift"
+        }
+      ],
       "template": "Emby-Season-Picker"
     },
     {
@@ -1069,6 +1102,18 @@
       "template": "FileBrowsing-FilesScreen-navBackForward-forward"
     },
     {
+      "action": null,
+      "family": "FileBrowsing",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-noSearchResults"
+    },
+    {
       "action": "typeText",
       "family": "FileBrowsing",
       "role": "operation",
@@ -1079,6 +1124,33 @@
         }
       ],
       "template": "FileBrowsing-FilesScreen-search"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-search-button"
+    },
+    {
+      "action": "activate",
+      "family": "FileBrowsing",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/DesignSystem/Components/InputComponents.swift"
+        },
+        {
+          "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
+        }
+      ],
+      "template": "FileBrowsing-FilesScreen-search-clear"
     },
     {
       "action": "activate",
@@ -3509,6 +3581,42 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:Emby-Search-Field-button",
+      "identifierTemplate": "Emby-Search-Field-button",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Emby-Search-Field-clear",
+      "identifierTemplate": "Emby-Search-Field-clear",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "debugEquivalent": {
         "families": [
           "season"
@@ -3850,6 +3958,42 @@
       "id": "accessibility:FileBrowsing-FilesScreen-search",
       "identifierTemplate": "FileBrowsing-FilesScreen-search",
       "kind": "typeText",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-search-button",
+      "identifierTemplate": "FileBrowsing-FilesScreen-search-button",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:FileBrowsing-FilesScreen-search-clear",
+      "identifierTemplate": "FileBrowsing-FilesScreen-search-clear",
+      "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
         "sources": [
