@@ -38,7 +38,7 @@ The app permits HTTP connections to self-hosted servers without TLS. Before it s
 
 ## License and third-party software
 
-Enchron is released under the [Apache License 2.0](LICENSE). See [`NOTICE`](NOTICE) for third-party software and licenses. The app also lists these licenses in Settings.
+Enchron is released under the [GNU General Public License v3.0](LICENSE). See [`NOTICE`](NOTICE) for third-party software and licenses. The app also lists these licenses in Settings.
 
 ## Contributions
 
