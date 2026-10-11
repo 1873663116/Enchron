@@ -1,9 +1,8 @@
 Enchron
 Copyright 2026 1873663116
 
-Licensed under the Apache License, Version 2.0. The full text is in the file
-LICENSE at the root of this repository and at
-http://www.apache.org/licenses/LICENSE-2.0
+Licensed under the GNU General Public License v3.0. The full text is in the
+LICENSE file at the root of this repository.
 
 Enchron links the third-party components below. Each stays under its own
 license, and the app shows this same list under Settings > About >
@@ -112,18 +111,18 @@ The license texts the app prints
 ================================
 
 Settings > About > Open-source Licenses prints a full license text for every
-entry above; the texts are embedded in
-Apps/Enchron/Screens/OpenSourceLicenses.swift. Every one of them is
+entry above. Enchron's license is read from the repository LICENSE file,
+which is copied unchanged into the application bundle. Third-party texts are
+embedded in Apps/Enchron/Screens/OpenSourceLicenses.swift. Every one of them is
 byte-identical to a document that exists. None is composed from parts,
 abridged or reflowed, and this section records no departures. The byte count
-and digest given for each is of the printed text followed by one newline, the
-form in which the document is stored.
+and digest refer to each source document. For embedded texts, the comparison
+appends one trailing newline. The bundled LICENSE is compared as stored.
 
-    Apache License 2.0, printed for Enchron itself
-    11358 bytes, sha256
-    cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30
-    LICENSE at the root of this repository, which is itself byte-identical to
-    https://www.apache.org/licenses/LICENSE-2.0.txt
+    GNU General Public License v3.0, printed for Enchron itself
+    34674 bytes, sha256
+    fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0
+    LICENSE at the root of this repository, bundled unchanged.
 
     Apache License 2.0 with the Runtime Library Exception, printed for
     swift-syntax

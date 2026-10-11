@@ -1,6 +1,17 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "License text is unavailable.": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Der Lizenztext ist nicht verfügbar."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Le texte de la licence est indisponible."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ライセンスの本文を表示できません。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "라이선스 내용을 사용할 수 없습니다."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Текст лицензии недоступен."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "许可证文本暂不可用。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "授權條款文字暫時無法使用。"}}
+      }
+    },
     "Email": {
       "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "E-Mail"}},
