@@ -38,9 +38,9 @@ ALLOWED_WRAPPER_CALLS = Counter(
         ): 1,
         WrapperCallIdentity(
             path=Path("Modules/Playback/Views/PlaybackPanel.swift"),
-            enclosing_type="FusedPlayerPanel",
+            enclosing_type="RevealShell",
             callee="enchronGlassBackground",
-        ): 1,
+        ): 3,
         WrapperCallIdentity(
             path=Path("Apps/Enchron/MainView.swift"),
             enclosing_type="MainView",
