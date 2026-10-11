@@ -26,28 +26,30 @@ enum PlaybackSurfaceSeekFeedbackGeometry {
 }
 
 struct PlaybackSurfaceSeekFeedback: View {
-    let preview: PlaybackSurfaceGesturePreview
+    let preview: PlaybackSurfaceGesturePreview?
 
     private var reachableOffsets: ClosedRange<Double> {
-        preview.lowerReachableOffsetSeconds...preview.upperReachableOffsetSeconds
+        guard let preview else { return 0...0 }
+        return preview.lowerReachableOffsetSeconds...preview.upperReachableOffsetSeconds
     }
 
     private var majorTicks: [Double] {
         Array(Set(
             PlaybackSurfaceSeekFeedbackGeometry.ticks(in: reachableOffsets, interval: 10)
-                + [preview.lowerReachableOffsetSeconds, preview.upperReachableOffsetSeconds]
+                + [reachableOffsets.lowerBound, reachableOffsets.upperBound]
         )).sorted()
     }
 
     private var readout: String {
-        PlaybackTimeFormatter.clock(preview.originSeconds)
+        guard let preview else { return "" }
+        return PlaybackTimeFormatter.clock(preview.originSeconds)
             + " " + PlaybackSurfaceSeekFeedbackGeometry.signedOffset(preview.offsetSeconds)
     }
 
     var body: some View {
         let leadingX = PlaybackSurfaceSeekFeedbackGeometry.position(
             offsetSeconds: 0,
-            selectedOffsetSeconds: preview.offsetSeconds
+            selectedOffsetSeconds: preview?.offsetSeconds ?? 0
         )
         let rulerHeight = DesignTokens.PrecisionTimeline.rulerHeight
 
@@ -77,13 +79,21 @@ struct PlaybackSurfaceSeekFeedback: View {
         }
         .clipShape(PrecisionTimelineGeometry.shape)
         .enchronGlassBackground(in: PrecisionTimelineGeometry.shape)
+        .opacity(preview == nil ? 0 : 1)
         .allowsHitTesting(false)
+        .accessibilityHidden(preview == nil)
+        .onChange(of: preview != nil, initial: true) { _, visible in
+            SurfaceInputProbes.record(
+                "surfaceSeekFeedback visible=\(visible) readout=\(readout)",
+                retention: .evidence
+            )
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier("PlayerUI-surface-seek-feedback")
         .accessibilityLabel("Seek preview")
         .accessibilityValue(
-            readout + "; lowerOffset=\(preview.lowerReachableOffsetSeconds)"
-                + "; upperOffset=\(preview.upperReachableOffsetSeconds)"
+            readout + "; lowerOffset=\(reachableOffsets.lowerBound)"
+                + "; upperOffset=\(reachableOffsets.upperBound)"
         )
     }
 }

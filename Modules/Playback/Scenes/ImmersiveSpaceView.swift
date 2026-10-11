@@ -769,9 +769,7 @@ public struct ImmersiveSpaceView: View {
 #endif
         } attachments: {
             Attachment(id: PlaybackSurfaceSeekAttachment.attachmentID) {
-                if let preview = surfaceGestureController.preview {
-                    PlaybackSurfaceSeekFeedback(preview: preview)
-                }
+                PlaybackSurfaceSeekFeedback(preview: surfaceGestureController.preview)
             }
             Attachment(
                 id: ImmersivePlaybackControlsAttachmentController.attachmentID
@@ -1072,12 +1070,13 @@ public struct ImmersiveSpaceView: View {
         from attachments: RealityViewAttachments,
         into content: RealityViewContent
     ) {
+        let visible = surfaceGestureController.preview != nil
         guard let entity = attachments.entity(
             for: PlaybackSurfaceSeekAttachment.attachmentID
         ) else { return }
         seekFeedbackAttachment.install(
             entity,
-            visible: surfaceGestureController.preview != nil,
+            visible: visible,
             presentation: requestedPresentation,
             videoEntity: videoEntity,
             content: content,

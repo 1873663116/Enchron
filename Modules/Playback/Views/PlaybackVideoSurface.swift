@@ -256,11 +256,8 @@ public struct PlaybackVideoSurface: View {
         ZStack {
             visionSurface
 
-            if let preview = surfaceGestureController.preview {
-                PlaybackSurfaceSeekFeedback(preview: preview)
-                    .enchronSpatialFrame(depth: 0)
-                    .enchronSpatialOffset(z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth)
-            }
+            PlaybackSurfaceSeekFeedback(preview: surfaceGestureController.preview)
+                .enchronSpatialOffset(z: 1)
 
             if let activeSubtitleText {
                 Text(activeSubtitleText)
