@@ -19,6 +19,7 @@ struct SettingsScreen: View {
     @State private var artworkUsageInBytes: Int64 = 0
     @State private var containerIndexUsageInBytes: Int64 = 0
     @State private var showsLicenses = false
+    @State private var showsSupport = false
 
     private enum Category: String, CaseIterable {
         case general, playback, storagePrivacy
@@ -203,6 +204,8 @@ struct SettingsScreen: View {
 #endif
         case .about:
             SettingListGroup(accessibilityIdentifier: "Settings-About-group", items: aboutItems)
+            SettingListGroup(accessibilityIdentifier: "Settings-Support-group", items: supportItems)
+                .animation(DesignTokens.AnimationToken.selection, value: showsSupport)
         }
     }
 
@@ -437,12 +440,6 @@ struct SettingsScreen: View {
                 accessory: .valueAction(value: appVersion, actionTitle: String(localized: "Copy"), feedback: String(localized: "Copied"), action: { copy(appVersion) })
             ),
             SettingListGroup.Item(
-                id: "support-feedback",
-                title: String(localized: "Support & Feedback"),
-                systemName: "questionmark.circle",
-                accessory: .valueAction(value: feedbackEmail, actionTitle: String(localized: "Copy"), feedback: String(localized: "Copied"), action: { copy(feedbackEmail) })
-            ),
-            SettingListGroup.Item(
                 id: "licenses",
                 title: String(localized: "Open-source Licenses"),
                 systemName: "doc.text",
@@ -458,6 +455,44 @@ struct SettingsScreen: View {
                 )
             )
         ]
+    }
+
+    private var supportItems: [SettingListGroup.Item] {
+        var items = [
+            SettingListGroup.Item(
+                id: "support",
+                title: String(localized: "Support & Feedback"),
+                systemName: "questionmark.circle",
+                accessory: .disclosure(isExpanded: $showsSupport)
+            )
+        ]
+        if showsSupport {
+            items.append(contentsOf: [
+                SettingListGroup.Item(
+                    id: "support-email",
+                    title: String(localized: "Email"),
+                    systemName: "envelope",
+                    accessory: .valueAction(
+                        value: feedbackEmail,
+                        actionTitle: String(localized: "Copy"),
+                        feedback: String(localized: "Copied"),
+                        action: { copy(feedbackEmail) }
+                    )
+                ),
+                SettingListGroup.Item(
+                    id: "support-discord",
+                    title: "Discord",
+                    systemName: "bubble.left.and.bubble.right",
+                    accessory: .valueAction(
+                        value: discordInvite,
+                        actionTitle: String(localized: "Copy"),
+                        feedback: String(localized: "Copied"),
+                        action: { copy(discordInvite) }
+                    )
+                )
+            ])
+        }
+        return items
     }
 
     private func mediaLibraryTabBinding(
@@ -533,6 +568,7 @@ struct SettingsScreen: View {
     }
 
     private let feedbackEmail = "xzp1873663116@icloud.com"
+    private let discordInvite = "https://discord.gg/UUwFtZSYW"
     private var appVersion: String {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "0.0.0"

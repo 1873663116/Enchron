@@ -3228,6 +3228,18 @@
       "template": "Settings-StoragePrivacy-group"
     },
     {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        }
+      ],
+      "template": "Settings-Support-group"
+    },
+    {
       "action": "activate",
       "family": "Settings",
       "role": "operation",

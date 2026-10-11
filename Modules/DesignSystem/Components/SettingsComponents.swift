@@ -576,6 +576,7 @@ public struct SettingListGroup: View {
     public enum Accessory {
         case none
         case automatic
+        case disclosure(isExpanded: Binding<Bool>)
         case menu(title: String, options: [MenuOption], role: ActionRole = .normal)
         case action(
             title: String,
@@ -885,10 +886,10 @@ struct SettingListGroupRow: View {
         )
     }
     private var usesWholeRowButton: Bool {
-        if case .automatic = accessory {
-            return true
+        switch accessory {
+        case .automatic, .disclosure: true
+        default: false
         }
-        return false
     }
 
     @ViewBuilder
@@ -937,6 +938,9 @@ struct SettingListGroupRow: View {
     }
 
     private var rowAccessibilityValue: String {
+        if case .disclosure(let expanded) = accessory {
+            return expanded.wrappedValue ? String(localized: "Expanded") : String(localized: "Collapsed")
+        }
         guard isExpandable else { return "" }
         guard isExpanded else { return "Collapsed" }
         if let keyValueDetail {
@@ -1038,6 +1042,12 @@ struct SettingListGroupRow: View {
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.tertiary)
                 .rotationEffect(isExpandable && isExpanded ? .degrees(90) : .zero)
+
+        case .disclosure(let expanded):
+            Image(systemName: "chevron.right")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.tertiary)
+                .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
 
         case .menu(let title, let options, let role):
             Menu {
@@ -1193,6 +1203,12 @@ struct SettingListGroupRow: View {
     }
 
     private func handleTap() {
+        if case .disclosure(let expanded) = accessory {
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                expanded.wrappedValue.toggle()
+            }
+            return
+        }
         guard isExpandable else {
             action()
             return

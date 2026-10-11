@@ -1,6 +1,39 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Email": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "E-Mail"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "E-mail"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "メール"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "이메일"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Электронная почта"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "电子邮箱"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "電子郵件"}}
+      }
+    },
+    "Expanded": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Ausgeklappt"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Développé"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "展開中"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "펼쳐짐"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Развернуто"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已展开"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已展開"}}
+      }
+    },
+    "Collapsed": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Eingeklappt"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Réduit"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "折りたたみ"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "접힘"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Свернуто"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已收起"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已收合"}}
+      }
+    },
     "Playback shortcuts": {
       "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "Wiedergabe-Kurzbefehle"}},
