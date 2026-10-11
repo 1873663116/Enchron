@@ -759,19 +759,18 @@ struct Toolbar: View {
 
 
 class MediaLibraryTabControlInventoryTests(unittest.TestCase):
-    def test_media_library_checkbox_and_save_are_activation_operations(self) -> None:
+    def test_media_library_row_names_require_constructor_evidence(self) -> None:
         for template in (
-            "Settings-mediaLibraryTabs-checkbox-{id}",
-            "Settings-mediaLibraryTabs-save",
+            "Settings-mediaLibraryTabs-choice-{id}",
         ):
             with self.subTest(template=template):
-                self.assertEqual(inventory.identifier_role(template), ("operation", "activate"))
+                self.assertEqual(inventory.identifier_role(template), ("observation", None))
         self.assertEqual(
             inventory.identifier_role("Settings-mediaLibraryTabs-group"),
             ("observation", None),
         )
 
-    def test_checkbox_wrapper_has_attached_interaction(self) -> None:
+    def test_choice_wrapper_has_attached_interaction(self) -> None:
         source = """
         ListGroupRowShell(
             index: index,
@@ -789,7 +788,7 @@ class MediaLibraryTabControlInventoryTests(unittest.TestCase):
             ("attached", "ListGroupRowShell("),
         )
 
-    def test_save_wrapper_is_scanned_when_identifier_is_an_argument(self) -> None:
+    def test_label_button_wrapper_is_scanned_when_identifier_is_an_argument(self) -> None:
         source = """
         GlassCapsuleIconLabelButton(
             title: "Save",
@@ -809,8 +808,7 @@ class MediaLibraryTabControlInventoryTests(unittest.TestCase):
         built = inventory.build_inventory()
         operations = {record["id"]: record for record in built["operations"]}
         for template in (
-            "Settings-mediaLibraryTabs-checkbox-{id}",
-            "Settings-mediaLibraryTabs-save",
+            "Settings-mediaLibraryTabs-choice-{id}",
         ):
             with self.subTest(template=template):
                 operation = operations["accessibility:" + template]

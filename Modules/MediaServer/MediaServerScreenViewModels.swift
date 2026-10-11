@@ -72,10 +72,20 @@ public final class MediaServerHomeViewModel {
 
     private let client: any MediaServerClientProtocol
     private let session: MediaServerSessionViewModel
+    @ObservationIgnored private var libraryViewModels: [MediaServerItemID: MediaServerLibraryViewModel] = [:]
 
     public init(client: any MediaServerClientProtocol, session: MediaServerSessionViewModel) {
         self.client = client
         self.session = session
+    }
+
+    public func libraryViewModel(for library: MediaServerLibraryView) -> MediaServerLibraryViewModel {
+        if let existing = libraryViewModels[library.id] {
+            return existing
+        }
+        let viewModel = MediaServerLibraryViewModel(library: library, client: client, session: session)
+        libraryViewModels[library.id] = viewModel
+        return viewModel
     }
 
     public func refresh() async {

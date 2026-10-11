@@ -91,27 +91,32 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
     }
 
     @MainActor
-    func testSavingMediaLibraryTabsPreservesPreferencesChangedWhileEditing() throws {
-        let suite = "enchron.tests.mediaLibraryTabs.save.\(UUID().uuidString)"
+    func testChangingMediaLibraryTabsImmediatelyPersistsWithoutReplacingOtherPreferences() throws {
+        let suite = "enchron.tests.mediaLibraryTabs.change.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = SettingsViewModel(store: UserDefaultsStore(defaults: defaults))
-        var draft = model.preferences.mediaLibraryTabs
-        draft.emby = false
-        draft.jellyfin = false
-
+        let embyField: WritableKeyPath<MediaLibraryTabVisibility, Bool> = \.emby
+        let hideEmby: (inout UserPreferences) -> Void = {
+            $0.mediaLibraryTabs[keyPath: embyField] = false
+        }
         model.update {
+            $0.mediaLibraryTabs.plex = false
             $0.defaultPlaybackSpeed = 1.5
             $0.playbackEndBehavior = .playNext
             $0.surroundingsDimmingEnabled = false
         }
-        XCTAssertEqual(model.preferences.mediaLibraryTabs.emby, true)
-        XCTAssertEqual(model.preferences.mediaLibraryTabs.jellyfin, true)
+        model.update(hideEmby)
+        let firstChange = UserDefaultsStore(defaults: defaults).loadPreferences()
+        XCTAssertEqual(firstChange.mediaLibraryTabs.emby, false)
+        XCTAssertEqual(firstChange.mediaLibraryTabs.plex, false)
+        XCTAssertEqual(firstChange.mediaLibraryTabs.jellyfin, true)
+        XCTAssertEqual(firstChange.defaultPlaybackSpeed, 1.5)
 
-        model.update { $0.mediaLibraryTabs = draft }
+        model.update { $0.mediaLibraryTabs.jellyfin = false }
         let reloaded = UserDefaultsStore(defaults: defaults).loadPreferences()
         XCTAssertEqual(reloaded.mediaLibraryTabs.emby, false)
-        XCTAssertEqual(reloaded.mediaLibraryTabs.plex, true)
+        XCTAssertEqual(reloaded.mediaLibraryTabs.plex, false)
         XCTAssertEqual(reloaded.mediaLibraryTabs.jellyfin, false)
         XCTAssertEqual(reloaded.defaultPlaybackSpeed, 1.5)
         XCTAssertEqual(reloaded.playbackEndBehavior, .playNext)

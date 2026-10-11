@@ -93,7 +93,7 @@ class BudgetDerivationTests(unittest.TestCase):
         write_timings(self.directory, "simulator", "tap", samples)
         budget = provider(
             self.directory,
-            provisional={"tap": {"seconds": 75, "expires": "2026-10-01", "floorSeconds": 75}},
+            provisional={"tap": {"seconds": 75, "floorSeconds": 75}},
         ).budget("simulator", "tap")
         self.assertEqual(budget.seconds, 75.0)
         self.assertIn("raised to the declared floor 75s", budget.provenance)
@@ -110,7 +110,7 @@ class BudgetDerivationTests(unittest.TestCase):
         write_timings(self.directory, "simulator", "tap", samples)
         budget = provider(
             self.directory,
-            provisional={"tap": {"seconds": 75, "expires": "2026-10-01", "floorSeconds": 75}},
+            provisional={"tap": {"seconds": 75, "floorSeconds": 75}},
         ).budget("simulator", "tap")
         self.assertEqual(budget.seconds, 120.0)
         self.assertNotIn("floor", budget.provenance)
@@ -125,35 +125,37 @@ class BudgetDerivationTests(unittest.TestCase):
         write_timings(self.directory, "device", "press", [measured(10.0)] * 6)
         with self.assertRaises(InstrumentFault) as caught:
             provider(self.directory).budget("simulator", "press")
-        self.assertEqual(caught.exception.kind, "provisional-budget-expired")
+        self.assertEqual(caught.exception.kind, "budget-undeclared")
 
     def test_provisional_used_below_five_samples(self) -> None:
         write_timings(self.directory, "device", "halt", [measured(3.0)] * 4)
         budgets = provider(
             self.directory,
-            provisional={"halt": {"seconds": 60, "expires": "2026-10-01"}},
+            provisional={"halt": {"seconds": 60}},
         )
         budget = budgets.budget("device", "halt")
         self.assertEqual(budget.seconds, 60.0)
-        self.assertIn("provisional 60s", budget.provenance)
-        self.assertIn("expires 2026-10-01", budget.provenance)
+        self.assertEqual(budget.provenance, "provisional 60s, lane=device, n=4")
 
-    def test_provisional_expired_raises(self) -> None:
+    def test_provisional_holds_far_past_any_former_date(self) -> None:
+        write_timings(self.directory, "device", "halt", [measured(3.0)] * 4)
         budgets = provider(
             self.directory,
-            provisional={"halt": {"seconds": 60, "expires": "2026-10-01"}},
-            today=datetime.date(2026, 10, 1),
+            provisional={"halt": {"seconds": 60}},
+            today=datetime.date(2030, 1, 1),
         )
-        with self.assertRaises(InstrumentFault) as caught:
-            budgets.budget("device", "halt")
-        self.assertEqual(caught.exception.kind, "provisional-budget-expired")
-        self.assertEqual(caught.exception.evidence["expires"], "2026-10-01")
+        budget = budgets.budget("device", "halt")
+        self.assertEqual(budget.seconds, 60.0)
+        self.assertNotIn("expires", budget.provenance)
 
     def test_missing_provisional_entry_raises(self) -> None:
         budgets = provider(self.directory, provisional={})
         with self.assertRaises(InstrumentFault) as caught:
             budgets.budget("device", "unknown-verb")
-        self.assertEqual(caught.exception.kind, "provisional-budget-expired")
+        self.assertEqual(caught.exception.kind, "budget-undeclared")
+        self.assertEqual(caught.exception.evidence["verb"], "unknown-verb")
+        self.assertEqual(caught.exception.evidence["lane"], "device")
+        self.assertEqual(caught.exception.evidence["sampleCount"], 0)
 
     def test_record_sample_keeps_last_forty(self) -> None:
         budgets = provider(self.directory)
@@ -170,12 +172,12 @@ class BudgetDerivationTests(unittest.TestCase):
 
     def test_shipped_provisional_table(self) -> None:
         table = json.loads(SHIPPED_PROVISIONAL_PATH.read_text(encoding="utf-8"))
-        self.assertEqual(table["halt"], {"seconds": 60, "expires": "2026-10-01"})
-        self.assertEqual(
-            table["ensure-session"], {"seconds": 300, "expires": "2026-10-01"}
-        )
-        self.assertEqual(
-            table["probe-copy"], {"seconds": 120, "expires": "2026-10-01"}
+        self.assertEqual(table["halt"], {"seconds": 60})
+        self.assertEqual(table["ensure-session"], {"seconds": 300})
+        self.assertEqual(table["probe-copy"], {"seconds": 120})
+        self.assertNotIn("_expiry", table)
+        self.assertFalse(
+            any("expires" in entry for entry in table.values() if isinstance(entry, dict))
         )
 
 
@@ -340,7 +342,7 @@ class LocalToolRunnerTests(unittest.TestCase):
 
     def test_run_returns_invocation_and_records_sample(self) -> None:
         runner = self.runner(
-            {"quick-tool": {"seconds": 30, "expires": "2026-10-01"}}
+            {"quick-tool": {"seconds": 30}}
         )
         completed = runner.run(
             "quick-tool", [sys.executable, "-c", "print('measured')"]
@@ -353,7 +355,7 @@ class LocalToolRunnerTests(unittest.TestCase):
 
     def test_run_timeout_records_censored_and_raises(self) -> None:
         runner = self.runner(
-            {"slow-tool": {"seconds": 0.2, "expires": "2026-10-01"}}
+            {"slow-tool": {"seconds": 0.2}}
         )
         with self.assertRaises(InstrumentFault) as caught:
             runner.run(
@@ -368,7 +370,7 @@ class LocalToolRunnerTests(unittest.TestCase):
 
     def test_call_hands_the_budget_to_the_action(self) -> None:
         runner = self.runner(
-            {"handed": {"seconds": 42, "expires": "2026-10-01"}}
+            {"handed": {"seconds": 42}}
         )
         outcome = runner.call("handed", lambda budget: budget.seconds)
         self.assertEqual(outcome, 42.0)
@@ -378,7 +380,7 @@ class LocalToolRunnerTests(unittest.TestCase):
         runner = self.runner({})
         with self.assertRaises(InstrumentFault) as caught:
             runner.run("unbudgeted", [sys.executable, "-c", "pass"])
-        self.assertEqual(caught.exception.kind, "provisional-budget-expired")
+        self.assertEqual(caught.exception.kind, "budget-undeclared")
 
 
 class FakeClock:

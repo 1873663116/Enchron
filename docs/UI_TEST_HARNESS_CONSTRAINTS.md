@@ -59,7 +59,7 @@
 
 - **失败分两类，分类权分层**。产品失败（product）是有效证据，记录后继续；仪器故障（instrument）宣告后续观测不可信，终止当前段落并进入恢复。runner 报告它能观测到的失败；调用方库只补判 runner 自身死亡的情形——进程崩溃、JSON 不可解码、subprocess 超时——这些天然是仪器故障。产品失败以强类型值返回（`ProductFailure`），仪器故障以异常抛出（`InstrumentFault`）。两份 kind 清单在 `Scripts/verification/harness/failures.py:11-26`：`PRODUCT_KINDS` 两个，`INSTRUMENT_KINDS` 十个。`response-timeout` 属于仪器故障，由 runner 自己在应答死线到期时以 instrument 类发出。
 
-- **人类层的入口条件只认四种超时 kind**：`transport-timeout`、`response-timeout`、`wait-expired`、`provisional-budget-expired`（`Scripts/regression/core/runview.py:112-119` 的 `HARNESS_TIMEOUT_KINDS`）。同一节点连续两次 attempt 都落在这四种之内才允许推迟给人。产品慢不在其中，产品慢是 `Violated`。
+- **人类层的入口条件只认三种超时 kind**：`transport-timeout`、`response-timeout`、`wait-expired`（`Scripts/regression/core/runview.py:112-118` 的 `HARNESS_TIMEOUT_KINDS`）。同一节点连续两次 attempt 都落在这三种之内才允许推迟给人。产品慢不在其中，产品慢是 `Violated`。
 
 - **超时预算一律由测量导出，禁止手写字面量**。这条由 `Scripts/rules/harness_primitives_gate.py` 强制：它扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 五个记号。豁免只有三类——`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`——以及 `Config/harness_primitives_allowlist.json` 里逐条列出的既有违例文件。每完成一次迁移删一行，清空后这道门即为无例外强制。清单本身就是迁移进度表，不是永久豁免。
 

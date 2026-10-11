@@ -129,7 +129,7 @@ class BudgetProvider:
         entry = table.get(verb)
         if not isinstance(entry, dict):
             raise InstrumentFault(
-                "provisional-budget-expired",
+                "budget-undeclared",
                 {
                     "verb": verb,
                     "lane": lane,
@@ -137,38 +137,16 @@ class BudgetProvider:
                     "diagnosis": (
                         f"verb {verb!r} has {sample_count} samples "
                         f"(< {MINIMUM_SAMPLE_COUNT}) and no provisional budget entry; "
-                        "measure the verb or add a dated entry"
-                    ),
-                },
-            )
-        expires = datetime.date.fromisoformat(str(entry["expires"]))
-        if self.today() >= expires:
-            raise InstrumentFault(
-                "provisional-budget-expired",
-                {
-                    "verb": verb,
-                    "lane": lane,
-                    "sampleCount": sample_count,
-                    "expires": str(entry["expires"]),
-                    "diagnosis": (
-                        f"provisional budget for {verb!r} expired on {entry['expires']} "
-                        f"and only {sample_count} measured samples exist; "
-                        "the measurement debt is due"
+                        "declare one in provisional_budgets.json or measure the verb"
                     ),
                 },
             )
         seconds = float(entry["seconds"])
-        if verb in PROVISIONAL_CEILING_VERBS:
-            provenance = (
-                f"provisional ceiling {seconds:g}s, expires {entry['expires']}, "
-                f"lane={lane}, n={sample_count}"
-            )
-        else:
-            provenance = (
-                f"provisional {seconds:g}s, expires {entry['expires']}, "
-                f"lane={lane}, n={sample_count}"
-            )
-        return Budget(seconds=seconds, provenance=provenance)
+        label = "provisional ceiling" if verb in PROVISIONAL_CEILING_VERBS else "provisional"
+        return Budget(
+            seconds=seconds,
+            provenance=f"{label} {seconds:g}s, lane={lane}, n={sample_count}",
+        )
 
     def record_sample(
         self, lane: str, verb: str, seconds: float, censored: bool

@@ -161,10 +161,11 @@ struct SettingsScreen: View {
         switch category {
         case .general:
             SettingListGroup(accessibilityIdentifier: "Settings-General-group", items: languageItems)
-            MediaLibraryTabSettingsGroup(saved: viewModel.preferences.mediaLibraryTabs) { draft in
-                viewModel.update { $0.mediaLibraryTabs = draft }
-                recordActionReachability("media-library-tabs-save")
-            }
+            MediaLibraryTabSettingsGroup(
+                emby: mediaLibraryTabBinding(\.emby),
+                plex: mediaLibraryTabBinding(\.plex),
+                jellyfin: mediaLibraryTabBinding(\.jellyfin)
+            )
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
         case .storagePrivacy:
@@ -393,6 +394,18 @@ struct SettingsScreen: View {
         ]
     }
 
+    private func mediaLibraryTabBinding(
+        _ field: WritableKeyPath<MediaLibraryTabVisibility, Bool>
+    ) -> Binding<Bool> {
+        Binding(
+            get: { viewModel.preferences.mediaLibraryTabs[keyPath: field] },
+            set: { isSelected in
+                viewModel.update { $0.mediaLibraryTabs[keyPath: field] = isSelected }
+                recordActionReachability("media-library-tabs-change")
+            }
+        )
+    }
+
     private func setResume(_ value: ResumePolicy) {
         viewModel.update { $0.resumePolicy = value }
         recordMenuReachability("resume-strategy")
@@ -495,77 +508,35 @@ struct SettingsScreen: View {
 }
 
 private struct MediaLibraryTabSettingsGroup: View {
-    let saved: MediaLibraryTabVisibility
-    let onSave: (MediaLibraryTabVisibility) -> Void
-    @State private var draft: MediaLibraryTabVisibility
-    @State private var didSave = false
+    let emby: Binding<Bool>
+    let plex: Binding<Bool>
+    let jellyfin: Binding<Bool>
     @Namespace private var hoverNamespace
-
-    init(
-        saved: MediaLibraryTabVisibility,
-        onSave: @escaping (MediaLibraryTabVisibility) -> Void
-    ) {
-        self.saved = saved
-        self.onSave = onSave
-        _draft = State(initialValue: saved)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            HStack(spacing: DesignTokens.Spacing.md) {
-                Text("Media library tabs")
-                    .font(DesignTokens.Typography.sectionHeader)
-                Spacer(minLength: DesignTokens.Spacing.md)
-                GlassCapsuleIconLabelButton(
-                    title: didSave ? String(localized: "Saved") : String(localized: "Save"),
-                    systemName: didSave ? "checkmark" : "square.and.arrow.down",
-                    accessibilityLabel: didSave ? String(localized: "Saved") : String(localized: "Save"),
-                    action: {
-                        onSave(draft)
-                        didSave = true
-                    },
-                    accessibilityIdentifier: "Settings-mediaLibraryTabs-save"
-                )
-                .disabled(draft == saved)
-            }
-            Text("Select the remote media libraries to show in the tab bar. Changes take effect when you save.")
+            Text("Media library tabs")
+                .font(DesignTokens.Typography.sectionHeader)
+            Text("Select the remote media libraries to show in the tab bar. Changes take effect immediately.")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.Surface.supportingText)
             VStack(spacing: 0) {
-                checkbox("Emby", id: "emby", index: 0, selection: $draft.emby)
-                checkbox("Plex", id: "plex", index: 1, selection: $draft.plex)
-                checkbox("Jellyfin", id: "jellyfin", index: 2, selection: $draft.jellyfin)
+                choice("Emby", image: "EmbyTabIcon", id: "emby", index: 0, isSelected: emby)
+                choice("Plex", image: "PlexTabIcon", id: "plex", index: 1, isSelected: plex)
+                choice("Jellyfin", image: "JellyfinTabIcon", id: "jellyfin", index: 2, isSelected: jellyfin)
             }
             .enchronListGroupSurface(cornerRadius: DesignTokens.Radius.element)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-mediaLibraryTabs-group")
-        .onAppear {
-            draft = saved
-            didSave = false
-        }
-        .onDisappear {
-            draft = saved
-            didSave = false
-        }
-        .onChange(of: draft) { _, _ in
-            didSave = false
-        }
-        .onChange(of: saved) { oldValue, newValue in
-            if draft == oldValue {
-                draft = newValue
-            }
-            if draft != newValue {
-                didSave = false
-            }
-        }
     }
 
-    private func checkbox(
+    private func choice(
         _ title: String,
+        image: String,
         id: String,
         index: Int,
-        selection: Binding<Bool>
+        isSelected: Binding<Bool>
     ) -> some View {
         ListGroupRowShell(
             index: index,
@@ -573,24 +544,32 @@ private struct MediaLibraryTabSettingsGroup: View {
             cornerRadius: DesignTokens.Radius.element,
             hoverNamespace: hoverNamespace,
             accessibilityLabel: title,
-            accessibilityValue: selection.wrappedValue
+            accessibilityValue: isSelected.wrappedValue
                 ? String(localized: "Selected")
                 : String(localized: "Not selected"),
-            action: { selection.wrappedValue.toggle() },
+            action: { isSelected.wrappedValue.toggle() },
             content: { _ in
                 HStack(spacing: DesignTokens.Spacing.md) {
-                    Image(systemName: selection.wrappedValue ? "checkmark.square.fill" : "square")
-                        .font(DesignTokens.Typography.sectionHeader)
+                    Image(image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: DesignTokens.Interactive.mini, height: DesignTokens.Interactive.mini)
+                        .frame(width: DesignTokens.Interactive.compact)
                         .accessibilityHidden(true)
                     Text(title)
                         .font(DesignTokens.Typography.headline)
                     Spacer(minLength: DesignTokens.Spacing.md)
+                    MenuCheckmark.image(isSelected: true)
+                        .opacity(isSelected.wrappedValue ? 1 : 0)
+                        .font(DesignTokens.Typography.headline)
+                        .frame(width: DesignTokens.Interactive.mini)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, DesignTokens.Spacing.lg)
                 .frame(minHeight: DesignTokens.Interactive.large)
             }
         )
-        .accessibilityAddTraits(selection.wrappedValue ? .isSelected : [])
-        .accessibilityIdentifier("Settings-mediaLibraryTabs-checkbox-\(id)")
+        .accessibilityAddTraits(isSelected.wrappedValue ? .isSelected : [])
+        .accessibilityIdentifier("Settings-mediaLibraryTabs-choice-\(id)")
     }
 }

@@ -100,13 +100,13 @@ class ShippedCeilingTests(unittest.TestCase):
         for verb in RAISED_WAIT_VERBS + STEADY_WAIT_VERBS:
             with self.subTest(verb=verb):
                 self.assertEqual(table[verb]["seconds"], 60)
-                self.assertEqual(table[verb]["expires"], "2026-10-01")
+                self.assertNotIn("expires", table[verb])
 
     def test_synthetic_input_provisional_values_are_untouched(self) -> None:
         table = json.loads(SHIPPED_PROVISIONAL_PATH.read_text(encoding="utf-8"))
         self.assertEqual(
             table["tap"],
-            {"seconds": 60, "expires": "2026-10-01", "floorSeconds": 75},
+            {"seconds": 60, "floorSeconds": 75},
         )
         self.assertEqual(table["press"]["seconds"], 20)
         self.assertEqual(table["press"]["floorSeconds"], 75)
@@ -117,25 +117,22 @@ class ShippedCeilingTests(unittest.TestCase):
         directory = Path(tempfile.mkdtemp())
         budgets = provider(
             directory,
-            provisional={
-                "identifier-appearance": {"seconds": 60, "expires": "2026-10-01"}
-            },
+            provisional={"identifier-appearance": {"seconds": 60}},
         )
         budget = budgets.budget("device", "identifier-appearance")
         self.assertEqual(budget.seconds, 60.0)
-        self.assertIn("provisional ceiling 60s", budget.provenance)
-        self.assertIn("expires 2026-10-01", budget.provenance)
-        self.assertIn("n=0", budget.provenance)
+        self.assertEqual(
+            budget.provenance, "provisional ceiling 60s, lane=device, n=0"
+        )
 
     def test_plain_provenance_survives_for_non_wait_verbs(self) -> None:
         directory = Path(tempfile.mkdtemp())
         budgets = provider(
             directory,
-            provisional={"halt": {"seconds": 60, "expires": "2026-10-01"}},
+            provisional={"halt": {"seconds": 60}},
         )
         budget = budgets.budget("device", "halt")
-        self.assertIn("provisional 60s", budget.provenance)
-        self.assertNotIn("ceiling", budget.provenance)
+        self.assertEqual(budget.provenance, "provisional 60s, lane=device, n=0")
 
 
 class FrozenSampleTests(unittest.TestCase):

@@ -13,16 +13,16 @@
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "媒體庫標籤"}}
       }
     },
-    "Select the remote media libraries to show in the tab bar. Changes take effect when you save.": {
+    "Select the remote media libraries to show in the tab bar. Changes take effect immediately.": {
       "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Wähle die entfernten Mediatheken aus, die in der Tab-Leiste angezeigt werden sollen. Änderungen werden beim Speichern sofort übernommen."}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Sélectionnez les bibliothèques multimédias distantes à afficher dans la barre d’onglets. Les modifications prennent effet dès l’enregistrement."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "タブバーに表示するリモートメディアライブラリを選択してください。保存するとすぐに反映されます。"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "탭 막대에 표시할 원격 미디어 라이브러리를 선택하세요. 저장하면 즉시 적용됩니다."}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Выберите удалённые медиатеки для отображения на панели вкладок. Изменения вступают в силу сразу после сохранения."}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "勾选要在标签栏显示的远程媒体库，保存后立即生效。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "勾選要在標籤列顯示的遠端媒體庫，儲存後立即生效。"}}
+        "de": {"stringUnit": {"state": "translated", "value": "Wähle die entfernten Mediatheken aus, die in der Tab-Leiste angezeigt werden sollen. Änderungen werden sofort übernommen."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Sélectionnez les bibliothèques multimédias distantes à afficher dans la barre d’onglets. Les modifications prennent effet immédiatement."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "タブバーに表示するリモートメディアライブラリを選択してください。変更はすぐに反映されます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "탭 막대에 표시할 원격 미디어 라이브러리를 선택하세요. 변경 사항은 즉시 적용됩니다."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Выберите удалённые медиатеки для отображения на панели вкладок. Изменения вступают в силу немедленно."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "选择要在标签栏显示的远程媒体库，立即生效。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "選擇要在標籤列顯示的遠端媒體庫，立即生效。"}}
       }
     },
     "Save": {

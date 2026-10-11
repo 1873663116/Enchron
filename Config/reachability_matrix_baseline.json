@@ -1149,13 +1149,8 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Settings-mediaLibraryTabs-checkbox-{id}",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:Settings-mediaLibraryTabs-save",
-      "verdict": "reachable"
+      "operation": "accessibility:Settings-mediaLibraryTabs-choice-{id}",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

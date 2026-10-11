@@ -1,268 +1,204 @@
 {
-  "_expiry": "本表 63 个条目共用同一个到期日 2026-10-01，没有分批。BudgetProvider.provisional_budget 的判据是 today() >= expires，2026-10-01 当天条目即为过期；此后任何在该 lane 实测样本不足 5 条的 verb 一取预算就抛 InstrumentFault(provisional-budget-expired)，属仪器故障，当前段落的观测整体作废并进入恢复。消解方式是把样本测够 5 条、让预算改由测量导出，整体顺延日期不构成消解。本键不是 verb，取预算时不会命中；完整说明见 Scripts/verification/harness/CONTRACT.md。",
   "accessibility-inspect": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "activate": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 20
   },
   "any-identifier-appearance": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "app-command": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 60
   },
   "app-responses-copy": {
-    "expires": "2026-10-01",
     "floorSeconds": 120,
     "seconds": 300
   },
   "clean-open": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "device-hub": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "device-hub-pinch": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "device-hub-prepare": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "diagnostics-surface-probe": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "doubleTap": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 60
   },
   "emby-aggregate": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "emby-stage": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "embySignIn": {
-    "expires": "2026-10-01",
     "floorSeconds": 15,
     "seconds": 30
   },
   "ensure-session": {
-    "expires": "2026-10-01",
     "seconds": 300
   },
   "expected-issue": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "ffmpeg-luma": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "ffmpeg-ssim": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "fixture-copy": {
-    "expires": "2026-10-01",
     "seconds": 600
   },
   "frame-pace": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "halt": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "identifier-absence": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "identifier-appearance": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "identifier-value": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "immersive-settlement": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "issue-slot": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "journey-audio-probe": {
-    "expires": "2026-10-01",
     "seconds": 600
   },
   "local-tool": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "luma-analysis": {
-    "expires": "2026-10-01",
     "seconds": 600
   },
   "media-push": {
-    "expires": "2026-10-01",
     "seconds": 600
   },
   "panorama-settle": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "presentation": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "presentation-settle": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "press": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 20
   },
   "probe-copy": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "probe-needle": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "probe-size": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "progress-seek": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "recording-extraction": {
-    "expires": "2026-10-01",
     "seconds": 600
   },
   "relaunch": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 60
   },
   "remote-preflight": {
-    "expires": "2026-10-01",
     "seconds": 180
   },
   "remote-preflight-faults": {
-    "expires": "2026-10-01",
     "seconds": 420
   },
   "replaceText": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 20
   },
   "result-bundle": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "retire-runner": {
-    "expires": "2026-10-01",
     "seconds": 300
   },
   "rollback-settlement": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "smb-aggregate": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "snapshot": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 60
   },
   "spatial-settlement": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "spatial-state": {
-    "expires": "2026-10-01",
     "seconds": 30
   },
   "stop": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "structural-test": {
-    "expires": "2026-10-01",
     "seconds": 1800
   },
   "subtitle-window": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "swipeUp": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 20
   },
   "system-import-fixtures": {
-    "expires": "2026-10-01",
     "seconds": 120
   },
   "tap": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 60
   },
   "tapSequence": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 60
   },
   "typeText": {
-    "expires": "2026-10-01",
     "floorSeconds": 75,
     "seconds": 20
   },
   "viewing-storage": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "wake-device": {
-    "expires": "2026-10-01",
     "seconds": 180
   },
   "wedge": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "window-wait": {
-    "expires": "2026-10-01",
     "seconds": 60
   },
   "xcresult-summary": {
-    "expires": "2026-10-01",
     "seconds": 60
   }
 }

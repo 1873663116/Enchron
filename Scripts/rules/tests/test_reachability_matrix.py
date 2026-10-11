@@ -72,22 +72,26 @@ class SettingsSegmentServicePreflightTests(unittest.TestCase):
 
 
 class MediaLibraryTabsScenarioTests(unittest.TestCase):
-    def run_scenario(self, original, *, save_effect=True, probe=True, eager_save=False, fail_restore=False, stale_value=False, segmented=False, ping_success=True):
+    def run_scenario(
+        self, original, *, change_effect=True, tab_effect=True, probe=True,
+        old_probe=False, fail_restore=False, stale_value=False, tap_success=True,
+        hittable=True, segmented=False, ping_success=True, deferred=False,
+        skip_change_probe=None,
+    ):
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
         run.segment = {"context": "main-window-browser"} if segmented else None
         run.evidence_session = "tab-epoch"
         run.session_id = "runner-session"
         run.lane = "device"
-        run.operations = {operation: {} for operation in (
-            matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION, matrix.MEDIA_LIBRARY_SAVE_OPERATION,
-        )}
+        operation = matrix.MEDIA_LIBRARY_CHOICE_OPERATION
+        run.operations = {operation: {}}
         run.cells = {
             (matrix.MAIN_WINDOW_BROWSER_CONTEXT, operation): {
                 "existsInHierarchy": False, "reportsHittable": False,
                 "applicationReceived": False, "verdict": "known-defect", "evidence": [],
-            } for operation in run.operations
+            },
+            ("main-window-browser", "accessibility:existing"): {"verdict": "reachable"},
         }
-        run.cells[("main-window-browser", "accessibility:existing")] = {"verdict": "reachable"}
         run.events = []
         run.driven_cells = set()
         run.tapped_cells = set()
@@ -95,21 +99,33 @@ class MediaLibraryTabsScenarioTests(unittest.TestCase):
         run.out_of_context_observations = {}
         run.settings_restorations = []
         run.deferred_probe_requirements = []
+        run.deferred_deliveries = []
         run.last_deferred_command_id = None
-        state = {"saved": dict(original), "draft": dict(original), "screen": "files", "saveCount": 0}
-        journal = ["reachability settings delivered action=action.media-library-tabs-save"]
-        state.update(journal=journal, epoch=None, initializedEpochs=0)
+        run.probe_markers = {0: "2026-10-09T00:00:00Z"}
+        state = {
+            "preferences": dict(original), "tabs": dict(original), "screen": "files",
+            "changeCount": 0, "journal": [], "epoch": None, "initializedEpochs": 0,
+            "clock": 0,
+        }
+
+        def timestamp():
+            return f"2026-10-09T00:00:{state['clock']:02d}Z"
+
+        def record(detail):
+            state["journal"].append(f"{timestamp()} probeSequence={len(state['journal']) + 1} {detail}")
+
+        record("reachability settings delivered action=action.media-library-tabs-change")
 
         def document(identifier=None):
             identifiers = {
                 "Navigation-Ornament-tab-files", "Navigation-Ornament-tab-settings",
                 "Navigation-Ornament-tab-environment",
             }
-            identifiers.update(matrix.MEDIA_LIBRARY_TAB_IDENTIFIERS[name] for name, visible in state["saved"].items() if visible)
-            matched = {"isHittable": True, "isEnabled": True}
-            if identifier and identifier.startswith("Settings-mediaLibraryTabs-checkbox-"):
+            identifiers.update(matrix.MEDIA_LIBRARY_TAB_IDENTIFIERS[name] for name, visible in state["tabs"].items() if visible)
+            matched = {"isHittable": hittable, "isEnabled": True}
+            if identifier and identifier.startswith("Settings-mediaLibraryTabs-choice-"):
                 name = identifier.rsplit("-", 1)[-1]
-                selected = state["draft"][name]
+                selected = state["preferences"][name]
                 matched.update(isSelected=selected, value="已选择" if (original[name] if stale_value else selected) else "未选择")
             return {
                 "success": True, "matchedElement": matched,
@@ -124,130 +140,145 @@ class MediaLibraryTabsScenarioTests(unittest.TestCase):
                 if state["epoch"] != epoch:
                     state["epoch"] = epoch
                     state["initializedEpochs"] += 1
-                    journal.clear()
-                journal.append(f"reachability evidence session={epoch}")
+                    state["journal"].clear()
+                record(f"reachability evidence session={epoch}")
             if action == "tap":
                 if identifier == "Navigation-Ornament-tab-files":
                     state["screen"] = "files"
-                    state["draft"] = dict(state["saved"])
                 elif identifier == "Navigation-Ornament-tab-settings":
                     state["screen"] = "settings"
-                    state["draft"] = dict(state["saved"])
-                elif identifier.startswith("Settings-mediaLibraryTabs-checkbox-"):
+                elif identifier.startswith("Settings-mediaLibraryTabs-choice-"):
+                    state["clock"] += 1
+                    state["changeCount"] += 1
                     name = identifier.rsplit("-", 1)[-1]
-                    state["draft"][name] = not state["draft"][name]
-                    if eager_save:
-                        state["saved"] = dict(state["draft"])
-                elif identifier == "Settings-mediaLibraryTabs-save":
-                    state["saveCount"] += 1
-                    if save_effect and not (fail_restore and state["saveCount"] == 2):
-                        state["saved"] = dict(state["draft"])
-                    if probe:
-                        journal.append("reachability settings delivered action=action.media-library-tabs-save")
+                    if change_effect and not (fail_restore and name == "emby" and state["changeCount"] >= 2):
+                        state["preferences"][name] = not state["preferences"][name]
+                        if tab_effect:
+                            state["tabs"] = dict(state["preferences"])
+                    if probe and state["changeCount"] != skip_change_probe:
+                        action_name = "save" if old_probe else "change"
+                        record(f"reachability settings delivered action=action.media-library-tabs-{action_name}")
             response = document(identifier)
             if action == "app-command" and arguments[arguments.index("--verb") + 1] == "ping":
                 response["success"] = ping_success
+            if action == "tap" and identifier.startswith("Settings-mediaLibraryTabs-choice-"):
+                response["success"] = tap_success
             response["matchedElement"] = before["matchedElement"]
             run.events.append({"evidence": f"raw/{len(run.events)}-{action}.json"})
             run.last_controller_document = response
             return response
 
+        def copy_probe(label):
+            if not deferred:
+                return list(state["journal"])
+            run.deferred_probe_requirements.clear()
+            state["clock"] += 1
+            marker = len(run.probe_markers)
+            run.probe_markers[marker] = timestamp()
+            return matrix.DeferredProbeView(run, marker)
+
         run.controller = controller
         run.wait_for_identifier = lambda identifier: controller("snapshot", "--identifier", identifier)
         run.wait_observation = lambda verb, label, test, observe, polls: test() or {}
-        run.copy_probe = lambda label: list(journal)
+        run.copy_probe = copy_probe
         run.settings_media_library_tabs_scenario()
         return run, state
 
-    def test_segment_initializes_evidence_session_before_save_and_restoration(self):
+    def choice_cell(self, run):
+        return run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHOICE_OPERATION)]
+
+    def test_segment_initializes_evidence_session_before_changes_and_restoration(self):
         original = {"emby": True, "plex": False, "jellyfin": True}
         run, state = self.run_scenario(original, segmented=True)
         run.app_command("probeStatus", defer_response=False, track_reachability=False)
         self.assertEqual(state["initializedEpochs"], 1)
-        self.assertEqual(state["journal"].count("reachability settings delivered action=action.media-library-tabs-save"), 2)
-        self.assertEqual(state["saved"], original)
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["verdict"], "reachable")
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["verdict"], "reachable")
+        self.assertEqual(state["changeCount"], 6)
+        self.assertEqual(sum("action.media-library-tabs-change" in line for line in state["journal"]), 6)
+        self.assertEqual(state["preferences"], original)
+        self.assertEqual(self.choice_cell(run)["verdict"], "reachable")
 
-    def test_failed_segment_ping_leaves_controls_and_delivery_unproved(self):
+    def test_failed_segment_ping_leaves_choices_and_delivery_unproved(self):
         original = {"emby": True, "plex": False, "jellyfin": True}
         run, state = self.run_scenario(original, segmented=True, ping_success=False)
         self.assertEqual(state["screen"], "files")
-        self.assertEqual(state["saveCount"], 0)
-        self.assertEqual(state["saved"], original)
+        self.assertEqual(state["changeCount"], 0)
+        self.assertEqual(state["preferences"], original)
         self.assertEqual(run.settings_restorations, [])
         self.assertEqual(run.driven_cells, set())
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["applicationReceived"], False)
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["applicationReceived"], False)
+        self.assertEqual(self.choice_cell(run)["applicationReceived"], False)
 
-    def test_real_draft_and_save_contract_restores_all_original_subsets(self):
+    def test_immediate_choices_and_real_restoration_cover_all_initial_subsets(self):
         for mask in range(8):
             original = {name: bool(mask & (1 << index)) for index, name in enumerate(("emby", "plex", "jellyfin"))}
             with self.subTest(original=original):
                 run, state = self.run_scenario(original)
-                self.assertEqual(state["saved"], original)
-                self.assertEqual(state["draft"], original)
+                self.assertEqual(state["preferences"], original)
+                self.assertEqual(state["tabs"], original)
+                self.assertEqual(state["changeCount"], 6)
                 self.assertEqual(run.settings_restorations, [{"family": "media-library-tabs", "previous": original, "restored": True}])
-                self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["verdict"], "reachable")
-                self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["verdict"], "reachable")
+                self.assertEqual(self.choice_cell(run)["verdict"], "reachable")
                 self.assertEqual(run.cells[("main-window-browser", "accessibility:existing")], {"verdict": "reachable"})
 
-    def test_successful_tap_and_stale_probe_do_not_prove_save(self):
+    def test_successful_ui_response_cannot_replace_preference_tab_and_probe_effects(self):
         original = {"emby": True, "plex": False, "jellyfin": True}
-        run, state = self.run_scenario(original, probe=False)
-        self.assertEqual(state["saved"], original)
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["applicationReceived"], False)
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["verdict"], "reachable")
-
-    def test_probe_without_changed_tab_set_does_not_prove_save(self):
-        run, state = self.run_scenario({"emby": False, "plex": False, "jellyfin": False}, save_effect=False)
-        self.assertEqual(state["saved"], {"emby": False, "plex": False, "jellyfin": False})
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["applicationReceived"], False)
-
-    def test_eager_save_and_stale_checkbox_values_fail_the_draft_contract(self):
-        original = {"emby": True, "plex": True, "jellyfin": True}
-        for options in ({"eager_save": True}, {"stale_value": True}):
+        for options in (
+            {"change_effect": False}, {"tab_effect": False}, {"probe": False},
+            {"old_probe": True}, {"stale_value": True}, {"tap_success": False},
+            {"hittable": False},
+        ):
             with self.subTest(options=options):
                 run, state = self.run_scenario(original, **options)
-                self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["applicationReceived"], False)
-                self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["applicationReceived"], False)
-                self.assertEqual(state["saved"], original)
+                self.assertEqual(self.choice_cell(run)["applicationReceived"], False)
+                self.assertEqual(self.choice_cell(run)["verdict"], "known-defect")
+                self.assertEqual(state["preferences"], original)
+                self.assertEqual(state["tabs"], original)
 
-    def test_failed_restoration_keeps_both_cells_unproved(self):
+    def test_failed_restoration_keeps_choice_unproved(self):
         original = {"emby": True, "plex": False, "jellyfin": False}
         run, state = self.run_scenario(original, fail_restore=True)
-        self.assertEqual(state["saved"], {"emby": False, "plex": False, "jellyfin": False})
+        self.assertEqual(state["preferences"], {"emby": False, "plex": False, "jellyfin": False})
         self.assertEqual(run.settings_restorations[-1]["restored"], False)
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_CHECKBOX_OPERATION)]["applicationReceived"], False)
-        self.assertEqual(run.cells[("main-window-browser", matrix.MEDIA_LIBRARY_SAVE_OPERATION)]["applicationReceived"], False)
+        self.assertEqual(self.choice_cell(run)["applicationReceived"], False)
+        self.assertEqual(self.choice_cell(run)["verdict"], "known-defect")
 
-    def test_restore_probe_cannot_satisfy_the_first_save_delivery(self):
-        operation = matrix.MEDIA_LIBRARY_SAVE_OPERATION
-        needle = "reachability settings delivered action=action.media-library-tabs-save"
-        for first_save in (False, True):
-            cells = {("main-window-browser", operation): {
-                "existsInHierarchy": True, "reportsHittable": True,
-                "applicationReceived": False, "verdict": "known-defect", "evidence": [],
-            }}
-            lines = ["2026-10-09T00:00:00Z probeSequence=1 reachability evidence session=tab-session"]
-            if first_save:
-                lines.append(f"2026-10-09T00:00:02Z probeSequence=2 {needle}")
-            lines.append(f"2026-10-09T00:00:06Z probeSequence=3 {needle}")
-            result = matrix.replay_deferred_evidence(
-                cells=cells,
-                deliveries=[{
-                    "context": "main-window-browser", "operation": operation,
-                    "probeRequirements": [{"after": "2026-10-09T00:00:01Z", "before": "2026-10-09T00:00:05Z", "needles": [needle]}],
-                    "commandIDs": [],
-                }],
-                probe_lines=lines, responses={}, evidence_session="tab-session",
-                started_at="2026-10-09T00:00:00Z", ended_at="2026-10-09T00:00:10Z", evidence="raw/probe.log",
-            )
-            self.assertEqual(result["passed"], first_save)
-            self.assertEqual(cells[("main-window-browser", operation)]["applicationReceived"], first_save)
+    def test_each_deferred_change_requires_its_own_probe_before_restoration(self):
+        original = {"emby": True, "plex": False, "jellyfin": True}
+        for skip in (None, 1, 2, 3, 4, 5, 6):
+            with self.subTest(skip=skip):
+                run, state = self.run_scenario(original, segmented=True, deferred=True, skip_change_probe=skip)
+                result = matrix.replay_deferred_evidence(
+                    cells=run.cells, deliveries=run.deferred_deliveries,
+                    probe_lines=state["journal"], responses={}, evidence_session="tab-epoch",
+                    started_at="2026-10-09T00:00:00Z", ended_at="2026-10-09T00:00:59Z", evidence="raw/probe.log",
+                )
+                self.assertEqual(len(run.deferred_deliveries[0]["probeRequirements"]), 6)
+                self.assertEqual(result["passed"], skip is None)
+                self.assertEqual(self.choice_cell(run)["applicationReceived"], skip is None)
+                self.assertEqual(state["preferences"], original)
+
+    def test_same_second_changes_require_distinct_events_only_when_requested(self):
+        needle = "reachability settings delivered action=action.media-library-tabs-change"
+        original = {"emby": True, "plex": False, "jellyfin": True}
+        for distinct, event_count, expected in ((True, 1, False), (True, 6, True), (False, 1, True)):
+            with self.subTest(distinct=distinct, event_count=event_count):
+                run, _ = self.run_scenario(original, segmented=True, deferred=True)
+                for index, requirement in enumerate(run.deferred_deliveries[0]["probeRequirements"], 1):
+                    requirement["after"] = f"2026-10-09T00:00:00.{index}00Z"
+                    requirement["before"] = f"2026-10-09T00:00:00.{index}50Z"
+                    if not distinct:
+                        requirement.pop("distinctEvent", None)
+                lines = ["2026-10-09T00:00:00Z probeSequence=1 reachability evidence session=tab-epoch"]
+                lines.extend(f"2026-10-09T00:00:00Z probeSequence={index + 2} {needle}" for index in range(event_count))
+                result = matrix.replay_deferred_evidence(
+                    cells=run.cells, deliveries=run.deferred_deliveries,
+                    probe_lines=lines, responses={}, evidence_session="tab-epoch",
+                    started_at="2026-10-09T00:00:00Z", ended_at="2026-10-09T00:00:01Z", evidence="raw/probe.log",
+                )
+                self.assertEqual(result["passed"], expected)
+                self.assertEqual(self.choice_cell(run)["applicationReceived"], expected)
 
     def test_partial_hierarchy_cannot_prove_hidden_tabs(self):
-        self.assertIsNone(matrix.media_library_tab_visibility({"hierarchy": "identifier: 'Settings-mediaLibraryTabs-save'"}))
+        self.assertIsNone(matrix.media_library_tab_visibility({"hierarchy": "identifier: 'Settings-mediaLibraryTabs-choice-emby'"}))
         self.assertEqual(matrix.media_library_tab_visibility({"hierarchy": "\n".join(
             f"identifier: '{identifier}'" for identifier in (
                 "Navigation-Ornament-tab-files", "Navigation-Ornament-tab-settings", "Navigation-Ornament-tab-environment", "Plex-Navigation-Tab",
@@ -2020,9 +2051,9 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
 
         def copy_from_container(**arguments):
             contents = (
-                "debug journal media-library-tabs-save=10"
+                "debug journal media-library-tabs-change=10"
                 if arguments["bundle_id"] == controller.APP_BUNDLE_ID
-                else "production journal media-library-tabs-save=0"
+                else "production journal media-library-tabs-change=0"
             )
             arguments["destination"].write_text(contents, encoding="utf-8")
             return completed
@@ -2033,7 +2064,7 @@ class DeferredSegmentEvidenceTests(unittest.TestCase):
             destination = Path(directory) / "probe.log"
             result = run.device_copy_from(matrix.PROBE_REMOTE_PATH, destination, label="probeChunk")
             self.assertEqual(result.returncode, 0)
-            self.assertEqual(destination.read_text(), "debug journal media-library-tabs-save=10")
+            self.assertEqual(destination.read_text(), "debug journal media-library-tabs-change=10")
 
     def test_every_copy_records_what_it_cost(self) -> None:
         run = self._copying_run()

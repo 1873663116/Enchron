@@ -3219,7 +3219,7 @@
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
-      "template": "Settings-mediaLibraryTabs-checkbox-{id}"
+      "template": "Settings-mediaLibraryTabs-choice-{id}"
     },
     {
       "action": null,
@@ -3232,18 +3232,6 @@
         }
       ],
       "template": "Settings-mediaLibraryTabs-group"
-    },
-    {
-      "action": "activate",
-      "family": "Settings",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
-        }
-      ],
-      "template": "Settings-mediaLibraryTabs-save"
     },
     {
       "action": "activate",
@@ -6228,26 +6216,8 @@
       "source": "accessibilityIdentifier"
     },
     {
-      "id": "accessibility:Settings-mediaLibraryTabs-checkbox-{id}",
-      "identifierTemplate": "Settings-mediaLibraryTabs-checkbox-{id}",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Settings-mediaLibraryTabs-save",
-      "identifierTemplate": "Settings-mediaLibraryTabs-save",
+      "id": "accessibility:Settings-mediaLibraryTabs-choice-{id}",
+      "identifierTemplate": "Settings-mediaLibraryTabs-choice-{id}",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
