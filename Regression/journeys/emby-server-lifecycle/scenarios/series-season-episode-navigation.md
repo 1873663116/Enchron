@@ -30,7 +30,8 @@
   "operations": [
     {
       "arguments": {
-        "check": "emby-aggregate"
+        "check": "emby-aggregate",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:series-season-episode-navigation:01",
       "maxInvocations": 1,
@@ -53,7 +54,8 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:series-season-episode-navigation:04",
       "maxInvocations": 1,
@@ -84,7 +86,8 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:series-season-episode-navigation:07",
       "maxInvocations": 1,
@@ -108,7 +111,8 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:series-season-episode-navigation:09",
       "maxInvocations": 1,
@@ -129,6 +133,7 @@
       "arguments": {
         "context": "window",
         "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby",
         "relatedResults": [
           "result://call:emby-server-lifecycle:series-season-episode-navigation:01/report",
           "result://call:emby-server-lifecycle:series-season-episode-navigation:07/response",

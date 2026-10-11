@@ -1,6 +1,6 @@
 import Foundation
 
-public struct EmbyTechnicalBadges: Equatable, Sendable {
+public struct MediaServerTechnicalBadges: Equatable, Sendable {
     public let resolution: String?
     public let videoRange: String?
     public let audioFormat: String?
@@ -15,7 +15,7 @@ public struct EmbyTechnicalBadges: Equatable, Sendable {
         return values
     }
 
-    public init(source: EmbyMediaSourceDescription?) {
+    public init(source: MediaServerMediaSourceDescription?) {
         let streams = source?.mediaStreams ?? []
         let video = streams.first { $0.kind == .video && $0.isDefault } ?? streams.first { $0.kind == .video }
         let audio = streams.first { $0.kind == .audio && $0.isDefault } ?? streams.first { $0.kind == .audio }
@@ -48,7 +48,7 @@ public struct EmbyTechnicalBadges: Equatable, Sendable {
         }
     }
 
-    private static func audioLabel(_ stream: EmbyMediaStream) -> String {
+    private static func audioLabel(_ stream: MediaServerMediaStream) -> String {
         let codec = switch (stream.codec ?? "").lowercased() {
         case "truehd": "Dolby TrueHD"
         case "eac3": "Dolby Digital Plus"
@@ -63,7 +63,7 @@ public struct EmbyTechnicalBadges: Equatable, Sendable {
     }
 }
 
-public struct EmbyAboutSections: Equatable, Sendable {
+public struct MediaServerAboutSections: Equatable, Sendable {
     public struct Entry: Hashable, Sendable, Identifiable {
         public let label: String
         public let value: String
@@ -79,7 +79,7 @@ public struct EmbyAboutSections: Equatable, Sendable {
     public let subtitles: [Entry]
     public let file: [Entry]
 
-    public init(metadata: EmbyItemMetadata, sources: [EmbyMediaSourceDescription]) {
+    public init(metadata: MediaServerItemMetadata, sources: [MediaServerMediaSourceDescription]) {
         var information: [Entry] = []
         if let year = metadata.productionYear {
             information.append(Entry(label: String(localized: "Released"), value: String(year)))
@@ -147,7 +147,7 @@ public struct EmbyAboutSections: Equatable, Sendable {
         self.file = Self.fileEntries(sources)
     }
 
-    private static func videoEntries(_ streams: [EmbyMediaStream]) -> [Entry] {
+    private static func videoEntries(_ streams: [MediaServerMediaStream]) -> [Entry] {
         var entries: [Entry] = []
         func add(_ label: String, _ values: [String?]) {
             let distinct = joined(values.compactMap { $0 })
@@ -173,7 +173,7 @@ public struct EmbyAboutSections: Equatable, Sendable {
         return entries
     }
 
-    private static func fileEntries(_ sources: [EmbyMediaSourceDescription]) -> [Entry] {
+    private static func fileEntries(_ sources: [MediaServerMediaSourceDescription]) -> [Entry] {
         guard sources.isEmpty == false else { return [] }
         var entries: [Entry] = []
         let containers = joined(sources.compactMap { $0.container?.nonEmptyValue.map { $0.uppercased() } })
@@ -194,7 +194,7 @@ public struct EmbyAboutSections: Equatable, Sendable {
         return entries
     }
 
-    private static func trackName(_ stream: EmbyMediaStream) -> String {
+    private static func trackName(_ stream: MediaServerMediaStream) -> String {
         stream.title?.nonEmptyValue ?? languageName(stream) ?? "Track \(stream.index)"
     }
 
@@ -212,12 +212,12 @@ public struct EmbyAboutSections: Equatable, Sendable {
         "\(rate.formatted(.number.precision(.fractionLength(0...3)))) fps"
     }
 
-    private static func languageName(_ stream: EmbyMediaStream) -> String? {
+    private static func languageName(_ stream: MediaServerMediaStream) -> String? {
         stream.displayLanguage?.nonEmptyValue ?? stream.language?.nonEmptyValue
     }
 
     private static func audioDescription(
-        _ stream: EmbyMediaStream,
+        _ stream: MediaServerMediaStream,
         omittingLanguage label: String
     ) -> String {
         var parts: [String] = []
@@ -238,7 +238,7 @@ public struct EmbyAboutSections: Equatable, Sendable {
     }
 
     private static func subtitleDescription(
-        _ stream: EmbyMediaStream,
+        _ stream: MediaServerMediaStream,
         omittingLanguage label: String
     ) -> String {
         var parts: [String] = []
@@ -251,7 +251,7 @@ public struct EmbyAboutSections: Equatable, Sendable {
         return parts.isEmpty ? "Undetermined" : parts.joined(separator: " · ")
     }
 
-    private static func isAudioDescription(_ stream: EmbyMediaStream) -> Bool {
+    private static func isAudioDescription(_ stream: MediaServerMediaStream) -> Bool {
         let haystack = [stream.displayTitle, stream.language].compactMap { $0?.lowercased() }
         return haystack.contains { $0.contains("description") || $0.contains(" ad") }
     }

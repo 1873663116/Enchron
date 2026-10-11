@@ -8,6 +8,7 @@
 - 音轨在打开、预热、播放、跳转或 renderer 失败时退休后，视频仍继续播放并可继续跳转。
 - AC-3 与 E-AC-3（含 JOC）采用压缩直递；其余 FFmpeg 可解码的音轨则以保留原采样率和声道布局的交错 Float32 PCM 播放。
 - 字幕轨的切换与关闭。
+- Window、Docked、Portal 和 Panorama 中的字幕像素保持相同的水平和垂直缩放。
 - 外挂字幕的加载，来源包括本地同目录文件、远程来源与 Emby 的 external stream。
 - 轨道选择在跳转与呈现切换之后仍然保持。
 
@@ -30,6 +31,14 @@ C tap --label '<轨道 label>' --index <n>
 
 Subtitles 菜单项有 identifier（`PlayerUI-menu-subtitles`），Audio Track 菜单项也有（`PlayerUI-menu-audio`）；但两者之下的轨道条目都没有 identifier，只能按 label 命中。遇到同名条目（例如两条 `und · aac · 2ch`）时，用 `--label` 加 `--index` 的组合来区分。
 
+字幕像素比例由共用播放器负责，验收与媒体来源无关。使用原始探针文件验证。工具按实际 extent 与 content 重新计算水平和垂直像素比例；每个指定模式至少一条样本，全部样本须在 1±0.001 内。命令输出 JSON，失败返回非零状态。运行时输入须包含本轮真实的 `subtitlePixelMapping`，不能用预期值代替探针。
+
+```sh
+python3 Scripts/verification/verify_subtitle_pixel_scale.py <probe.log> \
+  --presentation window --presentation docked \
+  --presentation portal --presentation panorama
+```
+
 ## 证据
 
 | 种类 | 判据 | 谁守 |
@@ -39,6 +48,7 @@ Subtitles 菜单项有 identifier（`PlayerUI-menu-subtitles`），Audio Track �
 | 结构 | DTS、TrueHD、Vorbis 均产出交错 Float32 PCM，保留采样率、标准 CoreAudio 声道布局标签和单调时间戳；TrueHD 的细碎子帧聚合之后才进入 CoreMedia；AC-3/E-AC-3 仍为压缩直递 | PlaybackCore 单测（`ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout`、`trueHDSubframesAreAggregatedBeforeTheyReachCoreMedia`、`generatedAudioCodecMatrixProducesEveryRegisteredAudioFormat`、`dolbyDigitalPlusAtmosKeepsItsSixChannelCompressedLayout`） |
 | 结构 | FFmpeg 没有对应解码器的声明编码会以编码名被拒绝，并由会话记录为音轨退休 | PlaybackCore 单测（`ffmpegUndecodableAudioNamesTheCodecInsteadOfGuessing`、`retiredAudioStaysNonfatalAcrossRepeatedSeeks`） |
 | 结构 | 字幕 cue 的文本与时刻正确 | PlaybackCore 单测（SubtitleProviderTests） |
+| 物理 | 指定呈现模式均有字幕映射样本；每条样本从实际 extent 与 content 计算的像素比例为 1±0.001，尺寸及数值均为正且有限 | `Scripts/verification/verify_subtitle_pixel_scale.py` 与本轮原始探针 |
 | 物理 | 诊断串中 `audioTrack` 或 `subtitleTrack` 发生变更，同时 `lifecycle=Playing`、`session` 保持不变、`audioRendererStatus=rendering` | 真机 |
 | 物理 | 不支持或运行中失败的音轨显示感叹号；诊断串为 `audioRetired=true`，`lifecycle` 不进入 Failed，跳转后视频继续推进 | 待做：不支持音频真机样片 |
 | 物理 | Emby《Furiosa》的 TrueHD 8 声道音轨输出 4,800 帧、100 ms 的交错 PCM 缓冲；`audioRendererStatus=rendering`、`muted=false`、`volume=1`、`error=none`，并达到 `hasSufficientMediaDataForReliablePlaybackStart=true` | 真机证据 `audio-silence-fix-20260817/final-auto-recovery/furiosa-truehd/` |

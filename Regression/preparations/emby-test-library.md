@@ -117,7 +117,8 @@
       "callId": "call:preparation:emby-test-library:12",
       "operation": "operation:host.preflight@1",
       "arguments": {
-        "check": "emby-aggregate"
+        "check": "emby-aggregate",
+        "mediaServerProvider": "emby"
       },
       "maxInvocations": 1
     }

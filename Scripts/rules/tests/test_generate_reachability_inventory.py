@@ -758,6 +758,67 @@ struct Toolbar: View {
         self.assertNotIn("Panel-well", inventory.REVIEWED_OBSERVATIONS)
 
 
+class MediaLibraryTabControlInventoryTests(unittest.TestCase):
+    def test_media_library_checkbox_and_save_are_activation_operations(self) -> None:
+        for template in (
+            "Settings-mediaLibraryTabs-checkbox-{id}",
+            "Settings-mediaLibraryTabs-save",
+        ):
+            with self.subTest(template=template):
+                self.assertEqual(inventory.identifier_role(template), ("operation", "activate"))
+        self.assertEqual(
+            inventory.identifier_role("Settings-mediaLibraryTabs-group"),
+            ("observation", None),
+        )
+
+    def test_checkbox_wrapper_has_attached_interaction(self) -> None:
+        source = """
+        ListGroupRowShell(
+            index: index,
+            count: 3,
+            cornerRadius: radius,
+            action: { selection.toggle() }
+        ) { _ in
+            Text(title)
+        }
+        .accessibilityIdentifier("Settings-choice")
+        """
+        line = next(i for i, text in enumerate(source.splitlines(), 1) if "Settings-choice" in text)
+        self.assertEqual(
+            inventory.interactive_evidence(source, line),
+            ("attached", "ListGroupRowShell("),
+        )
+
+    def test_save_wrapper_is_scanned_when_identifier_is_an_argument(self) -> None:
+        source = """
+        GlassCapsuleIconLabelButton(
+            title: "Save",
+            systemName: "checkmark",
+            accessibilityLabel: "Save",
+            action: { save() },
+            accessibilityIdentifier: "Settings-save"
+        )
+        """
+        line = next(i for i, text in enumerate(source.splitlines(), 1) if "Settings-save" in text)
+        self.assertEqual(
+            inventory.interactive_evidence(source, line),
+            ("nearby", "GlassCapsuleIconLabelButton("),
+        )
+
+    def test_media_library_controls_have_browser_operation_contracts(self) -> None:
+        built = inventory.build_inventory()
+        operations = {record["id"]: record for record in built["operations"]}
+        for template in (
+            "Settings-mediaLibraryTabs-checkbox-{id}",
+            "Settings-mediaLibraryTabs-save",
+        ):
+            with self.subTest(template=template):
+                operation = operations["accessibility:" + template]
+                self.assertEqual(operation["kind"], "activate")
+                self.assertEqual(operation["proofDomain"], "browser")
+                self.assertEqual(operation["proofContexts"], ["main-window-browser"])
+
+
 class ProductInventoryInteractiveTests(unittest.TestCase):
     def test_the_committed_inventory_files_no_attached_control_as_observation(
         self,

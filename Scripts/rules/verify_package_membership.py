@@ -19,14 +19,14 @@ DESIGN_SOURCE_ARCHITECTURE_CHECKER = (
 APP_EXCEPTION_ID = "E10000162FA1000100E1C001"
 APP_LAYER_DIRECTORY = "Apps/Enchron"
 PRODUCT_TARGETS = {
-    "Emby",
+    "MediaServer",
     "MediaSource",
     "MediaLibrary",
     "Playback",
     "DesignSystem",
 }
 PLAYBACK_FORBIDDEN_IMPORTS = {
-    "Emby",
+    "MediaServer",
     "MediaLibrary",
 }
 SWIFT_IMPORT_PATTERN = re.compile(
@@ -51,7 +51,7 @@ IMPORT_PARSER_SELF_CHECKS = (
     ("public import SwiftUI", "SwiftUI", False),
     ("package import struct CoreGraphics.CGPoint", "CoreGraphics", False),
     ("@_spi(Internal)\nprivate import class RealityKit.Entity", "RealityKit", False),
-    ("import Emby", "Emby", True),
+    ("import MediaServer", "MediaServer", True),
     ("import MediaLibrary", "MediaLibrary", True),
 )
 
@@ -71,8 +71,8 @@ MODULE_DIRECTORY_SELF_CHECKS = (
         ["MediaLibrary names 2 source entries instead of compiling its directory"],
     ),
     (
-        {"name": "Emby", "path": "Modules/Emby/Views", "exclude": []},
-        ["Emby compiles Modules/Emby/Views instead of Modules/Emby"],
+        {"name": "MediaServer", "path": "Modules/MediaServer/Views", "exclude": []},
+        ["MediaServer compiles Modules/MediaServer/Views instead of Modules/MediaServer"],
     ),
     (
         {"name": "EmbyTests", "path": "Tests/EmbyPackageTests", "exclude": ["Fixtures"]},
@@ -180,9 +180,9 @@ def verify_module_directory_reader() -> None:
     if carved_module_directories({"targets": intact}):
         raise RuntimeError("Manifest module reader rejected an intact manifest")
 
-    thinned = [target for target in intact if target["name"] != "Emby"]
+    thinned = [target for target in intact if target["name"] != "MediaServer"]
     if carved_module_directories({"targets": thinned}) != [
-        "Emby is absent from the package manifest"
+        "MediaServer is absent from the package manifest"
     ]:
         raise RuntimeError("Manifest module reader passed over an absent target")
 

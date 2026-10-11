@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 struct EmbyDecodingTests {
     @Test("live public system info fixture decodes into the domain model")

@@ -12,7 +12,7 @@
 		A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
 		B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
 		D00000300000000000D0A1A1 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = D00000200000000000D0A1A1 /* MediaSource */; };
-		D00000310000000000D0A1A1 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = D00000210000000000D0A1A1 /* Emby */; };
+		D00000310000000000D0A1A1 /* MediaServer in Frameworks */ = {isa = PBXBuildFile; productRef = D00000210000000000D0A1A1 /* MediaServer */; };
 		D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D00000220000000000D0A1A1 /* MediaLibrary */; };
 		D00000330000000000D0A1A1 /* Playback in Frameworks */ = {isa = PBXBuildFile; productRef = D00000230000000000D0A1A1 /* Playback */; };
 		D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = D00000240000000000D0A1A1 /* PlaybackCore */; };
@@ -23,7 +23,7 @@
 		E10000072FA1000100E1C001 /* (null) in Frameworks */ = {isa = PBXBuildFile; };
 		E10000132FA1000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
 		E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
-		E22000032FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
+		E22000032FA4000100E1C001 /* MediaServer in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* MediaServer */; };
 		F30000002FA5000100E1C001 /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		F30000012FA5000100E1C001 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
 		F30000022FA5000100E1C001 /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
@@ -31,7 +31,7 @@
 		F30000042FA5000100E1C001 /* Playback in Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* Playback */; };
 		F30000052FA5000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
 		F30000062FA5000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
-		F30000072FA5000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
+		F30000072FA5000100E1C001 /* MediaServer in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* MediaServer */; };
 		F30000082FA5000100E1C001 /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
@@ -125,25 +125,10 @@
 				"DesignSystem/View+EnchronGlass.swift",
 				"DesignSystem/View+Platform.swift",
 				"DesignSystem/View+PressFeedback.swift",
-				Emby/CollapsibleBlock.swift,
-				Emby/EmbyClient.swift,
-				Emby/EmbyClientProtocol.swift,
-				Emby/EmbyEvidence.swift,
-				Emby/EmbyItemPresentation.swift,
-				Emby/EmbyLaunchRoute.swift,
-				Emby/EmbyMediaByteSource.swift,
-				Emby/EmbyModels.swift,
-				Emby/EmbyPlaybackBridge.swift,
-				Emby/EmbyScreens.swift,
-				Emby/EmbyScreenViewModels.swift,
-				Emby/EmbyServerStore.swift,
-				Emby/EmbySessionViewModel.swift,
-				Emby/EmbyShelf.swift,
 				MediaLibrary/AppManagedMediaImportStore.swift,
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,
 				MediaLibrary/MediaLibraryViewModel.swift,
-				MediaLibrary/SystemImportDeliveryDiagnostics.swift,
 				MediaLibrary/Model/BluRayBrowsing.swift,
 				MediaLibrary/Model/BluRayDiscContent.swift,
 				MediaLibrary/Model/ExternalSubtitleAssociation.swift,
@@ -161,6 +146,7 @@
 				"MediaLibrary/Storage/CredentialStoring+ConnectionInfo.swift",
 				MediaLibrary/Storage/SavedDataSourceStore.swift,
 				MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift,
+				MediaLibrary/SystemImportDeliveryDiagnostics.swift,
 				MediaLibrary/Views/ConnectionFormPanel.swift,
 				MediaLibrary/Views/FilesScreen.swift,
 				MediaLibrary/Views/FilesScreenViewState.swift,
@@ -169,6 +155,24 @@
 				MediaLibrary/Views/LibraryToolbarComponents.swift,
 				MediaLibrary/Views/LibraryViewControls.swift,
 				MediaLibrary/Views/SourceSidebar.swift,
+				MediaServer/CollapsibleBlock.swift,
+				MediaServer/MediaBrowserClient.swift,
+				MediaServer/MediaServerClientProtocol.swift,
+				MediaServer/MediaServerEvidence.swift,
+				MediaServer/MediaServerItemPresentation.swift,
+				MediaServer/MediaServerKind.swift,
+				MediaServer/MediaServerLaunchRoute.swift,
+				MediaServer/MediaServerMediaByteSource.swift,
+				MediaServer/MediaServerModels.swift,
+				MediaServer/MediaServerPlaybackBridge.swift,
+				MediaServer/MediaServerScreens.swift,
+				MediaServer/MediaServerScreenViewModels.swift,
+				MediaServer/MediaServerServerStore.swift,
+				MediaServer/MediaServerSessionViewModel.swift,
+				MediaServer/MediaServerShelf.swift,
+				MediaServer/MediaServerSources.swift,
+				MediaServer/PlexAccount.swift,
+				MediaServer/PlexClient.swift,
 				MediaSource/ArtworkStore.swift,
 				MediaSource/KeychainStore.swift,
 				MediaSource/MediaAccessLease.swift,
@@ -347,7 +351,7 @@
 				E10000072FA1000100E1C001 /* (null) in Frameworks */,
 				E10000132FA1000100E1C001 /* DesignSystem in Frameworks */,
 				E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */,
-				E22000032FA4000100E1C001 /* Emby in Frameworks */,
+				E22000032FA4000100E1C001 /* MediaServer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -356,7 +360,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D00000300000000000D0A1A1 /* MediaSource in Frameworks */,
-				D00000310000000000D0A1A1 /* Emby in Frameworks */,
+				D00000310000000000D0A1A1 /* MediaServer in Frameworks */,
 				D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */,
 				D00000330000000000D0A1A1 /* Playback in Frameworks */,
 				D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */,
@@ -390,7 +394,7 @@
 				F30000042FA5000100E1C001 /* Playback in Frameworks */,
 				F30000052FA5000100E1C001 /* DesignSystem in Frameworks */,
 				F30000062FA5000100E1C001 /* MediaLibrary in Frameworks */,
-				F30000072FA5000100E1C001 /* Emby in Frameworks */,
+				F30000072FA5000100E1C001 /* MediaServer in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -468,7 +472,7 @@
 				E10000032FA1000100E1C001 /* Playback */,
 				E10000102FA1000100E1C001 /* DesignSystem */,
 				E20000012FA2000100E1C001 /* MediaLibrary */,
-				E22000042FA4000100E1C001 /* Emby */,
+				E22000042FA4000100E1C001 /* MediaServer */,
 			);
 			productName = Enchron;
 			productReference = C3B0F9802F5726B30064596E /* Enchron.app */;
@@ -500,7 +504,7 @@
 			name = EnchronDomainTests;
 			packageProductDependencies = (
 				D00000200000000000D0A1A1 /* MediaSource */,
-				D00000210000000000D0A1A1 /* Emby */,
+				D00000210000000000D0A1A1 /* MediaServer */,
 				D00000220000000000D0A1A1 /* MediaLibrary */,
 				D00000230000000000D0A1A1 /* Playback */,
 				D00000240000000000D0A1A1 /* PlaybackCore */,
@@ -577,7 +581,7 @@
 				E10000032FA1000100E1C001 /* Playback */,
 				E10000102FA1000100E1C001 /* DesignSystem */,
 				E20000012FA2000100E1C001 /* MediaLibrary */,
-				E22000042FA4000100E1C001 /* Emby */,
+				E22000042FA4000100E1C001 /* MediaServer */,
 			);
 			productName = EnchronDebug;
 			productReference = F300000D2FA5000100E1C001 /* EnchronDebug.app */;
@@ -1301,10 +1305,10 @@
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = MediaSource;
 		};
-		D00000210000000000D0A1A1 /* Emby */ = {
+		D00000210000000000D0A1A1 /* MediaServer */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = Emby;
+			productName = MediaServer;
 		};
 		D00000220000000000D0A1A1 /* MediaLibrary */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -1346,10 +1350,10 @@
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = MediaLibrary;
 		};
-		E22000042FA4000100E1C001 /* Emby */ = {
+		E22000042FA4000100E1C001 /* MediaServer */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
-			productName = Emby;
+			productName = MediaServer;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

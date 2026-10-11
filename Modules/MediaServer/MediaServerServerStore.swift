@@ -1,14 +1,15 @@
 import Foundation
 import MediaSource
 
-public protocol EmbyServerStoring: Sendable {
-    func loadServer() throws -> EmbyAuthenticatedServer?
-    func saveServer(_ server: EmbyAuthenticatedServer) throws
+public protocol MediaServerServerStoring: Sendable {
+    func loadServer() throws -> MediaServerAuthenticatedServer?
+    func saveServer(_ server: MediaServerAuthenticatedServer) throws
     func deleteServer() throws
 }
 
-public final class KeychainEmbyServerStore: EmbyServerStoring, Sendable {
+public final class KeychainMediaServerStore: MediaServerServerStoring, Sendable {
     private struct Payload: Codable {
+        let kind: MediaServerKind?
         let serverID: String
         let serverName: String
         let userID: String
@@ -26,21 +27,23 @@ public final class KeychainEmbyServerStore: EmbyServerStoring, Sendable {
         self.sourceID = sourceID
     }
 
-    public func loadServer() throws -> EmbyAuthenticatedServer? {
+    public func loadServer() throws -> MediaServerAuthenticatedServer? {
         guard let stored = try credentials.loadCredential(for: sourceID),
               let address = URL(string: stored.username) else { return nil }
         let payload = try JSONDecoder().decode(Payload.self, from: Data(stored.password.utf8))
-        return EmbyAuthenticatedServer(
-            id: EmbyServerID(rawValue: payload.serverID),
+        return MediaServerAuthenticatedServer(
+            kind: payload.kind ?? .emby,
+            id: MediaServerServerID(rawValue: payload.serverID),
             name: payload.serverName,
             baseAddress: address,
             accessToken: payload.accessToken,
-            userID: EmbyUserID(rawValue: payload.userID)
+            userID: MediaServerUserID(rawValue: payload.userID)
         )
     }
 
-    public func saveServer(_ server: EmbyAuthenticatedServer) throws {
+    public func saveServer(_ server: MediaServerAuthenticatedServer) throws {
         let payload = Payload(
+            kind: server.kind,
             serverID: server.id.rawValue,
             serverName: server.name,
             userID: server.userID.rawValue,

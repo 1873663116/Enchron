@@ -19,6 +19,8 @@ Preconditions: 会话已经建立；应用正处于 window 或 portal 呈现的�
 
 Window 与 Portal 使用同一组窗口菜单标识：
 
+选择器标识中的标题随界面语言变化。先读取菜单层级，再使用当前标识。下面的 `Projection` 与 `Stereo Layout` 对应英语界面；简体中文界面使用 `投影` 与 `立体声布局`。也可以通过 `tap --label "180°"` 点击当前可见的投影选项。
+
 ```sh
 # chrome 自动隐藏，序列必须以表面点击开头并紧凑连发
 tap PlayerUI-window-playback-surface

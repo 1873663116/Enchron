@@ -654,6 +654,144 @@ struct PlaybackPresentationStateTests {
         #expect(abs(aboveControls.y - PanoramaSubtitleFollower.dockedSubtitleBottomAboveControlsMeters) < 0.001)
     }
 
+    @Test(
+        "Window and docked subtitles preserve square content across video aspect ratios",
+        arguments: [PlaybackPresentation.window, .docked],
+        [SIMD2<Float>(3_840.0 / 1_604.0, 1), SIMD2<Float>(21.0 / 9.0, 1), SIMD2<Float>(4.0 / 3.0, 1)]
+    )
+    func windowAndDockedSubtitlesPreserveSquareContent(
+        presentation: PlaybackPresentation,
+        screenSize: SIMD2<Float>
+    ) {
+        let layout = PlaybackSubtitlePlacement.resolve(
+            frame: Self.subtitleFrame(
+                changeIdentifier: 1,
+                contentX: 910,
+                contentY: 980,
+                contentWidth: 100,
+                contentHeight: 100
+            ),
+            presentation: presentation,
+            screenSize: screenSize,
+            reservedBottomFraction: 0
+        )
+
+        #expect(abs(layout.size.x / layout.size.y - 1) < 0.0001)
+    }
+
+    @Test(
+        "Window and docked controls lift subtitles above the safe bottom without resizing them",
+        arguments: [PlaybackPresentation.window, .docked]
+    )
+    func windowAndDockedSubtitleControlsPreserveSizeAndSafeBottom(
+        presentation: PlaybackPresentation
+    ) {
+        let frame = Self.subtitleFrame(
+            changeIdentifier: 1,
+            contentX: 910,
+            contentY: 980,
+            contentWidth: 100,
+            contentHeight: 100
+        )
+        let hidden = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: presentation,
+            screenSize: [3_840.0 / 1_604.0, 1],
+            reservedBottomFraction: 0
+        )
+        let visible = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: presentation,
+            screenSize: [3_840.0 / 1_604.0, 1],
+            reservedBottomFraction: 0.32
+        )
+        let fullyReserved = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: presentation,
+            screenSize: [3_840.0 / 1_604.0, 1],
+            reservedBottomFraction: 1
+        )
+
+        #expect(hidden.size == visible.size)
+        #expect(hidden.size == fullyReserved.size)
+        #expect(abs(hidden.position.y - hidden.size.y / 2 - (-0.5)) < 0.0001)
+        #expect(abs(visible.position.y - visible.size.y / 2 - (-0.18)) < 0.0001)
+        #expect(abs(fullyReserved.position.y - fullyReserved.size.y / 2) < 0.0001)
+        #expect(abs(visible.position.z - 0.015) < 0.0001)
+    }
+
+    @Test("Portal subtitles stay centered at the eight-percent bottom margin and clear the controls")
+    func portalSubtitlesPreservePinnedBottomAndControlClearance() {
+        let frame = Self.subtitleFrame(changeIdentifier: 1, contentX: 1_400)
+        let hidden = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: .portal,
+            screenSize: [3_840.0 / 1_604.0, 1],
+            reservedBottomFraction: 0
+        )
+        let visible = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: .portal,
+            screenSize: [3_840.0 / 1_604.0, 1],
+            reservedBottomFraction: 0.32
+        )
+
+        #expect(hidden.position.x == 0)
+        #expect(visible.position.x == 0)
+        #expect(hidden.size == visible.size)
+        #expect(abs(hidden.position.y - hidden.size.y / 2 - (-0.42)) < 0.0001)
+        #expect(abs(visible.position.y - visible.size.y / 2 - (-0.18)) < 0.0001)
+        #expect(abs(visible.position.z - 0.015) < 0.0001)
+    }
+
+    @Test(
+        "Panorama subtitles keep their fixed canvas and eight-percent bottom margin across video aspect ratios",
+        arguments: [SIMD2<Float>(3_840.0 / 1_604.0, 1), SIMD2<Float>(21.0 / 9.0, 1), SIMD2<Float>(4.0 / 3.0, 1)]
+    )
+    func panoramaSubtitlesPreserveFixedCanvasAndPinnedBottom(screenSize: SIMD2<Float>) {
+        let frame = Self.subtitleFrame(
+            changeIdentifier: 1,
+            contentX: 1_400,
+            contentY: 980,
+            contentWidth: 100,
+            contentHeight: 100
+        )
+        let hidden = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: .panorama,
+            screenSize: screenSize,
+            reservedBottomFraction: 0
+        )
+        let visible = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            presentation: .panorama,
+            screenSize: screenSize,
+            reservedBottomFraction: 0.32
+        )
+
+        #expect(abs(hidden.size.x - 0.083333333) < 0.0001)
+        #expect(abs(hidden.size.y - 0.083333333) < 0.0001)
+        #expect(hidden.size == visible.size)
+        #expect(hidden.position.x == 0)
+        #expect(abs(hidden.position.y - hidden.size.y / 2 - (-0.928)) < 0.0001)
+        #expect(abs(visible.position.y - visible.size.y / 2 - (-0.712)) < 0.0001)
+        #expect(abs(hidden.position.z - (-2.2)) < 0.0001)
+
+        let controls = Transform(
+            scale: .one,
+            rotation: simd_quatf(angle: 0.3, axis: [0, 1, 0]),
+            translation: [0.2, 1.1, -0.6]
+        )
+        let root = PanoramaSubtitleFollower.dockedRootTransform(controls: controls)
+        let bottomLocal = hidden.position - [0, hidden.size.y / 2, 0]
+        let bottomWorld = root.translation + root.rotation.act(bottomLocal * root.scale)
+        let bottomAboveControls = controls.rotation.inverse.act(bottomWorld - controls.translation)
+
+        #expect(abs(bottomAboveControls.x) < 0.001)
+        #expect(abs(bottomAboveControls.y - 0.10) < 0.001)
+        #expect(abs(bottomAboveControls.z) < 0.001)
+    }
+
     @Test("A lazy gaze follow holds inside its dead zone, then eases onto the head and settles")
     func lazyGazeFollowHoldsInsideTheDeadZoneAndEasesBeyondIt() {
         var follow = LazyGazeFollow()
@@ -844,10 +982,13 @@ struct PlaybackPresentationStateTests {
 
     private static func subtitleFrame(
         changeIdentifier: UInt64,
-        contentX: Int = 928
+        contentX: Int = 928,
+        contentY: Int = 1_000,
+        contentWidth: Int = 64,
+        contentHeight: Int = 16
     ) -> PlaybackSubtitleFrame {
-        let width = 64
-        let height = 16
+        let width = contentWidth
+        let height = contentHeight
         var pixels = Data(count: width * 4 * height)
         for y in 4..<12 {
             for x in 8..<56 {
@@ -863,7 +1004,7 @@ struct PlaybackPresentationStateTests {
             canvasWidth: 1_920,
             canvasHeight: 1_080,
             contentX: contentX,
-            contentY: 1_000,
+            contentY: contentY,
             contentWidth: width,
             contentHeight: height,
             bytesPerRow: width * 4,

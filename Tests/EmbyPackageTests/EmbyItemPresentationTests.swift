@@ -1,11 +1,11 @@
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 @Suite("Emby detail presentation")
 struct EmbyItemPresentationTests {
     @Test("badges name the resolution class, video range, audio format, and subtitle availability")
     func badgesFromStreams() {
-        let badges = EmbyTechnicalBadges(source: source(streams: [
+        let badges = MediaServerTechnicalBadges(source: source(streams: [
             stream(.video, codec: "hevc", width: 3840, height: 1604, videoRange: "DolbyVision"),
             stream(.audio, codec: "eac3", language: "jpn", channelLayout: "5.1", isDefault: true),
             stream(.subtitle, codec: "subrip", language: "eng")
@@ -16,7 +16,7 @@ struct EmbyItemPresentationTests {
 
     @Test("standard dynamic range and missing subtitles drop their badges")
     func badgesOmitNeutralValues() {
-        let badges = EmbyTechnicalBadges(source: source(streams: [
+        let badges = MediaServerTechnicalBadges(source: source(streams: [
             stream(.video, codec: "h264", width: 1920, height: 1080, videoRange: "SDR"),
             stream(.audio, codec: "aac", language: "eng", channelLayout: "stereo", isDefault: true)
         ]))
@@ -27,7 +27,7 @@ struct EmbyItemPresentationTests {
 
     @Test("a source without streams yields no badges")
     func badgesWithoutSource() {
-        #expect(EmbyTechnicalBadges(source: nil).labels.isEmpty)
+        #expect(MediaServerTechnicalBadges(source: nil).labels.isEmpty)
     }
 
     @Test("about groups information, languages, and accessibility")
@@ -38,7 +38,7 @@ struct EmbyItemPresentationTests {
             stream(.subtitle, codec: "subrip", language: "eng", displayLanguage: "English"),
             stream(.subtitle, codec: "subrip", language: "eng", displayLanguage: "English", isHearingImpaired: true)
         ]
-        let sections = EmbyAboutSections(metadata: metadata(), sources: [source(streams: streams)])
+        let sections = MediaServerAboutSections(metadata: metadata(), sources: [source(streams: streams)])
 
         #expect(sections.information.map(\.label) == ["Released", "Rated", "Studios", "Region"])
         #expect(sections.information.first?.value == "2025")
@@ -56,7 +56,7 @@ struct EmbyItemPresentationTests {
             stream(.audio, codec: "ac3", language: "chi", displayLanguage: "Chinese", channelLayout: "stereo", bitRate: 192_000, sampleRate: 48000, title: "Mandarin"),
             stream(.subtitle, codec: "PGSSUB", language: "eng", displayLanguage: "English")
         ]
-        let sections = EmbyAboutSections(metadata: metadata(), sources: [source(streams: streams)])
+        let sections = MediaServerAboutSections(metadata: metadata(), sources: [source(streams: streams)])
 
         #expect(sections.audio.map(\.label) == ["Japanese", "Mandarin"])
         #expect(sections.audio[0].value == "DTS · 5.1 · 1.5 Mbps · 48 kHz · Default")
@@ -67,7 +67,7 @@ struct EmbyItemPresentationTests {
 
     @Test("the video column reads the picture off the video stream")
     func aboutVideo() {
-        let sections = EmbyAboutSections(
+        let sections = MediaServerAboutSections(
             metadata: metadata(),
             sources: [source(streams: [stream(
                 .video,
@@ -94,7 +94,7 @@ struct EmbyItemPresentationTests {
 
     @Test("Dolby Vision names its own profile, which the codec profile never distinguishes")
     func aboutDolbyVisionProfile() {
-        let sections = EmbyAboutSections(
+        let sections = MediaServerAboutSections(
             metadata: metadata(),
             sources: [source(streams: [stream(
                 .video,
@@ -113,7 +113,7 @@ struct EmbyItemPresentationTests {
 
     @Test("an HDR10 stream names no Dolby Vision profile")
     func aboutWithoutDolbyVision() {
-        let sections = EmbyAboutSections(
+        let sections = MediaServerAboutSections(
             metadata: metadata(),
             sources: [source(streams: [stream(
                 .video,
@@ -129,10 +129,10 @@ struct EmbyItemPresentationTests {
 
     @Test("the file column carries the container, its size, and its total bitrate")
     func aboutFile() {
-        let sections = EmbyAboutSections(
+        let sections = MediaServerAboutSections(
             metadata: metadata(),
-            sources: [EmbyMediaSourceDescription(
-                id: EmbyMediaSourceID(rawValue: "source"),
+            sources: [MediaServerMediaSourceDescription(
+                id: MediaServerMediaSourceID(rawValue: "source"),
                 displayName: "Sample",
                 container: "mkv",
                 sizeInBytes: 3_595_581_174,
@@ -148,7 +148,7 @@ struct EmbyItemPresentationTests {
 
     @Test("accessibility stays empty when no track claims it")
     func aboutWithoutAccessibility() {
-        let sections = EmbyAboutSections(
+        let sections = MediaServerAboutSections(
             metadata: metadata(),
             sources: [source(streams: [stream(.subtitle, codec: "subrip", language: "eng")])]
         )
@@ -156,11 +156,11 @@ struct EmbyItemPresentationTests {
         #expect(sections.accessibility.isEmpty)
     }
 
-    private func metadata() -> EmbyItemMetadata {
-        EmbyItemMetadata(
-            id: EmbyItemID(rawValue: "1"),
+    private func metadata() -> MediaServerItemMetadata {
+        MediaServerItemMetadata(
+            id: MediaServerItemID(rawValue: "1"),
             name: "Sample",
-            imageTags: EmbyImageTags(),
+            imageTags: MediaServerImageTags(),
             overview: "Overview",
             runTimeTicks: 59_400_000_000,
             userData: nil,
@@ -170,15 +170,15 @@ struct EmbyItemPresentationTests {
             officialRating: "R",
             communityRating: 8.5,
             genres: ["Animation", "Action"],
-            studios: [EmbyStudio(name: "MAPPA")],
+            studios: [MediaServerStudio(name: "MAPPA")],
             people: [],
             productionLocations: ["Japan"]
         )
     }
 
-    private func source(streams: [EmbyMediaStream]) -> EmbyMediaSourceDescription {
-        EmbyMediaSourceDescription(
-            id: EmbyMediaSourceID(rawValue: "source"),
+    private func source(streams: [MediaServerMediaStream]) -> MediaServerMediaSourceDescription {
+        MediaServerMediaSourceDescription(
+            id: MediaServerMediaSourceID(rawValue: "source"),
             displayName: "Sample",
             container: "mkv",
             mediaStreams: streams
@@ -186,7 +186,7 @@ struct EmbyItemPresentationTests {
     }
 
     private func stream(
-        _ kind: EmbyMediaStreamKind,
+        _ kind: MediaServerMediaStreamKind,
         codec: String,
         language: String? = nil,
         displayLanguage: String? = nil,
@@ -205,8 +205,8 @@ struct EmbyItemPresentationTests {
         title: String? = nil,
         isDefault: Bool = false,
         isHearingImpaired: Bool = false
-    ) -> EmbyMediaStream {
-        EmbyMediaStream(
+    ) -> MediaServerMediaStream {
+        MediaServerMediaStream(
             index: 0,
             kind: kind,
             codec: codec,

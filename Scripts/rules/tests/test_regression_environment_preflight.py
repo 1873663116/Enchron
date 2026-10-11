@@ -92,7 +92,8 @@ class RegressionEnvironmentPreflightTests(unittest.TestCase):
 
     def test_emby_aggregate_delegates_to_the_typed_owned_source_preflight(self) -> None:
         expected = {
-            "schema": "enchron.regression.emby-source-preflight@1",
+            "schema": "enchron.regression.emby-source-preflight@2",
+            "provider": "emby",
             "check": "emby-aggregate",
             "ready": True,
             "receipt": {

@@ -2099,6 +2099,24 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertNotIn("operation:host.configure-fault@1", adapter.SPECS)
         self.assertNotIn("operation:host.query@1", adapter.SPECS)
 
+    def test_media_server_provider_cannot_relabel_an_emby_host_preflight(self) -> None:
+        spec = adapter.SPECS["operation:host.preflight@1"]
+        accepted = {"check": "emby-aggregate", "mediaServerProvider": "emby"}
+        self.assertEqual(dict(spec.validate("device", accepted)), accepted)
+        for provider in ("plex", "jellyfin", "unknown"):
+            with self.subTest(provider=provider), self.assertRaises(adapter.OperationAdapterError):
+                spec.validate("device", {**accepted, "mediaServerProvider": provider})
+        with self.assertRaises(adapter.OperationAdapterError):
+            spec.validate("device", {"check": "webdav-regression", "mediaServerProvider": "emby"})
+
+    def test_media_server_provider_is_scoped_to_product_account_evidence(self) -> None:
+        spec = adapter.SPECS["operation:accessibility.inspect@2"]
+        for provider in ("emby", "plex", "jellyfin"):
+            arguments = {"context": "window", "identifier": "Emby-Evidence", "mediaServerProvider": provider}
+            self.assertEqual(dict(spec.validate("device", arguments)), arguments)
+        with self.assertRaises(adapter.OperationAdapterError):
+            spec.validate("device", {**arguments, "identifier": "Emby-Home"})
+
     def test_remote_recipe_actuation_is_a_closed_host_preflight_phase(self) -> None:
         spec = adapter.SPECS["operation:host.preflight@1"]
         accepted = (
@@ -2172,7 +2190,8 @@ class OperationAllowlistTests(unittest.TestCase):
     def test_emby_preflight_uses_the_typed_environment_report(self) -> None:
         backend = adapter.ResidentOperationBackend()
         direct = {
-            "schema": "enchron.regression.emby-source-preflight@1",
+            "schema": "enchron.regression.emby-source-preflight@2",
+            "provider": "emby",
             "check": "emby-aggregate",
             "ready": True,
             "receipt": {"status": "active"},

@@ -705,6 +705,8 @@ def _inlined_certificate_before_state(
 def _accessibility_single(arguments: Mapping[str, object]) -> None:
     _validate_identifiers([str(arguments["identifier"])])
     _related_results(arguments)
+    if "mediaServerProvider" in arguments and arguments["identifier"] != "Emby-Evidence":
+        raise OperationAdapterError("mediaServerProvider requires the media server evidence element")
 
 
 def _browse_hierarchy_bound_name(value: object, label: str) -> None:
@@ -822,6 +824,11 @@ def _accessibility_type(arguments: Mapping[str, object]) -> None:
 def _host_preflight(arguments: Mapping[str, object]) -> None:
     phase = str(arguments.get("phase", "ensure"))
     check = str(arguments["check"])
+    provider = arguments.get("mediaServerProvider", "emby")
+    if check == "emby-aggregate" and provider != "emby":
+        raise OperationAdapterError("emby-aggregate only supports provider emby")
+    if check != "emby-aggregate" and "mediaServerProvider" in arguments:
+        raise OperationAdapterError("mediaServerProvider requires a media server preflight")
     recipe = arguments.get("recipe")
     receipt_id = arguments.get("receiptID")
     if phase == "ensure":
@@ -2803,6 +2810,7 @@ def _specs() -> tuple[OperationSpec, ...]:
             "operation:accessibility.inspect@2",
             LANES,
             (
+                _field("mediaServerProvider", string, required=False, choices=_choices("emby", "jellyfin", "plex")),
                 _field("context", string, choices=CONTEXTS),
                 _field("identifier", string),
                 _index(),
@@ -2875,6 +2883,7 @@ def _specs() -> tuple[OperationSpec, ...]:
             "operation:host.preflight@1",
             LANES,
             (
+                _field("mediaServerProvider", string, required=False, choices=_choices("emby", "jellyfin", "plex")),
                 _field(
                     "check",
                     string,
@@ -4523,6 +4532,8 @@ class ResidentOperationBackend:
             "succeeded": not required or matched_element is not None,
             "context": arguments["context"],
             "requestedIdentifier": arguments["identifier"],
+            **({"expectedProvider": arguments.get("mediaServerProvider", "emby")}
+               if arguments["identifier"] == "Emby-Evidence" else {}),
             "matchedElement": matched_element,
             "response": result,
             "observations": observations,

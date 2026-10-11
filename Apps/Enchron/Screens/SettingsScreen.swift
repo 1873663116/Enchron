@@ -161,6 +161,10 @@ struct SettingsScreen: View {
         switch category {
         case .general:
             SettingListGroup(accessibilityIdentifier: "Settings-General-group", items: languageItems)
+            MediaLibraryTabSettingsGroup(saved: viewModel.preferences.mediaLibraryTabs) { draft in
+                viewModel.update { $0.mediaLibraryTabs = draft }
+                recordActionReachability("media-library-tabs-save")
+            }
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
         case .storagePrivacy:
@@ -487,5 +491,106 @@ struct SettingsScreen: View {
     private func clearProgress() {
         recordActionReachability("clear-progress")
         playbackLauncher.clearViewingStates()
+    }
+}
+
+private struct MediaLibraryTabSettingsGroup: View {
+    let saved: MediaLibraryTabVisibility
+    let onSave: (MediaLibraryTabVisibility) -> Void
+    @State private var draft: MediaLibraryTabVisibility
+    @State private var didSave = false
+    @Namespace private var hoverNamespace
+
+    init(
+        saved: MediaLibraryTabVisibility,
+        onSave: @escaping (MediaLibraryTabVisibility) -> Void
+    ) {
+        self.saved = saved
+        self.onSave = onSave
+        _draft = State(initialValue: saved)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            HStack(spacing: DesignTokens.Spacing.md) {
+                Text("Media library tabs")
+                    .font(DesignTokens.Typography.sectionHeader)
+                Spacer(minLength: DesignTokens.Spacing.md)
+                GlassCapsuleIconLabelButton(
+                    title: didSave ? String(localized: "Saved") : String(localized: "Save"),
+                    systemName: didSave ? "checkmark" : "square.and.arrow.down",
+                    accessibilityLabel: didSave ? String(localized: "Saved") : String(localized: "Save"),
+                    action: {
+                        onSave(draft)
+                        didSave = true
+                    },
+                    accessibilityIdentifier: "Settings-mediaLibraryTabs-save"
+                )
+                .disabled(draft == saved)
+            }
+            Text("Select the remote media libraries to show in the tab bar. Changes take effect when you save.")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+            VStack(spacing: 0) {
+                checkbox("Emby", id: "emby", index: 0, selection: $draft.emby)
+                checkbox("Plex", id: "plex", index: 1, selection: $draft.plex)
+                checkbox("Jellyfin", id: "jellyfin", index: 2, selection: $draft.jellyfin)
+            }
+            .enchronListGroupSurface(cornerRadius: DesignTokens.Radius.element)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("Settings-mediaLibraryTabs-group")
+        .onAppear {
+            draft = saved
+            didSave = false
+        }
+        .onDisappear {
+            draft = saved
+            didSave = false
+        }
+        .onChange(of: draft) { _, _ in
+            didSave = false
+        }
+        .onChange(of: saved) { oldValue, newValue in
+            if draft == oldValue {
+                draft = newValue
+            }
+            if draft != newValue {
+                didSave = false
+            }
+        }
+    }
+
+    private func checkbox(
+        _ title: String,
+        id: String,
+        index: Int,
+        selection: Binding<Bool>
+    ) -> some View {
+        ListGroupRowShell(
+            index: index,
+            count: 3,
+            cornerRadius: DesignTokens.Radius.element,
+            hoverNamespace: hoverNamespace,
+            accessibilityLabel: title,
+            accessibilityValue: selection.wrappedValue
+                ? String(localized: "Selected")
+                : String(localized: "Not selected"),
+            action: { selection.wrappedValue.toggle() },
+            content: { _ in
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Image(systemName: selection.wrappedValue ? "checkmark.square.fill" : "square")
+                        .font(DesignTokens.Typography.sectionHeader)
+                        .accessibilityHidden(true)
+                    Text(title)
+                        .font(DesignTokens.Typography.headline)
+                    Spacer(minLength: DesignTokens.Spacing.md)
+                }
+                .padding(.horizontal, DesignTokens.Spacing.lg)
+                .frame(minHeight: DesignTokens.Interactive.large)
+            }
+        )
+        .accessibilityAddTraits(selection.wrappedValue ? .isSelected : [])
+        .accessibilityIdentifier("Settings-mediaLibraryTabs-checkbox-\(id)")
     }
 }

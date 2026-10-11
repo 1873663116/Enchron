@@ -17,7 +17,7 @@ AUDITED_LEGACY_PATHS = (
     Path("Apps/Enchron/AppModel.swift"),
     Path("Apps/Enchron/EnchronApplication.swift"),
     Path("Apps/Enchron/MainView.swift"),
-    Path("Modules/Emby"),
+    Path("Modules/MediaServer"),
     Path("Modules/Playback"),
     Path("Modules/Playback"),
 )

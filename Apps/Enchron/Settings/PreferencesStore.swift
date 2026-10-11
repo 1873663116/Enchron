@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 import Playback
 
 public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
@@ -10,6 +11,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
     private static let controlsAutoHideKey = "enchron.preferences.controlsAutoHideSeconds"
     private static let developerModeKey = "enchron.preferences.developerMode"
     private static let surroundingsDimmingKey = "enchron.preferences.surroundingsDimming"
+    private static let mediaLibraryTabsKey = "enchron.preferences.mediaLibraryTabs"
 
     public init(defaults: UserDefaults = .standard, playbackSpeedOverride: Double? = nil) {
         self.defaults = defaults
@@ -44,13 +46,19 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         let developerModeEnabled = false
 #endif
 
+        let storedTabs = defaults.dictionary(forKey: Self.mediaLibraryTabsKey)
         return UserPreferences(
             resumePolicy: policy,
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
             controlsAutoHideSeconds: controlsAutoHide,
             developerModeEnabled: developerModeEnabled,
-            surroundingsDimmingEnabled: defaults.object(forKey: Self.surroundingsDimmingKey) as? Bool ?? true
+            surroundingsDimmingEnabled: defaults.object(forKey: Self.surroundingsDimmingKey) as? Bool ?? true,
+            mediaLibraryTabs: MediaLibraryTabVisibility(
+                emby: mediaLibraryTabIsVisible(storedTabs?["emby"]),
+                plex: mediaLibraryTabIsVisible(storedTabs?["plex"]),
+                jellyfin: mediaLibraryTabIsVisible(storedTabs?["jellyfin"])
+            )
         )
     }
 
@@ -81,6 +89,17 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         defaults.removeObject(forKey: Self.developerModeKey)
 #endif
         defaults.set(preferences.surroundingsDimmingEnabled, forKey: Self.surroundingsDimmingKey)
+        defaults.set([
+            "emby": preferences.mediaLibraryTabs.emby,
+            "plex": preferences.mediaLibraryTabs.plex,
+            "jellyfin": preferences.mediaLibraryTabs.jellyfin
+        ], forKey: Self.mediaLibraryTabsKey)
+    }
+
+    private func mediaLibraryTabIsVisible(_ value: Any?) -> Bool {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) == CFBooleanGetTypeID() else { return true }
+        return number.boolValue
     }
 
     public func loadPlaybackPreferences() -> PlaybackPreferences {

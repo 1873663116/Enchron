@@ -710,7 +710,7 @@ RELEASE_BINARY_FORBIDDEN = (
     "AcousticCalibration",
     "ViewingStorageDiagnostics",
     "PlaybackSwitchStateRing",
-    "EmbyPlaybackEvidence",
+    "MediaServerPlaybackEvidence",
     "SystemImportDeliveryDiagnostics",
     "ContainerIndexDebug",
     "DebugProbeJournal",

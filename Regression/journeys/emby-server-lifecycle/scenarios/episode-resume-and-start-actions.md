@@ -30,7 +30,8 @@
   "operations": [
     {
       "arguments": {
-        "check": "emby-aggregate"
+        "check": "emby-aggregate",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:01",
       "maxInvocations": 1,
@@ -166,6 +167,7 @@
       "arguments": {
         "context": "window",
         "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby",
         "relatedResults": [
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:01/report",
           "result://call:emby-server-lifecycle:episode-resume-and-start-actions:05/matchedElement",

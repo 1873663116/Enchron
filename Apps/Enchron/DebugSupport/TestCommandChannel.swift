@@ -1,7 +1,7 @@
 #if DEBUG
 import DesignSystem
 import CryptoKit
-import Emby
+import MediaServer
 import Foundation
 import MediaLibrary
 import MediaSource
@@ -537,7 +537,7 @@ final class TestCommandChannel {
             var viewingStorageSnapshot: ViewingStorageDiagnosticSnapshot?
             var transitionTraceSnapshot: PlaybackSwitchStateSnapshot?
             var transitionTraceAnalysis: PlaybackSwitchStateAnalysis?
-            var embySignInReceipt: EmbySignInReceipt?
+            var embySignInReceipt: MediaServerSignInReceipt?
         #endif
 
         #if DEBUG
@@ -554,7 +554,7 @@ final class TestCommandChannel {
             viewingStorageSnapshot: ViewingStorageDiagnosticSnapshot? = nil,
             transitionTraceSnapshot: PlaybackSwitchStateSnapshot? = nil,
             transitionTraceAnalysis: PlaybackSwitchStateAnalysis? = nil,
-            embySignInReceipt: EmbySignInReceipt? = nil
+            embySignInReceipt: MediaServerSignInReceipt? = nil
         ) {
             self.id = id
             self.ok = ok
@@ -609,7 +609,7 @@ final class TestCommandChannel {
     #if DEBUG
         private var playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
     #endif
-    private let embySession: EmbySessionViewModel
+    private let embySession: MediaServerSessionViewModel
     private let fileManager: FileManager
     private let defaults: UserDefaults
     private let commandURL: URL
@@ -630,7 +630,7 @@ final class TestCommandChannel {
         playbackRuntime: PlaybackRuntime,
         playbackLauncher: PlaybackLaunchCoordinator,
         settings: SettingsViewModel,
-        embySession: EmbySessionViewModel,
+        embySession: MediaServerSessionViewModel,
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
     ) throws {
@@ -1941,14 +1941,14 @@ final class TestCommandChannel {
             )
         }
         guard let directionText = request.args["direction"],
-              let direction = EmbyReachabilityScrollRequest.Direction(
+              let direction = MediaServerReachabilityScrollRequest.Direction(
                   rawValue: directionText
               ) else {
             throw CommandError(
                 message: "scrollEmby requires direction=forward|backward."
             )
         }
-        let scrollRequest = EmbyReachabilityScrollRequest(
+        let scrollRequest = MediaServerReachabilityScrollRequest(
             page: page,
             direction: direction
         ) { deliveredPage in

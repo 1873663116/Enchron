@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 
-public struct EmbyServerID: RawRepresentable, Codable, Hashable, Sendable {
+public struct MediaServerServerID: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -9,7 +9,7 @@ public struct EmbyServerID: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
-public struct EmbyUserID: RawRepresentable, Codable, Hashable, Sendable {
+public struct MediaServerUserID: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -17,7 +17,7 @@ public struct EmbyUserID: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
-public struct EmbyItemID: RawRepresentable, Codable, Hashable, Sendable {
+public struct MediaServerItemID: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -25,7 +25,7 @@ public struct EmbyItemID: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
-public struct EmbyMediaSourceID: RawRepresentable, Codable, Hashable, Sendable {
+public struct MediaServerMediaSourceID: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -33,7 +33,7 @@ public struct EmbyMediaSourceID: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
-public struct EmbyPlaySessionID: RawRepresentable, Codable, Hashable, Sendable {
+public struct MediaServerPlaySessionID: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -41,7 +41,7 @@ public struct EmbyPlaySessionID: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
-public struct EmbyImageTag: RawRepresentable, Codable, Hashable, Sendable {
+public struct MediaServerImageTag: RawRepresentable, Codable, Hashable, Sendable {
     public let rawValue: String
 
     public init(rawValue: String) {
@@ -49,7 +49,7 @@ public struct EmbyImageTag: RawRepresentable, Codable, Hashable, Sendable {
     }
 }
 
-public struct EmbyClientIdentity: Equatable, Hashable, Sendable {
+public struct MediaServerClientIdentity: Equatable, Hashable, Sendable {
     public let name: String
     public let version: String
     public let deviceName: String
@@ -63,20 +63,23 @@ public struct EmbyClientIdentity: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyAuthenticatedServer: Equatable, Hashable, Sendable {
-    public let id: EmbyServerID
+public struct MediaServerAuthenticatedServer: Equatable, Hashable, Sendable {
+    public let kind: MediaServerKind
+    public let id: MediaServerServerID
     public let name: String
     public let baseAddress: URL
     public let accessToken: String
-    public let userID: EmbyUserID
+    public let userID: MediaServerUserID
 
     public init(
-        id: EmbyServerID,
+        kind: MediaServerKind = .emby,
+        id: MediaServerServerID,
         name: String,
         baseAddress: URL,
         accessToken: String,
-        userID: EmbyUserID
+        userID: MediaServerUserID
     ) {
+        self.kind = kind
         self.id = id
         self.name = name
         self.baseAddress = baseAddress
@@ -86,14 +89,14 @@ public struct EmbyAuthenticatedServer: Equatable, Hashable, Sendable {
 }
 
 public struct EmbyPublicSystemInfo: Codable, Equatable, Hashable, Sendable {
-    public let id: EmbyServerID
+    public let id: MediaServerServerID
     public let serverName: String
     public let version: String
     public let localAddresses: [String]
     public let remoteAddresses: [String]
 
     public init(
-        id: EmbyServerID,
+        id: MediaServerServerID,
         serverName: String,
         version: String,
         localAddresses: [String],
@@ -106,6 +109,15 @@ public struct EmbyPublicSystemInfo: Codable, Equatable, Hashable, Sendable {
         self.remoteAddresses = remoteAddresses
     }
 
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(MediaServerServerID.self, forKey: .id)
+        serverName = try values.decode(String.self, forKey: .serverName)
+        version = try values.decode(String.self, forKey: .version)
+        localAddresses = try values.decodeIfPresent([String].self, forKey: .localAddresses) ?? []
+        remoteAddresses = try values.decodeIfPresent([String].self, forKey: .remoteAddresses) ?? []
+    }
+
     private enum CodingKeys: String, CodingKey {
         case id = "Id"
         case serverName = "ServerName"
@@ -116,16 +128,16 @@ public struct EmbyPublicSystemInfo: Codable, Equatable, Hashable, Sendable {
 }
 
 public struct EmbyPublicUser: Codable, Equatable, Hashable, Sendable {
-    public let id: EmbyUserID
+    public let id: MediaServerUserID
     public let name: String
-    public let serverID: EmbyServerID
+    public let serverID: MediaServerServerID
     public let hasPassword: Bool
     public let hasConfiguredPassword: Bool
 
     public init(
-        id: EmbyUserID,
+        id: MediaServerUserID,
         name: String,
-        serverID: EmbyServerID,
+        serverID: MediaServerServerID,
         hasPassword: Bool,
         hasConfiguredPassword: Bool
     ) {
@@ -145,17 +157,17 @@ public struct EmbyPublicUser: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyImageTags: Equatable, Hashable, Sendable {
-    public let primary: EmbyImageTag?
-    public let logo: EmbyImageTag?
-    public let thumb: EmbyImageTag?
-    public let backdrops: [EmbyImageTag]
+public struct MediaServerImageTags: Equatable, Hashable, Sendable {
+    public let primary: MediaServerImageTag?
+    public let logo: MediaServerImageTag?
+    public let thumb: MediaServerImageTag?
+    public let backdrops: [MediaServerImageTag]
 
     public init(
-        primary: EmbyImageTag? = nil,
-        logo: EmbyImageTag? = nil,
-        thumb: EmbyImageTag? = nil,
-        backdrops: [EmbyImageTag] = []
+        primary: MediaServerImageTag? = nil,
+        logo: MediaServerImageTag? = nil,
+        thumb: MediaServerImageTag? = nil,
+        backdrops: [MediaServerImageTag] = []
     ) {
         self.primary = primary
         self.logo = logo
@@ -164,7 +176,7 @@ public struct EmbyImageTags: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyUserData: Equatable, Hashable, Sendable {
+public struct MediaServerUserData: Equatable, Hashable, Sendable {
     public let playbackPositionTicks: Int64
     public let played: Bool
     public let unplayedItemCount: Int?
@@ -176,7 +188,7 @@ public struct EmbyUserData: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyStudio: Equatable, Hashable, Sendable {
+public struct MediaServerStudio: Equatable, Hashable, Sendable {
     public let name: String
 
     public init(name: String) {
@@ -184,19 +196,19 @@ public struct EmbyStudio: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyPerson: Equatable, Hashable, Sendable, Identifiable {
-    public let id: EmbyItemID?
+public struct MediaServerPerson: Equatable, Hashable, Sendable, Identifiable {
+    public let id: MediaServerItemID?
     public let name: String
     public let role: String?
     public let type: String?
-    public let primaryImageTag: EmbyImageTag?
+    public let primaryImageTag: MediaServerImageTag?
 
     public init(
-        id: EmbyItemID?,
+        id: MediaServerItemID?,
         name: String,
         role: String?,
         type: String?,
-        primaryImageTag: EmbyImageTag?
+        primaryImageTag: MediaServerImageTag?
     ) {
         self.id = id
         self.name = name
@@ -206,21 +218,21 @@ public struct EmbyPerson: Equatable, Hashable, Sendable, Identifiable {
     }
 }
 
-public struct EmbyMediaSourceDescription: Equatable, Hashable, Sendable, Identifiable {
-    public let id: EmbyMediaSourceID
+public struct MediaServerMediaSourceDescription: Equatable, Hashable, Sendable, Identifiable {
+    public let id: MediaServerMediaSourceID
     public let displayName: String
     public let container: String?
     public let sizeInBytes: Int64?
     public let bitrate: Int?
-    public let mediaStreams: [EmbyMediaStream]
+    public let mediaStreams: [MediaServerMediaStream]
 
     public init(
-        id: EmbyMediaSourceID,
+        id: MediaServerMediaSourceID,
         displayName: String,
         container: String?,
         sizeInBytes: Int64? = nil,
         bitrate: Int? = nil,
-        mediaStreams: [EmbyMediaStream]
+        mediaStreams: [MediaServerMediaStream]
     ) {
         self.id = id
         self.displayName = displayName
@@ -231,41 +243,41 @@ public struct EmbyMediaSourceDescription: Equatable, Hashable, Sendable, Identif
     }
 }
 
-public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
-    public let id: EmbyItemID
+public struct MediaServerItemMetadata: Equatable, Hashable, Sendable {
+    public let id: MediaServerItemID
     public let name: String
-    public let imageTags: EmbyImageTags
+    public let imageTags: MediaServerImageTags
     public let overview: String?
     public let runTimeTicks: Int64?
-    public let userData: EmbyUserData?
+    public let userData: MediaServerUserData?
     public let entityTag: String?
     public let sizeInBytes: Int64?
     public let productionYear: Int?
     public let officialRating: String?
     public let communityRating: Double?
     public let genres: [String]
-    public let studios: [EmbyStudio]
-    public let people: [EmbyPerson]
+    public let studios: [MediaServerStudio]
+    public let people: [MediaServerPerson]
     public let productionLocations: [String]
-    public let mediaSources: [EmbyMediaSourceDescription]
+    public let mediaSources: [MediaServerMediaSourceDescription]
 
     public init(
-        id: EmbyItemID,
+        id: MediaServerItemID,
         name: String,
-        imageTags: EmbyImageTags,
+        imageTags: MediaServerImageTags,
         overview: String?,
         runTimeTicks: Int64?,
-        userData: EmbyUserData?,
+        userData: MediaServerUserData?,
         entityTag: String?,
         sizeInBytes: Int64?,
         productionYear: Int? = nil,
         officialRating: String? = nil,
         communityRating: Double? = nil,
         genres: [String] = [],
-        studios: [EmbyStudio] = [],
-        people: [EmbyPerson] = [],
+        studios: [MediaServerStudio] = [],
+        people: [MediaServerPerson] = [],
         productionLocations: [String] = [],
-        mediaSources: [EmbyMediaSourceDescription] = []
+        mediaSources: [MediaServerMediaSourceDescription] = []
     ) {
         self.id = id
         self.name = name
@@ -286,45 +298,45 @@ public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyMovie: Equatable, Hashable, Sendable {
-    public let metadata: EmbyItemMetadata
+public struct MediaServerMovie: Equatable, Hashable, Sendable {
+    public let metadata: MediaServerItemMetadata
 
-    public init(metadata: EmbyItemMetadata) {
+    public init(metadata: MediaServerItemMetadata) {
         self.metadata = metadata
     }
 }
 
-public struct EmbySeries: Equatable, Hashable, Sendable {
-    public let metadata: EmbyItemMetadata
+public struct MediaServerSeries: Equatable, Hashable, Sendable {
+    public let metadata: MediaServerItemMetadata
 
-    public init(metadata: EmbyItemMetadata) {
+    public init(metadata: MediaServerItemMetadata) {
         self.metadata = metadata
     }
 }
 
-public struct EmbySeason: Equatable, Hashable, Sendable {
-    public let metadata: EmbyItemMetadata
-    public let seriesID: EmbyItemID
+public struct MediaServerSeason: Equatable, Hashable, Sendable {
+    public let metadata: MediaServerItemMetadata
+    public let seriesID: MediaServerItemID
     public let indexNumber: Int?
 
-    public init(metadata: EmbyItemMetadata, seriesID: EmbyItemID, indexNumber: Int?) {
+    public init(metadata: MediaServerItemMetadata, seriesID: MediaServerItemID, indexNumber: Int?) {
         self.metadata = metadata
         self.seriesID = seriesID
         self.indexNumber = indexNumber
     }
 }
 
-public struct EmbyEpisode: Equatable, Hashable, Sendable {
-    public let metadata: EmbyItemMetadata
-    public let seriesID: EmbyItemID
-    public let seasonID: EmbyItemID?
+public struct MediaServerEpisode: Equatable, Hashable, Sendable {
+    public let metadata: MediaServerItemMetadata
+    public let seriesID: MediaServerItemID
+    public let seasonID: MediaServerItemID?
     public let seasonNumber: Int?
     public let episodeNumber: Int?
 
     public init(
-        metadata: EmbyItemMetadata,
-        seriesID: EmbyItemID,
-        seasonID: EmbyItemID?,
+        metadata: MediaServerItemMetadata,
+        seriesID: MediaServerItemID,
+        seasonID: MediaServerItemID?,
         seasonNumber: Int?,
         episodeNumber: Int?
     ) {
@@ -336,22 +348,22 @@ public struct EmbyEpisode: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyBoxSet: Equatable, Hashable, Sendable {
-    public let metadata: EmbyItemMetadata
+public struct MediaServerBoxSet: Equatable, Hashable, Sendable {
+    public let metadata: MediaServerItemMetadata
 
-    public init(metadata: EmbyItemMetadata) {
+    public init(metadata: MediaServerItemMetadata) {
         self.metadata = metadata
     }
 }
 
-public enum EmbyLibraryItem: Equatable, Hashable, Sendable {
-    case movie(EmbyMovie)
-    case series(EmbySeries)
-    case season(EmbySeason)
-    case episode(EmbyEpisode)
-    case boxSet(EmbyBoxSet)
+public enum MediaServerLibraryItem: Equatable, Hashable, Sendable {
+    case movie(MediaServerMovie)
+    case series(MediaServerSeries)
+    case season(MediaServerSeason)
+    case episode(MediaServerEpisode)
+    case boxSet(MediaServerBoxSet)
 
-    public var metadata: EmbyItemMetadata {
+    public var metadata: MediaServerItemMetadata {
         switch self {
         case .movie(let item): item.metadata
         case .series(let item): item.metadata
@@ -368,31 +380,31 @@ public enum EmbyLibraryItem: Equatable, Hashable, Sendable {
         }
     }
 
-    public var season: EmbySeason? {
+    public var season: MediaServerSeason? {
         guard case .season(let season) = self else { return nil }
         return season
     }
 
-    public var episode: EmbyEpisode? {
+    public var episode: MediaServerEpisode? {
         guard case .episode(let episode) = self else { return nil }
         return episode
     }
 }
 
-public struct EmbyLibraryView: Equatable, Hashable, Sendable {
-    public let id: EmbyItemID
+public struct MediaServerLibraryView: Equatable, Hashable, Sendable {
+    public let id: MediaServerItemID
     public let name: String
     public let collectionType: String?
-    public let imageTags: EmbyImageTags
+    public let imageTags: MediaServerImageTags
 
-    public init(id: EmbyItemID, name: String, collectionType: String?, imageTags: EmbyImageTags) {
+    public init(id: MediaServerItemID, name: String, collectionType: String?, imageTags: MediaServerImageTags) {
         self.id = id
         self.name = name
         self.collectionType = collectionType
         self.imageTags = imageTags
     }
 
-    public var topLevelItemKinds: [EmbyItemKind] {
+    public var topLevelItemKinds: [MediaServerItemKind] {
         switch collectionType?.lowercased() {
         case "tvshows": [.series]
         case "movies": [.movie, .boxSet]
@@ -401,17 +413,17 @@ public struct EmbyLibraryView: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyItemPage: Equatable, Hashable, Sendable {
-    public let items: [EmbyLibraryItem]
+public struct MediaServerItemPage: Equatable, Hashable, Sendable {
+    public let items: [MediaServerLibraryItem]
     public let totalRecordCount: Int
 
-    public init(items: [EmbyLibraryItem], totalRecordCount: Int) {
+    public init(items: [MediaServerLibraryItem], totalRecordCount: Int) {
         self.items = items
         self.totalRecordCount = totalRecordCount
     }
 }
 
-public enum EmbyItemSort: String, Codable, CaseIterable, Sendable {
+public enum MediaServerItemSort: String, Codable, CaseIterable, Sendable {
     case sortName = "SortName"
     case indexNumber = "IndexNumber"
     case dateCreated = "DateCreated"
@@ -422,12 +434,12 @@ public enum EmbyItemSort: String, Codable, CaseIterable, Sendable {
     case random = "Random"
 }
 
-public enum EmbySortOrder: String, Codable, Sendable {
+public enum MediaServerSortOrder: String, Codable, Sendable {
     case ascending = "Ascending"
     case descending = "Descending"
 }
 
-public enum EmbyItemKind: String, Codable, CaseIterable, Sendable {
+public enum MediaServerItemKind: String, Codable, CaseIterable, Sendable {
     case movie = "Movie"
     case series = "Series"
     case season = "Season"
@@ -435,20 +447,20 @@ public enum EmbyItemKind: String, Codable, CaseIterable, Sendable {
     case boxSet = "BoxSet"
 }
 
-public struct EmbyItemQuery: Equatable, Hashable, Sendable {
-    public let sortBy: [EmbyItemSort]
-    public let sortOrder: EmbySortOrder
+public struct MediaServerItemQuery: Equatable, Hashable, Sendable {
+    public let sortBy: [MediaServerItemSort]
+    public let sortOrder: MediaServerSortOrder
     public let startIndex: Int?
     public let limit: Int?
-    public let includeItemTypes: [EmbyItemKind]?
+    public let includeItemTypes: [MediaServerItemKind]?
     public let recursive: Bool
 
     public init(
-        sortBy: [EmbyItemSort] = [.sortName],
-        sortOrder: EmbySortOrder = .ascending,
+        sortBy: [MediaServerItemSort] = [.sortName],
+        sortOrder: MediaServerSortOrder = .ascending,
         startIndex: Int? = nil,
         limit: Int? = nil,
-        includeItemTypes: [EmbyItemKind]? = nil,
+        includeItemTypes: [MediaServerItemKind]? = nil,
         recursive: Bool = true
     ) {
         self.sortBy = sortBy
@@ -460,14 +472,14 @@ public struct EmbyItemQuery: Equatable, Hashable, Sendable {
     }
 }
 
-public enum EmbyImageType: String, Codable, Sendable {
+public enum MediaServerImageType: String, Codable, Sendable {
     case primary = "Primary"
     case backdrop = "Backdrop"
     case logo = "Logo"
     case thumb = "Thumb"
 }
 
-public struct EmbyImageSize: Equatable, Hashable, Sendable {
+public struct MediaServerImageSize: Equatable, Hashable, Sendable {
     public let maxWidth: Int?
     public let maxHeight: Int?
 
@@ -477,31 +489,32 @@ public struct EmbyImageSize: Equatable, Hashable, Sendable {
     }
 
     public static func width(_ value: Int) throws -> Self {
-        guard value > 0 else { throw EmbyError.invalidImageSize }
+        guard value > 0 else { throw MediaServerError.invalidImageSize }
         return Self(maxWidth: value, maxHeight: nil)
     }
 
     public static func height(_ value: Int) throws -> Self {
-        guard value > 0 else { throw EmbyError.invalidImageSize }
+        guard value > 0 else { throw MediaServerError.invalidImageSize }
         return Self(maxWidth: nil, maxHeight: value)
     }
 
     public static func fitting(maxWidth: Int, maxHeight: Int) throws -> Self {
-        guard maxWidth > 0, maxHeight > 0 else { throw EmbyError.invalidImageSize }
+        guard maxWidth > 0, maxHeight > 0 else { throw MediaServerError.invalidImageSize }
         return Self(maxWidth: maxWidth, maxHeight: maxHeight)
     }
 }
 
-public enum EmbyMediaStreamKind: String, Codable, Sendable {
+public enum MediaServerMediaStreamKind: String, Codable, Sendable {
     case video = "Video"
     case audio = "Audio"
     case subtitle = "Subtitle"
     case unknown = "Unknown"
 }
 
-public struct EmbyMediaStream: Equatable, Hashable, Sendable {
+public struct MediaServerMediaStream: Equatable, Hashable, Sendable {
     public let index: Int
-    public let kind: EmbyMediaStreamKind
+    public let playbackIndex: Int?
+    public let kind: MediaServerMediaStreamKind
     public let codec: String?
     public let language: String?
     public let displayLanguage: String?
@@ -529,7 +542,8 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
 
     public init(
         index: Int,
-        kind: EmbyMediaStreamKind,
+        playbackIndex: Int? = nil,
+        kind: MediaServerMediaStreamKind,
         codec: String?,
         language: String?,
         displayLanguage: String? = nil,
@@ -556,6 +570,7 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
         deliveryURL: String?
     ) {
         self.index = index
+        self.playbackIndex = isExternal ? nil : (playbackIndex ?? index)
         self.kind = kind
         self.codec = codec
         self.language = language
@@ -584,7 +599,7 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyDefaultStreamIndexes: Equatable, Hashable, Sendable {
+public struct MediaServerDefaultStreamIndexes: Equatable, Hashable, Sendable {
     public let video: Int?
     public let audio: Int?
     public let subtitle: Int?
@@ -596,23 +611,23 @@ public struct EmbyDefaultStreamIndexes: Equatable, Hashable, Sendable {
     }
 }
 
-public struct EmbyMediaSource: Equatable, Hashable, Sendable, Identifiable {
-    public let id: EmbyMediaSourceID
+public struct MediaServerMediaSource: Equatable, Hashable, Sendable, Identifiable {
+    public let id: MediaServerMediaSourceID
     public let displayName: String
     public let container: String?
     public let sizeInBytes: Int64?
-    public let mediaStreams: [EmbyMediaStream]
-    public let defaultStreamIndexes: EmbyDefaultStreamIndexes
+    public let mediaStreams: [MediaServerMediaStream]
+    public let defaultStreamIndexes: MediaServerDefaultStreamIndexes
     public let directPlayURL: URL
     public let versionedIdentity: VersionedMediaIdentity?
 
     public init(
-        id: EmbyMediaSourceID,
+        id: MediaServerMediaSourceID,
         displayName: String,
         container: String?,
         sizeInBytes: Int64?,
-        mediaStreams: [EmbyMediaStream],
-        defaultStreamIndexes: EmbyDefaultStreamIndexes,
+        mediaStreams: [MediaServerMediaStream],
+        defaultStreamIndexes: MediaServerDefaultStreamIndexes,
         directPlayURL: URL,
         versionedIdentity: VersionedMediaIdentity?
     ) {
@@ -627,17 +642,17 @@ public struct EmbyMediaSource: Equatable, Hashable, Sendable, Identifiable {
     }
 }
 
-public struct EmbyPlaybackSession: Equatable, Hashable, Sendable {
-    public let id: EmbyPlaySessionID
-    public let mediaSources: [EmbyMediaSource]
+public struct MediaServerPlaybackSession: Equatable, Hashable, Sendable {
+    public let id: MediaServerPlaySessionID
+    public let mediaSources: [MediaServerMediaSource]
 
-    public init(id: EmbyPlaySessionID, mediaSources: [EmbyMediaSource]) {
+    public init(id: MediaServerPlaySessionID, mediaSources: [MediaServerMediaSource]) {
         self.id = id
         self.mediaSources = mediaSources
     }
 }
 
-public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
+public struct MediaServerPlaybackReport: Equatable, Hashable, Sendable {
     public enum ProgressEvent: String, Encodable, Sendable {
         case timeUpdate = "TimeUpdate"
         case pause = "Pause"
@@ -646,20 +661,22 @@ public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
         case subtitleTrackChange = "SubtitleTrackChange"
     }
 
-    public let itemID: EmbyItemID
-    public let mediaSourceID: EmbyMediaSourceID
-    public let playSessionID: EmbyPlaySessionID
+    public let itemID: MediaServerItemID
+    public let mediaSourceID: MediaServerMediaSourceID
+    public let playSessionID: MediaServerPlaySessionID
     public let positionTicks: Int64
+    public let durationTicks: Int64?
     public let audioStreamIndex: Int?
     public let subtitleStreamIndex: Int?
     public let isPaused: Bool
     public let progressEvent: ProgressEvent?
 
     public init(
-        itemID: EmbyItemID,
-        mediaSourceID: EmbyMediaSourceID,
-        playSessionID: EmbyPlaySessionID,
+        itemID: MediaServerItemID,
+        mediaSourceID: MediaServerMediaSourceID,
+        playSessionID: MediaServerPlaySessionID,
         positionTicks: Int64,
+        durationTicks: Int64? = nil,
         audioStreamIndex: Int? = nil,
         subtitleStreamIndex: Int? = nil,
         isPaused: Bool = false,
@@ -669,6 +686,7 @@ public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
         self.mediaSourceID = mediaSourceID
         self.playSessionID = playSessionID
         self.positionTicks = positionTicks
+        self.durationTicks = durationTicks
         self.audioStreamIndex = audioStreamIndex
         self.subtitleStreamIndex = subtitleStreamIndex
         self.isPaused = isPaused
@@ -676,42 +694,42 @@ public struct EmbyPlaybackReport: Equatable, Hashable, Sendable {
     }
 }
 
-public enum EmbyError: Error, Equatable, Sendable {
+public enum MediaServerError: Error, Equatable, Sendable {
     case invalidBaseAddress
     case invalidImageSize
     case invalidResponse
     case httpStatus(Int)
     case missingRequiredField(String)
-    case childrenUnavailable(EmbyItemID)
-    case directPlayUnavailable(EmbyItemID)
+    case childrenUnavailable(MediaServerItemID)
+    case directPlayUnavailable(MediaServerItemID)
     case externalSubtitleUnavailable(Int)
-    case mediaSourceUnavailable(EmbyItemID, EmbyMediaSourceID)
+    case mediaSourceUnavailable(MediaServerItemID, MediaServerMediaSourceID)
     case notAuthenticated
 }
 
-extension EmbyError: LocalizedError {
+extension MediaServerError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidBaseAddress:
-            "The Emby server address is invalid."
+            "The media server address is invalid."
         case .invalidImageSize:
-            "The requested Emby image size is invalid."
+            "The requested media image size is invalid."
         case .invalidResponse:
-            "The Emby server returned an invalid response."
+            "The media server returned an invalid response."
         case let .httpStatus(status):
-            "The Emby server returned HTTP status \(status)."
+            "The media server returned HTTP status \(status)."
         case let .missingRequiredField(field):
-            "The Emby response is missing \(field)."
+            "The media response is missing \(field)."
         case .childrenUnavailable:
-            "The requested Emby collection is unavailable."
+            "The requested media collection is unavailable."
         case .directPlayUnavailable:
-            "Emby did not provide a direct-play media source."
+            "The server did not provide a direct-play media source."
         case let .externalSubtitleUnavailable(index):
-            "Emby did not provide external subtitle track \(index)."
+            "The server did not provide external subtitle track \(index)."
         case .mediaSourceUnavailable:
-            "The selected Emby media source is unavailable."
+            "The selected media media source is unavailable."
         case .notAuthenticated:
-            "Sign in to the Emby server before playing this item."
+            "Sign in to the media server before playing this item."
         }
     }
 }

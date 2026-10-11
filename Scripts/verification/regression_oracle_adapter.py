@@ -280,7 +280,7 @@ def build_typed_evidence_payload(
             "typed evidence requires a successful raw Operation output"
         )
     _reject_embedded_judgment(output, "operation output")
-    _validate_operation_output(spec, output)
+    _validate_operation_output(spec, output, provenance_payload["producer"]["arguments"])
     transcript = _validate_operation_transcript(
         list(operation_transcript),
         provenance_payload["producer"],
@@ -584,7 +584,11 @@ def _reject_embedded_judgment(value: Any, location: str) -> None:
         raise OracleAdapterError(f"{location} contains a producer judgment token")
 
 
-def _validate_operation_output(spec: OracleSpec, output: Mapping[str, Any]) -> None:
+def _validate_operation_output(
+    spec: OracleSpec,
+    output: Mapping[str, Any],
+    arguments: Mapping[str, Any],
+) -> None:
     evidence_type = spec.evidence_type
     if evidence_type == "audio.measurement":
         _require_nonempty_object(output, "measurement")
@@ -616,6 +620,29 @@ def _validate_operation_output(spec: OracleSpec, output: Mapping[str, Any]) -> N
             raise OracleAdapterError(
                 "operation output matchedElement.value must carry artworkLoads"
             )
+        expected_provider = arguments.get("mediaServerProvider", "emby")
+        if expected_provider != "emby" or output.get("expectedProvider") != expected_provider:
+            raise OracleAdapterError("Emby evidence must bind the expected provider emby")
+        account = evidence.get("account")
+        if not isinstance(account, dict) or account.get("provider") != expected_provider:
+            raise OracleAdapterError("media server product provider differs from its expected provider")
+        reports = [
+            report for report in output.get("relatedResults", [])
+            if isinstance(report, dict)
+            and report.get("schema") == "enchron.regression.emby-source-preflight@2"
+        ]
+        if len(reports) != 1 or reports[0].get("provider") != expected_provider:
+            raise OracleAdapterError("media server evidence requires one host report with the same provider")
+        report = reports[0]
+        if report.get("ready") is not True or report.get("check") != "emby-aggregate":
+            raise OracleAdapterError("media server host report must describe a ready Emby source")
+        receipt = report.get("receipt")
+        if not isinstance(receipt, dict):
+            raise OracleAdapterError("media server host report must carry its account receipt")
+        for field in ("serverID", "userID"):
+            value = account.get(field)
+            if not isinstance(value, str) or not value or receipt.get(field) != value:
+                raise OracleAdapterError(f"media server {field} differs between product and host")
     elif evidence_type == "interaction.trace":
         _require_text_array(output, "interactionTrace")
     elif evidence_type == "library.command":
@@ -982,7 +1009,6 @@ def _validate_typed_payload(payload: Mapping[str, Any], spec: OracleSpec) -> Non
     _reject_embedded_judgment(
         operation_output, "artifact payload operationOutput"
     )
-    _validate_operation_output(spec, operation_output)
     producer = _validate_provenance(
         {
             "obligationId": payload.get("obligationId"),
@@ -990,6 +1016,7 @@ def _validate_typed_payload(payload: Mapping[str, Any], spec: OracleSpec) -> Non
             "producer": payload.get("producer"),
         }
     )["producer"]
+    _validate_operation_output(spec, operation_output, producer["arguments"])
     _validate_operation_transcript(
         payload.get("operationTranscript"),
         producer,

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import Emby
+@testable import MediaServer
 
 #if DEBUG
 @Suite("Emby accessibility evidence")
@@ -8,18 +8,18 @@ struct EmbyAccessibilityEvidenceTests {
     @MainActor
     @Test("structured evidence retains Home routes and a season transition")
     func routeAndSeasonEvidence() throws {
-        let server = EmbyAuthenticatedServer(
-            id: EmbyServerID(rawValue: "server-regression"),
+        let server = MediaServerAuthenticatedServer(
+            id: MediaServerServerID(rawValue: "server-regression"),
             name: "Regression",
             baseAddress: try #require(URL(string: "http://192.0.2.10:8096")),
             accessToken: "secret-token-that-must-not-leak",
-            userID: EmbyUserID(rawValue: "user-regression")
+            userID: MediaServerUserID(rawValue: "user-regression")
         )
-        let library = EmbyLibraryView(
-            id: EmbyItemID(rawValue: "library-regression"),
+        let library = MediaServerLibraryView(
+            id: MediaServerItemID(rawValue: "library-regression"),
             name: "Regression Library",
             collectionType: "tvshows",
-            imageTags: EmbyImageTags()
+            imageTags: MediaServerImageTags()
         )
         let series = evidenceSeries(id: "series-regression")
         let firstSeason = evidenceSeason(id: "season-1", seriesID: series.metadata.id)
@@ -27,19 +27,19 @@ struct EmbyAccessibilityEvidenceTests {
         let firstEpisode = evidenceEpisode(id: "episode-1", seasonID: firstSeason.metadata.id)
         let secondEpisode = evidenceEpisode(id: "episode-2", seasonID: secondSeason.metadata.id)
         let shelves = [
-            EmbyHomeShelf(
+            MediaServerHomeShelf(
                 kind: .nextUp,
                 title: "Next Up",
                 items: [.episode(firstEpisode)]
             ),
-            EmbyHomeShelf(
+            MediaServerHomeShelf(
                 kind: .recentlyAdded(library.id),
                 title: "Recently Added",
                 items: [series]
             )
         ]
-        let navigation = EmbyNavigationModel(destination: .home, path: [series])
-        var journal = EmbyEvidenceJournal()
+        let navigation = MediaServerNavigationModel(destination: .home, path: [series])
+        var journal = MediaServerEvidenceJournal()
         journal.recordHomeActivation(
             surface: .poster,
             cardIdentifier: "Emby-PosterCard-series-regression",
@@ -70,7 +70,7 @@ struct EmbyAccessibilityEvidenceTests {
             afterEpisodes: [secondEpisode]
         )
 
-        let evidence = EmbyAccessibilityEvidence(
+        let evidence = MediaServerAccessibilityEvidence(
             server: server,
             navigation: navigation,
             libraries: [library],
@@ -100,8 +100,8 @@ struct EmbyAccessibilityEvidenceTests {
 
     @Test("zero and unavailable are distinct evidence states")
     func observationStates() throws {
-        let zero = EmbyObservation<Int>.observed(0)
-        let missing = EmbyObservation<Int>.unavailable("not-observed")
+        let zero = MediaServerObservation<Int>.observed(0)
+        let missing = MediaServerObservation<Int>.unavailable("not-observed")
 
         #expect(zero.status == .observed)
         #expect(zero.value == 0)
@@ -115,18 +115,18 @@ struct EmbyAccessibilityEvidenceTests {
     @MainActor
     @Test("playback projection retains requested starts and every server-accepted report")
     func playbackProjection() throws {
-        let server = EmbyAuthenticatedServer(
-            id: EmbyServerID(rawValue: "server"),
+        let server = MediaServerAuthenticatedServer(
+            id: MediaServerServerID(rawValue: "server"),
             name: "Server",
             baseAddress: try #require(URL(string: "http://example.test:8096")),
             accessToken: "private-token",
-            userID: EmbyUserID(rawValue: "user")
+            userID: MediaServerUserID(rawValue: "user")
         )
-        let itemID = EmbyItemID(rawValue: "episode")
-        let sourceID = EmbyMediaSourceID(rawValue: "source")
-        let playSessionID = EmbyPlaySessionID(rawValue: "play-session")
-        var journal = EmbyEvidenceJournal()
-        journal.recordPreparedPlayback(EmbyPreparedPlaybackEvidence(
+        let itemID = MediaServerItemID(rawValue: "episode")
+        let sourceID = MediaServerMediaSourceID(rawValue: "source")
+        let playSessionID = MediaServerPlaySessionID(rawValue: "play-session")
+        var journal = MediaServerEvidenceJournal()
+        journal.recordPreparedPlayback(MediaServerPreparedPlaybackEvidence(
             serverID: server.id,
             userID: server.userID,
             itemID: itemID,
@@ -136,13 +136,13 @@ struct EmbyAccessibilityEvidenceTests {
             freshServerProgressTicks: 50_000_000,
             appliedStartTicks: 50_000_000
         ))
-        let reports: [(EmbyAcceptedPlaybackReport.Event, Int64)] = [
-            (EmbyAcceptedPlaybackReport.Event.started, 50_000_000),
+        let reports: [(MediaServerAcceptedPlaybackReport.Event, Int64)] = [
+            (MediaServerAcceptedPlaybackReport.Event.started, 50_000_000),
             (.progress, 60_000_000),
             (.stopped, 70_000_000)
         ]
         for (event, position) in reports {
-            journal.recordAcceptedPlaybackReport(EmbyAcceptedPlaybackReport(
+            journal.recordAcceptedPlaybackReport(MediaServerAcceptedPlaybackReport(
                 event: event,
                 serverID: server.id,
                 userID: server.userID,
@@ -153,9 +153,9 @@ struct EmbyAccessibilityEvidenceTests {
             ))
         }
 
-        let document = EmbyAccessibilityEvidence(
+        let document = MediaServerAccessibilityEvidence(
             server: server,
-            navigation: EmbyNavigationModel(),
+            navigation: MediaServerNavigationModel(),
             libraries: [],
             shelves: [],
             homeIsLoading: false,
@@ -182,33 +182,33 @@ struct EmbyAccessibilityEvidenceTests {
 
 }
 
-private func evidenceSeries(id: String) -> EmbyLibraryItem {
-    .series(EmbySeries(metadata: evidenceMetadata(id: id)))
+private func evidenceSeries(id: String) -> MediaServerLibraryItem {
+    .series(MediaServerSeries(metadata: evidenceMetadata(id: id)))
 }
 
-private func evidenceSeason(id: String, seriesID: EmbyItemID) -> EmbySeason {
-    EmbySeason(
+private func evidenceSeason(id: String, seriesID: MediaServerItemID) -> MediaServerSeason {
+    MediaServerSeason(
         metadata: evidenceMetadata(id: id),
         seriesID: seriesID,
         indexNumber: id.hasSuffix("2") ? 2 : 1
     )
 }
 
-private func evidenceEpisode(id: String, seasonID: EmbyItemID) -> EmbyEpisode {
-    EmbyEpisode(
+private func evidenceEpisode(id: String, seasonID: MediaServerItemID) -> MediaServerEpisode {
+    MediaServerEpisode(
         metadata: evidenceMetadata(id: id),
-        seriesID: EmbyItemID(rawValue: "series-regression"),
+        seriesID: MediaServerItemID(rawValue: "series-regression"),
         seasonID: seasonID,
         seasonNumber: seasonID.rawValue.hasSuffix("2") ? 2 : 1,
         episodeNumber: 1
     )
 }
 
-private func evidenceMetadata(id: String) -> EmbyItemMetadata {
-    EmbyItemMetadata(
-        id: EmbyItemID(rawValue: id),
+private func evidenceMetadata(id: String) -> MediaServerItemMetadata {
+    MediaServerItemMetadata(
+        id: MediaServerItemID(rawValue: id),
         name: id,
-        imageTags: EmbyImageTags(),
+        imageTags: MediaServerImageTags(),
         overview: nil,
         runTimeTicks: nil,
         userData: nil,

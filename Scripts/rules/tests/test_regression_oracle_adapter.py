@@ -127,9 +127,20 @@ def _raw_output(identifier: str) -> dict[str, object]:
         },
         "oracle:agent-structured-emby-evidence@1": {
             "succeeded": True,
+            "expectedProvider": "emby",
+            "relatedResults": [{
+                "schema": "enchron.regression.emby-source-preflight@2",
+                "provider": "emby",
+                "check": "emby-aggregate",
+                "ready": True,
+                "receipt": {"serverID": "server", "userID": "user"},
+            }],
             "matchedElement": {
                 "identifier": "Emby-Evidence",
-                "value": json.dumps({"artworkLoads": []}),
+                "value": json.dumps({
+                    "artworkLoads": [],
+                    "account": {"provider": "emby", "serverID": "server", "userID": "user"},
+                }),
             },
             "response": {"success": True},
         },
@@ -377,6 +388,61 @@ class OracleAdapterTests(unittest.TestCase):
                     "matchedElement.value",
                 ):
                     _typed_payload(spec.evidence_type, spec.evidence_schema, raw)
+
+    def test_emby_evidence_rejects_mixed_or_missing_provider_and_account(self) -> None:
+        spec = adapter.SPECS["oracle:agent-structured-emby-evidence@1"]
+        for field, value in (("provider", "plex"), ("provider", "jellyfin"),
+                             ("provider", None), ("serverID", "other"), ("userID", "other")):
+            with self.subTest(field=field, value=value):
+                raw = _raw_output(spec.identifier)
+                evidence = json.loads(raw["matchedElement"]["value"])
+                evidence["account"][field] = value
+                raw["matchedElement"]["value"] = json.dumps(evidence)
+                with self.assertRaises(adapter.OracleAdapterError):
+                    _typed_payload(spec.evidence_type, spec.evidence_schema, raw)
+        for provider in (None, "plex", "jellyfin"):
+            with self.subTest(hostProvider=provider):
+                raw = _raw_output(spec.identifier)
+                raw["relatedResults"][0]["provider"] = provider
+                with self.assertRaises(adapter.OracleAdapterError):
+                    _typed_payload(spec.evidence_type, spec.evidence_schema, raw)
+        for location in ("account", "host", "output"):
+            with self.subTest(missingProvider=location):
+                raw = _raw_output(spec.identifier)
+                if location == "account":
+                    evidence = json.loads(raw["matchedElement"]["value"])
+                    del evidence["account"]["provider"]
+                    raw["matchedElement"]["value"] = json.dumps(evidence)
+                elif location == "host":
+                    del raw["relatedResults"][0]["provider"]
+                else:
+                    del raw["expectedProvider"]
+                with self.assertRaises(adapter.OracleAdapterError):
+                    _typed_payload(spec.evidence_type, spec.evidence_schema, raw)
+        for report_change in ("missing", "duplicate", "old-schema", "not-ready"):
+            with self.subTest(report=report_change):
+                raw = _raw_output(spec.identifier)
+                if report_change == "missing":
+                    raw.pop("relatedResults")
+                elif report_change == "duplicate":
+                    raw["relatedResults"].append(dict(raw["relatedResults"][0]))
+                elif report_change == "old-schema":
+                    raw["relatedResults"][0]["schema"] = "enchron.regression.emby-source-preflight@1"
+                else:
+                    raw["relatedResults"][0]["ready"] = False
+                with self.assertRaises(adapter.OracleAdapterError):
+                    _typed_payload(spec.evidence_type, spec.evidence_schema, raw)
+
+    def test_emby_evidence_binds_provider_to_immutable_operation_arguments(self) -> None:
+        spec = adapter.SPECS["oracle:agent-structured-emby-evidence@1"]
+        raw = _raw_output(spec.identifier)
+        arguments = {"mediaServerProvider": "plex"}
+        provenance = replace(PROVENANCE, arguments=arguments, arguments_digest=canonical_digest(arguments))
+        with self.assertRaisesRegex(adapter.OracleAdapterError, "expected provider"):
+            adapter.build_typed_evidence_payload(
+                spec.evidence_type, spec.evidence_schema, raw, provenance,
+                operation_transcript=_successful_transcript(raw),
+            )
 
     def test_builder_and_reader_reject_producer_judgments(self) -> None:
         spec = adapter.SPECS["oracle:agent-structured-window-control-plane@1"]

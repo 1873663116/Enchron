@@ -1,6 +1,6 @@
 # 浏览与来源的外部约束
 
-本文记录 `Modules/Emby`、`Modules/MediaLibrary` 与 `Modules/MediaSource` 里**无法从代码本身读出**的事实：Emby 服务器的数据形状、visionOS 列表与滚动的实测行为、以及文件浏览导航栈与字节流的边界。
+本文记录 `Modules/MediaServer`、`Modules/MediaLibrary` 与 `Modules/MediaSource` 里**无法从代码本身读出**的事实：Emby 服务器的数据形状、visionOS 列表与滚动的实测行为、以及文件浏览导航栈与字节流的边界。
 
 ## Emby 服务器的数据形状
 
@@ -18,6 +18,11 @@
 
 - **`FileFilter.playable` 按容器受理，`MediaDiscoveryAdmissionPolicy.mediaFiles` 不列任何基本流扩展名**。裸的 `.dts` 与 `.thd` 因此永远不会出现在库里，DTS 与 TrueHD 要被编码矩阵打开，只能以 Matroska 封装入库。`Scripts/verification/regression_preparation_adapter.py` 的 format-corpus 必需固件集据此选片。
 
+## Plex 账号授权
+
+- 同一个刚创建且未过期的 PIN，轮询接口可能交替返回 HTTP 200 与 404。2026-10-08 的真机、Foundation 和 Python 请求均复现了这一行为。404 响应中的 `Code not found or expired` 不能单独证明 PIN 已过期；等待上限采用创建响应的 `expiresIn`。`EmbyClientTests.plexSignInWaitsForPINAuthorization` 验证首次轮询 404 后仍能完成授权。
+- Plex 官方授权网页也通过 PIN 查询确认请求。该查询失败时，网页可能显示 `We were unable to complete this request`，随后跳转至 Plex 网站。网页跳转不代表账号授权成功；原生端收到授权令牌并取得服务器列表才是完成判据。
+
 ## 凭据表单与系统 Save-Password 面板
 
 - **Emby 连接表单声明 `textContentType(.username)` 与 `textContentType(.password)`，提交它会引出系统的 Save-Password 面板**。WebDAV 与 SMB 的连接表单同样如此：产品提交的每一个凭据表单都会引出这张面板。见 `Scripts/verification/regression_preparation_adapter.py` 与 `Scripts/rules/tests/test_regression_preparation_adapter.py`。
@@ -26,7 +31,7 @@
 ## 服务器证书信任
 
 - **未进入信任链的证书按 Trust-on-First-Use 处理**。`ServerTrustPolicy.urlSession(_:didReceive:completionHandler:)`（`Modules/MediaSource/ServerTrustPolicy.swift`）在系统信任评估失败时不弹系统对话框，而是自己记指纹：证书 DER 编码的 SHA-256 存进 `UserDefaults.standard`，键是 `server-certificate-fingerprint.<host小写>:<port>`（`fingerprintKey(address:)`）。指纹只在佩戴者批准之后写入（`ServerTrustPolicy.swift:145`），此后这个地址的这张证书不再被问起；产品没有暴露任何界面能删掉这个键、把地址重新变回未验证状态。
-- **证书确认框只在一个连接批准窗口内出现**。`withConnectionApproval(to:operation:)` 给每个地址维护一个深度计数器，`operation` 开始时加一、结束时减一；`reportUntrustedCertificate` 用这个计数器是否大于 0 决定要不要弹框。整个代码库只有两处调用它，都在建立连接、而不是播放期间的普通请求上：`EmbyClient.authenticate(address:username:password:)`（`Modules/Emby/EmbyClient.swift:50`）包住登录请求，`WebDAVDataSourceAdapter.connect(with:)`（`Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift:59`）包住 `validateConnection`。
+- **证书确认框只在一个连接批准窗口内出现**。`withConnectionApproval(to:operation:)` 给每个地址维护一个深度计数器，`operation` 开始时加一、结束时减一；`reportUntrustedCertificate` 用这个计数器是否大于 0 决定要不要弹框。整个代码库只有两处调用它，都在建立连接、而不是播放期间的普通请求上：`MediaBrowserClient.authenticate(address:username:password:)`（`Modules/MediaServer/MediaBrowserClient.swift:50`）包住登录请求，`WebDAVDataSourceAdapter.connect(with:)`（`Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift:59`）包住 `validateConnection`。
 - **窗口之外质询被直接取消，但改变通知已经先发出**。`urlSession(_:didReceive:completionHandler:)` 在深度计数器为 0 时用 `guard reportUntrustedCertificate(...), let approvalHandler else { completionHandler(.cancelAuthenticationChallenge, nil); return }` 拒绝质询，请求随之失败。但这个 `guard` 的第一个条件就是 `reportUntrustedCertificate` 本身的返回值：它只要读到一个与新指纹不同的旧指纹，就先把 `ServerCertificateChange` 派给 `certificateChangeHandler`，再返回批准窗口深度是否大于 0；这一步不看当前是否在窗口内，窗口只决定接下来要不要弹出确认框。
 - **佩戴者看到的是专用问题，不是随后到来的连接错误**。`certificateChangeHandler` 串到 `ServerCertificateChangePlaybackBoundary.receive(_:)`（`Apps/Enchron/EnchronApplication.swift:274`）：记一条 `certificateBoundary changed previous=... new=...` 诊断，播放正在进行就先暂停，再把 `PlaybackUserVisibleIssue.serverCertificateChanged` 设成当前问题；没有播放在跑时不暂停，问题照样设置（`ServerCertificateChangePlaybackBoundaryTests.testCertificateChangeWithoutPlayingSessionDoesNotPause`）。这个问题标题是 "Server Certificate Changed"，正文是 "The server certificate changed. Close playback before reconnecting."，唯一允许的动作是 `.close`，呈现在 `.mainWindow` 与 `.immersiveSpace`（`PlaybackUserVisibleIssue.swift:9`、`:146`、`:166`、`:208`、`:309`）；重新连接才会再次进入批准窗口。
 - **这个问题在播放停止前不会被通用失败顶掉**。`protectsCertificateChangeIssue` 在收到改变通知的那一刻记下当时有没有播放在跑；此后每来一次 `.activeFailure` 观察，只要这个标记为真就把问题重新设回 `.serverCertificateChanged`，直到 `.stopped` 事件把标记清掉。改变通知落地时那台服务器已经不可信，播放核心随后几乎总会自己先报一次连接类失败；没有这层保护，证书变了这个真正原因会立刻被更笼统的失败问题盖住。`ServerCertificateChangePlaybackBoundaryTests.testActiveFailureCannotReplaceCertificateIssueUntilPlaybackStops` 钉住这条保护。
@@ -102,10 +107,10 @@
 
 ## Emby 交给播放核心的只有字节
 
-- **服务器没标为可直接播放的 media source 整个进不了列表**。`mapMediaSource(_:item:server:)`（`Modules/Emby/EmbyClient.swift:624`）第一步是 `guard source.supportsDirectPlay == true else { return nil }`，只支持转码或 direct stream 的版本在这里就被丢弃，播放核心永远看不到它们。`playbackInfo(for:on:)`（`Modules/Emby/EmbyClient.swift:388`）用 `compactMap` 收集剩下的结果，全部被丢掉时（`mediaSources.isEmpty`）直接 `throw EmbyError.directPlayUnavailable(itemID)`；这个错误没有专门的提示，跟其他播放请求失败一样被 `MainView` 通用捕获、设成 `.mediaRequestFailed`（`Apps/Enchron/MainView.swift:116`）——标题 "Unable to Play"，正文 "This item could not be prepared for playback."。
-- **流地址不带容器扩展名**：`/Videos/{id}/stream?Static=true&MediaSourceId=…`。Emby 对带扩展名与不带扩展名的地址回同一份字节（在真实服务器上核对过一部正常 MP4 与一部 Container 标成 mpegts 的 M2TS），带上扩展名只会把服务器自述的容器名塞进地址；`MediaSources[].Container` 会错，播放核心自己从内容判定容器，所以它在 `EmbyMediaSource` 上只是展示信息，缺失也不阻止播放。
-- **服务器自述的视频编码不预先拒绝播放**。以前 `EmbyPlaybackBridge` 用 Emby 报的 codec 名对照一张自己的白名单，在打开之前就抛错；那张表与播放核心的解码判定是两份会漂移的真相，而且自述可以错。现在编码是否可放由播放核心打开字节后判定，Emby 与本地文件走同一条路、得到同一种 "Unable to Play"。断言见 `Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift` 的 `declaredCodecDoesNotGatePlayback`。
-- **同一个文件经本地、共享（SMB／WebDAV 登记真实文件名）、Emby（登记无扩展名的服务器名字、经 `EmbyMediaByteSource` 取字节）三种形态送进播放核心，核心报出的编码、尺寸、时长、帧率、音轨、字幕轨、起播与 seek 落点必须完全一致**。任何一条路和本地不一样，就是中转链掉了东西。断言见 `Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift` 的 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughEveryRoute`（MKV 多轨与 MP4 各跑三条路，不依赖外部服务）与 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughTheLiveShares`（真实的 WebDAV 与 SMB 测试服务：读 `test-services/{webdav,smb}/runtime.json` 的身份，经 `WebDAVDataSourceAdapter`／`SMBDataSourceAdapter` 连接、列目录、取播放源，用 WebDAV 回归集合与 SMB 共享都持有的 `sdr-bframe-aggregate-30s.mkv`；两个 runtime.json 缺一即跳过，服务由 `Scripts/verification/ensure_test_services.py` 维护）。
+- **服务器没标为可直接播放的 media source 整个进不了列表**。`mapMediaSource(_:item:server:)`（`Modules/MediaServer/MediaBrowserClient.swift:624`）第一步是 `guard source.supportsDirectPlay == true else { return nil }`，只支持转码或 direct stream 的版本在这里就被丢弃，播放核心永远看不到它们。`playbackInfo(for:on:)`（`Modules/MediaServer/MediaBrowserClient.swift:388`）用 `compactMap` 收集剩下的结果，全部被丢掉时（`mediaSources.isEmpty`）直接 `throw MediaServerError.directPlayUnavailable(itemID)`；这个错误没有专门的提示，跟其他播放请求失败一样被 `MainView` 通用捕获、设成 `.mediaRequestFailed`（`Apps/Enchron/MainView.swift:116`）——标题 "Unable to Play"，正文 "This item could not be prepared for playback."。
+- **流地址不带容器扩展名**：`/Videos/{id}/stream?Static=true&MediaSourceId=…`。Emby 对带扩展名与不带扩展名的地址回同一份字节（在真实服务器上核对过一部正常 MP4 与一部 Container 标成 mpegts 的 M2TS），带上扩展名只会把服务器自述的容器名塞进地址；`MediaSources[].Container` 会错，播放核心自己从内容判定容器，所以它在 `MediaServerMediaSource` 上只是展示信息，缺失也不阻止播放。
+- **服务器自述的视频编码不预先拒绝播放**。以前 `MediaServerPlaybackBridge` 用 Emby 报的 codec 名对照一张自己的白名单，在打开之前就抛错；那张表与播放核心的解码判定是两份会漂移的真相，而且自述可以错。现在编码是否可放由播放核心打开字节后判定，Emby 与本地文件走同一条路、得到同一种 "Unable to Play"。断言见 `Tests/EmbyPackageTests/EmbyPlaybackBridgeTests.swift` 的 `declaredCodecDoesNotGatePlayback`。
+- **同一个文件经本地、共享（SMB／WebDAV 登记真实文件名）、Emby（登记无扩展名的服务器名字、经 `MediaServerByteSource` 取字节）三种形态送进播放核心，核心报出的编码、尺寸、时长、帧率、音轨、字幕轨、起播与 seek 落点必须完全一致**。任何一条路和本地不一样，就是中转链掉了东西。断言见 `Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift` 的 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughEveryRoute`（MKV 多轨与 MP4 各跑三条路，不依赖外部服务）与 `testTheSameFileReachesThePlaybackCoreIdenticallyThroughTheLiveShares`（真实的 WebDAV 与 SMB 测试服务：读 `test-services/{webdav,smb}/runtime.json` 的身份，经 `WebDAVDataSourceAdapter`／`SMBDataSourceAdapter` 连接、列目录、取播放源，用 WebDAV 回归集合与 SMB 共享都持有的 `sdr-bframe-aggregate-30s.mkv`；两个 runtime.json 缺一即跳过，服务由 `Scripts/verification/ensure_test_services.py` 维护）。
 
 ## SMB 与 WebDAV 的形状
 
@@ -125,3 +130,15 @@
 
 - 远程封面落盘时按 `CGImage.alphaInfo` 选格式：带透明通道的存 PNG，不带的存 JPEG（0.72）。Emby 的 Logo 图是带透明通道的 PNG（2026-09-05 从服务器直接验证：Evangelion 的 Logo 743×306 RGBA，74% 像素透明），统一存成 JPEG 会把透明区域压成白色，第二次打开详情页标题就带白框。
 - `ArtworkKey(remoteImageURL:)` 的散列输入带 `alpha-aware|` 前缀，旧的 JPEG 副本因此被绕开而不是被读回；它们留在 Caches 里由系统回收。
+
+## Plex 与 Jellyfin 的服务差异
+
+- Plex timeline 必须携带 `duration`（毫秒）。PMS 1.43.4 对缺少该字段的请求返回 200，但实测不保存续播位置。验收以重新读取 `viewOffset` 为准。
+- Plex `/library/onDeck` 包含未开始的下一集，`/hubs/home/continueWatching` 仅返回进行中的项目。两者不能作为同一栏目使用。
+- Plex 的主预告片可能只存在于 `primaryExtraKey`，`Extras.Metadata` 为空。相关推荐位于 `/library/metadata/{id}/related` 的 `Hub`，实测电影的 `hubIdentifier` 为 `movie.similar`。
+- Jellyfin 12.2 在 `EnableLegacyAuthorization=false` 时拒绝 `X-Emby-*` 鉴权头。`Authorization: MediaBrowser ... Token="..."` 和媒体 URL 的 `api_key` 查询参数可用。
+- Jellyfin 可以省略媒体流地址与外挂字幕 `DeliveryUrl`。直接播放使用 `/Videos/{itemId}/stream?Static=true`；字幕使用 `/Videos/{itemId}/{sourceId}/Subtitles/{index}/Stream.{format}`。
+- Jellyfin 的外挂字幕可能排在内嵌流之前，并占用服务器的 Index。内嵌流的文件编号需要排除此前的外挂字幕；回报选择时需要反向转换。
+- Jellyfin 12.2 的 macOS 图形启动器使用固定数据目录。接入已有服务时，传给子进程的 `--datadir` 必须是原来的真实目录；仅用符号链接映射到相同文件会改变库入口的路径身份。当前本机启动器在启动服务前解析目录链接，复用现有账号、库入口 ID 和媒体索引。原始应用及数据库保存在服务目录的 `gui-migration-backup` 中。
+- 同一媒体目录仅保证原文件相同。服务数据库、刮削结果、媒体 ID 与观看记录独立。测试样本目录只读，服务缓存与配置分别保存。
+- macOS 对 launchd 后台程序访问 CloudStorage／网络宗卷的授权与交互式终端环境不同。自动刷新必须以实际后台进程的目录读取结果验收；目录不可达时不得把一次失败扫描当作媒体删除。Plex 自动清空回收站保持关闭，Jellyfin 在刷新前检查挂载和原始目录。

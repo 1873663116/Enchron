@@ -256,7 +256,8 @@
       "callId": "call:preparation:local-directory-subtitle-source:25",
       "operation": "operation:host.preflight@1",
       "arguments": {
-        "check": "emby-aggregate"
+        "check": "emby-aggregate",
+        "mediaServerProvider": "emby"
       },
       "maxInvocations": 1
     },

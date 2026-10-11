@@ -5,6 +5,7 @@
   "id": "rubric:emby-server-lifecycle.artwork-by-image-tag.o01@1",
   "title": "Artwork By Image Tag",
   "criteria": [
+    "The producing call declares mediaServerProvider=emby. Product account.provider and the current typed host report provider both equal emby; product account.serverID and account.userID equal the host receipt serverID and userID. Missing identity or evidence from Plex, Jellyfin, another server, or another account cannot satisfy this Emby obligation.",
     "The bound emby.evidence carries an artworkLoads entry whose itemID is the inlined host report's receipt.catalog.seriesID and whose imageTag is that report's receipt.catalog.imageTag; its sanitizedRequestURL is the server image endpoint /Items/<that seriesID>/Images/Primary carrying Tag=<that imageTag>; and its persistedCache is observed with artworkKey equal to that same entry's cacheKey, a 64-character lowercase hex digest. The stored entry is keyed by the tag-bearing request rather than by the item; that the tag itself participates in the key is the separate alternateTagCacheKey criterion, because the evidence never exposes the digest's preimage.",
     "The bound emby.evidence inlines viewingStorageObservation; directory content and viewing progress remain absent from that snapshot (viewingRecordCount 0 and no viewingState entries).",
     "The same artworkLoads entry carries alternateTagCacheKey different from its cacheKey, which establishes that the image tag participates in the persisted key without reading the tag back out of a SHA-256 whose preimage carries the api_key."

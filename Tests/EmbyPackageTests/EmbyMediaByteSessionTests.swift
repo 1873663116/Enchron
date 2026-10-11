@@ -1,13 +1,13 @@
 import Foundation
 import MediaSource
-@testable import Emby
+@testable import MediaServer
 import Testing
 
 struct EmbyMediaByteSessionTests {
     @Test("media byte reads default to the session that carries the server trust policy")
     func byteSourceUsesTheTrustedSession() throws {
         let url = try #require(URL(string: "https://192.168.5.28:8920/emby/Videos/1/stream.mkv"))
-        let source = EmbyMediaByteSource(
+        let source = MediaServerByteSource(
             streamURL: url,
             accessToken: "token",
             contentLength: 1_024

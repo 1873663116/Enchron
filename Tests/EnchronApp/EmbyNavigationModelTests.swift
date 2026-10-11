@@ -1,4 +1,4 @@
-import Emby
+import MediaServer
 import Testing
 
 @Suite("Emby navigation")
@@ -6,9 +6,9 @@ import Testing
 struct EmbyNavigationModelTests {
     @Test("Navigation position survives a browser unmount")
     func navigationPositionSurvivesBrowserUnmount() {
-        let applicationNavigation = EmbyNavigationModel()
-        var mountedBrowserNavigation: EmbyNavigationModel? = applicationNavigation
-        let libraryID = EmbyItemID(rawValue: "movies")
+        let applicationNavigation = MediaServerNavigationModel()
+        var mountedBrowserNavigation: MediaServerNavigationModel? = applicationNavigation
+        let libraryID = MediaServerItemID(rawValue: "movies")
         let item = movie(id: "selected-movie")
 
         mountedBrowserNavigation?.select(.library(libraryID))
@@ -22,7 +22,7 @@ struct EmbyNavigationModelTests {
 
     @Test("Selecting a sidebar destination clears the detail path")
     func sidebarSelectionClearsDetailPath() {
-        let navigation = EmbyNavigationModel()
+        let navigation = MediaServerNavigationModel()
         navigation.open(movie(id: "selected-movie"))
 
         navigation.select(.search)
@@ -33,11 +33,11 @@ struct EmbyNavigationModelTests {
 
     @Test("Signing out resets navigation to home")
     func signOutResetsNavigation() async {
-        let navigation = EmbyNavigationModel()
-        navigation.select(.library(EmbyItemID(rawValue: "movies")))
+        let navigation = MediaServerNavigationModel()
+        navigation.select(.library(MediaServerItemID(rawValue: "movies")))
         navigation.open(movie(id: "selected-movie"))
-        let session = EmbySessionViewModel(
-            client: EmbyClient(clientIdentity: EmbyClientIdentity(
+        let session = MediaServerSessionViewModel(
+            client: MediaBrowserClient(clientIdentity: MediaServerClientIdentity(
                 name: "Enchron tests",
                 version: "1",
                 deviceName: "Test",
@@ -53,11 +53,11 @@ struct EmbyNavigationModelTests {
         #expect(navigation.path.isEmpty)
     }
 
-    private func movie(id: String) -> EmbyLibraryItem {
-        .movie(EmbyMovie(metadata: EmbyItemMetadata(
-            id: EmbyItemID(rawValue: id),
+    private func movie(id: String) -> MediaServerLibraryItem {
+        .movie(MediaServerMovie(metadata: MediaServerItemMetadata(
+            id: MediaServerItemID(rawValue: id),
             name: id,
-            imageTags: EmbyImageTags(),
+            imageTags: MediaServerImageTags(),
             overview: nil,
             runTimeTicks: nil,
             userData: nil,
@@ -67,8 +67,8 @@ struct EmbyNavigationModelTests {
     }
 }
 
-private struct EmptyServerStore: EmbyServerStoring {
-    func loadServer() throws -> EmbyAuthenticatedServer? { nil }
-    func saveServer(_ server: EmbyAuthenticatedServer) throws {}
+private struct EmptyServerStore: MediaServerServerStoring {
+    func loadServer() throws -> MediaServerAuthenticatedServer? { nil }
+    func saveServer(_ server: MediaServerAuthenticatedServer) throws {}
     func deleteServer() throws {}
 }

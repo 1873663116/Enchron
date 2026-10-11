@@ -1,0 +1,28 @@
+Media server tab icons
+
+The SVG files retain the source artwork without changes. The asset catalog
+uses template rendering for interface tint colors.
+
+EmbyTabIcon
+Source: https://raw.githubusercontent.com/MediaBrowser/Emby.Resources/ab08c6910828e77c6efd3e08d02a1a60e096ce63/images/svg_logos/out/EmbyLogo_Outset_15_mono.svg
+Source repository: https://github.com/MediaBrowser/Emby.Resources
+Emby branding belongs to Emby LLC. The repository provides no logo license.
+The repository's Genre Images license applies to genre images.
+Terms: https://emby.media/terms.html
+
+PlexTabIcon
+Source: https://app.plex.tv/desktop/favicon-mask.svg
+Plex and the Plex Play logo are trademarks of Plex.
+This mark identifies supported Plex servers.
+The Plex trademark guidelines govern use of this mark.
+Guidelines: https://www.plex.tv/about/privacy-legal/plex-trademarks-and-guidelines/
+
+JellyfinTabIcon
+Artwork attribution: Jellyfin Project, Jellyfin UX.
+Source: https://raw.githubusercontent.com/jellyfin/jellyfin-ux/69a2b7b1237732a134dd501ff55b9404cf2d1601/logos/SVG/jellyfin-icon--flat-on-light.svg
+Source repository: https://github.com/jellyfin/jellyfin-ux
+License: Creative Commons Attribution-ShareAlike 4.0 International.
+License text: https://github.com/jellyfin/jellyfin-ux/blob/69a2b7b1237732a134dd501ff55b9404cf2d1601/LICENSE
+License terms: https://creativecommons.org/licenses/by-sa/4.0/
+The Jellyfin branding guidelines govern use of the name and logo.
+Guidelines: https://jellyfin.org/docs/general/contributing/branding/

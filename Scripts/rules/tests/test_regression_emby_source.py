@@ -269,6 +269,7 @@ class RegressionEmbySourceTests(unittest.TestCase):
 
         self.assertEqual(report["schema"], emby.PREFLIGHT_REPORT_SCHEMA)
         self.assertEqual(report["check"], "emby-aggregate")
+        self.assertEqual(report["provider"], "emby")
         self.assertTrue(report["ready"])
         receipt = report["receipt"]
         self.assertEqual(receipt["schema"], emby.SEED_RECEIPT_SCHEMA)
@@ -327,6 +328,19 @@ class RegressionEmbySourceTests(unittest.TestCase):
             / emby.EXTERNAL_SUBTITLE_FILE_NAME
         )
         self.assertEqual(seeded_sidecar.read_bytes(), SUBTITLE_BYTES)
+
+    def test_preflight_report_requires_current_schema_and_explicit_emby_provider(self) -> None:
+        report = self.controller.ensure()
+        self.assertTrue(emby.validate_preflight_report(report, runtime_file=self.identity))
+        for provider in (None, "plex", "jellyfin"):
+            with self.subTest(provider=provider):
+                candidate = {**report, "provider": provider}
+                self.assertFalse(emby.validate_preflight_report(candidate, runtime_file=self.identity))
+        missing = dict(report)
+        del missing["provider"]
+        self.assertFalse(emby.validate_preflight_report(missing, runtime_file=self.identity))
+        old_schema = {**report, "schema": "enchron.regression.emby-source-preflight@1"}
+        self.assertFalse(emby.validate_preflight_report(old_schema, runtime_file=self.identity))
 
     def test_secret_values_never_enter_report_receipt_or_rendered_failure(self) -> None:
         remote_sentinel = "remote-token-that-must-never-enter-evidence"

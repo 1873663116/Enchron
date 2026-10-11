@@ -38,7 +38,7 @@ SETTINGS_MENU_FAMILIES = (
 SOURCE_ROOTS = (
     REPOSITORY_ROOT / "Apps/Enchron",
     REPOSITORY_ROOT / "Modules/DesignSystem",
-    REPOSITORY_ROOT / "Modules/Emby",
+    REPOSITORY_ROOT / "Modules/MediaServer",
     REPOSITORY_ROOT / "Modules/MediaLibrary",
     REPOSITORY_ROOT / "Modules/Playback",
 )
@@ -804,6 +804,8 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "-close",
             "-refresh",
             "-action-",
+            "-checkbox-",
+            "-save",
             "-toggle",
             "-surface",
         )
@@ -813,7 +815,8 @@ def identifier_role(template: str) -> tuple[str, str | None]:
 
 
 INTERACTIVE_CONSTRUCT = re.compile(
-    r"\b(Button|Menu|Toggle|Picker|Slider|TextField|SecureField|NavigationLink)\b"
+    r"\b(Button|Menu|Toggle|Picker|Slider|TextField|SecureField|NavigationLink"
+    r"|ListGroupRowShell|GlassCapsuleIconLabelButton)\b"
     r"|\.onTapGesture"
     r"|\.accessibilityAddTraits\(\.isButton\)"
     r"|\.accessibilityAction"
@@ -859,7 +862,11 @@ def modifier_chain(text: str, line: int) -> list[str]:
         depth = len(candidate) - len(candidate.lstrip())
         if depth > indent:
             continue
-        if depth < indent or not CHAIN_CONTINUATION.match(stripped):
+        if depth < indent:
+            break
+        if not CHAIN_CONTINUATION.match(stripped):
+            if re.match(r"(?:ListGroupRowShell|GlassCapsuleIconLabelButton)\s*\(", stripped):
+                chain.append(stripped)
             break
         chain.append(stripped)
     return chain
@@ -981,7 +988,7 @@ def presentation_derivation(
     ]
 
     browser_hosts = {
-        "Emby": ("EmbyScreen {", "Apps/Enchron/MainView.swift"),
+        "Emby": ("MediaServerScreen {", "Apps/Enchron/MainView.swift"),
         "FileBrowsing": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
         "MediaLibrary": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
         "Navigation": ("private var browser: some View", "Apps/Enchron/MainView.swift"),
@@ -1509,7 +1516,7 @@ def build_inventory() -> dict[str, object]:
             "kind": "scroll",
             "proofDomain": "browser",
             "proofContexts": [MAIN_WINDOW_BROWSER_CONTEXT],
-            "source": "Modules/Emby/EmbyScreens.swift",
+            "source": "Modules/MediaServer/MediaServerScreens.swift",
         },
         {
             "id": "negative:immersive-resident-window",

@@ -6,21 +6,21 @@ import Playback
 
 @MainActor
 @Observable
-public final class EmbySessionViewModel {
-    public let client: any EmbyClientProtocol
-    public let playbackBridge: EmbyPlaybackBridge
-    public private(set) var server: EmbyAuthenticatedServer?
+public final class MediaServerSessionViewModel {
+    public let client: any MediaServerClientProtocol
+    public let playbackBridge: MediaServerPlaybackBridge
+    public private(set) var server: MediaServerAuthenticatedServer?
     public private(set) var persistenceErrorMessage: String?
     public private(set) var playbackQueue: PlaybackQueueSnapshot = .empty
     public private(set) var resumeCatalogRevision: UInt64 = 0
 #if DEBUG
-    public private(set) var evidenceJournal = EmbyEvidenceJournal()
+    public private(set) var evidenceJournal = MediaServerEvidenceJournal()
 #endif
 
-    private let store: any EmbyServerStoring
-    private let navigation: EmbyNavigationModel
+    private let store: any MediaServerServerStoring
+    private let navigation: MediaServerNavigationModel
 #if DEBUG
-    private let artworkEvidenceLoader = EmbyArtworkEvidenceLoader(
+    private let artworkEvidenceLoader = MediaServerArtworkEvidenceLoader(
         store: .shared,
         session: MediaSourceNetwork.shared.session
     )
@@ -31,14 +31,14 @@ public final class EmbySessionViewModel {
 #endif
 
     public init(
-        client: any EmbyClientProtocol,
-        store: any EmbyServerStoring = KeychainEmbyServerStore(),
-        navigation: EmbyNavigationModel = EmbyNavigationModel()
+        client: any MediaServerClientProtocol,
+        store: any MediaServerServerStoring = KeychainMediaServerStore(),
+        navigation: MediaServerNavigationModel = MediaServerNavigationModel()
     ) {
         self.client = client
         self.store = store
         self.navigation = navigation
-        let loadedServer: EmbyAuthenticatedServer?
+        let loadedServer: MediaServerAuthenticatedServer?
         let loadErrorMessage: String?
         do {
             loadedServer = try store.loadServer()
@@ -49,15 +49,11 @@ public final class EmbySessionViewModel {
         }
         server = loadedServer
         persistenceErrorMessage = loadErrorMessage
-        playbackBridge = EmbyPlaybackBridge(client: client, server: loadedServer)
+        playbackBridge = MediaServerPlaybackBridge(client: client, server: loadedServer)
     }
 
     public func connect(address: URL, username: String, password: String) async throws {
-        let authenticated = try await client.authenticate(
-            address: address,
-            username: username,
-            password: password
-        )
+        let authenticated = try await client.authenticate(.password(address: address, username: username, password: password))
         try await install(authenticated)
     }
 
@@ -65,33 +61,33 @@ public final class EmbySessionViewModel {
     public func embySignIn(
         identityData: Data,
         expectedIdentityDigest: String
-    ) async throws -> EmbySignInReceipt {
+    ) async throws -> MediaServerSignInReceipt {
         let actualDigest = "sha256:" + SHA256.hash(data: identityData)
             .map { String(format: "%02x", $0) }
             .joined()
         guard actualDigest == expectedIdentityDigest else {
-            throw EmbySignInError.identityDigestMismatch
+            throw MediaServerSignInError.identityDigestMismatch
         }
         let rawDocument: Any
         do {
             rawDocument = try JSONSerialization.jsonObject(with: identityData)
         } catch {
-            throw EmbySignInError.invalidIdentity
+            throw MediaServerSignInError.invalidIdentity
         }
         guard let rawIdentity = rawDocument as? [String: Any],
-              Set(rawIdentity.keys) == EmbyAutomationRuntimeIdentity.keys else {
-            throw EmbySignInError.invalidIdentity
+              Set(rawIdentity.keys) == MediaServerAutomationRuntimeIdentity.keys else {
+            throw MediaServerSignInError.invalidIdentity
         }
-        let identity: EmbyAutomationRuntimeIdentity
+        let identity: MediaServerAutomationRuntimeIdentity
         do {
             identity = try JSONDecoder().decode(
-                EmbyAutomationRuntimeIdentity.self,
+                MediaServerAutomationRuntimeIdentity.self,
                 from: identityData
             )
         } catch {
-            throw EmbySignInError.invalidIdentity
+            throw MediaServerSignInError.invalidIdentity
         }
-        guard identity.schema == EmbyAutomationRuntimeIdentity.schemaValue,
+        guard identity.schema == MediaServerAutomationRuntimeIdentity.schemaValue,
               identity.address.isEmpty == false,
               identity.username.isEmpty == false,
               identity.password.isEmpty == false,
@@ -108,26 +104,23 @@ public final class EmbySessionViewModel {
               addressComponents.user == nil,
               addressComponents.password == nil,
               addressComponents.fragment == nil else {
-            throw EmbySignInError.invalidIdentity
+            throw MediaServerSignInError.invalidIdentity
         }
-        let authenticated = try await client.authenticate(
-            address: address,
-            username: identity.username,
-            password: identity.password
-        )
+        let authenticated = try await client.authenticate(.password(address: address, username: identity.username, password: identity.password))
         guard authenticated.id.rawValue == identity.serverID,
               authenticated.userID.rawValue == identity.userID else {
-            throw EmbySignInError.authenticatedIdentityMismatch
+            throw MediaServerSignInError.authenticatedIdentityMismatch
         }
         try await install(authenticated)
-        return EmbySignInReceipt(
+        return MediaServerSignInReceipt(
             identityDigest: actualDigest,
             server: authenticated
         )
     }
 #endif
 
-    private func install(_ authenticated: EmbyAuthenticatedServer) async throws {
+    public func install(_ authenticated: MediaServerAuthenticatedServer) async throws {
+        guard authenticated.kind == client.kind else { throw MediaServerError.invalidResponse }
         try store.saveServer(authenticated)
         server = authenticated
         persistenceErrorMessage = nil
@@ -145,20 +138,20 @@ public final class EmbySessionViewModel {
         playbackQueue = .empty
         resumeCatalogRevision = 0
 #if DEBUG
-        evidenceJournal = EmbyEvidenceJournal()
+        evidenceJournal = MediaServerEvidenceJournal()
 #endif
         navigation.reset()
         await playbackBridge.configure(server: nil)
     }
 
     public func handleRequestError(_ error: Error) async -> Bool {
-        guard case EmbyError.httpStatus(401) = error else { return false }
+        guard case MediaServerError.httpStatus(401) = error else { return false }
         await signOut()
         return true
     }
 
     public func playbackRequest(
-        for selection: EmbyPlaybackSelection
+        for selection: MediaServerPlaybackSelection
     ) async throws -> PlaybackLaunchRequest {
         await configurePlaybackBridge()
         do {
@@ -201,10 +194,10 @@ public final class EmbySessionViewModel {
     }
 
     public func recordHomeActivation(
-        surface: EmbyHomeCardSurface,
+        surface: MediaServerHomeCardSurface,
         cardIdentifier: String,
-        item: EmbyLibraryItem,
-        resultingItemID: EmbyItemID
+        item: MediaServerLibraryItem,
+        resultingItemID: MediaServerItemID
     ) {
         evidenceJournal.recordHomeActivation(
             surface: surface,
@@ -214,18 +207,18 @@ public final class EmbySessionViewModel {
         )
     }
 
-    public func recordDetail(item: EmbyLibraryItem, children: EmbyDetailChildren) {
+    public func recordDetail(item: MediaServerLibraryItem, children: MediaServerDetailChildren) {
         evidenceJournal.recordDetail(item: item, children: children)
     }
 
     public func recordSeasonTransition(
-        seriesID: EmbyItemID,
-        declaredSeasons: [EmbySeason],
-        requestedSeasonID: EmbyItemID,
-        beforeSelectedSeasonID: EmbyItemID?,
-        beforeEpisodes: [EmbyEpisode],
-        afterSelectedSeasonID: EmbyItemID?,
-        afterEpisodes: [EmbyEpisode]
+        seriesID: MediaServerItemID,
+        declaredSeasons: [MediaServerSeason],
+        requestedSeasonID: MediaServerItemID,
+        beforeSelectedSeasonID: MediaServerItemID?,
+        beforeEpisodes: [MediaServerEpisode],
+        afterSelectedSeasonID: MediaServerItemID?,
+        afterEpisodes: [MediaServerEpisode]
     ) {
         evidenceJournal.recordSeasonTransition(
             seriesID: seriesID,
@@ -238,20 +231,20 @@ public final class EmbySessionViewModel {
         )
     }
 
-    public func warmArtwork(_ requests: [EmbyArtworkLoadRequest]) async {
+    public func warmArtwork(_ requests: [MediaServerArtworkLoadRequest]) async {
         var seen = Set<URL>()
         let uniqueRequests = requests.prefix(60).filter { seen.insert($0.url).inserted }
         let loader = artworkEvidenceLoader
         let evidence = await withTaskGroup(
-            of: (Int, EmbyArtworkEvidence).self,
-            returning: [EmbyArtworkEvidence].self
+            of: (Int, MediaServerArtworkEvidence).self,
+            returning: [MediaServerArtworkEvidence].self
         ) { group in
             var iterator = Array(uniqueRequests.enumerated()).makeIterator()
             for _ in 0..<min(4, uniqueRequests.count) {
                 guard let (index, request) = iterator.next() else { break }
                 group.addTask { (index, await loader.load(request)) }
             }
-            var output: [(Int, EmbyArtworkEvidence)] = []
+            var output: [(Int, MediaServerArtworkEvidence)] = []
             while let result = await group.next() {
                 output.append(result)
                 if let (index, request) = iterator.next() {
@@ -278,7 +271,7 @@ public final class EmbySessionViewModel {
         }
     }
 
-    private func acceptPlaybackReport(_ report: EmbyAcceptedPlaybackReport) {
+    private func acceptPlaybackReport(_ report: MediaServerAcceptedPlaybackReport) {
 #if DEBUG
         recordAcceptedPlaybackReport(report)
 #endif
@@ -289,11 +282,11 @@ public final class EmbySessionViewModel {
     }
 
 #if DEBUG
-    private func recordAcceptedPlaybackReport(_ report: EmbyAcceptedPlaybackReport) {
+    private func recordAcceptedPlaybackReport(_ report: MediaServerAcceptedPlaybackReport) {
         evidenceJournal.recordAcceptedPlaybackReport(report)
     }
 
-    private func recordPreparedPlayback(_ evidence: EmbyPreparedPlaybackEvidence) {
+    private func recordPreparedPlayback(_ evidence: MediaServerPreparedPlaybackEvidence) {
         evidenceJournal.recordPreparedPlayback(evidence)
     }
 #endif
@@ -301,18 +294,18 @@ public final class EmbySessionViewModel {
 
 @MainActor
 @Observable
-public final class EmbyConnectionViewModel {
+public final class MediaServerConnectionViewModel {
     public var address = ""
     public var username = ""
     public var password = ""
     public private(set) var isConnecting = false
     public private(set) var errorMessage: String?
 
-    private let session: EmbySessionViewModel
+    private let session: MediaServerSessionViewModel
     private let cleartextExposurePolicy: CleartextExposurePolicy
 
     public init(
-        session: EmbySessionViewModel,
+        session: MediaServerSessionViewModel,
         cleartextExposurePolicy: CleartextExposurePolicy = .shared
     ) {
         self.session = session

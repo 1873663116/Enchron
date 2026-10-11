@@ -46,7 +46,7 @@ class PathTierTests(unittest.TestCase):
             ("Config/baseline.json", tiers.W1),
             ("Tests/ProbeTests.swift", tiers.W1),
             ("Packages/PlaybackCore/Tests/CoreTests/A.swift", tiers.W1),
-            ("Modules/Emby/Client.swift", tiers.W2),
+            ("Modules/MediaServer/Client.swift", tiers.W2),
             ("Modules/MediaLibrary/Grid.swift", tiers.W2),
             ("Modules/DesignSystem/Tokens.swift", tiers.W2),
             ("Modules/MediaSource/Stream.swift", tiers.W2),
@@ -80,7 +80,7 @@ class PathTierTests(unittest.TestCase):
 class VerdictTests(unittest.TestCase):
     def test_mixed_range_takes_the_highest_evidence_tier(self) -> None:
         verdict = tiers.build_verdict(
-            "a..b", ["docs/x.md", "Tests/y.swift", "Modules/Emby/z.swift"]
+            "a..b", ["docs/x.md", "Tests/y.swift", "Modules/MediaServer/z.swift"]
         )
         self.assertEqual(verdict.tier, tiers.W2)
 
@@ -118,7 +118,7 @@ class CommitRangeTests(unittest.TestCase):
         cls.revisions = [
             cls.commit({"README.md": "seed"}),
             cls.commit({"docs/note.md": "docs"}),
-            cls.commit({"Modules/Emby/Shelf.swift": "feature"}),
+            cls.commit({"Modules/MediaServer/Shelf.swift": "feature"}),
             cls.commit({"Modules/Playback/Scene.swift": "playback"}),
         ]
 

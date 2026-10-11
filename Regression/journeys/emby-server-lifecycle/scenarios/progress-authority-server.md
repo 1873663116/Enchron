@@ -30,7 +30,8 @@
   "operations": [
     {
       "arguments": {
-        "check": "emby-aggregate"
+        "check": "emby-aggregate",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:01",
       "maxInvocations": 1,
@@ -53,7 +54,8 @@
     {
       "arguments": {
         "context": "window",
-        "identifier": "Emby-Evidence"
+        "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby"
       },
       "callId": "call:emby-server-lifecycle:progress-authority-server:04",
       "maxInvocations": 1,
@@ -158,6 +160,7 @@
       "arguments": {
         "context": "window",
         "identifier": "Emby-Evidence",
+        "mediaServerProvider": "emby",
         "relatedResults": [
           "result://call:emby-server-lifecycle:progress-authority-server:01/report",
           "result://call:emby-server-lifecycle:progress-authority-server:11/fields",

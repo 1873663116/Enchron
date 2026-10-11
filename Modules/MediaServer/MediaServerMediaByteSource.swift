@@ -2,7 +2,7 @@ import Foundation
 import MediaSource
 import Synchronization
 
-enum EmbyMediaByteSourceError: LocalizedError, Equatable {
+enum MediaServerByteSourceError: LocalizedError, Equatable {
     case invalidRange
     case invalidResponse
     case httpStatus(Int)
@@ -28,7 +28,7 @@ enum EmbyMediaByteSourceError: LocalizedError, Equatable {
     }
 }
 
-nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Sendable {
+nonisolated final class MediaServerByteSource: MediaByteRangeSource, @unchecked Sendable {
     private struct ContentRange {
         let start: Int64
         let end: Int64
@@ -39,6 +39,7 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
 
     private let streamURL: URL
     private let accessToken: String
+    private let kind: MediaServerKind
     let session: URLSession
     private let lock = NSLock()
     private var serverLength: Int64?
@@ -53,10 +54,12 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
     init(
         streamURL: URL,
         accessToken: String,
+        kind: MediaServerKind = .emby,
         contentLength: Int64?,
         session: URLSession = MediaSourceNetwork.shared.session
     ) {
-        self.streamURL = Self.authenticatedURL(streamURL, accessToken: accessToken)
+        self.kind = kind
+        self.streamURL = kind == .plex ? streamURL : Self.authenticatedURL(streamURL, accessToken: accessToken)
         self.accessToken = accessToken
         self.session = session
         serverLength = contentLength
@@ -79,7 +82,11 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
             forHTTPHeaderField: "Range"
         )
         request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
-        request.setValue(accessToken, forHTTPHeaderField: "X-Emby-Token")
+        switch kind {
+        case .emby: request.setValue(accessToken, forHTTPHeaderField: "X-Emby-Token")
+        case .jellyfin: request.setValue("MediaBrowser Token=\"\(accessToken)\"", forHTTPHeaderField: "Authorization")
+        case .plex: request.setValue(accessToken, forHTTPHeaderField: "X-Plex-Token")
+        }
 
         let data: Data
         let response: URLResponse
@@ -142,7 +149,7 @@ nonisolated final class EmbyMediaByteSource: MediaByteRangeSource, @unchecked Se
             ) {
                 throw failure
             }
-            throw EmbyMediaByteSourceError.httpStatus(response.statusCode)
+            throw MediaServerByteSourceError.httpStatus(response.statusCode)
         }
         guard let contentRange = Self.contentRange(
             response.value(forHTTPHeaderField: "Content-Range")
