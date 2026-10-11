@@ -2952,6 +2952,42 @@
       "template": "PlayerUI-spatialFailure-secondary"
     },
     {
+      "action": null,
+      "family": "PlayerUI",
+      "proofContextDerivation": {
+        "host": "playbackSurfaceSeekFeedback",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/PlaybackVideoSurface.swift"
+          },
+          {
+            "path": "Modules/Playback/Scenes/ImmersiveSpaceView.swift"
+          },
+          {
+            "path": "Modules/Playback/Model/PlaybackPresentation.swift"
+          },
+          {
+            "path": "Modules/Playback/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window",
+        "portal",
+        "panorama",
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/PlaybackSurfaceSeekFeedback.swift"
+        }
+      ],
+      "template": "PlayerUI-surface-seek-feedback"
+    },
+    {
       "action": "activate",
       "family": "PlayerUI",
       "role": "operation",
@@ -3240,6 +3276,81 @@
       "scope": "product",
       "sources": [
         {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-menu-controls-auto-hide"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-menu-default-speed"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-menu-end-behavior"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-menu-hold-speed"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-menu-resume-strategy"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
           "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
         }
       ],
@@ -3256,6 +3367,81 @@
         }
       ],
       "template": "Settings-menuOption-{id}-{option.id}"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-toggle-developer-details"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-toggle-developer-overlay"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-toggle-display-refresh-request"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-toggle-surface-gestures"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+        },
+        {
+          "path": "Modules/DesignSystem/Components/SettingsComponents.swift"
+        }
+      ],
+      "template": "Settings-toggle-surroundings-dimming"
     },
     {
       "action": "activate",
@@ -6147,6 +6333,9 @@
             "path": "Modules/Playback/Views/PlaybackVideoSurface.swift"
           },
           {
+            "path": "Modules/Playback/Views/PlaybackSurfaceGestureInput.swift"
+          },
+          {
             "path": "Modules/Playback/Views/PlaybackRealityPresenter.swift"
           },
           {
@@ -6234,6 +6423,96 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:Settings-menu-controls-auto-hide",
+      "identifierTemplate": "Settings-menu-controls-auto-hide",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-menu-default-speed",
+      "identifierTemplate": "Settings-menu-default-speed",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-menu-end-behavior",
+      "identifierTemplate": "Settings-menu-end-behavior",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-menu-hold-speed",
+      "identifierTemplate": "Settings-menu-hold-speed",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-menu-resume-strategy",
+      "identifierTemplate": "Settings-menu-resume-strategy",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:Settings-menu-{id}",
       "identifierTemplate": "Settings-menu-{id}",
       "kind": "activate",
@@ -6254,6 +6533,96 @@
     {
       "id": "accessibility:Settings-menuOption-{id}-{option.id}",
       "identifierTemplate": "Settings-menuOption-{id}-{option.id}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-toggle-developer-details",
+      "identifierTemplate": "Settings-toggle-developer-details",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-toggle-developer-overlay",
+      "identifierTemplate": "Settings-toggle-developer-overlay",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-toggle-display-refresh-request",
+      "identifierTemplate": "Settings-toggle-display-refresh-request",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-toggle-surface-gestures",
+      "identifierTemplate": "Settings-toggle-surface-gestures",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-toggle-surroundings-dimming",
+      "identifierTemplate": "Settings-toggle-surroundings-dimming",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",
@@ -6481,6 +6850,31 @@
         "selectVerb": "selectMenuItem"
       },
       "id": "menu:settings:end-behavior",
+      "kind": "menu-selection",
+      "proofContextDerivation": {
+        "host": "explicitOperationContract",
+        "sources": [
+          {
+            "path": "Apps/Enchron/Screens/SettingsScreen.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "Apps/Enchron/Screens/SettingsScreen.swift"
+    },
+    {
+      "debugEquivalent": {
+        "families": [
+          "hold-speed"
+        ],
+        "host": "settings",
+        "listVerb": "listMenuItems",
+        "selectVerb": "selectMenuItem"
+      },
+      "id": "menu:settings:hold-speed",
       "kind": "menu-selection",
       "proofContextDerivation": {
         "host": "explicitOperationContract",

@@ -55,9 +55,14 @@ EVIDENCE_KINDS = frozenset(
         evidence_tier.REAL_DEVICE_DECODE,
     }
 )
-SPATIAL_TAP = re.compile(
-    r"(?:^|\s)spatialTap\s+entity=(?P<entity>\S+)"
-    r"(?P<fields>(?:\s+\S+=[^\s]+)*)"
+SPATIAL_INPUT_PROBE = re.compile(
+    r"(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\s+"
+    r"(?:probeSequence=\d+\s+probeRetention=(?:diagnostic|evidence)\s+probeSession=\S+\s+)?)?"
+    r"(?:surface input probe\s+)?"
+    r"(?:(?P<legacy>spatialTap)\s+entity=\S+"
+    r"(?P<fields>(?:\s+(?:accepted|controls|presentation)=[^\s]+)*)"
+    r"|surfaceGesture input=begin entity=Enchron"
+    r"(?:WindowInput\.surface|DockedInput\.surface|PanoramaInput\.[A-Za-z0-9_.-]+))"
 )
 
 
@@ -222,16 +227,20 @@ def validate_device_hub(files: tuple[Path, ...]) -> None:
     for path in files:
         try:
             for line in path.read_text(encoding="utf-8").splitlines():
-                match = SPATIAL_TAP.search(line)
-                fields = () if match is None else tuple(match.group("fields").split())
-                if match and "accepted=true" in fields:
+                match = SPATIAL_INPUT_PROBE.fullmatch(line.strip())
+                fields = () if match is None else tuple((match.group("fields") or "").split())
+                if match and (
+                    match.group("legacy") is None
+                    or ("accepted=true" in fields and "accepted=false" not in fields)
+                ):
                     probe_found = True
                     break
         except UnicodeDecodeError:
             continue
     if not probe_found:
         raise AuthorityError(
-            "device-hub-input needs an app-side spatialTap entity=<entity> ... accepted=true probe"
+            "device-hub-input needs an app-side surfaceGesture input=begin entity=<playback entity> "
+            "or spatialTap entity=<entity> ... accepted=true probe"
         )
 
 

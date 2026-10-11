@@ -168,6 +168,20 @@ struct SettingsScreen: View {
             )
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                Text(String(localized: """
+                    When controls are hidden, double-tap the video to play or pause. \
+                    Pinch and hold to use the hold playback speed, then release to restore the previous speed. \
+                    Move left or right while pinching to preview up to 30 seconds backward or forward, then release to seek. \
+                    Single-tap controls and the precise timeline remain available when shortcuts are off.
+                    """))
+                Text(String(localized: "Precise timeline"))
+                    .font(DesignTokens.Typography.selectionHeader)
+                    .foregroundStyle(.primary)
+                Text(String(localized: "Double-tap the progress bar to expand the precise timeline. Zoom the time scale or move frame by frame."))
+            }
+            .font(DesignTokens.Typography.metadata)
+            .foregroundStyle(DesignTokens.Surface.supportingText)
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
 #if DEBUG
@@ -278,6 +292,33 @@ struct SettingsScreen: View {
                         SettingListGroup.MenuOption(speedTitle(speed.value), id: "\(speed.value)") {
                             viewModel.update { $0.defaultPlaybackSpeed = speed.value }
                             recordMenuReachability("default-speed")
+                        }
+                    }
+                )
+            ),
+            SettingListGroup.Item(
+                id: "surface-gestures",
+                title: String(localized: "Surface shortcuts"),
+                systemName: "hand.pinch",
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { viewModel.preferences.surfaceGesturesEnabled },
+                        set: { value in viewModel.update { $0.surfaceGesturesEnabled = value } }
+                    ),
+                    isEnabled: true,
+                    marker: nil
+                )
+            ),
+            SettingListGroup.Item(
+                id: "hold-speed",
+                title: String(localized: "Hold playback speed"),
+                systemName: "speedometer",
+                accessory: .menu(
+                    title: speedTitle(viewModel.preferences.holdPlaybackSpeed),
+                    options: PlaybackModel.PlaybackSpeed.allCases.map { speed in
+                        SettingListGroup.MenuOption(speedTitle(speed.value), id: "\(speed.value)") {
+                            viewModel.update { $0.holdPlaybackSpeed = speed.value }
+                            recordMenuReachability("hold-speed")
                         }
                     }
                 )

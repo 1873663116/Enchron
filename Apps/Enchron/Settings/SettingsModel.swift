@@ -18,6 +18,8 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
     public var resumePolicy: ResumePolicy
     public var playbackEndBehavior: PlaybackEndBehavior
     public var defaultPlaybackSpeed: Double
+    public var surfaceGesturesEnabled: Bool
+    public var holdPlaybackSpeed: Double
     public var controlsAutoHideSeconds: Int
     public var developerModeEnabled: Bool
     public var surroundingsDimmingEnabled: Bool
@@ -27,6 +29,8 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         resumePolicy: ResumePolicy = .askEveryTime,
         playbackEndBehavior: PlaybackEndBehavior = .repeatOne,
         defaultPlaybackSpeed: Double = 1.0,
+        surfaceGesturesEnabled: Bool = true,
+        holdPlaybackSpeed: Double = 2.0,
         controlsAutoHideSeconds: Int = 8,
         developerModeEnabled: Bool = false,
         surroundingsDimmingEnabled: Bool = true,
@@ -35,6 +39,8 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         self.resumePolicy = resumePolicy
         self.playbackEndBehavior = playbackEndBehavior
         self.defaultPlaybackSpeed = defaultPlaybackSpeed
+        self.surfaceGesturesEnabled = surfaceGesturesEnabled
+        self.holdPlaybackSpeed = holdPlaybackSpeed
         self.controlsAutoHideSeconds = controlsAutoHideSeconds
         self.developerModeEnabled = developerModeEnabled
         self.surroundingsDimmingEnabled = surroundingsDimmingEnabled
@@ -53,14 +59,21 @@ public final class SettingsViewModel {
     public private(set) var preferences: UserPreferences
     public var onArtworkCacheCleared: (@MainActor () -> Void)?
     private let store: PreferencesStoring
+    @ObservationIgnored private let onPreferencesChanged: (@MainActor (UserPreferences) -> Void)?
 
-    public init(store: PreferencesStoring = UserDefaultsStore()) {
+    public init(
+        store: PreferencesStoring = UserDefaultsStore(),
+        onPreferencesChanged: (@MainActor (UserPreferences) -> Void)? = nil
+    ) {
         self.store = store
+        self.onPreferencesChanged = onPreferencesChanged
         self.preferences = store.loadPreferences()
+        onPreferencesChanged?(preferences)
     }
 
     public func update(_ mutate: (inout UserPreferences) -> Void) {
         mutate(&preferences)
         store.savePreferences(preferences)
+        onPreferencesChanged?(preferences)
     }
 }

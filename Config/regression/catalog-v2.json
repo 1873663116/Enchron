@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:38ea4b6c10fe749c5bcff9fc0a38a260fec06a0b902a91faefa069ca9baa17f1",
+  "contentDigest": "sha256:a0ed5570fe2a1d5fd93aa93c6b131a70f7fe1fae7adafc290ba906b7ead5dccc",
   "copyDocuments": [
     {
       "digest": "sha256:3cddd3e1bd6227b0b62c6323d2a4481e87b786b7716923ef267d6065ce9083c7",
@@ -122,7 +122,7 @@
       "path": "review-policy.md"
     },
     {
-      "digest": "sha256:5b91fa4c081eff38b45a17c03fafb1b28485ba7dfd1e290f34a6d5c0aef0e1b9",
+      "digest": "sha256:aa8746039ec320f204f87f52d0dd70db4fd907635d94a6e5d826d7302b3ee9af",
       "path": "semantic-authority.json"
     }
   ],

@@ -212,6 +212,7 @@ def main() -> int:
     reality_presenter = read(
         "Modules/Playback/Views/PlaybackRealityPresenter.swift"
     )
+    surface_gesture_input = read("Modules/Playback/Views/PlaybackSurfaceGestureInput.swift")
     surface_placement = read(
         "Modules/Playback/Model/PlaybackSurfacePlacement.swift"
     )
@@ -309,10 +310,11 @@ def main() -> int:
     require(
         "PlaybackWindowInteractionSurface.install(" in surface
         and "component?.playerScreenSize" in surface
-        and "TapGesture()" in surface
-        and ".targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)"
-        in surface
-        and ".simultaneousGesture(surfaceTapGesture)" in vision_surface,
+        and "PlaybackSurfaceGestureInput { entity in" in vision_surface
+        and "PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(" in vision_surface
+        and "DragGesture(minimumDistance: 0)" in surface_gesture_input
+        and ".targetedToAnyEntity()" in surface_gesture_input
+        and ".simultaneousGesture(surfaceGesture)" in surface_gesture_input,
         "window surface taps are not recognized on the sized playback entity",
     )
     window_surface_content = region(
@@ -972,14 +974,11 @@ def main() -> int:
         in immersive,
         "immersive diagnostic colliders are not opt-in",
     )
-    spatial_tap_gesture = region(
-        immersive,
-        "private var spatialSurfaceTapGesture:",
-        "private func toggleControlsFromSpatialSurface(",
-    )
     require(
-        "PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(" in spatial_tap_gesture
-        and "requestedPresentation != .docked" not in spatial_tap_gesture,
+        "PlaybackSurfaceGestureInput { entity in" in immersive
+        and "controlsAttachmentController.contains(entity) == false" in immersive
+        and "PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(" in immersive
+        and "guard acceptsTarget(value.entity) else { return }" in surface_gesture_input,
         "Panorama accepts spatial taps from entities outside its interaction shell",
     )
     spatial_input_ownership = region(

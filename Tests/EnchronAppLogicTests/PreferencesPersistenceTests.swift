@@ -18,6 +18,8 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         prefs.resumePolicy = .alwaysResume
         prefs.playbackEndBehavior = .playNext
         prefs.defaultPlaybackSpeed = 1.5
+        prefs.surfaceGesturesEnabled = false
+        prefs.holdPlaybackSpeed = 3.0
         prefs.controlsAutoHideSeconds = 15
         store.savePreferences(prefs)
 
@@ -36,6 +38,105 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
 
         let loaded = UserDefaultsStore(defaults: defaults).loadPreferences()
         XCTAssertEqual(loaded.controlsAutoHideSeconds, 8)
+        XCTAssertTrue(loaded.surfaceGesturesEnabled)
+        XCTAssertEqual(loaded.holdPlaybackSpeed, 2.0)
+    }
+
+    func testExistingPreferencesMigrateToEnabledSurfaceShortcutsAndTwoTimesHoldSpeed() throws {
+        let suite = "enchron.tests.surfaceGestures.migration.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("alwaysResume", forKey: "enchron.preferences.resumePolicy")
+        defaults.set(1.5, forKey: "enchron.preferences.defaultSpeed")
+        defaults.set(15, forKey: "enchron.preferences.controlsAutoHideSeconds")
+
+        let loaded = UserDefaultsStore(defaults: defaults).loadPreferences()
+        XCTAssertTrue(loaded.surfaceGesturesEnabled)
+        XCTAssertEqual(loaded.holdPlaybackSpeed, 2.0)
+        XCTAssertEqual(loaded.resumePolicy, .alwaysResume)
+        XCTAssertEqual(loaded.defaultPlaybackSpeed, 1.5)
+        XCTAssertEqual(loaded.controlsAutoHideSeconds, 15)
+    }
+
+    func testSurfaceShortcutsLoadBooleanValuesAndIgnoreMalformedValues() throws {
+        let suite = "enchron.tests.surfaceGestures.boundary.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cases: [(Any?, Bool)] = [
+            (nil, true), (false, false), (true, true),
+            ("false", true), (0, true), (1, true), (["enabled": false], true)
+        ]
+        for (stored, expected) in cases {
+            defaults.set(stored, forKey: "enchron.preferences.surfaceGesturesEnabled")
+            XCTAssertEqual(UserDefaultsStore(defaults: defaults).loadPreferences().surfaceGesturesEnabled, expected)
+        }
+    }
+
+    func testHoldPlaybackSpeedLoadsSupportedRangeAndRejectsMalformedValues() throws {
+        let suite = "enchron.tests.holdPlaybackSpeed.boundary.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let cases: [(Any?, Double)] = [
+            (nil, 2.0), ("3", 2.0), (false, 2.0), (true, 2.0),
+            (Double.nan, 2.0), (Double.infinity, 2.0), (-Double.infinity, 2.0),
+            (-1.0, 0.25), (0.0, 0.25), (0.25, 0.25), (1.5, 1.5),
+            (2, 2.0), (3.0, 3.0), (5.0, 5.0), (100.0, 5.0)
+        ]
+        for (stored, expected) in cases {
+            defaults.set(stored, forKey: "enchron.preferences.holdPlaybackSpeed")
+            XCTAssertEqual(UserDefaultsStore(defaults: defaults).loadPreferences().holdPlaybackSpeed, expected)
+        }
+    }
+
+    func testHoldPlaybackSpeedSaveUsesSupportedRangeAndFiniteFallback() throws {
+        let suite = "enchron.tests.holdPlaybackSpeed.save.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UserDefaultsStore(defaults: defaults)
+        let cases: [(Double, Double)] = [
+            (-1, 0.25), (0.25, 0.25), (0.5, 0.5), (0.75, 0.75),
+            (1, 1), (1.25, 1.25), (1.5, 1.5), (1.75, 1.75),
+            (2, 2), (3, 3), (5, 5), (100, 5),
+            (.nan, 2), (.infinity, 2), (-.infinity, 2)
+        ]
+        for (speed, expected) in cases {
+            store.savePreferences(UserPreferences(surfaceGesturesEnabled: false, holdPlaybackSpeed: speed))
+            let restoredDefaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+            let restored = UserDefaultsStore(defaults: restoredDefaults).loadPreferences()
+            XCTAssertFalse(restored.surfaceGesturesEnabled)
+            XCTAssertEqual(restored.holdPlaybackSpeed, expected)
+            XCTAssertEqual(restored.defaultPlaybackSpeed, 1.0)
+        }
+    }
+
+    @MainActor
+    func testSurfaceShortcutPreferencesSynchronizeAtStartupAndImmediatelyAfterChanges() throws {
+        let suite = "enchron.tests.surfaceGestures.sync.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UserDefaultsStore(defaults: defaults)
+        store.savePreferences(UserPreferences(
+            defaultPlaybackSpeed: 1.5,
+            surfaceGesturesEnabled: false,
+            holdPlaybackSpeed: 3.0
+        ))
+        let session = PlaybackSessionModel()
+        let settings = SettingsViewModel(store: store) { preferences in
+            session.surfaceGesturesEnabled = preferences.surfaceGesturesEnabled
+            session.holdPlaybackSpeed = preferences.holdPlaybackSpeed
+        }
+        XCTAssertFalse(session.surfaceGesturesEnabled)
+        XCTAssertEqual(session.holdPlaybackSpeed, 3.0)
+
+        settings.update { $0.surfaceGesturesEnabled = true }
+        XCTAssertTrue(session.surfaceGesturesEnabled)
+        settings.update { $0.holdPlaybackSpeed = 0.5 }
+        XCTAssertEqual(session.holdPlaybackSpeed, 0.5)
+
+        let restored = UserDefaultsStore(defaults: defaults).loadPreferences()
+        XCTAssertTrue(restored.surfaceGesturesEnabled)
+        XCTAssertEqual(restored.holdPlaybackSpeed, 0.5)
+        XCTAssertEqual(restored.defaultPlaybackSpeed, 1.5)
     }
 
     @MainActor

@@ -16,6 +16,7 @@ for entry in raw {
     guard width > 200, height > 200 else { continue }
     found.append([
         "number": entry[kCGWindowNumber as String] as? Int ?? 0,
+        "title": entry[kCGWindowName as String] as? String ?? "",
         "x": (bounds["X"] as? NSNumber)?.doubleValue ?? 0,
         "y": (bounds["Y"] as? NSNumber)?.doubleValue ?? 0,
         "width": width,

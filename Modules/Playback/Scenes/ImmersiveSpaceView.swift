@@ -663,6 +663,7 @@ public struct ImmersiveSpaceView: View {
     @State private var controlsAttachmentController =
         ImmersivePlaybackControlsAttachmentController()
     @State private var headPoseSource = HeadPoseSource()
+    @State private var seekFeedbackAttachment = PlaybackSurfaceSeekAttachment()
 #if DEBUG
     @State private var developerOverlayFollower = DeveloperOverlayFollower()
 #endif
@@ -751,6 +752,7 @@ public struct ImmersiveSpaceView: View {
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
+            installSeekFeedback(from: attachments, into: content)
 #if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
 #endif
@@ -761,10 +763,16 @@ public struct ImmersiveSpaceView: View {
             scheduleSpatialSurfaceUpdate(content)
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
+            installSeekFeedback(from: attachments, into: content)
 #if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
 #endif
         } attachments: {
+            Attachment(id: PlaybackSurfaceSeekAttachment.attachmentID) {
+                if let preview = surfaceGestureController.preview {
+                    PlaybackSurfaceSeekFeedback(preview: preview)
+                }
+            }
             Attachment(
                 id: ImmersivePlaybackControlsAttachmentController.attachmentID
             ) {
@@ -796,10 +804,19 @@ public struct ImmersiveSpaceView: View {
             }
         }
         .enableRealityKitScriptingInput()
-        .simultaneousGesture(spatialSurfaceTapGesture)
+        .modifier(
+            PlaybackSurfaceGestureInput { entity in
+                controlsAttachmentController.contains(entity) == false
+                    && PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                        entity,
+                        for: requestedPresentation
+                    )
+            }
+        )
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {
             controlsAttachmentController.stop()
+            seekFeedbackAttachment.stop()
 #if DEBUG
             developerOverlayFollower.stop()
 #endif
@@ -1051,6 +1068,23 @@ public struct ImmersiveSpaceView: View {
         }
     }
 
+    private func installSeekFeedback(
+        from attachments: RealityViewAttachments,
+        into content: RealityViewContent
+    ) {
+        guard let entity = attachments.entity(
+            for: PlaybackSurfaceSeekAttachment.attachmentID
+        ) else { return }
+        seekFeedbackAttachment.install(
+            entity,
+            visible: surfaceGestureController.preview != nil,
+            presentation: requestedPresentation,
+            videoEntity: videoEntity,
+            content: content,
+            headPoseSource: headPoseSource
+        )
+    }
+
     private func installControlsAttachment(
         from attachments: RealityViewAttachments,
         into content: RealityViewContent
@@ -1168,30 +1202,8 @@ public struct ImmersiveSpaceView: View {
         )
     }
 
-    private var spatialSurfaceTapGesture: some Gesture {
-        SpatialTapGesture()
-            .targetedToAnyEntity()
-            .onEnded { value in
-                guard controlsAttachmentController.contains(value.entity) == false else {
-                    appModel.recordSurfaceInputProbe(
-                        "spatialTap entity=\(value.entity.name) accepted=false controls=true"
-                    )
-                    return
-                }
-                guard PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
-                    value.entity,
-                    for: requestedPresentation
-                ) else {
-                    appModel.recordSurfaceInputProbe(
-                        "spatialTap entity=\(value.entity.name) accepted=false controls=false"
-                    )
-                    return
-                }
-                appModel.recordSurfaceInputProbe(
-                    "spatialTap entity=\(value.entity.name) accepted=true"
-                )
-                toggleControlsFromSpatialSurface(.spatialTap)
-            }
+    private var surfaceGestureController: PlaybackSurfaceGestureController {
+        playbackRuntime.surfaceGestureController(session: appModel)
     }
 
     private func toggleControlsFromSpatialSurface(

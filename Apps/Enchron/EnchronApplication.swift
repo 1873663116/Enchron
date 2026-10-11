@@ -574,7 +574,10 @@ final class EnchronApplication {
         mediaLibraryViewModel = mediaLibrary
         mediaLibraryUIState = mediaLibraryFeature.uiState
         playbackLauncher = launcher
-        let settings = SettingsViewModel(store: preferencesStore)
+        let settings = SettingsViewModel(store: preferencesStore) { [weak playbackSessionModel] preferences in
+            playbackSessionModel?.surfaceGesturesEnabled = preferences.surfaceGesturesEnabled
+            playbackSessionModel?.holdPlaybackSpeed = preferences.holdPlaybackSpeed
+        }
         settings.onArtworkCacheCleared = { [weak mediaLibrary, weak browser] in
             mediaLibrary?.forgetArtwork()
             browser?.refreshViewingStates()

@@ -30,6 +30,15 @@ REMOTE_PREFLIGHT_PATH = (
 SMB_SOURCE_PATH = REPOSITORY_ROOT / "Scripts/verification/regression_smb_source.py"
 SYSTEM_IMPORT_PATH = REPOSITORY_ROOT / "Scripts/verification/regression_system_import.py"
 DEVICE_HUB_CANVAS_PATH = REPOSITORY_ROOT / "Scripts/verification/device_hub_canvas.py"
+SPATIAL_INPUT_PROBE = re.compile(
+    r"(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\s+"
+    r"(?:probeSequence=\d+\s+probeRetention=(?:diagnostic|evidence)\s+probeSession=\S+\s+)?)?"
+    r"(?:surface input probe\s+)?"
+    r"(?:(?P<legacy>spatialTap)\s+entity=\S+"
+    r"(?P<fields>(?:\s+(?:accepted|controls|presentation)=[^\s]+)*)"
+    r"|surfaceGesture input=begin entity=Enchron"
+    r"(?:WindowInput\.surface|DockedInput\.surface|PanoramaInput\.[A-Za-z0-9_.-]+))"
+)
 RULES_DIRECTORY = REPOSITORY_ROOT / "Scripts/rules"
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
@@ -5451,7 +5460,18 @@ class ResidentOperationBackend:
             if "toggle source=" in line
             or any(prefix in line for prefix in interaction_prefixes)
         ]
-        spatial = [line for line in delta if "spatialTap entity=" in line]
+        spatial = [
+            line
+            for line in delta
+            if (match := SPATIAL_INPUT_PROBE.fullmatch(line.strip())) is not None
+            and (
+                match.group("legacy") is None
+                or (
+                    "accepted=true" in (match.group("fields") or "").split()
+                    and "accepted=false" not in (match.group("fields") or "").split()
+                )
+            )
+        ]
         remote_observation = None
         certificate_boundary = None
         certificate_change_observation_result = None

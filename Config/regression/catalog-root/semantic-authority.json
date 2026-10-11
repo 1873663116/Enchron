@@ -5,7 +5,7 @@
     "equivalentDerivedHumanCoverageAuthorized": true,
     "runtimeHumanActorAllowed": false,
     "source": "Config/regression/semantic-authority-decisions.tsv",
-    "sourceDigest": "sha256:915040fb46ade9f9a481bd07694d0b819894968b6613d5d38821795e58776417"
+    "sourceDigest": "sha256:0be2b0605cfb8484eb1f3d0a39ac01e0293e02895bcb7097089b68cfd339da3e"
   },
   "decisions": [
     {
@@ -81,7 +81,7 @@
       "applicability": "Simulator spatial-input lane only; device decode obligations remain independent.",
       "evidence": [
         ".agents/skills/vp-e2e/references/simulator.md#空间手势：Device Hub 的鼠标映射",
-        "Modules/Playback/Scenes/ImmersiveSpaceView.swift#spatialTap"
+        "Modules/Playback/Views/PlaybackSurfaceGestureInput.swift#surfaceGesture"
       ],
       "requiredWork": []
     },

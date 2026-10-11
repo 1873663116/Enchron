@@ -192,6 +192,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var technicalSessionFormatReplacementIsPending = false
     public private(set) var technicalSessionReplacementStage =
         TechnicalSessionReplacementStage.inactive
+    @ObservationIgnored private var sharedSurfaceGestureController: PlaybackSurfaceGestureController?
+    @ObservationIgnored private var surfaceTransportIntent = PlaybackSurfaceTransportIntent()
+    @ObservationIgnored private var surfaceTransportTask: Task<Void, Never>?
+    @ObservationIgnored private var surfaceTransportTaskID: UUID?
+    @ObservationIgnored private var surfaceSeekPreviewActive = false
+    @ObservationIgnored private var deferredNaturalEndSessionID: String?
     public private(set) var seekIsInProgress = false
     private var heldPositionSeconds: Double?
     public private(set) var userVisibleIssue: PlaybackUserVisibleIssue?
@@ -442,6 +448,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
+        deferredNaturalEndSessionID = nil
+        sharedSurfaceGestureController?.cancel()
+        seekIntentGeneration &+= 1
+        seekIsInProgress = false
+        surfaceTransportTask?.cancel()
+        surfaceTransportTask = nil
+        surfaceTransportTaskID = nil
+        surfaceTransportIntent.clear()
+        surfaceSeekPreviewActive = false
         resumeHealingArmed = false
         SurfaceInputProbes.record(
             "rendererOwnership.prepareForPlayback source=\(request.displayName)"
@@ -1264,12 +1279,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     self.seekIsInProgress = false
                     self.endSeekIndication(seekGeneration: seekGeneration)
                     self.releasePositionHoldIfIdle()
+                    self.settleDeferredNaturalEnd()
                 }
             }
             #if DEBUG
                 await seekGate?()
             #endif
             do {
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 guard rendererTransferCoordinator.hasActiveDriver else {
                     throw RuntimeError.noSession
                 }
@@ -1277,14 +1295,20 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     to: CMTime(seconds: target, preferredTimescale: 600),
                     after: intent
                 )
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 emitPlaybackObservation(
                     .seekCompleted(positionSeconds: target),
                     generation: playbackObservationGeneration
                 )
             } catch let error as PlaybackControlError {
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 if case .seekSuperseded = error { return }
                 fail(error)
             } catch {
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 fail(error)
             }
         }
@@ -1324,12 +1348,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     self.seekIsInProgress = false
                     self.endSeekIndication(seekGeneration: seekGeneration)
                     self.releasePositionHoldIfIdle()
+                    self.settleDeferredNaturalEnd()
                 }
             }
             #if DEBUG
                 await seekGate?()
             #endif
             do {
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 guard rendererTransferCoordinator.hasActiveDriver else {
                     throw RuntimeError.noSession
                 }
@@ -1337,15 +1364,143 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     by: CMTime(seconds: delta, preferredTimescale: 600),
                     after: intent
                 )
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 emitPlaybackObservation(
                     .seekCompleted(positionSeconds: target),
                     generation: playbackObservationGeneration
                 )
             } catch let error as PlaybackControlError {
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 if case .seekSuperseded = error { return }
                 fail(error)
             } catch {
+                guard seekIntentGeneration == seekGeneration,
+                      observationGeneration == playbackObservationGeneration else { return }
                 fail(error)
+            }
+        }
+    }
+
+    public func surfaceGestureController(session: PlaybackSessionModel) -> PlaybackSurfaceGestureController {
+        if let controller = sharedSurfaceGestureController, controller.session === session {
+            return controller
+        }
+        sharedSurfaceGestureController?.cancel()
+        let controller = PlaybackSurfaceGestureController(runtime: self, session: session)
+        sharedSurfaceGestureController = controller
+        return controller
+    }
+
+    func togglePlaybackFromSurfaceGesture() {
+        _ = surfaceTransportIntent.toggle(isPlaying: productLifecycle == .playing)
+        applySurfaceTransportIntentWhenReady()
+    }
+
+    func setRateFromSurfaceGesture(_ rate: Double) {
+        surfaceTransportIntent.setRate(PlaybackModel.PlaybackSpeed(rate).value)
+        applySurfaceTransportIntentWhenReady()
+    }
+
+    func setSurfaceGestureSeekPreviewActive(_ active: Bool) {
+        surfaceSeekPreviewActive = active
+        if active {
+            invalidatePendingDisplayedImageClear()
+        } else {
+            settleDeferredNaturalEnd()
+        }
+    }
+
+    func seekFromSurfaceGesture(to seconds: Double, wasPlaying: Bool) {
+        surfaceTransportIntent.preservePlayback(isPlaying: wasPlaying)
+        seek(to: seconds)
+        applySurfaceTransportIntentWhenReady()
+    }
+
+    private func notifyNaturalPlaybackEnd() {
+        if surfaceSeekPreviewActive || seekIsInProgress {
+            deferredNaturalEndSessionID = activeSessionID
+        } else {
+            onPlaybackEnded?()
+        }
+    }
+
+    private func settleDeferredNaturalEnd() {
+        guard !surfaceSeekPreviewActive, !seekIsInProgress,
+              let deferredSessionID = deferredNaturalEndSessionID else { return }
+        deferredNaturalEndSessionID = nil
+        if deferredSessionID == activeSessionID, productLifecycle == .ended, didEndNaturally {
+            onPlaybackEnded?()
+        }
+    }
+
+    private func applySurfaceTransportIntentWhenReady() {
+        guard surfaceTransportTask == nil, let sessionID = activeSessionID else { return }
+        let runtimeGeneration = observationGeneration
+        let taskID = UUID()
+        surfaceTransportTaskID = taskID
+        surfaceTransportTask = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if surfaceTransportTaskID == taskID {
+                    surfaceTransportTask = nil
+                    surfaceTransportTaskID = nil
+                }
+            }
+            while !Task.isCancelled, activeSessionID == sessionID,
+                  observationGeneration == runtimeGeneration,
+                  surfaceTransportTaskID == taskID {
+                if seekIsInProgress {
+                    try? await Task.sleep(for: .milliseconds(10))
+                    continue
+                }
+                let intent = surfaceTransportIntent
+                do {
+                    if let rate = intent.desiredRate {
+                        try rendererTransferCoordinator.setRate(Float(rate))
+                        currentPlaybackSpeed = PlaybackModel.PlaybackSpeed(rate)
+                        resetActualPlaybackSampling()
+                    }
+                    if let playing = intent.desiredPlaying {
+                        let atEnd = productLifecycle == .ended
+                            && playbackPosition.duration > 0
+                            && playbackPosition.seconds >= playbackPosition.duration
+                        if !atEnd {
+                            try await performSpatialPlaybackTransport(
+                                playing ? .resume(mediaSessionID: sessionID) : .pause(mediaSessionID: sessionID)
+                            )
+                        }
+                    }
+                } catch {
+                    guard !Task.isCancelled, activeSessionID == sessionID,
+                          observationGeneration == runtimeGeneration,
+                          surfaceTransportTaskID == taskID else { return }
+                    if controlRejectionIsBenign(error) {
+                        let operationInProgress: Bool
+                        if let controlError = error as? PlaybackControlError,
+                           case .operationInProgress = controlError {
+                            operationInProgress = true
+                        } else {
+                            operationInProgress = false
+                        }
+                        if seekIsInProgress || operationInProgress {
+                            try? await Task.sleep(for: .milliseconds(10))
+                            continue
+                        }
+                    } else {
+                        fail(error)
+                    }
+                }
+                guard surfaceTransportIntent.revision == intent.revision else { continue }
+                if let rate = intent.desiredRate {
+                    SurfaceInputProbes.record(
+                        "gesture.rate.applied=\(rate) effectiveRate=\(currentPlaybackSpeed.value)",
+                        retention: .evidence
+                    )
+                }
+                surfaceTransportIntent.clear()
+                return
             }
         }
     }
@@ -2316,6 +2471,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         leaveReason: PlaybackLeaveReason?,
         releasingSourceAccess: Bool
     ) -> Task<Void, Never>? {
+        deferredNaturalEndSessionID = nil
+        sharedSurfaceGestureController?.cancel()
+        seekIntentGeneration &+= 1
+        seekIsInProgress = false
+        surfaceTransportTask?.cancel()
+        surfaceTransportTask = nil
+        surfaceTransportTaskID = nil
+        surfaceTransportIntent.clear()
+        surfaceSeekPreviewActive = false
         displayCriteria.clear()
         if let leaveReason {
             switch residency {
@@ -2826,7 +2990,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             for: cutover.token,
             continuity: continuity
         ) {
-            onPlaybackEnded?()
+            notifyNaturalPlaybackEnd()
         }
     }
 
@@ -3274,13 +3438,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 await Task.yield()
                 guard case .ended = lifecycle,
                       activeSessionID == endedSessionID,
-                      displayedImageGeneration == clearGeneration else { return }
+                      displayedImageGeneration == clearGeneration,
+                      surfaceSeekPreviewActive == false else { return }
                 await rendererTransferCoordinator.clearDisplayedVideoImage(
                     forMediaSessionID: endedSessionID
                 )
             }
             if receipt.reason == .naturalCompletion {
-                onPlaybackEnded?()
+                notifyNaturalPlaybackEnd()
             }
         case .failed(let message):
             updateLoadingState { $0.clearStage() }

@@ -31,7 +31,7 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
 | 结构 | `showControls` 是唯一的控制状态；沉浸态的显隐不开关 Window Scene | `verify_playback_surface_structure.py` |
 | 物理 | 窗口态下 chrome 元素回到层级；沉浸态下探针出现 visible 翻转，且期间没有 Window Scene 操作 | 两条 lane 的产品证据 |
 | 物理 | 隐藏之后残留的语义节点必须报告 `isHittable=false` | 两条 lane 的 Accessibility 取证 |
-| 物理 | Docked 与 Panorama 下的 Device Hub Pinch 只由各自的 `EnchronDockedInput.surface` 或 `EnchronPanoramaInput.*` 外壳接受，并产生 `toggle source=spatialTap` | Simulator Device Hub 与产品探针 |
+| 物理 | Docked 与 Panorama 下的 Device Hub Pinch 只由各自的 `EnchronDockedInput.surface` 或 `EnchronPanoramaInput.*` 外壳接受，并产生 `surfaceGesture input=begin` 与后继控件显隐事件 | Simulator Device Hub 与产品探针 |
 | 物理 | 每一条 `spatialVideoTopology reconciled writeID=<id>` 都有携带同一 ID 的 `ownershipVerified ... ancestorChainActive=true` 与之对应，并且不出现 `ancestorChainActive=false` | `measure_controls_flash.py` 的真机录屏轮次 |
 | 感知 | 注视与控件跟随的主观感受 | 不进入 Agent 回归；人工测试者自行判断 |
 
@@ -48,20 +48,20 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
 1. 通过 Device Hub 把鼠标移动到 Docked 视频画面的中央，然后点击一次。画面保持连续，控件出现。
 2. 把鼠标移动到控件以外的视频区域，再点击一次。控件隐藏。
 3. 核对两次 Pinch 各自产生一组连续的探针记录：
-   - `spatialTap entity=EnchronDockedInput.surface accepted=true`
-   - 随后的 `toggle source=spatialTap showControls=true` 或 `showControls=false`
+   - `surfaceGesture input=begin entity=EnchronDockedInput.surface`
+   - 单击确认后的 `controlsVisibility event=surface-toggle state=shown` 或 `state=hidden`
 
 ### Panorama
 
 1. 在控件隐藏时，把鼠标移动到 180° 内容的可见前半球或 360° 内容的任意可见方向，然后点击一次。控件出现，画面不闪黑。
 2. 把鼠标移动到控件以外的全景区域，再点击一次。控件隐藏。
 3. 核对两次 Pinch 各自产生一组连续的探针记录：
-   - `spatialTap entity=EnchronPanoramaInput.<panel> accepted=true`
-   - 随后的 `toggle source=spatialTap showControls=true` 或 `showControls=false`
+   - `surfaceGesture input=begin entity=EnchronPanoramaInput.<panel>`
+   - 单击确认后的 `controlsVisibility event=surface-toggle state=shown` 或 `state=hidden`
 
-每种呈现都必须同时得到一次 `true` 和一次 `false`，并与操作后的控件状态一致。以下任一结果均为失败：探针出现 `EnchronHeadInput.probe`、`EnchronDockedInput.probeFront` 或 `EnchronDockedInput.probeChildFront` 的 `accepted=true`；探针只出现 `accepted=false`；或者后续没有 `toggle source=spatialTap`。诊断三板只在单独调查问题时通过 `ENCHRON_DOCKED_HIT_TEST_PROBES=1` 启用。
+每种呈现都必须得到一次显示和一次隐藏，并与操作后的控件状态一致。以下任一结果均为失败：输入来自 `EnchronHeadInput.probe`、`EnchronDockedInput.probeFront` 或 `EnchronDockedInput.probeChildFront`；没有生产交互实体的 `surfaceGesture input=begin`；或者单击确认后没有控件显隐事件。诊断三板只在单独调查问题时通过 `ENCHRON_DOCKED_HIT_TEST_PROBES=1` 启用。
 
 ## Gotchas
 
 - 2026-08-12 的真机结果显示，attachment 中的完整 deck 会进入 Accessibility 层级，控件显示时这些元素报告 `isHittable=true`。对 `PlayerPanel-button-play` 执行 XCUIElement tap，会把其标签从 `Pause` 改为 `Play`；对 `PlayerPanel-button-exit-spatial` 执行 tap，会返回 Portal。控件隐藏后，相同的节点仍然可以被查询到，但报告 `isHittable=false`。那一轮验证没有对隐藏状态的节点发送激活动作。
-- 捏合路径的判据是探针出现 `toggle source=spatialTap showControls=true`。XCUITest 点击不携带空间输入语义；Device Hub 的 Mac 鼠标映射会产生系统 Gaze 与 Pinch，可用于 Simulator lane 的物理输入证据。
+- 捏合路径需要同一次输入的生产实体 `surfaceGesture input=begin` 和后继 `controlsVisibility` 记录。控件隐藏时，单击需等待双击判定结束。XCUITest 点击不携带空间输入语义；Device Hub 的 Mac 鼠标映射会产生系统 Gaze 与 Pinch，可用于 Simulator lane 的物理输入证据。

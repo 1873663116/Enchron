@@ -8,6 +8,8 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
     private static let resumePolicyKey = "enchron.preferences.resumePolicy"
     private static let endBehaviorKey = "enchron.preferences.endBehavior"
     private static let defaultSpeedKey = "enchron.preferences.defaultSpeed"
+    private static let surfaceGesturesKey = "enchron.preferences.surfaceGesturesEnabled"
+    private static let holdSpeedKey = "enchron.preferences.holdPlaybackSpeed"
     private static let controlsAutoHideKey = "enchron.preferences.controlsAutoHideSeconds"
     private static let developerModeKey = "enchron.preferences.developerMode"
     private static let surroundingsDimmingKey = "enchron.preferences.surroundingsDimming"
@@ -51,13 +53,15 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
             resumePolicy: policy,
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
+            surfaceGesturesEnabled: preferenceIsEnabled(defaults.object(forKey: Self.surfaceGesturesKey)),
+            holdPlaybackSpeed: holdPlaybackSpeed(defaults.object(forKey: Self.holdSpeedKey)),
             controlsAutoHideSeconds: controlsAutoHide,
             developerModeEnabled: developerModeEnabled,
             surroundingsDimmingEnabled: defaults.object(forKey: Self.surroundingsDimmingKey) as? Bool ?? true,
             mediaLibraryTabs: MediaLibraryTabVisibility(
-                emby: mediaLibraryTabIsVisible(storedTabs?["emby"]),
-                plex: mediaLibraryTabIsVisible(storedTabs?["plex"]),
-                jellyfin: mediaLibraryTabIsVisible(storedTabs?["jellyfin"])
+                emby: preferenceIsEnabled(storedTabs?["emby"]),
+                plex: preferenceIsEnabled(storedTabs?["plex"]),
+                jellyfin: preferenceIsEnabled(storedTabs?["jellyfin"])
             )
         )
     }
@@ -83,6 +87,8 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         }
         defaults.set(endBehaviorString, forKey: Self.endBehaviorKey)
         defaults.set(preferences.defaultPlaybackSpeed, forKey: Self.defaultSpeedKey)
+        defaults.set(preferences.surfaceGesturesEnabled, forKey: Self.surfaceGesturesKey)
+        defaults.set(holdPlaybackSpeed(preferences.holdPlaybackSpeed), forKey: Self.holdSpeedKey)
         defaults.set(preferences.controlsAutoHideSeconds, forKey: Self.controlsAutoHideKey)
         defaults.set(preferences.developerModeEnabled, forKey: Self.developerModeKey)
 #if !DEBUG
@@ -96,10 +102,17 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         ], forKey: Self.mediaLibraryTabsKey)
     }
 
-    private func mediaLibraryTabIsVisible(_ value: Any?) -> Bool {
+    private func preferenceIsEnabled(_ value: Any?) -> Bool {
         guard let number = value as? NSNumber,
               CFGetTypeID(number) == CFBooleanGetTypeID() else { return true }
         return number.boolValue
+    }
+
+    private func holdPlaybackSpeed(_ value: Any?) -> Double {
+        guard let number = value as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID(),
+              number.doubleValue.isFinite else { return 2.0 }
+        return PlaybackModel.PlaybackSpeed(number.doubleValue).value
     }
 
     public func loadPlaybackPreferences() -> PlaybackPreferences {

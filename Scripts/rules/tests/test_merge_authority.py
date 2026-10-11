@@ -335,6 +335,50 @@ class MergeAuthorityTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertIn("AutoMergeEligible", completed.stdout)
 
+    def test_device_hub_current_surface_gesture_delivery_preserves_w3_authority(self) -> None:
+        lines = (
+            "surfaceGesture input=begin entity=EnchronWindowInput.surface",
+            "2026-10-11T12:00:00Z probeSequence=5 probeRetention=diagnostic probeSession=none "
+            "surfaceGesture input=begin entity=EnchronDockedInput.surface",
+            "2026-10-11T12:00:00Z surfaceGesture input=begin entity=EnchronPanoramaInput.front",
+        )
+        for line in lines:
+            with self.subTest(line=line):
+                (self.device_hub / "probe.log").write_text(line + "\n", encoding="utf-8")
+                receipt = authority.build_run_receipt(
+                    self.repository,
+                    self.ranges[tiers.W3],
+                    [authority.ChangeKind.BUG_FIX],
+                    self.evidence_for(tiers.W3),
+                )
+                self.assertEqual(receipt["tier"], "W3")
+                self.assertEqual(receipt["authority"]["decision"], "AutoMergeEligible")
+
+    def test_device_hub_rejects_cancelled_injected_or_substituted_surface_input(self) -> None:
+        lines = (
+            "surfaceGesture input=cancel",
+            "surfaceGesture input=end",
+            "gesture.phase=holding effectiveRate=2",
+            "surfaceGesture input=begin entity=Injected",
+            "surfaceGesture input=begin entity=EnchronWindowInput.surface source=test",
+            "injected surfaceGesture input=begin entity=EnchronWindowInput.surface",
+            'test result="surfaceGesture input=begin entity=EnchronWindowInput.surface"',
+            "surfaceGesture input=beginning entity=EnchronWindowInput.surface",
+            "surfaceGesture input=begin entity=",
+            "spatialTap entity=EnchronWindowInput.surface accepted=false",
+            "injected spatialTap entity=EnchronWindowInput.surface accepted=true",
+        )
+        for line in lines:
+            with self.subTest(line=line):
+                (self.device_hub / "probe.log").write_text(line + "\n", encoding="utf-8")
+                with self.assertRaises(authority.AuthorityError):
+                    authority.build_run_receipt(
+                        self.repository,
+                        self.ranges[tiers.W3],
+                        [authority.ChangeKind.BUG_FIX],
+                        self.evidence_for(tiers.W3),
+                    )
+
     def test_device_hub_probe_validation_has_no_legacy_journey_dependency(self) -> None:
         source = Path(authority.__file__).read_text(encoding="utf-8")
         self.assertNotIn("journey_units", source)
