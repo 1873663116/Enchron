@@ -1,6 +1,8 @@
 # Enchron
 
-简体中文 | [English](README.en.md)
+简体中文 | [English](README.en.md) | [日本語](README.ja.md) | [한국어](README.ko.md) | [Русский](README.ru.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
+
+[![Verification](https://github.com/1873663116/Enchron/actions/workflows/verification.yml/badge.svg?branch=main)](https://github.com/1873663116/Enchron/actions/workflows/verification.yml) [![License: GPL-3.0](https://img.shields.io/github/license/1873663116/Enchron)](LICENSE)
 
 Enchron 是面向 Apple Vision Pro 的媒体播放器。应用可在窗口和沉浸空间中播放视频，支持本地文件、SMB、WebDAV 和 Emby 媒体库。
 
@@ -22,16 +24,14 @@ Enchron 已开放 TestFlight 公开测试。使用 Apple Vision Pro，通过下�
 
 ## 构建
 
-本项目需要 Xcode 27.0 与 visionOS SDK。`Packages/PlaybackCore` 依赖未纳入 Git 的 `PlaybackFFmpeg.xcframework` 和 `PlaybackBluRay.xcframework`。在克隆后的仓库根目录运行以下命令：
+本项目需要 Xcode 27.0 与 visionOS SDK。克隆后，在仓库根目录运行以下命令，以准备 `Packages/PlaybackCore` 所需的未纳入 Git 的二进制依赖：
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh
 Scripts/provision_vendored_bluray.sh
 ```
 
-蓝光样本结构由 `Scripts/build/verify_bluray_corpus.py` 对照独立 MPLS 解析结果验证。`Scripts/verification/prepare_bluray_supplement.py` 生成本地、SMB 与 WebDAV 的专项验收目录；`Scripts/verification/verify_bluray_simulator.py` 通过编译后的操作网关执行该目录。模拟器端到端验收要求有效的专项审阅回执及干净工作树的冻结执行输入。
-
-两个脚本分别构建所需二进制；传入另一个已具备对应二进制的工作副本路径时，脚本复用其中的文件。构建与验证入口位于 `Scripts/` 和 `Regression/`。项目约束、模块所有权和测试协议分别见 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`AGENTS.md`](AGENTS.md) 和 [`Regression/README.md`](Regression/README.md)。
+蓝光样本结构由 `Scripts/build/verify_bluray_corpus.py` 对照独立 MPLS 解析结果验证。蓝光专项验收目录和模拟器验收工具位于 `Scripts/verification/`。构建与验证入口位于 `Scripts/` 和 `Regression/`。项目约束、模块所有权和测试协议分别见 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`AGENTS.md`](AGENTS.md) 和 [`Regression/README.md`](Regression/README.md)。
 
 ## 隐私与网络
 
@@ -41,7 +41,7 @@ Enchron 不运营媒体服务，也不将媒体、播放历史或远程凭据发
 
 ## 开源许可与第三方组件
 
-Enchron 以 GNU General Public License v3.0 发布，许可证文本位于 [`LICENSE`](LICENSE)。第三方组件及其许可证见 [`NOTICE`](NOTICE)，应用内的设置页面也提供相同的许可证信息。
+Enchron 以 GNU General Public License v3.0 发布，许可证文本位于 [`LICENSE`](LICENSE)。第三方组件及其许可证见 [`NOTICE`](NOTICE)，应用内的设置页面也提供相应的许可证信息。
 
 ## 外部贡献
 
