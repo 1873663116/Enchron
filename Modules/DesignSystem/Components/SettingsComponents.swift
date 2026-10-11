@@ -620,6 +620,7 @@ public struct SettingListGroup: View {
             range: ClosedRange<Double>,
             decimals: Int = 0,
             unit: String? = nil,
+            labelAlwaysVisible: Bool = false,
             accessibilityLabel: String
         )
     }
@@ -640,6 +641,7 @@ public struct SettingListGroup: View {
         public let title: String
         public let systemName: String?
         public var supportingText: String?
+        public var supportingTextLineLimit: Int? = 1
         public var detail: String?
         public var keyValueDetail: [KeyValue]?
         public var expansion: ExpansionOrigin = .top
@@ -652,6 +654,7 @@ public struct SettingListGroup: View {
             title: String,
             systemName: String? = nil,
             supportingText: String? = nil,
+            supportingTextLineLimit: Int? = 1,
             detail: String? = nil,
             keyValueDetail: [KeyValue]? = nil,
             expansion: ExpansionOrigin = .top,
@@ -663,6 +666,7 @@ public struct SettingListGroup: View {
             self.title = title
             self.systemName = systemName
             self.supportingText = supportingText
+            self.supportingTextLineLimit = supportingTextLineLimit
             self.detail = detail
             self.keyValueDetail = keyValueDetail
             self.expansion = expansion
@@ -701,6 +705,7 @@ public struct SettingListGroup: View {
                     title: item.title,
                     systemName: item.systemName,
                     supportingText: item.supportingText,
+                    supportingTextLineLimit: item.supportingTextLineLimit,
                     detail: item.detail,
                     keyValueDetail: item.keyValueDetail,
                     expansion: item.expansion,
@@ -832,6 +837,7 @@ struct SettingListGroupRow: View {
     let title: String
     let systemName: String?
     var supportingText: String?
+    var supportingTextLineLimit: Int? = 1
     var detail: String?
     var keyValueDetail: [SettingListGroup.KeyValue]?
     var expansion: SettingListGroup.ExpansionOrigin = .top
@@ -988,7 +994,7 @@ struct SettingListGroupRow: View {
                     Text(supportingText)
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(DesignTokens.Surface.supportingText)
-                        .lineLimit(1)
+                        .lineLimit(supportingTextLineLimit)
                 }
             }
 
@@ -1139,12 +1145,14 @@ struct SettingListGroupRow: View {
                 accessibilityLabel: accessibilityLabel
             )
 
-        case .rangeSlider(let value, let range, let decimals, let unit, let accessibilityLabel):
+        case .rangeSlider(let value, let range, let decimals, let unit, let labelAlwaysVisible, let accessibilityLabel):
             SettingListRangeSliderRow(
                 value: value,
                 range: range,
                 decimals: decimals,
                 unit: unit,
+                labelAlwaysVisible: labelAlwaysVisible,
+                accessibilityIdentifier: "Settings-slider-\(id)",
                 title: title,
                 accessibilityLabel: accessibilityLabel
             )
@@ -1353,6 +1361,8 @@ private struct SettingListRangeSliderRow: View {
     let range: ClosedRange<Double>
     let decimals: Int
     let unit: String?
+    let labelAlwaysVisible: Bool
+    let accessibilityIdentifier: String
     let title: String
     let accessibilityLabel: String
 
@@ -1391,7 +1401,7 @@ private struct SettingListRangeSliderRow: View {
                 active: 1,
                 inactive: 0,
                 in: hoverGroup(.followsGroup),
-                forcedActive: isDragging
+                forcedActive: labelAlwaysVisible || isDragging
             )
 
             RangeSlider(
@@ -1399,6 +1409,7 @@ private struct SettingListRangeSliderRow: View {
                 range: range,
                 accessibilityLabel: accessibilityLabel,
                 accessibilityValue: readout,
+                accessibilityIdentifier: accessibilityIdentifier,
                 trackWidth: resolvedTrackWidth,
                 onDraggingChanged: { isDragging = $0 }
             )

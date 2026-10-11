@@ -18,7 +18,7 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
     public var resumePolicy: ResumePolicy
     public var playbackEndBehavior: PlaybackEndBehavior
     public var defaultPlaybackSpeed: Double
-    public var surfaceGesturesEnabled: Bool
+    public var playbackShortcutsEnabled: Bool
     public var holdPlaybackSpeed: Double
     public var controlsAutoHideSeconds: Int
     public var developerModeEnabled: Bool
@@ -29,7 +29,7 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         resumePolicy: ResumePolicy = .askEveryTime,
         playbackEndBehavior: PlaybackEndBehavior = .repeatOne,
         defaultPlaybackSpeed: Double = 1.0,
-        surfaceGesturesEnabled: Bool = true,
+        playbackShortcutsEnabled: Bool = true,
         holdPlaybackSpeed: Double = 2.0,
         controlsAutoHideSeconds: Int = 8,
         developerModeEnabled: Bool = false,
@@ -39,12 +39,17 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         self.resumePolicy = resumePolicy
         self.playbackEndBehavior = playbackEndBehavior
         self.defaultPlaybackSpeed = defaultPlaybackSpeed
-        self.surfaceGesturesEnabled = surfaceGesturesEnabled
-        self.holdPlaybackSpeed = holdPlaybackSpeed
+        self.playbackShortcutsEnabled = playbackShortcutsEnabled
+        self.holdPlaybackSpeed = Self.normalizedHoldPlaybackSpeed(holdPlaybackSpeed)
         self.controlsAutoHideSeconds = controlsAutoHideSeconds
         self.developerModeEnabled = developerModeEnabled
         self.surroundingsDimmingEnabled = surroundingsDimmingEnabled
         self.mediaLibraryTabs = mediaLibraryTabs
+    }
+
+    static func normalizedHoldPlaybackSpeed(_ value: Double) -> Double {
+        guard value.isFinite, value != 1 else { return 2 }
+        return PlaybackModel.PlaybackSpeed(value).value
     }
 }
 
@@ -73,6 +78,7 @@ public final class SettingsViewModel {
 
     public func update(_ mutate: (inout UserPreferences) -> Void) {
         mutate(&preferences)
+        preferences.holdPlaybackSpeed = UserPreferences.normalizedHoldPlaybackSpeed(preferences.holdPlaybackSpeed)
         store.savePreferences(preferences)
         onPreferencesChanged?(preferences)
     }

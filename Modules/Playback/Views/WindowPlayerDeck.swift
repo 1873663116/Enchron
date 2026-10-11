@@ -79,6 +79,7 @@ public struct WindowPlayerDeckView: View {
             primaryActionEnabled: transport.primaryActionEnabled,
             canSkipForward: transport.canSkipForward,
             canStepForward: transport.canStepForward && playbackRuntime.mediaKind == .video,
+            playbackShortcutsEnabled: appModel.playbackShortcutsEnabled,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
             elapsedLabel: PlaybackTimeFormatter.clock(position.seconds),
             durationLabel: PlaybackTimeFormatter.clock(duration),

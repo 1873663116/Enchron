@@ -1,59 +1,92 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Surface shortcuts": {
+    "Playback shortcuts": {
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Bildgesten"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Gestes sur la vidéo"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "画面ショートカットジェスチャ"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "화면 바로 가기 제스처"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Жесты на видео"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "画面快捷手势"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "畫面快捷手勢"}}
+        "de": {"stringUnit": {"state": "translated", "value": "Wiedergabe-Kurzbefehle"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Raccourcis de lecture"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "再生ショートカット"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "재생 바로 가기"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Быстрые действия воспроизведения"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "播放快捷操作"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "播放快捷操作"}}
       }
     },
     "Hold playback speed": {
       "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "Wiedergabetempo beim Halten"}},
         "fr": {"stringUnit": {"state": "translated", "value": "Vitesse de lecture en maintenant le pincement"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "長押し中の再生速度"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ピンチ保持中の再生速度"}},
         "ko": {"stringUnit": {"state": "translated", "value": "길게 집는 동안의 재생 속도"}},
         "ru": {"stringUnit": {"state": "translated", "value": "Скорость при удержании"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "按住播放速率"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "按住播放速率"}}
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "按住时的播放速度"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "按住時的播放速度"}}
       }
     },
-    "When controls are hidden, double-tap the video to play or pause. Pinch and hold to use the hold playback speed, then release to restore the previous speed. Move left or right while pinching to preview up to 30 seconds backward or forward, then release to seek. Single-tap controls and the precise timeline remain available when shortcuts are off.": {
+    "Unconscious pinches may be recognized as playback commands.": {
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Wenn die Steuerelemente ausgeblendet sind, tippe zweimal auf das Video, um die Wiedergabe zu starten oder zu pausieren. Halte die Pinch-Geste, um das eingestellte Wiedergabetempo beim Halten zu verwenden. Lasse los, um das vorherige Tempo wiederherzustellen. Bewege die Hand während der Pinch-Geste nach links oder rechts, um eine Position bis zu 30 Sekunden davor oder danach vorab anzuzeigen. Lasse los, um zu dieser Position zu springen. Auch bei ausgeschalteten Bildgesten kannst du die Steuerelemente mit einem einfachen Tippen ein- oder ausblenden und die präzise Zeitleiste verwenden."}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Lorsque les commandes sont masquées, touchez deux fois la vidéo pour lancer ou mettre en pause la lecture. Maintenez le pincement pour utiliser la vitesse de lecture définie pour ce geste, puis relâchez pour revenir à la vitesse précédente. Déplacez la main vers la gauche ou la droite tout en pinçant pour prévisualiser une position située jusqu’à 30 secondes avant ou après, puis relâchez pour y accéder. Lorsque ces gestes sont désactivés, vous pouvez toujours toucher une fois la vidéo pour afficher ou masquer les commandes et utiliser la timeline précise."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "コントロールが非表示のとき、画面をダブルタップすると再生または一時停止します。ピンチしたまま保持すると、長押し中の再生速度を一時的に使用します。離すと元の速度に戻ります。ピンチしたまま左右に動かすと、最大30秒前後の位置をプレビューできます。離すとその位置に移動します。ショートカットジェスチャをオフにしても、シングルタップによるコントロールの表示・非表示と精密タイムラインは使用できます。"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "컨트롤이 숨겨져 있을 때 화면을 두 번 탭하면 재생하거나 일시 정지합니다. 집는 동작을 유지하면 설정한 속도로 일시적으로 재생하며, 놓으면 이전 속도로 돌아갑니다. 집는 동작을 유지하면서 좌우로 움직이면 최대 30초 앞뒤의 위치를 미리 볼 수 있으며, 놓으면 해당 위치로 이동합니다. 바로 가기 제스처를 꺼도 한 번 탭하여 컨트롤을 표시하거나 숨길 수 있고 정밀 타임라인을 사용할 수 있습니다."}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Когда элементы управления скрыты, дважды коснитесь видео, чтобы начать или приостановить воспроизведение. Сведите пальцы и удерживайте жест, чтобы временно использовать заданную скорость. Отпустите, чтобы вернуть прежнюю скорость. Удерживая жест, двигайте руку влево или вправо, чтобы просмотреть позицию в пределах 30 секунд назад или вперёд. Отпустите, чтобы перейти к этой позиции. При отключённых жестах можно по-прежнему показывать и скрывать элементы управления одним касанием и использовать точную шкалу времени."}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "控件隐藏时，双击画面播放或暂停。捏住时临时使用按住播放速率，松开后恢复原速率。捏住并左右移动可预览最多前后30秒，松开后跳转。关闭快捷手势后，仍可单击召唤或隐藏控件，并使用精确时间轴。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "控制項隱藏時，點兩下畫面播放或暫停。捏住時暫時使用按住播放速率，放開後恢復原速率。捏住並左右移動可預覽最多前後30秒，放開後跳轉。關閉快捷手勢後，仍可點一下叫出或隱藏控制項，並使用精確時間軸。"}}
+        "de": {"stringUnit": {"state": "translated", "value": "Unbewusste Pinch-Gesten können als Wiedergabebefehle erkannt werden."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Un pincement inconscient peut être reconnu comme une commande de lecture."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "無意識のピンチ動作も再生操作として認識されることがあります。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "무의식적인 집기 동작도 재생 조작으로 인식될 수 있습니다."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Неосознанный жест сведения пальцев может быть распознан как команда воспроизведения."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "无意识的捏合动作也可能被识别为播放操作。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "無意識的捏合動作也可能被識別為播放操作。"}}
       }
     },
-    "Precise timeline": {
+    "Video gestures work while playback controls are hidden.": {
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Präzise Zeitleiste"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Timeline précise"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "精密タイムライン"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "정밀 타임라인"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Точная шкала времени"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "精确时间轴"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "精確時間軸"}}
+        "de": {"stringUnit": {"state": "translated", "value": "Videogesten sind bei ausgeblendeten Wiedergabesteuerungen verfügbar."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Les gestes sur la vidéo fonctionnent lorsque les commandes sont masquées."}},
+        "ja": {"stringUnit": {"state": "translated", "value": "画面上のジェスチャは再生コントロールが非表示のときに使えます。"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "영상 제스처는 재생 제어가 숨겨져 있을 때 작동합니다."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Жесты на видео работают, когда элементы управления скрыты."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "播放画面上的手势在控件隐藏时生效。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "播放畫面上的手勢在控制項隱藏時生效。"}}
       }
     },
-    "Double-tap the progress bar to expand the precise timeline. Zoom the time scale or move frame by frame.": {
+    "Double-tap the video → Play or pause": {
       "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Tippe zweimal auf den Fortschrittsbalken, um die präzise Zeitleiste zu öffnen. Du kannst den Zeitmaßstab vergrößern oder verkleinern und dich Bild für Bild bewegen."}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Touchez deux fois la barre de progression pour ouvrir la timeline précise. Ajustez l’échelle de temps ou déplacez-vous image par image."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "プログレスバーをダブルタップすると精密タイムラインが開きます。時間目盛りの拡大・縮小やフレーム単位の移動ができます。"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "진행 막대를 두 번 탭하면 정밀 타임라인이 펼쳐집니다. 시간 눈금을 확대 또는 축소하거나 프레임 단위로 이동할 수 있습니다."}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Дважды коснитесь полосы прогресса, чтобы открыть точную шкалу времени. Изменяйте масштаб времени или перемещайтесь по одному кадру."}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "双击进度条展开精确时间轴，可缩放刻度或逐帧定位。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點兩下進度條展開精確時間軸，可縮放刻度或逐格定位。"}}
+        "de": {"stringUnit": {"state": "translated", "value": "Video doppelt antippen → Wiedergabe oder Pause"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Toucher deux fois la vidéo → Lire ou mettre en pause"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "再生画面をダブルタップ → 再生／一時停止"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "영상 두 번 탭 → 재생 또는 일시 정지"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дважды коснуться видео → Воспроизведение или пауза"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "双击播放画面 → 播放或暂停"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點兩下播放畫面 → 播放或暫停"}}
+      }
+    },
+    "Pinch and hold → Play at the set speed": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Pinch-Geste halten → Mit eingestelltem Tempo abspielen"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Pincer et maintenir → Lire à la vitesse définie"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ピンチしたまま保持 → 設定した速度で再生"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "집고 유지 → 설정한 속도로 재생"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Свести пальцы и удерживать → Заданная скорость"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "捏合并保持 → 设定速度播放"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "捏合並保持 → 設定速度播放"}}
+      }
+    },
+    "Pinch and drag left or right → Adjust playback position": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Pinch-Geste nach links oder rechts ziehen → Wiedergabeposition ändern"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Pincer et glisser à gauche ou à droite → Ajuster la position de lecture"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "ピンチして左右にドラッグ → 再生位置を調整"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "집고 좌우로 드래그 → 재생 위치 조절"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Свести пальцы и перетащить влево или вправо → Изменить позицию"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "捏合并左右拖动 → 调整播放位置"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "捏合並左右拖動 → 調整播放位置"}}
+      }
+    },
+    "Double-tap the playback progress bar → Open the precise timeline": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Fortschrittsbalken doppelt antippen → Präzise Zeitleiste öffnen"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Toucher deux fois la barre de progression → Ouvrir la timeline précise"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "再生コントロールのプログレスバーをダブルタップ → 精密タイムラインを開く"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "재생 진행 막대 두 번 탭 → 정밀 타임라인 열기"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дважды коснуться полосы прогресса → Открыть точную шкалу времени"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "双击播放控件的进度条 → 打开精确时间轴"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點兩下播放控制項的進度條 → 開啟精確時間軸"}}
       }
     },
     "Media library tabs": {

@@ -71,7 +71,7 @@ public final class PlaybackSurfaceGestureController {
             runtimeGeneration = runtime.observationGeneration
             presentation = session.playbackPresentation
         }
-        if (!session.surfaceGesturesEnabled && state.isShortcutSequence) || session.presentationTransition != nil {
+        if (!session.playbackShortcutsEnabled && state.isShortcutSequence) || session.presentationTransition != nil {
             cancel()
         } else if session.showControls && state.isShortcutSequence {
             cancel()
@@ -84,7 +84,7 @@ public final class PlaybackSurfaceGestureController {
         guard let runtime else { return nil }
         return PlaybackSurfaceGestureContext(
             controlsVisible: session.showControls,
-            enabled: session.surfaceGesturesEnabled && session.presentationTransition == nil,
+            enabled: session.playbackShortcutsEnabled && session.presentationTransition == nil,
             isPlaying: runtime.productLifecycle == .playing,
             positionSeconds: runtime.playbackPosition.seconds,
             durationSeconds: runtime.playbackPosition.duration,

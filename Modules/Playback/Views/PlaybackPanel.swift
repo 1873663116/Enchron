@@ -23,6 +23,7 @@ public struct FusedPlayerPanelLive {
     var primaryActionEnabled: Bool
     var canSkipForward: Bool
     var canStepForward: Bool
+    var playbackShortcutsEnabled: Bool
     var progress: CGFloat
     var elapsedLabel: String
     var durationLabel: String
@@ -76,6 +77,7 @@ public struct FusedPlayerPanelLive {
         primaryActionEnabled: Bool,
         canSkipForward: Bool,
         canStepForward: Bool,
+        playbackShortcutsEnabled: Bool = true,
         progress: CGFloat,
         elapsedLabel: String,
         durationLabel: String,
@@ -124,6 +126,7 @@ public struct FusedPlayerPanelLive {
         self.primaryActionEnabled = primaryActionEnabled
         self.canSkipForward = canSkipForward
         self.canStepForward = canStepForward
+        self.playbackShortcutsEnabled = playbackShortcutsEnabled
         self.progress = progress
         self.elapsedLabel = elapsedLabel
         self.durationLabel = durationLabel
@@ -793,6 +796,9 @@ public struct FusedPlayerPanel: View {
             if !isDragging && !isTimelineDragging {
                 scrubBoundary = EnchronScrubBoundary.from(normalized: Double(newValue))
             }
+        }
+        .onChange(of: live?.playbackShortcutsEnabled) { _, enabled in
+            if enabled == false, expansion.layout == .timeline { closeTimeline() }
         }
         .onChange(of: live?.progress) { _, newValue in
             guard let target = pendingSeekTarget else { return }
@@ -1821,12 +1827,16 @@ public struct FusedPlayerPanel: View {
         }
         .gesture(
             ExclusiveGesture(
-                SpatialTapGesture(count: 2),
+                SpatialTapGesture(count: live?.playbackShortcutsEnabled == false ? 1 : 2),
                 SpatialTapGesture()
             ).onEnded { value in
                 switch value {
-                case .first:
-                    openTimeline()
+                case .first(let tap):
+                    if live?.playbackShortcutsEnabled == false {
+                        seekToTrack(at: tap.location.x, travelWidth: width)
+                    } else {
+                        openTimeline()
+                    }
                 case .second(let tap):
                     seekToTrack(at: tap.location.x, travelWidth: width)
                 }
@@ -2086,6 +2096,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private func openTimeline() {
+        guard live?.playbackShortcutsEnabled != false else { return }
         videoFormatEditing.discard()
         var transaction = Transaction()
         transaction.animation = nil

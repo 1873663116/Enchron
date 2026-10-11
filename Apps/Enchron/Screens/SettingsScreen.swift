@@ -168,20 +168,8 @@ struct SettingsScreen: View {
             )
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                Text(String(localized: """
-                    When controls are hidden, double-tap the video to play or pause. \
-                    Pinch and hold to use the hold playback speed, then release to restore the previous speed. \
-                    Move left or right while pinching to preview up to 30 seconds backward or forward, then release to seek. \
-                    Single-tap controls and the precise timeline remain available when shortcuts are off.
-                    """))
-                Text(String(localized: "Precise timeline"))
-                    .font(DesignTokens.Typography.selectionHeader)
-                    .foregroundStyle(.primary)
-                Text(String(localized: "Double-tap the progress bar to expand the precise timeline. Zoom the time scale or move frame by frame."))
-            }
-            .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(DesignTokens.Surface.supportingText)
+            SettingListGroup(accessibilityIdentifier: "Settings-PlaybackShortcuts-group", items: playbackShortcutItems)
+                .animation(DesignTokens.AnimationToken.selection, value: viewModel.preferences.playbackShortcutsEnabled)
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
 #if DEBUG
@@ -297,33 +285,6 @@ struct SettingsScreen: View {
                 )
             ),
             SettingListGroup.Item(
-                id: "surface-gestures",
-                title: String(localized: "Surface shortcuts"),
-                systemName: "hand.pinch",
-                accessory: .boundToggle(
-                    isOn: Binding(
-                        get: { viewModel.preferences.surfaceGesturesEnabled },
-                        set: { value in viewModel.update { $0.surfaceGesturesEnabled = value } }
-                    ),
-                    isEnabled: true,
-                    marker: nil
-                )
-            ),
-            SettingListGroup.Item(
-                id: "hold-speed",
-                title: String(localized: "Hold playback speed"),
-                systemName: "speedometer",
-                accessory: .menu(
-                    title: speedTitle(viewModel.preferences.holdPlaybackSpeed),
-                    options: PlaybackModel.PlaybackSpeed.allCases.map { speed in
-                        SettingListGroup.MenuOption(speedTitle(speed.value), id: "\(speed.value)") {
-                            viewModel.update { $0.holdPlaybackSpeed = speed.value }
-                            recordMenuReachability("hold-speed")
-                        }
-                    }
-                )
-            ),
-            SettingListGroup.Item(
                 id: "controls-auto-hide",
                 title: String(localized: "Auto-Hide Playback Controls"),
                 systemName: "timer",
@@ -349,6 +310,79 @@ struct SettingsScreen: View {
                 )
             )
         ]
+    }
+
+    private var holdSpeedBinding: Binding<Double> {
+        Binding(
+            get: { viewModel.preferences.holdPlaybackSpeed },
+            set: { value in
+                let rounded = (value * 100).rounded() / 100
+                let speed = rounded == 1
+                    ? (value < 1 ? 0.99 : 1.01)
+                    : rounded
+                viewModel.update { $0.holdPlaybackSpeed = speed }
+            }
+        )
+    }
+
+    private var playbackShortcutItems: [SettingListGroup.Item] {
+        var items = [
+            SettingListGroup.Item(
+                id: "surface-gestures",
+                title: String(localized: "Playback shortcuts"),
+                systemName: "hand.pinch",
+                supportingText: String(localized: "Unconscious pinches may be recognized as playback commands."),
+                supportingTextLineLimit: nil,
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { viewModel.preferences.playbackShortcutsEnabled },
+                        set: { value in viewModel.update { $0.playbackShortcutsEnabled = value } }
+                    ),
+                    isEnabled: true,
+                    marker: nil
+                )
+            )
+        ]
+        if viewModel.preferences.playbackShortcutsEnabled {
+            items.append(contentsOf: [
+                SettingListGroup.Item(
+                    id: "hold-speed",
+                    title: String(localized: "Hold playback speed"),
+                    accessory: .none,
+                    embeddedControl: .rangeSlider(
+                        value: holdSpeedBinding,
+                        range: 0.25...5,
+                        decimals: 2,
+                        unit: "×",
+                        labelAlwaysVisible: true,
+                        accessibilityLabel: String(localized: "Hold playback speed")
+                    )
+                ),
+                SettingListGroup.Item(
+                    id: "shortcut-play-pause",
+                    title: String(localized: "Double-tap the video → Play or pause"),
+                    supportingText: String(localized: "Video gestures work while playback controls are hidden."),
+                    supportingTextLineLimit: nil,
+                    accessory: .none
+                ),
+                SettingListGroup.Item(
+                    id: "shortcut-hold",
+                    title: String(localized: "Pinch and hold → Play at the set speed"),
+                    accessory: .none
+                ),
+                SettingListGroup.Item(
+                    id: "shortcut-seek",
+                    title: String(localized: "Pinch and drag left or right → Adjust playback position"),
+                    accessory: .none
+                ),
+                SettingListGroup.Item(
+                    id: "shortcut-timeline",
+                    title: String(localized: "Double-tap the playback progress bar → Open the precise timeline"),
+                    accessory: .none
+                )
+            ])
+        }
+        return items
     }
 
     private var storagePrivacyItems: [SettingListGroup.Item] {

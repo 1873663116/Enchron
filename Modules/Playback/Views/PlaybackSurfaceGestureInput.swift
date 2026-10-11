@@ -39,7 +39,7 @@ struct PlaybackSurfaceGestureInput: ViewModifier {
             .onChange(of: session.showControls) {
                 controller.synchronize()
             }
-            .onChange(of: session.surfaceGesturesEnabled) {
+            .onChange(of: session.playbackShortcutsEnabled) {
                 controller.synchronize()
             }
             .onChange(of: session.playbackPresentation) {

@@ -18,7 +18,7 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         prefs.resumePolicy = .alwaysResume
         prefs.playbackEndBehavior = .playNext
         prefs.defaultPlaybackSpeed = 1.5
-        prefs.surfaceGesturesEnabled = false
+        prefs.playbackShortcutsEnabled = false
         prefs.holdPlaybackSpeed = 3.0
         prefs.controlsAutoHideSeconds = 15
         store.savePreferences(prefs)
@@ -38,7 +38,7 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
 
         let loaded = UserDefaultsStore(defaults: defaults).loadPreferences()
         XCTAssertEqual(loaded.controlsAutoHideSeconds, 8)
-        XCTAssertTrue(loaded.surfaceGesturesEnabled)
+        XCTAssertTrue(loaded.playbackShortcutsEnabled)
         XCTAssertEqual(loaded.holdPlaybackSpeed, 2.0)
     }
 
@@ -51,7 +51,7 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         defaults.set(15, forKey: "enchron.preferences.controlsAutoHideSeconds")
 
         let loaded = UserDefaultsStore(defaults: defaults).loadPreferences()
-        XCTAssertTrue(loaded.surfaceGesturesEnabled)
+        XCTAssertTrue(loaded.playbackShortcutsEnabled)
         XCTAssertEqual(loaded.holdPlaybackSpeed, 2.0)
         XCTAssertEqual(loaded.resumePolicy, .alwaysResume)
         XCTAssertEqual(loaded.defaultPlaybackSpeed, 1.5)
@@ -68,7 +68,7 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         ]
         for (stored, expected) in cases {
             defaults.set(stored, forKey: "enchron.preferences.surfaceGesturesEnabled")
-            XCTAssertEqual(UserDefaultsStore(defaults: defaults).loadPreferences().surfaceGesturesEnabled, expected)
+            XCTAssertEqual(UserDefaultsStore(defaults: defaults).loadPreferences().playbackShortcutsEnabled, expected)
         }
     }
 
@@ -79,7 +79,7 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         let cases: [(Any?, Double)] = [
             (nil, 2.0), ("3", 2.0), (false, 2.0), (true, 2.0),
             (Double.nan, 2.0), (Double.infinity, 2.0), (-Double.infinity, 2.0),
-            (-1.0, 0.25), (0.0, 0.25), (0.25, 0.25), (1.5, 1.5),
+            (-1.0, 0.25), (0.0, 0.25), (0.25, 0.25), (1.0, 2.0), (2.37, 2.37), (1.5, 1.5),
             (2, 2.0), (3.0, 3.0), (5.0, 5.0), (100.0, 5.0)
         ]
         for (stored, expected) in cases {
@@ -95,15 +95,15 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         let store = UserDefaultsStore(defaults: defaults)
         let cases: [(Double, Double)] = [
             (-1, 0.25), (0.25, 0.25), (0.5, 0.5), (0.75, 0.75),
-            (1, 1), (1.25, 1.25), (1.5, 1.5), (1.75, 1.75),
+            (1, 2), (1.01, 1.01), (0.99, 0.99), (2.37, 2.37), (1.25, 1.25), (1.5, 1.5), (1.75, 1.75),
             (2, 2), (3, 3), (5, 5), (100, 5),
             (.nan, 2), (.infinity, 2), (-.infinity, 2)
         ]
         for (speed, expected) in cases {
-            store.savePreferences(UserPreferences(surfaceGesturesEnabled: false, holdPlaybackSpeed: speed))
+            store.savePreferences(UserPreferences(playbackShortcutsEnabled: false, holdPlaybackSpeed: speed))
             let restoredDefaults = try XCTUnwrap(UserDefaults(suiteName: suite))
             let restored = UserDefaultsStore(defaults: restoredDefaults).loadPreferences()
-            XCTAssertFalse(restored.surfaceGesturesEnabled)
+            XCTAssertFalse(restored.playbackShortcutsEnabled)
             XCTAssertEqual(restored.holdPlaybackSpeed, expected)
             XCTAssertEqual(restored.defaultPlaybackSpeed, 1.0)
         }
@@ -117,24 +117,27 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         let store = UserDefaultsStore(defaults: defaults)
         store.savePreferences(UserPreferences(
             defaultPlaybackSpeed: 1.5,
-            surfaceGesturesEnabled: false,
+            playbackShortcutsEnabled: false,
             holdPlaybackSpeed: 3.0
         ))
         let session = PlaybackSessionModel()
         let settings = SettingsViewModel(store: store) { preferences in
-            session.surfaceGesturesEnabled = preferences.surfaceGesturesEnabled
+            session.playbackShortcutsEnabled = preferences.playbackShortcutsEnabled
             session.holdPlaybackSpeed = preferences.holdPlaybackSpeed
         }
-        XCTAssertFalse(session.surfaceGesturesEnabled)
+        XCTAssertFalse(session.playbackShortcutsEnabled)
         XCTAssertEqual(session.holdPlaybackSpeed, 3.0)
 
-        settings.update { $0.surfaceGesturesEnabled = true }
-        XCTAssertTrue(session.surfaceGesturesEnabled)
+        settings.update { $0.playbackShortcutsEnabled = true }
+        XCTAssertTrue(session.playbackShortcutsEnabled)
+        settings.update { $0.holdPlaybackSpeed = 1 }
+        XCTAssertEqual(session.holdPlaybackSpeed, 2)
+        XCTAssertEqual(settings.preferences.holdPlaybackSpeed, 2)
         settings.update { $0.holdPlaybackSpeed = 0.5 }
         XCTAssertEqual(session.holdPlaybackSpeed, 0.5)
 
         let restored = UserDefaultsStore(defaults: defaults).loadPreferences()
-        XCTAssertTrue(restored.surfaceGesturesEnabled)
+        XCTAssertTrue(restored.playbackShortcutsEnabled)
         XCTAssertEqual(restored.holdPlaybackSpeed, 0.5)
         XCTAssertEqual(restored.defaultPlaybackSpeed, 1.5)
     }

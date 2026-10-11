@@ -1169,11 +1169,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Settings-menu-hold-speed",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:Settings-menu-resume-strategy",
       "verdict": "known-defect"
     },
@@ -1204,7 +1199,12 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "menu:settings:hold-speed",
+      "operation": "accessibility:Settings-slider-hold-speed",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-slider-{id}",
       "verdict": "known-defect"
     }
   ],

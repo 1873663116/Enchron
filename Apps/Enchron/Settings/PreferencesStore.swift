@@ -53,7 +53,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
             resumePolicy: policy,
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
-            surfaceGesturesEnabled: preferenceIsEnabled(defaults.object(forKey: Self.surfaceGesturesKey)),
+            playbackShortcutsEnabled: preferenceIsEnabled(defaults.object(forKey: Self.surfaceGesturesKey)),
             holdPlaybackSpeed: holdPlaybackSpeed(defaults.object(forKey: Self.holdSpeedKey)),
             controlsAutoHideSeconds: controlsAutoHide,
             developerModeEnabled: developerModeEnabled,
@@ -87,7 +87,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         }
         defaults.set(endBehaviorString, forKey: Self.endBehaviorKey)
         defaults.set(preferences.defaultPlaybackSpeed, forKey: Self.defaultSpeedKey)
-        defaults.set(preferences.surfaceGesturesEnabled, forKey: Self.surfaceGesturesKey)
+        defaults.set(preferences.playbackShortcutsEnabled, forKey: Self.surfaceGesturesKey)
         defaults.set(holdPlaybackSpeed(preferences.holdPlaybackSpeed), forKey: Self.holdSpeedKey)
         defaults.set(preferences.controlsAutoHideSeconds, forKey: Self.controlsAutoHideKey)
         defaults.set(preferences.developerModeEnabled, forKey: Self.developerModeKey)
@@ -112,7 +112,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
         guard let number = value as? NSNumber,
               CFGetTypeID(number) != CFBooleanGetTypeID(),
               number.doubleValue.isFinite else { return 2.0 }
-        return PlaybackModel.PlaybackSpeed(number.doubleValue).value
+        return UserPreferences.normalizedHoldPlaybackSpeed(number.doubleValue)
     }
 
     public func loadPlaybackPreferences() -> PlaybackPreferences {

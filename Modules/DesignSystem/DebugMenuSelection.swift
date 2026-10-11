@@ -29,7 +29,6 @@ public enum DebugMenuSelectionFamily: String, CaseIterable, Sendable {
     case resumeStrategy = "resume-strategy"
     case endBehavior = "end-behavior"
     case defaultSpeed = "default-speed"
-    case holdSpeed = "hold-speed"
     case controlsAutoHide = "controls-auto-hide"
 }
 
