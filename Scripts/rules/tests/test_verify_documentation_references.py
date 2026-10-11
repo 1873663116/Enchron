@@ -8,6 +8,7 @@ switched off. These cases are the ones that decide whether a candidate counts.
 """
 
 from pathlib import Path
+import json
 import subprocess
 import sys
 import tempfile
@@ -121,6 +122,45 @@ class CurrentRepositoryFiles(unittest.TestCase):
 
     def track(self, *relative: str) -> None:
         subprocess.run(["git", "add", "--", *relative], cwd=self.repository_root, check=True)
+
+    def test_baseline_acceptance_source_is_historical_provenance(self) -> None:
+        source = "/Volumes/missing-validation-worktree/.scratch/delivery.json"
+        self.write(
+            "Config/reachability_matrix_baseline.json",
+            json.dumps({"acceptedFrom": source, "acceptedAt": "2026-10-09", "cells": []}),
+        )
+
+        errors, notes = checker.unresolved_references()
+        self.assertEqual(errors, [])
+        self.assertEqual(notes, [f"Config/reachability_matrix_baseline.json: {source} does not exist"])
+
+    def test_current_baseline_reference_still_requires_the_same_file(self) -> None:
+        source = "/Volumes/missing-validation-worktree/.scratch/delivery.json"
+        self.write(
+            "Config/reachability_matrix_baseline.json",
+            json.dumps({"acceptedFrom": source, "activeSource": source}),
+        )
+
+        errors, notes = checker.unresolved_references()
+        expected = [f"Config/reachability_matrix_baseline.json: {source} does not exist"]
+        self.assertEqual(errors, expected)
+        self.assertEqual(notes, expected)
+
+    def test_other_configuration_acceptance_source_is_not_exempt(self) -> None:
+        source = "/Volumes/missing-validation-worktree/.scratch/delivery.json"
+        self.write("Config/current.json", json.dumps({"acceptedFrom": source}))
+
+        errors, notes = checker.unresolved_references()
+        self.assertEqual(errors, [f"Config/current.json: {source} does not exist"])
+        self.assertEqual(notes, [])
+
+    def test_malformed_baseline_acceptance_source_is_not_exempt(self) -> None:
+        source = "/Volumes/missing-validation-worktree/.scratch/delivery.json"
+        self.write("Config/reachability_matrix_baseline.json", json.dumps({"acceptedFrom": [source]}))
+
+        errors, notes = checker.unresolved_references()
+        self.assertEqual(errors, [f"Config/reachability_matrix_baseline.json: {source} does not exist"])
+        self.assertEqual(notes, [])
 
     def test_untracked_instruction_document_with_dead_link_is_reported(self) -> None:
         tracked = self.write("docs/tracked.md", "# Tracked\n")

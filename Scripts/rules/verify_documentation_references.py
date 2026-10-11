@@ -203,6 +203,19 @@ def is_provisioned_per_machine(candidate: str) -> bool:
     return completed.returncode == 0
 
 
+def reference_sections(document: Path, text: str, group: str) -> list[tuple[str, str]]:
+    if document.relative_to(REPOSITORY_ROOT).as_posix() != "Config/reachability_matrix_baseline.json":
+        return [(group, text)]
+    record = json.loads(text)
+    if not isinstance(record, dict) or not isinstance(record.get("acceptedFrom"), str):
+        return [(group, text)]
+    historical_source = record.pop("acceptedFrom")
+    return [
+        (group, json.dumps(record, ensure_ascii=False)),
+        ("history", json.dumps(historical_source, ensure_ascii=False)),
+    ]
+
+
 def unresolved_references() -> tuple[list[str], list[str]]:
     errors: list[str] = []
     notes: list[str] = []
@@ -213,27 +226,28 @@ def unresolved_references() -> tuple[list[str], list[str]]:
             continue
         text = document.read_text(encoding="utf-8", errors="ignore")
         relative = document.relative_to(REPOSITORY_ROOT).as_posix()
-        sink = errors if group == "instruction" else notes
         resolution_document = materialized_document(document)
-        for candidate in sorted(repository_candidates(text, resolution_document)):
-            if (REPOSITORY_ROOT / candidate).exists():
-                continue
-            if is_unrun_generator_output(candidate):
-                continue
-            if is_provisioned_per_machine(candidate):
-                continue
-            replacement = retired_replacement(candidate, retired)
-            if replacement is None:
-                sink.append(f"{relative}: {candidate} does not exist")
-            else:
-                sink.append(f"{relative}: {candidate} retired, now {replacement}")
-        for candidate in sorted(absolute_candidates(text)):
-            if candidate.startswith(RETIRED_ARTIFACT_ROOT):
-                sink.append(f"{relative}: {candidate} is the retired artifact root")
-            elif is_generated_build_output(candidate):
-                continue
-            elif not Path(candidate).exists():
-                sink.append(f"{relative}: {candidate} does not exist")
+        for section_group, section_text in reference_sections(document, text, group):
+            sink = errors if section_group == "instruction" else notes
+            for candidate in sorted(repository_candidates(section_text, resolution_document)):
+                if (REPOSITORY_ROOT / candidate).exists():
+                    continue
+                if is_unrun_generator_output(candidate):
+                    continue
+                if is_provisioned_per_machine(candidate):
+                    continue
+                replacement = retired_replacement(candidate, retired)
+                if replacement is None:
+                    sink.append(f"{relative}: {candidate} does not exist")
+                else:
+                    sink.append(f"{relative}: {candidate} retired, now {replacement}")
+            for candidate in sorted(absolute_candidates(section_text)):
+                if candidate.startswith(RETIRED_ARTIFACT_ROOT):
+                    sink.append(f"{relative}: {candidate} is the retired artifact root")
+                elif is_generated_build_output(candidate):
+                    continue
+                elif not Path(candidate).exists():
+                    sink.append(f"{relative}: {candidate} does not exist")
     return errors, notes
 
 
