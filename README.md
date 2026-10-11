@@ -41,7 +41,7 @@ Enchron 不运营媒体服务，也不将媒体、播放历史或远程凭据发
 
 ## 开源许可与第三方组件
 
-Enchron 以 Apache License 2.0 发布，许可证文本位于 [`LICENSE`](LICENSE)。第三方组件及其许可证见 [`NOTICE`](NOTICE)，应用内的设置页面也提供相同的许可证信息。
+Enchron 以 GNU General Public License v3.0 发布，许可证文本位于 [`LICENSE`](LICENSE)。第三方组件及其许可证见 [`NOTICE`](NOTICE)，应用内的设置页面也提供相同的许可证信息。
 
 ## 外部贡献
 
