@@ -47,9 +47,9 @@ struct EnvironmentSceneMappingTests {
     func descriptorGeometryMatchesEachEnvironment() {
         let ocean = EnvironmentSceneMapping.geometry(for: .ocean)
         #expect(ocean.distanceRangeMeters == 12...47)
-        #expect(ocean.defaultDistanceMeters == 20)
+        #expect(ocean.defaultDistanceMeters == 30)
         #expect(ocean.viewerHeightRangeMeters == -3...5)
-        #expect(ocean.defaultViewerHeightMeters == 0)
+        #expect(ocean.defaultViewerHeightMeters == 1)
         #expect(ocean.elevationRangeDegrees == 0...90)
         #expect(ocean.screenHeightRangeMeters == 20...20)
         #expect(ocean.defaultScreenHeightMeters == 20)
@@ -69,8 +69,8 @@ struct EnvironmentSceneMappingTests {
 
         let quietRoom = EnvironmentSceneMapping.geometry(for: .quietRoom)
         #expect(quietRoom.distanceRangeMeters == 5...18)
-        #expect(quietRoom.defaultDistanceMeters == 8)
-        #expect(quietRoom.defaultViewerHeightMeters == 1.5)
+        #expect(quietRoom.defaultDistanceMeters == 12)
+        #expect(quietRoom.defaultViewerHeightMeters == 0.5)
         #expect(quietRoom.viewerHeightRangeMeters == -1...3)
         #expect(quietRoom.elevationRangeDegrees == 0...90)
         #expect(quietRoom.screenHeightRangeMeters == 8...8)
@@ -98,6 +98,64 @@ struct EnvironmentSceneMappingTests {
             EnvironmentSceneMapping.defaultScreenHeightMeters(forEnvironmentID: "not-a-real-environment")
                 == 8
         )
+    }
+
+    @Test(
+        "fresh placement and reset use the environment's displayed defaults",
+        arguments: [SpatialSceneDomain.CinemaEnvironment.quietRoom, .ocean]
+    )
+    func freshPlacementAndResetUseEnvironmentDefaults(
+        environment: SpatialSceneDomain.CinemaEnvironment
+    ) async throws {
+        let suite = "EnvironmentSceneMappingTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let model = PlaybackPresentationModel(
+            screenPositionStore: PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite),
+            environmentDefaults: defaults
+        )
+        try model.activateEnvironment(environment, effect: .light)
+        await model.loadDockedPlacement()
+        let initial = model.dockedPlacement
+        let expectedDistance: Double = environment == .quietRoom ? 12 : 30
+        let expectedViewerHeight: Double = environment == .quietRoom ? 0.5 : 1
+        let expectedDisplayedDistance: Double = environment == .quietRoom ? 7 : 18
+        let expectedDisplayedViewerHeight: Double = environment == .quietRoom ? 1.5 : 4
+
+        model.setScreenDistance(15)
+        model.setViewerHeight(2)
+        #expect(model.dockedPlacement.distanceMeters == 15)
+        #expect(model.dockedPlacement.viewerHeightMeters == 2)
+        model.resetDockedPlacement()
+
+        for placement in [initial, model.dockedPlacement] {
+            let distanceDisplay = placement.distanceMeters - placement.limits.distanceRange.lowerBound
+            let heightDisplay = placement.viewerHeightMeters - placement.limits.viewerHeightRange.lowerBound
+            #expect(placement.distanceMeters == expectedDistance)
+            #expect(placement.viewerHeightMeters == expectedViewerHeight)
+            #expect(distanceDisplay == expectedDisplayedDistance)
+            #expect(heightDisplay == expectedDisplayedViewerHeight)
+            let pose = PlaybackDockedPoseSolver.solve(
+                transform: PlaybackSurfaceTransform(
+                    distance: placement.distanceMeters,
+                    elevationDegrees: placement.elevationDegrees,
+                    scale: placement.screenScale,
+                    viewerHeight: placement.viewerHeightMeters
+                ),
+                geometry: EnvironmentSceneMapping.geometry(for: environment),
+                restPose: EnvironmentScreenRestPose(
+                    center: [0, 4, -8],
+                    right: [1, 0, 0],
+                    up: [0, 1, 0],
+                    normal: [0, 0, 1],
+                    halfWidth: 4,
+                    halfHeight: 4
+                ),
+                meshSize: [16, 9]
+            )
+            #expect(pose.effectiveDistance == Float(expectedDistance))
+            #expect(pose.roomPosition.y == (environment == .quietRoom ? -0.5 : -1))
+        }
     }
 }
 
