@@ -761,6 +761,12 @@ struct Toolbar: View {
 
         self.assertIsNone(inventory.interactive_evidence(text, line))
 
+    def test_menu_token_does_not_make_a_container_interactive(self) -> None:
+        text = 'VStack {\n}\n.frame(width: DesignTokens.Menu.panelWidth)\n.accessibilityIdentifier("Plain-panel")\n'
+        line = self.line_of(text, "Plain-panel")
+
+        self.assertIsNone(inventory.interactive_evidence(text, line))
+
     def test_attachment_survives_a_reviewed_observation_entry(self) -> None:
         """REVIEWED_OBSERVATIONS silences the `nearby` question. It must never be
         able to silence an interaction attached to the element itself, because

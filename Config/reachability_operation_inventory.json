@@ -349,10 +349,10 @@
       "scope": "component-default",
       "sources": [
         {
-          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+          "path": "Modules/DesignSystem/Components/ViewModeCapsuleControl.swift"
         },
         {
-          "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift"
+          "path": "Modules/DesignSystem/Components/ViewModeCapsuleControl.swift"
         }
       ],
       "template": "DesignSystem-control-viewMode"
@@ -2309,6 +2309,18 @@
       "template": "PlayerPanel-controls"
     },
     {
+      "action": null,
+      "family": "PlayerPanel",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Scenes/ImmersivePlaybackMenu.swift"
+        }
+      ],
+      "template": "PlayerPanel-immersive-more-menu"
+    },
+    {
       "action": "activate",
       "family": "PlayerPanel",
       "role": "operation",
@@ -2375,6 +2387,9 @@
       "scope": "product",
       "sources": [
         {
+          "path": "Modules/Playback/Scenes/ImmersivePlaybackMenu.swift"
+        },
+        {
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2386,6 +2401,21 @@
       "role": "operation",
       "scope": "product",
       "sources": [
+        {
+          "path": "Modules/DesignSystem/Components/AnchoredMenu.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-dismiss-area"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Scenes/ImmersivePlaybackMenu.swift"
+        },
         {
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
@@ -2399,6 +2429,21 @@
       "scope": "product",
       "sources": [
         {
+          "path": "Modules/Playback/Scenes/ImmersivePlaybackMenu.swift"
+        }
+      ],
+      "template": "PlayerPanel-menu-episodes-layout"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerPanel",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/PlaybackPanel.swift"
+        },
+        {
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2410,6 +2455,9 @@
       "role": "operation",
       "scope": "product",
       "sources": [
+        {
+          "path": "Modules/Playback/Scenes/ImmersivePlaybackMenu.swift"
+        },
         {
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
@@ -2423,6 +2471,9 @@
       "scope": "product",
       "sources": [
         {
+          "path": "Modules/Playback/Scenes/ImmersivePlaybackMenu.swift"
+        },
+        {
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
@@ -2434,6 +2485,9 @@
       "role": "operation",
       "scope": "product",
       "sources": [
+        {
+          "path": "Modules/Playback/Scenes/ImmersivePlaybackMenu.swift"
+        },
         {
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
@@ -5410,6 +5464,28 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:PlayerPanel-menu-dismiss-area",
+      "identifierTemplate": "PlayerPanel-menu-dismiss-area",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/PlaybackPanel.swift"
+          },
+          {
+            "path": "Modules/Playback/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "panorama",
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "debugEquivalent": {
         "families": [
           "episodes"
@@ -5421,6 +5497,28 @@
       },
       "id": "accessibility:PlayerPanel-menu-episodes",
       "identifierTemplate": "PlayerPanel-menu-episodes",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "playerControlDockControls",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/PlaybackPanel.swift"
+          },
+          {
+            "path": "Modules/Playback/Model/PlaybackPresentation.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "panorama",
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerPanel-menu-episodes-layout",
+      "identifierTemplate": "PlayerPanel-menu-episodes-layout",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "playerControlDockControls",

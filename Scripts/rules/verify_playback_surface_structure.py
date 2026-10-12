@@ -824,6 +824,23 @@ def main() -> int:
         ".accessibilityHidden(controlsAcceptInput == false)" in spatial_controls,
         "attached controls remain accessibility-visible while inactive",
     )
+    anchored_menu = read("Modules/DesignSystem/Components/AnchoredMenu.swift")
+    immersive_menu = read("Modules/Playback/Scenes/ImmersivePlaybackMenu.swift")
+    top_actions = read("Modules/Playback/Views/PlaybackTopActions.swift")
+    require(
+        ".anchoredMenuHost(presentation: windowMenu)" in player_view
+        and top_actions.count(".anchoredMenu(") == 2
+        and ".popover(" not in top_actions
+        and "AnchoredMenuLayer(presentation: menu.presentation)" in immersive_menu,
+        "window and immersive custom menus must use the shared anchored menu presenter",
+    )
+    require(
+        "DesignTokens.AnimationToken.menuPopup" in anchored_menu
+        and "AnchoredMenuSurface(panel: root" in anchored_menu
+        and "AnchoredMenuSurface(panel: child" in anchored_menu
+        and ".transition(" not in immersive_menu,
+        "custom menus must retain separate parent and child panels with shared motion",
+    )
     require(
         "HeadPoseSource" in immersive_controls_attachment,
         "attached controls do not take their placement from the shared head pose source",
@@ -1011,6 +1028,32 @@ def main() -> int:
         "Docked diagnostic probes can trigger production controls",
     )
     sub_perceptual_paint = re.compile(r"\.opacity\(\s*0\.0(?:0\d+|1\d?)\s*\)")
+    menu_dismiss_area = region(
+        anchored_menu,
+        "private struct AnchoredMenuDismissArea: View",
+        "private struct AnchoredMenuSurface: View",
+    )
+    require(
+        "Button { presentation.dismiss() }" in menu_dismiss_area
+        and "DesignTokens.Surface.menuDismissInput" in menu_dismiss_area
+        and ".enchronHoverEffectDisabled()" in menu_dismiss_area
+        and anchored_menu.count("DesignTokens.Surface.menuDismissInput") == 1
+        and len(re.findall(
+            r"if presentation\.isActive \{\s+AnchoredMenuDismissArea\(presentation: presentation\)",
+            anchored_menu,
+        )) == 2,
+        "the shared menu dismissal input must only close menus and disable hover",
+    )
+    for source_root in ("Apps", "Modules"):
+        for source_path in (REPOSITORY_ROOT / source_root).rglob("*.swift"):
+            if source_path.relative_to(REPOSITORY_ROOT).as_posix() == (
+                "Modules/DesignSystem/Components/AnchoredMenu.swift"
+            ):
+                continue
+            require(
+                "DesignTokens.Surface.menuDismissInput" not in source_path.read_text(),
+                "the menu dismissal input token escaped its shared component",
+            )
     for sub_perceptual_path in (
         "Modules/Playback/Views/PlaybackVideoSurface.swift",
         "Modules/Playback/Views/PlaybackPanel.swift",
@@ -1022,6 +1065,13 @@ def main() -> int:
     ):
         production_paint_text = without_debug_blocks(read(sub_perceptual_path))
         for paint in sub_perceptual_paint.finditer(production_paint_text):
+            line_start = production_paint_text.rfind("\n", 0, paint.start()) + 1
+            if (
+                sub_perceptual_path == "Modules/DesignSystem/DesignTokens.swift"
+                and production_paint_text[line_start:paint.end()].strip()
+                == "public static let menuDismissInput: Color = .black.opacity(0.001)"
+            ):
+                continue
             require(
                 ".allowsHitTesting(false)"
                 in production_paint_text[paint.end():paint.end() + 240],

@@ -64,10 +64,7 @@ public struct EnvironmentCard: View {
     var onSetDefault: () -> Void = {}
 
     public var body: some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.EnvironmentCard.cornerRadius,
-            style: .continuous
-        )
+        let shape = DesignTokens.ShapeToken.card
 
         ZStack(alignment: .bottom) {
             backgroundImage

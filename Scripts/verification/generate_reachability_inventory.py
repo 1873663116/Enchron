@@ -723,6 +723,7 @@ def identifier_role(template: str) -> tuple[str, str | None]:
         "emby-search",
         "playerui-dockmenu",
         "playerui-videoformat",
+        "playerpanel-immersive-more-menu",
     } or lowered.endswith((
         "-breadcrumb-current",
         "-error",
@@ -820,7 +821,7 @@ def identifier_role(template: str) -> tuple[str, str | None]:
 
 INTERACTIVE_CONSTRUCT = re.compile(
     r"\b(Button|Menu|Toggle|Picker|Slider|TextField|SecureField|NavigationLink"
-    r"|ListGroupRowShell|GlassCapsuleIconLabelButton)\b"
+    r"|ListGroupRowShell|GlassCapsuleIconLabelButton)\b\s*(?:\(|\{|<)"
     r"|\.onTapGesture"
     r"|\.accessibilityAddTraits\(\.isButton\)"
     r"|\.accessibilityAction"

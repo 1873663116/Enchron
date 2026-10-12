@@ -12,10 +12,13 @@ public extension View {
             }
     }
 
-    func enchronGlassControl() -> some View {
-        self
-            .clipShape(Capsule())
+    func enchronGlassControlSurface() -> some View {
+        clipShape(Capsule())
             .enchronButtonSurface(in: Capsule())
+    }
+
+    func enchronGlassControl() -> some View {
+        enchronGlassControlSurface()
             .enchronHoverContentShape(Capsule())
             .enchronHoverEffect(.automatic)
             .contentShape(Capsule())

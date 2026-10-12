@@ -173,7 +173,7 @@ class DesignSourceArchitectureTests(unittest.TestCase):
         result = self.invoke(expected_code=1)
         self.assertEqual(result.stderr.count("[production-hardcoded-visual]"), 2)
 
-    def test_design_system_owns_visual_literals(self):
+    def test_design_system_visual_literals_must_use_tokens(self):
         self.write(
             "Modules/DesignSystem/MeasuredCard.swift",
             "import SwiftUI\n"
@@ -185,8 +185,109 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             "    }\n"
             "}\n",
         )
-        result = self.invoke()
-        self.assertIn("Design source architecture passed", result.stdout)
+        result = self.invoke(expected_code=1)
+        self.assertEqual(result.stderr.count("[component-hardcoded-visual]"), 3)
+
+    def test_dimensionless_coefficients_and_identity_values_pass(self):
+        self.write(
+            "Modules/DesignSystem/MeasuredCard.swift",
+            "struct MeasuredCard: View { var body: some View {\n"
+            "Text(\"Card\")\n"
+            ".frame(width: DesignTokens.Interactive.regular * 2)\n"
+            ".padding((targetSize - visualSize) / 2)\n"
+            ".offset(x: 2 * DesignTokens.Spacing.sm)\n"
+            ".opacity(enabled ? 1 : 0)\n"
+            ".scaleEffect(enabled ? DesignTokens.Motion.pressScale : 1)\n"
+            "} }\n",
+        )
+        self.invoke()
+
+    def test_component_coefficients_do_not_hide_bare_dimensions(self):
+        for expression in ("17 * 2", "DesignTokens.Spacing.sm + 2", "DesignTokens.Spacing.sm - 1"):
+            with self.subTest(expression=expression):
+                self.write("Modules/DesignSystem/MeasuredCard.swift", f"Text(\"Card\").padding({expression})\n")
+                result = self.invoke(expected_code=1)
+                self.assertIn("[component-hardcoded-visual]", result.stderr)
+
+    def test_component_visual_literals_include_opacity_color_and_font(self):
+        for expression in ("Text(\"Card\").opacity(0.42)", "Color(red: 0.4, green: 0.2, blue: 0.1)", "Color(red: 0, green: 0, blue: 0)", "Text(\"Card\").font(.system(size: 11))"):
+            with self.subTest(expression=expression):
+                self.write("Modules/DesignSystem/MeasuredCard.swift", expression)
+                result = self.invoke(expected_code=1)
+                self.assertIn("[component-hardcoded-visual]", result.stderr)
+
+    def test_token_shape_construction_is_rejected_in_components_and_features(self):
+        for directory in ("Modules/DesignSystem/Components", "Modules/Playback/Views", "Apps/Enchron"):
+            with self.subTest(directory=directory):
+                self.write(f"{directory}/Card.swift", "RoundedRectangle(cornerRadius: DesignTokens.Radius.small + DesignTokens.Spacing.xs)\n")
+                result = self.invoke(expected_code=1)
+                self.assertIn("[parallel-token-shape]", result.stderr)
+                (self.root / directory / "Card.swift").unlink()
+
+    def test_shape_conformance_does_not_allow_parallel_token_shapes(self):
+        self.write(
+            "Modules/DesignSystem/Components/Card.swift",
+            "struct AdHoc: Shape { func path(in rect: CGRect) -> Path {\n"
+            "RoundedRectangle(cornerRadius: DesignTokens.Radius.small).path(in: rect)\n"
+            "} }\n",
+        )
+        result = self.invoke(expected_code=1)
+        self.assertIn("[parallel-token-shape]", result.stderr)
+
+    def test_token_radius_alias_does_not_allow_parallel_shapes(self):
+        self.write(
+            "Modules/DesignSystem/Components/Card.swift",
+            "let radius = DesignTokens.Radius.small + DesignTokens.Spacing.xs\n"
+            "RoundedRectangle(cornerRadius: radius)\n",
+        )
+        result = self.invoke(expected_code=1)
+        self.assertIn("[parallel-token-shape]", result.stderr)
+
+    def test_shared_menu_geometry_and_shape_token_factory_pass(self):
+        self.write(
+            "Modules/DesignSystem/Components/AnchoredMenuPlacement.swift",
+            "struct AnchoredMenuContainerShape: RoundedRectangularShape {\n"
+            "func path(in rect: CGRect) -> Path {\n"
+            "RoundedRectangle(cornerRadius: DesignTokens.Menu.cornerRadius).path(in: rect)\n"
+            "} }\n",
+        )
+        self.write("Modules/DesignSystem/Components/Card.swift", "DesignTokens.ShapeToken.menu(containerRadii: radii)\n")
+        self.invoke()
+
+    def test_shape_tokens_own_shapes_and_shape_factories(self):
+        self.write(
+            "Modules/DesignSystem/DesignTokens.swift",
+            "enum DesignTokens { enum ShapeToken {\n"
+            "static let small = RoundedRectangle(cornerRadius: Radius.small)\n"
+            "static let menuRow = Capsule()\n"
+            "static func menu(radius: CGFloat) -> RoundedRectangle {\n"
+            "RoundedRectangle(cornerRadius: radius)\n"
+            "} } }\n",
+        )
+        self.invoke()
+
+    def test_shape_tokens_cannot_own_view_or_style_structure(self):
+        for declaration in ("struct Card: View { var body: some View { Text(\"Card\") } }", "struct Style: ButtonStyle {}", "static func card() -> some View { RoundedRectangle(cornerRadius: Radius.small) }"):
+            with self.subTest(declaration=declaration):
+                self.write("Modules/DesignSystem/DesignTokens.swift", "enum DesignTokens { enum ShapeToken {\n" + declaration + "\n} }\n")
+                result = self.invoke(expected_code=1)
+                self.assertIn("[token-layer-structure]", result.stderr)
+
+    def test_xcode_reuses_hover_audit_without_duplicate_cli_scan(self):
+        self.write(
+            "Modules/DesignSystem/Components/Number.swift",
+            "struct Number: View { var body: some View {\n"
+            "Button {} label: { Text(\"1\")\n"
+            ".frame(width: DesignTokens.Interactive.regular)\n"
+            ".background(DesignTokens.Surface.selected, in: DesignTokens.ShapeToken.menuNumber)\n"
+            ".padding(DesignTokens.Spacing.xs)\n"
+            ".enchronHoverContentShape(DesignTokens.ShapeToken.menuNumber)\n"
+            ".enchronHoverEffect()\n"
+            "} } }\n",
+        )
+        self.invoke()
+        result = self.invoke("--xcode-inputs", expected_code=1)
+        self.assertIn("[hover-region-clipping]", result.stderr)
 
     def test_swift_comments_do_not_create_production_visual_findings(self):
         self.write(

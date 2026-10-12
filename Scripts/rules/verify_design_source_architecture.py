@@ -10,6 +10,14 @@ from pathlib import Path
 import re
 import sys
 
+sys.dont_write_bytecode = True
+from check_hover_region_clipping import (
+    audit_sources,
+    call_arguments,
+    mask_comments_and_strings,
+    matching_brace,
+    split_arguments,
+)
 
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BASELINE = Path("Config/design_source_architecture_baseline.json")
@@ -73,6 +81,16 @@ VISUAL_LITERAL_PATTERNS = (
 PRODUCTION_GLASS_CAPSULE_PATTERN = re.compile(
     r"\.enchronGlassBackground\s*\(\s*in:\s*Capsule\s*\(\s*\)\s*\)",
     flags=re.MULTILINE,
+)
+ROUNDED_SHAPE_PATTERN = re.compile(r"\b(?:RoundedRectangle|UnevenRoundedRectangle)\s*\(")
+VISUAL_CALL_PATTERN = re.compile(
+    r"\.(?P<modifier>frame|padding|offset|cornerRadius|blur|shadow|opacity|scaleEffect|stroke|strokeBorder)\s*\("
+    r"|\b(?P<constructor>VStack|HStack|ZStack|LazyVGrid|LazyHGrid|Grid|RoundedRectangle|UnevenRoundedRectangle|Color)\s*\("
+    r"|\.(?P<font>system)\s*\("
+)
+SHARED_SHAPE_OWNER = (
+    Path("Modules/DesignSystem/Components/AnchoredMenuPlacement.swift"),
+    "AnchoredMenuContainerShape",
 )
 
 
@@ -177,8 +195,18 @@ def find_token_layer_violations(root: Path) -> list[Finding]:
     lines = source.splitlines()
     findings = []
     matched_offsets = set()
+    shape_tokens = re.search(r"\benum\s+ShapeToken\s*\{", masked_source)
+    shape_range = None
+    if shape_tokens:
+        opening = shape_tokens.end() - 1
+        closing = matching_brace(masked_source, opening)
+        if closing is not None:
+            shape_range = (opening, closing)
     for pattern in TOKEN_STRUCTURE_PATTERNS:
         for match in pattern.finditer(masked_source):
+            if shape_range and shape_range[0] < match.start() < shape_range[1]:
+                if re.match(r"(?:RoundedRectangle|Circle|Capsule)\s*\(", match.group()):
+                    continue
             line_number = finding_line(masked_source, match.start())
             key = (line_number, signature_at(lines, line_number))
             if key in matched_offsets:
@@ -229,6 +257,105 @@ def find_visual_literal_violations(
     return findings
 
 
+def dimensionless_coefficient(argument: str, literal: re.Match[str]) -> bool:
+    before = argument[:literal.start()]
+    after = argument[literal.end():]
+    return bool(
+        re.search(r"(?:[A-Za-z_]\w*(?:\.\w+)*|\))\s*[*/]\s*$", before)
+        or re.match(r"\s*\*\s*(?:[A-Za-z_]\w*|\()", after)
+    )
+
+
+def find_component_visual_violations(relative_path: Path, source: str) -> list[Finding]:
+    masked = mask_comments_and_strings(source)
+    lines = source.splitlines()
+    findings: list[Finding] = []
+    for match in VISUAL_CALL_PATTERN.finditer(masked):
+        call = call_arguments(masked, match.start())
+        if not call:
+            continue
+        name = next(group for group in match.groups() if group)
+        if name == "Color" and re.search(r"\b(?:red|white|hue|hex)\s*:", call[0]):
+            line = finding_line(masked, match.start())
+            findings.append(Finding(
+                rule="component-hardcoded-visual",
+                path=relative_path.as_posix(),
+                line=line,
+                signature=signature_at(lines, line),
+                message="component colors must use DesignTokens",
+            ))
+            continue
+        for argument in split_arguments(call[0]):
+            label, separator, value = argument.partition(":")
+            if name in {"VStack", "HStack", "ZStack", "LazyVGrid", "LazyHGrid", "Grid"} and label.strip() != "spacing":
+                continue
+            if name in {"stroke", "strokeBorder"} and label.strip() != "lineWidth":
+                continue
+            if name == "system" and label.strip() != "size":
+                continue
+            expression = value if separator else argument
+            for literal in re.finditer(NUMERIC_LITERAL, expression):
+                number = float(literal.group())
+                if name == "scaleEffect" and number == 1:
+                    continue
+                if name != "scaleEffect" and number == 0:
+                    continue
+                if name == "opacity" and number == 1:
+                    continue
+                if name != "Color" and dimensionless_coefficient(expression, literal):
+                    continue
+                line = finding_line(masked, match.start())
+                findings.append(Finding(
+                    rule="component-hardcoded-visual",
+                    path=relative_path.as_posix(),
+                    line=line,
+                    signature=signature_at(lines, line),
+                    message="DesignSystem visual values must come from DesignTokens; multiplication and division coefficients may be dimensionless",
+                ))
+                break
+            else:
+                continue
+            break
+    return findings
+
+
+def find_parallel_shape_violations(relative_path: Path, source: str) -> list[Finding]:
+    masked = mask_comments_and_strings(source)
+    owner_ranges: list[tuple[int, int]] = []
+    if relative_path == SHARED_SHAPE_OWNER[0]:
+        owner = re.search(rf"\bstruct\s+{SHARED_SHAPE_OWNER[1]}\b[^{{]*\{{", masked)
+        if owner:
+            opening = owner.end() - 1
+            closing = matching_brace(masked, opening)
+            if closing is not None:
+                owner_ranges.append((opening, closing))
+    lines = source.splitlines()
+    aliases = {
+        match.group(1) for match in re.finditer(
+            r"\b(?:let|var)\s+(\w+)[^=\n]*=\s*[^\n]*DesignTokens\.(?:Radius|[A-Za-z_]\w*\.[A-Za-z_]\w*[Rr]adius)",
+            masked,
+        )
+    }
+    findings: list[Finding] = []
+    for match in ROUNDED_SHAPE_PATTERN.finditer(masked):
+        if any(start <= match.start() <= end for start, end in owner_ranges):
+            continue
+        call = call_arguments(masked, match.start())
+        if not call:
+            continue
+        if "DesignTokens." not in call[0] and not any(re.search(rf"\b{re.escape(alias)}\b", call[0]) for alias in aliases):
+            continue
+        line = finding_line(masked, match.start())
+        findings.append(Finding(
+            rule="parallel-token-shape",
+            path=relative_path.as_posix(),
+            line=line,
+            signature=signature_at(lines, line),
+            message="rounded shapes derived from DesignTokens must use a ShapeToken factory",
+        ))
+    return findings
+
+
 def find_production_violations(root: Path) -> list[Finding]:
     findings = []
     sources = (
@@ -237,10 +364,13 @@ def find_production_violations(root: Path) -> list[Finding]:
     )
     design_system_root = Path("Modules/DesignSystem")
     for relative_path in sources:
-        if relative_path.is_relative_to(design_system_root):
+        source = (root / relative_path).read_text(encoding="utf-8")
+        if relative_path == design_system_root / "DesignTokens.swift":
             continue
-        path = root / relative_path
-        source = path.read_text(encoding="utf-8")
+        findings += find_parallel_shape_violations(relative_path, source)
+        if relative_path.is_relative_to(design_system_root):
+            findings += find_component_visual_violations(relative_path, source)
+            continue
         masked_source = mask_swift_comments(source)
         lines = source.splitlines()
         for match in PRODUCTION_GLASS_CAPSULE_PATTERN.finditer(masked_source):
@@ -491,6 +621,20 @@ def main() -> int:
         return 0
 
     findings = collect_findings(root)
+    if arguments.xcode_inputs:
+        sources = {
+            path: (root / path).read_text(encoding="utf-8")
+            for directory in PRODUCTION_SOURCE_DIRECTORIES
+            for path in relative_swift_files(root, directory)
+        }
+        hover_findings, _, _ = audit_sources(sources)
+        findings.extend(Finding(
+            rule="hover-region-clipping",
+            path=finding.path,
+            line=finding.line,
+            signature=signature_at(sources[Path(finding.path)].splitlines(), finding.line),
+            message=finding.reason,
+        ) for finding in hover_findings if finding.classification == "violation")
     if not arguments.xcode_inputs:
         findings += find_xcode_build_input_violations(root)
     if arguments.write_baseline:

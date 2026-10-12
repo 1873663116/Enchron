@@ -30,6 +30,26 @@ public enum DesignTokens {
         public static let panel = RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)
         public static let card = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
         public static let element = RoundedRectangle(cornerRadius: Radius.element, style: .continuous)
+        public static let small = RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+        public static let sourceSidebarRow = RoundedRectangle(
+            cornerRadius: SourceSidebar.rowCornerRadius, style: .continuous
+        )
+        public static func playbackTrack(scale: CGFloat) -> RoundedRectangle {
+            RoundedRectangle(cornerSize: CGSize(width: ProgressBar.trackHeight * scale / 2,
+                                               height: ProgressBar.trackHeight / 2),
+                             style: .continuous)
+        }
+        public static let menuRow = Capsule()
+        public static let menuNumber = RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+        public static let menuNumberTarget = RoundedRectangle(
+            cornerRadius: Radius.small + Spacing.xs, style: .continuous
+        )
+        public static func menu(containerRadii: RectangleCornerRadii? = nil) -> AnchoredMenuContainerShape {
+            let radius = containerRadii.map {
+                max($0.topLeading, $0.topTrailing, $0.bottomLeading, $0.bottomTrailing)
+            } ?? 0
+            return AnchoredMenuContainerShape(radius: max(Menu.cornerRadius, radius))
+        }
     }
 
     public enum Interactive {
@@ -41,14 +61,23 @@ public enum DesignTokens {
         public static let rowHeight: CGFloat = 60
         public static let buttonSpacing: CGFloat = 16
         public static let inactiveSelectionOpacity: Double = 0.6
+        public static let viewModeInactiveOpacity: Double = 0.45
+        public static let toggleTrackWidth: CGFloat = 50
+        public static let toggleTrackHeight: CGFloat = 30
+        public static let toggleKnobSize: CGFloat = 26
+        public static let toggleKnobInset: CGFloat = 2
+        public static let detentEmphasis: CGFloat = 3
+        public static let selectionIndicatorSize: CGFloat = 22
+        public static let menuRowVisualHeight: CGFloat = regular
     }
 
     public enum AnimationToken {
         public static let controlsTransition: Animation = .easeInOut(duration: 0.4)
         public static let panelSpring: Animation = .spring(duration: 0.7, bounce: 0.15)
+        public static let menuPopup: Animation = .spring(duration: 0.4, bounce: 0.15)
+        public static let menuInitialScale: CGFloat = 0.1
         public static let panelContentExit: Animation = .easeOut(duration: 0.315)
         public static let panelContentEntrance: Animation = .easeIn(duration: 0.4375).delay(0.21)
-        public static let menuPopup: Animation = .spring(duration: 0.35, bounce: 0.15)
         public static let selection: Animation = .spring(.bouncy(duration: 0.4, extraBounce: 0.1))
         public static let listMutation: Animation = .spring(response: 0.34, dampingFraction: 0.86)
         public static let playback: Animation = .spring(response: 0.45, dampingFraction: 0.85)
@@ -115,6 +144,8 @@ public enum DesignTokens {
     }
 
     public enum LoadingSpinner {
+        public static let glowOpacity: Double = 0.15
+        public static let foregroundOpacity: Double = 0.9
         public static let cycleDuration: Duration = .milliseconds(5400)
         public static let cycleDurationMilliseconds: Double = 5400
         public static let expandCollapseDurationMilliseconds: Double = 667
@@ -226,6 +257,11 @@ public enum DesignTokens {
     }
 
     public enum Surface {
+        public static let disabledControlOpacity: Double = 0.42
+        public static let disabledIconOpacity: Double = 0.32
+        public static let artworkPlaceholderOpacity: Double = 0.58
+        public static let destructiveAction: Color = .red.opacity(0.82)
+        public static let menuDismissInput: Color = .black.opacity(0.001)
         public static let card: Color = .primary.opacity(0.03)
         public static let elevated: Color = .primary.opacity(0.04)
         public static let overlay: Color = .primary.opacity(0.06)
@@ -265,6 +301,8 @@ public enum DesignTokens {
     }
 
     public enum Layout {
+        public static let settingsValueColumnWidth: CGFloat = 160
+        public static let settingsSelectionPreviewHeight: CGFloat = 86
         public static let playerControlsContentWidth: CGFloat = 680
         public static let expandedPlayerControlsContentWidth: CGFloat = 880
         public static let playbackMediaInfoHeight: CGFloat = 72
@@ -274,6 +312,7 @@ public enum DesignTokens {
             playbackMediaInfoHeight + Spacing.sm + Interactive.large + Spacing.xxl
         public static let expandedMediaInformationMaximumHeight: CGFloat = 420
         public static let videoFormatEditorWidth: CGFloat = 520
+        public static let environmentMenuWidth: CGFloat = 360
         public static let settingsReadingColumnWidth: CGFloat = 820
     }
 
@@ -308,6 +347,8 @@ public enum DesignTokens {
             weight: .semibold
         )
         public static let selectionHeaderIcon: Font = .system(size: 22, weight: .regular)
+        public static let menuDisclosure: Font = .system(size: ButtonIcon.labelArtwork, weight: .regular)
+        public static let selectionIndicator: Font = .system(size: 11, weight: .bold)
         public static let card: Font = .system(size: 36)
         public static let action: Font = .system(
             size: ButtonIcon.primaryArtwork,
@@ -319,6 +360,8 @@ public enum DesignTokens {
     }
 
     public enum Card {
+        public static let captionLineHeight: CGFloat = 22
+        public static let skeletonMinimumOpacity: Double = 0.55
         public static let paddingH: CGFloat = Spacing.md
         public static let paddingV: CGFloat = 14
         public static let gridMin: CGFloat = 224
@@ -461,8 +504,22 @@ public enum DesignTokens {
 
     public enum Menu {
         public static let glassPadding: CGFloat = Spacing.xs
-        public static let panelWidth: CGFloat = 190
-        public static let submenuWidth: CGFloat = 200
+        public static let rowVisualInset: CGFloat = Spacing.xxs / 2
+        public static let rowVisualHeight: CGFloat = Interactive.menuRowVisualHeight
+        public static let rowVerticalInset: CGFloat = (Interactive.rowHeight - rowVisualHeight) / 2
+        public static let minimumGridColumns = 3
+        public static let maximumGridColumns = 6
+        public static let minimumWidth: CGFloat = Interactive.large * CGFloat(minimumGridColumns) + glassPadding * 2
+        public static let maximumWidth: CGFloat = Interactive.large * CGFloat(maximumGridColumns) + glassPadding * 2
+        public static let minimumHeight: CGFloat = Interactive.rowHeight + glassPadding * 2
+        public static let cornerRadius: CGFloat = Interactive.rowHeight / 2 + glassPadding
+        public static let edgeInset: CGFloat = Spacing.sm
+        public static let sourceGap: CGFloat = Spacing.sm
+        public static let submenuOverlap: CGFloat = Spacing.xs
+        public static let layerDepth: CGFloat = Spacing.xs
+        public static let maximumContentHeight: CGFloat = Layout.expandedMediaInformationMaximumHeight
+        public static let videoFormatContentWidth: CGFloat = Layout.videoFormatEditorWidth - glassPadding * 2
+        public static let environmentContentWidth: CGFloat = Layout.environmentMenuWidth - glassPadding * 2
     }
 
     public enum ControlBar {

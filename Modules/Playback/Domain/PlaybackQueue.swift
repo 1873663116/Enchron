@@ -3,11 +3,13 @@ import Foundation
 nonisolated public struct PlaybackQueueEntry: Equatable, Identifiable, Sendable {
     public let id: UUID
     public let displayName: String
+    public let episodeNumber: Int?
     public let isCurrent: Bool
 
-    public init(id: UUID, displayName: String, isCurrent: Bool) {
+    public init(id: UUID, displayName: String, episodeNumber: Int? = nil, isCurrent: Bool) {
         self.id = id
         self.displayName = displayName
+        self.episodeNumber = episodeNumber
         self.isCurrent = isCurrent
     }
 }

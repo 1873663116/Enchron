@@ -340,6 +340,7 @@ public actor MediaServerPlaybackBridge {
             PlaybackQueueEntry(
                 id: queued.id,
                 displayName: queued.episode.metadata.name,
+                episodeNumber: queued.episode.episodeNumber,
                 isCurrent: queued.id == currentQueueID
             )
         })

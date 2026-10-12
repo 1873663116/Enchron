@@ -106,6 +106,9 @@
 		E10000162FA1000100E1C001 /* Exceptions for "Modules" folder in "Enchron" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				DesignSystem/Components/AnchoredMenu.swift,
+				DesignSystem/Components/AnchoredMenuPlacement.swift,
+				DesignSystem/Components/AnchoredMenuRow.swift,
 				DesignSystem/Components/AsyncArtworkImage.swift,
 				DesignSystem/Components/ButtonIcon.swift,
 				DesignSystem/Components/CardGrid.swift,
@@ -120,6 +123,7 @@
 				DesignSystem/Components/SidebarRow.swift,
 				DesignSystem/Components/SidebarSplitLayout.swift,
 				DesignSystem/Components/SidebarToggleButton.swift,
+				DesignSystem/Components/ViewModeCapsuleControl.swift,
 				DesignSystem/DebugMenuSelection.swift,
 				DesignSystem/DesignTokens.swift,
 				"DesignSystem/View+EnchronGlass.swift",
@@ -226,6 +230,7 @@
 				Playback/Scenes/HeadPoseSource.swift,
 				Playback/Scenes/ImmersivePlaybackControlsAttachment.swift,
 				Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift,
+				Playback/Scenes/ImmersivePlaybackMenu.swift,
 				Playback/Scenes/ImmersiveSpaceView.swift,
 				Playback/Scenes/PanoramaSubtitleFollower.swift,
 				Playback/Session/ApplicationSuspensionWatchdog.swift,
@@ -560,6 +565,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = F300000F2FA5000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronDebug" */;
 			buildPhases = (
+				E30000032FA3000100E1C001 /* Design Source Architecture */,
 				F30000092FA5000100E1C001 /* Sources */,
 				F300000A2FA5000100E1C001 /* Frameworks */,
 				F300000C2FA5000100E1C001 /* Embed Frameworks */,
@@ -724,6 +730,37 @@
 				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
 				"$(SRCROOT)/Modules/MediaLibrary/Views/ConnectionFormPanel.swift",
 				"$(SRCROOT)/Scripts/rules/verify_design_source_architecture.py",
+				"$(SRCROOT)/Scripts/rules/check_hover_region_clipping.py",
+			);
+			name = "Design Source Architecture";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/Scripts/rules/verify_design_source_architecture.py\" --xcode-inputs\n";
+		};
+		E30000032FA3000100E1C001 /* Design Source Architecture */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
+			);
+			inputPaths = (
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
+				"$(SRCROOT)/Scripts/rules/verify_format_description_ownership.py",
+				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
+				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
+				"$(SRCROOT)/Modules/MediaLibrary/Views/ConnectionFormPanel.swift",
+				"$(SRCROOT)/Scripts/rules/verify_design_source_architecture.py",
+				"$(SRCROOT)/Scripts/rules/check_hover_region_clipping.py",
 			);
 			name = "Design Source Architecture";
 			outputFileListPaths = (

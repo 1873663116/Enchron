@@ -93,6 +93,7 @@ public struct PlayerView: View {
 #endif
 
     @State private var playbackDeckOpacity: Double = 0
+    @State private var windowMenu = AnchoredMenuPresentation()
     @State private var reapplyVerificationSnapshotTick = 0
     private let playbackSurfaceIsEnabled: Bool
 
@@ -191,6 +192,7 @@ public struct PlayerView: View {
 
     private var platformContent: some View {
         primaryContent
+            .anchoredMenuHost(presentation: windowMenu)
             .ornament(
                 visibility: .visible,
                 attachmentAnchor: .scene(.bottom)
@@ -198,6 +200,7 @@ public struct PlayerView: View {
                 WindowPlayerDeckView(
                     presentationOverride: hostedPlaybackPresentation
                 )
+                .anchoredMenuDismissRegion(presentation: windowMenu)
                 .playbackIssueAlert(
                     at: .playerDeck,
                     onRetry: playbackLauncher.retryPlayback,
@@ -287,7 +290,6 @@ public struct PlayerView: View {
                 controlsVisible: showsPlaybackChrome,
                 onSecondaryMenuVisibilityChange: {
                     playbackSession.setWindowSecondaryMenuPresented($0)
-                    playbackSession.setControlsFocused($0)
 #if DEBUG
                     playbackSession.recordSurfaceInputProbe(
                         "reachability top secondary menu visible=\($0)"

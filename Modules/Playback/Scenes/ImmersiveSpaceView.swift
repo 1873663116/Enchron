@@ -662,6 +662,17 @@ public struct ImmersiveSpaceView: View {
 #endif
     @State private var controlsAttachmentController =
         ImmersivePlaybackControlsAttachmentController()
+    @State private var playbackMenu = ImmersivePlaybackMenu()
+    @State private var menuAttachmentEntity: Entity?
+    @State private var outsideMenuTapSurface: Entity = {
+        let entity = Entity()
+        entity.name = "EnchronMenuInput.outsideDismiss"
+        entity.position.z = -0.005
+        entity.components.set(InputTargetComponent())
+        entity.components.set(CollisionComponent(shapes: [.generateBox(size: [6, 6, 0.001])]))
+        entity.isEnabled = false
+        return entity
+    }()
     @State private var headPoseSource = HeadPoseSource()
 #if DEBUG
     @State private var developerOverlayFollower = DeveloperOverlayFollower()
@@ -771,6 +782,10 @@ public struct ImmersiveSpaceView: View {
                 ImmersivePlaybackControlsAttachmentView(
                     presentation: controlsAttachmentPresentation
                 )
+                .environment(\.immersivePlaybackMenu, playbackMenu)
+            }
+            Attachment(id: ImmersivePlaybackMenu.attachmentID) {
+                ImmersivePlaybackMenuView(menu: playbackMenu)
             }
 #if DEBUG
             Attachment(id: DeveloperOverlayFollower.attachmentID) {
@@ -1068,6 +1083,20 @@ public struct ImmersiveSpaceView: View {
             appModel: appModel,
             headPoseSource: headPoseSource
         )
+        if outsideMenuTapSurface.parent !== attachment {
+            attachment.addChild(outsideMenuTapSurface)
+        }
+        outsideMenuTapSurface.isEnabled = immersiveControlsAreVisible && playbackMenu.presentation.isActive
+        if let menu = attachments.entity(for: ImmersivePlaybackMenu.attachmentID) {
+            if menu.parent !== attachment {
+                attachment.addChild(menu)
+            }
+            if menuAttachmentEntity !== menu {
+                menuAttachmentEntity = menu
+            }
+            menu.position = playbackMenu.position(in: attachment.attachment.bounds)
+            menu.isEnabled = immersiveControlsAreVisible && playbackMenu.presentation.isActive
+        }
     }
 
     private func scheduleSpatialSurfaceUpdate(
@@ -1172,6 +1201,13 @@ public struct ImmersiveSpaceView: View {
         SpatialTapGesture()
             .targetedToAnyEntity()
             .onEnded { value in
+                if playbackMenu.presentation.isActive {
+                    if isMenuTarget(value.entity) {
+                        return
+                    }
+                    playbackMenu.presentation.dismiss()
+                    return
+                }
                 guard controlsAttachmentController.contains(value.entity) == false else {
                     appModel.recordSurfaceInputProbe(
                         "spatialTap entity=\(value.entity.name) accepted=false controls=true"
@@ -1192,6 +1228,15 @@ public struct ImmersiveSpaceView: View {
                 )
                 toggleControlsFromSpatialSurface(.spatialTap)
             }
+    }
+
+    private func isMenuTarget(_ entity: Entity) -> Bool {
+        var current: Entity? = entity
+        while let candidate = current {
+            if candidate === menuAttachmentEntity { return true }
+            current = candidate.parent
+        }
+        return false
     }
 
     private func toggleControlsFromSpatialSurface(

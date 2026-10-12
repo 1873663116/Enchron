@@ -256,7 +256,7 @@ public struct GridCard: View {
         if isSkeleton {
             cardVisual
                 .redacted(reason: .placeholder)
-                .opacity(isSkeletonPulsing ? 0.55 : 1)
+                .opacity(isSkeletonPulsing ? DesignTokens.Card.skeletonMinimumOpacity : 1)
                 .task(id: reduceMotion) {
                     if reduceMotion {
                         isSkeletonPulsing = false
@@ -310,7 +310,7 @@ public struct GridCard: View {
                         .font(DesignTokens.Typography.headline)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: DesignTokens.Card.captionLineHeight, maxHeight: DesignTokens.Card.captionLineHeight, alignment: .leading)
                         .padding(.horizontal, DesignTokens.Card.paddingH)
                         .padding(.vertical, DesignTokens.Card.paddingV)
                 }

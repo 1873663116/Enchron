@@ -227,28 +227,28 @@ public struct GlassToggle: View {
         } label: {
             Capsule()
                 .fill(isOn ? DesignTokens.Theme.accent : DesignTokens.Surface.elevated)
-                .frame(width: 50, height: 30)
+                .frame(width: DesignTokens.Interactive.toggleTrackWidth, height: DesignTokens.Interactive.toggleTrackHeight)
                 .overlay(alignment: isOn ? .trailing : .leading) {
                     Circle()
                         .fill(.white)
-                        .frame(width: 26, height: 26)
-                        .padding(2)
+                        .frame(width: DesignTokens.Interactive.toggleKnobSize, height: DesignTokens.Interactive.toggleKnobSize)
+                        .padding(DesignTokens.Interactive.toggleKnobInset)
                 }
         }
         .buttonStyle(.plain)
         .clipShape(Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
-        .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
-        .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
+        .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackHeight) / 2)
+        .padding(.horizontal, (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackWidth) / 2)
         .contentShape(Capsule())
         .enchronHoverContentShape(
             Capsule(),
             insets: EdgeInsets(
-                top: (DesignTokens.Interactive.large - 30) / 2,
-                leading: (DesignTokens.Interactive.large - 50) / 2,
-                bottom: (DesignTokens.Interactive.large - 30) / 2,
-                trailing: (DesignTokens.Interactive.large - 50) / 2
+                top: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackHeight) / 2,
+                leading: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackWidth) / 2,
+                bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackHeight) / 2,
+                trailing: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackWidth) / 2
             )
         )
     }
@@ -271,30 +271,30 @@ struct BoundGlassToggle: View {
         } label: {
             Capsule()
                 .fill(isOn ? DesignTokens.Theme.accent : DesignTokens.Surface.elevated)
-                .frame(width: 50, height: 30)
+                .frame(width: DesignTokens.Interactive.toggleTrackWidth, height: DesignTokens.Interactive.toggleTrackHeight)
                 .overlay(alignment: isOn ? .trailing : .leading) {
                     Circle()
                         .fill(.white)
-                        .frame(width: 26, height: 26)
-                        .padding(2)
+                        .frame(width: DesignTokens.Interactive.toggleKnobSize, height: DesignTokens.Interactive.toggleKnobSize)
+                        .padding(DesignTokens.Interactive.toggleKnobInset)
                 }
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
-        .opacity(isEnabled ? 1 : 0.42)
+        .opacity(isEnabled ? 1 : DesignTokens.Surface.disabledControlOpacity)
         .clipShape(Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic, isEnabled: isEnabled)
-        .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
-        .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
+        .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackHeight) / 2)
+        .padding(.horizontal, (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackWidth) / 2)
         .contentShape(Capsule())
         .enchronHoverContentShape(
             Capsule(),
             insets: EdgeInsets(
-                top: (DesignTokens.Interactive.large - 30) / 2,
-                leading: (DesignTokens.Interactive.large - 50) / 2,
-                bottom: (DesignTokens.Interactive.large - 30) / 2,
-                trailing: (DesignTokens.Interactive.large - 50) / 2
+                top: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackHeight) / 2,
+                leading: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackWidth) / 2,
+                bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackHeight) / 2,
+                trailing: (DesignTokens.Interactive.large - DesignTokens.Interactive.toggleTrackWidth) / 2
             )
         )
     }
@@ -378,8 +378,8 @@ public struct CenterSlider: View {
     @State private var pressTrigger = 0
     @State private var releaseTrigger = 0
 
-    private let trackHeight: CGFloat = 30
-    private let knobSize: CGFloat = 26
+    private let trackHeight = DesignTokens.Interactive.toggleTrackHeight
+    private let knobSize = DesignTokens.Interactive.toggleKnobSize
     private let dotSize: CGFloat = 4
     private let iconColumnWidth: CGFloat = DesignTokens.Interactive.compact
 
@@ -506,13 +506,13 @@ public struct CenterSlider: View {
                 Circle()
                     .fill(DesignTokens.Surface.divider)
                     .frame(
-                        width: isCenter ? dotSize + 3 : dotSize,
-                        height: isCenter ? dotSize + 3 : dotSize
+                        width: isCenter ? dotSize + DesignTokens.Interactive.detentEmphasis : dotSize,
+                        height: isCenter ? dotSize + DesignTokens.Interactive.detentEmphasis : dotSize
                     )
                     .offset(x: offset(for: Double(detent)))
             }
         }
-        .frame(width: trackWidth, height: dotSize + 3)
+        .frame(width: trackWidth, height: dotSize + DesignTokens.Interactive.detentEmphasis)
     }
 
     private func clamp(_ newValue: Int) -> Int {
@@ -546,8 +546,8 @@ public struct RangeSlider: View {
     @State private var pressTrigger = 0
     @State private var releaseTrigger = 0
 
-    private let trackHeight: CGFloat = 30
-    private let knobSize: CGFloat = 26
+    private let trackHeight = DesignTokens.Interactive.toggleTrackHeight
+    private let knobSize = DesignTokens.Interactive.toggleKnobSize
 
     private var span: Double {
         let width = range.upperBound - range.lowerBound

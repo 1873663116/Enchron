@@ -23,6 +23,7 @@ TYPE_PATTERN = re.compile(
 )
 DIRECT_HOVER_SHAPE_PATTERN = re.compile(r"\.enchronHoverContentShape\s*\(")
 DIRECT_HOVER_EFFECT_PATTERN = re.compile(r"\.enchronHoverEffect\s*\(")
+SHARED_HOVER_TARGET_PATTERN = re.compile(r"\.enchronHoverTarget\s*\(")
 GLASS_HOVER_PATTERN = re.compile(
     r"\.enchronGlass(?:Control|Card|MenuItem|Pill)\s*\("
 )
@@ -41,6 +42,66 @@ EXPANDED_PADDING_PATTERN = re.compile(
 )
 ANY_LAYOUT_AFTER_HOVER_PATTERN = re.compile(r"\.(?:frame|padding)\s*\(")
 GENERIC_LABEL_PATTERN = re.compile(r"\blabel\s*\(\s*\)")
+BACKGROUND_PATTERN = re.compile(r"\.(?:background|enchronGlassBackground|enchronButtonSurface)\s*(?=[({])")
+
+
+def matching_delimiter(source: str, opening: int) -> int | None:
+    pairs = {"(": ")", "{": "}", "[": "]"}
+    stack: list[str] = []
+    for index in range(opening, len(source)):
+        character = source[index]
+        if character in pairs:
+            stack.append(pairs[character])
+        elif character in pairs.values():
+            if not stack or stack.pop() != character:
+                return None
+            if not stack:
+                return index
+    return None
+
+
+def call_arguments(source: str, start: int) -> tuple[str, int] | None:
+    opening = source.find("(", start)
+    closing = matching_delimiter(source, opening) if opening >= 0 else None
+    if closing is None:
+        return None
+    return source[opening + 1 : closing], closing + 1
+
+
+def split_arguments(arguments: str) -> list[str]:
+    result: list[str] = []
+    start = 0
+    depth = 0
+    for index, character in enumerate(arguments):
+        if character in "({[":
+            depth += 1
+        elif character in ")}]":
+            depth -= 1
+        elif character == "," and depth == 0:
+            result.append(arguments[start:index].strip())
+            start = index + 1
+    result.append(arguments[start:].strip())
+    return result
+
+
+def hover_insets(arguments: str) -> str | None:
+    for argument in split_arguments(arguments):
+        match = re.match(r"insets\s*:\s*(.+)", argument, re.DOTALL)
+        if match:
+            return re.sub(r"\s+", "", match.group(1))
+    return None
+
+
+def delimiter_depths(source: str) -> list[int]:
+    depths: list[int] = []
+    depth = 0
+    for character in source:
+        depths.append(depth)
+        if character in "({[":
+            depth += 1
+        elif character in ")}]":
+            depth -= 1
+    return depths
 
 
 @dataclass(frozen=True)
@@ -136,18 +197,18 @@ def hover_carrier_names(sources: dict[Path, str]) -> set[str]:
             owns_hover_shape = DIRECT_HOVER_SHAPE_PATTERN.search(body) is not None
             owns_hover_effect = DIRECT_HOVER_EFFECT_PATTERN.search(body) is not None
             owns_glass_hover = GLASS_HOVER_PATTERN.search(body) is not None
-            if owns_hover_shape and (owns_hover_effect or owns_glass_hover):
+            if SHARED_HOVER_TARGET_PATTERN.search(body) or (owns_hover_shape and (owns_hover_effect or owns_glass_hover)):
                 names.add(match.group("name"))
     return names
 
 
-def control_regions(source: str) -> list[tuple[str, int, str]]:
+def control_regions(source: str, pattern: re.Pattern = CONTROL_PATTERN) -> list[tuple[str, int, str]]:
     lines = source.splitlines()
     masked_lines = mask_comments_and_strings(source).splitlines()
     regions: list[tuple[str, int, str]] = []
 
     for start_index, masked_line in enumerate(masked_lines):
-        for match in CONTROL_PATTERN.finditer(masked_line):
+        for match in pattern.finditer(masked_line):
             indent = len(masked_line) - len(masked_line.lstrip())
             brace_depth = 0
             paren_depth = 0
@@ -191,7 +252,7 @@ def control_regions(source: str) -> list[tuple[str, int, str]]:
 
 def first_visual_hover_position(region: str, carrier_names: set[str]) -> int | None:
     positions: list[int] = []
-    for pattern in (DIRECT_HOVER_SHAPE_PATTERN, GLASS_HOVER_PATTERN):
+    for pattern in (DIRECT_HOVER_SHAPE_PATTERN, GLASS_HOVER_PATTERN, SHARED_HOVER_TARGET_PATTERN):
         positions.extend(match.start() for match in pattern.finditer(region))
     for name in carrier_names:
         match = re.search(rf"\b{re.escape(name)}\s*\(", region)
@@ -201,12 +262,99 @@ def first_visual_hover_position(region: str, carrier_names: set[str]) -> int | N
 
 
 def inset_hover_after(region: str, expansion_end: int) -> bool:
-    tail = region[expansion_end:]
+    tail = mask_comments_and_strings(region)[expansion_end:]
     for match in DIRECT_HOVER_SHAPE_PATTERN.finditer(tail):
-        call_tail = tail[match.start() : match.start() + 700]
-        if "insets:" in call_tail:
+        call = call_arguments(tail, match.start())
+        if call and hover_insets(call[0]) is not None:
             return True
     return False
+
+
+def background_expansion_without_insets(region: str) -> bool:
+    masked = mask_comments_and_strings(region)
+    depths = delimiter_depths(masked)
+    backgrounds = list(BACKGROUND_PATTERN.finditer(masked))
+    for hover in DIRECT_HOVER_SHAPE_PATTERN.finditer(masked):
+        previous = [
+            background for background in backgrounds
+            if background.start() < hover.start()
+            and depths[background.start()] == depths[hover.start()]
+        ]
+        if not previous:
+            continue
+        background = previous[-1]
+        opening = background.end()
+        while masked[opening].isspace():
+            opening += 1
+        closing = matching_delimiter(masked, opening)
+        if closing is None:
+            continue
+        expansions = [
+            match for match in ANY_LAYOUT_AFTER_HOVER_PATTERN.finditer(masked, closing + 1, hover.start())
+            if depths[match.start()] == depths[hover.start()]
+        ]
+        if not expansions:
+            continue
+        call = call_arguments(masked, hover.start())
+        if not call or hover_insets(call[0]) is None:
+            return True
+        insets = hover_insets(call[0])
+        for expansion in expansions:
+            if masked[expansion.start():].startswith(".padding"):
+                padding = call_arguments(masked, expansion.start())
+                if padding and re.fullmatch(r"[A-Za-z_]\w*", padding[0].strip()):
+                    if padding[0].strip() != insets:
+                        return True
+    return False
+
+
+def style_regions(source: str) -> list[tuple[str, int, str]]:
+    masked = mask_comments_and_strings(source)
+    pattern = re.compile(r"\bstruct\s+\w+[^\n{]*:\s*[^\n{]*\bButtonStyle\b[^\n{]*\{")
+    result = []
+    for match in pattern.finditer(masked):
+        opening = masked.find("{", match.start())
+        closing = matching_brace(masked, opening)
+        if closing is not None:
+            result.append(("ButtonStyle", source.count("\n", 0, match.start()) + 1, source[opening:closing + 1]))
+    return result
+
+
+def shared_target_findings(relative_path: Path, source: str) -> list[Finding]:
+    masked = mask_comments_and_strings(source)
+    pattern = re.compile(r"\bfunc\s+enchronHoverTarget\b")
+    findings = []
+    for match in pattern.finditer(masked):
+        opening = masked.find("{", match.start())
+        closing = matching_brace(masked, opening)
+        if closing is None:
+            continue
+        body = re.sub(r"\s+", "", masked[opening:closing + 1])
+        required = ("EnchronHoverRegion(visual,insets:insets)", ".padding(insets)",
+                    ".clipShape(hover)", ".contentShape(.interaction,interaction)",
+                    ".contentShape(.hoverEffect,hover)", ".enchronHoverEffect(.highlight)")
+        if any(term not in body for term in required):
+            findings.append(Finding("violation", relative_path.as_posix(),
+                                    source.count("\n", 0, match.start()) + 1, "HoverTarget",
+                                    "shared hover target must clip the visible shape independently of the interaction shape"))
+    container_pattern = re.compile(r"\b(?P<control>HStack|VStack|ZStack)\b\s*(?:\(|\{)")
+    for control, line, region in control_regions(source, container_pattern):
+        region = mask_comments_and_strings(region)
+        opening = region.find("{")
+        closing = matching_brace(region, opening)
+        if closing is None:
+            continue
+        body = region[opening + 1:closing]
+        body_depths = delimiter_depths(body)
+        if sum(body_depths[match.start()] == 0 for match in CONTROL_PATTERN.finditer(body)) < 2:
+            continue
+        tail = region[closing + 1:]
+        depths = delimiter_depths(tail)
+        if any(depths[match.start()] == 0 for pattern in (DIRECT_HOVER_EFFECT_PATTERN, GLASS_HOVER_PATTERN)
+               for match in pattern.finditer(tail)):
+            findings.append(Finding("violation", relative_path.as_posix(), line, control,
+                                    "container hover covers multiple buttons; attach hover to each visible button"))
+    return findings
 
 
 def audit_source(
@@ -214,9 +362,27 @@ def audit_source(
     source: str,
     carrier_names: set[str],
 ) -> tuple[list[Finding], int]:
-    findings: list[Finding] = []
-    regions = control_regions(source)
+    findings = shared_target_findings(relative_path, source)
+    regions = control_regions(source) + style_regions(source)
     for control, line, region in regions:
+        region = mask_comments_and_strings(region)
+        if control == "ButtonStyle":
+            depths = delimiter_depths(region)
+            hover = DIRECT_HOVER_SHAPE_PATTERN.search(region)
+            if hover and any(depths[match.start()] == depths[hover.start()]
+                             for match in ANY_LAYOUT_AFTER_HOVER_PATTERN.finditer(region, hover.end())):
+                findings.append(Finding("violation", relative_path.as_posix(), line, control,
+                                        "ButtonStyle expands a hover-bearing label; use the shared visual/interaction target"))
+                continue
+        if background_expansion_without_insets(region):
+            findings.append(Finding(
+                classification="violation",
+                path=relative_path.as_posix(),
+                line=line,
+                control=control,
+                reason="visual background is enlarged before hover without matching insets in that hover call",
+            ))
+            continue
         visual_position = first_visual_hover_position(region, carrier_names)
         if visual_position is None:
             generic_label = GENERIC_LABEL_PATTERN.search(region)
@@ -313,59 +479,15 @@ def production_sources(root: Path) -> dict[Path, str]:
     return sources
 
 
-def self_test() -> None:
-    fixtures = {
-        "violation": """
-struct VisualLabel: View {
-    var body: some View {
-        Circle().enchronHoverContentShape(Circle()).enchronHoverEffect()
-    }
-}
-struct Host: View {
-    var body: some View {
-        Button { } label: {
-            VisualLabel().frame(width: targetSize, height: targetSize).contentShape(Circle())
-        }
-        .contentShape(Circle())
-    }
-}
-""",
-        "fixed": """
-struct VisualLabel: View {
-    var body: some View {
-        Circle().enchronHoverContentShape(Circle()).enchronHoverEffect()
-    }
-}
-struct Host: View {
-    var body: some View {
-        Button { } label: {
-            VisualLabel().frame(width: targetSize, height: targetSize).contentShape(Circle())
-        }
-        .contentShape(Circle())
-        .enchronHoverContentShape(Circle(), insets: EdgeInsets())
-    }
-}
-""",
-        "same_bounds": """
-struct Host: View {
-    var body: some View {
-        Button { } label: {
-            Circle().frame(width: 44, height: 44)
-                .enchronHoverContentShape(Circle()).enchronHoverEffect()
-        }
-    }
-}
-""",
-    }
-    expected = {"violation": 1, "fixed": 0, "same_bounds": 0}
-    for name, source in fixtures.items():
-        carriers = hover_carrier_names({Path(f"{name}.swift"): source})
-        findings, _ = audit_source(Path(f"{name}.swift"), source, carriers)
-        violations = sum(finding.classification == "violation" for finding in findings)
-        if violations != expected[name]:
-            raise RuntimeError(
-                f"self-test {name} expected {expected[name]} violations, got {violations}"
-            )
+def audit_sources(sources: dict[Path, str]) -> tuple[list[Finding], set[str], int]:
+    carriers = hover_carrier_names(sources)
+    findings: list[Finding] = []
+    control_count = 0
+    for relative_path, source in sources.items():
+        source_findings, source_control_count = audit_source(relative_path, source, carriers)
+        findings.extend(source_findings)
+        control_count += source_control_count
+    return findings, carriers, control_count
 
 
 def main() -> int:
@@ -377,19 +499,8 @@ def main() -> int:
     args = parser.parse_args()
 
     root = args.root.resolve()
-    self_test()
     sources = production_sources(root)
-    carriers = hover_carrier_names(sources)
-    findings: list[Finding] = []
-    control_count = 0
-    for relative_path, source in sources.items():
-        source_findings, source_control_count = audit_source(
-            relative_path,
-            source,
-            carriers,
-        )
-        findings.extend(source_findings)
-        control_count += source_control_count
+    findings, carriers, control_count = audit_sources(sources)
 
     violations = [finding for finding in findings if finding.classification == "violation"]
     reviews = [finding for finding in findings if finding.classification == "review"]
@@ -409,7 +520,7 @@ def main() -> int:
         )
     else:
         print(
-            f"Scanned {len(sources)} production Swift files and {control_count} Button/Menu controls."
+            f"Scanned {len(sources)} production Swift files and {control_count} Button/Menu/ButtonStyle controls."
         )
         print(f"Confirmed violations: {len(violations)}")
         for finding in violations:

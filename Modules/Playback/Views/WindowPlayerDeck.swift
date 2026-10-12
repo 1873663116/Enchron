@@ -381,10 +381,11 @@ public struct WindowPlayerDeckView: View {
     }
 
     private var episodeItems: [DeckMenuItem] {
-        playbackLauncher.playbackQueue.entries.map { entry in
+        playbackLauncher.playbackQueue.entries.enumerated().map { index, entry in
             DeckMenuItem(
                 id: entry.id.uuidString,
                 title: entry.displayName,
+                compactTitle: String(entry.episodeNumber ?? index + 1),
                 isSelected: entry.isCurrent
             ) {
                 self.register()
@@ -620,10 +621,11 @@ struct ProductionPlaybackMoreMenu: View {
     }
 
     private var episodeItems: [DeckMenuItem] {
-        playbackLauncher.playbackQueue.entries.map { entry in
+        playbackLauncher.playbackQueue.entries.enumerated().map { index, entry in
             DeckMenuItem(
                 id: entry.id.uuidString,
                 title: entry.displayName,
+                compactTitle: String(entry.episodeNumber ?? index + 1),
                 isSelected: entry.isCurrent
             ) {
                 register()
