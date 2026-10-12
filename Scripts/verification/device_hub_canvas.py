@@ -27,6 +27,7 @@ import time
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 WINDOW_HELPER = Path(__file__).resolve().parent / "device_hub_window.swift"
+DRAG_HELPER = Path(__file__).resolve().parent / "device_hub_drag.swift"
 OWNER = "Device Hub"
 APP_PATH = "Contents/Applications/DeviceHub.app"
 CHROME_DISTANCE = 40
@@ -93,15 +94,20 @@ def activate(timeout: float = 8.0) -> None:
     raise CanvasError("Device Hub did not become frontmost")
 
 
-def window_rect() -> dict[str, float]:
+def window_rect(target_name: str | None = None) -> dict[str, float]:
     result = _run(["xcrun", "swift", str(WINDOW_HELPER), OWNER])
     if result.returncode != 0:
         raise CanvasError(f"window helper failed: {result.stderr.strip()}")
     payload = json.loads(result.stdout)
     windows = payload.get("windows", [])
+    if target_name is not None:
+        windows = [window for window in windows if window.get("title") == target_name]
+        if len(windows) != 1:
+            raise CanvasError(f"expected one Device Hub window titled {target_name!r}; observed {len(windows)}")
     if not windows:
         raise CanvasError("Device Hub has no on-screen window; open one from the Device Hub app")
-    return max(windows, key=lambda w: w["width"] * w["height"])
+    window = max(windows, key=lambda w: w["width"] * w["height"])
+    return {key: window[key] for key in ("number", "x", "y", "width", "height")}
 
 
 def screen_size() -> tuple[int, int]:
@@ -130,9 +136,9 @@ def drag(start: tuple[float, float], end: tuple[float, float]) -> None:
     time.sleep(0.4)
 
 
-def enlarge(margin: int = 4, menu_bar: int = 38) -> dict[str, float]:
+def enlarge(margin: int = 4, menu_bar: int = 38, target_name: str | None = None) -> dict[str, float]:
     activate()
-    rect = window_rect()
+    rect = window_rect(target_name)
     try:
         if canvas_rect(rect)["width"] >= CANVAS_WIDTH_FLOOR:
             return rect
@@ -141,10 +147,10 @@ def enlarge(margin: int = 4, menu_bar: int = 38) -> dict[str, float]:
     screen_width, screen_height = screen_size()
     title_grip = (rect["x"] + rect["width"] - 240, rect["y"] + 24)
     drag(title_grip, (title_grip[0] - rect["x"] + margin, title_grip[1] - rect["y"] + menu_bar))
-    rect = window_rect()
+    rect = window_rect(target_name)
     corner = (rect["x"] + rect["width"] - 1, rect["y"] + rect["height"] - 1)
     drag(corner, (screen_width - margin, screen_height - margin))
-    return window_rect()
+    return window_rect(target_name)
 
 
 def _longest_run(flags) -> tuple[int, int, int]:
@@ -256,6 +262,10 @@ def mode_buttons(rect: dict[str, float], canvas: dict[str, int]) -> list[tuple[f
         shot.unlink(missing_ok=True)
     scale = band.shape[1] / rect["width"]
     spans, dark = _glyph_spans(band)
+    spans = [
+        span for span in spans
+        if canvas["x"] <= rect["x"] + (span[0] + span[1]) / 2 / scale <= canvas["x"] + canvas["width"]
+    ]
     glyph_mask = numpy.zeros_like(dark)
     for lower, upper in spans:
         glyph_mask[:, lower : upper + 1] = dark[:, lower : upper + 1]
@@ -335,6 +345,10 @@ def bind_booted_vision_target(device: str) -> dict[str, str]:
     except (json.JSONDecodeError, KeyError, TypeError) as error:
         raise CanvasError("simctl returned an invalid booted-device document") from error
     if len(candidates) != 1:
+        matches = [candidate for candidate in candidates if candidate["device"].casefold() == device.casefold()]
+        if len(matches) == 1 and sum(candidate["name"] == matches[0]["name"] for candidate in candidates) == 1:
+            window_rect(matches[0]["name"])
+            return matches[0]
         raise CanvasError(
             "Device Hub input requires exactly one booted visionOS Simulator; "
             f"observed {len(candidates)}"
@@ -370,9 +384,36 @@ def gaze(point: tuple[int, int]) -> None:
     _run(["cliclick", f"m:{point[0]},{point[1]}"])
 
 
-def pinch(point: tuple[int, int], dwell: float = 0.6) -> None:
+def pinch(point: tuple[int, int], dwell: float = 0.6, count: int = 1) -> None:
     require_frontmost()
-    _run(["cliclick", f"m:{point[0]},{point[1]}", f"w:{int(dwell * 1000)}", f"c:{point[0]},{point[1]}"])
+    action = "dc" if count == 2 else "c"
+    _run(["cliclick", f"m:{point[0]},{point[1]}", f"w:{int(dwell * 1000)}", f"{action}:{point[0]},{point[1]}"])
+
+
+def held_pinch(
+    start: tuple[int, int],
+    end: tuple[int, int],
+    *,
+    duration: float,
+    hold: float,
+    device: str,
+    screenshot: Path | None = None,
+) -> None:
+    require_frontmost()
+    gaze(start)
+    time.sleep(0.6)
+    try:
+        result = _run([
+            "xcrun", "swift", str(DRAG_HELPER),
+            *map(str, (*start, *end, duration)),
+        ])
+        if result.returncode != 0:
+            raise CanvasError(f"pointer input failed: {result.stderr.strip()}")
+        time.sleep(hold)
+        if screenshot is not None:
+            simulator_screenshot(device, screenshot)
+    finally:
+        _run(["cliclick", f"du:{end[0]},{end[1]}"])
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -385,19 +426,28 @@ def main(argv: list[str] | None = None) -> int:
     system_control.add_argument(
         "--control", choices=tuple(SYSTEM_CONTROL_INDEX), required=True
     )
-    for name in ("gaze", "pinch"):
+    for name in ("gaze", "pinch", "hold", "pinch-drag"):
         action = sub.add_parser(name)
         action.add_argument("--shot-x", type=float, required=True)
         action.add_argument("--shot-y", type=float, required=True)
         action.add_argument("--shot-width", type=float, required=True)
         action.add_argument("--shot-height", type=float, required=True)
         action.add_argument("--allow-small", action="store_true")
+        if name == "pinch":
+            action.add_argument("--count", type=int, choices=(1, 2), default=1)
+        if name in ("hold", "pinch-drag"):
+            action.add_argument("--hold-seconds", type=float, default=1.0)
+            action.add_argument("--held-screenshot", type=Path)
+        if name == "pinch-drag":
+            action.add_argument("--to-shot-x", type=float, required=True)
+            action.add_argument("--to-shot-y", type=float, required=True)
+            action.add_argument("--drag-seconds", type=float, default=0.3)
 
     args = parser.parse_args(argv)
     try:
         target_binding = bind_booted_vision_target(args.device)
         if args.command == "enlarge":
-            rect = enlarge()
+            rect = enlarge(target_name=target_binding["name"])
             canvas = canvas_rect(rect)
             pointer = select_pointer_mode(rect, canvas)
             print(
@@ -413,7 +463,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.command == "status":
-            rect = window_rect()
+            rect = window_rect(target_binding["name"])
             print(
                 json.dumps(
                     {
@@ -429,7 +479,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         activate()
-        rect = window_rect()
+        rect = window_rect(target_binding["name"])
         canvas = canvas_rect(rect)
         require_targetable(canvas, getattr(args, "allow_small", False))
         if args.command == "system-control":
@@ -450,8 +500,25 @@ def main(argv: list[str] | None = None) -> int:
         point = map_point(canvas, (args.shot_width, args.shot_height), args.shot_x, args.shot_y)
         if args.command == "gaze":
             gaze(point)
+        elif args.command in ("hold", "pinch-drag"):
+            if not 0 <= args.hold_seconds < float("inf"):
+                raise CanvasError("--hold-seconds must be finite and nonnegative")
+            duration = getattr(args, "drag_seconds", 0.0)
+            if not 0 <= duration < float("inf"):
+                raise CanvasError("--drag-seconds must be finite and nonnegative")
+            endpoint = (
+                map_point(
+                    canvas, (args.shot_width, args.shot_height),
+                    args.to_shot_x, args.to_shot_y,
+                )
+                if args.command == "pinch-drag" else point
+            )
+            held_pinch(
+                point, endpoint, duration=duration, hold=args.hold_seconds,
+                device=args.device, screenshot=args.held_screenshot,
+            )
         else:
-            pinch(point)
+            pinch(point, count=args.count)
         print(
             json.dumps(
                 {"canvas": canvas, "point": point, "targetBinding": target_binding},

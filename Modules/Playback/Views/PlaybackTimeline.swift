@@ -167,6 +167,90 @@ struct PrecisionTimelineZoomSlider: View {
     }
 }
 
+enum PrecisionTimelineGeometry {
+    static let shape = DesignTokens.ShapeToken.element
+}
+
+struct PrecisionTimelineTimeLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(DesignTokens.Typography.metadata)
+            .monospacedDigit()
+            .foregroundStyle(DesignTokens.PrecisionTimeline.timecodeColor)
+            .padding(.horizontal, DesignTokens.Spacing.xs)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .allowsHitTesting(false)
+    }
+}
+
+struct PrecisionTimelinePlayhead: View {
+    let x: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        Rectangle()
+            .fill(DesignTokens.PrecisionTimeline.playheadColor)
+            .frame(width: DesignTokens.PrecisionTimeline.playheadWidth)
+            .frame(height: height)
+            .shadow(
+                color: DesignTokens.PrecisionTimeline.playheadShadow,
+                radius: DesignTokens.PrecisionTimeline.playheadShadowRadius,
+                x: DesignTokens.PrecisionTimeline.playheadShadowOffsetX
+            )
+            .position(x: x, y: height / 2)
+            .allowsHitTesting(false)
+    }
+}
+
+struct PrecisionTimelineTicks: View {
+    let minorTimes: [Double]
+    let majorTimes: [Double]
+    let leadingX: CGFloat
+    let pixelsPerSecond: CGFloat
+
+    var body: some View {
+        Canvas { context, size in
+            drawTicks(
+                times: minorTimes,
+                context: &context,
+                size: size,
+                height: DesignTokens.PrecisionTimeline.minorTickHeight,
+                color: DesignTokens.PrecisionTimeline.minorTickColor,
+                lineWidth: DesignTokens.Stroke.subtle
+            )
+            drawTicks(
+                times: majorTimes,
+                context: &context,
+                size: size,
+                height: DesignTokens.PrecisionTimeline.majorTickHeight,
+                color: DesignTokens.PrecisionTimeline.majorTickColor,
+                lineWidth: DesignTokens.Stroke.regular
+            )
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func drawTicks(
+        times: [Double],
+        context: inout GraphicsContext,
+        size: CGSize,
+        height: CGFloat,
+        color: Color,
+        lineWidth: CGFloat
+    ) {
+        let centerY = size.height - DesignTokens.Spacing.xs
+        for time in times {
+            let x = leadingX + CGFloat(time) * pixelsPerSecond
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: centerY - height))
+            path.addLine(to: CGPoint(x: x, y: centerY))
+            context.stroke(path, with: .color(color), lineWidth: lineWidth)
+        }
+    }
+}
+
 struct PrecisionTimelineView: View {
     @Binding var currentTime: Double
     @Binding var pixelsPerSecond: CGFloat
@@ -185,7 +269,7 @@ struct PrecisionTimelineView: View {
             let viewportWidth = max(proxy.size.width, 1)
             let safePixelsPerSecond = clampedPixelsPerSecond(pixelsPerSecond)
             let leadingX = viewportWidth / 2 - CGFloat(currentTime) * safePixelsPerSecond
-            let shape = DesignTokens.ShapeToken.element
+            let shape = PrecisionTimelineGeometry.shape
 
             ZStack(alignment: .topLeading) {
                 shape
@@ -206,7 +290,7 @@ struct PrecisionTimelineView: View {
                 )
                 .offset(y: DesignTokens.PrecisionTimeline.rulerHeight)
 
-                playhead(
+                PrecisionTimelinePlayhead(
                     x: viewportWidth / 2,
                     height: proxy.size.height
                 )
@@ -234,12 +318,9 @@ struct PrecisionTimelineView: View {
     }
 
     private var timecodeLabel: some View {
-        Text(PrecisionTimelineFormatter.timecode(currentTime, framesPerSecond: framesPerSecond))
-            .font(DesignTokens.Typography.metadata)
-            .monospacedDigit()
-            .foregroundStyle(DesignTokens.PrecisionTimeline.timecodeColor)
-            .padding(.horizontal, DesignTokens.Spacing.xs)
-            .padding(.vertical, DesignTokens.Spacing.xxs)
+        PrecisionTimelineTimeLabel(
+            text: PrecisionTimelineFormatter.timecode(currentTime, framesPerSecond: framesPerSecond)
+        )
             .background(
                 .thickMaterial,
                 in: DesignTokens.ShapeToken.small
@@ -253,29 +334,22 @@ struct PrecisionTimelineView: View {
         leadingX: CGFloat,
         pixelsPerSecond: CGFloat
     ) -> some View {
-        Canvas { context, size in
-            let intervals = tickIntervals(pixelsPerSecond: pixelsPerSecond)
-            drawTicks(
-                context: &context,
-                size: size,
+        PrecisionTimelineTicks(
+            minorTimes: visibleTickTimes(
+                viewportWidth: viewportWidth,
                 leadingX: leadingX,
                 pixelsPerSecond: pixelsPerSecond,
-                interval: intervals.minor,
-                height: DesignTokens.PrecisionTimeline.minorTickHeight,
-                color: DesignTokens.PrecisionTimeline.minorTickColor,
-                lineWidth: DesignTokens.Stroke.subtle
-            )
-            drawTicks(
-                context: &context,
-                size: size,
+                interval: tickIntervals(pixelsPerSecond: pixelsPerSecond).minor
+            ),
+            majorTimes: visibleTickTimes(
+                viewportWidth: viewportWidth,
                 leadingX: leadingX,
                 pixelsPerSecond: pixelsPerSecond,
-                interval: intervals.major,
-                height: DesignTokens.PrecisionTimeline.majorTickHeight,
-                color: DesignTokens.PrecisionTimeline.majorTickColor,
-                lineWidth: DesignTokens.Stroke.regular
-            )
-        }
+                interval: tickIntervals(pixelsPerSecond: pixelsPerSecond).major
+            ),
+            leadingX: leadingX,
+            pixelsPerSecond: pixelsPerSecond
+        )
         .overlay(alignment: .topLeading) {
             ZStack(alignment: .topLeading) {
                 ForEach(visibleTickTimes(
@@ -316,23 +390,6 @@ struct PrecisionTimelineView: View {
         .frame(height: height)
     }
 
-    private func playhead(x: CGFloat, height: CGFloat) -> some View {
-        Rectangle()
-            .fill(DesignTokens.PrecisionTimeline.playheadColor)
-            .frame(width: DesignTokens.PrecisionTimeline.playheadWidth)
-            .frame(height: height)
-            .shadow(
-                color: DesignTokens.PrecisionTimeline.playheadShadow,
-                radius: DesignTokens.PrecisionTimeline.playheadShadowRadius,
-                x: DesignTokens.PrecisionTimeline.playheadShadowOffsetX
-            )
-            .position(
-                x: x,
-                y: height / 2
-            )
-            .allowsHitTesting(false)
-    }
-
     private var zoomGesture: some Gesture {
         MagnifyGesture()
             .updating($gestureStartPixelsPerSecond) { _, state, _ in
@@ -363,35 +420,6 @@ struct PrecisionTimelineView: View {
                 isDraggingTimeline = false
                 onSeekEnded(currentTime)
             }
-    }
-
-    private func drawTicks(
-        context: inout GraphicsContext,
-        size: CGSize,
-        leadingX: CGFloat,
-        pixelsPerSecond: CGFloat,
-        interval: Double,
-        height: CGFloat,
-        color: Color,
-        lineWidth: CGFloat
-    ) {
-        guard interval > 0, duration > 0 else { return }
-
-        let visibleTimes = visibleTickTimes(
-            viewportWidth: size.width,
-            leadingX: leadingX,
-            pixelsPerSecond: pixelsPerSecond,
-            interval: interval
-        )
-        let centerY = size.height - DesignTokens.Spacing.xs
-
-        for time in visibleTimes {
-            let x = leadingX + CGFloat(time) * pixelsPerSecond
-            var path = Path()
-            path.move(to: CGPoint(x: x, y: centerY - height))
-            path.addLine(to: CGPoint(x: x, y: centerY))
-            context.stroke(path, with: .color(color), lineWidth: lineWidth)
-        }
     }
 
     private func drawFilmStrip(

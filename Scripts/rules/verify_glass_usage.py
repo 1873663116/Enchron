@@ -30,6 +30,11 @@ class WrapperCallIdentity:
 ALLOWED_WRAPPER_CALLS = Counter(
     {
         WrapperCallIdentity(
+            path=Path("Modules/Playback/Views/PlaybackSurfaceSeekFeedback.swift"),
+            enclosing_type="PlaybackSurfaceSeekFeedback",
+            callee="enchronGlassBackground",
+        ): 1,
+        WrapperCallIdentity(
             path=Path("Modules/DesignSystem/Components/AnchoredMenu.swift"),
             enclosing_type="AnchoredMenuSurface",
             callee="enchronGlassBackground",

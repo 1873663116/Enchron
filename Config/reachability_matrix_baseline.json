@@ -1,6 +1,6 @@
 {
-  "acceptedAt": "2026-10-12T05:32:13.924694+00:00",
-  "acceptedFrom": "Config/reachability_matrix_delivery.json",
+  "acceptedAt": "2026-10-09T06:24:17.721139+00:00",
+  "acceptedFrom": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/media-servers-device-validation/.scratch/media-servers-device-e2e/tab-controls-evidence-delivery/delivery.json",
   "cells": [
     {
       "context": "main-window-browser",
@@ -1150,6 +1150,61 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-mediaLibraryTabs-choice-{id}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menu-controls-auto-hide",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menu-default-speed",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menu-end-behavior",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menu-resume-strategy",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-toggle-developer-details",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-toggle-developer-overlay",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-toggle-display-refresh-request",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-toggle-surface-gestures",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-toggle-surroundings-dimming",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-menu-hold-speed",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "menu:settings:hold-speed",
       "verdict": "known-defect"
     },
     {

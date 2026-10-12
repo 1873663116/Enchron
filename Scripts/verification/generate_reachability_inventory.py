@@ -29,12 +29,6 @@ UNINSTANTIATED_RENDER_HOSTS = {
     "uninstantiatedPortalPlayerControlDockBranch",
     "uninstantiatedPlayerDeckRetryCloseActions",
 }
-SETTINGS_MENU_FAMILIES = (
-    "resume-strategy",
-    "end-behavior",
-    "default-speed",
-    "controls-auto-hide",
-)
 SOURCE_ROOTS = (
     REPOSITORY_ROOT / "Apps/Enchron",
     REPOSITORY_ROOT / "Modules/DesignSystem",
@@ -614,6 +608,70 @@ def accessibility_identifier_expressions(body: str) -> list[tuple[str, int]]:
     return expressions
 
 
+def settings_control_identifiers(
+    documents: dict[str, str],
+) -> dict[str, list[SourceLocation]]:
+    identifiers: dict[str, list[SourceLocation]] = {}
+    path = "Apps/Enchron/Screens/SettingsScreen.swift"
+    text = documents.get(path, "")
+    for match in re.finditer(r"\bSettingListGroup\.Item\s*\(", text):
+        opening = text.find("(", match.start())
+        closing = matching_parenthesis(text, opening)
+        if closing is None:
+            continue
+        arguments = text[opening + 1 : closing]
+        accessory = labelled_argument(arguments, "accessory") or ""
+        kind = re.match(r"\s*\.(menu|boundToggle|toggle)\s*\(", accessory)
+        if kind is None:
+            continue
+        item_id = labelled_argument(arguments, "id") or ""
+        literal = re.fullmatch(r'\s*"([^"\\]+)"\s*', item_id)
+        if literal is None:
+            raise RuntimeIdentifierResolutionError(
+                f"{path} has a setting control without a literal id: {item_id!r}"
+            )
+        control = "menu" if kind.group(1) == "menu" else "toggle"
+        template = f"Settings-{control}-{literal.group(1)}"
+        component = required_source_location(
+            documents,
+            "Modules/DesignSystem/Components/SettingsComponents.swift",
+            f'.accessibilityIdentifier("Settings-{control}-\\(id)")',
+        )
+        identifiers.setdefault(template, []).extend([
+            SourceLocation(path, text.count("\n", 0, match.start()) + 1),
+            component,
+        ])
+    return identifiers
+
+
+def settings_menu_families(
+    identifiers: dict[str, list[SourceLocation]],
+    documents: dict[str, str],
+) -> list[str]:
+    path = "Modules/DesignSystem/DebugMenuSelection.swift"
+    text = documents.get(path, "")
+    declaration = re.search(r"\benum\s+DebugMenuSelectionFamily\b[^{}]*\{", text)
+    if declaration is None:
+        raise RuntimeIdentifierResolutionError(f"cannot derive DebugMenuSelectionFamily from {path}")
+    closing = matching_brace(text, declaration.end() - 1)
+    if closing is None:
+        raise RuntimeIdentifierResolutionError(f"unterminated DebugMenuSelectionFamily in {path}")
+    schema = {
+        raw or name
+        for name, raw in re.findall(
+            r'\bcase\s+(\w+)(?:\s*=\s*"([^"\\]+)")?',
+            text[declaration.end() : closing],
+        )
+    }
+    families = [template.removeprefix("Settings-menu-") for template in identifiers if template.startswith("Settings-menu-")]
+    missing = set(families) - schema
+    if missing:
+        raise RuntimeIdentifierResolutionError(
+            f"rendered settings menus have no DebugMenuSelectionFamily: {sorted(missing)}"
+        )
+    return families
+
+
 def runtime_identifier_templates(
     documents: dict[str, str],
 ) -> dict[str, list[SourceLocation]]:
@@ -727,6 +785,7 @@ def identifier_role(template: str) -> tuple[str, str | None]:
     } or lowered.endswith((
         "-breadcrumb-current",
         "-error",
+        "-feedback",
         "-panel",
         "-state",
         "-time-bubble",
@@ -907,7 +966,7 @@ def runtime_identifier_role(template: str) -> tuple[str, str | None]:
     if role == "operation":
         return role, action
     lowered = template.lower()
-    if lowered.endswith(("-error", "-success", "-sidebarselectionactions")):
+    if lowered.endswith(("-error", "-feedback", "-success", "-sidebarselectionactions")):
         return "observation", None
     return "operation", "activate"
 
@@ -1106,6 +1165,26 @@ def presentation_derivation(
         }
 
     if operation_family == "PlayerUI":
+        if template == "PlayerUI-surface-seek-feedback":
+            window_source = required_source_location(
+                documents,
+                "Modules/Playback/Views/PlaybackVideoSurface.swift",
+                "PlaybackSurfaceSeekFeedback(preview:",
+            )
+            immersive_host_source = required_source_location(
+                documents,
+                "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
+                "PlaybackSurfaceSeekFeedback(preview:",
+            )
+            return all_playback_presentations, {
+                "host": "playbackSurfaceSeekFeedback",
+                "sources": [
+                    serialized(window_source),
+                    serialized(immersive_host_source),
+                    serialized(main_window_source),
+                    serialized(immersive_source),
+                ],
+            }
         if template == "PlayerUI-window-playback-surface":
             source = required_source_location(
                 documents,
@@ -1115,7 +1194,12 @@ def presentation_derivation(
             gesture_source = required_source_location(
                 documents,
                 "Modules/Playback/Views/PlaybackVideoSurface.swift",
-                ".targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)",
+                "PlaybackSurfaceGestureInput { entity in",
+            )
+            gesture_input_source = required_source_location(
+                documents,
+                "Modules/Playback/Views/PlaybackSurfaceGestureInput.swift",
+                "DragGesture(minimumDistance: 0)",
             )
             collider_source = required_source_location(
                 documents,
@@ -1127,6 +1211,7 @@ def presentation_derivation(
                 "sources": [
                     serialized(source),
                     serialized(gesture_source),
+                    serialized(gesture_input_source),
                     serialized(collider_source),
                     serialized(main_window_source),
                 ],
@@ -1348,6 +1433,9 @@ def build_inventory() -> dict[str, object]:
         documents[relative] = path.read_text(encoding="utf-8")
 
     runtime_identifiers = runtime_identifier_templates(documents)
+    settings_identifiers = settings_control_identifiers(documents)
+    for template, locations in settings_identifiers.items():
+        runtime_identifiers.setdefault(template, []).extend(locations)
     for template, locations in runtime_identifiers.items():
         identifiers.setdefault(template, []).extend(locations)
 
@@ -1397,6 +1485,14 @@ def build_inventory() -> dict[str, object]:
                 "construct": construct,
             }
         records.append(record)
+        if role == "observation" and template == "PlayerUI-surface-seek-feedback":
+            presentations, derivation = presentation_derivation(template, documents)
+            domain, contexts, context_derivation = proof_context_contract(presentations, derivation)
+            record.update({
+                "proofDomain": domain,
+                "proofContexts": contexts,
+                "proofContextDerivation": context_derivation,
+            })
         if role == "operation" and record["scope"] == "product":
             uninstantiated_owner = uninstantiated_view_identifiers.get(template)
             if uninstantiated_owner is not None:
@@ -1460,7 +1556,7 @@ def build_inventory() -> dict[str, object]:
                     "families": [family],
                 },
             }
-            for family in SETTINGS_MENU_FAMILIES
+            for family in settings_menu_families(settings_identifiers, documents)
         ],
         {
             "id": "command:toggleControls",

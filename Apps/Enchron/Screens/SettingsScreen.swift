@@ -19,6 +19,7 @@ struct SettingsScreen: View {
     @State private var artworkUsageInBytes: Int64 = 0
     @State private var containerIndexUsageInBytes: Int64 = 0
     @State private var showsLicenses = false
+    @State private var showsSupport = false
 
     private enum Category: String, CaseIterable {
         case general, playback, storagePrivacy
@@ -168,6 +169,12 @@ struct SettingsScreen: View {
             )
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-PlaybackShortcuts-group",
+                items: playbackShortcutItems,
+                keyValueDetail: viewModel.preferences.playbackShortcutsEnabled ? playbackShortcutDescriptions : []
+            )
+                .animation(DesignTokens.AnimationToken.selection, value: viewModel.preferences.playbackShortcutsEnabled)
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
 #if DEBUG
@@ -197,6 +204,8 @@ struct SettingsScreen: View {
 #endif
         case .about:
             SettingListGroup(accessibilityIdentifier: "Settings-About-group", items: aboutItems)
+            SettingListGroup(accessibilityIdentifier: "Settings-Support-group", items: supportItems)
+                .animation(DesignTokens.AnimationToken.selection, value: showsSupport)
         }
     }
 
@@ -310,6 +319,66 @@ struct SettingsScreen: View {
         ]
     }
 
+    private var playbackShortcutItems: [SettingListGroup.Item] {
+        var items = [
+            SettingListGroup.Item(
+                id: "surface-gestures",
+                title: String(localized: "Playback shortcuts"),
+                systemName: "hand.pinch",
+                supportingText: String(localized: "Unconscious pinches may be recognized as playback commands."),
+                supportingTextLineLimit: nil,
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { viewModel.preferences.playbackShortcutsEnabled },
+                        set: { value in viewModel.update { $0.playbackShortcutsEnabled = value } }
+                    ),
+                    isEnabled: true,
+                    marker: nil
+                )
+            )
+        ]
+        if viewModel.preferences.playbackShortcutsEnabled {
+            items.append(
+                SettingListGroup.Item(
+                    id: "hold-speed",
+                    title: String(localized: "Hold playback speed"),
+                    systemName: "speedometer",
+                    accessory: .menu(
+                        title: speedTitle(viewModel.preferences.holdPlaybackSpeed),
+                        options: PlaybackModel.PlaybackSpeed.allCases.filter { $0.value != 1 }.map { speed in
+                            SettingListGroup.MenuOption(speedTitle(speed.value), id: "\(speed.value)") {
+                                viewModel.update { $0.holdPlaybackSpeed = speed.value }
+                                recordMenuReachability("hold-speed")
+                            }
+                        }
+                    )
+                )
+            )
+        }
+        return items
+    }
+
+    private var playbackShortcutDescriptions: [SettingListGroup.KeyValue] {
+        [
+            .init(
+                key: String(localized: "Double-tap the video"),
+                value: String(localized: "Play or pause")
+            ),
+            .init(
+                key: String(localized: "Pinch and hold"),
+                value: String(localized: "Play at the set speed")
+            ),
+            .init(
+                key: String(localized: "Pinch and drag left or right"),
+                value: String(localized: "Adjust playback position")
+            ),
+            .init(
+                key: String(localized: "Double-tap the playback progress bar"),
+                value: String(localized: "Open the precise timeline")
+            )
+        ]
+    }
+
     private var storagePrivacyItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
@@ -371,12 +440,6 @@ struct SettingsScreen: View {
                 accessory: .valueAction(value: appVersion, actionTitle: String(localized: "Copy"), feedback: String(localized: "Copied"), action: { copy(appVersion) })
             ),
             SettingListGroup.Item(
-                id: "support-feedback",
-                title: String(localized: "Support & Feedback"),
-                systemName: "questionmark.circle",
-                accessory: .valueAction(value: feedbackEmail, actionTitle: String(localized: "Copy"), feedback: String(localized: "Copied"), action: { copy(feedbackEmail) })
-            ),
-            SettingListGroup.Item(
                 id: "licenses",
                 title: String(localized: "Open-source Licenses"),
                 systemName: "doc.text",
@@ -392,6 +455,44 @@ struct SettingsScreen: View {
                 )
             )
         ]
+    }
+
+    private var supportItems: [SettingListGroup.Item] {
+        var items = [
+            SettingListGroup.Item(
+                id: "support",
+                title: String(localized: "Support & Feedback"),
+                systemName: "questionmark.circle",
+                accessory: .disclosure(isExpanded: $showsSupport)
+            )
+        ]
+        if showsSupport {
+            items.append(contentsOf: [
+                SettingListGroup.Item(
+                    id: "support-email",
+                    title: String(localized: "Email"),
+                    systemName: "envelope",
+                    accessory: .valueAction(
+                        value: feedbackEmail,
+                        actionTitle: String(localized: "Copy"),
+                        feedback: String(localized: "Copied"),
+                        action: { copy(feedbackEmail) }
+                    )
+                ),
+                SettingListGroup.Item(
+                    id: "support-discord",
+                    title: "Discord",
+                    systemName: "bubble.left.and.bubble.right",
+                    accessory: .valueAction(
+                        value: discordInvite,
+                        actionTitle: String(localized: "Copy"),
+                        feedback: String(localized: "Copied"),
+                        action: { copy(discordInvite) }
+                    )
+                )
+            ])
+        }
+        return items
     }
 
     private func mediaLibraryTabBinding(
@@ -467,6 +568,7 @@ struct SettingsScreen: View {
     }
 
     private let feedbackEmail = "xzp1873663116@icloud.com"
+    private let discordInvite = "https://discord.gg/UUwFtZSYW"
     private var appVersion: String {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "0.0.0"

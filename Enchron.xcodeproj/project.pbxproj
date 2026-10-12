@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A11CE0010000000000000002 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = A11CE0010000000000000001 /* LICENSE */; };
+		A11CE0010000000000000003 /* LICENSE in Resources */ = {isa = PBXBuildFile; fileRef = A11CE0010000000000000001 /* LICENSE */; };
 		A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
@@ -95,6 +97,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		A11CE0010000000000000001 /* LICENSE */ = {isa = PBXFileReference; lastKnownFileType = text; path = LICENSE; sourceTree = SOURCE_ROOT; };
 		C3B0F9802F5726B30064596E /* Enchron.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Enchron.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronDomainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2E0000200000000DEADBEEF /* EnchronAppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = EnchronAppUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -201,6 +204,7 @@
 				Playback/Domain/PlaybackRuntimeControlling.swift,
 				Playback/Domain/PlaybackSeekPolicy.swift,
 				Playback/Domain/PlaybackSessionReporting.swift,
+				Playback/Domain/PlaybackSurfaceGestureState.swift,
 				Playback/Domain/PlaybackUserVisibleIssue.swift,
 				Playback/Domain/TrackSelectionPreference.swift,
 				Playback/Domain/ViewingState.swift,
@@ -239,6 +243,7 @@
 				Playback/Session/PlaybackMediaSessionDriver.swift,
 				Playback/Session/PlaybackPresentationChrome.swift,
 				Playback/Session/PlaybackSessionModel.swift,
+				Playback/Session/PlaybackSurfaceGestureController.swift,
 				Playback/Session/ProcessMemoryFootprint.swift,
 				Playback/Session/ProcessMemoryRegions.swift,
 				Playback/Session/RendererTransferCoordinator.swift,
@@ -254,6 +259,9 @@
 				Playback/Views/PlaybackFormatters.swift,
 				Playback/Views/PlaybackPanel.swift,
 				Playback/Views/PlaybackRealityPresenter.swift,
+				Playback/Views/PlaybackSurfaceGestureInput.swift,
+				Playback/Views/PlaybackSurfaceSeekAttachment.swift,
+				Playback/Views/PlaybackSurfaceSeekFeedback.swift,
 				Playback/Views/PlaybackTimeline.swift,
 				Playback/Views/PlaybackTopActions.swift,
 				Playback/Views/PlaybackVideoSurface.swift,
@@ -409,6 +417,7 @@
 		C3B0F9772F5726B30064596E = {
 			isa = PBXGroup;
 			children = (
+				A11CE0010000000000000001 /* LICENSE */,
 				C3B0F9822F5726B30064596E /* Apps/Enchron */,
 				A70000010000000000ABCDEF /* Modules */,
 				C3B0F9832F5726B30064596E /* Packages */,
@@ -653,6 +662,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11CE0010000000000000002 /* LICENSE in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -681,6 +691,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A11CE0010000000000000003 /* LICENSE in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -576,6 +576,7 @@ public struct SettingListGroup: View {
     public enum Accessory {
         case none
         case automatic
+        case disclosure(isExpanded: Binding<Bool>)
         case menu(title: String, options: [MenuOption], role: ActionRole = .normal)
         case action(
             title: String,
@@ -640,6 +641,7 @@ public struct SettingListGroup: View {
         public let title: String
         public let systemName: String?
         public var supportingText: String?
+        public var supportingTextLineLimit: Int? = 1
         public var detail: String?
         public var keyValueDetail: [KeyValue]?
         public var expansion: ExpansionOrigin = .top
@@ -652,6 +654,7 @@ public struct SettingListGroup: View {
             title: String,
             systemName: String? = nil,
             supportingText: String? = nil,
+            supportingTextLineLimit: Int? = 1,
             detail: String? = nil,
             keyValueDetail: [KeyValue]? = nil,
             expansion: ExpansionOrigin = .top,
@@ -663,6 +666,7 @@ public struct SettingListGroup: View {
             self.title = title
             self.systemName = systemName
             self.supportingText = supportingText
+            self.supportingTextLineLimit = supportingTextLineLimit
             self.detail = detail
             self.keyValueDetail = keyValueDetail
             self.expansion = expansion
@@ -674,6 +678,7 @@ public struct SettingListGroup: View {
 
     public var accessibilityIdentifier: String = "DesignSystem-SettingListGroup"
     let items: [Item]
+    let keyValueDetail: [KeyValue]
 
     private var cornerRadius: CGFloat {
         DesignTokens.Radius.element
@@ -687,10 +692,12 @@ public struct SettingListGroup: View {
 
     public init(
         accessibilityIdentifier: String = "DesignSystem-SettingListGroup",
-        items: [Item]
+        items: [Item],
+        keyValueDetail: [KeyValue] = []
     ) {
         self.accessibilityIdentifier = accessibilityIdentifier
         self.items = items
+        self.keyValueDetail = keyValueDetail
     }
 
     public var body: some View {
@@ -701,6 +708,7 @@ public struct SettingListGroup: View {
                     title: item.title,
                     systemName: item.systemName,
                     supportingText: item.supportingText,
+                    supportingTextLineLimit: item.supportingTextLineLimit,
                     detail: item.detail,
                     keyValueDetail: item.keyValueDetail,
                     expansion: item.expansion,
@@ -712,6 +720,10 @@ public struct SettingListGroup: View {
                     hoverNamespace: hoverNamespace,
                     action: item.action
                 )
+            }
+            if keyValueDetail.isEmpty == false {
+                SettingListKeyValueDetail(rows: keyValueDetail, singleLine: true)
+                    .padding(.top, DesignTokens.Spacing.xs)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -832,6 +844,7 @@ struct SettingListGroupRow: View {
     let title: String
     let systemName: String?
     var supportingText: String?
+    var supportingTextLineLimit: Int? = 1
     var detail: String?
     var keyValueDetail: [SettingListGroup.KeyValue]?
     var expansion: SettingListGroup.ExpansionOrigin = .top
@@ -873,10 +886,10 @@ struct SettingListGroupRow: View {
         )
     }
     private var usesWholeRowButton: Bool {
-        if case .automatic = accessory {
-            return true
+        switch accessory {
+        case .automatic, .disclosure: true
+        default: false
         }
-        return false
     }
 
     @ViewBuilder
@@ -925,6 +938,9 @@ struct SettingListGroupRow: View {
     }
 
     private var rowAccessibilityValue: String {
+        if case .disclosure(let expanded) = accessory {
+            return expanded.wrappedValue ? String(localized: "Expanded") : String(localized: "Collapsed")
+        }
         guard isExpandable else { return "" }
         guard isExpanded else { return "Collapsed" }
         if let keyValueDetail {
@@ -988,7 +1004,7 @@ struct SettingListGroupRow: View {
                     Text(supportingText)
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(DesignTokens.Surface.supportingText)
-                        .lineLimit(1)
+                        .lineLimit(supportingTextLineLimit)
                 }
             }
 
@@ -1026,6 +1042,12 @@ struct SettingListGroupRow: View {
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.tertiary)
                 .rotationEffect(isExpandable && isExpanded ? .degrees(90) : .zero)
+
+        case .disclosure(let expanded):
+            Image(systemName: "chevron.right")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.tertiary)
+                .rotationEffect(.degrees(expanded.wrappedValue ? 90 : 0))
 
         case .menu(let title, let options, let role):
             Menu {
@@ -1162,24 +1184,7 @@ struct SettingListGroupRow: View {
     }
 
     private func expandedKeyValues(_ rows: [SettingListGroup.KeyValue]) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            ForEach(rows) { row in
-                HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.md) {
-                    Text(row.key)
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
-                        .frame(width: DesignTokens.Layout.settingsValueColumnWidth, alignment: .leading)
-
-                    Text(row.value)
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(DesignTokens.Surface.accessoryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, DesignTokens.Spacing.lg)
-        .padding(.bottom, DesignTokens.Spacing.md)
+        SettingListKeyValueDetail(rows: rows)
     }
 
     private var expansionTransition: AnyTransition {
@@ -1198,6 +1203,12 @@ struct SettingListGroupRow: View {
     }
 
     private func handleTap() {
+        if case .disclosure(let expanded) = accessory {
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                expanded.wrappedValue.toggle()
+            }
+            return
+        }
         guard isExpandable else {
             action()
             return
@@ -1225,6 +1236,31 @@ struct SettingListGroupRow: View {
                 }
             }
         }
+    }
+}
+
+private struct SettingListKeyValueDetail: View {
+    let rows: [SettingListGroup.KeyValue]
+    var singleLine = false
+
+    var body: some View {
+        Grid(alignment: .leading, horizontalSpacing: DesignTokens.Spacing.md, verticalSpacing: DesignTokens.Spacing.xs) {
+            ForEach(rows) { row in
+                GridRow(alignment: .firstTextBaseline) {
+                    Text(row.key)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                        .frame(minWidth: DesignTokens.Layout.settingsValueColumnWidth, alignment: .leading)
+                    Text(row.value)
+                        .foregroundStyle(DesignTokens.Surface.accessoryText)
+                }
+                .lineLimit(singleLine ? 1 : nil)
+                .minimumScaleFactor(singleLine ? 0.75 : 1)
+            }
+        }
+        .font(DesignTokens.Typography.sectionHeader)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
     }
 }
 

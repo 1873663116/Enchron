@@ -256,6 +256,9 @@ public struct PlaybackVideoSurface: View {
         ZStack {
             visionSurface
 
+            PlaybackSurfaceSeekFeedback(preview: surfaceGestureController.preview)
+                .enchronSpatialOffset(z: 1)
+
             if let activeSubtitleText {
                 Text(activeSubtitleText)
                     .frame(width: 1, height: 1)
@@ -284,7 +287,14 @@ public struct PlaybackVideoSurface: View {
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             }
             .frame(depth: realityViewDepth)
-            .simultaneousGesture(surfaceTapGesture)
+            .modifier(
+                PlaybackSurfaceGestureInput { entity in
+                    PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                        entity,
+                        for: presentation
+                    )
+                }
+            )
         }
         .frame(depth: realityViewDepth)
         .task(id: surfaceReadinessKey) {
@@ -359,31 +369,8 @@ public struct PlaybackVideoSurface: View {
         }
     }
 
-    private var surfaceTapGesture: some Gesture {
-        TapGesture()
-            .targetedToEntity(playbackVideoEntityStore.windowInteractionSurface)
-            .onEnded { value in
-                guard PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
-                        value.entity,
-                        for: presentation
-                      ) else {
-                    appModel.recordSurfaceInputProbe(
-                        "spatialTap entity=\(value.entity.name)"
-                            + " accepted=false presentation=\(presentation.rawValue)"
-                    )
-                    return
-                }
-                appModel.recordSurfaceInputProbe(
-                    "spatialTap entity=\(value.entity.name)"
-                        + " accepted=true presentation=\(presentation.rawValue)"
-                )
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    PlaybackSurfaceInputAction.perform(
-                        .spatialTap,
-                        appModel: appModel
-                    )
-                }
-            }
+    private var surfaceGestureController: PlaybackSurfaceGestureController {
+        playbackRuntime.surfaceGestureController(session: appModel)
     }
 
     private var surfaceReadinessKey: String {

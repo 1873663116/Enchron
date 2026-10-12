@@ -62,7 +62,11 @@ Files 选择器在 visionOS 中是独立系统窗口。2026-08-29 的现场实�
 
 #### 操作这条通路
 
-驱动它的是 `Scripts/verification/device_hub_canvas.py`。每次调用都要给出目标 Simulator UDID：`--device` 缺省时读取 `ENCHRON_TARGET_DEVICE` 环境变量，两者都缺席时报错拒绝执行。脚本要求当前只有这一台 visionOS Simulator 处于 Booted 状态，并在结果的 `targetBinding` 中返回设备、运行时和设备名称；绑定不一致时拒绝发送输入。
+驱动它的是 `Scripts/verification/device_hub_canvas.py`。每次调用都要给出目标 Simulator UDID：`--device` 缺省时读取 `ENCHRON_TARGET_DEVICE` 环境变量，两者都缺席时报错拒绝执行。脚本将目标 UDID 解析为模拟器名称，并要求 Device Hub 中存在标题精确匹配的唯一窗口。多台 visionOS Simulator 同时启动时，目标名称也必须唯一。结果的 `targetBinding` 返回设备、运行时和设备名称；绑定不一致时拒绝发送输入。
+
+单击使用 `pinch`，双击使用 `pinch --count 2`，按住使用 `hold --hold-seconds`。横向捏住拖动使用 `pinch-drag --to-shot-x --to-shot-y --drag-seconds --hold-seconds`；可用 `--held-screenshot` 在松手前取证。坐标仍使用 `--shot-x`、`--shot-y`、`--shot-width` 和 `--shot-height`。
+
+空间拖动通过 `device_hub_drag.swift` 发送带 `mouseEventDeltaX/Y` 的 `CGEvent`。Device Hub 依靠相对位移模拟手部移动；仅改变绝对鼠标位置的合成拖动会使 App 收到按下和松开，却始终得到零位移。用 App 的 `surfaceGesture input=translation` 记录区分输入未送达与产品拒绝手势。
 
 **Device Hub 必须是前台应用，否则 cliclick 的事件落到别处，而且没有任何报错。** 这是这条通路最阴险的失败形态：命令返回成功、探针一行不增，读起来与「产品没收到点击」完全一致。从终端发命令本身不夺焦点，但任何 `osascript activate`、人手点一下终端、或别的应用弹窗都会。脚本因此在每一次指针动作前断言前台应用，不满足就拒绝执行而不是照发。
 

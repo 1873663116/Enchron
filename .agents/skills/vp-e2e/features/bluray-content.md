@@ -17,6 +17,8 @@
 
 Preconditions: 已建立冻结会话，测试盘已注册于 `Tests/Fixtures/bluray-disc-registry.json`，本地素材已暂存，或远程来源已连接。选择器导入与暂存导入分别记录；暂存导入不证明系统选择器。
 
+`Scripts/verification/verify_bluray_simulator.py` 从已评审的蓝光 Scenario 编译执行计划，经 Operation gateway 执行并核对原始结果。它需要指定 Scenario 和 transcript；Oracle 判定与合并凭据由回归协议单独生成。
+
 ```sh
 C snapshot
 C tap --identifier MediaLibrary-grid-bluray-disc-Sintel-Bluray.iso

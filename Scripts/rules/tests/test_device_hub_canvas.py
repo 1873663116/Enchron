@@ -13,10 +13,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from Scripts.verification.device_hub_canvas import (
     CanvasError,
+    DRAG_HELPER,
     _canvas_pixel_rect,
     _glyph_spans,
     _pointer_mode_index,
     bind_booted_vision_target,
+    held_pinch,
+    pinch,
+    window_rect,
 )
 
 
@@ -126,6 +130,52 @@ class DeviceHubCanvasTests(unittest.TestCase):
             ),
         ), self.assertRaisesRegex(CanvasError, "exactly one"):
             bind_booted_vision_target("SIM-1")
+
+    def test_multiple_simulators_require_a_unique_named_window(self) -> None:
+        entries = [
+            {"udid": "SIM-1", "name": "Other", "state": "Booted", "deviceTypeIdentifier": "Apple-Vision-Pro-4K"},
+            {"udid": "SIM-2", "name": "Gestures", "state": "Booted", "deviceTypeIdentifier": "Apple-Vision-Pro-4K"},
+        ]
+        listing = subprocess.CompletedProcess([], 0, json.dumps({"devices": {"xrOS": entries}}), "")
+        with mock.patch("Scripts.verification.device_hub_canvas._run", return_value=listing), mock.patch(
+            "Scripts.verification.device_hub_canvas.window_rect", return_value={"number": 42}
+        ) as window:
+            self.assertEqual(bind_booted_vision_target("SIM-2"), {"device": "SIM-2", "name": "Gestures", "runtime": "xrOS"})
+            window.assert_called_once_with("Gestures")
+        with mock.patch("Scripts.verification.device_hub_canvas._run", return_value=listing), mock.patch(
+            "Scripts.verification.device_hub_canvas.window_rect", side_effect=CanvasError("window missing")
+        ), self.assertRaisesRegex(CanvasError, "window missing"):
+            bind_booted_vision_target("SIM-2")
+
+    def test_window_selection_does_not_choose_a_larger_unrelated_window(self) -> None:
+        windows = [
+            {"title": "Other", "number": 1, "x": 0, "y": 0, "width": 2000, "height": 1200},
+            {"title": "Gestures", "number": 2, "x": 20, "y": 40, "width": 1200, "height": 800},
+        ]
+        result = subprocess.CompletedProcess([], 0, json.dumps({"windows": windows}), "")
+        with mock.patch("Scripts.verification.device_hub_canvas._run", return_value=result):
+            self.assertEqual(window_rect("Gestures"), {"number": 2, "x": 20, "y": 40, "width": 1200, "height": 800})
+            with self.assertRaisesRegex(CanvasError, "observed 0"):
+                window_rect("Missing")
+
+    def test_double_pinch_emits_one_double_click(self) -> None:
+        with mock.patch("Scripts.verification.device_hub_canvas.require_frontmost"), mock.patch(
+            "Scripts.verification.device_hub_canvas._run"
+        ) as run:
+            pinch((123, 456), dwell=0.1, count=2)
+            run.assert_called_once_with(["cliclick", "m:123,456", "w:100", "dc:123,456"])
+
+    def test_held_pinch_releases_when_capture_fails(self) -> None:
+        with mock.patch("Scripts.verification.device_hub_canvas.require_frontmost"), mock.patch(
+            "Scripts.verification.device_hub_canvas.time.sleep"
+        ), mock.patch("Scripts.verification.device_hub_canvas._run", return_value=subprocess.CompletedProcess([], 0, "", "")) as run, mock.patch(
+            "Scripts.verification.device_hub_canvas.simulator_screenshot", side_effect=CanvasError("capture failed")
+        ), self.assertRaisesRegex(CanvasError, "capture failed"):
+            held_pinch((10, 20), (110, 20), duration=0.3, hold=0.5, device="SIM-2", screenshot=Path("held.png"))
+        self.assertEqual(run.call_args_list[-1], mock.call(["cliclick", "du:110,20"]))
+        self.assertEqual(run.call_args_list[1], mock.call([
+            "xcrun", "swift", str(DRAG_HELPER), "10", "20", "110", "20", "0.3"
+        ]))
 
 
 if __name__ == "__main__":

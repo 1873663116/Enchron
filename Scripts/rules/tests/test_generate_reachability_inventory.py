@@ -310,6 +310,7 @@ class DebugMenuEquivalentInventoryTests(unittest.TestCase):
             "resume-strategy",
             "end-behavior",
             "default-speed",
+            "hold-speed",
             "controls-auto-hide",
         )
 
@@ -358,6 +359,7 @@ class RenderHostInventoryTests(unittest.TestCase):
                         for source in derivation["sources"]
                     )
                 )
+
 
     def test_browser_content_operations_are_hosted_only_by_browser_window(self) -> None:
         for operation_id, operation in self.operations.items():
@@ -418,6 +420,122 @@ class RenderHostInventoryTests(unittest.TestCase):
             ]["proofContexts"],
             ["main-window-browser"],
         )
+
+
+class SurfaceFeedbackDerivationTests(unittest.TestCase):
+    def documents(self) -> dict[str, str]:
+        return {
+            "Modules/Playback/Model/PlaybackPresentation.swift": """
+                enum PlaybackPresentation {
+                    var usesMainWindow: Bool { self == .window || self == .portal }
+                    var usesImmersiveSpace: Bool { self == .docked || self == .panorama }
+                }
+            """,
+            "Modules/Playback/Views/PlaybackVideoSurface.swift":
+                "PlaybackSurfaceSeekFeedback(preview: preview)",
+            "Modules/Playback/Scenes/ImmersiveSpaceView.swift":
+                "PlaybackSurfaceSeekFeedback(preview: preview)",
+        }
+
+    def test_feedback_is_an_observation_without_an_activate_operation(self) -> None:
+        self.assertEqual(
+            inventory.identifier_role("PlayerUI-surface-seek-feedback"),
+            ("observation", None),
+        )
+
+    def test_feedback_derives_each_host_that_instantiates_it(self) -> None:
+        presentations, derivation = inventory.presentation_derivation(
+            "PlayerUI-surface-seek-feedback", self.documents()
+        )
+        self.assertEqual(presentations, ["window", "portal", "panorama", "docked"])
+        self.assertEqual(
+            {source["path"] for source in derivation["sources"]},
+            {
+                "Modules/Playback/Model/PlaybackPresentation.swift",
+                "Modules/Playback/Views/PlaybackVideoSurface.swift",
+                "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
+            },
+        )
+
+    def test_feedback_follows_presentation_properties_instead_of_assuming_four_hosts(self) -> None:
+        documents = self.documents()
+        documents["Modules/Playback/Model/PlaybackPresentation.swift"] = """
+            enum PlaybackPresentation {
+                var usesMainWindow: Bool { self == .window }
+                var usesImmersiveSpace: Bool { self == .docked }
+            }
+        """
+        presentations, _ = inventory.presentation_derivation(
+            "PlayerUI-surface-seek-feedback", documents
+        )
+        self.assertEqual(presentations, ["window", "docked"])
+
+    def test_feedback_rejects_a_missing_production_instantiation(self) -> None:
+        for path in (
+            "Modules/Playback/Views/PlaybackVideoSurface.swift",
+            "Modules/Playback/Scenes/ImmersiveSpaceView.swift",
+        ):
+            with self.subTest(path=path):
+                documents = self.documents()
+                documents[path] = "OtherFeedback(preview: preview)"
+                with self.assertRaises(inventory.PresentationDerivationError):
+                    inventory.presentation_derivation(
+                        "PlayerUI-surface-seek-feedback", documents
+                    )
+
+
+class SettingsConstructorInventoryTests(unittest.TestCase):
+    def documents(self) -> dict[str, str]:
+        return {
+            "Apps/Enchron/Screens/SettingsScreen.swift": """
+                SettingListGroup.Item(
+                    id: "surface-gestures", title: "Surface shortcuts",
+                    accessory: .boundToggle(isOn: binding, isEnabled: true, marker: nil)
+                )
+                SettingListGroup.Item(
+                    id: "hold-speed", title: "Hold speed",
+                    accessory: .menu(title: speedTitle, options: options)
+                )
+                SettingListGroup.Item(
+                    id: "clear-cache", title: "Cache", accessory: .action(action: clear)
+                )
+            """,
+            "Modules/DesignSystem/Components/SettingsComponents.swift": r'''
+                .accessibilityIdentifier("Settings-toggle-\(id)")
+                .accessibilityIdentifier("Settings-menu-\(id)")
+            ''',
+            "Modules/DesignSystem/DebugMenuSelection.swift": '''
+                enum DebugMenuSelectionFamily: String {
+                    case holdSpeed = "hold-speed"
+                    case defaultSpeed = "default-speed"
+                    case audio
+                }
+            ''',
+        }
+
+    def test_settings_controls_use_their_actual_constructor_ids_and_accessories(self) -> None:
+        identifiers = inventory.settings_control_identifiers(self.documents())
+        self.assertEqual(
+            set(identifiers), {"Settings-toggle-surface-gestures", "Settings-menu-hold-speed"}
+        )
+        self.assertEqual(
+            {source.path for source in identifiers["Settings-menu-hold-speed"]},
+            {
+                "Apps/Enchron/Screens/SettingsScreen.swift",
+                "Modules/DesignSystem/Components/SettingsComponents.swift",
+            },
+        )
+
+    def test_settings_menu_families_intersect_rendered_menus_with_the_type_schema(self) -> None:
+        documents = self.documents()
+        identifiers = inventory.settings_control_identifiers(documents)
+        self.assertEqual(inventory.settings_menu_families(identifiers, documents), ["hold-speed"])
+        documents["Modules/DesignSystem/DebugMenuSelection.swift"] = (
+            'enum DebugMenuSelectionFamily: String { case audio }'
+        )
+        with self.assertRaisesRegex(inventory.RuntimeIdentifierResolutionError, "hold-speed"):
+            inventory.settings_menu_families(identifiers, documents)
+
 
 
 class ProofContextInventoryTests(unittest.TestCase):
@@ -839,6 +957,27 @@ class MediaLibraryTabControlInventoryTests(unittest.TestCase):
 
 
 class ProductInventoryInteractiveTests(unittest.TestCase):
+    def test_surface_feedback_and_gesture_preferences_match_the_rendered_product(self) -> None:
+        built = inventory.build_inventory()
+        identifiers = {record["template"]: record for record in built["identifiers"]}
+        operations = {record["id"]: record for record in built["operations"]}
+        feedback = identifiers["PlayerUI-surface-seek-feedback"]
+        self.assertEqual(feedback["role"], "observation")
+        self.assertEqual(feedback["proofContexts"], ["window", "portal", "panorama", "docked"])
+        self.assertNotIn("accessibility:PlayerUI-surface-seek-feedback", operations)
+        for operation_id in (
+            "accessibility:Settings-toggle-surface-gestures",
+            "accessibility:Settings-menu-hold-speed",
+            "menu:settings:hold-speed",
+        ):
+            with self.subTest(operation_id=operation_id):
+                self.assertEqual(operations[operation_id]["proofDomain"], "browser")
+                self.assertEqual(operations[operation_id]["proofContexts"], ["main-window-browser"])
+        self.assertEqual(
+            operations["menu:settings:hold-speed"]["debugEquivalent"]["families"],
+            ["hold-speed"],
+        )
+
     def test_the_committed_inventory_files_no_attached_control_as_observation(
         self,
     ) -> None:
@@ -875,6 +1014,20 @@ class ProductInventoryInteractiveTests(unittest.TestCase):
 
 
 class CommittedMatrixBaselineTests(unittest.TestCase):
+    def test_gesture_setting_cells_have_no_claim_of_physical_verification(self) -> None:
+        baseline = json.loads(inventory.MATRIX_BASELINE.read_text(encoding="utf-8"))
+        verdicts = {
+            (str(cell["context"]), str(cell["operation"])): str(cell["verdict"])
+            for cell in baseline["cells"]
+        }
+        for operation_id in (
+            "accessibility:Settings-toggle-surface-gestures",
+            "accessibility:Settings-menu-hold-speed",
+            "menu:settings:hold-speed",
+        ):
+            with self.subTest(operation_id=operation_id):
+                self.assertEqual(verdicts[("main-window-browser", operation_id)], "known-defect")
+
     def test_the_committed_baseline_covers_every_derived_cell(self) -> None:
         built = inventory.build_inventory()
         baseline = json.loads(

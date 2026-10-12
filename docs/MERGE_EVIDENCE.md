@@ -42,7 +42,7 @@ Tier 只回答“需要多强的实测证据”。ChangeKind 只回答“机器�
 | W2 | W1 加模拟器端到端产物 |
 | W3 | W2 加 Device Hub 真实输入产物；纯解码能力改动可用真机解码产物替代模拟器与 Device Hub 产物 |
 
-Device Hub 产物目录必须包含可解析的 `diagnostics.json`，并包含 App 侧 `spatialTap entity=<entity> ... accepted=true` 探针行。工具读取产物内容后再决定证据是否成立，不能用一条手写 JSON 声称它们存在。
+Device Hub 产物目录必须包含可解析的 `diagnostics.json`，并包含 App 侧被接受的生产播放表面输入探针。当前输入记录为 `surfaceGesture input=begin entity=<entity>`；历史 `spatialTap entity=<entity> ... accepted=true` 记录也有效。工具读取产物内容后再决定证据是否成立，不能用一条手写 JSON 声称它们存在。
 
 真机解码特例必须包含 JSON 结果。该结果需要非空的 `capability`，并以 `passed: true` 或 `verdict: "passed"` 明确记录结果。
 

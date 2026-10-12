@@ -223,6 +223,8 @@ public final class PlaybackSessionModel {
     public var environmentCardDismissalRequestRevision: UInt64 = 0
 #endif
     public var controlsAutoHideSeconds: Int = 8
+    public var playbackShortcutsEnabled: Bool = true
+    public var holdPlaybackSpeed: Double = 2.0
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
 

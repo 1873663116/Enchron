@@ -291,6 +291,63 @@ class OperationAllowlistTests(unittest.TestCase):
         self.simulator = adapter.OperationContext("simulator", "sim", root, root / "controller")
         self.device = adapter.OperationContext("device", "device", root, root / "controller")
 
+    def test_surface_probe_collects_only_physical_delivery_from_current_probe_delta(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        first = "surfaceGesture input=begin entity=EnchronWindowInput.surface"
+        current = "2026-10-11T12:00:00Z probeSequence=5 probeRetention=diagnostic probeSession=none "
+        current += "surfaceGesture input=begin entity=EnchronDockedInput.surface"
+        legacy = "2026-10-11T12:00:01Z probeSequence=6 probeRetention=evidence probeSession=physical "
+        legacy += "spatialTap entity=EnchronPanoramaInput.front accepted=true"
+        lines = [
+            "2026-10-11T12:00:00Z probeSequence=4 probeRetention=diagnostic probeSession=none " + first,
+            current,
+            legacy,
+            "surfaceGesture input=end",
+            "surfaceGesture input=cancel",
+            "gesture.phase=holding effectiveRate=2",
+            "surfaceGesture input=begin entity=Injected",
+            "surfaceGesture input=begin entity=EnchronWindowInput.surface source=test",
+            "injected " + first,
+            'test result="' + first + '"',
+        ]
+        for index in range(3, len(lines)):
+            lines[index] = (
+                f"2026-10-11T12:00:02Z probeSequence={index + 4} "
+                "probeRetention=diagnostic probeSession=none " + lines[index]
+            )
+        with (
+            mock.patch.object(backend, "_probe_lines", return_value=lines),
+            mock.patch.object(
+                backend, "_window_control_plane_observation",
+                return_value={"fields": {}, "response": {}},
+            ),
+        ):
+            result = backend._diagnostics_surface_probe_1(
+                {"cursorToken": "4:1", "relatedResults": [first]}, self.device
+            )
+        self.assertEqual(result["spatialInputTrace"], [current, legacy])
+        self.assertEqual(result["cursorToken"], "13:10")
+        self.assertEqual(result["relatedResults"], [first])
+
+    def test_surface_probe_cannot_substitute_related_results_for_physical_delivery(self) -> None:
+        backend = adapter.ResidentOperationBackend()
+        with (
+            mock.patch.object(backend, "_probe_lines", return_value=[]),
+            mock.patch.object(
+                backend, "_window_control_plane_observation",
+                return_value={"fields": {}, "response": {}},
+            ),
+        ):
+            result = backend._diagnostics_surface_probe_1(
+                {
+                    "cursorToken": "0:0",
+                    "relatedResults": ["surfaceGesture input=begin entity=EnchronWindowInput.surface"],
+                },
+                self.device,
+            )
+        self.assertEqual(result["spatialInputTrace"], [])
+        self.assertEqual(result["cursorToken"], "0:0")
+
     def test_exact_35_operation_set_is_closed(self) -> None:
         self.assertEqual(set(adapter.SPECS), set(VALID_ARGUMENTS))
         self.assertEqual(len(adapter.SPECS), 35)
