@@ -15,6 +15,9 @@ $(SRCROOT)/Apps/Enchron/Screens/OpenSourceLicenses.swift
 $(SRCROOT)/Apps/Enchron/Screens/SettingsScreen.swift
 $(SRCROOT)/Apps/Enchron/Settings/PreferencesStore.swift
 $(SRCROOT)/Apps/Enchron/Settings/SettingsModel.swift
+$(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenu.swift
+$(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenuPlacement.swift
+$(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenuRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AsyncArtworkImage.swift
 $(SRCROOT)/Modules/DesignSystem/Components/ButtonIcon.swift
 $(SRCROOT)/Modules/DesignSystem/Components/CardGrid.swift
@@ -29,6 +32,7 @@ $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarSplitLayout.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarToggleButton.swift
+$(SRCROOT)/Modules/DesignSystem/Components/ViewModeCapsuleControl.swift
 $(SRCROOT)/Modules/DesignSystem/DebugMenuSelection.swift
 $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
 $(SRCROOT)/Modules/DesignSystem/View+EnchronGlass.swift
@@ -136,6 +140,7 @@ $(SRCROOT)/Modules/Playback/Scenes/DeveloperOverlayFollower.swift
 $(SRCROOT)/Modules/Playback/Scenes/HeadPoseSource.swift
 $(SRCROOT)/Modules/Playback/Scenes/ImmersivePlaybackControlsAttachment.swift
 $(SRCROOT)/Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift
+$(SRCROOT)/Modules/Playback/Scenes/ImmersivePlaybackMenu.swift
 $(SRCROOT)/Modules/Playback/Scenes/ImmersiveSpaceView.swift
 $(SRCROOT)/Modules/Playback/Scenes/PanoramaSubtitleFollower.swift
 $(SRCROOT)/Modules/Playback/Session/ApplicationSuspensionWatchdog.swift

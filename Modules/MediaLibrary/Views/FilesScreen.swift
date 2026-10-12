@@ -9,6 +9,8 @@ public struct FilesScreen: View {
     @Environment(MediaLibraryViewModel.self) private var mediaLibrary
     @Environment(MediaLibraryUIState.self) private var uiState
     @Bindable private var state: FilesScreenViewState
+    @State private var searchIsEditing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let inputs: FilesScreenInputs
 
@@ -229,13 +231,16 @@ public struct FilesScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("FileBrowsing-FilesScreen")
+        .searchInputScope(isEditing: $searchIsEditing)
         .onAppear { syncSourceItems() }
         .onChange(of: viewModel.savedDataSources) { _, _ in syncSourceItems() }
         .onChange(of: viewModel.activeDataSource) { _, _ in
+            searchIsEditing = false
             endMediaReferenceSelection()
             syncSourceItems()
         }
         .onChange(of: mediaLibrary.currentFolderID) { _, _ in
+            searchIsEditing = false
             endMediaReferenceSelection()
         }
 #if DEBUG
@@ -670,6 +675,10 @@ public struct FilesScreen: View {
             loadingState
         } else if isEmpty {
             emptyState
+        } else if totalItemCount == 0,
+                  !viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ContentUnavailableView.search(text: viewModel.searchText)
+                .accessibilityIdentifier("FileBrowsing-FilesScreen-noSearchResults")
         } else if uiState.viewMode == .grid {
             grid
         } else {
@@ -740,31 +749,38 @@ public struct FilesScreen: View {
             if mediaReferenceSelectionIsActive {
                 mediaReferenceSelectionControls
             } else {
-                ViewModeCapsuleControl(
-                    selection: viewModeBinding,
-                    accessibilityIdentifier: "FileBrowsing-FilesScreen-viewMode"
-                )
-                SortMenuButton(
-                    sortKey: sortKeyBinding,
-                    sortOrder: sortOrderBinding,
-                    unavailableKeys: unavailableSortKeys,
-                    accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
-                )
-                manageMenu
-                SearchInputCapsule(
-                    text: Binding(
-                        get: { viewModel.searchText },
-                        set: {
-                            recordReachability(.search)
-                            viewModel.searchText = $0
-                        }
-                    ),
-                    placeholder: String(localized: "Search media..."),
-                    accessibilityIdentifier: "FileBrowsing-FilesScreen-search"
-                )
+                HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
+                    ViewModeCapsuleControl(
+                        selection: viewModeBinding,
+                        accessibilityIdentifier: "FileBrowsing-FilesScreen-viewMode"
+                    )
+                    SortMenuButton(
+                        sortKey: sortKeyBinding,
+                        sortOrder: sortOrderBinding,
+                        unavailableKeys: unavailableSortKeys,
+                        accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
+                    )
+                    manageMenu
+                    GlassSearchField(
+                        text: Binding(
+                            get: { viewModel.searchText },
+                            set: {
+                                recordReachability(.search)
+                                viewModel.searchText = $0
+                            }
+                        ),
+                        isEditing: $searchIsEditing,
+                        placeholder: String(localized: "Search media..."),
+                        accessibilityIdentifier: "FileBrowsing-FilesScreen-search",
+                        buttonAccessibilityIdentifier: "FileBrowsing-FilesScreen-search-button"
+                    )
+                }
             }
         }
         .padding(.bottom, DesignTokens.Spacing.lg)
+        .animation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring,
+                   value: searchIsEditing || !viewModel.searchText
+                    .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     private var breadcrumb: some View {

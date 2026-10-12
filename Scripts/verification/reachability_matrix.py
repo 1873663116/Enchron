@@ -4236,6 +4236,10 @@ class ReachabilityRun:
 
         before = self.copy_probe("browser-search-before")
         offset = len(before)
+        self.controller(
+            "tap", "--identifier", "FileBrowsing-FilesScreen-search-button",
+            "--no-screenshot",
+        )
         search = self.controller(
             "typeText", "--identifier", "FileBrowsing-FilesScreen-search",
             "--text", "fury", "--no-screenshot",
@@ -6204,7 +6208,7 @@ class ReachabilityRun:
 
         self.relaunch()
         self.tap(presentation, "Emby-Navigation-Tab")
-        self.controller("tap", "--label", "Search", "--no-screenshot")
+        self.controller("tap", "--identifier", "Emby-Search-Field-button", "--no-screenshot")
         search = self.wait_for_identifier("Emby-Search-Field")
         if isinstance(search.get("matchedElement"), dict):
             before = self.copy_probe("round11-emby-search-before")

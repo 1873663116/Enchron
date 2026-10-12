@@ -1080,6 +1080,18 @@ struct PlaybackPresentationStateTests {
         #expect(appModel.showControls)
     }
 
+    @Test("Custom menus keep the controls visible without changing hover focus")
+    func customMenuKeepsControlsWithoutHover() {
+        let model = PlaybackSessionModel()
+        model.showControls = true
+        model.setWindowSecondaryMenuPresented(true)
+        #expect(model.isControlsFocused == false)
+        #expect(model.canAutoHideControls == false)
+        model.setWindowSecondaryMenuPresented(false)
+        #expect(model.isControlsFocused == false)
+        #expect(model.canAutoHideControls)
+    }
+
     @Test("The session hides the controls itself after the auto-hide delay unless they are focused")
     func sessionOwnsControlsAutoHide() async throws {
         let appModel = PlaybackSessionModel()

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "scope": "Four previously driven menu reachability cells in panorama and docked modes. Other accepted baseline cells retain their earlier verdicts.",
+  "files": {
+    "evidence/dismiss-40-confirm.json": {
+      "bytes": 15616,
+      "sha256": "e872dea26619fe809bc6659982eaf6d2438e951332469554e242f38f7fc85344"
+    },
+    "evidence/dismiss-40.json": {
+      "bytes": 19406,
+      "sha256": "1f08836d3de051a58702ed2849c38426aebd6d4ce2d6e439b992d90b0b76efdd"
+    },
+    "evidence/dock-dismiss-40-confirm.json": {
+      "bytes": 16289,
+      "sha256": "5e34d504bf6a7bc8331813d82186e4c3af13950659bb6675089d0ebc188ea73f"
+    },
+    "evidence/dock-dismiss-40.json": {
+      "bytes": 20079,
+      "sha256": "31e7e60c3152af7e983ba8d0445de532f291e3f16101ef1c28a98edf92627b6a"
+    },
+    "evidence/dock-enter-40.json": {
+      "bytes": 279,
+      "sha256": "459108c2ca8bc568ce8ad6c4ffbe25272d02f4b474196f56caf171d41751d47d"
+    },
+    "evidence/dock-layout-40.json": {
+      "bytes": 21815,
+      "sha256": "066e30294b73218d16ffd8571d30449f7c1f21b32811a28d0275bf629b5d3ffa"
+    },
+    "evidence/dock-list-40-settled.json": {
+      "bytes": 21770,
+      "sha256": "5cb26b7d92b45fed08f06e04a307bfa4a336f40bc7c6308b9ff7919dde1a4f1d"
+    },
+    "evidence/dock-list-40.json": {
+      "bytes": 22176,
+      "sha256": "f3cc0b30760a1e7baee8b7e555d8f85fffcbe084e5a2f6c6db3019c80a68f6ce"
+    },
+    "evidence/enter-40.json": {
+      "bytes": 281,
+      "sha256": "17e0c8dac91f9cf1774ef08ffa386441406cfd020d4143a99998d257f50bb31e"
+    },
+    "evidence/layout-40-inspect.json": {
+      "bytes": 21142,
+      "sha256": "59f5c3e8c800cf15641b4b052bc5e1d5e3d128213085847d66ca8f936e7b4113"
+    },
+    "evidence/list-40-settled.json": {
+      "bytes": 21097,
+      "sha256": "4baa6282e5f8accaa8ea75ffcb5550c16f237cb2c5102b8dd20eacc40ce9a522"
+    },
+    "evidence/list-40.json": {
+      "bytes": 21504,
+      "sha256": "16e0a6982630d2efaccc91ce85db49bb92e1f7e3e3ac9e2feae27373b6fba3e8"
+    },
+    "evidence/ready-40.json": {
+      "bytes": 10892,
+      "sha256": "a885f1891a81d7498b50144308825878048729b6324050781feaa67b95f74b81"
+    }
+  }
+}

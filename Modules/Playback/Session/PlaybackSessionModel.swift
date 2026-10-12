@@ -702,6 +702,7 @@ public final class PlaybackSessionModel {
     public func setWindowSecondaryMenuPresented(_ presented: Bool) {
         guard windowSecondaryMenuIsPresented != presented else { return }
         windowSecondaryMenuIsPresented = presented
+        if !presented { registerControlsInteraction() }
     }
 
     public func systemMenuPresentationChanged(
@@ -726,6 +727,7 @@ public final class PlaybackSessionModel {
 
     public var canAutoHideControls: Bool {
         controlsAutoHideSeconds > 0 && showControls && isControlsFocused == false
+            && windowSecondaryMenuIsPresented == false
     }
 
     public func loadScreenPosition() async {

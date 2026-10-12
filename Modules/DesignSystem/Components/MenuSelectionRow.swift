@@ -25,6 +25,7 @@ public struct MenuSelectionRow: View {
                 Text(title)
             } icon: {
                 MenuCheckmark.image(isSelected: isSelected)
+                    .opacity(isSelected ? 1 : 0)
             }
         }
         .accessibilityIdentifier(identifier)

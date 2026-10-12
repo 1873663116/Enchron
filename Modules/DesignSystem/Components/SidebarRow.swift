@@ -1,12 +1,5 @@
 import SwiftUI
 
-private enum SourceSidebarRowGeometry {
-    static let shape = RoundedRectangle(
-        cornerRadius: DesignTokens.SourceSidebar.rowCornerRadius,
-        style: .continuous
-    )
-}
-
 public extension View {
     func enchronSidebarSurface() -> some View {
         background(.thickMaterial)
@@ -66,9 +59,9 @@ struct SourceSidebarRow: View {
         .frame(minHeight: DesignTokens.SourceSidebar.rowHeight)
         .background(
             isSelected && showsSelectionBackground ? DesignTokens.Surface.selected : .clear,
-            in: SourceSidebarRowGeometry.shape
+            in: DesignTokens.ShapeToken.sourceSidebarRow
         )
-        .opacity(isEnabled ? 1 : 0.42)
+        .opacity(isEnabled ? 1 : DesignTokens.Surface.disabledControlOpacity)
         .accessibilityLabel(title)
     }
 }
@@ -164,7 +157,7 @@ public struct EditableSourceSidebarRow: View {
     }
 
     public var body: some View {
-        let rowShape = SourceSidebarRowGeometry.shape
+        let rowShape = DesignTokens.ShapeToken.sourceSidebarRow
         let offset = clampedSwipeOffset(baseSwipeOffset + swipeDragOffset)
         let deleteRevealWidth = max(-offset, 0)
 
@@ -197,7 +190,7 @@ public struct EditableSourceSidebarRow: View {
     }
 
     private func swipeShell(offset: CGFloat, deleteRevealWidth: CGFloat) -> some View {
-        let rowShape = SourceSidebarRowGeometry.shape
+        let rowShape = DesignTokens.ShapeToken.sourceSidebarRow
 
         return ZStack {
             if isDeletable, allowsSwipe {
@@ -299,7 +292,7 @@ public struct EditableSourceSidebarRow: View {
             onDelete()
         } label: {
             ZStack {
-                Color.red.opacity(0.82)
+                DesignTokens.Surface.destructiveAction
                 ButtonSymbol(systemName: "trash.fill")
                     .foregroundStyle(.white)
             }

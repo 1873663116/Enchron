@@ -1,0 +1,1 @@
+{"drive": "injected", "request": {"id": "b3c835bc-b469-4208-93fa-dcdab2c24460", "verb": "enterSpatial", "args": {"environment": "quiet-room"}}, "response": {"ok": true, "payload": ["docked", "1F994F62-48E5-474E-930A-A96BB8F245EC"], "id": "b3c835bc-b469-4208-93fa-dcdab2c24460"}}

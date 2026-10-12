@@ -365,6 +365,8 @@ public struct MediaServerScreen: View {
     @Environment(MediaServerNavigationModel.self) private var navigation
     @State private var sidebarIsVisible = true
     @State private var sidebarSuspended = false
+    @State private var searchIsEditing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let onPlay: PlayHandler
 
@@ -412,6 +414,26 @@ public struct MediaServerScreen: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Root")
+        .searchInputScope(isEditing: $searchIsEditing)
+        .onChange(of: navigation.path.isEmpty) { _, _ in
+            searchIsEditing = false
+        }
+        .onChange(of: navigation.destination) { _, _ in
+            searchIsEditing = false
+            search.query = ""
+        }
+        .onChange(of: session.server) { _, _ in
+            searchIsEditing = false
+            search.query = ""
+            Task { await search.refresh() }
+        }
+        .task(id: search.query) {
+            guard search.hasQuery else { return }
+            do {
+                try await Task.sleep(for: .milliseconds(300))
+            } catch { return }
+            await search.refreshIfNeeded()
+        }
         .task(id: navigation.path.isEmpty) {
             await settleSidebar(afterPathIsEmpty: navigation.path.isEmpty)
         }
@@ -424,10 +446,14 @@ public struct MediaServerScreen: View {
 #endif
 #if DEBUG
         .task { await openLaunchRoute() }
+        .onChange(of: search.query) { _, _ in
+            session.recordReachability("search.query")
+        }
 #endif
     }
 
     private func open(_ item: MediaServerLibraryItem) {
+        searchIsEditing = false
         warmDetailArtwork(for: item, session: session)
         Task { @MainActor in
             if sidebarIsVisible, sidebarSuspended == false {
@@ -512,7 +538,6 @@ public struct MediaServerScreen: View {
                             )
                         }
 
-                        sidebarRow(icon: "magnifyingglass", title: String(localized: "Search"), destination: .search)
                     }
                     .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
                 }
@@ -578,6 +603,8 @@ public struct MediaServerScreen: View {
             allowsReordering: false,
             allowsSwipe: false,
             onTap: {
+                searchIsEditing = false
+                search.query = ""
                 navigation.select(destination)
             }
         )
@@ -586,6 +613,19 @@ public struct MediaServerScreen: View {
 
     @ViewBuilder
     private var destinationContent: some View {
+        ZStack {
+            browsingContent
+                .opacity(search.hasQuery ? 0 : 1)
+                .allowsHitTesting(!search.hasQuery)
+                .accessibilityHidden(search.hasQuery)
+            if search.hasQuery {
+                MediaServerSearchScreen(onSelect: open)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var browsingContent: some View {
         switch navigation.destination {
         case .home:
             MediaServerHomeScreen(onSelect: open)
@@ -599,35 +639,37 @@ public struct MediaServerScreen: View {
             } else {
                 ContentUnavailableView("Library Unavailable", systemImage: "rectangle.stack")
             }
-        case .search:
-            MediaServerSearchScreen(onSelect: open)
         }
     }
 
-    @ViewBuilder
     private var destinationHeader: some View {
         @Bindable var search = search
-        switch navigation.destination {
-        case .home:
-            MediaServerPageHeader(title: String(localized: "Home"), sidebarIsVisible: $sidebarIsVisible) {
-                EmptyView()
-            }
-        case .library(let id):
-            if let library = home.libraries.first(where: { $0.id == id }) {
-                MediaServerPageHeader(title: library.name, sidebarIsVisible: $sidebarIsVisible) {
+        return MediaServerPageHeader(title: search.hasQuery ? String(localized: "Search") : destinationTitle,
+                                     sidebarIsVisible: $sidebarIsVisible) {
+            HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
+                if !search.hasQuery, case .library(let id) = navigation.destination,
+                   let library = home.libraries.first(where: { $0.id == id }) {
                     librarySortPicker(for: library)
                 }
-            }
-        case .search:
-            MediaServerPageHeader(title: String(localized: "Search"), sidebarIsVisible: $sidebarIsVisible) {
                 GlassSearchField(
                     text: $search.query,
+                    isEditing: $searchIsEditing,
                     placeholder: String(localized: "Search library"),
-                    accessibilityIdentifier: "Emby-Search-Field"
+                    accessibilityIdentifier: "Emby-Search-Field",
+                    buttonAccessibilityIdentifier: "Emby-Search-Field-button"
                 )
-                .frame(width: 360)
-                .onSubmit { Task { await search.refresh() } }
             }
+        }
+        .animation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring,
+                   value: searchIsEditing || search.hasQuery)
+    }
+
+    private var destinationTitle: String {
+        switch navigation.destination {
+        case .home:
+            String(localized: "Home")
+        case .library(let id):
+            home.libraries.first(where: { $0.id == id })?.name ?? String(localized: "Library Unavailable")
         }
     }
 
@@ -834,30 +876,34 @@ private struct MediaServerSearchScreen: View {
     let onSelect: (MediaServerLibraryItem) -> Void
 
     var body: some View {
-        MediaServerPosterGrid(
-            items: viewModel.results,
-            isLoading: false,
-            session: session,
-            reachabilityPage: "search",
-            onSelect: onSelect
-        )
-            .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
-            .embyPageBounds()
-        .task { await viewModel.refresh() }
-        .task(id: viewModel.query) {
-            guard viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
-                await viewModel.refresh()
-                return
+        Group {
+            if viewModel.isSearching {
+                LoadingSpinner()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .accessibilityIdentifier("Emby-Search-Loading")
+            } else if let error = viewModel.errorMessage {
+                ContentUnavailableView {
+                    Label("Search unavailable", systemImage: "exclamationmark.magnifyingglass")
+                } description: {
+                    Text(error)
+                } actions: {
+                    Button("Retry") { Task { await viewModel.refresh() } }
+                }
+            } else if viewModel.results.isEmpty {
+                ContentUnavailableView.search(text: viewModel.query)
+                    .accessibilityIdentifier("Emby-Search-NoResults")
+            } else {
+                MediaServerPosterGrid(
+                    items: viewModel.results,
+                    isLoading: false,
+                    session: session,
+                    reachabilityPage: "search",
+                    onSelect: onSelect
+                )
+                    .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
             }
-            try? await Task.sleep(for: .milliseconds(300))
-            guard Task.isCancelled == false else { return }
-            await viewModel.refresh()
         }
-#if DEBUG
-        .onChange(of: viewModel.query) { _, _ in
-            session.recordReachability("search.query")
-        }
-#endif
+        .embyPageBounds()
     }
 }
 

@@ -8,13 +8,11 @@ public final class MediaServerNavigationModel {
     public enum Destination: Hashable, Sendable {
         case home
         case library(MediaServerItemID)
-        case search
 
         var id: String {
             switch self {
             case .home: "home"
             case .library(let id): "library-\(id.rawValue)"
-            case .search: "search"
             }
         }
     }
@@ -274,30 +272,55 @@ public final class MediaServerLibraryViewModel {
 @MainActor
 @Observable
 public final class MediaServerSearchViewModel {
-    public var query = ""
+    public var query = "" {
+        didSet {
+            guard query != oldValue else { return }
+            requestID = UUID()
+            loadedQuery = nil
+            results = []
+            errorMessage = nil
+            isSearching = hasQuery && session.server != nil
+        }
+    }
+    public var hasQuery: Bool {
+        !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
     public private(set) var results: [MediaServerLibraryItem] = []
     public private(set) var isSearching = false
     public private(set) var errorMessage: String?
 
     private let client: any MediaServerClientProtocol
     private let session: MediaServerSessionViewModel
+    private var requestID = UUID()
+    private var loadedQuery: String?
 
     public init(client: any MediaServerClientProtocol, session: MediaServerSessionViewModel) {
         self.client = client
         self.session = session
     }
 
+    public func refreshIfNeeded() async {
+        guard loadedQuery != query.trimmingCharacters(in: .whitespacesAndNewlines) else { return }
+        await refresh()
+    }
+
     public func refresh() async {
         let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard term.isEmpty == false, let server = session.server else {
+            requestID = UUID()
             results = []
             errorMessage = nil
+            isSearching = false
             return
         }
+        let requestID = UUID()
+        self.requestID = requestID
         isSearching = true
-        defer { isSearching = false }
+        defer {
+            if self.requestID == requestID { isSearching = false }
+        }
         do {
-            results = try await client.search(
+            let response = try await client.search(
                 term,
                 on: server,
                 query: MediaServerItemQuery(
@@ -306,9 +329,16 @@ public final class MediaServerSearchViewModel {
                     includeItemTypes: [.movie, .series, .boxSet]
                 )
             ).items
+            guard self.requestID == requestID, session.server == server,
+                  !Task.isCancelled else { return }
+            results = response
+            loadedQuery = term
             errorMessage = nil
         } catch {
+            guard self.requestID == requestID, session.server == server,
+                  !Task.isCancelled, !(error is CancellationError) else { return }
             if await session.handleRequestError(error) == false {
+                guard self.requestID == requestID else { return }
                 errorMessage = error.localizedDescription
             }
         }

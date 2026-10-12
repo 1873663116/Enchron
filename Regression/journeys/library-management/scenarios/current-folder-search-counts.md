@@ -104,12 +104,24 @@
     {
       "arguments": {
         "context": "main-window-browser",
+        "identifiers": [
+          "FileBrowsing-FilesScreen-search-button"
+        ],
+        "settleDelayMillis": 750
+      },
+      "callId": "call:library-management:current-folder-search-counts:07",
+      "maxInvocations": 1,
+      "operation": "operation:accessibility.activate@2"
+    },
+    {
+      "arguments": {
+        "context": "main-window-browser",
         "identifier": "FileBrowsing-FilesScreen-search",
         "mode": "replace",
         "secret": false,
         "text": "sdr-bframe"
       },
-      "callId": "call:library-management:current-folder-search-counts:07",
+      "callId": "call:library-management:current-folder-search-counts:08",
       "maxInvocations": 1,
       "operation": "operation:accessibility.type@2"
     },
@@ -120,10 +132,10 @@
         "relatedResults": [
           "result://call:library-management:current-folder-search-counts:04/snapshot",
           "result://call:library-management:current-folder-search-counts:06/afterSnapshot",
-          "result://call:library-management:current-folder-search-counts:07/postActionState"
+          "result://call:library-management:current-folder-search-counts:08/postActionState"
         ]
       },
-      "callId": "call:library-management:current-folder-search-counts:08",
+      "callId": "call:library-management:current-folder-search-counts:09",
       "maxInvocations": 1,
       "operation": "operation:accessibility.inspect@2"
     }
@@ -136,7 +148,7 @@
       "evidenceType": "accessibility.tree",
       "id": "obligation:library-management:current-folder-search-counts:o01:default",
       "oracle": "oracle:agent-structured-accessibility-tree@1",
-      "producedByCall": "call:library-management:current-folder-search-counts:08",
+      "producedByCall": "call:library-management:current-folder-search-counts:09",
       "rubric": "rubric:library-management.current-folder-search-counts.o01@1"
     }
   ],

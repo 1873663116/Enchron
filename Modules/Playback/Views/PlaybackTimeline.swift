@@ -5,18 +5,22 @@ import SwiftUI
 public struct DeckMenuItem: Identifiable, Equatable {
     public let id: String
     let title: String
+    let compactTitle: String?
     let isSelected: Bool
     let action: () -> Void
 
-    public init(id: String, title: String, isSelected: Bool, action: @escaping () -> Void) {
+    public init(id: String, title: String, compactTitle: String? = nil,
+                isSelected: Bool, action: @escaping () -> Void) {
         self.id = id
         self.title = title
+        self.compactTitle = compactTitle
         self.isSelected = isSelected
         self.action = action
     }
 
     public static func == (lhs: DeckMenuItem, rhs: DeckMenuItem) -> Bool {
-        lhs.id == rhs.id && lhs.title == rhs.title && lhs.isSelected == rhs.isSelected
+        lhs.id == rhs.id && lhs.title == rhs.title && lhs.compactTitle == rhs.compactTitle
+            && lhs.isSelected == rhs.isSelected
     }
 }
 enum PrecisionTimelineZoomScale {
@@ -164,10 +168,7 @@ struct PrecisionTimelineZoomSlider: View {
 }
 
 enum PrecisionTimelineGeometry {
-    static let shape = RoundedRectangle(
-        cornerRadius: DesignTokens.Radius.element,
-        style: .continuous
-    )
+    static let shape = DesignTokens.ShapeToken.element
 }
 
 struct PrecisionTimelineTimeLabel: View {
@@ -322,10 +323,7 @@ struct PrecisionTimelineView: View {
         )
             .background(
                 .thickMaterial,
-                in: RoundedRectangle(
-                    cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius,
-                    style: .continuous
-                )
+                in: DesignTokens.ShapeToken.small
             )
             .allowsHitTesting(false)
             .accessibilityIdentifier("DesignSystem-PrecisionTimeline-timecode")
@@ -559,9 +557,9 @@ struct PrecisionTimelineView: View {
             let x = leadingX + CGFloat(index) * step
             let topRect = CGRect(x: x, y: topY, width: holeWidth, height: holeHeight)
             let bottomRect = CGRect(x: x, y: bottomY, width: holeWidth, height: holeHeight)
-            let topPath = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+            let topPath = DesignTokens.ShapeToken.small
                 .path(in: topRect)
-            let bottomPath = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+            let bottomPath = DesignTokens.ShapeToken.small
                 .path(in: bottomRect)
 
             context.fill(topPath, with: .color(DesignTokens.PrecisionTimeline.sprocketFill))

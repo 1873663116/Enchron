@@ -201,7 +201,7 @@ private struct ArtworkPlaceholder: View {
         ZStack {
             LinearGradient(
                 colors: [
-                    DesignTokens.Theme.accent.opacity(0.58),
+                    DesignTokens.Theme.accent.opacity(DesignTokens.Surface.artworkPlaceholderOpacity),
                     DesignTokens.Surface.overlay,
                     DesignTokens.Theme.surfaceContainerHighest
                 ],

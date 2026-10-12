@@ -95,7 +95,7 @@ public struct CircleIconLabel: View {
             .enchronHoverEffect(.automatic)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityIdentifier(accessibilityIdentifier ?? "DesignSystem-label-\(systemName)")
-            .opacity(isEnabled ? 1 : 0.32)
+            .opacity(isEnabled ? 1 : DesignTokens.Surface.disabledIconOpacity)
     }
 }
 
@@ -1375,7 +1375,7 @@ private struct SettingListCenterSliderRow: View {
                     .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
             }
         }
-        .enchronHoverContentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
+        .enchronHoverContentShape(DesignTokens.ShapeToken.element)
         .enchronHoverActivation(in: hoverGroup(.activatesGroup))
     }
 
@@ -1448,7 +1448,7 @@ private struct SettingListRangeSliderRow: View {
                     .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
             }
         }
-        .enchronHoverContentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
+        .enchronHoverContentShape(DesignTokens.ShapeToken.element)
         .enchronHoverActivation(in: hoverGroup(.activatesGroup))
     }
 
@@ -1462,13 +1462,13 @@ private struct SettingListCardSelectionCard: View {
     let isSelected: Bool
 
     private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+        DesignTokens.ShapeToken.small
     }
 
     var body: some View {
         cardShape
             .fill(DesignTokens.Surface.elevated)
-            .frame(height: 86)
+            .frame(height: DesignTokens.Layout.settingsSelectionPreviewHeight)
             .overlay {
                 Image(systemName: option.systemName)
                     .font(DesignTokens.SymbolSize.card)
@@ -1499,16 +1499,16 @@ private struct SettingListSelectionIndicator: View {
         if isSelected {
             Circle()
                 .fill(DesignTokens.Theme.accent)
-                .frame(width: 22, height: 22)
+                .frame(width: DesignTokens.Interactive.selectionIndicatorSize, height: DesignTokens.Interactive.selectionIndicatorSize)
                 .overlay {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 11, weight: .bold))
+                        .font(DesignTokens.SymbolSize.selectionIndicator)
                         .foregroundStyle(.white)
                 }
         } else {
             Circle()
                 .stroke(DesignTokens.SourceSidebar.selectionIndicator, lineWidth: DesignTokens.Stroke.regular)
-                .frame(width: 22, height: 22)
+                .frame(width: DesignTokens.Interactive.selectionIndicatorSize, height: DesignTokens.Interactive.selectionIndicatorSize)
         }
     }
 }

@@ -1,3 +1,4 @@
+import DesignSystem
 import PlaybackCore
 import SwiftUI
 
@@ -10,6 +11,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
     @State private var isStoppingPlayback = false
+    @Environment(\.immersivePlaybackMenu) private var playbackMenu
 
     private var controlsAcceptInput: Bool {
         let issueRequiresControls = playbackRuntime.userVisibleIssue.map {
@@ -23,18 +25,28 @@ struct ImmersivePlaybackControlsAttachmentView: View {
     }
 
     var body: some View {
-        WindowPlayerDeckView(
-            presentationOverride: presentation,
-            onExitPlayback: { Task { await stopSpatialPlayback() } }
-        )
+        Group {
+            if let playbackMenu {
+                deck.anchoredMenuDismissRegion(presentation: playbackMenu.presentation)
+            } else {
+                deck
+            }
+        }
+        .coordinateSpace(name: ImmersivePlaybackMenu.coordinateSpace)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { playbackMenu?.controlsSize = $0 }
         .allowsHitTesting(controlsAcceptInput)
         .accessibilityHidden(controlsAcceptInput == false)
         .disabled(isStoppingPlayback)
         .onChange(of: controlsAcceptInput, initial: true) { _, visible in
+            if !visible { playbackMenu?.presentation.reset() }
             appModel.recordSurfaceInputProbe(
                 "immersiveControlsAttachment visible=\(visible) scope=attachment"
             )
         }
+        .onChange(of: playbackMenu?.presentation.isActive) { _, active in
+            appModel.setWindowSecondaryMenuPresented(active == true)
+        }
+        .onDisappear { playbackMenu?.presentation.reset() }
         .overlay {
 #if DEBUG
             if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
@@ -48,6 +60,13 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             }
 #endif
         }
+    }
+
+    private var deck: some View {
+        WindowPlayerDeckView(
+            presentationOverride: presentation,
+            onExitPlayback: { Task { await stopSpatialPlayback() } }
+        )
     }
 
 #if DEBUG

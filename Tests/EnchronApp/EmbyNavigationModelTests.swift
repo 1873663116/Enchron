@@ -25,9 +25,9 @@ struct EmbyNavigationModelTests {
         let navigation = MediaServerNavigationModel()
         navigation.open(movie(id: "selected-movie"))
 
-        navigation.select(.search)
+        navigation.select(.library(MediaServerItemID(rawValue: "movies")))
 
-        #expect(navigation.destination == .search)
+        #expect(navigation.destination == .library(MediaServerItemID(rawValue: "movies")))
         #expect(navigation.path.isEmpty)
     }
 

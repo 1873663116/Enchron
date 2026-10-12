@@ -549,6 +549,7 @@ public struct PlayerControlDock: View {
 }
 
 public struct FusedPlayerPanel: View {
+    @Environment(\.immersivePlaybackMenu) private var playbackMenu
     var live: FusedPlayerPanelLive?
     var onInteraction: () -> Void = {}
     private let surface: PlaybackControlPanelSurface
@@ -694,7 +695,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+        DesignTokens.ShapeToken.card
     }
 
     private static let unclippedRevealSize = CGSize(width: 100_000, height: 100_000)
@@ -1156,10 +1157,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private func mediaInformationWell(width: CGFloat) -> some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.Radius.element,
-            style: .continuous
-        )
+        let shape = DesignTokens.ShapeToken.element
         return ZStack {
             let titleRow = HStack(spacing: DesignTokens.Spacing.sm) {
                 Text(live?.mediaName ?? "Unknown")
@@ -1533,7 +1531,26 @@ public struct FusedPlayerPanel: View {
         }
     }
 
+    @ViewBuilder
     private var moreMenu: some View {
+        if let playbackMenu, let live {
+            CircleIconButton(
+                systemName: "ellipsis",
+                accessibilityLabel: String(localized: "More playback settings"),
+                action: { playbackMenu.toggle(live: live) },
+                accessibilityIdentifier: "PlayerPanel-menu-more"
+            )
+            .onGeometryChange(for: CGRect.self) {
+                $0.frame(in: .named(ImmersivePlaybackMenu.coordinateSpace))
+            } action: {
+                playbackMenu.buttonFrame = $0
+            }
+        } else {
+            systemMoreMenu
+        }
+    }
+
+    private var systemMoreMenu: some View {
         CircleIconMenu(
             systemName: "ellipsis",
             accessibilityLabel: String(localized: "More"),
@@ -1903,14 +1920,7 @@ public struct FusedPlayerPanel: View {
         scale: CGFloat,
         playedColor: Color
     ) -> some View {
-        let visualHeight = DesignTokens.ProgressBar.trackHeight * scale
-        let trackShape = RoundedRectangle(
-            cornerSize: CGSize(
-                width: visualHeight / 2,
-                height: DesignTokens.ProgressBar.trackHeight / 2
-            ),
-            style: .continuous
-        )
+        let trackShape = DesignTokens.ShapeToken.playbackTrack(scale: scale)
 
         return ZStack(alignment: .leading) {
             Color.clear
@@ -1928,10 +1938,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private var timeBubble: some View {
-        let bubbleShape = RoundedRectangle(
-            cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius,
-            style: .continuous
-        )
+        let bubbleShape = DesignTokens.ShapeToken.small
 
         return HStack(spacing: DesignTokens.Spacing.xs) {
             Text(displayedElapsedLabel).foregroundStyle(.primary)
@@ -2302,10 +2309,7 @@ private struct PlaybackMediaMetadataRow: View {
         .frame(width: 440, height: DesignTokens.Layout.playbackMediaInfoHeight)
         .background(
             .thickMaterial,
-            in: RoundedRectangle(
-                cornerRadius: DesignTokens.Radius.element,
-                style: .continuous
-            )
+            in: DesignTokens.ShapeToken.element
         )
 
         Text("Dolby Vision Profile 5")
@@ -2316,10 +2320,7 @@ private struct PlaybackMediaMetadataRow: View {
         .frame(width: 440, height: DesignTokens.Layout.playbackMediaInfoHeight)
         .background(
             .thickMaterial,
-            in: RoundedRectangle(
-                cornerRadius: DesignTokens.Radius.element,
-                style: .continuous
-            )
+            in: DesignTokens.ShapeToken.element
         )
 
         Text("Synthetic overflow")
@@ -2330,10 +2331,7 @@ private struct PlaybackMediaMetadataRow: View {
         .frame(width: 440, height: DesignTokens.Layout.playbackMediaInfoHeight)
         .background(
             .thickMaterial,
-            in: RoundedRectangle(
-                cornerRadius: DesignTokens.Radius.element,
-                style: .continuous
-            )
+            in: DesignTokens.ShapeToken.element
         )
     }
     .padding(DesignTokens.Spacing.xxl)

@@ -31,11 +31,16 @@ public struct EnchronHoverGroup {
     }
 }
 
-private struct EnchronInsetHoverShape<Base: Shape>: Shape {
+public struct EnchronHoverRegion<Base: Shape>: Shape {
     let base: Base
     let insets: EdgeInsets
 
-    func path(in rect: CGRect) -> Path {
+    public init(_ base: Base, insets: EdgeInsets) {
+        self.base = base
+        self.insets = insets
+    }
+
+    public func path(in rect: CGRect) -> Path {
         let insetRect = CGRect(
             x: rect.minX + insets.leading,
             y: rect.minY + insets.top,
@@ -73,7 +78,7 @@ public extension View {
         _ shape: S,
         insets: EdgeInsets
     ) -> some View {
-        let visual = EnchronInsetHoverShape(base: shape, insets: insets)
+        let visual = EnchronHoverRegion(shape, insets: insets)
         if enchronInsetsAreUniform(insets) {
             self
                 .clipShape(shape.inset(by: insets.top))
@@ -85,6 +90,20 @@ public extension View {
                 .contentShape(.interaction, shape)
                 .contentShape(.hoverEffect, visual)
         }
+    }
+
+    func enchronHoverTarget<Visual: Shape, Interaction: Shape>(
+        visual: Visual,
+        interaction: Interaction,
+        insets: EdgeInsets
+    ) -> some View {
+        let hover = EnchronHoverRegion(visual, insets: insets)
+        return self
+            .padding(insets)
+            .clipShape(hover)
+            .contentShape(.interaction, interaction)
+            .contentShape(.hoverEffect, hover)
+            .enchronHoverEffect(.highlight)
     }
 
     @ViewBuilder

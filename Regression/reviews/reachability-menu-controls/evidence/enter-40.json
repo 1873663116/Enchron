@@ -1,0 +1,1 @@
+{"drive": "injected", "request": {"id": "dc9d8fa3-407d-4e2d-be17-ea31e2fe875a", "verb": "enterSpatial", "args": {"environment": "quiet-room"}}, "response": {"ok": true, "id": "dc9d8fa3-407d-4e2d-be17-ea31e2fe875a", "payload": ["panorama", "8B0BF1CB-F10D-482E-BE04-1BE2BFC28E91"]}}

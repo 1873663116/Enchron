@@ -556,9 +556,10 @@ public struct PlaybackTopActions: View {
                     accessibilityIdentifier: "PlayerUI-TopAction-dock",
                     iconTier: .compact
                 )
-                .popover(
+                .anchoredMenu(
                     isPresented: dockMenuIsPresented,
-                    attachmentAnchor: .rect(.bounds)
+                    key: "playback.environment",
+                    width: DesignTokens.Layout.environmentMenuWidth
                 ) {
                     dockMenu
                 }
@@ -575,9 +576,10 @@ public struct PlaybackTopActions: View {
                     accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"
                 )
                 .disabled(!canApplyFormat)
-                .popover(
+                .anchoredMenu(
                     isPresented: videoFormatMenuIsPresented,
-                    attachmentAnchor: .rect(.bounds)
+                    key: "playback.videoFormat",
+                    width: DesignTokens.Layout.videoFormatEditorWidth
                 ) {
                     videoFormatMenu
                 }
@@ -617,7 +619,7 @@ public struct PlaybackTopActions: View {
             )
         }
         .padding(DesignTokens.Spacing.md)
-        .frame(width: 360)
+        .frame(width: DesignTokens.Menu.environmentContentWidth)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-DockMenu")
@@ -649,10 +651,7 @@ public struct PlaybackTopActions: View {
         effect: SpatialSceneDomain.EnvironmentEffect?,
         thumbnailName: String
     ) -> some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.Radius.card,
-            style: .continuous
-        )
+        let shape = DesignTokens.ShapeToken.card
         let isSelected = state.selectedDockEnvironment == environment
             && state.selectedEffect == effect
 
@@ -760,7 +759,8 @@ public struct PlaybackTopActions: View {
             canApplyFormat: canApplyFormat,
             mediaFormatProvenance: mediaFormatProvenance,
             sourceMediaFormatSummary: sourceMediaFormatSummary,
-            contentWidth: DesignTokens.Layout.videoFormatEditorWidth - DesignTokens.Spacing.lg * 2,
+            contentWidth: DesignTokens.Layout.videoFormatEditorWidth
+                - DesignTokens.Spacing.lg * 2 - DesignTokens.Menu.glassPadding * 2,
             identifierPrefix: "PlayerUI-VideoFormat",
             onCancel: cancelVideoFormat,
             onApply: applyVideoFormat,
@@ -770,7 +770,7 @@ public struct PlaybackTopActions: View {
             }
         )
         .padding(DesignTokens.Spacing.lg)
-        .frame(width: DesignTokens.Layout.videoFormatEditorWidth)
+        .frame(width: DesignTokens.Menu.videoFormatContentWidth)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-VideoFormat")

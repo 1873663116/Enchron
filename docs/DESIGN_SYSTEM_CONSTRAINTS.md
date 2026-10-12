@@ -8,11 +8,11 @@
 2. **semantics**：`Surface`、`AnimationToken`、`HoverStyle`、`Interactive`——意图。
 3. **components**：`Card`、`Menu`、`ControlBar`——由前两层装配。
 
-组件层只允许引用前两层，不允许在组件层重新引入裸值。产品侧的视觉数值必须来自 token 或 DesignSystem 组件，由 `Scripts/rules/verify_design_source_architecture.py` 的 `production-hardcoded-visual` 规则强制，但该规则只扫描产品侧调用点，`Modules/DesignSystem` 自身不在其覆盖范围内（见「未决」一节）。组件库内部的动效曲线与颜色字面量由 `.swiftlint.yml` 的 `components_use_animation_tokens` 与 `components_no_hardcoded_color` 两条自定义规则钉住（`*/Components/*.swift`，`severity: error`，目前零命中）；尺寸字面量不在这两条规则的范围内。
+组件层引用 primitives 与 semantics。视觉尺寸、颜色和动效由 token 管理。`verify_design_source_architecture.py` 同时扫描产品调用点和 DesignSystem 组件内部的裸视觉值；乘除中的无量纲系数属于几何计算。圆角形状的定义归 `ShapeToken` 和获准的共享形状实现，产品调用点不能用 radius 与 spacing token 临时拼装形状。构建和 CI 复用同一检查器；自测验证检查器能拒绝错误源码。
 
 ## 同心圆角
 
-`Radius.panel(40) → card(32) → element(24)`，每一层等于外层减去 `Spacing.xs`（8）。这不是三个独立的数，而是一条关系：菜单容器用 `card`，它的 `Menu.glassPadding` 是 8，因此内部菜单项必须落在 `element` 上才与容器同心。非标准嵌套用 `Radius.concentric(outer:padding:)` 现算，不要另立常数。
+`Radius.panel → card → element` 通过外圆角减去内边距保持均匀内缩的嵌套关系。非标准嵌套使用 `Radius.concentric(outer:padding:)`。菜单行使用 `ShapeToken.menuRow` 的胶囊轮廓，可见背景在命中行中按 `Menu.rowVisualInset` 与 `Menu.rowVerticalInset` 分别内缩水平和垂直边距；`enchronHoverTarget(visual:interaction:insets:)` 统一扩大命中区，并以可见图形独立裁切 hover，静默边距只参与命中。菜单外框从 SwiftUI 的 `GeometryProxy.concentricCornerRadii` 读取容器相对圆角，使用最大值统一四角，并保留由行半高加内边距推导的最低圆角。菜单外框的材质、裁切和命中形状使用同一个解析结果。
 
 `Radius.small`（12）不属于这条层级，它是标签与缩略图这类小圆角背景；徽章玻璃用 `Capsule()`。
 
@@ -53,6 +53,16 @@ visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃�
 原因不止是风格。`glassBackgroundEffect` 会把视图提升为**独立渲染层，任何祖先都无法裁切、遮罩或遮挡它**。网格卡片一旦带上它，滚动到边界时就画到窗口外并整张消失，而不是滑进侧栏下面。缩略图自带填充，玻璃从来只在占位符后面透出过。
 
 浏览侧栏出于同一理由是**窗口自身表面的一部分，不是浮在窗口里的一块板**：浮板自带玻璃边缘，它的下缘停在窗口下缘之上，两者之间会露出一条页面。侧栏因此是方角、满高，只在尾缘画一道主题强调色的边界线标出内容区从哪里开始；前缘落在窗口自己的边界上，不需要边线。
+
+## 独立菜单
+
+独立自制菜单由 `AnchoredMenuPresentation` 与 `AnchoredMenuLayer` 呈现。窗口设置与沉浸播放共用组件，菜单玻璃由 `AnchoredMenuSurface` 管理。列表宽度根据内容测量并受 `Menu.minimumWidth`、`maximumWidth` 和可用空间限制，高度根据内容测量并受统一上限限制。剧集网格用整列交互单元决定宽度，图标／列表切换保持宽度。编辑表单使用独立尺寸档位。
+
+菜单展开的整条轨迹避开触发按钮，包括弹簧过冲。三级菜单保留二级菜单，沿可用的一侧展开，重叠只发生在边缘。出现和消失由同一个 `menuPopup` token 驱动位置、缩放和透明度。背景、二级菜单、三级菜单按 `Menu.layerDepth` 等距排列，空间附件不叠加额外前移。菜单状态控制输入独占和自动隐藏，不能改写 hover 状态。 两级菜单同时存在时，二级区域的点击只关闭三级并消耗该次点击；三级关闭动画结束前的点击不排队打开其他三级。点击两级菜单并集之外关闭两级，三级内部留白保持菜单打开。
+
+菜单行、数字单元和分段胶囊内的各按钮通过 `enchronHoverTarget(visual:interaction:insets:)` 分开声明可见轮廓和命中轮廓。`EnchronHoverRegion` 在扩大后的目标中按静默边距生成可见路径。hover 检查器覆盖 Button、Menu 与 ButtonStyle，拒绝扩大 hover 标签的样式、多个直接子按钮共享父容器 hover，以及共享实现中混用可见与命中形状。Enchron 和 EnchronDebug 的设计源码构建阶段复用该检查；检查失败会终止 Build。CI 使用相同检查，单元测试验证路径和检查器的拒绝行为。真机注视高亮的合成结果仍需佩戴者验收。
+
+visionOS 的菜单外部输入面使用 `Surface.menuDismissInput`，并禁用 hover。完全透明的 `Color.clear` 即使声明 interaction shape 和 Button，也不能可靠接收真机间接输入；输入面的微量不透明度用于建立命中区域。
 
 ## 注视 hover 的跨行协调
 
@@ -144,6 +154,6 @@ Files 与 Emby 的侧栏都经 `SidebarSplitLayout`：内容区宽度随侧栏�
 - **详情页背景图向服务器请求的像素数**是限定值：原图是整幅制作剧照，解码它正是进入页面时卡住的原因。
 - **按压反馈按面积分级**：大面积表面动得最轻，卡片才在空间里保持稳定；行的位移更小，否则密集列表读起来发跳；控件胶囊因为彼此隔离可以响应得更明显；单个图标用最强的缩放线索，与空间胶囊控件一致。
 
-## 未决：滑块轨道尺寸尚未 token 化
+## 滑块与开关尺寸
 
-`CenterSlider` 与 `RangeSlider` 的旋钮（26）与轨道高度（30）沿用既有 toggle 的尺寸以便复用，尚未提升为共享 token——提升与否需要人来定。这两个字面量没有出现在 `Config/design_source_architecture_baseline.json` 里，`Scripts/rules/verify_design_source_architecture.py` 在扫描产品侧硬编码视觉值之前先整体跳过 `Modules/DesignSystem`（:238-240）。组件库内部的尺寸字面量因此不受任何检查器约束：同一文件里 toggle 的旋钮与轨道尺寸（`InputComponents.swift:112-117`、`156-161`）、以及 `SettingsComponents.swift` 里多处 `.frame` 硬编码宽高（:1171、:1435、:1466、:1475）都是同样未 token 化的字面量，这是一类未加防护的缺口，不是单独登记的例外。
+`CenterSlider`、`RangeSlider` 与 toggle 共用 `Interactive` 的轨道高度和旋钮尺寸。共享尺寸在 token 中定义，组件内部不重复声明。

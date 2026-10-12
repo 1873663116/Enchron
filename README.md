@@ -31,7 +31,7 @@ Scripts/provision_vendored_ffmpeg.sh
 Scripts/provision_vendored_bluray.sh
 ```
 
-蓝光样本结构由 `Scripts/build/verify_bluray_corpus.py` 对照独立 MPLS 解析结果验证。蓝光专项验收目录和模拟器验收工具位于 `Scripts/verification/`。构建与验证入口位于 `Scripts/` 和 `Regression/`。项目约束、模块所有权和测试协议分别见 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`AGENTS.md`](AGENTS.md) 和 [`Regression/README.md`](Regression/README.md)。
+蓝光样本结构由 `Scripts/build/verify_bluray_corpus.py` 对照独立 MPLS 解析结果验证。`Scripts/verification/prepare_bluray_supplement.py` 生成蓝光专项验收目录；`Scripts/verification/verify_bluray_simulator.py` 通过编译后的操作网关执行已审阅场景。构建与验证入口位于 `Scripts/` 和 `Regression/`。项目约束、模块所有权和测试协议分别见 [`ARCHITECTURE.md`](ARCHITECTURE.md)、[`AGENTS.md`](AGENTS.md) 和 [`Regression/README.md`](Regression/README.md)。
 
 ## 隐私与网络
 

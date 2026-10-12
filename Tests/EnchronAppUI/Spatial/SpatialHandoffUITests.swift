@@ -1397,6 +1397,11 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         }
         let filename = String(mediaCardIdentifier.dropFirst(prefix.count))
         let visibleName = (filename as NSString).deletingPathExtension
+        let searchButton = app.buttons["FileBrowsing-FilesScreen-search-button"].firstMatch
+        guard requireHittable(searchButton, named: "Media Library search button") else {
+            return false
+        }
+        searchButton.tap()
         let search = app.textFields[
             "FileBrowsing-FilesScreen-search"
         ].firstMatch

@@ -85,6 +85,7 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
             "MediaLibrary-grid-video-Hidden Matrix Cut.mkv"
         ].exists)
 
+        app.buttons["FileBrowsing-FilesScreen-search-button"].firstMatch.tap()
         let search = app.textFields["FileBrowsing-FilesScreen-search"].firstMatch
         XCTAssertTrue(search.waitForExistence(timeout: 10))
         search.tap()

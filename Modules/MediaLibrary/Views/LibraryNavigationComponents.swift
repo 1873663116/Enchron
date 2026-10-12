@@ -78,30 +78,6 @@ public struct PathBreadcrumbMenu: View {
     }
 }
 
-public struct SearchInputCapsule: View {
-    @Binding var text: String
-    var placeholder = "Search"
-    var accessibilityIdentifier = "DesignSystem-input-search"
-
-    public var body: some View {
-        GlassSearchField(
-            text: $text,
-            placeholder: placeholder,
-            accessibilityIdentifier: accessibilityIdentifier
-        )
-    }
-
-    public init(
-        text: Binding<String>,
-        placeholder: String = "Search",
-        accessibilityIdentifier: String = "DesignSystem-input-search"
-    ) {
-        self._text = text
-        self.placeholder = placeholder
-        self.accessibilityIdentifier = accessibilityIdentifier
-    }
-}
-
 public struct CategorySidebarItem: Identifiable, Equatable {
     public let id: String
     public let icon: String

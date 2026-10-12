@@ -13,6 +13,21 @@ import generate_reachability_inventory as inventory
 
 
 class RuntimeIdentifierExpansionTests(unittest.TestCase):
+    def test_search_controls_and_statuses_have_distinct_actions(self) -> None:
+        expected = {
+            "Emby-Search-Field": ("operation", "typeText"),
+            "Emby-Search-Field-button": ("operation", "activate"),
+            "Emby-Search-Field-clear": ("operation", "activate"),
+            "Emby-Search-Loading": ("observation", None),
+            "Emby-Search-NoResults": ("observation", None),
+            "FileBrowsing-FilesScreen-search-button": ("operation", "activate"),
+            "FileBrowsing-FilesScreen-noSearchResults": ("observation", None),
+        }
+        self.assertEqual(
+            {identifier: inventory.identifier_role(identifier) for identifier in expected},
+            expected,
+        )
+
     def test_expands_component_prefix_at_each_call_site(self) -> None:
         documents = {
             "Modules/MediaLibrary/RuntimePanel.swift": """
@@ -861,6 +876,12 @@ struct Toolbar: View {
     def test_a_label_with_no_interaction_has_no_evidence(self) -> None:
         text = 'Text(name)\n    .accessibilityIdentifier("Plain-label")\n'
         line = self.line_of(text, "Plain-label")
+
+        self.assertIsNone(inventory.interactive_evidence(text, line))
+
+    def test_menu_token_does_not_make_a_container_interactive(self) -> None:
+        text = 'VStack {\n}\n.frame(width: DesignTokens.Menu.panelWidth)\n.accessibilityIdentifier("Plain-panel")\n'
+        line = self.line_of(text, "Plain-panel")
 
         self.assertIsNone(inventory.interactive_evidence(text, line))
 

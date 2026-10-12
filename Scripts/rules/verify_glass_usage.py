@@ -35,6 +35,11 @@ ALLOWED_WRAPPER_CALLS = Counter(
             callee="enchronGlassBackground",
         ): 1,
         WrapperCallIdentity(
+            path=Path("Modules/DesignSystem/Components/AnchoredMenu.swift"),
+            enclosing_type="AnchoredMenuSurface",
+            callee="enchronGlassBackground",
+        ): 1,
+        WrapperCallIdentity(
             path=Path(
                 "Modules/Playback/Views/EnvironmentComponents.swift"
             ),

@@ -662,6 +662,17 @@ public struct ImmersiveSpaceView: View {
 #endif
     @State private var controlsAttachmentController =
         ImmersivePlaybackControlsAttachmentController()
+    @State private var playbackMenu = ImmersivePlaybackMenu()
+    @State private var menuAttachmentEntity: Entity?
+    @State private var outsideMenuTapSurface: Entity = {
+        let entity = Entity()
+        entity.name = "EnchronMenuInput.outsideDismiss"
+        entity.position.z = -0.005
+        entity.components.set(InputTargetComponent())
+        entity.components.set(CollisionComponent(shapes: [.generateBox(size: [6, 6, 0.001])]))
+        entity.isEnabled = false
+        return entity
+    }()
     @State private var headPoseSource = HeadPoseSource()
     @State private var seekFeedbackAttachment = PlaybackSurfaceSeekAttachment()
 #if DEBUG
@@ -777,6 +788,10 @@ public struct ImmersiveSpaceView: View {
                 ImmersivePlaybackControlsAttachmentView(
                     presentation: controlsAttachmentPresentation
                 )
+                .environment(\.immersivePlaybackMenu, playbackMenu)
+            }
+            Attachment(id: ImmersivePlaybackMenu.attachmentID) {
+                ImmersivePlaybackMenuView(menu: playbackMenu)
             }
 #if DEBUG
             Attachment(id: DeveloperOverlayFollower.attachmentID) {
@@ -804,13 +819,15 @@ public struct ImmersiveSpaceView: View {
         .enableRealityKitScriptingInput()
         .modifier(
             PlaybackSurfaceGestureInput { entity in
-                controlsAttachmentController.contains(entity) == false
+                playbackMenu.presentation.isActive == false
+                    && controlsAttachmentController.contains(entity) == false
                     && PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                         entity,
                         for: requestedPresentation
                     )
             }
         )
+        .simultaneousGesture(spatialMenuDismissGesture)
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {
             controlsAttachmentController.stop()
@@ -1101,6 +1118,20 @@ public struct ImmersiveSpaceView: View {
             appModel: appModel,
             headPoseSource: headPoseSource
         )
+        if outsideMenuTapSurface.parent !== attachment {
+            attachment.addChild(outsideMenuTapSurface)
+        }
+        outsideMenuTapSurface.isEnabled = immersiveControlsAreVisible && playbackMenu.presentation.isActive
+        if let menu = attachments.entity(for: ImmersivePlaybackMenu.attachmentID) {
+            if menu.parent !== attachment {
+                attachment.addChild(menu)
+            }
+            if menuAttachmentEntity !== menu {
+                menuAttachmentEntity = menu
+            }
+            menu.position = playbackMenu.position(in: attachment.attachment.bounds)
+            menu.isEnabled = immersiveControlsAreVisible && playbackMenu.presentation.isActive
+        }
     }
 
     private func scheduleSpatialSurfaceUpdate(
@@ -1203,6 +1234,24 @@ public struct ImmersiveSpaceView: View {
 
     private var surfaceGestureController: PlaybackSurfaceGestureController {
         playbackRuntime.surfaceGestureController(session: appModel)
+    }
+
+    private var spatialMenuDismissGesture: some Gesture {
+        SpatialTapGesture()
+            .targetedToAnyEntity()
+            .onEnded { value in
+                guard playbackMenu.presentation.isActive, isMenuTarget(value.entity) == false else { return }
+                playbackMenu.presentation.dismiss()
+            }
+    }
+
+    private func isMenuTarget(_ entity: Entity) -> Bool {
+        var current: Entity? = entity
+        while let candidate = current {
+            if candidate === menuAttachmentEntity { return true }
+            current = candidate.parent
+        }
+        return false
     }
 
     private func toggleControlsFromSpatialSurface(

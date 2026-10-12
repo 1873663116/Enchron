@@ -138,7 +138,7 @@ public struct LoadingSpinner: View {
                 ZStack {
                     SpinnerArc(start: segment.start, end: segment.end)
                         .stroke(
-                            DesignTokens.Theme.accent.opacity(0.15),
+                            DesignTokens.Theme.accent.opacity(DesignTokens.LoadingSpinner.glowOpacity),
                             style: StrokeStyle(
                                 lineWidth: lineWidth * 4,
                                 lineCap: .round
@@ -150,7 +150,7 @@ public struct LoadingSpinner: View {
 
                     SpinnerArc(start: segment.start, end: segment.end)
                         .stroke(
-                            .white.opacity(0.9),
+                            .white.opacity(DesignTokens.LoadingSpinner.foregroundOpacity),
                             style: StrokeStyle(
                                 lineWidth: lineWidth,
                                 lineCap: .round
