@@ -33,7 +33,8 @@ struct AnchoredMenuPlacementTests {
     func outsideClickClosesBoth(rootFinishesFirst: Bool) throws {
         let menu = AnchoredMenuPresentation()
         var dismissed = 0
-        menu.present(key: "more", source: .zero, onDismiss: { dismissed += 1 }) { Text("Categories") }
+        menu.present(key: "more", source: .zero,
+                     onDismiss: { dismissed += 1 }, content: { Text("Categories") })
         menu.presentSubmenu(key: "audio", source: .zero) { Text("Audio") }
         #expect(menu.selectedSubmenu == "audio")
         let root = try #require(menu.root)
