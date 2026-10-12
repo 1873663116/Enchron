@@ -513,6 +513,211 @@ struct EmbyViewModelTests {
         #expect(shown.map(\.metadata.id.rawValue) == ["episode-1", "episode-2-b", "episode-2-a", "episode-10"])
     }
 
+    @Test("switching seasons keeps the original episode as the primary resume target")
+    func primaryResumeTargetSurvivesSeasonChange() async throws {
+        let series = seriesItem(id: "series")
+        let first = seasonItem(id: "season-1", seriesID: "series")
+        let second = seasonItem(id: "season-2", seriesID: "series")
+        let target = MediaServerEpisode(
+            metadata: itemMetadata(id: "episode-20", resumeTicks: 75_000_000, mediaSourceID: "target-source"),
+            seriesID: .init(rawValue: "series"), seasonID: second.metadata.id,
+            seasonNumber: 2, episodeNumber: 20
+        )
+        let displayed = catalogEpisode(id: "episode-20", name: "Episode 20", seasonID: "season-2", seasonNumber: 2, episodeNumber: 20)
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series, target.metadata.id: .episode(target)],
+            childrenByID: [
+                series.metadata.id: [.season(first), .season(second)],
+                first.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))],
+                second.metadata.id: [.episode(displayed)]
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: target.metadata.id, client: client,
+            session: makeSession(client: client, server: authenticatedServer),
+            knownItem: .episode(displayed)
+        )
+
+        await detail.refresh()
+        await detail.selectSeason(first.metadata.id)
+        let selection = try await detail.playbackSelection(startAction: .resume)
+
+        #expect(detail.item?.metadata.id.rawValue == "series")
+        #expect(detail.children.selectedSeasonID?.rawValue == "season-1")
+        #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-1"])
+        #expect(detail.primaryPlaybackItem?.metadata.id.rawValue == "episode-20")
+        #expect(detail.selectedMediaSourceID?.rawValue == "target-source")
+        #expect(selection.item.metadata.id.rawValue == "episode-20")
+        #expect(selection.mediaSourceID?.rawValue == "target-source")
+        #expect(selection.startAction == .resume)
+        #expect(selection.resumeCandidateSeconds == 7.5)
+        #expect(selection.seasonEpisodes == nil)
+    }
+
+    @Test("refresh preserves the selected season for both series and episode entries", arguments: [false, true])
+    func refreshPreservesSelectedSeason(isEpisodeEntry: Bool) async {
+        let series = seriesItem(id: "series")
+        let first = seasonItem(id: "season-1", seriesID: "series")
+        let second = seasonItem(id: "season-2", seriesID: "series")
+        let target = catalogEpisode(id: "episode-20", name: "Episode 20", seasonID: "season-2", seasonNumber: 2, episodeNumber: 20)
+        let entry = isEpisodeEntry ? MediaServerLibraryItem.episode(target) : series
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series, target.metadata.id: .episode(target)],
+            childrenByID: [
+                series.metadata.id: [.season(first), .season(second)],
+                first.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))],
+                second.metadata.id: [.episode(target)]
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: entry.metadata.id, client: client,
+            session: makeSession(client: client, server: authenticatedServer), knownItem: entry
+        )
+
+        await detail.refresh()
+        if isEpisodeEntry {
+            await detail.selectSeason(first.metadata.id)
+        } else {
+            await detail.selectSeason(second.metadata.id)
+        }
+        await detail.refresh()
+
+        #expect(detail.item?.metadata.id.rawValue == "series")
+        if isEpisodeEntry {
+            #expect(detail.children.selectedSeasonID?.rawValue == "season-1")
+            #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-1"])
+            #expect(detail.primaryPlaybackItem?.metadata.id.rawValue == "episode-20")
+            #expect(detail.initialEpisodeID == nil)
+        } else {
+            #expect(detail.children.selectedSeasonID?.rawValue == "season-2")
+            #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-20"])
+        }
+    }
+
+    @Test("the latest detail request wins without mixing a new season with old episodes", arguments: [false, true])
+    func latestDetailRequestWins(holdRefresh: Bool) async {
+        let gate = ViewModelRequestGate()
+        let series = seriesItem(id: "series")
+        let first = seasonItem(id: "season-1", seriesID: "series")
+        let second = seasonItem(id: "season-2", seriesID: "series")
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series],
+            childrenByID: [
+                series.metadata.id: [.season(first), .season(second)],
+                first.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))],
+                second.metadata.id: [.episode(episode(id: "episode-2", seasonID: "season-2"))]
+            ],
+            beforeChildren: { parent in
+                if parent.metadata.id.rawValue == (holdRefresh ? "series" : "season-2") {
+                    await gate.holdIfArmed()
+                }
+            }
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: series.metadata.id, client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+        await detail.refresh()
+        await gate.arm()
+        let pending = Task { @MainActor in
+            if holdRefresh {
+                await detail.refresh()
+            } else {
+                await detail.selectSeason(second.metadata.id)
+            }
+        }
+        await gate.waitForArrival()
+        #expect(detail.seasonSelectionID?.rawValue == (holdRefresh ? "season-1" : "season-2"))
+        #expect(detail.children.selectedSeasonID?.rawValue == "season-1")
+        #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-1"])
+        #expect(detail.isLoading)
+
+        await detail.selectSeason(holdRefresh ? second.metadata.id : first.metadata.id)
+        #expect(detail.seasonSelectionID?.rawValue == (holdRefresh ? "season-2" : "season-1"))
+        #expect(detail.isLoading == false)
+        await gate.release()
+        await pending.value
+
+        #expect(detail.children.selectedSeasonID?.rawValue == (holdRefresh ? "season-2" : "season-1"))
+        #expect(detail.children.episodes.map(\.metadata.id.rawValue) == (holdRefresh ? ["episode-2"] : ["episode-1"]))
+        #expect(detail.isLoading == false)
+        #expect(detail.errorMessage == nil)
+    }
+
+    @Test("episode playback keeps the clicked season queue while another season loads")
+    func episodePlaybackQueueSurvivesSeasonChange() async throws {
+        let gate = ViewModelRequestGate()
+        let series = seriesItem(id: "series")
+        let first = seasonItem(id: "season-1", seriesID: "series")
+        let second = seasonItem(id: "season-2", seriesID: "series")
+        let episodes = [episode(id: "episode-1", seasonID: "season-1"), episode(id: "episode-2", seasonID: "season-1")]
+        let freshEpisode = MediaServerEpisode(
+            metadata: itemMetadata(id: "episode-1", resumeTicks: 75_000_000),
+            seriesID: .init(rawValue: "series"), seasonID: first.metadata.id,
+            seasonNumber: 1, episodeNumber: 1
+        )
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series, freshEpisode.metadata.id: .episode(freshEpisode)],
+            childrenByID: [
+                series.metadata.id: [.season(first), .season(second)],
+                first.metadata.id: episodes.map(MediaServerLibraryItem.episode),
+                second.metadata.id: [.episode(episode(id: "episode-3", seasonID: "season-2"))]
+            ],
+            beforeItem: { itemID in
+                if itemID.rawValue == "episode-1" { await gate.holdIfArmed() }
+            }
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: series.metadata.id, client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+        await detail.refresh()
+        let card = try #require(detail.children.episodes.first)
+        await gate.arm()
+        let pending = Task { @MainActor in try await detail.playbackSelection(for: card) }
+        await gate.waitForArrival()
+        await detail.selectSeason(second.metadata.id)
+        await gate.release()
+        let selection = try await pending.value
+
+        #expect(detail.children.selectedSeasonID?.rawValue == "season-2")
+        #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-3"])
+        #expect(selection.item.metadata.id.rawValue == "episode-1")
+        #expect(selection.item.episode?.seasonID?.rawValue == "season-1")
+        #expect(selection.seasonEpisodes?.map(\.metadata.id.rawValue) == ["episode-1", "episode-2"])
+        #expect(selection.resumeCandidateSeconds == 7.5)
+    }
+
+    @Test("episode playback retains its known season when fresh server data omits it")
+    func episodePlaybackPreservesKnownSeasonMembership() async throws {
+        let series = seriesItem(id: "series")
+        let season = seasonItem(id: "season-2", seriesID: "series")
+        let target = MediaServerEpisode(
+            metadata: itemMetadata(id: "episode-2", resumeTicks: 100_000_000, mediaSourceID: "source"),
+            seriesID: .init(rawValue: "series"), seasonID: nil, seasonNumber: nil, episodeNumber: 2
+        )
+        let first = catalogEpisode(id: "episode-1", name: "Episode 1", seasonID: nil, seasonNumber: nil, episodeNumber: 1)
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series, target.metadata.id: .episode(target)],
+            childrenByID: [series.metadata.id: [.season(season)], season.metadata.id: [.episode(target), .episode(first)]],
+            playbackByID: [target.metadata.id: MediaServerPlaybackSession(
+                id: .init(rawValue: "session"), mediaSources: [playableSource(id: "source", itemID: "episode-2")]
+            )]
+        )
+        let session = makeSession(client: client, server: authenticatedServer)
+        let detail = MediaServerDetailViewModel(itemID: target.metadata.id, client: client, session: session)
+        await detail.refresh()
+        let card = try #require(detail.children.episodes.first { $0.metadata.id.rawValue == "episode-2" })
+        let selection = try await detail.playbackSelection(for: card)
+        let request = try await session.playbackRequest(for: selection)
+
+        #expect(selection.item.episode?.seasonID?.rawValue == "season-2")
+        #expect(selection.seasonEpisodes?.map(\.metadata.id.rawValue) == ["episode-1", "episode-2"])
+        #expect(request.startPositionSeconds == 10)
+        #expect(session.playbackQueue.entries.map(\.displayName) == ["Episode 1", "episode-2"])
+        #expect(session.playbackQueue.entries.map(\.isCurrent) == [false, true])
+    }
+
     @Test("a series browses its seasons and follows the selected one")
     func seriesChildren() async {
         let series = seriesItem(id: "series")
@@ -777,6 +982,34 @@ struct EmbyViewModelTests {
 #endif
 }
 
+private actor ViewModelRequestGate {
+    private var armed = false
+    private var arrived = false
+    private var arrival: CheckedContinuation<Void, Never>?
+    private var pending: CheckedContinuation<Void, Never>?
+
+    func arm() { armed = true }
+
+    func holdIfArmed() async {
+        guard armed else { return }
+        arrived = true
+        arrival?.resume()
+        arrival = nil
+        await withCheckedContinuation { pending = $0 }
+    }
+
+    func waitForArrival() async {
+        guard arrived == false else { return }
+        await withCheckedContinuation { arrival = $0 }
+    }
+
+    func release() {
+        armed = false
+        pending?.resume()
+        pending = nil
+    }
+}
+
 private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable {
     private struct State: Sendable {
         var viewsCallCount = 0
@@ -797,6 +1030,8 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
     private let playbackByID: [MediaServerItemID: MediaServerPlaybackSession]
     private let failStoppedReport: Bool
     private let searchResponse: (@Sendable (String) async -> MediaServerItemPage)?
+    private let beforeChildren: (@Sendable (MediaServerLibraryItem) async -> Void)?
+    private let beforeItem: (@Sendable (MediaServerItemID) async -> Void)?
 
     init(
         authenticatedServer: MediaServerAuthenticatedServer? = nil,
@@ -810,7 +1045,9 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
         childrenByID: [MediaServerItemID: [MediaServerLibraryItem]] = [:],
         playbackByID: [MediaServerItemID: MediaServerPlaybackSession] = [:],
         failStoppedReport: Bool = false,
-        searchResponse: (@Sendable (String) async -> MediaServerItemPage)? = nil
+        searchResponse: (@Sendable (String) async -> MediaServerItemPage)? = nil,
+        beforeChildren: (@Sendable (MediaServerLibraryItem) async -> Void)? = nil,
+        beforeItem: (@Sendable (MediaServerItemID) async -> Void)? = nil
     ) {
         self.authenticatedServer = authenticatedServer
         self.authenticationError = authenticationError
@@ -824,6 +1061,8 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
         self.playbackByID = playbackByID
         self.failStoppedReport = failStoppedReport
         self.searchResponse = searchResponse
+        self.beforeChildren = beforeChildren
+        self.beforeItem = beforeItem
     }
 
     var viewsCallCount: Int { state.withLock { $0.viewsCallCount } }
@@ -850,6 +1089,7 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
     }
 
     func item(withID itemID: MediaServerItemID, on server: MediaServerAuthenticatedServer) async throws -> MediaServerLibraryItem {
+        await beforeItem?(itemID)
         guard let item = itemByID[itemID] else { throw MediaServerError.invalidResponse }
         return item
     }
@@ -859,6 +1099,7 @@ private final class ViewModelFakeEmbyClient: MediaServerClientProtocol, Sendable
         on server: MediaServerAuthenticatedServer,
         query: MediaServerItemQuery
     ) async throws -> MediaServerItemPage {
+        await beforeChildren?(parent)
         let items = childrenByID[parent.metadata.id] ?? []
         return MediaServerItemPage(items: items, totalRecordCount: items.count)
     }

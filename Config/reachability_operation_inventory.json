@@ -631,7 +631,7 @@
           "path": "Modules/MediaServer/MediaServerScreens.swift"
         }
       ],
-      "template": "Emby-Detail-{viewModel.itemID.rawValue}"
+      "template": "Emby-Detail-{(viewModel.item?.metadata.id ?? viewModel.itemID).rawValue}"
     },
     {
       "action": "activate",

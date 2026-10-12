@@ -5,14 +5,18 @@ public struct MediaServerShelf<Content: View>: View {
     private let title: String?
     private let inset: CGFloat
     private let content: Content
+    private let scrollPosition: Binding<ScrollPosition>?
+    @State private var localScrollPosition = ScrollPosition(edge: .leading)
 
     public init(
         title: String?,
         inset: CGFloat = DesignTokens.Spacing.xxl,
+        scrollPosition: Binding<ScrollPosition>? = nil,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
         self.inset = inset
+        self.scrollPosition = scrollPosition
         self.content = content()
     }
 
@@ -33,6 +37,7 @@ public struct MediaServerShelf<Content: View>: View {
             }
             .contentMargins(.horizontal, inset, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(scrollPosition ?? $localScrollPosition)
             .scrollIndicators(.hidden)
         }
         .accessibilityElement(children: .contain)

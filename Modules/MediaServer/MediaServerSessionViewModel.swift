@@ -207,8 +207,12 @@ public final class MediaServerSessionViewModel {
         )
     }
 
-    public func recordDetail(item: MediaServerLibraryItem, children: MediaServerDetailChildren) {
-        evidenceJournal.recordDetail(item: item, children: children)
+    public func recordDetail(
+        item: MediaServerLibraryItem,
+        children: MediaServerDetailChildren,
+        primaryPlaybackItem: MediaServerLibraryItem?
+    ) {
+        evidenceJournal.recordDetail(item: item, children: children, primaryPlaybackItem: primaryPlaybackItem)
     }
 
     public func recordSeasonTransition(

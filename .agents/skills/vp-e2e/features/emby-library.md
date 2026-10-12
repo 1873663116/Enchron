@@ -5,14 +5,14 @@ Emby 是一种媒体服务器来源。它提供媒体实体、元数据与服务
 ## Sub-features
 
 - 首页的海报墙与"接下来看"横条。
-- 系列详情页，含季选择与剧集列表。
-- 单集详情页上的 Play；服务器有进度时先弹 Resume / Play from Start 的系统 alert。
+- 系列详情页，含季选择与剧集列表；继续观看单集进入所属系列，选中并滚动到该集。
+- 从单集进入的系列详情页保留该集的 Play；服务器有进度时先弹 Resume / Play from Start 的系统 alert。
 - 播放进度回报给服务器（对应 `ViewingStateAuthority.mediaServer`）。
 - 封面经由服务器图片接口获取，按 image tag 作键落盘。
 
 ## How to get to it (user POV)
 
-用户从底部导航的 Emby 页签进入首页。点海报进入系列详情；点"接下来看"横条上的剧照卡则直接进入单集详情。单集详情页上只有一个 Play 按钮；该集在服务器上有进度时，点 Play 先弹 Resume Playback? alert，Resume 从服务器进度续播，Play from Start 从头播放。
+用户从底部导航的 Emby 页签进入首页。点系列海报进入系列详情。点"继续观看"单集卡或"接下来看"单集海报进入所属系列详情，显示系列介绍、该集所在季的选集，并滚动到该集。顶部 Play 始终播放进入详情时选择的单集；切季用于浏览其他选集。该集在服务器上有进度时，点 Play 先弹 Resume Playback? alert，Resume 从服务器进度续播，Play from Start 从头播放。Emby、Jellyfin 与 Plex 使用相同的详情行为。
 
 ## Driving it with the controller
 
@@ -22,12 +22,24 @@ Preconditions: 会话已建立；Emby 服务器地址在使用前要先探活，
 
 ```sh
 C tap --identifier Emby-Navigation-Tab
-C tap --identifier Emby-StillCard-<id>          # 首页"接下来看"，直达单集详情
+C tap --identifier Emby-StillCard-<episode-id>  # 首页"继续观看"，定位所属系列中的单集
 C tap --identifier Emby-Detail-Play
 C tap --identifier PlayerUI-resumeDecision-secondary   # 有服务器进度时才出现
 ```
 
-另一条入口是系列详情页（通过 `Emby-PosterCard-<id>` 进入）里的剧集卡 `Emby-Episode-<id>`，点击后直接进入播放。对折叠线以下的剧集条，需要先对 `Emby-Detail-<id>` 发送带 identifier 的滑动，把它滚到可视区内再点击。
+另一条入口是系列详情页（通过 `Emby-PosterCard-<series-id>` 进入）里的剧集卡 `Emby-Episode-<episode-id>`，点击后直接进入播放。普通系列入口需要先对 `Emby-Detail-<series-id>` 发送带 identifier 的滑动，把选集滚到可视区内再点击。单集入口的首次定位自动完成。
+
+保存 `Emby-Evidence` 的快照与目标集的可访问性快照后，使用以下校验。`expected-order.json` 是该季预期集 ID 数组；目标快照应在首次定位后采集，保留元素的可见性字段。
+
+```sh
+python3 Scripts/verification/media_server_episode_detail.py \
+  --snapshot emby-evidence.json --provider emby \
+  --series <series-id> --season <season-id> \
+  --expected-order expected-order.json \
+  --episode <episode-id> --target-snapshot episode-snapshot.json
+```
+
+Jellyfin 与 Plex 将 `--provider` 替换为相应来源。季与集具有数字编号时，编号条目按编号稳定排序，并填回原编号位置；无编号条目保留位置。整列都无编号时，按标题的自然数字顺序排列；同名条目保留服务器顺序。
 
 ## 证据
 
@@ -54,6 +66,6 @@ C tap --identifier PlayerUI-resumeDecision-secondary   # 有服务器进度时�
 
 - Emby 的滚动视图接受带 `--identifier` 的合成滑动，`Emby-library-list`、`Emby-Home`、`Emby-Detail-<id>` 都已实证可用。此前记录的「Emby 滑动杀 runner」是误归因。真正杀会话的是省略 identifier 的滑动，与 Emby 无关，Emby 只是当时恰好在屏。规则见 [产品事实](../references/product.md)。
 - 海报横条上只有可视区内的卡片可以点中，靠右的卡片 tap 会返回 False。
-- Emby 的卡片都是 `GridCard`，它发布的 accessibility 标签是 `<title>, <variantKey>`，variantKey 取 `poster`／`episode`／`video`／`folder`；runner 的 `--label` 是精确相等匹配，所以按裸标题点卡片一定找不到元素。首页"接下来看"横条与系列详情的剧集卡是 `episode`，媒体库网格与"最近添加"的海报是 `poster`。左侧媒体库栏 `SidebarRow` 才是裸标题。
-- 系列详情页按设计没有播放按钮；播放入口是选集面板里的 `Emby-Episode-<id>` 卡片，点击直接进入播放。此前记录的「顶部无 identifier 的播放图标点按无效」也是误归因。那个图标其实是导航栏的 Emby 页签 `Emby-Navigation-Tab`，并不在详情页内；已经处于该页签时再点它没有反应，这属于正确行为。
+- Emby 的卡片都是 `GridCard`，它发布的 accessibility 标签是 `<title>, <variantKey>`，variantKey 取 `poster`／`episode`／`video`／`folder`；runner 的 `--label` 是精确相等匹配，所以按裸标题点卡片一定找不到元素。首页"继续观看"与系列详情的剧集卡是 `episode`，"接下来看"、媒体库网格与"最近添加"的海报是 `poster`。左侧媒体库栏 `SidebarRow` 才是裸标题。
+- 通过系列海报进入时，播放入口是选集面板里的 `Emby-Episode-<id>` 卡片。通过单集进入时，顶部还有 `Emby-Detail-Play`，它保留进入时的单集目标。
 - Emby 服务器地址会漂移。使用 `Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json` 与 `.env` 里的值之前，必须先探活。

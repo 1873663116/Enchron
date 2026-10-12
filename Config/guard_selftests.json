@@ -798,8 +798,8 @@
       "defect": {
         "type": "replace-text",
         "file": "Modules/MediaServer/MediaServerScreens.swift",
-        "find": "                sidebarSuspended = true\n                try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))\n            }\n            navigation.open(item)\n",
-        "replaceWith": "                sidebarSuspended = true\n            }\n            navigation.open(item)\n"
+        "find": "            sidebarSuspended = true\n            try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))\n        }\n        guard Task.isCancelled == false else { return }\n        navigation.open(item)\n",
+        "replaceWith": "            sidebarSuspended = true\n        }\n        guard Task.isCancelled == false else { return }\n        navigation.open(item)\n"
       },
       "expected": {
         "exitCode": 1,
@@ -809,13 +809,77 @@
       }
     },
     {
+      "id": "browser-surface-structure-rejects-pre-mounted-episode-content-visible-before-reveal",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
+        "find": "                        }\n                        .opacity(revealed ? 1 : 0)\n                        .allowsHitTesting(revealed)\n",
+        "replaceWith": "                        }\n                        .allowsHitTesting(revealed)\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "pre-mounted episode detail content must remain invisible"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-pre-mounted-episode-content-hittable-before-reveal",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
+        "find": "                        .allowsHitTesting(revealed)\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "pre-mounted episode detail content must remain invisible"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-pre-mounted-episode-content-accessible-before-reveal",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
+        "find": "                        .accessibilityHidden(revealed == false)\n",
+        "replaceWith": ""
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "pre-mounted episode detail content must remain invisible"
+        ]
+      }
+    },
+    {
+      "id": "browser-surface-structure-rejects-ordinary-detail-content-mounted-before-reveal",
+      "guard": "Scripts/rules/verify_browser_surface_structure.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/MediaServer/MediaServerScreens.swift",
+        "find": "                    if revealed || viewModel.primaryPlaybackItem?.episode != nil {\n",
+        "replaceWith": "                    if true {\n"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "ordinary details must still mount their blocks only after reveal"
+        ]
+      }
+    },
+    {
       "id": "browser-surface-structure-rejects-a-detail-page-that-reveals-before-its-data",
       "guard": "Scripts/rules/verify_browser_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/MediaServer/MediaServerScreens.swift",
-        "find": "            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children)\n            }\n#endif\n            await runEntrance()\n",
-        "replaceWith": "            Task { await runEntrance() }\n            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children)\n            }\n#endif\n"
+        "find": "            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children, primaryPlaybackItem: viewModel.primaryPlaybackItem)\n            }\n#endif\n            await runEntrance()\n",
+        "replaceWith": "            Task { await runEntrance() }\n            await viewModel.refresh()\n#if DEBUG\n            if let item = viewModel.item {\n                session.recordDetail(item: item, children: viewModel.children, primaryPlaybackItem: viewModel.primaryPlaybackItem)\n            }\n#endif\n"
       },
       "expected": {
         "exitCode": 1,
