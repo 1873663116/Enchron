@@ -1249,7 +1249,7 @@ private struct SettingListKeyValueDetail: View {
                 GridRow(alignment: .firstTextBaseline) {
                     Text(row.key)
                         .foregroundStyle(DesignTokens.Surface.supportingText)
-                        .frame(minWidth: 160, alignment: .leading)
+                        .frame(minWidth: DesignTokens.Layout.settingsValueColumnWidth, alignment: .leading)
                     Text(row.value)
                         .foregroundStyle(DesignTokens.Surface.accessoryText)
                 }
