@@ -96,6 +96,7 @@ public struct MediaServerDetailEvidence: Codable, Equatable, Sendable {
     public let selectedSeasonID: String?
     public let episodeIDs: [String]
     public let playbackActionIDs: [String]
+    public let primaryPlaybackItemID: String?
 }
 
 public struct MediaServerSeasonTransitionEvidence: Codable, Equatable, Sendable {
@@ -394,7 +395,11 @@ public struct MediaServerEvidenceJournal: Equatable, Sendable {
         trim(&homeActivations)
     }
 
-    public mutating func recordDetail(item: MediaServerLibraryItem, children: MediaServerDetailChildren) {
+    public mutating func recordDetail(
+        item: MediaServerLibraryItem,
+        children: MediaServerDetailChildren,
+        primaryPlaybackItem: MediaServerLibraryItem?
+    ) {
         let seasons: [MediaServerSeason]
         let selectedSeasonID: MediaServerItemID?
         let episodes: [MediaServerEpisode]
@@ -418,7 +423,7 @@ public struct MediaServerEvidenceJournal: Equatable, Sendable {
         case .episode(let episode): episode.seriesID
         case .movie, .boxSet: nil
         }
-        let playbackActionIDs: [String] = item.isPlayable ? ["Emby-Detail-Play"] : []
+        let playbackActionIDs: [String] = primaryPlaybackItem == nil ? [] : ["Emby-Detail-Play"]
         detail = MediaServerDetailEvidence(
             itemID: item.metadata.id.rawValue,
             itemKind: Self.kind(of: item),
@@ -426,7 +431,8 @@ public struct MediaServerEvidenceJournal: Equatable, Sendable {
             declaredSeasonIDs: seasons.map { $0.metadata.id.rawValue },
             selectedSeasonID: selectedSeasonID?.rawValue,
             episodeIDs: episodes.map { $0.metadata.id.rawValue },
-            playbackActionIDs: playbackActionIDs
+            playbackActionIDs: playbackActionIDs,
+            primaryPlaybackItemID: primaryPlaybackItem?.metadata.id.rawValue
         )
     }
 

@@ -398,7 +398,7 @@ public struct MediaServerScreen: View {
                                         session: session,
                                         knownItem: item
                                     ),
-                                    onSelect: open,
+                                    onSelect: { item in Task { await open(item) } },
                                     onPlay: onPlay
                                 )
                             }
@@ -452,16 +452,15 @@ public struct MediaServerScreen: View {
 #endif
     }
 
-    private func open(_ item: MediaServerLibraryItem) {
+    private func open(_ item: MediaServerLibraryItem) async {
         searchIsEditing = false
         warmDetailArtwork(for: item, session: session)
-        Task { @MainActor in
-            if sidebarIsVisible, sidebarSuspended == false {
-                sidebarSuspended = true
-                try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))
-            }
-            navigation.open(item)
+        if sidebarIsVisible, sidebarSuspended == false {
+            sidebarSuspended = true
+            try? await Task.sleep(for: .seconds(DesignTokens.EmbyDetail.sidebarHandoffDelay))
         }
+        guard Task.isCancelled == false else { return }
+        navigation.open(item)
     }
 
     private func settleSidebar(afterPathIsEmpty isEmpty: Bool) async {
@@ -619,7 +618,7 @@ public struct MediaServerScreen: View {
                 .allowsHitTesting(!search.hasQuery)
                 .accessibilityHidden(search.hasQuery)
             if search.hasQuery {
-                MediaServerSearchScreen(onSelect: open)
+                MediaServerSearchScreen(onSelect: { item in Task { await open(item) } })
             }
         }
     }
@@ -633,7 +632,7 @@ public struct MediaServerScreen: View {
             if let library = home.libraries.first(where: { $0.id == id }) {
                 MediaServerLibraryScreen(
                     viewModel: home.libraryViewModel(for: library),
-                    onSelect: open
+                    onSelect: { item in Task { await open(item) } }
                 )
                 .id(id)
             } else {
@@ -767,7 +766,7 @@ private struct MediaServerHomeScreen: View {
     @Environment(MediaServerHomeViewModel.self) private var viewModel
     @Environment(MediaServerSessionViewModel.self) private var session
     @Environment(MediaServerNavigationModel.self) private var navigation
-    let onSelect: (MediaServerLibraryItem) -> Void
+    let onSelect: (MediaServerLibraryItem) async -> Void
     @State private var reachabilityScrollPosition = ScrollPosition(edge: .top)
     @State private var initialRefreshCompleted = false
 
@@ -830,24 +829,26 @@ private struct MediaServerHomeScreen: View {
     }
 
     private func select(_ item: MediaServerLibraryItem, from shelf: MediaServerHomeShelf) {
-        onSelect(item)
+        Task {
+            await onSelect(item)
 #if DEBUG
-        guard let resultingItemID = navigation.path.last?.metadata.id else { return }
-        let surface: MediaServerHomeCardSurface = switch shelf.kind {
-        case .continueWatching: .continueWatching
-        case .nextUp: .nextUp
-        case .recentlyAdded: .poster
-        }
-        let cardPrefix = shelf.kind == .continueWatching
-            ? "Emby-StillCard-"
-            : "Emby-PosterCard-"
-        session.recordHomeActivation(
-            surface: surface,
-            cardIdentifier: cardPrefix + item.metadata.id.rawValue,
-            item: item,
-            resultingItemID: resultingItemID
-        )
+            guard let resultingItemID = navigation.path.last?.metadata.id else { return }
+            let surface: MediaServerHomeCardSurface = switch shelf.kind {
+            case .continueWatching: .continueWatching
+            case .nextUp: .nextUp
+            case .recentlyAdded: .poster
+            }
+            let cardPrefix = shelf.kind == .continueWatching
+                ? "Emby-StillCard-"
+                : "Emby-PosterCard-"
+            session.recordHomeActivation(
+                surface: surface,
+                cardIdentifier: cardPrefix + item.metadata.id.rawValue,
+                item: item,
+                resultingItemID: resultingItemID
+            )
 #endif
+        }
     }
 }
 
@@ -967,12 +968,29 @@ private struct MediaServerPosterGrid: View {
 }
 
 private struct MediaServerDetailScreen: View {
+    private enum InitialFocus: Equatable {
+        case pending
+        case movingVertically
+        case movingToEpisodes
+        case completed
+    }
+
+    private struct ScrollMeasurement: Equatable {
+        let offset: CGFloat
+        let contentHeight: CGFloat
+        let maximumOffset: CGFloat
+    }
+
     @Environment(MediaServerSessionViewModel.self) private var session
     @State private var viewModel: MediaServerDetailViewModel
     @State private var overviewIsExpanded = false
-    @State private var scrollOffset: CGFloat = 0
+    @State private var scrollMeasurement: ScrollMeasurement?
+    @State private var episodeShelfHeight: CGFloat = 0
+    private var scrollOffset: CGFloat { scrollMeasurement?.offset ?? 0 }
     @State private var hasBeenScrolled = false
     @State private var scrollPosition = ScrollPosition(edge: .top)
+    @State private var episodeScrollPosition = ScrollPosition(idType: MediaServerItemID.self, edge: .leading)
+    @State private var initialFocus = InitialFocus.pending
     @State private var revealed = false
     @State private var backdropLoaded = false
 
@@ -1021,13 +1039,13 @@ private struct MediaServerDetailScreen: View {
             await viewModel.refresh()
 #if DEBUG
             if let item = viewModel.item {
-                session.recordDetail(item: item, children: viewModel.children)
+                session.recordDetail(item: item, children: viewModel.children, primaryPlaybackItem: viewModel.primaryPlaybackItem)
             }
 #endif
             await runEntrance()
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
+        .accessibilityIdentifier("Emby-Detail-\((viewModel.item?.metadata.id ?? viewModel.itemID).rawValue)")
     }
 
     private func heroHeight(in containerHeight: CGFloat) -> CGFloat {
@@ -1045,23 +1063,31 @@ private struct MediaServerDetailScreen: View {
         progress: CGFloat
     ) -> some View {
         @Bindable var viewModel = viewModel
+        let initialTarget = min(travel - topMargin, scrollMeasurement?.maximumOffset ?? 0)
+        let episodeLayoutReady = episodeShelfHeight > 0
+            && (scrollMeasurement?.contentHeight ?? 0) >= travel + episodeShelfHeight
         return ScrollView(.vertical) {
             if let item = viewModel.item {
                 LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
                     hero(item)
                         .frame(height: heroHeight, alignment: .bottom)
                         .opacity(Double(1 - progress))
-                    if revealed {
-                        childrenContent
-                            .transition(entrance(5))
-                        posterShelf(title: String(localized: "Special Features"), items: viewModel.specialFeatures)
-                            .transition(entrance(6))
-                        posterShelf(title: String(localized: "Related"), items: viewModel.relatedItems)
-                            .transition(entrance(7))
-                        castAndCrew(item.metadata.people)
-                            .transition(entrance(8))
-                        about(item.metadata)
-                            .transition(entrance(9))
+                    if revealed || viewModel.primaryPlaybackItem?.episode != nil {
+                        Group {
+                            childrenContent
+                                .transition(entrance(5))
+                            posterShelf(title: String(localized: "Special Features"), items: viewModel.specialFeatures)
+                                .transition(entrance(6))
+                            posterShelf(title: String(localized: "Related"), items: viewModel.relatedItems)
+                                .transition(entrance(7))
+                            castAndCrew(item.metadata.people)
+                                .transition(entrance(8))
+                            about(item.metadata)
+                                .transition(entrance(9))
+                        }
+                        .opacity(revealed ? 1 : 0)
+                        .allowsHitTesting(revealed)
+                        .accessibilityHidden(revealed == false)
                     }
                 }
                 .padding(.bottom, DesignTokens.Spacing.xxl)
@@ -1071,10 +1097,18 @@ private struct MediaServerDetailScreen: View {
         .contentMargins(.bottom, bottomMargin, for: .scrollContent)
         .ignoresSafeArea(.container, edges: .top)
         .scrollPosition($scrollPosition)
-        .onScrollGeometryChange(for: CGFloat.self) { geometry in
-            geometry.contentOffset.y + geometry.contentInsets.top
-        } action: { _, offset in
-            scrollOffset = offset
+        .onScrollGeometryChange(for: ScrollMeasurement.self) { geometry in
+            ScrollMeasurement(
+                offset: geometry.contentOffset.y + geometry.contentInsets.top,
+                contentHeight: geometry.contentSize.height,
+                maximumOffset: max(0, geometry.contentSize.height - geometry.containerSize.height)
+            )
+        } action: { _, measurement in
+            scrollMeasurement = measurement
+            let target = min(travel - topMargin, measurement.maximumOffset)
+            if initialFocus == .movingVertically, measurement.offset.rounded() >= target.rounded() {
+                initialFocus = .movingToEpisodes
+            }
         }
         .scrollTargetBehavior(
             MediaServerHeroSnapBehavior(
@@ -1085,7 +1119,20 @@ private struct MediaServerDetailScreen: View {
             )
         )
         .onScrollPhaseChange { _, phase in
-            if phase == .interacting { hasBeenScrolled = true }
+            if phase == .interacting {
+                hasBeenScrolled = true
+                initialFocus = .completed
+            }
+        }
+        .task(id: revealed && episodeLayoutReady && viewModel.initialEpisodeID != nil) {
+            guard revealed, episodeLayoutReady, viewModel.initialEpisodeID != nil,
+                  initialFocus == .pending else { return }
+            if scrollOffset.rounded() >= initialTarget.rounded() {
+                initialFocus = .movingToEpisodes
+            } else {
+                initialFocus = .movingVertically
+                scrollPosition.scrollTo(y: initialTarget)
+            }
         }
 #if DEBUG
         .onReceive(
@@ -1196,7 +1243,9 @@ private struct MediaServerDetailScreen: View {
                 technicalLine(item.metadata)
                     .transition(entrance(3))
                 HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
-                    actionRow(item)
+                    if let playbackItem = viewModel.primaryPlaybackItem {
+                        actionRow(playbackItem)
+                    }
                     Spacer(minLength: DesignTokens.Spacing.xl)
                     creditSummary(item.metadata.people)
                 }
@@ -1503,7 +1552,7 @@ private struct MediaServerDetailScreen: View {
 
     private func seasonPicker(_ seasons: [MediaServerSeason], selected: MediaServerItemID?) -> some View {
         Menu {
-            Picker("Season", selection: seasonSelection(selected)) {
+            Picker("Season", selection: seasonSelection()) {
                 ForEach(seasons, id: \.metadata.id) { season in
                     Text(season.metadata.name)
                         .tag(Optional(season.metadata.id))
@@ -1542,9 +1591,9 @@ private struct MediaServerDetailScreen: View {
                     DebugMenuSelectionItem(
                         id: season.metadata.id.rawValue,
                         title: season.metadata.name,
-                        isSelected: season.metadata.id == selected,
+                        isSelected: season.metadata.id == viewModel.seasonSelectionID,
                         select: {
-                            seasonSelection(selected).wrappedValue = season.metadata.id
+                            seasonSelection().wrappedValue = season.metadata.id
                         }
                     )
                 }
@@ -1553,11 +1602,13 @@ private struct MediaServerDetailScreen: View {
 #endif
     }
 
-    private func seasonSelection(_ selected: MediaServerItemID?) -> Binding<MediaServerItemID?> {
+    private func seasonSelection() -> Binding<MediaServerItemID?> {
         Binding(
-            get: { selected },
+            get: { viewModel.seasonSelectionID },
             set: { value in
-                guard let value, value != selected else { return }
+                guard let value, value != viewModel.seasonSelectionID else { return }
+                initialFocus = .completed
+                episodeScrollPosition = ScrollPosition(idType: MediaServerItemID.self, edge: .leading)
 #if DEBUG
                 session.recordReachability("season.select.\(value.rawValue)")
 #endif
@@ -1568,7 +1619,7 @@ private struct MediaServerDetailScreen: View {
                     await viewModel.selectSeason(value)
 #if DEBUG
                     guard let item = viewModel.item else { return }
-                    session.recordDetail(item: item, children: viewModel.children)
+                    session.recordDetail(item: item, children: viewModel.children, primaryPlaybackItem: viewModel.primaryPlaybackItem)
                     guard case .series = item,
                           case .seasons(
                               let declaredSeasons,
@@ -1598,10 +1649,21 @@ private struct MediaServerDetailScreen: View {
     @ViewBuilder
     private func episodeShelf(_ episodes: [MediaServerEpisode], title: String?) -> some View {
         if episodes.isEmpty == false {
-            MediaServerShelf(title: title) {
+            MediaServerShelf(title: title, scrollPosition: $episodeScrollPosition) {
                 ForEach(episodes, id: \.metadata.id) { episode in
                     episodeCard(episode)
+                        .id(episode.metadata.id)
                 }
+            }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { episodeShelfHeight = $0 }
+            .onScrollPhaseChange { _, phase in
+                if phase == .interacting { initialFocus = .completed }
+            }
+            .task(id: initialFocus == .movingToEpisodes ? viewModel.initialEpisodeID : nil) {
+                guard revealed, let episodeID = viewModel.initialEpisodeID,
+                      initialFocus == .movingToEpisodes else { return }
+                episodeScrollPosition.scrollTo(id: episodeID, anchor: .center)
+                initialFocus = .completed
             }
         }
     }

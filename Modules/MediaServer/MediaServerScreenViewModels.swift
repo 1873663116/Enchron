@@ -368,8 +368,34 @@ public enum MediaServerDetailChildren: Equatable, Sendable {
 @MainActor
 @Observable
 public final class MediaServerDetailViewModel {
+    private enum Context {
+        case item(MediaServerLibraryItem)
+        case series(MediaServerSeries, resumeEpisode: MediaServerEpisode)
+
+        var item: MediaServerLibraryItem {
+            switch self {
+            case .item(let item): item
+            case .series(let series, _): .series(series)
+            }
+        }
+
+        var primaryPlaybackItem: MediaServerLibraryItem? {
+            switch self {
+            case .item(let item): item.isPlayable ? item : nil
+            case .series(_, let episode): .episode(episode)
+            }
+        }
+    }
+
     public let itemID: MediaServerItemID
-    public private(set) var item: MediaServerLibraryItem?
+    public var item: MediaServerLibraryItem? { context?.item }
+    public var primaryPlaybackItem: MediaServerLibraryItem? { context?.primaryPlaybackItem }
+    public var seasonSelectionID: MediaServerItemID? { preferredSeasonID ?? children.selectedSeasonID }
+    public var initialEpisodeID: MediaServerItemID? {
+        guard case let .series(_, episode) = context,
+              children.episodes.contains(where: { $0.metadata.id == episode.metadata.id }) else { return nil }
+        return episode.metadata.id
+    }
     public private(set) var children: MediaServerDetailChildren = .none
     public private(set) var specialFeatures: [MediaServerLibraryItem] = []
     public private(set) var relatedItems: [MediaServerLibraryItem] = []
@@ -379,6 +405,9 @@ public final class MediaServerDetailViewModel {
 
     private let client: any MediaServerClientProtocol
     private let session: MediaServerSessionViewModel
+    private var context: Context?
+    private var requestID = UUID()
+    private var preferredSeasonID: MediaServerItemID?
 
     public init(
         itemID: MediaServerItemID,
@@ -389,53 +418,78 @@ public final class MediaServerDetailViewModel {
         self.itemID = itemID
         self.client = client
         self.session = session
-        self.item = knownItem
-        self.selectedMediaSourceID = knownItem?.metadata.mediaSources.first?.id
+        if let knownItem, knownItem.episode == nil {
+            context = .item(knownItem)
+        }
+        selectedMediaSourceID = knownItem?.metadata.mediaSources.first?.id
     }
 
     public func refresh() async {
+        let request = UUID()
+        requestID = request
         guard let server = session.server else {
             clear()
             return
         }
+        let preferredSeasonID = preferredSeasonID
         isLoading = true
-        defer { isLoading = false }
+        defer { if requestID == request { isLoading = false } }
         do {
             let freshItem = try await client.item(withID: itemID, on: server)
-            item = freshItem
-            let availableSources = freshItem.metadata.mediaSources
+            let loadedContext: Context
+            if case let .episode(episode) = freshItem {
+                guard case let .series(series) = try await client.item(withID: episode.seriesID, on: server) else {
+                    throw MediaServerError.invalidResponse
+                }
+                loadedContext = .series(series, resumeEpisode: episode)
+            } else {
+                loadedContext = .item(freshItem)
+            }
+            let displayID = loadedContext.item.metadata.id
+            async let features = client.capabilities.specialFeatures ? client.specialFeatures(for: displayID, on: server) : []
+            async let related = client.capabilities.similarItems ? client.similarItems(to: displayID, on: server, limit: 20) : MediaServerItemPage(items: [], totalRecordCount: 0)
+            let loadedChildren = try await loadChildren(of: loadedContext, preferredSeasonID: preferredSeasonID, on: server)
+            let loadedFeatures = try await features
+            let loadedRelated = try await related.items
+            try Task.checkCancellation()
+            guard requestID == request, session.server == server else { return }
+            context = loadedContext
+            children = loadedChildren
+            self.preferredSeasonID = loadedChildren.selectedSeasonID
+            specialFeatures = loadedFeatures
+            relatedItems = loadedRelated
+            let availableSources = primaryPlaybackItem?.metadata.mediaSources ?? []
             if availableSources.contains(where: { $0.id == selectedMediaSourceID }) == false {
                 selectedMediaSourceID = availableSources.first?.id
             }
-
-            async let features = client.capabilities.specialFeatures ? client.specialFeatures(for: itemID, on: server) : []
-            async let related = client.capabilities.similarItems ? client.similarItems(to: itemID, on: server, limit: 20) : MediaServerItemPage(items: [], totalRecordCount: 0)
-            let loadedChildren = try await loadChildren(of: freshItem, on: server)
-            specialFeatures = try await features
-            relatedItems = try await related.items
-            children = loadedChildren
             errorMessage = nil
         } catch {
-            if await session.handleRequestError(error) == false {
+            guard requestID == request, session.server == server, !(error is CancellationError) else { return }
+            if await session.handleRequestError(error) == false, requestID == request {
                 errorMessage = error.localizedDescription
             }
         }
     }
 
     public func selectSeason(_ seasonID: MediaServerItemID) async {
-        guard case .seasons(let all, let selected, let shown) = children,
-              selected != seasonID,
+        guard case .seasons(let all, let selected, _) = children,
+              selected != seasonID || preferredSeasonID != seasonID,
               let season = all.first(where: { $0.metadata.id == seasonID }),
               let server = session.server else { return }
-        children = .seasons(all: all, selected: seasonID, episodes: shown)
+        let request = UUID()
+        requestID = request
+        preferredSeasonID = seasonID
+        isLoading = true
+        defer { if requestID == request { isLoading = false } }
         do {
-            children = .seasons(
-                all: all,
-                selected: seasonID,
-                episodes: try await episodes(of: .season(season), on: server)
-            )
+            let loadedEpisodes = try await episodes(of: season, on: server)
+            try Task.checkCancellation()
+            guard requestID == request, session.server == server else { return }
+            children = .seasons(all: all, selected: seasonID, episodes: loadedEpisodes)
+            errorMessage = nil
         } catch {
-            if await session.handleRequestError(error) == false {
+            guard requestID == request, session.server == server, !(error is CancellationError) else { return }
+            if await session.handleRequestError(error) == false, requestID == request {
                 errorMessage = error.localizedDescription
             }
         }
@@ -444,9 +498,17 @@ public final class MediaServerDetailViewModel {
     public func playbackSelection(
         startAction: MediaServerPlaybackStartAction
     ) async throws -> MediaServerPlaybackSelection {
-        guard let item else { throw MediaServerError.notAuthenticated }
-        let freshItem = try await currentPlaybackItem(withID: item.metadata.id)
-        self.item = freshItem
+        guard let primaryPlaybackItem else { throw MediaServerError.notAuthenticated }
+        let freshItem = try await currentPlaybackItem(withID: primaryPlaybackItem.metadata.id)
+        switch context {
+        case .series(let series, _):
+            guard case let .episode(episode) = freshItem else { throw MediaServerError.invalidResponse }
+            context = .series(series, resumeEpisode: episode)
+        case .item:
+            context = .item(freshItem)
+        case nil:
+            throw MediaServerError.notAuthenticated
+        }
         return MediaServerPlaybackSelection(
             item: freshItem,
             mediaSourceID: selectedMediaSourceID,
@@ -455,14 +517,22 @@ public final class MediaServerDetailViewModel {
     }
 
     public func playbackSelection(for episode: MediaServerEpisode) async throws -> MediaServerPlaybackSelection {
+        let seasonEpisodes = children.episodes
         guard case let .episode(freshEpisode) = try await currentPlaybackItem(withID: episode.metadata.id) else {
             throw MediaServerError.invalidResponse
         }
+        let playableEpisode = MediaServerEpisode(
+            metadata: freshEpisode.metadata,
+            seriesID: freshEpisode.seriesID,
+            seasonID: freshEpisode.seasonID ?? episode.seasonID,
+            seasonNumber: freshEpisode.seasonNumber,
+            episodeNumber: freshEpisode.episodeNumber
+        )
         return MediaServerPlaybackSelection(
-            episode: freshEpisode,
+            episode: playableEpisode,
             mediaSourceID: freshEpisode.metadata.mediaSources.first?.id,
             startAction: .resume,
-            seasonEpisodes: children.episodes
+            seasonEpisodes: seasonEpisodes
         )
     }
 
@@ -482,39 +552,85 @@ public final class MediaServerDetailViewModel {
     }
 
     private func loadChildren(
-        of item: MediaServerLibraryItem,
+        of context: Context,
+        preferredSeasonID: MediaServerItemID?,
         on server: MediaServerAuthenticatedServer
     ) async throws -> MediaServerDetailChildren {
+        let item = context.item
         switch item {
         case .movie, .episode:
             return .none
         case .series:
-            let seasons = try await childPage(of: item, on: server, sortBy: [])
-                .items
-                .compactMap(\.season)
-            guard let selected = seasons.first(where: { $0.metadata.id == children.selectedSeasonID })
-                ?? seasons.first else {
-                return .seasons(all: seasons, selected: nil, episodes: [])
-            }
-            return .seasons(
-                all: seasons,
-                selected: selected.metadata.id,
-                episodes: try await episodes(of: .season(selected), on: server)
+            let seasons = ordered(
+                try await childPage(of: item, on: server, sortBy: []).items.compactMap(\.season),
+                number: \.indexNumber, name: \.metadata.name
             )
-        case .season:
-            return .episodes(try await episodes(of: item, on: server))
+            if let preferred = seasons.first(where: { $0.metadata.id == preferredSeasonID }) {
+                return .seasons(all: seasons, selected: preferred.metadata.id, episodes: try await episodes(of: preferred, on: server))
+            }
+            if case let .series(_, episode) = context {
+                let candidates = seasons.sorted { left, right in
+                    let leftRank = left.metadata.id == episode.seasonID ? 0 : left.indexNumber == episode.seasonNumber && episode.seasonNumber != nil ? 1 : 2
+                    let rightRank = right.metadata.id == episode.seasonID ? 0 : right.indexNumber == episode.seasonNumber && episode.seasonNumber != nil ? 1 : 2
+                    return leftRank < rightRank
+                }
+                for season in candidates {
+                    let shown = try await episodes(of: season, on: server)
+                    if shown.contains(where: { $0.metadata.id == episode.metadata.id }) {
+                        return .seasons(all: seasons, selected: season.metadata.id, episodes: shown)
+                    }
+                }
+                throw MediaServerError.childrenUnavailable(episode.metadata.id)
+            }
+            guard let first = seasons.first else { return .seasons(all: [], selected: nil, episodes: []) }
+            return .seasons(all: seasons, selected: first.metadata.id, episodes: try await episodes(of: first, on: server))
+        case .season(let season):
+            return .episodes(try await episodes(of: season, on: server))
         case .boxSet:
             return .collection(try await childPage(of: item, on: server).items)
         }
     }
 
     private func episodes(
-        of season: MediaServerLibraryItem,
+        of season: MediaServerSeason,
         on server: MediaServerAuthenticatedServer
     ) async throws -> [MediaServerEpisode] {
-        try await childPage(of: season, on: server, sortBy: [])
-            .items
-            .compactMap(\.episode)
+        let episodes = try await childPage(of: .season(season), on: server, sortBy: []).items.compactMap(\.episode)
+            .map { episode in
+                MediaServerEpisode(
+                    metadata: episode.metadata,
+                    seriesID: episode.seriesID,
+                    seasonID: episode.seasonID ?? season.metadata.id,
+                    seasonNumber: episode.seasonNumber,
+                    episodeNumber: episode.episodeNumber
+                )
+            }
+        return ordered(episodes, number: \.episodeNumber, name: \.metadata.name)
+    }
+
+    private func ordered<Value>(
+        _ values: [Value],
+        number: KeyPath<Value, Int?>,
+        name: KeyPath<Value, String>
+    ) -> [Value] {
+        let numbered = values.enumerated().compactMap { index, value in
+            value[keyPath: number].map { (index: index, number: $0, value: value) }
+        }
+        if numbered.isEmpty {
+            return values.enumerated().sorted { left, right in
+                let result = left.element[keyPath: name].localizedStandardCompare(right.element[keyPath: name])
+                return result == .orderedSame ? left.offset < right.offset : result == .orderedAscending
+            }.map(\.element)
+        }
+        let sorted = numbered.sorted { left, right in
+            left.number == right.number ? left.index < right.index : left.number < right.number
+        }
+        var next = 0
+        return values.map { value in
+            guard value[keyPath: number] != nil else { return value }
+            defer { next += 1 }
+            return sorted[next].value
+        }
     }
 
     private func childPage(
@@ -525,19 +641,17 @@ public final class MediaServerDetailViewModel {
         try await client.children(
             of: parent,
             on: server,
-            query: MediaServerItemQuery(
-                sortBy: sortBy,
-                sortOrder: .ascending,
-                recursive: false
-            )
+            query: MediaServerItemQuery(sortBy: sortBy, sortOrder: .ascending, recursive: false)
         )
     }
 
     private func clear() {
-        item = nil
+        context = nil
         children = .none
         specialFeatures = []
         relatedItems = []
         selectedMediaSourceID = nil
+        preferredSeasonID = nil
+        isLoading = false
     }
 }

@@ -58,7 +58,8 @@ struct EmbyAccessibilityEvidenceTests {
                 all: [firstSeason, secondSeason],
                 selected: secondSeason.metadata.id,
                 episodes: [secondEpisode]
-            )
+            ),
+            primaryPlaybackItem: nil
         )
         journal.recordSeasonTransition(
             seriesID: series.metadata.id,
@@ -96,6 +97,26 @@ struct EmbyAccessibilityEvidenceTests {
         #expect(evidence.document.fixtureDigest.status == .unavailable)
         #expect(evidence.document.localViewingStateWriteCount.status == .unavailable)
         #expect(evidence.accessibilityValue.contains("secret-token") == false)
+    }
+
+    @Test("series resume evidence identifies the display series and original playback episode")
+    func seriesResumeEvidence() {
+        let series = evidenceSeries(id: "series-regression")
+        let season = evidenceSeason(id: "season-2", seriesID: series.metadata.id)
+        let episode = evidenceEpisode(id: "episode-20", seasonID: season.metadata.id)
+        var journal = MediaServerEvidenceJournal()
+
+        journal.recordDetail(
+            item: series,
+            children: .seasons(all: [season], selected: season.metadata.id, episodes: [episode]),
+            primaryPlaybackItem: .episode(episode)
+        )
+
+        #expect(journal.detail?.itemID == "series-regression")
+        #expect(journal.detail?.itemKind == "series")
+        #expect(journal.detail?.selectedSeasonID == "season-2")
+        #expect(journal.detail?.primaryPlaybackItemID == "episode-20")
+        #expect(journal.detail?.playbackActionIDs == ["Emby-Detail-Play"])
     }
 
     @Test("zero and unavailable are distinct evidence states")

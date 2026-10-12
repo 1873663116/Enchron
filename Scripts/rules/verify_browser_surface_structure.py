@@ -249,6 +249,28 @@ def check_sidebar_layout() -> None:
         "private struct MediaServerDetailScreen: View {",
         "    private func entrancePrefetchURLs() -> [URL] {",
     )
+    page_content = region(detail, "    private func pageContent(", "    private func runEntrance() async {")
+    mounted_episode_content = re.search(
+        r"if revealed \|\| viewModel\.primaryPlaybackItem\?\.episode != nil \{\s*"
+        r"Group \{(?P<content>.*?)\n\s*\}\s*"
+        r"\.opacity\(revealed \? 1 : 0\)\s*"
+        r"\.allowsHitTesting\(revealed\)\s*"
+        r"\.accessibilityHidden\(revealed == false\)\s*\}",
+        page_content,
+        re.S,
+    )
+    require(
+        mounted_episode_content is not None
+        and order(
+            mounted_episode_content.group("content"),
+            "childrenContent",
+            ".transition(entrance(5))",
+            ".transition(entrance(9))",
+        ),
+        "pre-mounted episode detail content must remain invisible, ignore hit "
+        "testing and hide accessibility until reveal; ordinary details must "
+        "still mount their blocks only after reveal",
+    )
     require(
         "Task { await runEntrance() }" not in detail
         and order(
@@ -261,8 +283,7 @@ def check_sidebar_layout() -> None:
             "withAnimation { revealed = true }",
         )
         and order(
-            emby,
-            "if revealed {",
+            page_content,
             "childrenContent",
             ".transition(entrance(5))",
             ".transition(entrance(9))",
