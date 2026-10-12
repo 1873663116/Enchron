@@ -274,6 +274,245 @@ struct EmbyViewModelTests {
         #expect(queue.entries.map(\.isCurrent) == [true, false])
     }
 
+    @Test("an episode opens its series and selects its non-first season")
+    func resumeEpisodeOpensSeriesAndTargetSeason() async {
+        let series = seriesItem(id: "series")
+        let first = seasonItem(id: "season-1", seriesID: "series")
+        let second = seasonItem(id: "season-2", seriesID: "series")
+        let target = catalogEpisode(
+            id: "episode-20", name: "Episode 20", seasonID: "season-2",
+            seasonNumber: 2, episodeNumber: 20
+        )
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series, target.metadata.id: .episode(target)],
+            childrenByID: [
+                series.metadata.id: [.season(first), .season(second)],
+                first.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))],
+                second.metadata.id: [.episode(target)]
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: target.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer),
+            knownItem: .episode(target)
+        )
+
+        await detail.refresh()
+
+        #expect(detail.item?.metadata.id.rawValue == "series")
+        #expect(detail.children.selectedSeasonID?.rawValue == "season-2")
+        #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-20"])
+    }
+
+    @Test("an episode without season identity finds its season by membership")
+    func resumeEpisodeWithoutSeasonIDFindsMembership() async {
+        let series = seriesItem(id: "series")
+        let first = seasonItem(id: "season-1", seriesID: "series")
+        let second = seasonItem(id: "season-2", seriesID: "series")
+        let target = catalogEpisode(
+            id: "episode-20", name: "Episode 20", seasonID: nil,
+            seasonNumber: nil, episodeNumber: 20
+        )
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series, target.metadata.id: .episode(target)],
+            childrenByID: [
+                series.metadata.id: [.season(first), .season(second)],
+                first.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))],
+                second.metadata.id: [.episode(target)]
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: target.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer),
+            knownItem: .episode(target)
+        )
+
+        await detail.refresh()
+
+        #expect(detail.item?.metadata.id.rawValue == "series")
+        #expect(detail.children.selectedSeasonID?.rawValue == "season-2")
+        #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-20"])
+    }
+
+    @Test("unnumbered seasons and episodes use natural title order", arguments: [
+        (["第10季", "第2季", "第100季", "第1季"], ["第10集", "第2集", "第100集", "第1集"]),
+        (["Season 10", "Season 2", "Season 100", "Season 1"], ["Episode 10", "Episode 2", "Episode 100", "Episode 1"]),
+        (["シーズン10", "シーズン2", "シーズン100", "シーズン1"], ["第10話", "第2話", "第100話", "第1話"]),
+        (["Saison 10", "Saison 2", "Saison 100", "Saison 1"], ["Épisode 10", "Épisode 2", "Épisode 100", "Épisode 1"]),
+        (["Staffel 10", "Staffel 2", "Staffel 100", "Staffel 1"], ["Folge 10", "Folge 2", "Folge 100", "Folge 1"]),
+        (["Сезон 10", "Сезон 2", "Сезон 100", "Сезон 1"], ["Серия 10", "Серия 2", "Серия 100", "Серия 1"]),
+        (["시즌 10", "시즌 2", "시즌 100", "시즌 1"], ["에피소드 10", "에피소드 2", "에피소드 100", "에피소드 1"])
+    ])
+    func naturalSeasonAndEpisodeTitleOrder(titles: ([String], [String])) async {
+        let series = seriesItem(id: "series")
+        let numbers = [10, 2, 100, 1]
+        let seasons = zip(numbers, titles.0).map { number, title in
+            MediaServerSeason(
+                metadata: itemMetadata(id: "season-\(number)", name: title),
+                seriesID: MediaServerItemID(rawValue: "series"),
+                indexNumber: nil
+            )
+        }
+        let episodes = zip(numbers, titles.1).map { number, title in
+            catalogEpisode(
+                id: "episode-\(number)", name: title, seasonID: "season-1",
+                seasonNumber: nil, episodeNumber: nil
+            )
+        }
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series],
+            childrenByID: [
+                series.metadata.id: seasons.map(MediaServerLibraryItem.season),
+                MediaServerItemID(rawValue: "season-1"): episodes.map(MediaServerLibraryItem.episode)
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: series.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+
+        guard case let .seasons(all, selected, shown) = detail.children else {
+            Issue.record("Expected series seasons after refresh")
+            return
+        }
+        #expect(detail.item?.metadata.id.rawValue == "series")
+        #expect(all.map(\.metadata.id.rawValue) == ["season-1", "season-2", "season-10", "season-100"])
+        #expect(selected?.rawValue == "season-1")
+        #expect(shown.map(\.metadata.id.rawValue) == ["episode-1", "episode-2", "episode-10", "episode-100"])
+    }
+
+    @Test("season and episode metadata numbers take priority over title numbers")
+    func numericMetadataPrecedesTitleOrder() async {
+        let series = seriesItem(id: "series")
+        let seasons = [
+            MediaServerSeason(
+                metadata: itemMetadata(id: "season-second", name: "Season 1"),
+                seriesID: MediaServerItemID(rawValue: "series"), indexNumber: 2
+            ),
+            MediaServerSeason(
+                metadata: itemMetadata(id: "season-first", name: "Season 100"),
+                seriesID: MediaServerItemID(rawValue: "series"), indexNumber: 1
+            )
+        ]
+        let episodes = [
+            catalogEpisode(
+                id: "episode-second", name: "Episode 1", seasonID: "season-first",
+                seasonNumber: 1, episodeNumber: 2
+            ),
+            catalogEpisode(
+                id: "episode-first", name: "Episode 100", seasonID: "season-first",
+                seasonNumber: 1, episodeNumber: 1
+            )
+        ]
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series],
+            childrenByID: [
+                series.metadata.id: seasons.map(MediaServerLibraryItem.season),
+                MediaServerItemID(rawValue: "season-first"): episodes.map(MediaServerLibraryItem.episode)
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: series.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+
+        guard case let .seasons(all, selected, shown) = detail.children else {
+            Issue.record("Expected series seasons after refresh")
+            return
+        }
+        #expect(all.map(\.metadata.id.rawValue) == ["season-first", "season-second"])
+        #expect(selected?.rawValue == "season-first")
+        #expect(shown.map(\.metadata.id.rawValue) == ["episode-first", "episode-second"])
+    }
+
+    @Test("mixed numbering retains unnumbered positions and equal-number service order")
+    func mixedCatalogNumberingKeepsPositionsAndTies() async {
+        let series = seriesItem(id: "series")
+        let seasons = [
+            MediaServerSeason(metadata: itemMetadata(id: "season-special", name: "Specials"), seriesID: .init(rawValue: "series"), indexNumber: nil),
+            MediaServerSeason(metadata: itemMetadata(id: "season-2", name: "Season 2"), seriesID: .init(rawValue: "series"), indexNumber: 2),
+            MediaServerSeason(metadata: itemMetadata(id: "season-extra", name: "Season 100"), seriesID: .init(rawValue: "series"), indexNumber: nil),
+            MediaServerSeason(metadata: itemMetadata(id: "season-1-b", name: "Season 100"), seriesID: .init(rawValue: "series"), indexNumber: 1),
+            MediaServerSeason(metadata: itemMetadata(id: "season-1-a", name: "Season 1"), seriesID: .init(rawValue: "series"), indexNumber: 1)
+        ]
+        let episodes = [
+            catalogEpisode(id: "episode-film", name: "剧场版", seasonID: "season-special", seasonNumber: nil, episodeNumber: nil),
+            catalogEpisode(id: "episode-2", name: "Episode 2", seasonID: "season-special", seasonNumber: nil, episodeNumber: 2),
+            catalogEpisode(id: "episode-extra", name: "Episode 100", seasonID: "season-special", seasonNumber: nil, episodeNumber: nil),
+            catalogEpisode(id: "episode-1-b", name: "Episode 100", seasonID: "season-special", seasonNumber: nil, episodeNumber: 1),
+            catalogEpisode(id: "episode-1-a", name: "Episode 1", seasonID: "season-special", seasonNumber: nil, episodeNumber: 1)
+        ]
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series],
+            childrenByID: [
+                series.metadata.id: seasons.map(MediaServerLibraryItem.season),
+                MediaServerItemID(rawValue: "season-special"): episodes.map(MediaServerLibraryItem.episode)
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: series.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+
+        guard case let .seasons(all, selected, shown) = detail.children else {
+            Issue.record("Expected series seasons after refresh")
+            return
+        }
+        #expect(all.map(\.metadata.id.rawValue) == ["season-special", "season-1-b", "season-extra", "season-1-a", "season-2"])
+        #expect(selected?.rawValue == "season-special")
+        #expect(shown.map(\.metadata.id.rawValue) == ["episode-film", "episode-1-b", "episode-extra", "episode-1-a", "episode-2"])
+    }
+
+    @Test("unnumbered seasons and episodes with equal titles retain service order")
+    func naturalCatalogTitleTiesKeepServiceOrder() async {
+        let series = seriesItem(id: "series")
+        let seasons = [
+            MediaServerSeason(metadata: itemMetadata(id: "season-10", name: "Season 10"), seriesID: .init(rawValue: "series"), indexNumber: nil),
+            MediaServerSeason(metadata: itemMetadata(id: "season-2-b", name: "Season 2"), seriesID: .init(rawValue: "series"), indexNumber: nil),
+            MediaServerSeason(metadata: itemMetadata(id: "season-1", name: "Season 1"), seriesID: .init(rawValue: "series"), indexNumber: nil),
+            MediaServerSeason(metadata: itemMetadata(id: "season-2-a", name: "Season 2"), seriesID: .init(rawValue: "series"), indexNumber: nil)
+        ]
+        let episodes = [
+            catalogEpisode(id: "episode-10", name: "Episode 10", seasonID: "season-1", seasonNumber: nil, episodeNumber: nil),
+            catalogEpisode(id: "episode-2-b", name: "Episode 2", seasonID: "season-1", seasonNumber: nil, episodeNumber: nil),
+            catalogEpisode(id: "episode-1", name: "Episode 1", seasonID: "season-1", seasonNumber: nil, episodeNumber: nil),
+            catalogEpisode(id: "episode-2-a", name: "Episode 2", seasonID: "season-1", seasonNumber: nil, episodeNumber: nil)
+        ]
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series],
+            childrenByID: [
+                series.metadata.id: seasons.map(MediaServerLibraryItem.season),
+                MediaServerItemID(rawValue: "season-1"): episodes.map(MediaServerLibraryItem.episode)
+            ]
+        )
+        let detail = MediaServerDetailViewModel(
+            itemID: series.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+
+        guard case let .seasons(all, selected, shown) = detail.children else {
+            Issue.record("Expected series seasons after refresh")
+            return
+        }
+        #expect(all.map(\.metadata.id.rawValue) == ["season-1", "season-2-b", "season-2-a", "season-10"])
+        #expect(selected?.rawValue == "season-1")
+        #expect(shown.map(\.metadata.id.rawValue) == ["episode-1", "episode-2-b", "episode-2-a", "episode-10"])
+    }
+
     @Test("a series browses its seasons and follows the selected one")
     func seriesChildren() async {
         let series = seriesItem(id: "series")
@@ -294,6 +533,7 @@ struct EmbyViewModelTests {
         )
 
         await detail.refresh()
+        #expect(detail.item?.metadata.id.rawValue == "series")
         #expect(detail.children == .seasons(
             all: [first, second],
             selected: first.metadata.id,
@@ -354,6 +594,7 @@ struct EmbyViewModelTests {
 
         await detail.refresh()
 
+        #expect(detail.item?.metadata.id.rawValue == "movie")
         #expect(detail.children == .none)
     }
 
@@ -794,14 +1035,31 @@ private func episode(id: String, seasonID: String) -> MediaServerEpisode {
     )
 }
 
+private func catalogEpisode(
+    id: String,
+    name: String,
+    seasonID: String?,
+    seasonNumber: Int?,
+    episodeNumber: Int?
+) -> MediaServerEpisode {
+    MediaServerEpisode(
+        metadata: itemMetadata(id: id, name: name),
+        seriesID: MediaServerItemID(rawValue: "series"),
+        seasonID: seasonID.map(MediaServerItemID.init(rawValue:)),
+        seasonNumber: seasonNumber,
+        episodeNumber: episodeNumber
+    )
+}
+
 private func itemMetadata(
     id: String,
+    name: String? = nil,
     resumeTicks: Int64 = 0,
     mediaSourceID: String? = nil
 ) -> MediaServerItemMetadata {
     MediaServerItemMetadata(
         id: MediaServerItemID(rawValue: id),
-        name: id,
+        name: name ?? id,
         imageTags: MediaServerImageTags(),
         overview: nil,
         runTimeTicks: 900_000_000,
