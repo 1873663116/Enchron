@@ -1,8 +1,10 @@
 # Enchron
 
-[简体中文](README.md) | English
+[简体中文](README.md) | [繁體中文](README.zh-TW.md) | English | [日本語](README.ja.md) | [한국어](README.ko.md) | [Русский](README.ru.md) | [Français](README.fr.md) | [Deutsch](README.de.md)
 
-Enchron is a media player for Apple Vision Pro. It plays videos in windows and immersive spaces, and supports local files and personal SMB, WebDAV, and Emby libraries.
+[![Verification](https://github.com/1873663116/Enchron/actions/workflows/verification.yml/badge.svg?branch=main)](https://github.com/1873663116/Enchron/actions/workflows/verification.yml) [![License: GPL-3.0](https://img.shields.io/github/license/1873663116/Enchron)](LICENSE)
+
+Enchron is a media player for Apple Vision Pro. It plays videos in windows and immersive spaces, and supports local files and SMB, WebDAV, and Emby libraries.
 
 ## Status
 
@@ -22,24 +24,25 @@ Enchron is available for public beta testing on TestFlight. Join on Apple Vision
 
 ## Build
 
-The project requires Xcode 27.0 and the matching visionOS SDK. `Packages/PlaybackCore` depends on `PlaybackFFmpeg.xcframework`, which is not stored in Git. Run this command from the repository root after cloning:
+The project requires Xcode 27.0 and the visionOS SDK. After cloning, run these commands from the repository root to provision the binary dependencies required by `Packages/PlaybackCore`. They are not stored in Git.
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh
+Scripts/provision_vendored_bluray.sh
 ```
 
-The script builds FFmpeg. If another checkout already has the binary, pass that checkout's path to reuse it. Build and verification tools are in `Scripts/` and `Regression/`. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for module ownership, [`AGENTS.md`](AGENTS.md) for project constraints, and [`Regression/README.md`](Regression/README.md) for the test protocol.
+The Blu-ray sample structure is checked against an independent MPLS parser by `Scripts/build/verify_bluray_corpus.py`. Blu-ray-specific acceptance data and simulator verification tools are in `Scripts/verification/`. Build and verification entry points are in `Scripts/` and `Regression/`. See [`ARCHITECTURE.md`](ARCHITECTURE.md) for module ownership, [`AGENTS.md`](AGENTS.md) for project constraints, and [`Regression/README.md`](Regression/README.md) for the test protocol.
 
 ## Privacy and network access
 
-Enchron does not run a media service or send media files, playback history, or remote-server credentials to its developer. The app connects directly to servers that users configure. It stores remote-server credentials in the device Keychain. The full [privacy notice](PRIVACY.md) is currently in Chinese.
+Enchron does not run a media service or send media files, playback history, or remote-server credentials to its developer. The app connects directly to servers configured by users. It stores remote credentials in the device Keychain. See [`PRIVACY.md`](PRIVACY.md) for details.
 
-The app permits HTTP connections to self-hosted servers without TLS. Before it sends credentials to a public HTTP address, it warns that the credentials may travel without encryption and asks for confirmation. Use HTTPS or a private encrypted network when available.
+The app permits plain HTTP connections to self-hosted servers without TLS. Before connecting to a public address, it warns that credentials may be sent without encryption and asks for confirmation. HTTPS or a private encrypted network can be used instead.
 
 ## License and third-party software
 
-Enchron is released under the [Apache License 2.0](LICENSE). See [`NOTICE`](NOTICE) for third-party software and licenses. The app also lists these licenses in Settings.
+Enchron is released under the GNU General Public License v3.0. See [`LICENSE`](LICENSE) for the license text and [`NOTICE`](NOTICE) for third-party software and licenses. The app also provides the relevant license information in Settings.
 
-## Contributions
+## External contributions
 
-We are not accepting external contributions at this time. The repository is for source inspection, reproducible builds, and license compliance. CI, signing, and release infrastructure are not available to external contributors.
+External contributions are not currently accepted. This repository is for source inspection, reproducible builds, and license compliance. CI, signing, and release infrastructure are not open to external contributors.
