@@ -4,7 +4,7 @@ import Observation
 @MainActor
 @Observable
 public final class PlaybackSurfaceGestureController {
-    public static let referenceWidth: Double = 600
+    public static let referenceWidth: Double = 1200
     public private(set) var preview: PlaybackSurfaceGesturePreview?
     public private(set) var phase = PlaybackSurfaceGesturePhase.idle
     public private(set) var originalPlaybackRate: Double?

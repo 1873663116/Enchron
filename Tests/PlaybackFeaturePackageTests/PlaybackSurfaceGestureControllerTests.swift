@@ -23,6 +23,8 @@ struct PlaybackSurfaceGestureControllerTests {
         #expect(controller.phase == .waitingForSecondTap)
         #expect(controller.begin(owner: newOwner))
         controller.update(horizontalTranslation: 300, owner: newOwner)
+        #expect(controller.preview?.targetSeconds == 121)
+        controller.update(horizontalTranslation: 600, owner: newOwner)
         #expect(controller.phase == .seeking)
         #expect(controller.preview?.targetSeconds == 130)
         controller.cancel(owner: oldOwner)
@@ -100,7 +102,7 @@ struct PlaybackSurfaceGestureControllerTests {
         core.onDiagnosticsChange?(diagnostics)
         let owner = UUID()
         #expect(controller.begin(owner: owner))
-        controller.update(horizontalTranslation: 300, owner: owner)
+        controller.update(horizontalTranslation: 600, owner: owner)
         #expect(controller.preview?.targetSeconds == 130)
         session.showControls = true
         controller.synchronize()
