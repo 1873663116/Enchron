@@ -303,6 +303,10 @@ public struct CircleIconButton: View {
         )
     }
 
+    public static func expansionSymbol(isExpanded: Bool) -> String {
+        SymbolState.expandCollapse(isExpanded: isExpanded).systemName
+    }
+
     public static func expandCollapse(
         isExpanded: Bool,
         accessibilityLabel: String,

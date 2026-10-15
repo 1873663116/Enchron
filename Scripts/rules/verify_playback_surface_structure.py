@@ -232,7 +232,7 @@ def main() -> int:
     application = read("Apps/Enchron/EnchronApplication.swift")
     architecture = read("ARCHITECTURE.md")
     environment_card_root = read(
-        "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
+        "Modules/Playback/Views/EnvironmentHomeView.swift"
     )
     environment_components = read(
         "Modules/Playback/Views/EnvironmentComponents.swift"
@@ -543,10 +543,10 @@ def main() -> int:
         "live roots do not register, unregister, and drain queued platform effects",
     )
     require(
-        'Window("Environment", id: PlaybackSessionModel.senseZoneVolumeID)' in app_scene
-        and "WindowGroup(id: AppModel.senseZoneVolumeID)" not in app_scene
-        and ".windowStyle(.volumetric)" in app_scene,
-        "Environment Card is not a singleton volumetric Window Scene",
+        'Window("Environment"' not in app_scene
+        and "EnvironmentHomeView(isCompact:" in main_view
+        and "setEnvironmentHomeVisible(true)" in platform_executor,
+        "Environments must be a page in the main window",
     )
     require(
         'WindowGroup(\n            "Enchron",\n            id: "main"\n        )' in app_scene
@@ -706,7 +706,8 @@ def main() -> int:
     require(
         "sceneRole" not in main_view
         and "Color.clear.enchronWindowGlassBackground" not in main_view
-        and ".enchronWindowGlassBackground(.always)" in main_view
+        and ".enchronGlassBackground(in: environmentRevealShape)" in main_view
+        and ".clipShape(environmentRevealShape)" in main_view
         and order(
             player_view,
             "enum PlayerWindowGlassPolicy {",

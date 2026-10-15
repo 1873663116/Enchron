@@ -24,14 +24,60 @@ public struct MainView: View {
     @Environment(DeveloperMetricsModel.self) private var developerMetrics
 #endif
 
+    @State private var environmentTabBarHidden = false
+    @State private var environmentHomeTransitioning = false
+    @State private var expandedSize = BrowserWindowLayout.defaultSize
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     public init() {}
 
     public var body: some View {
-        browserPrimaryContent
-        .browserWindowGeometry { windowScene in
+        ZStack {
+            browserPrimaryContent
+                .frame(
+                    width: appModel.isEnvironmentHomeCompact || environmentHomeTransitioning ? expandedSize.width : nil,
+                    height: appModel.isEnvironmentHomeCompact || environmentHomeTransitioning ? expandedSize.height : nil
+                )
+                .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                    if !appModel.isEnvironmentHomeCompact && !environmentHomeTransitioning { expandedSize = size }
+                }
+                .opacity(appModel.isEnvironmentHomeCompact ? 0 : 1)
+                .animation(
+                    appModel.isEnvironmentHomeCompact
+                        ? DesignTokens.AnimationToken.panelContentExit
+                        : DesignTokens.AnimationToken.panelContentEntrance,
+                    value: appModel.isEnvironmentHomeCompact
+                )
+                .clipShape(environmentRevealShape)
+                .enchronGlassBackground(in: environmentRevealShape)
+                .allowsHitTesting(!appModel.isEnvironmentHomeCompact)
+                .accessibilityHidden(appModel.isEnvironmentHomeCompact)
+                .frame(
+                    width: appModel.isEnvironmentHomeCompact ? 0 : nil,
+                    height: appModel.isEnvironmentHomeCompact ? 0 : nil
+                )
+
+            if appModel.isEnvironmentHomeCompact {
+                EnvironmentMiniControls { setEnvironmentHomeCompact(false) }
+                    .transition(.asymmetric(
+                        insertion: .opacity.animation(DesignTokens.AnimationToken.panelContentEntrance),
+                        removal: .opacity.animation(DesignTokens.AnimationToken.panelContentExit)
+                    ))
+            }
+        }
+        .frame(
+            width: appModel.isEnvironmentHomeCompact ? DesignTokens.EnvironmentHome.compactSize.width : nil,
+            height: appModel.isEnvironmentHomeCompact ? DesignTokens.EnvironmentHome.compactSize.height : nil
+        )
+        .animation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring, value: appModel.isEnvironmentHomeCompact)
+        .browserWindowGeometry(isCompact: appModel.isEnvironmentHomeCompact) { windowScene in
             spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
         }
-        .enchronWindowGlassBackground(.always)
+        .onChange(of: playbackSession.environmentCardDismissalRequestRevision) { _, _ in
+            if appModel.selectedTab == .environment { appModel.selectedTab = .files }
+            appModel.isEnvironmentHomeCompact = false
+            environmentTabBarHidden = false
+        }
 #if DEBUG
         .developerStatsOverlay(
             isEnabled: settingsViewModel.preferences.developerModeEnabled
@@ -96,6 +142,37 @@ public struct MainView: View {
         } message: {
             if let question = connectionSecurityPrompt.question {
                 question.message
+            }
+        }
+    }
+
+    private var environmentRevealShape: CenteredRevealShape {
+        CenteredRevealShape(
+            size: appModel.isEnvironmentHomeCompact ? .zero : expandedSize,
+            cornerRadius: DesignTokens.Radius.card
+        )
+    }
+
+    private func setEnvironmentHomeCompact(_ compact: Bool) {
+        environmentHomeTransitioning = true
+        if compact {
+            withAnimation(DesignTokens.AnimationToken.levelExit, completionCriteria: .removed) {
+                environmentTabBarHidden = true
+            } completion: {
+                withAnimation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring, completionCriteria: .removed) {
+                    appModel.isEnvironmentHomeCompact = true
+                } completion: {
+                    environmentHomeTransitioning = false
+                }
+            }
+        } else {
+            withAnimation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring, completionCriteria: .removed) {
+                appModel.isEnvironmentHomeCompact = false
+            } completion: {
+                environmentHomeTransitioning = false
+                withAnimation(DesignTokens.AnimationToken.levelExit) {
+                    environmentTabBarHidden = false
+                }
             }
         }
     }
@@ -233,8 +310,12 @@ public struct MainView: View {
                 systemImage: "mountain.2",
                 value: AppModel.NavigationTab.environment
             ) {
-                Color.clear
-                    .browserTabBarVisibility(browserVisibility)
+                EnvironmentHomeView(isCompact: Binding(
+                    get: { appModel.isEnvironmentHomeCompact },
+                    set: setEnvironmentHomeCompact
+                ))
+                .enchronScreenAppearance()
+                .browserTabBarVisibility(browserVisibility)
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
@@ -264,7 +345,8 @@ public struct MainView: View {
     private var browserVisibility: BrowserWindowVisibility {
         BrowserWindowVisibility(
             window: .main,
-            playbackResidency: spatialPlatformEffectCoordinator.playbackResidency
+            playbackResidency: spatialPlatformEffectCoordinator.playbackResidency,
+            isCompact: environmentTabBarHidden
         )
     }
 
@@ -295,19 +377,6 @@ public struct MainView: View {
     }
 
     private func selectBrowserTab(_ tab: AppModel.NavigationTab) {
-        guard tab.isContentDestination else {
-#if DEBUG
-            SurfaceInputProbes.record(
-                "navigation tab delivered tab=\(tab.rawValue)",
-                retention: .evidence
-            )
-#endif
-            try? playbackSession.requestEnvironmentCard(
-                mediaSessionID: playbackRuntime.activeSessionID,
-                wasPlaying: playbackRuntime.productLifecycle == .playing
-            )
-            return
-        }
 #if DEBUG
         SurfaceInputProbes.record(
             "navigation tab delivered tab=\(tab.rawValue)",

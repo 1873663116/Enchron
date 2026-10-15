@@ -284,6 +284,8 @@ public final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var disconnectedPlayerSessionIdentifiers: Set<String> = []
     @ObservationIgnored
+    private let setEnvironmentHomeVisible: @MainActor (Bool) -> Void
+    @ObservationIgnored
     public var onPlayerWindowClosedByWearer: (@MainActor () -> Void)?
     public var onSuspendedPlaybackRecoveryRequired: (@MainActor () -> Void)?
     @ObservationIgnored
@@ -322,10 +324,12 @@ public final class SpatialPlatformEffectCoordinator {
         session: PlaybackSessionModel,
         playbackRuntime: PlaybackRuntime,
         playbackVideoEntityStore: PlaybackVideoEntityStore,
+        setEnvironmentHomeVisible: @escaping @MainActor (Bool) -> Void,
         stopPlaybackForFailedPresentationTransfer: @escaping @MainActor () async -> Void,
         persistSettledPlaybackMode: (@MainActor (PlaybackPresentation) -> Void)? = nil
     ) {
         self.appModel = session
+        self.setEnvironmentHomeVisible = setEnvironmentHomeVisible
         self.playbackRuntime = playbackRuntime
         self.playbackVideoEntityStore = playbackVideoEntityStore
         self.stopPlaybackForFailedPresentationTransfer =
@@ -956,10 +960,7 @@ public final class SpatialPlatformEffectCoordinator {
         case .dismissEnvironmentPreview:
             await dismissEnvironmentPreview(execution)
         case .presentEnvironmentCard:
-            guard openWindow(
-                id: PlaybackSessionModel.senseZoneVolumeID,
-                execution: execution
-            ) else { return }
+            setEnvironmentHomeVisible(true)
             _ = await complete(execution, outcome: .succeeded)
         case .normalizeStoppedSpatialPlayback(let keepsEnvironmentOpen):
             if keepsEnvironmentOpen == false {
@@ -1860,10 +1861,7 @@ public final class SpatialPlatformEffectCoordinator {
         execution: Execution
     ) async -> Bool {
         guard appModel.environmentCardResidency != .closed else { return true }
-        guard dismissWindow(
-            id: PlaybackSessionModel.senseZoneVolumeID,
-            execution: execution
-        ) else { return false }
+        setEnvironmentHomeVisible(false)
 
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: .seconds(10))

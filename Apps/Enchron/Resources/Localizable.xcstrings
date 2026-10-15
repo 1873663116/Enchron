@@ -1,6 +1,28 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Minimize environments": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Umgebungen minimieren"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Réduire les environnements"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "環境を最小化"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "환경 최소화"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Свернуть окружения"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "收起环境主页"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "收合環境主頁"}}
+      }
+    },
+    "Restore environments": {
+      "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Umgebungen wiederherstellen"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Rétablir les environnements"}},
+        "ja": {"stringUnit": {"state": "translated", "value": "環境を復元"}},
+        "ko": {"stringUnit": {"state": "translated", "value": "환경 복원"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Развернуть окружения"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "恢复环境主页"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "恢復環境主頁"}}
+      }
+    },
     "License text is unavailable.": {
       "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "Der Lizenztext ist nicht verfügbar."}},
@@ -4480,7 +4502,7 @@
       }
     },
     "Environments": {
-      "comment": "Modules/Playback/Views/SenseZoneVolumeRoot.swift:35",
+      "comment": "Modules/Playback/Views/EnvironmentHomeView.swift",
       "localizations": {
         "de": {
           "stringUnit": {

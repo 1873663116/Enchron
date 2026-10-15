@@ -72,6 +72,7 @@ public enum DesignTokens {
     }
 
     public enum AnimationToken {
+        public static let environmentControlsHover: Animation = .default
         public static let controlsTransition: Animation = .easeInOut(duration: 0.4)
         public static let panelSpring: Animation = .spring(duration: 0.7, bounce: 0.15)
         public static let menuPopup: Animation = .spring(duration: 0.4, bounce: 0.15)
@@ -377,8 +378,8 @@ public enum DesignTokens {
     }
 
     public enum EnvironmentCard {
-        public static let width: CGFloat = 500
-        public static let height: CGFloat = 548
+        public static let width: CGFloat = 390
+        public static let height: CGFloat = 428
         public static let informationHeight: CGFloat = 128
         public static let cornerRadius: CGFloat = Radius.card
         public static let chromePadding: CGFloat = 18
@@ -390,18 +391,28 @@ public enum DesignTokens {
         public static let atmosphericBlurRadius: CGFloat = 2.6
     }
 
+    public enum EnvironmentHome {
+        public static let width: CGFloat = 1088
+        public static let headerHeight: CGFloat = 84
+        public static let controlsPadding: CGFloat = 8
+        public static let controlsSpacing: CGFloat = 8
+        public static let buttonSize: CGFloat = 60
+        public static let compactSize = CGSize(
+            width: buttonSize * 3 + controlsSpacing * 2 + controlsPadding * 2,
+            height: buttonSize + controlsPadding * 2
+        )
+        public static let disabledOpacity: Double = 0.32
+        public static let hoverDismissDelay: Double = 0.2
+    }
+
     public enum EnvironmentCarousel {
-        public static let volumeWidthMeters: CGFloat = 2.20
-        public static let volumeHeightMeters: CGFloat = 0.115
-        public static let volumeDepthMeters: CGFloat = 0.46
-        public static let stageWidth: CGFloat = 2_180
-        public static let stageHeight: CGFloat = 640
-        public static let stageDepth: CGFloat = 480
-        public static let centerCardGap: CGFloat = 560
+        public static let stageWidth: CGFloat = EnvironmentHome.width
+        public static let stageHeight: CGFloat = 510
+        public static let centerCardGap: CGFloat = 330
         public static let outerCardGap: CGFloat = 140
         public static let sideCardYOffset: CGFloat = 10
-        public static let centerDepthOffset: CGFloat = 168
-        public static let sideDepthOffset: CGFloat = 208
+        public static let centerDepthOffset: CGFloat = 132
+        public static let sideDepthOffset: CGFloat = 70
         public static let atmosphericFadeStart: CGFloat = 0.18
         public static let atmosphericFadeEnd: CGFloat = 1.85
         public static let atmosphericFadeMaxOpacity: CGFloat = 0.52

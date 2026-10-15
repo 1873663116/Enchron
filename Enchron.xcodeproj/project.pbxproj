@@ -123,6 +123,7 @@
 				DesignSystem/Components/MenuSelectionRow.swift,
 				DesignSystem/Components/PlaybackChromeGlassButton.swift,
 				DesignSystem/Components/SettingsComponents.swift,
+				DesignSystem/Components/ExpandingControls.swift,
 				DesignSystem/Components/SidebarRow.swift,
 				DesignSystem/Components/SidebarSplitLayout.swift,
 				DesignSystem/Components/SidebarToggleButton.swift,
@@ -266,7 +267,7 @@
 				Playback/Views/PlaybackTopActions.swift,
 				Playback/Views/PlaybackVideoSurface.swift,
 				Playback/Views/PlayerInfoBarView.swift,
-				Playback/Views/SenseZoneVolumeRoot.swift,
+				Playback/Views/EnvironmentHomeView.swift,
 				Playback/Views/WindowPlaybackRootView.swift,
 				Playback/Views/WindowPlayerDeck.swift,
 			);

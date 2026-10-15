@@ -3123,7 +3123,7 @@ class ReachabilityRun:
                 "The navigation handler appended the environment-tab application probe.",
             )
         self.probe_offset = len(opened_probe)
-        volume = self.wait_for_identifier("SenseZone-VolumeRoot")
+        volume = self.wait_for_identifier("EnvironmentHome-page")
         effect_ids = sorted(
             identifier for identifier in self.hierarchy_identifiers(volume)
             if identifier.startswith("EnvironmentCard-effect-")
@@ -3150,7 +3150,7 @@ class ReachabilityRun:
                     "The Environment Card handler appended the selected effect probe.",
                 )
         dismiss = self.app_command("dismissEnvironmentCard")
-        closed = self.wait_for_identifier_absent("SenseZone-VolumeRoot")
+        closed = self.wait_for_identifier_absent("EnvironmentHome-page")
         if (
             environment.get("success") is True
             and isinstance(volume.get("matchedElement"), dict)
@@ -6722,7 +6722,7 @@ class ReachabilityRun:
             MAIN_WINDOW_BROWSER_CONTEXT,
             "Navigation-Ornament-tab-environment",
         )
-        volume = self.wait_for_identifier("SenseZone-VolumeRoot")
+        volume = self.wait_for_identifier("EnvironmentHome-page")
         identifiers = self.hierarchy_identifiers(volume)
         environment_identifier = next(
             (
@@ -6795,7 +6795,7 @@ class ReachabilityRun:
                     "The visible environment button reached the product toggle handler.",
                 )
         dismissed = self.app_command("dismissEnvironmentCard")
-        closed = self.wait_for_identifier_absent("SenseZone-VolumeRoot")
+        closed = self.wait_for_identifier_absent("EnvironmentHome-page")
         if effect_delivered and dismissed.get("success") is True and closed:
             self.delivered(
                 presentation,
@@ -7697,7 +7697,7 @@ class ReachabilityRun:
         offset = len(before)
         opened = self.app_command("openEnvironmentCard")
         self.controller("activate", "--no-screenshot")
-        volume = self.wait_for_identifier("SenseZone-VolumeRoot")
+        volume = self.wait_for_identifier("EnvironmentHome-page")
         identifiers = self.hierarchy_identifiers(volume)
         effect_identifier = next(
             (value for value in sorted(identifiers)
@@ -7776,7 +7776,7 @@ class ReachabilityRun:
 
         self.hold("pace", 0.8)
         dismissed = self.app_command("dismissEnvironmentCard")
-        closed = self.wait_for_identifier_absent("SenseZone-VolumeRoot")
+        closed = self.wait_for_identifier_absent("EnvironmentHome-page")
         if effect_delivered and dismissed.get("success") is True and closed:
             self.delivered(
                 presentation,
@@ -7787,7 +7787,7 @@ class ReachabilityRun:
             )
         elif effect_delivered and dismissed.get("success") is True:
             self.hold("pace", 1.2)
-            closed_retry = self.wait_for_identifier_absent("SenseZone-VolumeRoot")
+            closed_retry = self.wait_for_identifier_absent("EnvironmentHome-page")
             if closed_retry:
                 self.delivered(
                     presentation,

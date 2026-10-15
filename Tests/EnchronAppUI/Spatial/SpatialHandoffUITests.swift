@@ -940,7 +940,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             identifiers: identifiers
         ) else { return }
         let environmentCard = app.descendants(matching: .any)[
-            "SenseZone-VolumeRoot"
+            "EnvironmentHome-page"
         ].firstMatch
         guard requireHittable(
             environmentCard,
@@ -1026,7 +1026,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && $0.string("surfaceContentType") == "equirectangular"
         })
         XCTAssertTrue(
-            app.descendants(matching: .any)["SenseZone-VolumeRoot"]
+            app.descendants(matching: .any)["EnvironmentHome-page"]
                 .firstMatch.waitForNonExistence(timeout: 10),
             "Environment Card must close before Panorama becomes the active presentation."
         )
@@ -1119,7 +1119,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             activeEnvironmentID: activeEnvironmentID
         ) else { return }
         let environmentCard = app.descendants(matching: .any)[
-            "SenseZone-VolumeRoot"
+            "EnvironmentHome-page"
         ].firstMatch
         guard requireHittable(
             environmentCard,
@@ -1186,7 +1186,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             accuracy: 0.001
         )
         XCTAssertTrue(
-            app.descendants(matching: .any)["SenseZone-VolumeRoot"]
+            app.descendants(matching: .any)["EnvironmentHome-page"]
                 .firstMatch.waitForNonExistence(timeout: 10),
             "Environment Card must close before Docked becomes the active presentation."
         )
@@ -1276,7 +1276,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         guard requireHittable(environmentTab, named: "Environments") else { return nil }
         environmentTab.tap()
 
-        let volume = app.descendants(matching: .any)["SenseZone-VolumeRoot"].firstMatch
+        let volume = app.descendants(matching: .any)["EnvironmentHome-page"].firstMatch
         guard requireHittable(volume, named: "Environment Card Volume", timeout: 20) else {
             return nil
         }

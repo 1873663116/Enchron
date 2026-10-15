@@ -30,6 +30,11 @@ class WrapperCallIdentity:
 ALLOWED_WRAPPER_CALLS = Counter(
     {
         WrapperCallIdentity(
+            path=Path("Modules/DesignSystem/Components/ExpandingControls.swift"),
+            enclosing_type="ExpandingControls",
+            callee="enchronWindowGlassBackground",
+        ): 1,
+        WrapperCallIdentity(
             path=Path("Modules/Playback/Views/PlaybackSurfaceSeekFeedback.swift"),
             enclosing_type="PlaybackSurfaceSeekFeedback",
             callee="enchronGlassBackground",
@@ -54,7 +59,7 @@ ALLOWED_WRAPPER_CALLS = Counter(
         WrapperCallIdentity(
             path=Path("Apps/Enchron/MainView.swift"),
             enclosing_type="MainView",
-            callee="enchronWindowGlassBackground",
+            callee="enchronGlassBackground",
         ): 1,
         WrapperCallIdentity(
             path=Path("Apps/Enchron/PlayerView.swift"),

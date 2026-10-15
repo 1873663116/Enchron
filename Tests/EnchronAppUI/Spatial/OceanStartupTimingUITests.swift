@@ -21,7 +21,7 @@ nonisolated final class OceanStartupTimingUITests: XCTestCase {
         guard requireHittable(environmentTab, named: "Environments", timeout: 30) else { return }
         environmentTab.tap()
 
-        let volume = app.descendants(matching: .any)["SenseZone-VolumeRoot"].firstMatch
+        let volume = app.descendants(matching: .any)["EnvironmentHome-page"].firstMatch
         guard requireHittable(volume, named: "Environment Card Volume", timeout: 20) else { return }
 
         for cycle in 1...3 {

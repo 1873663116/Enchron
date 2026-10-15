@@ -101,7 +101,7 @@ flowchart LR
 
 **它是否是解码、解复用、渲染、时钟、字幕栅格化或蓝光结构读取**？属 [`Packages/PlaybackCore`](Packages/PlaybackCore)。该 Package 只依赖 vendored 二进制与自己的 C 桥，不依赖本仓任何模块。`BluRayDisc` 负责 ISO／目录验证、播放列表与轨道描述、选定播放列表的随机读取；`PlaybackCore` 通过自定义 AVIO 接入选定的整片字节流，并保持连续的整片时间轴。文件页识别、卡片与播放项目身份属 `MediaLibrary`，`Modules/Playback` 的 `PlaybackRuntime` 是播放引擎的适配层。
 
-**它是否只在把上面几件东西拼起来时才需要**——Scene 声明、导航壳、模态协调、设置存储？属 [`Apps/Enchron`](Apps/Enchron)。这里现在很薄：`AppModel` 只剩导航标签页，播放会话状态住在 `Modules/Playback` 的 `PlaybackSessionModel`。全部 `WindowGroup`、`Window` 与 `ImmersiveSpace` 在 `EnchronApp.swift` 里声明，内容视图两边都有——`MainView` 在 App，`ImmersiveSpaceView` 与 `SenseZoneVolumeRoot` 在 Playback。新增或删除一个 Scene 必然要动 App。
+**它是否只在把上面几件东西拼起来时才需要**——Scene 声明、导航壳、模态协调、设置存储？属 [`Apps/Enchron`](Apps/Enchron)。这里现在很薄：`AppModel` 只剩导航标签页，播放会话状态住在 `Modules/Playback` 的 `PlaybackSessionModel`。全部 `WindowGroup`、`Window` 与 `ImmersiveSpace` 在 `EnchronApp.swift` 里声明，内容视图两边都有——`MainView` 在 App，`ImmersiveSpaceView` 与 `EnvironmentHomeView` 在 Playback。新增或删除一个 Scene 必然要动 App。
 
 **它是否属于自动回归合同、编译或运行控制**？用户可见承诺、自动化范围、Journey 分组、Scenario 裁决合同、Operation／Oracle 合同与 rubric 属 [`Regression`](Regression)。解析、审查、不可变计划、调度、lease、证据接受、ledger 与 replay 属 [`Scripts/regression`](Scripts/regression)。`Scripts/regression/core` 只依赖 Python 标准库，不 import Xcode、设备控制器或 [`Scripts/verification`](Scripts/verification)；外围 Operation／Oracle 适配器可以调用现有驱动，但不能写 core 状态。该工具层不属于产品 Swift 依赖图，不修改 `Package.swift` 的五个产品 target。
 

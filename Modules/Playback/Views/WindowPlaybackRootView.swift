@@ -103,21 +103,46 @@ extension View {
     }
 
     public func browserWindowGeometry(
+        isCompact: Bool = false,
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil
     ) -> some View {
-        background {
-            WindowPlaybackSceneReader { windowScene in
-                onWindowSceneChange?(windowScene)
-                guard let windowScene else { return }
-                windowScene.requestGeometryUpdate(
-                    UIWindowScene.GeometryPreferences.Vision(
-                        minimumSize: BrowserWindowLayout.minimumSize,
-                        maximumSize: BrowserWindowLayout.maximumSize,
-                        resizingRestrictions: .uniform
-                    )
-                )
+        modifier(BrowserWindowGeometryModifier(isCompact: isCompact, onWindowSceneChange: onWindowSceneChange))
+    }
+}
+
+private struct BrowserWindowGeometryModifier: ViewModifier {
+    let isCompact: Bool
+    let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
+    @State private var scene: UIWindowScene?
+    @State private var expandedSize: CGSize?
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                WindowPlaybackSceneReader { nextScene in
+                    Task { @MainActor in
+                        scene = nextScene
+                        onWindowSceneChange?(nextScene)
+                        updateGeometry()
+                    }
+                }
             }
-        }
+            .onChange(of: isCompact) { _, compact in
+                if compact { expandedSize = scene?.effectiveGeometry.coordinateSpace.bounds.size }
+                updateGeometry()
+            }
+    }
+
+    private func updateGeometry() {
+        guard let scene else { return }
+        scene.requestGeometryUpdate(
+            UIWindowScene.GeometryPreferences.Vision(
+                size: isCompact ? DesignTokens.EnvironmentHome.compactSize : expandedSize,
+                minimumSize: isCompact ? DesignTokens.EnvironmentHome.compactSize : BrowserWindowLayout.minimumSize,
+                maximumSize: isCompact ? DesignTokens.EnvironmentHome.compactSize : BrowserWindowLayout.maximumSize,
+                resizingRestrictions: isCompact ? .freeform : .uniform
+            )
+        )
     }
 }
 

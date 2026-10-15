@@ -519,7 +519,8 @@ final class EnchronApplication {
         playbackSessionModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
 #endif
 
-        appModel = AppModel()
+        let appModel = AppModel()
+        self.appModel = appModel
         self.playbackSessionModel = playbackSessionModel
         self.playbackRuntime = playbackRuntime
         self.playbackVideoEntityStore = playbackVideoEntityStore
@@ -533,6 +534,10 @@ final class EnchronApplication {
             session: playbackSessionModel,
             playbackRuntime: playbackRuntime,
             playbackVideoEntityStore: playbackVideoEntityStore,
+            setEnvironmentHomeVisible: { visible in
+                appModel.isEnvironmentHomeCompact = false
+                appModel.selectedTab = visible ? .environment : .files
+            },
             stopPlaybackForFailedPresentationTransfer: { [weak launcher] in
                 await launcher?.stopPlaybackAndWait(reason: .failure)
             },

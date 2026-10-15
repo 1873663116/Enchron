@@ -44,13 +44,13 @@ IDENTIFIER_FAMILIES = (
     "DesignSystem-",
     "Emby-",
     "EnvironmentCard-",
+    "EnvironmentHome-",
     "FileBrowsing-",
     "MediaLibrary-",
     "Navigation-",
     "PlayerPanel-",
     "PlayerUI-",
     "SampleBufferAcousticCalibration-",
-    "SenseZone-",
     "Settings-",
     "WindowPlayback-",
 )
@@ -889,6 +889,7 @@ INTERACTIVE_CONSTRUCT = re.compile(
 CHAIN_CONTINUATION = re.compile(r"^[.}\)\],]")
 
 REVIEWED_OBSERVATIONS: dict[str, str] = {
+    "EnvironmentHome-compact": "Container for three independently identified buttons; the container has no action.",
     "Emby-Search-NoResults": "The empty search view has no actions. Retry belongs "
     "to the separate search-error branch.",
     "Emby-Connection-Error": "Error text. The retry button beside it has its own "
@@ -1057,6 +1058,7 @@ def presentation_derivation(
         "Emby": ("MediaServerScreen {", "Apps/Enchron/MainView.swift"),
         "FileBrowsing": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
         "MediaLibrary": ("FilesScreenHost()", "Apps/Enchron/MainView.swift"),
+        "EnvironmentHome": ("EnvironmentHomeView(isCompact:", "Apps/Enchron/MainView.swift"),
         "Navigation": ("private var browser: some View", "Apps/Enchron/MainView.swift"),
         "Settings": ("SettingsScreen()", "Apps/Enchron/MainView.swift"),
     }
@@ -1072,11 +1074,11 @@ def presentation_derivation(
     if operation_family == "EnvironmentCard":
         source = required_source_location(
             documents,
-            "Modules/Playback/Views/SenseZoneVolumeRoot.swift",
+            "Modules/Playback/Views/EnvironmentHomeView.swift",
             "EnvironmentCardCarousel(",
         )
         return ["window", "docked"], {
-            "host": "environmentVolume",
+            "host": "browserWindowSurface",
             "sources": [serialized(source)],
         }
 

@@ -4,15 +4,22 @@ import SwiftUI
 
 struct BrowserWindowVisibility {
     let hidesBrowser: Bool
+    let isCompact: Bool
 
     init(
         window: SpatialPlatformWindowIdentity,
-        playbackResidency: PlaybackResidency
+        playbackResidency: PlaybackResidency,
+        isCompact: Bool = false
     ) {
+        self.isCompact = isCompact
         hidesBrowser = SpatialPlatformBrowserWindowVisibilityPolicy.hidesBrowser(
             window: window,
             playbackResidency: playbackResidency
         )
+    }
+
+    var tabBarVisibility: Visibility {
+        isCompact ? .hidden : systemOverlays
     }
 
     var systemOverlays: Visibility {
@@ -33,6 +40,6 @@ extension View {
     func browserTabBarVisibility(
         _ visibility: BrowserWindowVisibility
     ) -> some View {
-        toolbarVisibility(visibility.systemOverlays, for: .tabBar)
+        toolbarVisibility(visibility.tabBarVisibility, for: .tabBar)
     }
 }
