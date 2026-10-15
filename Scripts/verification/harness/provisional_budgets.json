@@ -67,6 +67,12 @@
   "halt": {
     "seconds": 60
   },
+  "host-swift-compile": {
+    "seconds": 300
+  },
+  "host-swift-run": {
+    "seconds": 600
+  },
   "identifier-absence": {
     "seconds": 60
   },

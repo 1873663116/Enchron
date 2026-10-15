@@ -10,7 +10,7 @@ from typing import Callable
 
 from harness.failures import InstrumentFault
 
-LANES = ("device", "simulator")
+LANES = ("device", "simulator", "host")
 TIMING_SAMPLES_FILENAME = "timing-samples.jsonl"
 PROVISIONAL_CEILING_VERBS = frozenset({
     "identifier-appearance",

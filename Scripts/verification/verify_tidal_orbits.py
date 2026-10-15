@@ -5,13 +5,28 @@ import json
 import math
 import re
 import platform
-import subprocess
+import sys
 import tempfile
 from pathlib import Path
+
+
+if str(Path(__file__).parent) not in sys.path:
+    sys.path.insert(0, str(Path(__file__).parent))
+from harness import BudgetProvider, LocalToolRunner
 
 import numpy as np
 from scipy.optimize import linprog
 from scipy.spatial import ConvexHull
+
+
+TOOLS = LocalToolRunner("host", budgets=BudgetProvider())
+
+
+def run(verb, command):
+    completed = TOOLS.run(verb, command)
+    if completed.returncode != 0:
+        raise SystemExit(f'{verb} failed with {completed.returncode}: {completed.stderr.strip()}')
+    return completed.stdout
 
 
 MOVING = re.compile(r'(RockFragment\d+|BuildingFragment02|BrokenRoad01)')
@@ -153,11 +168,11 @@ def main():
         root = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory(prefix='orbit-export-', dir=args.report.parent) as directory:
             binary = Path(directory) / 'export'
-            subprocess.run(['xcrun', 'swiftc', '-parse-as-library', '-swift-version', '6',
+            run('host-swift-compile', ['xcrun', 'swiftc', '-parse-as-library', '-swift-version', '6',
                             '-default-isolation', 'MainActor', '-target', f'{platform.machine()}-apple-macos27.0',
                             str(root / 'Packages/TidalEnvironment/Sources/TidalEnvironment/TidalScenePlacement.swift'),
-                            str(Path(__file__).with_name('TidalOrbitGeometryExport.swift')), '-o', str(binary)], check=True)
-            subprocess.run([str(binary), str(args.scene.resolve()), str(args.meshes.resolve())], check=True)
+                            str(Path(__file__).with_name('TidalOrbitGeometryExport.swift')), '-o', str(binary)])
+            run('host-swift-run', [str(binary), str(args.scene.resolve()), str(args.meshes.resolve())])
     encoded = args.meshes.read_bytes()
     source_hash = hashlib.sha256(encoded).hexdigest()
     rows = json.loads(encoded)

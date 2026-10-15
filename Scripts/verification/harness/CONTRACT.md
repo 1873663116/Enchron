@@ -58,7 +58,7 @@ runner 输出的 JSON 文档在失败时必须携带：
 
 ## 预算（harness/budgets.py）
 
-- 时长样本按 lane 分文件：`Scripts/verification/controller_timings.device.json` 与 `controller_timings.simulator.json`。旧的合并文件 `controller_timings.json`（`simulator:` 前缀区分 lane）由一次性迁移脚本拆分后删除，迁移脚本随 runner 改动交付。
+- 时长样本按 lane 分文件：`Scripts/verification/controller_timings.device.json`、`controller_timings.simulator.json` 与 `controller_timings.host.json`。lane 是动作发生的位置：`device` 与 `simulator` 是产品运行的设备，`host` 是主机本地编译与运行探针。旧的合并文件 `controller_timings.json`（`simulator:` 前缀区分 lane）由一次性迁移脚本拆分后删除，迁移脚本随 runner 改动交付。
 - 新样本格式，每 verb 上限 40 条，先进先出：
 
 ```json
