@@ -4,13 +4,13 @@
     "DesignSystem",
     "Emby",
     "EnvironmentCard",
+    "EnvironmentHome",
     "FileBrowsing",
     "MediaLibrary",
     "Navigation",
     "PlayerPanel",
     "PlayerUI",
     "SampleBufferAcousticCalibration",
-    "SenseZone",
     "Settings",
     "WindowPlayback"
   ],
@@ -935,6 +935,78 @@
         }
       ],
       "template": "EnvironmentCard-effect-{environment.environment.rawValue}"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentHome",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
+        }
+      ],
+      "template": "EnvironmentHome-button-appearance"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentHome",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
+        }
+      ],
+      "template": "EnvironmentHome-button-minimize"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentHome",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
+        }
+      ],
+      "template": "EnvironmentHome-button-restore"
+    },
+    {
+      "action": "activate",
+      "family": "EnvironmentHome",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
+        }
+      ],
+      "template": "EnvironmentHome-button-scene"
+    },
+    {
+      "action": null,
+      "family": "EnvironmentHome",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
+        }
+      ],
+      "template": "EnvironmentHome-compact"
+    },
+    {
+      "action": null,
+      "family": "EnvironmentHome",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
+        }
+      ],
+      "template": "EnvironmentHome-page"
     },
     {
       "action": "activate",
@@ -3211,18 +3283,6 @@
     },
     {
       "action": null,
-      "family": "SenseZone",
-      "role": "observation",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
-        }
-      ],
-      "template": "SenseZone-VolumeRoot"
-    },
-    {
-      "action": null,
       "family": "Settings",
       "role": "observation",
       "scope": "product",
@@ -3993,18 +4053,17 @@
       "identifierTemplate": "EnvironmentCard-button-environment-{environment.environment.rawValue}",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "environmentVolume",
+        "host": "browserWindowSurface",
         "sources": [
           {
-            "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
+            "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "main-window-browser"
       ],
-      "proofDomain": "playback",
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4012,18 +4071,17 @@
       "identifierTemplate": "EnvironmentCard-card",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "environmentVolume",
+        "host": "browserWindowSurface",
         "sources": [
           {
-            "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
+            "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "main-window-browser"
       ],
-      "proofDomain": "playback",
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4031,18 +4089,17 @@
       "identifierTemplate": "EnvironmentCard-carousel",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "environmentVolume",
+        "host": "browserWindowSurface",
         "sources": [
           {
-            "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
+            "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "main-window-browser"
       ],
-      "proofDomain": "playback",
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4050,18 +4107,17 @@
       "identifierTemplate": "EnvironmentCard-default-{environment.id}",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "environmentVolume",
+        "host": "browserWindowSurface",
         "sources": [
           {
-            "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
+            "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "main-window-browser"
       ],
-      "proofDomain": "playback",
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {
@@ -4069,18 +4125,89 @@
       "identifierTemplate": "EnvironmentCard-effect-{environment.environment.rawValue}",
       "kind": "activate",
       "proofContextDerivation": {
-        "host": "environmentVolume",
+        "host": "browserWindowSurface",
         "sources": [
           {
-            "path": "Modules/Playback/Views/SenseZoneVolumeRoot.swift"
+            "path": "Modules/Playback/Views/EnvironmentHomeView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window",
-        "docked"
+        "main-window-browser"
       ],
-      "proofDomain": "playback",
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentHome-button-appearance",
+      "identifierTemplate": "EnvironmentHome-button-appearance",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentHome-button-minimize",
+      "identifierTemplate": "EnvironmentHome-button-minimize",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentHome-button-restore",
+      "identifierTemplate": "EnvironmentHome-button-restore",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:EnvironmentHome-button-scene",
+      "identifierTemplate": "EnvironmentHome-button-scene",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
       "source": "accessibilityIdentifier"
     },
     {

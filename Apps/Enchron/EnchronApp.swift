@@ -1,3 +1,4 @@
+import DesignSystem
 import EnvironmentSceneContract
 import RealityKitScripting
 import Playback
@@ -61,6 +62,11 @@ struct EnchronApp: App {
                     .sceneSessionsWereDiscarded(identifiers)
             }
             .enchronEnvironment(application)
+            .frame(
+                maxWidth: .infinity,
+                maxHeight: .infinity,
+                alignment: application.appModel.isEnvironmentHomeCompact ? .bottom : .center
+            )
             .onAppear {
                 SurfaceInputProbes.record("mainWindowScene appeared")
                 application.spatialPlatformEffectCoordinator
@@ -126,15 +132,6 @@ struct EnchronApp: App {
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.suppressed)
 #endif
-
-        Window("Environment", id: PlaybackSessionModel.senseZoneVolumeID) {
-            SenseZoneVolumeRoot()
-                .enchronEnvironment(application)
-        }
-        .windowStyle(.volumetric)
-        .defaultSize(width: 1.4, height: 0.9, depth: 0.8, in: .meters)
-        .restorationBehavior(.disabled)
-        .defaultLaunchBehavior(.suppressed)
 
         ImmersiveSpace(id: application.playbackSessionModel.immersiveSpaceID) {
             ImmersiveSpaceView()

@@ -158,6 +158,8 @@ public struct EnvironmentCard: View {
             height: DesignTokens.EnvironmentCard.height
         )
         .opacity(Double(clampedDetailVisibility))
+        .allowsHitTesting(clampedDetailVisibility == 1)
+        .accessibilityHidden(clampedDetailVisibility < 1)
     }
 
     private var topReadabilityScrim: some View {
@@ -173,6 +175,8 @@ public struct EnvironmentCard: View {
             height: DesignTokens.EnvironmentCard.height
         )
         .opacity(Double(clampedDetailVisibility))
+        .allowsHitTesting(clampedDetailVisibility == 1)
+        .accessibilityHidden(clampedDetailVisibility < 1)
     }
 
     private var environmentInfoPanel: some View {
@@ -201,6 +205,8 @@ public struct EnvironmentCard: View {
                 .mask(infoMaterialFadeMask)
         }
         .opacity(Double(clampedDetailVisibility))
+        .allowsHitTesting(clampedDetailVisibility == 1)
+        .accessibilityHidden(clampedDetailVisibility < 1)
     }
 
     private var infoMaterialFadeMask: some View {
@@ -303,6 +309,9 @@ enum EnvironmentCarouselLayout {
 }
 
 struct EnvironmentCardCarousel: View {
+#if DEBUG
+    @Environment(PlaybackSessionModel.self) private var appModel
+#endif
     var environments: [FeaturedEnvironment] = FeaturedEnvironment.catalog
     var activeEnvironment: SpatialSceneDomain.CinemaEnvironment?
     var cardDefaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean
@@ -313,6 +322,7 @@ struct EnvironmentCardCarousel: View {
         (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
     var onExpand:
         (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
+
 
     @State private var scrollPosition: CGFloat = 0
     @State private var dragTranslation: CGFloat = 0
@@ -332,6 +342,7 @@ struct EnvironmentCardCarousel: View {
                 .accessibilityElement(children: .ignore)
                 .accessibilityIdentifier("EnvironmentCard-carousel")
                 .accessibilityLabel("Environment carousel")
+                .accessibilityValue(renderItems.min { abs($0.visualPosition) < abs($1.visualPosition) }?.environment.id ?? "")
 
             if environments.isEmpty {
                 EmptyView()
@@ -367,9 +378,8 @@ struct EnvironmentCardCarousel: View {
             }
         }
         .frame(width: Metrics.stageWidth, height: Metrics.stageHeight)
-        .enchronSpatialFrame(depth: Metrics.stageDepth)
         .contentShape(Rectangle())
-        .gesture(dragGesture)
+        .simultaneousGesture(dragGesture)
         .onAppear(perform: centerDefaultEnvironment)
         .onChange(of: prefetchEnvironment, initial: true) { _, environment in
             guard activeEnvironment == nil else { return }
@@ -380,6 +390,9 @@ struct EnvironmentCardCarousel: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             EnvironmentSceneMapping.prefetch([])
+        }
+        .onChange(of: defaultEffect) { _, effect in
+            if let activeEnvironment { selectedEffects[activeEnvironment] = effect }
         }
         .onChange(of: isPresented) { _, presented in
             if presented { centerDefaultEnvironment() }
@@ -409,7 +422,8 @@ struct EnvironmentCardCarousel: View {
     private func selectedEffect(
         for environment: FeaturedEnvironment
     ) -> SpatialSceneDomain.EnvironmentEffect {
-        selectedEffects[environment.environment] ?? defaultEffect
+        if environment.environment == activeEnvironment { return defaultEffect }
+        return selectedEffects[environment.environment] ?? defaultEffect
     }
 
     private var renderItems: [RenderItem] {
@@ -444,6 +458,9 @@ struct EnvironmentCardCarousel: View {
         DragGesture(minimumDistance: DesignTokens.Stroke.regular)
             .onChanged { value in
                 if !isDragging {
+#if DEBUG
+                    appModel.recordSurfaceInputProbe("environmentHome drag=began", retention: .evidence)
+#endif
                     motionGeneration += 1
                     detailRevealTask?.cancel()
                     isDragging = true
@@ -453,6 +470,9 @@ struct EnvironmentCardCarousel: View {
                 dragTranslation = value.translation.width
             }
             .onEnded { value in
+#if DEBUG
+                appModel.recordSurfaceInputProbe("environmentHome drag=ended translation=\(value.translation.width)", retention: .evidence)
+#endif
                 let actualProgress = -value.translation.width / Metrics.dragDistance
                 let projectedProgress = -value.predictedEndTranslation.width / Metrics.dragDistance
                 let actualPosition = scrollPosition + actualProgress
@@ -647,7 +667,6 @@ struct EnvironmentCardCarousel: View {
     private enum Metrics {
         static let stageWidth: CGFloat = DesignTokens.EnvironmentCarousel.stageWidth
         static let stageHeight: CGFloat = DesignTokens.EnvironmentCarousel.stageHeight
-        static let stageDepth: CGFloat = DesignTokens.EnvironmentCarousel.stageDepth
         static let dragDistance: CGFloat = DesignTokens.EnvironmentCarousel.dragDistance
         static let snapThreshold: CGFloat = DesignTokens.EnvironmentCarousel.snapThreshold
         static let maximumPredictedStepLead: CGFloat = DesignTokens.EnvironmentCarousel.maximumPredictedStepLead

@@ -68,7 +68,7 @@ def check_the_modifier_names_the_whole_set() -> None:
             + ", so a hidden browser keeps a surface the wearer can still reach",
         )
     require(
-        "toolbarVisibility(visibility.systemOverlays, for: .tabBar)" in source,
+        "toolbarVisibility(visibility.tabBarVisibility, for: .tabBar)" in source,
         "the browser tab-bar modifier no longer hides the tab bar",
     )
 

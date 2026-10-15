@@ -149,7 +149,11 @@ public struct SpatialPlaybackSurfaceObservation: Equatable {
 @MainActor
 @Observable
 public final class PlaybackSessionModel {
-    public static let senseZoneVolumeID = "senseZoneVolume"
+    private var lastOpenedEnvironment: (
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect
+    )?
+
 
     public let immersiveSpaceID = "ImmersiveSpace"
 
@@ -371,6 +375,30 @@ public final class PlaybackSessionModel {
         )
     }
 
+    public func toggleEnvironmentPreview(
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect
+    ) throws {
+        if environmentContext.environment == environment {
+            try requestEnvironmentPreviewDismissal()
+        } else {
+            guard immersiveSpaceResidency == .closed else { return }
+            EnvironmentSceneMapping.prefetch([environment])
+            try requestEnvironmentPreview(environment: environment, effect: environment.supportsDarkAppearance ? effect : nil)
+        }
+    }
+
+    public func toggleLastEnvironmentPreview() throws {
+        if environmentContext.environment != nil {
+            try requestEnvironmentPreviewDismissal()
+            return
+        }
+        try toggleEnvironmentPreview(
+            environment: lastOpenedEnvironment?.environment ?? defaultCardEnvironment,
+            effect: lastOpenedEnvironment?.effect ?? currentEnvironmentEffect
+        )
+    }
+
     public func requestEnvironmentPreviewDismissal() throws {
         try playbackPresentationModel.requestEnvironmentPreviewDismissal()
     }
@@ -474,7 +502,15 @@ public final class PlaybackSessionModel {
         default:
             break
         }
+        if immersiveSpaceResidency == .open,
+           let environment = environmentContext.environment {
+            lastOpenedEnvironment = (environment, currentEnvironmentEffect)
+        }
         let resolution = playbackPresentationModel.receiveSpatialPlatformResult(event)
+        if immersiveSpaceResidency == .open,
+           let environment = environmentContext.environment {
+            lastOpenedEnvironment = (environment, currentEnvironmentEffect)
+        }
         switch resolution {
         case .presentationCommitted(let presentation):
             #if DEBUG

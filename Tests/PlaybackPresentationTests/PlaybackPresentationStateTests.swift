@@ -16,6 +16,26 @@ struct PlaybackPresentationStateTests {
         let error: PlaybackPresentationTransitionError?
     }
 
+    @Test("Environment scene toggle opens, closes, and reopens the selected appearance")
+    func environmentSceneToggleRoundTrip() throws {
+        let session = PlaybackSessionModel()
+        try session.toggleEnvironmentPreview(environment: .placeholderRed, effect: .dark)
+        #expect(session.pendingSpatialPlatformEffect?.effect == .presentEnvironmentPreview)
+        _ = try completePendingEffect(session)
+        #expect(session.environmentContext.environment == .placeholderRed)
+        #expect(session.currentEnvironmentEffect == .dark)
+
+        try session.toggleEnvironmentPreview(environment: .placeholderRed, effect: .dark)
+        #expect(session.pendingSpatialPlatformEffect?.effect == .dismissEnvironmentPreview)
+        _ = try completePendingEffect(session)
+        #expect(session.environmentContext.environment == nil)
+
+        try session.toggleEnvironmentPreview(environment: .placeholderRed, effect: .dark)
+        _ = try completePendingEffect(session)
+        #expect(session.environmentContext.environment == .placeholderRed)
+        #expect(session.currentEnvironmentEffect == .dark)
+    }
+
     @Test("delivery accessibility exposes dynamic range and audio facts")
     func deliveryAccessibilityFacts() {
         var diagnostics = PlaybackDiagnostics()
@@ -3062,13 +3082,6 @@ struct PlaybackPresentationStateTests {
                 thumbDiameter: thumbDiameter
             ) == 1
         )
-    }
-
-    @Test("environment card reveal motion stays within the approved range")
-    func environmentCardRevealMotionContract() {
-        #expect(EnvironmentCardRevealMotion.initialScale == 0.985)
-        #expect((0.22...0.32).contains(EnvironmentCardRevealMotion.standardDuration))
-        #expect((0.10...0.15).contains(EnvironmentCardRevealMotion.crossFadeDuration))
     }
 
     @Test("ended and replaced sessions invalidate the previous Media Session")

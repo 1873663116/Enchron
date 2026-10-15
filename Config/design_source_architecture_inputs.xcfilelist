@@ -21,6 +21,7 @@ $(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenuRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AsyncArtworkImage.swift
 $(SRCROOT)/Modules/DesignSystem/Components/ButtonIcon.swift
 $(SRCROOT)/Modules/DesignSystem/Components/CardGrid.swift
+$(SRCROOT)/Modules/DesignSystem/Components/ExpandingControls.swift
 $(SRCROOT)/Modules/DesignSystem/Components/FlowGridLayout.swift
 $(SRCROOT)/Modules/DesignSystem/Components/GridCard.swift
 $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
@@ -162,6 +163,7 @@ $(SRCROOT)/Modules/Playback/Views/DetentedRangeSlider.swift
 $(SRCROOT)/Modules/Playback/Views/DeveloperStatsOverlay.swift
 $(SRCROOT)/Modules/Playback/Views/DragRotationModifier.swift
 $(SRCROOT)/Modules/Playback/Views/EnvironmentComponents.swift
+$(SRCROOT)/Modules/Playback/Views/EnvironmentHomeView.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackFormatters.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackPanel.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackRealityPresenter.swift
@@ -172,6 +174,5 @@ $(SRCROOT)/Modules/Playback/Views/PlaybackTimeline.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackTopActions.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackVideoSurface.swift
 $(SRCROOT)/Modules/Playback/Views/PlayerInfoBarView.swift
-$(SRCROOT)/Modules/Playback/Views/SenseZoneVolumeRoot.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlaybackRootView.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlayerDeck.swift

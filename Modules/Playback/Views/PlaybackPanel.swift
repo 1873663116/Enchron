@@ -252,39 +252,6 @@ private enum PlaybackControlPanelSurface {
     case playerControlDock
 }
 
-private struct CenteredRevealShape: InsettableShape {
-    var size: CGSize
-    var cornerRadius: CGFloat
-
-    nonisolated var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(size.width, size.height) }
-        set { size = CGSize(width: newValue.first, height: newValue.second) }
-    }
-
-    nonisolated func path(in rect: CGRect) -> Path {
-        let clamped = CGSize(
-            width: min(size.width, rect.width),
-            height: min(size.height, rect.height)
-        )
-        let centered = CGRect(
-            x: rect.midX - clamped.width / 2,
-            y: rect.midY - clamped.height / 2,
-            width: clamped.width,
-            height: clamped.height
-        )
-        return Path(roundedRect: centered, cornerRadius: cornerRadius, style: .continuous)
-    }
-
-    nonisolated func inset(by amount: CGFloat) -> CenteredRevealShape {
-        var copy = self
-        copy.size = CGSize(
-            width: max(size.width - amount * 2, 0),
-            height: max(size.height - amount * 2, 0)
-        )
-        return copy
-    }
-}
-
 private struct RevealShell: ViewModifier {
     let surface: PlaybackControlPanelSurface
     let shape: RoundedRectangle

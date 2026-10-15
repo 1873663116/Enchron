@@ -228,18 +228,27 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
     }
 
     @MainActor
+    func testCompactEnvironmentKeepsWindowBarAndHidesTabs() {
+        let compact = BrowserWindowVisibility(window: .main, playbackResidency: .browsing, isCompact: true)
+        XCTAssertEqual(compact.tabBarVisibility, .hidden)
+        XCTAssertEqual(compact.systemOverlays, .automatic)
+        let expanded = BrowserWindowVisibility(window: .main, playbackResidency: .browsing)
+        XCTAssertEqual(expanded.tabBarVisibility, .automatic)
+    }
+
+    @MainActor
     func testNavigationResolvesEveryTabForEveryVisibleSubset() {
         typealias Tab = AppModel.NavigationTab
         let tabs: [Tab] = [.files, .emby, .plex, .jellyfin, .settings, .environment]
         let cases: [(MediaLibraryTabVisibility, [Tab])] = [
-            (.init(emby: false, plex: false, jellyfin: false), [.files, .files, .files, .files, .settings, .files]),
-            (.init(emby: false, plex: false, jellyfin: true), [.files, .files, .files, .jellyfin, .settings, .files]),
-            (.init(emby: false, plex: true, jellyfin: false), [.files, .files, .plex, .files, .settings, .files]),
-            (.init(emby: false, plex: true, jellyfin: true), [.files, .files, .plex, .jellyfin, .settings, .files]),
-            (.init(emby: true, plex: false, jellyfin: false), [.files, .emby, .files, .files, .settings, .files]),
-            (.init(emby: true, plex: false, jellyfin: true), [.files, .emby, .files, .jellyfin, .settings, .files]),
-            (.init(emby: true, plex: true, jellyfin: false), [.files, .emby, .plex, .files, .settings, .files]),
-            (.init(emby: true, plex: true, jellyfin: true), [.files, .emby, .plex, .jellyfin, .settings, .files])
+            (.init(emby: false, plex: false, jellyfin: false), [.files, .files, .files, .files, .settings, .environment]),
+            (.init(emby: false, plex: false, jellyfin: true), [.files, .files, .files, .jellyfin, .settings, .environment]),
+            (.init(emby: false, plex: true, jellyfin: false), [.files, .files, .plex, .files, .settings, .environment]),
+            (.init(emby: false, plex: true, jellyfin: true), [.files, .files, .plex, .jellyfin, .settings, .environment]),
+            (.init(emby: true, plex: false, jellyfin: false), [.files, .emby, .files, .files, .settings, .environment]),
+            (.init(emby: true, plex: false, jellyfin: true), [.files, .emby, .files, .jellyfin, .settings, .environment]),
+            (.init(emby: true, plex: true, jellyfin: false), [.files, .emby, .plex, .files, .settings, .environment]),
+            (.init(emby: true, plex: true, jellyfin: true), [.files, .emby, .plex, .jellyfin, .settings, .environment])
         ]
         for (visibility, expected) in cases {
             XCTAssertEqual(tabs.map { $0.contentDestination(in: visibility) }, expected)
