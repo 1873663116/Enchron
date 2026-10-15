@@ -244,6 +244,12 @@ class PrePushHookTests(unittest.TestCase):
         script = rules / "run_verification.py"
         script.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
         script.chmod(0o755)
+        binaries = root / "bin"
+        binaries.mkdir()
+        lfs = binaries / "git-lfs"
+        lfs.write_text(f'#!/bin/sh\ncat > "{root / "lfs-input"}"\nprintf "%s\\n" "$*" > "{root / "lfs-args"}"\n', encoding="utf-8")
+        lfs.chmod(0o755)
+        environment = dict(os.environ, PATH=f"{binaries}{os.pathsep}{os.environ['PATH']}")
         hook = Path(__file__).resolve().parents[3] / ".githooks" / "pre-push"
         result = subprocess.run(
             ["/bin/zsh", str(hook), "origin", "git@example.com:repo.git"],
@@ -251,6 +257,7 @@ class PrePushHookTests(unittest.TestCase):
             input=stdin,
             capture_output=True,
             text=True,
+            env=environment,
         )
         return result, marker
 
@@ -283,6 +290,17 @@ class PrePushHookTests(unittest.TestCase):
         result, marker = self.run_hook(stdin)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(marker.exists())
+        self.assertEqual((marker.parent / "lfs-input").read_text(), stdin)
+        self.assertEqual(
+            (marker.parent / "lfs-args").read_text().strip(),
+            "pre-push origin git@example.com:repo.git",
+        )
+
+    def test_an_empty_push_runs_neither_verification_nor_lfs(self) -> None:
+        result, marker = self.run_hook("")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertFalse((marker.parent / "lfs-input").exists())
 
 
 class TreeHygieneTests(unittest.TestCase):

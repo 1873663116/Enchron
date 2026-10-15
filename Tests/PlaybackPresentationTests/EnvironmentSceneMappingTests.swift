@@ -12,19 +12,19 @@ import Testing
 @MainActor
 struct EnvironmentSceneMappingTests {
 
-    @Test("the catalog exposes Ocean followed by the three placeholders, in that order")
-    func catalogUsesOceanAndThreePlaceholders() {
+    @Test("the catalog exposes Ocean and Tidal followed by the three placeholders")
+    func catalogUsesAuthoredScenesAndPlaceholders() {
         #expect(
             FeaturedEnvironment.catalog.map(\.environment)
-                == [.ocean, .placeholderRed, .placeholderGreen, .placeholderBlue]
+                == [.ocean, .tidal, .placeholderRed, .placeholderGreen, .placeholderBlue]
         )
         #expect(
             FeaturedEnvironment.catalog.map(\.id)
-                == ["ocean", "placeholder-red", "placeholder-green", "placeholder-blue"]
+                == ["ocean", "tidal", "placeholder-red", "placeholder-green", "placeholder-blue"]
         )
         #expect(
             SpatialSceneDomain.CinemaEnvironment.cardEnvironments
-                == [.ocean, .placeholderRed, .placeholderGreen, .placeholderBlue]
+                == [.ocean, .tidal, .placeholderRed, .placeholderGreen, .placeholderBlue]
         )
         #expect(SpatialSceneDomain.EnvironmentEffect.allCases == [.light, .dark])
     }
@@ -98,6 +98,38 @@ struct EnvironmentSceneMappingTests {
             EnvironmentSceneMapping.defaultScreenHeightMeters(forEnvironmentID: "not-a-real-environment")
                 == 8
         )
+    }
+
+    @Test("Tidal clamps saved and requested translations while preserving pitch control")
+    func tidalLocksTranslation() async throws {
+        let suite = "EnvironmentSceneMappingTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)
+        await store.savePosition(
+            for: "tidal", distanceMeters: 20, elevationDegrees: 25,
+            screenScale: 8, viewerHeightMeters: 1
+        )
+        let model = PlaybackPresentationModel(screenPositionStore: store, environmentDefaults: defaults)
+        try model.activateEnvironment(.tidal, effect: .light)
+        await model.loadDockedPlacement()
+        #expect(model.dockedPlacement.distanceMeters == 13.550063)
+        #expect(model.dockedPlacement.viewerHeightMeters == 0)
+        #expect(model.dockedPlacement.elevationDegrees == 25)
+        #expect(model.dockedPlacement.limits.distanceRange == 13.550063...13.550063)
+        #expect(model.dockedPlacement.limits.viewerHeightRange == 0...0)
+
+        model.setScreenDistance(6)
+        model.setViewerHeight(-2)
+        model.setScreenElevation(35)
+        #expect(model.dockedPlacement.distanceMeters == 13.550063)
+        #expect(model.dockedPlacement.viewerHeightMeters == 0)
+        #expect(model.dockedPlacement.elevationDegrees == 35)
+
+        model.resetDockedPlacement()
+        #expect(model.dockedPlacement.distanceMeters == 13.550063)
+        #expect(model.dockedPlacement.viewerHeightMeters == 0)
+        #expect(model.dockedPlacement.elevationDegrees == 0)
     }
 
     @Test(

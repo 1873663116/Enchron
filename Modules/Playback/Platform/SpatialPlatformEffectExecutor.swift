@@ -2019,6 +2019,17 @@ public final class SpatialPlatformEffectCoordinator {
         actions: SceneActions,
         execution: Execution
     ) async -> SpatialPlatformImmersiveOpenWaitOutcome {
+        let environment = appModel.presentationTransition?.targetEnvironment
+            ?? appModel.environmentContext
+        if let selected = environment.environment {
+            do {
+                try await EnvironmentSceneMapping.waitForPrefetch(for: selected)
+            } catch {
+                appModel.recordSurfaceInputProbe("environmentPrefetch failed environment=\(selected.rawValue)")
+                return .openActionRejected
+            }
+        }
+        guard executionIsLive(execution) else { return .revoked }
         let observationRevision = immersiveSpaceObservation.revision
         markVisibleSpatialSideEffect(execution)
         let result = await actions.openImmersiveSpace(

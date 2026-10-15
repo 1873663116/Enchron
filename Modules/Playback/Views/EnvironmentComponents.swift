@@ -1,5 +1,6 @@
 import DesignSystem
 import SwiftUI
+import UIKit
 
 public struct FeaturedEnvironment: Identifiable {
     public let environment: SpatialSceneDomain.CinemaEnvironment
@@ -30,6 +31,12 @@ public struct FeaturedEnvironment: Identifiable {
             lightImageName: "EnvironmentOcean",
             darkImageName: "EnvironmentOceanDark",
             title: String(localized: "Ocean")
+        ),
+        .init(
+            environment: .tidal,
+            lightImageName: "EnvironmentTidal",
+            darkImageName: "EnvironmentTidal",
+            title: String(localized: "Tidal")
         ),
         .init(
             environment: .placeholderRed,
@@ -123,8 +130,8 @@ public struct EnvironmentCard: View {
                     AppearanceModeButton(
                         isActive: effect == .dark,
                         accessibilityLabel: effect == .light
-                            ? "Switch environment to Dark Mode"
-                            : "Switch environment to Light Mode",
+                            ? String(localized: "Dark Mode")
+                            : String(localized: "Light Mode"),
                         action: {
                             onEffectChange(effect == .light ? .dark : .light)
                         },
@@ -364,9 +371,27 @@ struct EnvironmentCardCarousel: View {
         .contentShape(Rectangle())
         .gesture(dragGesture)
         .onAppear(perform: centerDefaultEnvironment)
+        .onChange(of: prefetchEnvironment, initial: true) { _, environment in
+            guard activeEnvironment == nil else { return }
+            EnvironmentSceneMapping.prefetch(environment.map { [$0] } ?? [])
+        }
+        .onDisappear {
+            if activeEnvironment == nil { EnvironmentSceneMapping.prefetch([]) }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            EnvironmentSceneMapping.prefetch([])
+        }
         .onChange(of: isPresented) { _, presented in
             if presented { centerDefaultEnvironment() }
         }
+    }
+
+    private var prefetchEnvironment: SpatialSceneDomain.CinemaEnvironment? {
+        guard isPresented, activeEnvironment == nil, !isDragging, !isSettling,
+              !environments.isEmpty else { return nil }
+        let index = Int(currentScrollPosition.rounded())
+        let wrapped = ((index % environments.count) + environments.count) % environments.count
+        return environments[wrapped].environment
     }
 
     private func centerDefaultEnvironment() {

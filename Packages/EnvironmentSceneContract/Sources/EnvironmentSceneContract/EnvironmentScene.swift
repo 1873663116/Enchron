@@ -147,30 +147,39 @@ public nonisolated struct EnvironmentScreenRestPose: Sendable, Equatable {
     }
 }
 
+public nonisolated enum EnvironmentVideoReflectionSource: Sendable, Equatable {
+    case dockingRegion
+    case displayedPixelBuffer
+}
+
 public nonisolated struct EnvironmentSceneDescriptor: Sendable, Equatable {
     public var identifier: String
     public var geometry: EnvironmentSceneGeometry
     public var supportsDarkAppearance: Bool
+    public var videoReflectionSource: EnvironmentVideoReflectionSource
 
     public init(
         identifier: String,
         geometry: EnvironmentSceneGeometry,
-        supportsDarkAppearance: Bool
+        supportsDarkAppearance: Bool,
+        videoReflectionSource: EnvironmentVideoReflectionSource = .displayedPixelBuffer
     ) {
         self.identifier = identifier
         self.geometry = geometry
         self.supportsDarkAppearance = supportsDarkAppearance
+        self.videoReflectionSource = videoReflectionSource
     }
 }
 
-public nonisolated struct EnvironmentAppearance: Sendable, Equatable {
-    public static let light = EnvironmentAppearance(brightness: 1)
-    public static let dark = EnvironmentAppearance(brightness: 0.5)
+public nonisolated enum EnvironmentAppearance: Sendable, Equatable {
+    case light
+    case dark
 
-    public var brightness: Float
-
-    public init(brightness: Float) {
-        self.brightness = brightness
+    public var brightness: Float {
+        switch self {
+        case .light: 1
+        case .dark: 0.5
+        }
     }
 }
 

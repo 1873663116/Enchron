@@ -18,6 +18,7 @@ Packages/PlaybackCore/       播放引擎，独立 Package
 Packages/EnvironmentSceneContract/  观影环境场景的契约：协议、几何、屏幕静止位姿与屏幕状态类型
 Packages/OceanEnvironment/   Ocean 场景包：ocean.reality、海面模拟运行时与契约实现
 Packages/QuietRoomEnvironment/  Quiet Room 场景包：quiet_room.reality 与契约实现
+Packages/TidalEnvironment/  潮汐力场景包：tidal.reality、参数解码与叠化材质、星空及碎片运动与契约实现
 Tests/                       Package 测试、App 测试、UI 测试与检查器自测
 Regression/                  自动回归的 Promise、Journey、Scenario、Operation、Oracle 与 rubric 合同
 Scripts/regression/          可移植的回归编译核心、运行时、Operation／Oracle 适配器与 CLI
@@ -67,7 +68,7 @@ flowchart LR
     App --> PlaybackCore
 ```
 
-图里只画本仓模块之间的边。此外 `MediaLibrary` 依赖 AMSMB2，`Playback` 依赖 EnvironmentSceneContract、OceanEnvironment、QuietRoomEnvironment 与 RealityKitScripting，`Enchron` 依赖 RealityKitScripting。`Packages/PlaybackCore` 提供播放引擎 `PlaybackCore` 与光盘读取 `BluRayDisc` 两个 library 产品；前者依赖 PlaybackFFmpeg、PlaybackSubtitleRenderer，后者经 BluRayDiscBridge 依赖含 libbluray 与 libudfread 的 PlaybackBluRay。三个二进制均以 vendored xcframework 提供。场景包只依赖 EnvironmentSceneContract 与 RealityKit，互不依赖，也不依赖本仓模块；Ocean 包内 `Sources/OceanEnvironment/Vendor/OceanProbe` 是从 Xrplay_scene 的 OceanProbePlugin 运行时复制来的海面模拟，去掉了只在 Reality Composer Pro 内有意义的编辑器状态分支。
+图里只画本仓模块之间的边。此外 `MediaLibrary` 依赖 AMSMB2，`Playback` 依赖 EnvironmentSceneContract、OceanEnvironment、QuietRoomEnvironment、TidalEnvironment 与 RealityKitScripting，`Enchron` 依赖 RealityKitScripting。`Packages/PlaybackCore` 提供播放引擎 `PlaybackCore` 与光盘读取 `BluRayDisc` 两个 library 产品；前者依赖 PlaybackFFmpeg、PlaybackSubtitleRenderer，后者经 BluRayDiscBridge 依赖含 libbluray 与 libudfread 的 PlaybackBluRay。三个二进制均以 vendored xcframework 提供。场景包只依赖 EnvironmentSceneContract 与 RealityKit，互不依赖，也不依赖本仓模块；Ocean 包内 `Sources/OceanEnvironment/Vendor/OceanProbe` 是从 Xrplay_scene 的 OceanProbePlugin 运行时复制来的海面模拟，去掉了只在 Reality Composer Pro 内有意义的编辑器状态分支。
 
 `MediaSource` 与 `DesignSystem` 不依赖任何本仓模块，是两个公共名词层。`MediaLibrary` 与 `MediaServer` 互不依赖。`MediaServer` 拥有三种服务器共用的浏览、详情、会话与播放桥。`MediaBrowserClient` 处理 Emby 与 Jellyfin 的传输差异，`PlexClient` 处理 Plex API，`PlexAccount` 处理账号授权与服务器选择。`MediaServerPlaybackBridge` 将统一媒体模型转换成 `PlaybackLaunchRequest`。App 组合三个独立 Tab，并将连播请求交给当前播放所属的会话。
 
@@ -82,7 +83,7 @@ flowchart LR
 
 **它是否是跨 feature 的视觉原语或组件**？属 [`Modules/DesignSystem`](Modules/DesignSystem)。准入门槛是至少两个产品 feature（MediaLibrary、MediaServer、Playback）在代码里消费它。只有一个 feature 消费的，放进那个 feature；没有 feature 消费而 DesignSystem 自身在用的，降为 internal；两者皆无的，删除。该规则目前由人执行，没有检查器把关；判断消费者数量时必须先剥掉注释与字符串再统计，按名字直接 grep 会把注释里的名字算成消费者。
 
-**它是否是一个观影环境场景本身**——`.reality` 资源、场景内实体名、材质参数名、把屏幕位置与视频纹理写进材质、按亮度压暗自己？属该场景的 Package（[`Packages/OceanEnvironment`](Packages/OceanEnvironment)、[`Packages/QuietRoomEnvironment`](Packages/QuietRoomEnvironment)），并实现 [`Packages/EnvironmentSceneContract`](Packages/EnvironmentSceneContract) 的 `EnvironmentScene`。屏幕的静止位姿由场景交付：场景包在 `load()` 里从 `ScreenPreview` 的世界变换求出 `EnvironmentScreenRestPose`，Enchron 不再要求场景内有空的挂载实体。Enchron 只认契约：身份到场景包的注册表是 `Modules/Playback/Model/CinemaEnvironment.swift` 的 `EnvironmentSceneMapping`，屏幕位姿求解是 `Modules/Playback/Platform/PlaybackDockedPoseSolver.swift`，反射用的低分辨率视频纹理由 `Modules/Playback/Platform/VideoReflectionTextureSource.swift` 从渲染器已显示的像素缓冲生成。纯色占位环境没有场景包，由 `ImmersiveSpaceView` 里的 `EnvironmentSceneAppearanceApplier` 生成球体，静止位姿取内置的回退值。
+**它是否是一个观影环境场景本身**——`.reality` 资源、场景内实体名、材质参数名、把屏幕位置与视频纹理写进材质、呈现浅深色外观？属该场景的 Package（[`Packages/OceanEnvironment`](Packages/OceanEnvironment)、[`Packages/QuietRoomEnvironment`](Packages/QuietRoomEnvironment)、[`Packages/TidalEnvironment`](Packages/TidalEnvironment)），并实现 [`Packages/EnvironmentSceneContract`](Packages/EnvironmentSceneContract) 的 `EnvironmentScene`。屏幕的静止位姿由场景交付：场景包在 `load()` 里从 `ScreenPreview` 的世界变换求出 `EnvironmentScreenRestPose`，Enchron 不再要求场景内有空的挂载实体。Enchron 只认契约：身份到场景包的注册表是 `Modules/Playback/Model/CinemaEnvironment.swift` 的 `EnvironmentSceneMapping`，屏幕位姿求解是 `Modules/Playback/Platform/PlaybackDockedPoseSolver.swift`，各场景通过 `EnvironmentSceneDescriptor.videoReflectionSource` 选择系统停靠反射或显示帧纹理。潮汐力使用系统停靠反射；需要低分辨率视频纹理的场景由 `Modules/Playback/Platform/VideoReflectionTextureSource.swift` 从渲染器已显示的像素缓冲生成。纯色占位环境没有场景包，由 `ImmersiveSpaceView` 里的 `EnvironmentSceneAppearanceApplier` 生成球体，静止位姿取内置的回退值。
 
 **它是否属于播放**——解码之外的播放状态、策略、呈现模式、播放界面、播放用的 RealityKit 与 Scene 内容？属 [`Modules/Playback`](Modules/Playback)。目录分层：
 

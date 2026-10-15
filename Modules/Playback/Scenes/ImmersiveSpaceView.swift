@@ -952,6 +952,7 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func refreshReflectionTexture() {
         guard requestedPresentation == .docked,
+              world.scene?.descriptor.videoReflectionSource == .displayedPixelBuffer,
               let renderer = playbackRuntime.renderer else {
             return
         }
@@ -995,7 +996,13 @@ public struct ImmersiveSpaceView: View {
         root: Entity,
         pose: PlaybackDockedPose
     ) {
-        let texture = reflectionTexture.textureResource
+        let texture: TextureResource?
+        switch scene.descriptor.videoReflectionSource {
+        case .dockingRegion:
+            texture = nil
+        case .displayedPixelBuffer:
+            texture = reflectionTexture.textureResource
+        }
         scene.update(
             PlaybackSurfacePlacement.screenState(pose: pose, videoTexture: texture),
             in: root
@@ -2331,11 +2338,17 @@ public struct ImmersiveSpaceView: View {
 
     @MainActor
     private func removeVideo(from content: RealityViewContent, reason: String) {
+        if preservesDepartingSpatialSurfaceForFade == false,
+           let scene = world.scene, let root = world.entity {
+            scene.update(nil, in: root)
+        }
         let consumerPresentation = playbackRuntime.rendererConsumerPresentation
         let attachedPresentation = playbackRuntime.attachedPresentation
         let ownsSpatialConsumer = consumerPresentation?.usesImmersiveSpace == true
         let ownsSpatialAttachment = attachedPresentation?.usesImmersiveSpace == true
-        guard ownsSpatialConsumer || ownsSpatialAttachment else { return }
+        let ownsDockedEntity = world.playbackSurfaceAnchor != nil
+            && videoEntity.parent === world.playbackSurfaceAnchor
+        guard ownsSpatialConsumer || ownsSpatialAttachment || ownsDockedEntity else { return }
 
         logger.notice("video surface removed reason=\(reason, privacy: .public)")
         if preservesDepartingSpatialSurfaceForFade {
@@ -2346,6 +2359,9 @@ public struct ImmersiveSpaceView: View {
            consumerPresentation.usesImmersiveSpace,
            playbackRuntime.rendererConsumerEntityID == entityID(for: consumerPresentation) {
             content.remove(videoEntity)
+        }
+        if ownsDockedEntity {
+            videoEntity.removeFromParent()
         }
         releaseSpatialSurface()
     }
@@ -2425,6 +2441,9 @@ public struct ImmersiveSpaceView: View {
             return
         }
         PlaybackRealityPresenter.setOpacity(of: videoEntity, to: 0, animated: false)
+        if let scene = world.scene, let root = world.entity {
+            scene.update(nil, in: root)
+        }
         playbackVideoEntityStore.releaseInteractionSurfacesForRealityViewTransfer()
         playbackRuntime.releaseRendererConsumer(
             presentation: sourcePresentation,

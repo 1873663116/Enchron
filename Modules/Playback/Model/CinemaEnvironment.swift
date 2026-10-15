@@ -3,6 +3,7 @@ import Foundation
 import OceanEnvironment
 import QuietRoomEnvironment
 import RealityKit
+import TidalEnvironment
 
 public nonisolated enum SpatialSceneDomain {}
 
@@ -10,12 +11,14 @@ nonisolated extension SpatialSceneDomain {
     public enum CinemaEnvironment: String, Sendable, CaseIterable, Codable {
         case quietRoom = "quiet-room"
         case ocean
+        case tidal
         case placeholderRed = "placeholder-red"
         case placeholderGreen = "placeholder-green"
         case placeholderBlue = "placeholder-blue"
 
         public static let cardEnvironments: [Self] = [
             .ocean,
+            .tidal,
             .placeholderRed,
             .placeholderGreen,
             .placeholderBlue
@@ -31,7 +34,7 @@ nonisolated extension SpatialSceneDomain {
 
         public var isSceneBacked: Bool {
             switch self {
-            case .quietRoom, .ocean: true
+            case .quietRoom, .ocean, .tidal: true
             case .placeholderRed, .placeholderGreen, .placeholderBlue: false
             }
         }
@@ -41,7 +44,7 @@ nonisolated extension SpatialSceneDomain {
             case .placeholderRed: [0.85, 0.12, 0.12]
             case .placeholderGreen: [0.12, 0.70, 0.20]
             case .placeholderBlue: [0.12, 0.35, 0.90]
-            case .quietRoom, .ocean: nil
+            case .quietRoom, .ocean, .tidal: nil
             }
         }
 
@@ -49,6 +52,7 @@ nonisolated extension SpatialSceneDomain {
             switch self {
             case .quietRoom: "Quiet Room"
             case .ocean: "Ocean"
+            case .tidal: "Tidal"
             case .placeholderRed: "Red"
             case .placeholderGreen: "Green"
             case .placeholderBlue: "Blue"
@@ -96,6 +100,7 @@ public nonisolated enum EnvironmentSceneMapping {
         switch environment {
         case .quietRoom: QuietRoomEnvironmentScene.descriptor
         case .ocean: OceanEnvironmentScene.descriptor
+        case .tidal: TidalEnvironmentScene.descriptor
         case .placeholderRed, .placeholderGreen, .placeholderBlue: placeholderDescriptor
         }
     }
@@ -127,6 +132,7 @@ public nonisolated enum EnvironmentSceneMapping {
             prefetchTasks[stale]?.cancel()
             prefetchTasks[stale] = nil
             prefetchStarted[stale] = nil
+            scenes[stale] = nil
         }
         for environment in environments {
             guard prefetchTasks[environment] == nil,
@@ -146,6 +152,23 @@ public nonisolated enum EnvironmentSceneMapping {
         }
     }
 
+    @MainActor
+    public static func waitForPrefetch(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) async throws {
+        guard let task = prefetchTasks[environment] else { return }
+        do {
+            _ = try await task.value
+        } catch {
+            if prefetchTasks[environment] == task {
+                prefetchTasks[environment] = nil
+                prefetchStarted[environment] = nil
+                scenes[environment] = nil
+            }
+            throw error
+        }
+    }
+
     /// Takes the in-flight or finished decode for `environment`, if any,
     /// cancelling the rest. Awaiting the returned task reuses the prefetched
     /// root instead of decoding twice.
@@ -157,6 +180,7 @@ public nonisolated enum EnvironmentSceneMapping {
             prefetchTasks[stale]?.cancel()
             prefetchTasks[stale] = nil
             prefetchStarted[stale] = nil
+            scenes[stale] = nil
         }
         defer {
             prefetchTasks[environment] = nil
@@ -184,6 +208,7 @@ public nonisolated enum EnvironmentSceneMapping {
         let scene: (any EnvironmentScene)? = switch environment {
         case .quietRoom: QuietRoomEnvironmentScene()
         case .ocean: OceanEnvironmentScene()
+        case .tidal: TidalEnvironmentScene()
         case .placeholderRed, .placeholderGreen, .placeholderBlue: nil
         }
         if let scene {

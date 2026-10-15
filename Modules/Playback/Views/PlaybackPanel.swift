@@ -2269,6 +2269,8 @@ private struct DockedPlacementSliderRow: View {
                 .frame(minWidth: 64, alignment: .trailing)
                 .padding(.top, 6)
         }
+        .disabled(range.lowerBound == range.upperBound)
+        .opacity(range.lowerBound == range.upperBound ? DesignTokens.Surface.disabledControlOpacity : 1)
         .onChange(of: liveValue) { _, newValue in
             if !isDragging {
                 draftValue = nil

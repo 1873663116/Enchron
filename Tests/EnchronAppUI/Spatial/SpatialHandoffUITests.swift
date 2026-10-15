@@ -1290,7 +1290,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let openIdentifier =
             "EnvironmentCard-button-environment-\(activeEnvironmentID)"
         var focusedActiveEnvironment: XCUIElement?
-        for attempt in 0..<4 {
+        for attempt in 0..<5 {
             if let open = firstHittableElement(
                 matching: openIdentifier,
                 in: app.buttons,
@@ -1299,7 +1299,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 focusedActiveEnvironment = open
                 break
             }
-            if attempt < 3 {
+            if attempt < 4 {
                 dragEnvironmentCarouselOneCardLeft(carousel)
             }
         }

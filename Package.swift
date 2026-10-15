@@ -20,6 +20,7 @@ let package = Package(
         .package(path: "Packages/EnvironmentSceneContract"),
         .package(path: "Packages/OceanEnvironment"),
         .package(path: "Packages/QuietRoomEnvironment"),
+        .package(path: "Packages/TidalEnvironment"),
         .package(url: "https://github.com/apple/realitykitscripting.git", exact: "1.4.0"),
     ],
     targets: [
@@ -56,6 +57,7 @@ let package = Package(
                 .product(name: "EnvironmentSceneContract", package: "EnvironmentSceneContract"),
                 .product(name: "OceanEnvironment", package: "OceanEnvironment"),
                 .product(name: "QuietRoomEnvironment", package: "QuietRoomEnvironment"),
+                .product(name: "TidalEnvironment", package: "TidalEnvironment"),
                 .product(name: "RealityKitScripting", package: "realitykitscripting"),
             ],
             path: "Modules/Playback",
