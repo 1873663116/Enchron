@@ -105,4 +105,3 @@ public struct CenteredRevealShape: InsettableShape {
         return copy
     }
 }
-

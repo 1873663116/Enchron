@@ -106,10 +106,9 @@ public struct EnvironmentMiniControls: View {
                 accessibilityIdentifier: "EnvironmentHome-button-appearance",
                 action: {
                     appModel.setActiveEnvironmentEffect(appModel.currentEnvironmentEffect == .dark ? .light : .dark)
-                }
-            ) {
-                AppearanceModeGlyph(isActive: false)
-            }
+                },
+                icon: { AppearanceModeGlyph(isActive: false) }
+            )
             .disabled(appModel.immersiveSpaceResidency != .open || appModel.environmentContext.environment?.supportsDarkAppearance != true)
             .accessibilityValue(appModel.currentEnvironmentEffect == .dark ? "Active" : "Inactive")
         } trailing: {

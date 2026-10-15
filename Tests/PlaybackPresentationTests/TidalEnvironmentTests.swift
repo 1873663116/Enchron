@@ -32,7 +32,8 @@ struct TidalEnvironmentTests {
         var prepared: Task<Entity, Error>? = try #require(EnvironmentSceneMapping.takePrefetch(for: .tidal))
         var root: Entity? = try await prepared?.value
         prepared = nil
-        print("Tidal load: \(started.duration(to: .now)); footprint initial=\(initialMemory) peak=\(peakMemory) prepared=\(ProcessMemoryFootprint.read()?.footprintBytes ?? 0); main actor longest tick=\(longestTick)")
+        let preparedFootprint = ProcessMemoryFootprint.read()?.footprintBytes ?? 0
+        print("Tidal load: \(started.duration(to: .now)); footprint initial=\(initialMemory) peak=\(peakMemory) prepared=\(preparedFootprint); main actor longest tick=\(longestTick)")
         memorySampler.cancel()
         weak var releasedRoot = root
         let pose = try #require(scene.restPose)

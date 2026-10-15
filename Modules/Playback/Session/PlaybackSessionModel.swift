@@ -154,7 +154,6 @@ public final class PlaybackSessionModel {
         effect: SpatialSceneDomain.EnvironmentEffect
     )?
 
-
     public let immersiveSpaceID = "ImmersiveSpace"
 
     public var pendingSpatialPlatformEffect: SpatialPlatformEffectRequest? {

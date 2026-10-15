@@ -323,7 +323,6 @@ struct EnvironmentCardCarousel: View {
     var onExpand:
         (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
 
-
     @State private var scrollPosition: CGFloat = 0
     @State private var dragTranslation: CGFloat = 0
     @State private var isDragging = false
