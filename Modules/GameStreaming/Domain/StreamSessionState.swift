@@ -101,7 +101,7 @@ public enum StreamRecoveryAction: String, Sendable, Equatable {
     case repickApplication
 }
 
-public struct StreamFailure: Error, Sendable, Equatable {
+public struct StreamFailure: LocalizedError, Sendable, Equatable {
     public var stage: StreamFailureStage
     public var kind: StreamFailureKind
     public var message: String
@@ -124,6 +124,14 @@ public struct StreamFailure: Error, Sendable, Equatable {
 
     public var readableValue: String {
         "stage=\(stage.rawValue);kind=\(kind.rawValue);recovery=\(recovery.rawValue);message=\(message)"
+    }
+
+    public var errorDescription: String? {
+        var description = "\(message)（\(stage.rawValue)/\(kind.rawValue)）"
+        if let upstreamDetail {
+            description += " [\(upstreamDetail)]"
+        }
+        return description
     }
 }
 

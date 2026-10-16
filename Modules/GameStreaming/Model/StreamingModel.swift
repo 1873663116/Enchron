@@ -327,8 +327,14 @@ public final class StreamingModel {
     }
 
     private func startSession(hostID: HostID, appID: AppID?, appName: String?, preferResume: Bool) async throws {
-        guard coordinator == nil else {
-            throw StreamFailure(stage: .launch, kind: .hostBusy, message: "已有进行中的会话", recovery: .none)
+        if let current = session {
+            switch current.state {
+            case .connecting, .streaming:
+                throw StreamFailure(stage: .launch, kind: .hostBusy, message: "已有进行中的会话", recovery: .none)
+            case .interrupted, .ended, .stopping:
+                stopSessionInternal(reason: "replace")
+                finishSessionDismissal()
+            }
         }
         guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else {
             throw StreamFailure(stage: .launch, kind: .unreachable, message: "主机不存在", recovery: .none)
