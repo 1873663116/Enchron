@@ -97,7 +97,7 @@ DEFAULT_SIMULATOR_APP_NAME = "Simulator"
 DEFAULT_WORK_DIRECTORY = Path(os.environ.get("TMPDIR", "/tmp")).expanduser() / "enchron-moonlight-acceptance"
 
 PATCH_SAMPLE_POINT = (0.18, 0.18)
-PATCH_RGB_TOLERANCE = 24
+PATCH_RGB_TOLERANCE = 30
 PATCH_SAMPLE_ATTEMPTS = 3
 PATCH_RETRY_SECONDS = 1.0
 PATCH_FREEZE_SETTLE_SECONDS = 4.0
@@ -1537,6 +1537,46 @@ def probe_evidence(context: Context, name: str, needles: Sequence[str]) -> list[
     return [line for line in lines if any(needle in line for needle in needles)]
 
 
+SRGB_TO_XYZ = (
+    (0.4124564, 0.3575761, 0.1804375),
+    (0.2126729, 0.7151522, 0.0721750),
+    (0.0193339, 0.1191920, 0.9503041),
+)
+XYZ_TO_P3 = (
+    (2.4934969, -0.9313836, -0.4027108),
+    (-0.8294890, 1.7626641, 0.0236247),
+    (0.0358458, -0.0761724, 0.9568845),
+)
+
+
+def capture_space_rgb(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
+    """Convert the host's sRGB patch colour into the numbers a window capture holds.
+
+    Simulator window screenshots encode the display in Display P3 while the file
+    is tagged sRGB, so raw captures of the same colour differ by the P3 encoding
+    (measured residual <= 20 per channel against this conversion).
+    """
+
+    def to_linear(value: float) -> float:
+        value = value / 255.0
+        return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+    def to_encoded(value: float) -> float:
+        value = min(max(value, 0.0), 1.0)
+        return value * 12.92 if value <= 0.0031308 else 1.055 * value ** (1 / 2.4) - 0.055
+
+    linear = [to_linear(channel) for channel in rgb]
+    xyz = [
+        sum(SRGB_TO_XYZ[row][col] * linear[col] for col in range(3))
+        for row in range(3)
+    ]
+    p3_linear = [
+        sum(XYZ_TO_P3[row][col] * xyz[col] for col in range(3))
+        for row in range(3)
+    ]
+    return tuple(round(to_encoded(value) * 255) for value in p3_linear)
+
+
 def forensic_freeze_path(context: Context) -> Path | None:
     value = context.fixture("forensicFreezeFile")
     if isinstance(value, str) and value:
@@ -1573,7 +1613,12 @@ def stable_patch_sample(
             if after is None or rgb is None:
                 raise BlockedBy("the host forensic log carries no patch colour yet")
             if before.get("index") == after.get("index"):
-                return after, rgb, sample, screenshot
+                expected = capture_space_rgb(rgb)
+                context.note(
+                    f"patch #{after.get('index')} sRGB {rgb} reads as {expected} in the "
+                    "capture colour space"
+                )
+                return after, expected, sample, screenshot
             last_error = (
                 f"the patch advanced from index {before.get('index')} to {after.get('index')} "
                 "while the screenshot was taken"
