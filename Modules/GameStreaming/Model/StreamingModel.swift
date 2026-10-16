@@ -192,7 +192,8 @@ public final class StreamingModel {
         } else if case .unknown = hosts[index].pairing {
             hosts[index].pairing = .unpaired
         }
-        if !info.name.isEmpty {
+        if !info.name.isEmpty,
+           !(storedHosts.first(where: { $0.hostID == hostID })?.hasUserProvidedName ?? false) {
             hosts[index].name = info.name
         }
         hosts[index].remoteSession = RemoteSessionInfo(

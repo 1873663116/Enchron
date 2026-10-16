@@ -246,6 +246,7 @@ def parse_sunshine_log(path: Path) -> dict[str, object]:
         "version": None,
         "sessionStarts": [],
         "sessionEnds": [],
+        "appLaunches": [],
         "encoders": [],
         "foundEncoders": [],
         "bitrates": [],
@@ -269,6 +270,8 @@ def parse_sunshine_log(path: Path) -> dict[str, object]:
             report["sessionStarts"].append({"stamp": stamp, "message": message})
         if "CLIENT DISCONNECTED" in message or message.strip() == "Session ended":
             report["sessionEnds"].append({"stamp": stamp, "message": message})
+        if message.startswith("Executing: ["):
+            report["appLaunches"].append({"stamp": stamp, "message": message})
         encoder = SUNSHINE_ENCODER.search(message)
         if encoder is not None:
             report["encoders"].append(
@@ -1685,6 +1688,15 @@ def capture_space_rgb(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
     return tuple(round(to_encoded(value) * 255) for value in p3_linear)
 
 
+def focus_stream_window(context: Context) -> None:
+    try:
+        if context.matched_element("Stream-Session-dock") is not None:
+            context.tap("Stream-Session-dock")
+            context.hold("stream-window-focus", 1.5)
+    except (BlockedBy, InstrumentFault, ProductVerdict):
+        context.note("the stream window could not be brought forward for the capture")
+
+
 def forensic_freeze_path(context: Context) -> Path | None:
     value = context.fixture("forensicFreezeFile")
     if isinstance(value, str) and value:
@@ -1707,6 +1719,7 @@ def stable_patch_sample(
     for attempt in range(PATCH_SAMPLE_ATTEMPTS):
         if attempt:
             context.hold(f"patch-sample-retry-{attempt}", PATCH_RETRY_SECONDS)
+        focus_stream_window(context)
         if freeze is not None:
             freeze.parent.mkdir(parents=True, exist_ok=True)
             freeze.write_text("freeze\n", encoding="utf-8")
@@ -1721,6 +1734,13 @@ def stable_patch_sample(
             if after is None or rgb is None:
                 raise BlockedBy("the host forensic log carries no patch colour yet")
             if before.get("index") == after.get("index"):
+                if all(channel == sample[0] for channel in sample) and sample[0] < 110:
+                    # A dark uniform frame means the capture is not the stream window yet.
+                    last_error = (
+                        f"the capture returned a dark uniform frame {sample}; the stream "
+                        "window was not the frontmost window"
+                    )
+                    continue
                 expected = capture_space_rgb(rgb)
                 context.note(
                     f"patch #{after.get('index')} sRGB {rgb} reads as {expected} in the "
@@ -2597,6 +2617,7 @@ def scenario_10_remote_session(context: Context) -> Outcome:
     row = ensure_host(context, pair=True)
     sunshine = context.sunshine()
     starts_before = len(sunshine["sessionStarts"])
+    launches_before = len(sunshine.get("appLaunches", []))
     encoders_before = len(sunshine["encoders"])
     try:
         context.app_verb("streamResume", host=row)
@@ -2605,6 +2626,7 @@ def scenario_10_remote_session(context: Context) -> Outcome:
     view = context.session_snapshot()
     after = context.sunshine()
     starts_after = len(after["sessionStarts"])
+    launches_after = len(after.get("appLaunches", []))
     encoders_after = len(after["encoders"])
     context.record_channel(
         "host-log",
@@ -2614,8 +2636,15 @@ def scenario_10_remote_session(context: Context) -> Outcome:
             "encoders": after["encoders"],
             "startsBefore": starts_before,
             "startsAfter": starts_after,
+            "appLaunchesBefore": launches_before,
+            "appLaunchesAfter": launches_after,
         },
     )
+    if launches_after > launches_before:
+        raise ProductVerdict(
+            "app-relaunched-unnecessarily",
+            {"launchesBefore": launches_before, "launchesAfter": launches_after},
+        )
     conflict = view.state_name() == "ended" or "failure=" in view.state() or view.first("failure") is not None
     resumed_without_relaunch = encoders_after == encoders_before and view.state_name() in (
         "streaming",
@@ -2729,6 +2758,10 @@ def open_settings(context: Context) -> None:
             "Settings-Streaming-* readable values cannot be opened"
         )
     context.tap(candidates[0])
+    context.hold("settings-settle", 1.0)
+    if context.matched_element("Settings-category-streaming") is not None:
+        context.tap("Settings-category-streaming")
+        context.hold("settings-category-settle", 1.0)
 
 
 def scenario_12_settings_persistence(context: Context) -> Outcome:
@@ -2787,12 +2820,37 @@ def scenario_12_settings_persistence(context: Context) -> Outcome:
     )
 
 
+def restart_server_app(context: Context) -> None:
+    """End the host-side app so the next launch negotiates from scratch."""
+    try:
+        context.host_command(
+            ("pkill", "-f", "enchron-host/bin/host_forensic_patch"), verb="host-forensic-kill"
+        )
+    except InstrumentFault:
+        pass
+
+    def free() -> dict[str, object] | None:
+        info = context.serverinfo()
+        if info.get("state") == "SUNSHINE_SERVER_FREE":
+            return {"state": info.get("state")}
+        return None
+
+    context.wait(
+        "host-free",
+        SESSION_END_SECONDS,
+        free,
+        lambda: [{"state": context.serverinfo().get("state")}],
+        poll_interval_seconds=2.0,
+    )
+
+
 def negotiate_codec(context: Context, codec: str) -> dict[str, object]:
     set_options(context, codec=codec, hdr=False)
     view = context.session_snapshot_or_none()
     if view is not None and view.state_name() == "streaming":
         disconnect_session(context, soft=True)
         view = wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
+    restart_server_app(context)
     ensure_streaming(context)
     view = context.session_snapshot()
     negotiated = view.negotiated()
@@ -2961,6 +3019,7 @@ def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
     if view is not None and view.state_name() == "streaming":
         disconnect_session(context, soft=True)
         wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
+    restart_server_app(context)
     ensure_streaming(context)
     view = context.session_snapshot()
     negotiated = view.negotiated()
