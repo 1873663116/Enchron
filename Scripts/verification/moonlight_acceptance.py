@@ -1279,8 +1279,8 @@ def add_host(context: Context) -> str:
         if context.matched_element("Stream-EmptyState") is not None:
             context.tap("Stream-AddHost-entry")
         else:
-            context.require_identifier("Stream-HostSidebar-add")
-            context.tap("Stream-HostSidebar-add")
+            context.require_identifier("Stream-HostSidebar-addButton")
+            context.tap("Stream-HostSidebar-addButton")
         if context.matched_element("Stream-AddHost-manual-entry") is not None:
             context.tap("Stream-AddHost-manual-entry")
         context.require_identifier("Stream-ManualAddress-field")
@@ -1293,7 +1293,7 @@ def add_host(context: Context) -> str:
                 "replaceText",
                 ("--identifier", "Stream-ManualName-field", "--text", display_name),
             )
-        context.tap("Stream-ManualAdd-submit")
+        context.tap("Stream-ManualAdd-submitButton")
 
     def probe() -> dict[str, object] | None:
         row = find_host_row(context)
@@ -1309,7 +1309,22 @@ def add_host(context: Context) -> str:
     return str(found["host"])
 
 
+def normalize_streaming_navigation(context: Context) -> None:
+    """Put the streaming tab in front of a known stack before a scenario drives it."""
+    if context.matched_element("Navigation-Ornament-tab-streaming") is not None:
+        context.tap("Navigation-Ornament-tab-streaming")
+    for _ in range(3):
+        if context.matched_element("Stream-AddHost") is not None:
+            context.tap("Stream-AddHost-back")
+            continue
+        if context.matched_element("Stream-Pairing") is not None:
+            context.tap("Stream-Pairing-cancel")
+            continue
+        break
+
+
 def ensure_host(context: Context, *, pair: bool) -> str:
+    normalize_streaming_navigation(context)
     row = find_host_row(context)
     if row is None:
         row = add_host(context)
@@ -1751,7 +1766,7 @@ def scenario_01_add_host(context: Context) -> Outcome:
     expected = context.fixture("hostName")
     if not isinstance(expected, str) or not expected:
         expected = names.get("computerName") or names.get("localHostName")
-    context.tap("Stream-HostSidebar-add")
+    context.tap("Stream-HostSidebar-addButton")
     if context.matched_element("Stream-AddHost-discover-entry") is not None:
         context.tap("Stream-AddHost-discover-entry")
 
