@@ -182,7 +182,7 @@ final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuil
         guard wantsDecode, let session = vtSession else { return }
 
         var infoFlags = VTDecodeInfoFlags()
-        let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer, [], &infoFlags) { [weak self] status, _, imageBuffer, _, _ in
+        let status = VTDecompressionSessionDecodeFrame(session, sampleBuffer: sampleBuffer, flags: [], infoFlagsOut: &infoFlags) { [weak self] status, _, imageBuffer, _, _ in
             guard let self else { return }
             self.lock.lock()
             if status == noErr && imageBuffer != nil {
@@ -340,7 +340,9 @@ func startSession(options: Options) throws -> SessionHandle {
     logLine("stage=\(resumed ? "resume" : "launch") rtspSessionUrl=\(config.rtspSessionUrl ?? "nil")")
 
     let consumer = SessionConsumer(codecLabel: options.codec == "hevc" ? "HEVC" : "H264")
-    let connection = MLCConnection(config: config, delegate: consumer)
+    guard let connection = MLCConnection(config: config, delegate: consumer) else {
+        failLine("MLCConnection init returned nil")
+    }
     consumer.attachAudio(to: connection)
     connection.videoConsumer = consumer
     return SessionHandle(connection: connection, consumer: consumer, summary: summary, resumed: resumed, appName: app.name)
