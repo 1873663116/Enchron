@@ -1854,7 +1854,11 @@ def scenario_02_pair(context: Context) -> Outcome:
     )
     if client_entry is None:
         raise ProductVerdict("host-client-missing", {"client": client_entry, "row": after})
-    probe_lines = context.probe_lines()
+    try:
+        probe_lines = context.probe_lines()
+    except BlockedBy as error:
+        context.note(f"the stream probe has no file before any session: {error.reason}")
+        probe_lines = []
     context.record_text("probe", "stream-session-probe.log", "\n".join(probe_lines))
     pairing_lines = [line for line in probe_lines if re.search(r"pair", line, re.IGNORECASE)]
     if not pairing_lines:
