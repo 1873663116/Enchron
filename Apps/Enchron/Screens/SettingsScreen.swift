@@ -1,4 +1,5 @@
 import DesignSystem
+import GameStreaming
 import MediaLibrary
 import MediaSource
 import Playback
@@ -22,7 +23,7 @@ struct SettingsScreen: View {
     @State private var showsSupport = false
 
     private enum Category: String, CaseIterable {
-        case general, playback, storagePrivacy
+        case general, playback, streaming, storagePrivacy
 #if DEBUG
         case developer
 #endif
@@ -32,6 +33,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: String(localized: "General")
             case .playback: String(localized: "Playback Behavior")
+            case .streaming: String(localized: "串流")
             case .storagePrivacy: String(localized: "Storage & Privacy")
 #if DEBUG
             case .developer: String(localized: "Developer")
@@ -45,6 +47,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: String(localized: "Language and app-wide preferences")
             case .playback: nil
+            case .streaming: String(localized: "主机连接与串流画面配置")
             case .storagePrivacy: String(localized: "Rebuildable cache, playback history, and data handling")
 #if DEBUG
             case .developer: String(localized: "Performance readout in every window and space")
@@ -57,6 +60,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: "gearshape.fill"
             case .playback: "play.circle.fill"
+            case .streaming: "desktopcomputer"
             case .storagePrivacy: "internaldrive.fill"
 #if DEBUG
             case .developer: "wrench.and.screwdriver.fill"
@@ -175,6 +179,8 @@ struct SettingsScreen: View {
                 keyValueDetail: viewModel.preferences.playbackShortcutsEnabled ? playbackShortcutDescriptions : []
             )
                 .animation(DesignTokens.AnimationToken.selection, value: viewModel.preferences.playbackShortcutsEnabled)
+        case .streaming:
+            StreamSettingsSection()
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
 #if DEBUG

@@ -1241,6 +1241,131 @@
       "context": "docked",
       "operation": "negative:immersive-resident-window",
       "verdict": "reachable"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Navigation-Ornament-tab-streaming",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AddHost-back",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AddHost-discover-entry",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AddHost-entry",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AddHost-manual-entry",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AppCard-BigPicture",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AppCard-Desktop",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AppCard-{application.id.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-Discovery-row-{host.instanceName}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-address",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-pairButton",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-removeButton",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostSidebar-addButton",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-ManualAdd-submitButton",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-ManualAddress-field",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-ManualName-field",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-Pairing-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-Pairing-retry",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:Stream-Session-back",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:Stream-Session-connecting",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:Stream-Session-degrade",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:Stream-Session-degrade-explain",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:Stream-Session-dock",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-Streaming-negotiated",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-Streaming-requested",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

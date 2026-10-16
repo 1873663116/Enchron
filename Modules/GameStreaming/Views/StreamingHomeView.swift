@@ -25,6 +25,19 @@ public struct StreamingHomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .onAppear { model.refreshReachability() }
+        .onChange(of: model.pairing?.state) { _, state in
+            guard let state else { return }
+            switch state {
+            case .unpaired:
+                guard route.isEmpty, let hostID = model.selectedHostID else { return }
+                route.append(.pairing(hostID))
+            case .paired:
+                guard let hostID = model.selectedHostID ?? model.hosts.first?.id else { return }
+                model.loadApplications(hostID: hostID)
+            case .unknown, .failed:
+                break
+            }
+        }
         .task {
             if model.selectedHostID == nil, let firstHostID = model.hosts.first?.id {
                 model.selectHost(firstHostID)
@@ -130,14 +143,14 @@ public struct StreamingHomeView: View {
                     } label: {
                         Label("配对", systemImage: "link.badge.plus")
                     }
-                    .accessibilityIdentifier("Stream-HostDetail-pair")
+                    .accessibilityIdentifier("Stream-HostDetail-pairButton")
                 }
                 Button(role: .destructive) {
                     isConfirmingRemoval = true
                 } label: {
                     Label("移除主机", systemImage: "trash")
                 }
-                .accessibilityIdentifier("Stream-HostDetail-remove")
+                .accessibilityIdentifier("Stream-HostDetail-removeButton")
             }
 
             if let removalFailureText {
@@ -184,7 +197,7 @@ public struct StreamingHomeView: View {
             try model.forgetHost(host.id)
             removalFailureText = nil
         } catch let failure as StreamFailure {
-            removalFailureText = failure.readableValue
+            removalFailureText = failure.message
         } catch {
             removalFailureText = "移除主机失败"
         }
@@ -201,7 +214,7 @@ public struct StreamingHomeView: View {
                 )
                 openWindow(id: "streaming")
             } catch let failure as StreamFailure {
-                launchFailureText = failure.readableValue
+                launchFailureText = failure.message
             } catch {
                 launchFailureText = "启动串流失败"
             }
@@ -233,7 +246,7 @@ private struct StreamHostSidebar: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("添加主机")
-                    .accessibilityIdentifier("Stream-HostSidebar-add")
+                    .accessibilityIdentifier("Stream-HostSidebar-addButton")
                 }
                 .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 

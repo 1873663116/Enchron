@@ -12,6 +12,7 @@
     "PlayerUI",
     "SampleBufferAcousticCalibration",
     "Settings",
+    "Stream",
     "WindowPlayback"
   ],
   "identifiers": [
@@ -2128,6 +2129,18 @@
       "template": "Navigation-Ornament-tab-settings"
     },
     {
+      "action": "activate",
+      "family": "Navigation",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Apps/Enchron/MainView.swift"
+        }
+      ],
+      "template": "Navigation-Ornament-tab-streaming"
+    },
+    {
       "action": null,
       "family": "PlayerPanel",
       "role": "observation",
@@ -3420,6 +3433,42 @@
       "scope": "product",
       "sources": [
         {
+          "path": "Modules/GameStreaming/Views/StreamSettingsSection.swift"
+        }
+      ],
+      "template": "Settings-Streaming-group"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSettingsSection.swift"
+        }
+      ],
+      "template": "Settings-Streaming-negotiated"
+    },
+    {
+      "action": "activate",
+      "family": "Settings",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSettingsSection.swift"
+        }
+      ],
+      "template": "Settings-Streaming-requested"
+    },
+    {
+      "action": null,
+      "family": "Settings",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
           "path": "Apps/Enchron/Screens/SettingsScreen.swift"
         }
       ],
@@ -3664,6 +3713,474 @@
         }
       ],
       "template": "Settings-toggle-{id}"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-AddHost"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-AddHost-back"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-AddHost-discover-entry"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-AddHost-entry"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-AddHost-error"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-AddHost-manual-entry"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAppGridView.swift"
+        }
+      ],
+      "template": "Stream-AppCard-BigPicture"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAppGridView.swift"
+        }
+      ],
+      "template": "Stream-AppCard-Desktop"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAppGridView.swift"
+        }
+      ],
+      "template": "Stream-AppCard-{application.id.rawValue}"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAppGridView.swift"
+        }
+      ],
+      "template": "Stream-AppGrid"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAppGridView.swift"
+        }
+      ],
+      "template": "Stream-AppMissing-BigPicture"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAppGridView.swift"
+        }
+      ],
+      "template": "Stream-AppMissing-Desktop"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-Discovery-empty"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-Discovery-list"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-Discovery-row-{host.instanceName}"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-EmptyState"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail"
+    },
+    {
+      "action": "typeText",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-address"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-pairButton"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-pairing"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-removeButton"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostRow-{host.name}"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostSidebar"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostSidebar-addButton"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-ManualAdd-submitButton"
+    },
+    {
+      "action": "typeText",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-ManualAddress-field"
+    },
+    {
+      "action": "typeText",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamAddHostView.swift"
+        }
+      ],
+      "template": "Stream-ManualName-field"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamPairingView.swift"
+        }
+      ],
+      "template": "Stream-Pairing"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamPairingView.swift"
+        }
+      ],
+      "template": "Stream-Pairing-PIN"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamPairingView.swift"
+        }
+      ],
+      "template": "Stream-Pairing-cancel"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamPairingView.swift"
+        }
+      ],
+      "template": "Stream-Pairing-retry"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamPairingView.swift"
+        }
+      ],
+      "template": "Stream-Pairing-status"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+        }
+      ],
+      "template": "Stream-Session-back"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+        }
+      ],
+      "template": "Stream-Session-connecting"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+        }
+      ],
+      "template": "Stream-Session-controls"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+        }
+      ],
+      "template": "Stream-Session-degrade"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+        }
+      ],
+      "template": "Stream-Session-degrade-explain"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+        }
+      ],
+      "template": "Stream-Session-dock"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamVideoSurface.swift"
+        }
+      ],
+      "template": "Stream-Session-video"
     },
     {
       "action": null,
@@ -5544,6 +6061,24 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:Navigation-Ornament-tab-streaming",
+      "identifierTemplate": "Navigation-Ornament-tab-streaming",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:PlayerPanel-DockedPlacement-back",
       "identifierTemplate": "PlayerPanel-DockedPlacement-back",
       "kind": "activate",
@@ -6762,6 +7297,42 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:Settings-Streaming-negotiated",
+      "identifierTemplate": "Settings-Streaming-negotiated",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Settings-Streaming-requested",
+      "identifierTemplate": "Settings-Streaming-requested",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:Settings-action-{id}",
       "identifierTemplate": "Settings-action-{id}",
       "kind": "activate",
@@ -7047,6 +7618,402 @@
         "main-window-browser"
       ],
       "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-AddHost-back",
+      "identifierTemplate": "Stream-AddHost-back",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-AddHost-discover-entry",
+      "identifierTemplate": "Stream-AddHost-discover-entry",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-AddHost-entry",
+      "identifierTemplate": "Stream-AddHost-entry",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-AddHost-manual-entry",
+      "identifierTemplate": "Stream-AddHost-manual-entry",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-AppCard-BigPicture",
+      "identifierTemplate": "Stream-AppCard-BigPicture",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-AppCard-Desktop",
+      "identifierTemplate": "Stream-AppCard-Desktop",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-AppCard-{application.id.rawValue}",
+      "identifierTemplate": "Stream-AppCard-{application.id.rawValue}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Discovery-row-{host.instanceName}",
+      "identifierTemplate": "Stream-Discovery-row-{host.instanceName}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-address",
+      "identifierTemplate": "Stream-HostDetail-address",
+      "kind": "typeText",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-pairButton",
+      "identifierTemplate": "Stream-HostDetail-pairButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-removeButton",
+      "identifierTemplate": "Stream-HostDetail-removeButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostSidebar-addButton",
+      "identifierTemplate": "Stream-HostSidebar-addButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-ManualAdd-submitButton",
+      "identifierTemplate": "Stream-ManualAdd-submitButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-ManualAddress-field",
+      "identifierTemplate": "Stream-ManualAddress-field",
+      "kind": "typeText",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-ManualName-field",
+      "identifierTemplate": "Stream-ManualName-field",
+      "kind": "typeText",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Pairing-cancel",
+      "identifierTemplate": "Stream-Pairing-cancel",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Pairing-retry",
+      "identifierTemplate": "Stream-Pairing-retry",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Session-back",
+      "identifierTemplate": "Stream-Session-back",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "streamWindowSurface",
+        "sources": [
+          {
+            "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Session-connecting",
+      "identifierTemplate": "Stream-Session-connecting",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "streamWindowSurface",
+        "sources": [
+          {
+            "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Session-degrade",
+      "identifierTemplate": "Stream-Session-degrade",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "streamWindowSurface",
+        "sources": [
+          {
+            "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Session-degrade-explain",
+      "identifierTemplate": "Stream-Session-degrade-explain",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "streamWindowSurface",
+        "sources": [
+          {
+            "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-Session-dock",
+      "identifierTemplate": "Stream-Session-dock",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "streamWindowSurface",
+        "sources": [
+          {
+            "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {
@@ -7366,7 +8333,8 @@
     "Modules/DesignSystem",
     "Modules/MediaServer",
     "Modules/MediaLibrary",
-    "Modules/Playback"
+    "Modules/Playback",
+    "Modules/GameStreaming"
   ],
   "version": 3
 }

@@ -737,6 +737,17 @@ final class TestCommandChannel {
         }
     #endif
 
+    private func resolveStreamHost(_ token: String) -> HostID? {
+        if let exact = streaming.hosts.first(where: { $0.id.rawValue == token }) {
+            return exact.id
+        }
+        return streaming.hosts
+            .first {
+                $0.name == token || $0.name.localizedCaseInsensitiveContains(token)
+            }?
+            .id
+    }
+
     private func resolveStreamApplication(_ token: String) -> HostApplication? {
         let applications = streaming.applications
         if let exact = applications.first(where: { $0.id.rawValue == token }) {
@@ -922,11 +933,27 @@ final class TestCommandChannel {
             guard let host = request.args["host"] else {
                 throw CommandError(message: "streamPair requires host")
             }
-            let challenge = try await streaming.beginPairing(hostID: HostID(rawValue: host))
+            guard let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamPair could not resolve host \(host); hosts: \(streaming.hosts.map(\.name).joined(separator: ", "))",
+                    payload: nil
+                )
+            }
+            let challenge = try await streaming.beginPairing(hostID: hostID)
             return Response(id: request.id, ok: true, detail: nil, payload: [challenge.id.rawValue, challenge.pin])
         case "streamLaunch":
             guard let host = request.args["host"], let app = request.args["app"] else {
                 throw CommandError(message: "streamLaunch requires host and app")
+            }
+            guard let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamLaunch could not resolve host \(host); hosts: \(streaming.hosts.map(\.name).joined(separator: ", "))",
+                    payload: nil
+                )
             }
             guard let resolved = resolveStreamApplication(app) else {
                 return Response(
@@ -937,7 +964,7 @@ final class TestCommandChannel {
                 )
             }
             try await streaming.launch(
-                hostID: HostID(rawValue: host),
+                hostID: hostID,
                 appID: resolved.id,
                 appName: request.args["name"] ?? resolved.name
             )
@@ -946,9 +973,17 @@ final class TestCommandChannel {
             guard let host = request.args["host"] else {
                 throw CommandError(message: "streamResume requires host")
             }
+            guard let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamResume could not resolve host \(host); hosts: \(streaming.hosts.map(\.name).joined(separator: ", "))",
+                    payload: nil
+                )
+            }
             let resolved = request.args["app"].flatMap(resolveStreamApplication)
             try await streaming.resume(
-                hostID: HostID(rawValue: host),
+                hostID: hostID,
                 appID: resolved?.id,
                 appName: request.args["name"] ?? resolved?.name
             )

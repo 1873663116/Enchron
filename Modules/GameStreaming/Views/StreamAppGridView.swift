@@ -73,11 +73,12 @@ struct StreamAppGridView: View {
                 GridCard.skeleton(.poster)
                 GridCard.skeleton(.poster)
             }
-        case .failed(let message):
+        case .failed(let detail):
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                Text("应用列表读取失败：\(message)")
+                Text("应用列表读取失败，请确认主机已配对并在线。")
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(DesignTokens.Surface.supportingText)
+                    .accessibilityValue(detail)
                 preferredEntries(Matches())
             }
         case .loaded(let applications):

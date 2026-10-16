@@ -15,6 +15,7 @@ struct StreamAddHostView: View {
     @State private var nameText = ""
     @State private var isSubmitting = false
     @State private var failureText: String?
+    @State private var failureMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
@@ -155,7 +156,7 @@ struct StreamAddHostView: View {
                     Label("添加", systemImage: "plus")
                 }
                 .disabled(isSubmitting || trimmedAddress.isEmpty)
-                .accessibilityIdentifier("Stream-ManualAdd-submit")
+                .accessibilityIdentifier("Stream-ManualAdd-submitButton")
                 if isSubmitting {
                     ProgressView()
                         .controlSize(.small)
@@ -184,7 +185,7 @@ struct StreamAddHostView: View {
     @ViewBuilder
     private var failureLine: some View {
         if let failureText {
-            Text(failureText)
+            Text(failureMessage ?? failureText)
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.SourceConnection.failureColor)
                 .accessibilityIdentifier("Stream-AddHost-error")
@@ -203,6 +204,7 @@ struct StreamAddHostView: View {
     private func submit(address: String, name: String) async {
         isSubmitting = true
         failureText = nil
+        failureMessage = nil
         defer { isSubmitting = false }
         do {
             let hostID = try await model.addHost(
@@ -213,8 +215,10 @@ struct StreamAddHostView: View {
             dismiss()
         } catch let failure as StreamFailure {
             failureText = failure.readableValue
+            failureMessage = failure.message
         } catch {
-            failureText = "添加主机失败"
+            failureText = String(describing: error)
+            failureMessage = "添加主机失败"
         }
     }
 }

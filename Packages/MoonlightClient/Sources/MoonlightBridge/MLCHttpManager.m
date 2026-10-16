@@ -155,10 +155,8 @@
         }
     }
     else if (respError && [respError code] == NSURLErrorServerCertificateUntrusted) {
-        // We must have a pinned cert for HTTPS. If we fail, it must be due to
-        // a non-matching cert, not because we had no cert at all.
-        assert(_serverCert != nil);
-
+        // The handshake was refused: either the pinned cert did not match, or
+        // no cert is pinned yet over HTTPS.
         if (request.fallbackRequest) {
             // This will fall back to HTTP on serverinfo queries to allow us to pair again
             // and get the server cert updated.
@@ -368,6 +366,15 @@
             return;
         }
 
+        // Without a pinned certificate the stream is not trusted yet: refuse the
+        // handshake so the request fails as untrusted instead of crashing.
+        if (_serverCert == nil) {
+            Log(LOG_E, @"HTTPS request without a pinned server certificate");
+            CFRelease(actualCertData);
+            completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, NULL);
+            return;
+        }
+
         if (!CFEqual(actualCertData, (__bridge CFDataRef)_serverCert)) {
             Log(LOG_E, @"Server certificate mismatch");
             CFRelease(actualCertData);
@@ -385,6 +392,11 @@
     else if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodClientCertificate])
     {
         SecIdentityRef identity = [self getClientCertificate];
+        if (identity == nil) {
+            Log(LOG_E, @"Client certificate unavailable for the TLS challenge");
+            completionHandler(NSURLSessionAuthChallengePerformDefaultHandling, NULL);
+            return;
+        }
         NSArray* certArray = [self getCertificate:identity];
         NSURLCredential* newCredential = [NSURLCredential credentialWithIdentity:identity certificates:certArray persistence:NSURLCredentialPersistencePermanent];
         CFRelease(identity);
