@@ -1,4 +1,5 @@
 import DesignSystem
+import GameStreaming
 import MediaServer
 import Foundation
 import MediaSource
@@ -292,6 +293,13 @@ public struct MainView: View {
                 .accessibilityIdentifier("Jellyfin-Navigation-Tab")
             }
 
+            Tab("串流", systemImage: "desktopcomputer", value: AppModel.NavigationTab.streaming) {
+                StreamingHomeView()
+                    .enchronScreenAppearance()
+                    .browserTabBarVisibility(browserVisibility)
+            }
+            .accessibilityIdentifier("Navigation-Ornament-tab-streaming")
+
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()
                     .enchronScreenAppearance()
@@ -331,6 +339,10 @@ public struct MainView: View {
             case .jellyfin: .jellyfin
             case .plex: .plex
             }
+        }
+        .task {
+            guard ProcessInfo.processInfo.environment["ENCHRON_STREAMING_TAB"] == "1" else { return }
+            appModel.selectedTab = .streaming
         }
 #endif
     }

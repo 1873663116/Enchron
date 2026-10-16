@@ -5,11 +5,11 @@ import Observation
 @Observable
 public final class AppModel {
     public enum NavigationTab: String, CaseIterable {
-        case files, emby, plex, jellyfin, settings, environment
+        case files, emby, plex, jellyfin, streaming, settings, environment
 
         func contentDestination(in visibility: MediaLibraryTabVisibility) -> NavigationTab {
             switch self {
-            case .files, .settings, .environment:
+            case .files, .streaming, .settings, .environment:
                 self
             case .emby:
                 visibility.emby ? self : .files

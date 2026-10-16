@@ -7,11 +7,9 @@ public struct WindowPlaybackLayout: Equatable {
     public static let fallback = WindowPlaybackLayout(aspectRatio: fallbackAspectRatio)
 
     static let minimumWidth: CGFloat = 750
-    static let maximumExtent: CGFloat = 1_808
 
     private static let minimumArea: CGFloat = 912 * 513
     private static let defaultArea: CGFloat = 1_280 * 720
-    private static let maximumArea: CGFloat = 1_808 * 1_017
 
     public let aspectRatio: CGFloat
 
@@ -48,8 +46,6 @@ public struct WindowPlaybackLayout: Equatable {
 
     public var defaultSize: CGSize { size(area: Self.defaultArea) }
 
-    public var maximumSize: CGSize { size(area: Self.maximumArea) }
-
     func hasPlaybackAspectRatio(
         _ size: CGSize,
         tolerance: CGFloat = 0.001
@@ -61,13 +57,11 @@ public struct WindowPlaybackLayout: Equatable {
     public func contains(_ size: CGSize, tolerance: CGFloat = 0.5) -> Bool {
         size.width >= minimumSize.width - tolerance
             && size.height >= minimumSize.height - tolerance
-            && size.width <= maximumSize.width + tolerance
-            && size.height <= maximumSize.height + tolerance
     }
 
     private func size(area: CGFloat) -> CGSize {
         let width = (area * aspectRatio).squareRoot().rounded()
-        return withinCeiling(atLeastMinimumWidth(sizeFrom(width: width)))
+        return atLeastMinimumWidth(sizeFrom(width: width))
     }
 
     private func sizeFrom(width: CGFloat) -> CGSize {
@@ -77,12 +71,6 @@ public struct WindowPlaybackLayout: Equatable {
     private func atLeastMinimumWidth(_ size: CGSize) -> CGSize {
         guard size.width < Self.minimumWidth else { return size }
         return sizeFrom(width: Self.minimumWidth)
-    }
-
-    private func withinCeiling(_ size: CGSize) -> CGSize {
-        let extent = max(size.width, size.height)
-        guard extent > Self.maximumExtent else { return size }
-        return sizeFrom(width: size.width * Self.maximumExtent / extent)
     }
 }
 
@@ -161,8 +149,9 @@ public struct WindowPlaybackGeometryDiagnosticSnapshot: Equatable, Sendable {
     public let requestedIdealHeight: CGFloat
     public let minimumWidth: CGFloat
     public let minimumHeight: CGFloat
-    public let maximumWidth: CGFloat
-    public let maximumHeight: CGFloat
+    /// nil means the window scales without a ceiling.
+    public let maximumWidth: CGFloat?
+    public let maximumHeight: CGFloat?
     public let resizingRestriction: ResizingRestriction
 
     public var accessibilityFields: [String] {
@@ -172,8 +161,8 @@ public struct WindowPlaybackGeometryDiagnosticSnapshot: Equatable, Sendable {
             "windowGeometryRequestedIdealHeight=\(requestedIdealHeight)",
             "windowGeometryMinimumWidth=\(minimumWidth)",
             "windowGeometryMinimumHeight=\(minimumHeight)",
-            "windowGeometryMaximumWidth=\(maximumWidth)",
-            "windowGeometryMaximumHeight=\(maximumHeight)",
+            "windowGeometryMaximumWidth=\(maximumWidth.map { "\($0)" } ?? "none")",
+            "windowGeometryMaximumHeight=\(maximumHeight.map { "\($0)" } ?? "none")",
             "windowGeometryResizingRestriction=\(resizingRestriction.rawValue)"
         ]
     }
@@ -186,8 +175,9 @@ public struct WindowPlaybackGeometryDiagnosticSnapshot: Equatable, Sendable {
         CGSize(width: minimumWidth, height: minimumHeight)
     }
 
-    fileprivate var maximumSize: CGSize {
-        CGSize(width: maximumWidth, height: maximumHeight)
+    fileprivate var maximumSize: CGSize? {
+        guard let maximumWidth, let maximumHeight else { return nil }
+        return CGSize(width: maximumWidth, height: maximumHeight)
     }
 }
 
@@ -211,13 +201,13 @@ public enum WindowPlaybackGeometryPolicy: Equatable {
         let policyKind: WindowPlaybackGeometryDiagnosticSnapshot.PolicyKind
         let minimumSize: CGSize
         let idealSize: CGSize
-        let maximumSize: CGSize
+        let maximumSize: CGSize?
         switch self {
         case let .aspectLocked(layout):
             policyKind = .aspectLocked
             minimumSize = layout.minimumSize
             idealSize = layout.defaultSize
-            maximumSize = layout.maximumSize
+            maximumSize = nil
         case .audioOnly:
             policyKind = .audioOnly
             minimumSize = CGSize(width: 750, height: 380)
@@ -230,8 +220,8 @@ public enum WindowPlaybackGeometryPolicy: Equatable {
             requestedIdealHeight: idealSize.height,
             minimumWidth: minimumSize.width,
             minimumHeight: minimumSize.height,
-            maximumWidth: maximumSize.width,
-            maximumHeight: maximumSize.height,
+            maximumWidth: maximumSize?.width,
+            maximumHeight: maximumSize?.height,
             resizingRestriction: .uniform
         )
     }
@@ -523,7 +513,7 @@ public struct WindowPlaybackRootView<
             return UIWindowScene.GeometryPreferences.Vision(
                 size: size ?? preferredInitialSize ?? layout.defaultSize,
                 minimumSize: layout.minimumSize,
-                maximumSize: layout.maximumSize,
+                maximumSize: nil,
                 resizingRestrictions: .uniform
             )
         case .audioOnly:

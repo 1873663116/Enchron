@@ -25,7 +25,7 @@ typedef struct {
 
 // Decoded Opus PCM handed to the audio output. Fires on the audio decode thread.
 @property (nonatomic, copy) void (^audioFrameHandler)(NSData* pcm, uint32_t channelCount, uint32_t sampleRate, uint32_t frameCount);
-@property (nonatomic, copy) void (^audioStarted)(void);
+@property (nonatomic, copy) void (^audioStarted)(uint32_t channelCount, uint32_t sampleRate, uint32_t samplesPerFrame);
 @property (nonatomic, copy) void (^audioStopped)(void);
 
 // Receives every sample the connection builds, on the video decode thread.

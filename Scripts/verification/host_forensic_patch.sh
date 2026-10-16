@@ -13,4 +13,9 @@ if [[ ! -x "$binary" || "$source_file" -nt "$binary" ]]; then
     xcrun swiftc -O "$source_file" -o "$binary"
 fi
 
+# One visible instance at a time: a new launch replaces the previous run so the
+# screen shows exactly one patch sequence and its seed.
+pkill -f "$binary" 2>/dev/null || true
+sleep 0.3
+
 exec "$binary" "$@"

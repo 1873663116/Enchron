@@ -1,5 +1,6 @@
 import Foundation
 import DesignSystem
+import GameStreaming
 import MediaServer
 import MediaLibrary
 import MediaSource
@@ -116,6 +117,7 @@ final class EnchronApplication {
     let mediaLibraryUIState: MediaLibraryUIState
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
+    let streamingModel: StreamingModel
     let modalPresentationCoordinator: AppModalPresentationCoordinator
     let connectionSecurityPrompt: ConnectionSecurityPrompt
     let developerMetrics = DeveloperMetricsModel()
@@ -591,6 +593,7 @@ final class EnchronApplication {
         self.connectionSecurityPrompt = connectionSecurityPrompt
         self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator
+        self.streamingModel = StreamingModel(backend: MoonlightStreamingBackend.shared)
         #if DEBUG
             playbackSessionModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
                 playbackRuntime?.debugCapturePlaybackSwitchRendererState()
@@ -1062,6 +1065,7 @@ extension View {
             .environment(application.mediaLibraryUIState)
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
+            .environment(application.streamingModel)
             .environment(application.modalPresentationCoordinator)
             .environment(application.connectionSecurityPrompt)
             .environment(application.developerMetrics)

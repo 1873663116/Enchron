@@ -39,6 +39,7 @@ $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
 $(SRCROOT)/Modules/DesignSystem/View+EnchronGlass.swift
 $(SRCROOT)/Modules/DesignSystem/View+Platform.swift
 $(SRCROOT)/Modules/DesignSystem/View+PressFeedback.swift
+$(SRCROOT)/Modules/GameStreaming/Backend/MoonlightStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/SimulatedStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/StreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamIdentity.swift
@@ -49,6 +50,12 @@ $(SRCROOT)/Modules/GameStreaming/Session/StreamRenderBinding.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionCoordinator.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionProbes.swift
 $(SRCROOT)/Modules/GameStreaming/Storage/HostStore.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamAddHostView.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamAppGridView.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamPairingView.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamSettingsSection.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamWindowView.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamingHomeView.swift
 $(SRCROOT)/Modules/MediaLibrary/AppManagedMediaImportStore.swift
 $(SRCROOT)/Modules/MediaLibrary/FileBrowsingViewModel.swift
 $(SRCROOT)/Modules/MediaLibrary/MediaLibraryFeature.swift

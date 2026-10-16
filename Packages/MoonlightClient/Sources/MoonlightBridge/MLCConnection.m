@@ -163,7 +163,7 @@ int ArInit(int audioConfiguration, POPUS_MULTISTREAM_CONFIGURATION opusConfig, v
     }
 
     if (activeConnection.audioStarted) {
-        activeConnection.audioStarted();
+        activeConnection.audioStarted(opusConfig->channelCount, opusConfig->sampleRate, opusConfig->samplesPerFrame);
     }
 
     return 0;

@@ -79,33 +79,18 @@ public struct PathBreadcrumbMenu: View {
 }
 
 public struct CategorySidebarItem: Identifiable, Equatable {
-    public enum StatusLight: Equatable {
-        case green
-        case yellow
-        case red
-    }
-
     public let id: String
     public let icon: String
     public let title: String
-    public var statusLight: StatusLight?
-    public var accessibilityIdentifier: String?
-    public var accessibilityValue: String?
 
     public init(
         id: String,
         icon: String,
-        title: String,
-        statusLight: StatusLight? = nil,
-        accessibilityIdentifier: String? = nil,
-        accessibilityValue: String? = nil
+        title: String
     ) {
         self.id = id
         self.icon = icon
         self.title = title
-        self.statusLight = statusLight
-        self.accessibilityIdentifier = accessibilityIdentifier
-        self.accessibilityValue = accessibilityValue
     }
 }
 
@@ -117,8 +102,6 @@ public struct CategorySidebar: View {
     var height: CGFloat?
     var containerIdentifier: String = "CategorySidebar"
     var identifierPrefix: String = "CategorySidebar"
-    var onAdd: (() -> Void)?
-    var addButtonIdentifier: String?
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
@@ -129,22 +112,10 @@ public struct CategorySidebar: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     Spacer(minLength: 0)
-                    if let onAdd {
-                        Button(action: onAdd) {
-                            Image(systemName: "plus")
-                                .frame(
-                                    width: DesignTokens.Interactive.large,
-                                    height: DesignTokens.Interactive.large
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier(addButtonIdentifier ?? "\(identifierPrefix)-add")
-                    } else {
-                        Color.clear
-                            .frame(width: DesignTokens.Interactive.large,
-                                   height: DesignTokens.Interactive.large)
-                            .accessibilityHidden(true)
-                    }
+                    Color.clear
+                        .frame(width: DesignTokens.Interactive.large,
+                               height: DesignTokens.Interactive.large)
+                        .accessibilityHidden(true)
                 }
                 .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 
@@ -167,17 +138,9 @@ public struct CategorySidebar: View {
                             allowsSwipe: false,
                             onTap: { selection = item.id }
                         )
-                        .overlay(alignment: .trailing) {
-                            if let statusLight = item.statusLight {
-                                StatusLightDot(light: statusLight)
-                                    .padding(.trailing, DesignTokens.SourceSidebar.listPaddingH)
-                                    .allowsHitTesting(false)
-                            }
-                        }
                         .accessibilityLabel(item.title)
-                        .accessibilityValue(item.accessibilityValue ?? "")
                         .accessibilityAddTraits(selection == item.id ? .isSelected : [])
-                        .accessibilityIdentifier(item.accessibilityIdentifier ?? "\(identifierPrefix)-category-\(item.id)")
+                        .accessibilityIdentifier("\(identifierPrefix)-category-\(item.id)")
                     }
                 }
                 .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
@@ -200,9 +163,7 @@ public struct CategorySidebar: View {
         width: CGFloat = DesignTokens.SourceSidebar.width,
         height: CGFloat? = nil,
         containerIdentifier: String = "CategorySidebar",
-        identifierPrefix: String = "CategorySidebar",
-        onAdd: (() -> Void)? = nil,
-        addButtonIdentifier: String? = nil
+        identifierPrefix: String = "CategorySidebar"
     ) {
         self.items = items
         self._selection = selection
@@ -211,28 +172,5 @@ public struct CategorySidebar: View {
         self.height = height
         self.containerIdentifier = containerIdentifier
         self.identifierPrefix = identifierPrefix
-        self.onAdd = onAdd
-        self.addButtonIdentifier = addButtonIdentifier
-    }
-}
-
-private struct StatusLightDot: View {
-    let light: CategorySidebarItem.StatusLight
-
-    var body: some View {
-        Circle()
-            .fill(color)
-            .frame(
-                width: DesignTokens.Interactive.statusDotSize,
-                height: DesignTokens.Interactive.statusDotSize
-            )
-    }
-
-    private var color: Color {
-        switch light {
-        case .green: .green
-        case .yellow: .yellow
-        case .red: .red
-        }
     }
 }

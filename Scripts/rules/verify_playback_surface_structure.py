@@ -384,7 +384,7 @@ def main() -> int:
     )
     require(
         "minimumWidth: CGFloat = 750" in window_root
-        and "maximumExtent: CGFloat = 1_808" in window_root
+        and "maximumExtent" not in window_root
         and "private func size(area: CGFloat) -> CGSize" in window_root,
         "window playback tiers are not derived from a target area",
     )
@@ -392,7 +392,7 @@ def main() -> int:
         "UIWindowScene.GeometryPreferences.Vision(" in window_root
         and "resizingRestrictions: .uniform" in window_root
         and "minimumSize: layout.minimumSize" in window_root
-        and "maximumSize: layout.maximumSize" in window_root
+        and "maximumSize: nil" in window_root
         and "requestGeometryUpdate(preferences)" in window_root,
         "the shared window playback root does not own the system uniform resize contract",
     )

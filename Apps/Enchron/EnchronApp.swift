@@ -1,5 +1,6 @@
 import DesignSystem
 import EnvironmentSceneContract
+import GameStreaming
 import RealityKitScripting
 import Playback
 import SwiftUI
@@ -116,6 +117,19 @@ struct EnchronApp: App {
                     )
             }
             .enchronEnvironment(application)
+        }
+        .windowStyle(.plain)
+        .defaultSize(
+            width: BrowserWindowLayout.defaultSize.width,
+            height: BrowserWindowLayout.defaultSize.height
+        )
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+
+        WindowGroup("Stream", id: "streaming") {
+            StreamWindowView()
+                .enchronEnvironment(application)
         }
         .windowStyle(.plain)
         .defaultSize(
