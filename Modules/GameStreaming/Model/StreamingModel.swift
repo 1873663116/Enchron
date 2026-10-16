@@ -156,7 +156,11 @@ public final class StreamingModel {
                 do {
                     let info = try await backend.fetchServerInfo(credentials)
                     guard !Task.isCancelled else { return }
-                    self.applyServerInfo(info, hostID: target.hostID)
+                    self.applyServerInfo(
+                        info,
+                        hostID: target.hostID,
+                        authoritativePairing: target.serverCert != nil
+                    )
                 } catch {
                     guard !Task.isCancelled else { return }
                     self.applyReachability(.offline, hostID: target.hostID)
@@ -165,10 +169,20 @@ public final class StreamingModel {
         }
     }
 
-    private func applyServerInfo(_ info: BackendServerInfo, hostID: HostID) {
+    private func applyServerInfo(
+        _ info: BackendServerInfo,
+        hostID: HostID,
+        authoritativePairing: Bool
+    ) {
         guard let index = hosts.firstIndex(where: { $0.id == hostID }) else { return }
         hosts[index].reachability = .online
-        hosts[index].pairing = info.pairStatus == 1 ? .paired : .unpaired
+        // PairStatus can only name this client when the query proved the client
+        // certificate; an unpinned reply says nothing about the stored pairing.
+        if authoritativePairing {
+            hosts[index].pairing = info.pairStatus == 1 ? .paired : .unpaired
+        } else if case .unknown = hosts[index].pairing {
+            hosts[index].pairing = .unpaired
+        }
         if !info.name.isEmpty {
             hosts[index].name = info.name
         }
@@ -176,7 +190,7 @@ public final class StreamingModel {
             currentGame: info.currentGame,
             rawState: info.state
         )
-        if let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }) {
+        if authoritativePairing, let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }) {
             storedHosts[storedIndex].hasPairingRecord = info.pairStatus == 1
             if storedHosts[storedIndex].name != info.name, !info.name.isEmpty {
                 storedHosts[storedIndex].name = info.name
