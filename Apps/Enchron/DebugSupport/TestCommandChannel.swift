@@ -958,6 +958,10 @@ final class TestCommandChannel {
                     payload: nil
                 )
             }
+            streaming.selectHost(hostID)
+            for _ in 0..<6 where streaming.applications.isEmpty {
+                try? await Task.sleep(for: .milliseconds(500))
+            }
             guard let resolved = resolveStreamApplication(app) else {
                 return Response(
                     id: request.id,

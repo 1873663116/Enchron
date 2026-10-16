@@ -2530,10 +2530,34 @@ def scenario_10_remote_session(context: Context) -> Outcome:
     current_game = info.get("currentgame", "0")
     context.record_channel("host-log", "serverinfo.json", info)
     if state == "SUNSHINE_SERVER_FREE" or current_game == "0":
-        raise BlockedBy(
-            f"Sunshine reports {state} with currentgame={current_game}; a remote session "
-            "(Moonlight, pre-arranged by a person) must already hold the host"
+        # Stand in for the person-held Moonlight session: the Moonlight protocol
+        # session probe holds the host with its own paired identity so the app's
+        # resume-or-conflict behaviour can run unattended.
+        holder = context.fixture("remoteSessionCommand")
+        if not isinstance(holder, list) or not holder:
+            raise BlockedBy(
+                f"Sunshine reports {state} with currentgame={current_game}; a remote "
+                "session must hold the host, or fixtures.json remoteSessionCommand must "
+                "start the Moonlight protocol probe as the holder"
+            )
+        context.note("host was free; the Moonlight session probe is holding it now")
+        context.spawn([str(part) for part in holder], "remote-session-holder")
+
+        def busy() -> dict[str, object] | None:
+            current = context.serverinfo()
+            if current.get("state", "").endswith("_SERVER_BUSY"):
+                return {"state": current.get("state")}
+            return None
+
+        context.wait(
+            "host-busy",
+            STREAM_CONNECT_SECONDS,
+            busy,
+            lambda: [{"state": context.serverinfo().get("state")}],
+            poll_interval_seconds=2.0,
         )
+        info = context.serverinfo()
+        context.record_channel("host-log", "serverinfo-held.json", info)
     row = ensure_host(context, pair=True)
     sunshine = context.sunshine()
     starts_before = len(sunshine["sessionStarts"])
