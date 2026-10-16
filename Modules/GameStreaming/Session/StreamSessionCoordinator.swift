@@ -55,6 +55,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var packetsReceived: Int64 = 0
         var networkDroppedFrames: Int64 = 0
         var duplicatedFrames: Int64 = 0
+        var audioFramesReceived: Int64 = 0
+        var audioFramesEnqueued: Int64 = 0
         var audioFramesDropped: Int64 = 0
         var mouseEvents: Int64 = 0
         var scrollEvents: Int64 = 0
@@ -409,9 +411,26 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     // MARK: - Audio path
 
     private func handleAudioFrame(_ frame: BackendAudioFrame) {
+        let received: Int64 = stateLock.withLock {
+            counters.audioFramesReceived += 1
+            return counters.audioFramesReceived
+        }
+        if received == 1 {
+            StreamSessionProbes.record(
+                "audio frames begin session=\(sessionID.rawValue) rate=\(frame.sampleRate) channels=\(frame.channels)",
+                retention: .evidence
+            )
+        }
         guard audioRenderer.isReadyForMoreMediaData else {
-            stateLock.withLock {
+            let dropped: Int64 = stateLock.withLock {
                 counters.audioFramesDropped += 1
+                return counters.audioFramesDropped
+            }
+            if dropped == 25 || dropped % 500 == 0 {
+                StreamSessionProbes.record(
+                    "audio backpressure session=\(sessionID.rawValue) dropped=\(dropped) ready=false",
+                    retention: .evidence
+                )
             }
             return
         }
@@ -457,9 +476,24 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         }
 
         do {
-            _ = try audioSink.enqueueImmediately(RendererInputSample(sampleBuffer: sample))
+            let outcome = try audioSink.enqueueImmediately(RendererInputSample(sampleBuffer: sample))
+            switch outcome {
+            case .accepted, .acceptedWithWarnings:
+                let enqueued: Int64 = stateLock.withLock {
+                    counters.audioFramesEnqueued += 1
+                    return counters.audioFramesEnqueued
+                }
+                if enqueued == 1 {
+                    StreamSessionProbes.record(
+                        "audio enqueue begins session=\(sessionID.rawValue)",
+                        retention: .evidence
+                    )
+                }
+            default:
+                stateLock.withLock { counters.audioFramesDropped += 1 }
+            }
         } catch {
-            return
+            stateLock.withLock { counters.audioFramesDropped += 1 }
         }
     }
 
@@ -683,6 +717,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             }
             snapshotStorage.diagnostics.decodeRecoveries = counters.decodeRecoveries
             snapshotStorage.diagnostics.idrRequests = counters.idrRequests
+            snapshotStorage.diagnostics.audioFramesReceived = counters.audioFramesReceived
+            snapshotStorage.diagnostics.audioFramesEnqueued = counters.audioFramesEnqueued
+            snapshotStorage.diagnostics.audioFramesDropped = counters.audioFramesDropped
             snapshotStorage.input.mouseEventsSent = counters.mouseEvents
             snapshotStorage.input.scrollEventsSent = counters.scrollEvents
             snapshotStorage.input.keyboardEventsSent = counters.keyboardEvents

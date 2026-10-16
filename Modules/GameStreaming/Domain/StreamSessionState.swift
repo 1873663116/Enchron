@@ -163,6 +163,9 @@ public struct StreamDiagnostics: Sendable, Equatable {
     public var estimatedRttVarianceMs: Int? = nil
     public var hostAudioPlaying: Bool = false
     public var clientAudioOutput: Bool = true
+    public var audioFramesReceived: Int64 = 0
+    public var audioFramesEnqueued: Int64 = 0
+    public var audioFramesDropped: Int64 = 0
 
     public init() {}
 
@@ -185,6 +188,9 @@ public struct StreamDiagnostics: Sendable, Equatable {
         }
         parts.append("hostAudio=\(hostAudioPlaying)")
         parts.append("clientAudio=\(clientAudioOutput)")
+        if framesPresented > 0 || audioFramesReceived > 0 {
+            parts.append("audio:received=\(audioFramesReceived);enqueued=\(audioFramesEnqueued);dropped=\(audioFramesDropped)")
+        }
         return parts.joined(separator: ";")
     }
 }
