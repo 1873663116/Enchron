@@ -9,6 +9,8 @@ let package = Package(
     ],
     products: [
         .library(name: "MoonlightClient", targets: ["MoonlightClient"]),
+        .executable(name: "MoonlightControlProbe", targets: ["MoonlightControlProbe"]),
+        .executable(name: "MoonlightSessionProbe", targets: ["MoonlightSessionProbe"]),
     ],
     targets: [
         .binaryTarget(
@@ -77,6 +79,16 @@ let package = Package(
             name: "MoonlightClient",
             dependencies: ["MoonlightBridge"],
             path: "Sources/MoonlightClient"
+        ),
+        .executableTarget(
+            name: "MoonlightControlProbe",
+            dependencies: ["MoonlightBridge", "CMoonlightCore"],
+            path: "Sources/MoonlightControlProbe"
+        ),
+        .executableTarget(
+            name: "MoonlightSessionProbe",
+            dependencies: ["MoonlightBridge", "CMoonlightCore"],
+            path: "Sources/MoonlightSessionProbe"
         ),
     ]
 )
