@@ -1699,6 +1699,16 @@ def wait_for_host_launch(context: Context, before: int) -> dict[str, object] | N
 
 def ensure_streaming(context: Context) -> tuple[str, SnapshotView]:
     row = ensure_host(context, pair=True)
+    if context.matched_element("Stream-Session-degrade-explain") is not None:
+        # A notice sheet from an earlier scenario covers the window and leaves
+        # every control unhittable; ending the session through the command
+        # channel closes it together with the window.
+        context.note("a degrade notice from an earlier scenario was still presented")
+        try:
+            disconnect_session(context, soft=True)
+        except (BlockedBy, InstrumentFault, ProductVerdict):
+            context.note("the stale notice could not be cleared through the session")
+        context.hold("stale-notice-settle", 2.0)
     view = context.session_snapshot_or_none()
     if view is not None and view.state_name() == "streaming":
         context.record_channel("control-surface", "session-snapshot.json", view.pairs)
@@ -2917,7 +2927,7 @@ def scenario_11_disconnect_vs_quit(context: Context) -> Outcome:
 
 STREAM_OPTION_KEYS = {
     "resolution": "resolution",
-    "frameRate": "frameRate",
+    "frameRate": "fps",
     "bitrate": "bitrate",
     "codec": "codec",
     "framePacing": "framePacing",
@@ -3302,6 +3312,10 @@ def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
     context.record_text("control-surface", "degrade-explain.txt", str(explain))
     screenshot, rgb = context.capture("degrade-explain")
     context.record_pointer("pixel", str(screenshot.relative_to(context.directory)))
+    # The notice is a sheet over the stream window with no control of its own;
+    # ending the session through the command channel closes both the window and
+    # the sheet, which is what the next scenario needs.
+    disconnect_session(context, soft=True)
     sunshine = context.sunshine()
     context.record_channel(
         "host-log",

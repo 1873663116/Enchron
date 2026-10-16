@@ -4177,6 +4177,18 @@
       "scope": "product",
       "sources": [
         {
+          "path": "Modules/GameStreaming/Views/StreamWindowView.swift"
+        }
+      ],
+      "template": "Stream-Session-snapshot"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
           "path": "Modules/Playback/Views/StreamVideoSurface.swift"
         }
       ],
