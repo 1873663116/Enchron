@@ -318,7 +318,12 @@
 // Returns the identity
 - (SecIdentityRef)getClientCertificate {
     SecIdentityRef identityApp = nil;
-    CFDataRef p12Data = (__bridge CFDataRef)[MLCCryptoManager readP12FromFile];
+    NSData* p12Bytes = [MLCCryptoManager readP12FromFile];
+    if (p12Bytes == nil) {
+        Log(LOG_E, @"Client certificate store is missing; cannot answer the TLS challenge");
+        return nil;
+    }
+    CFDataRef p12Data = (__bridge CFDataRef)p12Bytes;
 
     CFStringRef password = CFSTR("limelight");
     const void* keys[] = { kSecImportExportPassphrase };
