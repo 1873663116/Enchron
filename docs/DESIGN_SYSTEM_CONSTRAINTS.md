@@ -48,9 +48,9 @@
 
 ## 玻璃边界
 
-visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃层级（`View+EnchronGlass.swift` 的具名变体），调用点无法在窗口内部再造一层材质边界；只有窗口根经 `enchronWindowGlassBackground(_:)`（`MainView`、`PlayerView`）、ornament 与空间附着物经 `enchronGlassBackground(in:)`（`EnvironmentCard`、`FusedPlayerPanel`）在各自宿主处显式选用平台玻璃。裸 `glassBackgroundEffect` 的所有权由 `verify_glass_usage.py` 钉死在 `View+Platform.swift`，包装器调用点是一张显式白名单。
+visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃层级（`View+EnchronGlass.swift` 的具名变体），调用点无法在窗口内部再造一层材质边界；只有窗口根经 `enchronWindowGlassBackground(_:)`（`MainView`、`PlayerView`）、ornament 与空间附着物经 `enchronGlassBackground(in:)`（`FusedPlayerPanel`）在各自宿主处显式选用平台玻璃。裸 `glassBackgroundEffect` 的所有权由 `verify_glass_usage.py` 钉死在 `View+Platform.swift`，包装器调用点是一张显式白名单。
 
-原因不止是风格。`glassBackgroundEffect` 会把视图提升为**独立渲染层，任何祖先都无法裁切、遮罩或遮挡它**。网格卡片一旦带上它，滚动到边界时就画到窗口外并整张消失，而不是滑进侧栏下面。缩略图自带填充，玻璃从来只在占位符后面透出过。
+原因不止是风格。`glassBackgroundEffect` 会把视图提升为**独立渲染层，任何祖先都无法裁切、遮罩或遮挡它**。网格卡片一旦带上它，滚动到边界时就画到窗口外并整张消失，而不是滑进侧栏下面。缩略图自带填充，玻璃从来只在占位符后面透出过。同一条性质决定环境卡不能带玻璃：`TabView` 的页签栏是窗口自己的 ornament，层级低于任何独立渲染层，卡片一旦带玻璃就压在它上面。环境卡因此走 `enchronCardSurface(in:)` 的材质表面，与窗口内其它控件同在一条渲染路径上。
 
 窗口平面同时是内容可见性的边界：窗口内容只有经 `offset(z:)` 落在平面之前才画得出来，落在平面及其之后的部分被窗口自己的材质挡掉。`EnvironmentCarousel` 的深度偏移因此在 `windowFrontClearance` 处封底，`centerDepthOffset` 与 `sideDepthOffset` 只决定卡片之间的前后差，不会把任何一张卡片推过这条边界。
 
@@ -71,6 +71,14 @@ tab bar 的隐藏与形状变形同一刻发出、不加动画包装；它是 `T
 `EnvironmentCard` 的缩略图按外观取浅色或深色图，切换以 `AnimationToken.controlsTransition` 溶解：图片以图片名为 `.id`、带 `.opacity` 转场，容器用 `.animation(_:value:)` 驱动，与 `LevelContent` 的层级替换同一手法。场景自身的浅深材质过渡是 1.2 秒，与这条 0.4 秒的溶解不同步，卡片会先落定。
 
 浏览侧栏出于同一理由是**窗口自身表面的一部分，不是浮在窗口里的一块板**：浮板自带玻璃边缘，它的下缘停在窗口下缘之上，两者之间会露出一条页面。侧栏因此是方角、满高，只在尾缘画一道主题强调色的边界线标出内容区从哪里开始；前缘落在窗口自己的边界上，不需要边线。
+
+## 环境页构图
+
+轮播的整套几何按窗口宽度等比派生：基准宽 `EnvironmentCarousel.referenceWindowWidth` 是构图设计尺寸所对应的窗口宽度，取值等于浏览窗口的默认宽度；缩放因子是窗口内容宽度与基准宽的比，`MainView` 的 `expandedSize.width` 同时供给底板裁切与这条缩放，卡片与底板因此不会互相越界。`EnvironmentCard.metrics(scale:)` 与 `EnvironmentCarousel.metrics(scale:)` 是唯一的推导处，卡片尺寸与内边距、卡片间距、前后深度、边缘滑出距离、退场深度、顶部 scrim 高度与拖拽行程都在其中。浏览窗口的宽度在 `BrowserWindowLayout` 的区间内连续可变，重排逐帧跟随，卡片因此在任何窗口尺寸下都不被底板裁切；窗口内容宽度由 `BrowserWindowLayout.minimumSize` 兜底，缩放因子随之有下限，构图不会随窗口一起缩到失去可读性。
+
+参与缩放的只有几何：字号走 `Typography` 语义映射，卡片上的按钮保持 HIG 目标尺寸，圆角固定为 `Radius.card`，卡片内的文字块与控件不随卡片等比放大。
+
+`TabView` 的页签栏是窗口 ornament，不占窗口内容宽度，环境页的宽度因此就是窗口内容的宽度。
 
 ## 独立菜单
 

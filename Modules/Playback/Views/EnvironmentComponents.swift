@@ -52,6 +52,11 @@ public struct EnvironmentCard: View {
     var controlsEnabled = true
     var isDefault = false
     var onSetDefault: () -> Void = {}
+    var scale: CGFloat = 1
+
+    private var metrics: DesignTokens.EnvironmentCard.Metrics {
+        DesignTokens.EnvironmentCard.metrics(scale: scale)
+    }
 
     public var body: some View {
         let shape = DesignTokens.ShapeToken.card
@@ -63,14 +68,11 @@ public struct EnvironmentCard: View {
             topControls
         }
         .frame(
-            width: DesignTokens.EnvironmentCard.width,
-            height: DesignTokens.EnvironmentCard.height
+            width: metrics.width,
+            height: metrics.height
         )
         .clipShape(shape)
-        .enchronGlassBackground(in: shape)
-        .overlay {
-            shape.strokeBorder(DesignTokens.Surface.overlay, lineWidth: DesignTokens.Stroke.regular)
-        }
+        .enchronCardSurface(in: shape)
         .enchronHoverContentShape(shape)
         .contentShape(shape)
         .accessibilityElement(children: .combine)
@@ -104,8 +106,8 @@ public struct EnvironmentCard: View {
             .resizable()
             .scaledToFill()
             .frame(
-                width: DesignTokens.EnvironmentCard.width,
-                height: DesignTokens.EnvironmentCard.height
+                width: metrics.width,
+                height: metrics.height
             )
             .saturation(
                 Double(1 - clampedAtmosphericFade * DesignTokens.EnvironmentCard.atmosphericDesaturation)
@@ -114,7 +116,7 @@ public struct EnvironmentCard: View {
                 Double(1 - clampedAtmosphericFade * DesignTokens.EnvironmentCard.atmosphericContrastReduction)
             )
             .blur(
-                radius: clampedAtmosphericFade * DesignTokens.EnvironmentCard.atmosphericBlurRadius
+                radius: clampedAtmosphericFade * metrics.atmosphericBlurRadius
             )
             .clipped()
     }
@@ -148,12 +150,12 @@ public struct EnvironmentCard: View {
                 )
                 .disabled(controlsEnabled == false)
             }
-            .padding(DesignTokens.EnvironmentCard.chromePadding)
+            .padding(metrics.chromePadding)
             Spacer()
         }
         .frame(
-            width: DesignTokens.EnvironmentCard.width,
-            height: DesignTokens.EnvironmentCard.height
+            width: metrics.width,
+            height: metrics.height
         )
         .opacity(Double(clampedDetailVisibility))
         .allowsHitTesting(clampedDetailVisibility == 1)
@@ -165,12 +167,12 @@ public struct EnvironmentCard: View {
             Rectangle()
                 .fill(DesignTokens.Surface.textScrimMaterial)
                 .mask(topReadabilityMask)
-                .frame(height: DesignTokens.EnvironmentCard.topScrimHeight)
+                .frame(height: metrics.topScrimHeight)
             Spacer(minLength: 0)
         }
         .frame(
-            width: DesignTokens.EnvironmentCard.width,
-            height: DesignTokens.EnvironmentCard.height
+            width: metrics.width,
+            height: metrics.height
         )
         .opacity(Double(clampedDetailVisibility))
         .allowsHitTesting(clampedDetailVisibility == 1)
@@ -192,10 +194,10 @@ public struct EnvironmentCard: View {
             .disabled(isDefault)
             .accessibilityIdentifier("EnvironmentCard-default-\(environment.id)")
         }
-        .padding(.horizontal, DesignTokens.EnvironmentCard.informationPaddingH)
-        .padding(.bottom, DesignTokens.EnvironmentCard.informationPaddingBottom)
-        .frame(width: DesignTokens.EnvironmentCard.width,
-               height: DesignTokens.EnvironmentCard.informationHeight,
+        .padding(.horizontal, metrics.informationPaddingH)
+        .padding(.bottom, metrics.informationPaddingBottom)
+        .frame(width: metrics.width,
+               height: metrics.informationHeight,
                alignment: .bottomLeading)
         .background {
             Rectangle()
@@ -239,7 +241,8 @@ public struct EnvironmentCard: View {
         onExpand: @escaping () -> Void = {},
         controlsEnabled: Bool = true,
         isDefault: Bool = false,
-        onSetDefault: @escaping () -> Void = {}
+        onSetDefault: @escaping () -> Void = {},
+        scale: CGFloat = 1
     ) {
         self.environment = environment
         self.effect = effect
@@ -251,6 +254,7 @@ public struct EnvironmentCard: View {
         self.controlsEnabled = controlsEnabled
         self.isDefault = isDefault
         self.onSetDefault = onSetDefault
+        self.scale = scale
     }
 }
 
@@ -322,6 +326,7 @@ struct EnvironmentCardCarousel: View {
     var onCenterChange: (SpatialSceneDomain.CinemaEnvironment) -> Void = { _ in }
     var onEffectChange: (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in }
     var onToggle: () -> Void = {}
+    var availableWidth: CGFloat = DesignTokens.EnvironmentCarousel.referenceWindowWidth
 
     @State private var scrollPosition: CGFloat = 0
     @State private var dragTranslation: CGFloat = 0
@@ -330,6 +335,14 @@ struct EnvironmentCardCarousel: View {
     @State private var detailsVisible = true
     @State private var motionGeneration = 0
     @State private var detailRevealTask: Task<Void, Never>?
+
+    private var compositionScale: CGFloat {
+        availableWidth / DesignTokens.EnvironmentCarousel.referenceWindowWidth
+    }
+
+    private var metrics: DesignTokens.EnvironmentCarousel.Metrics {
+        DesignTokens.EnvironmentCarousel.metrics(scale: compositionScale)
+    }
 
     var body: some View {
         ZStack {
@@ -355,7 +368,8 @@ struct EnvironmentCardCarousel: View {
                         onExpand: onToggle,
                         controlsEnabled: controlsEnabled,
                         isDefault: item.environment.environment == cardDefaultEnvironment,
-                        onSetDefault: { onSetDefault(item.environment.environment) }
+                        onSetDefault: { onSetDefault(item.environment.environment) },
+                        scale: compositionScale
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
                     .opacity(Double(cardOpacity(for: item.visualPosition)))
@@ -366,7 +380,7 @@ struct EnvironmentCardCarousel: View {
                 }
             }
         }
-        .frame(width: Metrics.stageWidth, height: Metrics.stageHeight)
+        .frame(width: metrics.stageWidth, height: metrics.stageHeight)
         .contentShape(Rectangle())
         .simultaneousGesture(dragGesture)
         .onAppear(perform: centerDefaultEnvironment)
@@ -433,7 +447,7 @@ struct EnvironmentCardCarousel: View {
 
     private var currentScrollPosition: CGFloat {
         guard !environments.isEmpty else { return 0 }
-        let gestureProgress = -dragTranslation / Metrics.dragDistance
+        let gestureProgress = -dragTranslation / metrics.dragDistance
         return scrollPosition + gestureProgress
     }
 
@@ -460,8 +474,8 @@ struct EnvironmentCardCarousel: View {
 #if DEBUG
                 appModel.recordSurfaceInputProbe("environmentHome drag=ended translation=\(value.translation.width)", retention: .evidence)
 #endif
-                let actualProgress = -value.translation.width / Metrics.dragDistance
-                let projectedProgress = -value.predictedEndTranslation.width / Metrics.dragDistance
+                let actualProgress = -value.translation.width / metrics.dragDistance
+                let projectedProgress = -value.predictedEndTranslation.width / metrics.dragDistance
                 let actualPosition = scrollPosition + actualProgress
                 let projectedPosition = scrollPosition + projectedProgress
                 let targetPosition = targetScrollPosition(
@@ -554,16 +568,16 @@ struct EnvironmentCardCarousel: View {
         let distance = abs(position)
         let sign: CGFloat = position < 0 ? -1 : 1
         let baseOffset = distance <= 1
-            ? distance * Metrics.centerCardGap
-            : Metrics.centerCardGap + (distance - 1) * Metrics.outerCardGap
-        return sign * (baseOffset + edgeExitProgress(for: distance) * Metrics.edgeSlideOutDistance)
+            ? distance * metrics.centerCardGap
+            : metrics.centerCardGap + (distance - 1) * metrics.outerCardGap
+        return sign * (baseOffset + edgeExitProgress(for: distance) * metrics.edgeSlideOutDistance)
     }
 
     private func zOffset(for position: CGFloat) -> CGFloat {
         let distance = abs(position)
-        let baseOffset = Metrics.centerDepthOffset - distance * Metrics.sideDepthOffset
-        let edgeExitOffset = edgeExitProgress(for: distance) * Metrics.edgeDepthRetreat
-        return max(Metrics.windowFrontClearance, baseOffset - edgeExitOffset)
+        let baseOffset = metrics.centerDepthOffset - distance * metrics.sideDepthOffset
+        let edgeExitOffset = edgeExitProgress(for: distance) * metrics.edgeDepthRetreat
+        return max(metrics.windowFrontClearance, baseOffset - edgeExitOffset)
     }
 
     private func cardOpacity(for position: CGFloat) -> CGFloat {
@@ -648,9 +662,6 @@ struct EnvironmentCardCarousel: View {
     }
 
     private enum Metrics {
-        static let stageWidth: CGFloat = DesignTokens.EnvironmentCarousel.stageWidth
-        static let stageHeight: CGFloat = DesignTokens.EnvironmentCarousel.stageHeight
-        static let dragDistance: CGFloat = DesignTokens.EnvironmentCarousel.dragDistance
         static let snapThreshold: CGFloat = DesignTokens.EnvironmentCarousel.snapThreshold
         static let maximumPredictedStepLead: CGFloat = DesignTokens.EnvironmentCarousel.maximumPredictedStepLead
         static let maximumStepPerGesture: CGFloat = DesignTokens.EnvironmentCarousel.maximumStepPerGesture
@@ -666,14 +677,7 @@ struct EnvironmentCardCarousel: View {
         static let firstSideOpacity: CGFloat = DesignTokens.EnvironmentCarousel.firstSideOpacity
         static let edgeExitStart: CGFloat = DesignTokens.EnvironmentCarousel.edgeExitStart
         static let edgeExitEnd: CGFloat = DesignTokens.EnvironmentCarousel.edgeExitEnd
-        static let edgeSlideOutDistance: CGFloat = DesignTokens.EnvironmentCarousel.edgeSlideOutDistance
-        static let edgeDepthRetreat: CGFloat = DesignTokens.EnvironmentCarousel.edgeDepthRetreat
         static let edgeAtmosphericBoost: CGFloat = DesignTokens.EnvironmentCarousel.edgeAtmosphericBoost
-        static let centerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.centerCardGap
-        static let outerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.outerCardGap
-        static let centerDepthOffset: CGFloat = DesignTokens.EnvironmentCarousel.centerDepthOffset
-        static let sideDepthOffset: CGFloat = DesignTokens.EnvironmentCarousel.sideDepthOffset
-        static let windowFrontClearance: CGFloat = DesignTokens.EnvironmentCarousel.windowFrontClearance
         static let atmosphericFadeStart: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeStart
         static let atmosphericFadeEnd: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeEnd
         static let atmosphericFadeMaxOpacity: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeMaxOpacity

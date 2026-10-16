@@ -45,13 +45,6 @@ ALLOWED_WRAPPER_CALLS = Counter(
             callee="enchronGlassBackground",
         ): 1,
         WrapperCallIdentity(
-            path=Path(
-                "Modules/Playback/Views/EnvironmentComponents.swift"
-            ),
-            enclosing_type="EnvironmentCard",
-            callee="enchronGlassBackground",
-        ): 1,
-        WrapperCallIdentity(
             path=Path("Modules/Playback/Views/PlaybackPanel.swift"),
             enclosing_type="RevealShell",
             callee="enchronGlassBackground",

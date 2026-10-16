@@ -306,7 +306,7 @@ public struct MainView: View {
                 EnvironmentHomeView(isCompact: Binding(
                     get: { appModel.isEnvironmentHomeCompact },
                     set: setEnvironmentHomeCompact
-                ))
+                ), availableWidth: expandedSize.width)
                 .enchronScreenAppearance()
                 .browserTabBarVisibility(browserVisibility)
             }

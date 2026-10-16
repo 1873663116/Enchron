@@ -17,6 +17,16 @@ public extension View {
             .enchronButtonSurface(in: Capsule())
     }
 
+    func enchronCardSurface<S: InsettableShape>(in shape: S) -> some View {
+        background(.ultraThickMaterial, in: shape)
+            .overlay {
+                shape.strokeBorder(
+                    DesignTokens.Surface.overlay,
+                    lineWidth: DesignTokens.Stroke.regular
+                )
+            }
+    }
+
     func enchronGlassControl() -> some View {
         enchronGlassControlSurface()
             .enchronHoverContentShape(Capsule())

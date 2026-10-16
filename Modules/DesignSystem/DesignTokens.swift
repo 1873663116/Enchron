@@ -409,6 +409,30 @@ public enum DesignTokens {
         public static let atmosphericContrastReduction: CGFloat = 0.68
         public static let atmosphericDesaturation: CGFloat = 0.38
         public static let atmosphericBlurRadius: CGFloat = 2.6
+
+        public struct Metrics {
+            public let width: CGFloat
+            public let height: CGFloat
+            public let informationHeight: CGFloat
+            public let chromePadding: CGFloat
+            public let informationPaddingH: CGFloat
+            public let informationPaddingBottom: CGFloat
+            public let topScrimHeight: CGFloat
+            public let atmosphericBlurRadius: CGFloat
+        }
+
+        public static func metrics(scale: CGFloat) -> Metrics {
+            Metrics(
+                width: width * scale,
+                height: height * scale,
+                informationHeight: informationHeight * scale,
+                chromePadding: chromePadding * scale,
+                informationPaddingH: informationPaddingH * scale,
+                informationPaddingBottom: informationPaddingBottom * scale,
+                topScrimHeight: topScrimHeight * scale,
+                atmosphericBlurRadius: atmosphericBlurRadius * scale
+            )
+        }
     }
 
     public enum EnvironmentHome {
@@ -426,12 +450,13 @@ public enum DesignTokens {
     }
 
     public enum EnvironmentCarousel {
+        public static let referenceWindowWidth: CGFloat = 1_536
         public static let stageWidth: CGFloat = EnvironmentHome.width
         public static let stageHeight: CGFloat = 510
         public static let centerCardGap: CGFloat = 420
         public static let outerCardGap: CGFloat = 140
-        public static let centerDepthOffset: CGFloat = 272
-        public static let sideDepthOffset: CGFloat = 140
+        public static let centerDepthOffset: CGFloat = 136
+        public static let sideDepthOffset: CGFloat = 70
         public static let windowFrontClearance: CGFloat = 16
         public static let atmosphericFadeStart: CGFloat = 0.18
         public static let atmosphericFadeEnd: CGFloat = 1.85
@@ -458,6 +483,34 @@ public enum DesignTokens {
         public static let edgeAtmosphericBoost: CGFloat = 0.42
         public static let zIndexBase: Double = 100
         public static let zIndexDistanceStep: Double = 10
+
+        public struct Metrics {
+            public let stageWidth: CGFloat
+            public let stageHeight: CGFloat
+            public let dragDistance: CGFloat
+            public let centerCardGap: CGFloat
+            public let outerCardGap: CGFloat
+            public let centerDepthOffset: CGFloat
+            public let sideDepthOffset: CGFloat
+            public let edgeSlideOutDistance: CGFloat
+            public let edgeDepthRetreat: CGFloat
+            public let windowFrontClearance: CGFloat
+        }
+
+        public static func metrics(scale: CGFloat) -> Metrics {
+            Metrics(
+                stageWidth: stageWidth * scale,
+                stageHeight: stageHeight * scale,
+                dragDistance: dragDistance * scale,
+                centerCardGap: centerCardGap * scale,
+                outerCardGap: outerCardGap * scale,
+                centerDepthOffset: centerDepthOffset * scale,
+                sideDepthOffset: sideDepthOffset * scale,
+                edgeSlideOutDistance: edgeSlideOutDistance * scale,
+                edgeDepthRetreat: edgeDepthRetreat * scale,
+                windowFrontClearance: windowFrontClearance
+            )
+        }
     }
 
     public enum SourceConnection {

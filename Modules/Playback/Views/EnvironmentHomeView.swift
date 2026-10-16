@@ -4,9 +4,11 @@ import SwiftUI
 public struct EnvironmentHomeView: View {
     @Environment(PlaybackSessionModel.self) private var appModel
     @Binding private var isCompact: Bool
+    private let availableWidth: CGFloat
 
-    public init(isCompact: Binding<Bool>) {
+    public init(isCompact: Binding<Bool>, availableWidth: CGFloat) {
         _isCompact = isCompact
+        self.availableWidth = availableWidth
     }
 
     public var body: some View {
@@ -37,7 +39,8 @@ public struct EnvironmentHomeView: View {
                 controlsEnabled: appModel.isTransitioningPlaybackPresentation == false,
                 onCenterChange: { appModel.cardEnvironment = $0 },
                 onEffectChange: updateEnvironmentEffect,
-                onToggle: toggleEnvironment
+                onToggle: toggleEnvironment,
+                availableWidth: availableWidth
             )
             Spacer(minLength: 0)
         }

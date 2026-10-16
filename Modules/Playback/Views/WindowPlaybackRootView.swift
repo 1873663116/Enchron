@@ -87,7 +87,7 @@ public struct WindowPlaybackLayout: Equatable {
 }
 
 public enum BrowserWindowLayout {
-    static let minimumSize = CGSize(width: 1_088, height: 612)
+    public static let minimumSize = CGSize(width: 1_088, height: 612)
     public static let defaultSize = CGSize(width: 1_536, height: 864)
     static let maximumSize = CGSize(width: 1_808, height: 1_017)
 

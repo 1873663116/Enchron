@@ -63,7 +63,9 @@ struct EnchronApp: App {
             }
             .enchronEnvironment(application)
             .frame(
+                minWidth: BrowserWindowLayout.minimumSize.width,
                 maxWidth: .infinity,
+                minHeight: BrowserWindowLayout.minimumSize.height,
                 maxHeight: .infinity,
                 alignment: application.appModel.isEnvironmentHomeCompact ? .bottom : .center
             )
