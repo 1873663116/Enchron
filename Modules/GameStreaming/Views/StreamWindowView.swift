@@ -23,15 +23,6 @@ public struct StreamWindowView: View {
                         StreamVideoSurface(renderer: binding.videoRenderer)
                             .id(binding.version)
                     }
-#if DEBUG
-                    HStack(spacing: 0) {
-                        Color(red: 1, green: 0, blue: 0)
-                            .frame(width: DesignTokens.Interactive.mini, height: DesignTokens.Interactive.mini)
-                        Color(white: 0.5)
-                            .frame(width: DesignTokens.Interactive.mini, height: DesignTokens.Interactive.mini)
-                    }
-                    .accessibilityIdentifier("Stream-Debug-swatch")
-#endif
                     StreamPointerInputLayer(
                         videoAspectRatio: videoAspectRatio,
                         onMove: { x, y in model.sendPointerMove(normalizedX: x, normalizedY: y) },

@@ -1478,6 +1478,16 @@ def pair_host(context: Context, row: str) -> dict[str, object]:
         except BlockedBy as error:
             last_reason = error.reason
             context.note(f"pairing attempt {attempt + 1} did not register; retrying")
+            # Sunshine holds one of its fixed request threads for a pairing that
+            # was never answered, so the abandoned attempt is cancelled instead
+            # of being left open.
+            if context.matched_element("Stream-Pairing-cancel") is not None:
+                context.tap("Stream-Pairing-cancel")
+                context.record_channel(
+                    "control-surface",
+                    f"pairing-cancel-{attempt}.json",
+                    {"reason": last_reason},
+                )
             context.hold(f"pairing-retry-{attempt}", 4.0)
             if context.matched_element("Stream-Pairing-retry") is not None:
                 context.tap("Stream-Pairing-retry")
