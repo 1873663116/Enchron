@@ -1312,7 +1312,8 @@ def discover_host_rows(context: Context) -> list[str]:
 
 def find_host_row(context: Context) -> str | None:
     rows = discover_host_rows(context)
-    return rows[0] if rows else None
+    direct = [row for row in rows if "proxy" not in row.lower()]
+    return (direct or rows or [None])[0]
 
 
 def add_host(context: Context) -> str:
@@ -1435,16 +1436,20 @@ def pair_host(context: Context, row: str) -> dict[str, object]:
     context.require_identifier("Stream-Pairing")
     pairing_id = None
     pin = None
-    try:
-        document = context.app_verb("streamPair", host=row)
-        candidate_pin = document.get("pin")
-        candidate_id = document.get("pairingID")
-        if isinstance(candidate_pin, str) and re.fullmatch(r"[0-9]{4}", candidate_pin):
-            pin = candidate_pin
-        if isinstance(candidate_id, str):
-            pairing_id = candidate_id
-    except BlockedBy as error:
-        context.note(f"streamPair verb unusable ({error.reason}); reading the PIN from the UI")
+    def start_pairing() -> None:
+        nonlocal pin, pairing_id
+        try:
+            document = context.app_verb("streamPair", host=row)
+            candidate_pin = document.get("pin")
+            candidate_id = document.get("pairingID")
+            if isinstance(candidate_pin, str) and re.fullmatch(r"[0-9]{4}", candidate_pin):
+                pin = candidate_pin
+            if isinstance(candidate_id, str):
+                pairing_id = candidate_id
+        except BlockedBy as error:
+            context.note(f"streamPair verb unusable ({error.reason}); reading the PIN from the UI")
+
+    start_pairing()
     if pin is None:
         pin = context.wait(
             "Stream-Pairing-PIN",
@@ -1458,7 +1463,37 @@ def pair_host(context: Context, row: str) -> dict[str, object]:
             lambda: [{"value": context.identifier_value("Stream-Pairing-PIN")}],
             poll_interval_seconds=1.0,
         )["pin"]
-    submitted = submit_pin(context, pairing_id, str(pin))
+
+    submitted = None
+    for attempt in range(3):
+        try:
+            submitted = submit_pin(context, pairing_id, str(pin))
+            break
+        except BlockedBy as error:
+            status = context.identifier_value("Stream-Pairing-status") or ""
+            if "failed" in status and context.matched_element("Stream-Pairing-retry") is not None:
+                context.note(f"pairing attempt {attempt + 1} failed host-side; retrying")
+                context.tap("Stream-Pairing-retry")
+                context.hold(f"pairing-retry-{attempt}", 3.0)
+                pin = None
+                start_pairing()
+                if pin is None:
+                    pin = context.wait(
+                        "Stream-Pairing-PIN",
+                        FIXTURE_SECONDS,
+                        lambda: (
+                            {"pin": value}
+                            if (value := context.identifier_value("Stream-Pairing-PIN"))
+                            and re.fullmatch(r"[0-9]{4}", value)
+                            else None
+                        ),
+                        lambda: [{"value": context.identifier_value("Stream-Pairing-PIN")}],
+                        poll_interval_seconds=1.0,
+                    )["pin"]
+                continue
+            raise BlockedBy(f"pairing could not start ({error.reason})")
+    if submitted is None:
+        raise BlockedBy("pairing failed on every attempt")
 
     def pairing_done() -> dict[str, object] | None:
         # The pairing page dismisses itself once the host accepts, so the row's
@@ -2622,10 +2657,10 @@ def scenario_11_disconnect_vs_quit(context: Context) -> Outcome:
         )
     try:
         disconnect_session(context, soft=True)
-        wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
+        ended_view = wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     except (BlockedBy, InstrumentFault, ProductVerdict):
         context.tap("Stream-Session-back")
-        wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
+        ended_view = wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     after = host_process_running(
         context, int(pid) if isinstance(pid, (int, float)) else None, app_name
     )
@@ -2635,7 +2670,7 @@ def scenario_11_disconnect_vs_quit(context: Context) -> Outcome:
             "host-app-exited",
             {"app": app_name, "pid": pid, "before": before, "after": after},
         )
-    final = context.session_snapshot()
+    final = ended_view
     if final.state_name() != "ended":
         raise ProductVerdict("session-not-ended", {"session": final.state()})
     surviving = next(
@@ -2730,8 +2765,8 @@ def scenario_12_settings_persistence(context: Context) -> Outcome:
             "requested-not-persisted",
             {"before": before.get("requested"), "after": after.get("requested")},
         )
-    context.tap("Navigation-Ornament-tab-streaming")
-    view = wait_for_state(context, "streaming", STREAM_CONNECT_SECONDS, "streaming")
+    ensure_streaming(context)
+    view = context.session_snapshot()
     negotiated = view.negotiated()
     context.record_channel("control-surface", "negotiated.json", negotiated)
     sunshine = context.sunshine()
@@ -3018,14 +3053,14 @@ def scenario_18_resource_release(context: Context) -> Outcome:
     send_text(context, "enc" + os.urandom(2).hex())
     context.require_probe_health()
     disconnect_session(context, soft=True)
-    wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
+    ended_view = wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     lines = probe_evidence(
         context, "release-probe.log", ("input release", "audio stop", "session end")
     )
     context.record_channel(
         "control-surface", "released.json", {"released": True}
     )
-    final = context.session_snapshot()
+    final = ended_view
     context.record_channel("control-surface", "final-snapshot.json", final.pairs)
     counters = final.inputs()
     pressed_keys = counters.get("pressedKeys")
