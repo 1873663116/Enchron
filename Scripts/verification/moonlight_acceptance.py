@@ -1464,7 +1464,8 @@ def find_forensic_app_card(context: Context) -> str | None:
         if identifier.startswith("Stream-AppCard-")
     ]
     for card in cards:
-        if wanted.lower() in card.lower():
+        value = context.identifier_value(card) or ""
+        if wanted.lower() in f"{card} {value}".lower():
             return card
     return None
 
@@ -1902,13 +1903,16 @@ def scenario_03_app_list(context: Context) -> Outcome:
     identifiers = context.identifiers()
     cards = [item for item in identifiers if item.startswith("Stream-AppCard-")]
     missing = [item for item in identifiers if item.startswith("Stream-AppMissing-")]
+    card_names = {
+        card: context.identifier_value(card) or "" for card in cards
+    }
     webui = context.webui()
     host_apps = webui.apps()
     host_names = [str(entry.get("name", "")) for entry in host_apps]
     context.record_channel(
         "control-surface",
         "app-grid.json",
-        {"gridValue": grid_value, "cards": cards, "missing": missing},
+        {"gridValue": grid_value, "cards": card_names, "missing": missing},
     )
     context.record_channel("host-log", "sunshine-apps.json", host_apps)
     forensic_name = str(context.fixture("forensicAppName", DEFAULT_FORENSIC_APP_NAME))
@@ -1916,7 +1920,12 @@ def scenario_03_app_list(context: Context) -> Outcome:
         raise ProductVerdict(
             "app-grid-empty", {"gridValue": grid_value, "gridPresent": context.matched_element("Stream-AppGrid") is not None}
         )
-    if not any(forensic_name.lower() in card.lower() for card in cards):
+    matched_cards = [
+        card
+        for card, value in card_names.items()
+        if forensic_name.lower() in f"{card} {value}".lower()
+    ]
+    if not matched_cards:
         if not host_names:
             raise BlockedBy(
                 f"the host app list has no entry matching {forensic_name!r}; register the "
@@ -1924,7 +1933,7 @@ def scenario_03_app_list(context: Context) -> Outcome:
             )
         raise ProductVerdict(
             "forensic-app-missing",
-            {"expected": forensic_name, "cards": cards, "hostApps": host_names},
+            {"expected": forensic_name, "cards": card_names, "hostApps": host_names},
         )
     return Outcome(
         PASSED,
