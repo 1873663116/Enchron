@@ -72,7 +72,7 @@ public struct StreamWindowView: View {
         .overlay(alignment: .bottomTrailing) {
             Text(model.session?.state.readableValue ?? "unavailable")
                 .font(DesignTokens.Typography.monospacedDetail)
-                .opacity(0.001)
+                .foregroundStyle(.clear)
                 .accessibilityIdentifier("Stream-Session-snapshot")
                 .accessibilityValue(model.session?.readableValue ?? "unavailable")
                 .allowsHitTesting(false)
