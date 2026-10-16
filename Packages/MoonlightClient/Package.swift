@@ -46,6 +46,7 @@ let package = Package(
                 "nanors/rs16_afft.c",
                 "nanors/deps/obl/oblas16.c",
                 "nanors/deps/obl/oblas16_afft.c",
+                "nanors/t",
             ],
             publicHeadersPath: "include",
             cSettings: [
