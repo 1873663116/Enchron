@@ -13,10 +13,12 @@ let package = Package(
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
         .library(name: "MediaLibrary", targets: ["MediaLibrary"]),
         .library(name: "Playback", targets: ["Playback"]),
+        .library(name: "GameStreaming", targets: ["GameStreaming"]),
     ],
     dependencies: [
         .package(url: "https://github.com/amosavian/AMSMB2.git", from: "4.0.3"),
         .package(path: "Packages/PlaybackCore"),
+        .package(path: "Packages/MoonlightClient"),
         .package(path: "Packages/EnvironmentSceneContract"),
         .package(path: "Packages/OceanEnvironment"),
         .package(path: "Packages/QuietRoomEnvironment"),
@@ -65,6 +67,16 @@ let package = Package(
             swiftSettings: [
                 .defaultIsolation(MainActor.self),
             ]
+        ),
+        .target(
+            name: "GameStreaming",
+            dependencies: [
+                "DesignSystem",
+                "Playback",
+                .product(name: "SampleBufferRendering", package: "PlaybackCore"),
+                .product(name: "MoonlightClient", package: "MoonlightClient"),
+            ],
+            path: "Modules/GameStreaming"
         ),
         .testTarget(
             name: "MediaLibraryTests",

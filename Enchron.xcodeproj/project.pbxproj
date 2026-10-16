@@ -26,6 +26,8 @@
 		E10000132FA1000100E1C001 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = E10000102FA1000100E1C001 /* DesignSystem */; };
 		E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000012FA2000100E1C001 /* MediaLibrary */; };
 		E22000032FA4000100E1C001 /* MediaServer in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* MediaServer */; };
+		E70000022FA7000100E1C001 /* GameStreaming in Frameworks */ = {isa = PBXBuildFile; productRef = E70000012FA7000100E1C001 /* GameStreaming */; };
+		E70000032FA7000100E1C001 /* GameStreaming in Frameworks */ = {isa = PBXBuildFile; productRef = E70000012FA7000100E1C001 /* GameStreaming */; };
 		F30000002FA5000100E1C001 /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		F30000012FA5000100E1C001 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
 		F30000022FA5000100E1C001 /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
@@ -133,6 +135,16 @@
 				"DesignSystem/View+EnchronGlass.swift",
 				"DesignSystem/View+Platform.swift",
 				"DesignSystem/View+PressFeedback.swift",
+				GameStreaming/Backend/SimulatedStreamingBackend.swift,
+				GameStreaming/Backend/StreamingBackend.swift,
+				GameStreaming/Domain/StreamIdentity.swift,
+				GameStreaming/Domain/StreamSessionState.swift,
+				GameStreaming/Domain/StreamSettings.swift,
+				GameStreaming/Model/StreamingModel.swift,
+				GameStreaming/Session/StreamRenderBinding.swift,
+				GameStreaming/Session/StreamSessionCoordinator.swift,
+				GameStreaming/Session/StreamSessionProbes.swift,
+				GameStreaming/Storage/HostStore.swift,
 				MediaLibrary/AppManagedMediaImportStore.swift,
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,
@@ -268,6 +280,7 @@
 				Playback/Views/PlaybackVideoSurface.swift,
 				Playback/Views/PlayerInfoBarView.swift,
 				Playback/Views/EnvironmentHomeView.swift,
+				Playback/Views/StreamVideoSurface.swift,
 				Playback/Views/WindowPlaybackRootView.swift,
 				Playback/Views/WindowPlayerDeck.swift,
 			);
@@ -366,6 +379,7 @@
 				E10000132FA1000100E1C001 /* DesignSystem in Frameworks */,
 				E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */,
 				E22000032FA4000100E1C001 /* MediaServer in Frameworks */,
+				E70000022FA7000100E1C001 /* GameStreaming in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -409,6 +423,7 @@
 				F30000052FA5000100E1C001 /* DesignSystem in Frameworks */,
 				F30000062FA5000100E1C001 /* MediaLibrary in Frameworks */,
 				F30000072FA5000100E1C001 /* MediaServer in Frameworks */,
+				F30000032FA7000100E1C001 /* GameStreaming in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -488,6 +503,7 @@
 				E10000102FA1000100E1C001 /* DesignSystem */,
 				E20000012FA2000100E1C001 /* MediaLibrary */,
 				E22000042FA4000100E1C001 /* MediaServer */,
+				E70000012FA7000100E1C001 /* GameStreaming */,
 			);
 			productName = Enchron;
 			productReference = C3B0F9802F5726B30064596E /* Enchron.app */;
@@ -598,6 +614,7 @@
 				E10000102FA1000100E1C001 /* DesignSystem */,
 				E20000012FA2000100E1C001 /* MediaLibrary */,
 				E22000042FA4000100E1C001 /* MediaServer */,
+				E70000012FA7000100E1C001 /* GameStreaming */,
 			);
 			productName = EnchronDebug;
 			productReference = F300000D2FA5000100E1C001 /* EnchronDebug.app */;
@@ -1378,6 +1395,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = DesignSystem;
+		};
+		E70000012FA7000100E1C001 /* GameStreaming */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
+			productName = GameStreaming;
 		};
 		E10000022FA1000100E1C001 /* MediaSource */ = {
 			isa = XCSwiftPackageProductDependency;

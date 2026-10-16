@@ -24,6 +24,7 @@ PRODUCT_TARGETS = {
     "MediaLibrary",
     "Playback",
     "DesignSystem",
+    "GameStreaming",
 }
 PLAYBACK_FORBIDDEN_IMPORTS = {
     "MediaServer",

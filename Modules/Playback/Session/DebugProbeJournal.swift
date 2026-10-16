@@ -32,7 +32,7 @@ private struct LoadedDebugProbeState {
 
 @MainActor
 public final class DebugProbeJournal {
-    struct Configuration {
+    public struct Configuration {
         let url: URL
         let byteLimit: Int
         let compactionTarget: Int
@@ -40,7 +40,7 @@ public final class DebugProbeJournal {
         let now: () -> Date
         let retainsLoadedEvidence: Bool
 
-        init(
+        public init(
             url: URL,
             byteLimit: Int,
             compactionTarget: Int,
@@ -78,9 +78,9 @@ public final class DebugProbeJournal {
     private var records: [DebugProbeRecord]
     private var currentSession: String?
     private var nextSequence: UInt64
-    private(set) var status: Status
+    private(set) public var status: Status
 
-    init(configuration: Configuration) {
+    public init(configuration: Configuration) {
         precondition(configuration.byteLimit > 0)
         precondition(configuration.compactionTarget > 0)
         precondition(configuration.compactionTarget <= configuration.byteLimit)
@@ -108,7 +108,7 @@ public final class DebugProbeJournal {
         status.peakFileBytes = status.fileBytes
     }
 
-    func record(_ fact: String, retention: DebugProbeRetention) {
+    public func record(_ fact: String, retention: DebugProbeRetention) {
         let session: String?
         let storedRetention: DebugProbeRecordRetention
         switch retention {

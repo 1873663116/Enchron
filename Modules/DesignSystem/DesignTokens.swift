@@ -68,6 +68,7 @@ public enum DesignTokens {
         public static let toggleKnobInset: CGFloat = 2
         public static let detentEmphasis: CGFloat = 3
         public static let selectionIndicatorSize: CGFloat = 22
+        public static let statusDotSize: CGFloat = 8
         public static let menuRowVisualHeight: CGFloat = regular
     }
 
