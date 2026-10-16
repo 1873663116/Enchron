@@ -220,7 +220,10 @@ struct SettingsScreen: View {
                 accessory: .boundToggle(
                     isOn: Binding(
                         get: { playbackRuntime.displayCriteria.isEnabled },
-                        set: { playbackRuntime.displayCriteria.isEnabled = $0 }
+                        set: {
+                            playbackRuntime.displayCriteria.isEnabled = $0
+                            recordToggleReachability("display-refresh-request")
+                        }
                     ),
                     isEnabled: true, marker: nil
                 )
@@ -233,7 +236,10 @@ struct SettingsScreen: View {
                 accessory: .boundToggle(
                     isOn: Binding(
                         get: { developerMetrics.showsDetailedMetrics },
-                        set: { developerMetrics.showsDetailedMetrics = $0 }
+                        set: {
+                            developerMetrics.showsDetailedMetrics = $0
+                            recordToggleReachability("developer-details")
+                        }
                     ),
                     isEnabled: true, marker: nil
                 )
@@ -246,7 +252,10 @@ struct SettingsScreen: View {
                 accessory: .boundToggle(
                     isOn: Binding(
                         get: { viewModel.preferences.developerModeEnabled },
-                        set: { value in viewModel.update { $0.developerModeEnabled = value } }
+                        set: { value in
+                            viewModel.update { $0.developerModeEnabled = value }
+                            recordToggleReachability("developer-overlay")
+                        }
                     ),
                     isEnabled: true,
                     marker: nil
@@ -310,7 +319,10 @@ struct SettingsScreen: View {
                 accessory: .boundToggle(
                     isOn: Binding(
                         get: { viewModel.preferences.surroundingsDimmingEnabled },
-                        set: { value in viewModel.update { $0.surroundingsDimmingEnabled = value } }
+                        set: { value in
+                            viewModel.update { $0.surroundingsDimmingEnabled = value }
+                            recordToggleReachability("surroundings-dimming")
+                        }
                     ),
                     isEnabled: true,
                     marker: nil
@@ -330,7 +342,10 @@ struct SettingsScreen: View {
                 accessory: .boundToggle(
                     isOn: Binding(
                         get: { viewModel.preferences.playbackShortcutsEnabled },
-                        set: { value in viewModel.update { $0.playbackShortcutsEnabled = value } }
+                        set: { value in
+                            viewModel.update { $0.playbackShortcutsEnabled = value }
+                            recordToggleReachability("surface-gestures")
+                        }
                     ),
                     isEnabled: true,
                     marker: nil
@@ -536,6 +551,15 @@ struct SettingsScreen: View {
 #if DEBUG
         playbackSession.recordSurfaceInputProbe(
             "reachability settings delivered action=action.\(id)",
+            retention: .evidence
+        )
+#endif
+    }
+
+    private func recordToggleReachability(_ id: String) {
+#if DEBUG
+        playbackSession.recordSurfaceInputProbe(
+            "reachability settings delivered action=toggle.\(id)",
             retention: .evidence
         )
 #endif
