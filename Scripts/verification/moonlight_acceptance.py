@@ -1439,6 +1439,23 @@ def serverinfo_pair_status(context: Context) -> int | None:
         return None
 
 
+def paired_client_entry(context: Context) -> dict | None:
+    """The paired client as the host itself records it.
+
+    HTTP /serverinfo cannot attribute PairStatus to a client, so the host-side
+    channel is the Web UI client list keyed by the client name the app registers.
+    """
+    wanted = str(context.fixture("clientName", "Enchron Vision"))
+    document = context.webui().request("GET", "/api/clients/list")
+    certs = document.get("named_certs") if isinstance(document, dict) else None
+    if not isinstance(certs, list):
+        return None
+    for entry in certs:
+        if isinstance(entry, dict) and str(entry.get("name")) == wanted:
+            return entry
+    return None
+
+
 def find_forensic_app_card(context: Context) -> str | None:
     wanted = str(context.fixture("forensicAppName", DEFAULT_FORENSIC_APP_NAME))
     cards = [
@@ -1831,12 +1848,12 @@ def scenario_02_pair(context: Context) -> Outcome:
     if "pairing=paired" not in value:
         pair_host(context, row)
     after = paired_status(context, row)
-    status = serverinfo_pair_status(context)
+    client_entry = paired_client_entry(context)
     context.record_channel(
-        "host-log", "serverinfo.json", {"PairStatus": status, "row": after}
+        "host-log", "clients-list.json", {"client": client_entry, "row": after}
     )
-    if status != 1:
-        raise ProductVerdict("serverinfo-pair-status", {"PairStatus": status, "row": after})
+    if client_entry is None:
+        raise ProductVerdict("host-client-missing", {"client": client_entry, "row": after})
     probe_lines = context.probe_lines()
     context.record_text("probe", "stream-session-probe.log", "\n".join(probe_lines))
     pairing_lines = [line for line in probe_lines if re.search(r"pair", line, re.IGNORECASE)]
@@ -1859,8 +1876,8 @@ def scenario_02_pair(context: Context) -> Outcome:
     return Outcome(
         PASSED,
         notes=(
-            f"pairing survives relaunch: row reads {persisted}; PairStatus={status}; "
-            f"probe pairing lines={len(pairing_lines)}"
+            f"pairing survives relaunch: row reads {persisted}; host client="
+            f"{client_entry}; probe pairing lines={len(pairing_lines)}"
         ),
     )
 
