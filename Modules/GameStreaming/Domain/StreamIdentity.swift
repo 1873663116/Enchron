@@ -116,7 +116,7 @@ public enum PairingState: Sendable, Equatable {
         case .unknown: "unknown"
         case .unpaired: "unpaired"
         case .paired: "paired"
-        case .failed: "failed"
+        case .failed(let message): "failed(\(message))"
         }
     }
 
