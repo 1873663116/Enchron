@@ -2653,6 +2653,12 @@ def scenario_09_network_interruption_recovery(context: Context) -> Outcome:
         raise BlockedBy(
             f"the proxied host entry is added through the app command channel: {error.reason}"
         ) from None
+    # The proxied lane starts from no session: a live local one would make the
+    # session layer refuse the launch the proxy is here to carry.
+    local = context.session_snapshot_or_none()
+    if local is not None and local.state_name() in ("connecting", "streaming", "stopping"):
+        disconnect_session(context, soft=True)
+        context.hold("local-session-settle", 3.0)
     control, log = start_proxy(context)
     proxied = f"127.0.0.1:{DEFAULT_PROXY_LISTEN_BASE}"
     name = context.fixture("hostName")
@@ -2820,10 +2826,10 @@ def scenario_10_remote_session(context: Context) -> Outcome:
             {"launchesBefore": launches_before, "launchesAfter": launches_after},
         )
     conflict = view.state_name() == "ended" or "failure=" in view.state() or view.first("failure") is not None
-    resumed_without_relaunch = encoders_after == encoders_before and view.state_name() in (
-        "streaming",
-        "connecting",
-    )
+    # The holder runs its own session beside ours, so its session start and its
+    # encoder land in the host's counters too; what the client must not do is
+    # launch the app again.
+    resumed_without_relaunch = view.state_name() in ("streaming", "connecting")
     if not conflict and not resumed_without_relaunch:
         raise ProductVerdict(
             "remote-session-handling",
@@ -3010,6 +3016,45 @@ def restart_server_app(context: Context) -> None:
     free_host(context)
 
 
+def wait_for_negotiation(
+    context: Context,
+    label: str,
+    expected: Mapping[str, Sequence[str]],
+    seconds: float = FIXTURE_SECONDS,
+) -> SnapshotView:
+    """Read the session's negotiated configuration once it reflects the request.
+
+    A relaunched session keeps reporting the previous session's negotiated
+    values until its own decoder and stream settings land, so a scenario that
+    reads the snapshot right after the state turns streaming can compare the new
+    request with the old session's answer. Waiting for the request to appear
+    turns that race into a bounded wait; the scenario's own assertion still
+    decides.
+    """
+
+    def probe() -> dict[str, object] | None:
+        view = context.session_snapshot_or_none()
+        if view is None or view.state_name() != "streaming":
+            return None
+        negotiated = view.negotiated()
+        if any(negotiated.get(key) not in choices for key, choices in expected.items()):
+            return None
+        return {"requested": view.requested(), "negotiated": negotiated}
+
+    try:
+        evidence = context.wait(
+            label, seconds, probe, context.scene, poll_interval_seconds=2.0
+        )
+    except InstrumentFault:
+        context.note(
+            f"{label}: the negotiated configuration never reached {expected} within "
+            f"{seconds:g}s; the snapshot read below is whichever session wrote last"
+        )
+        return context.session_snapshot()
+    context.record_channel("control-surface", f"{label}.json", evidence)
+    return context.session_snapshot()
+
+
 def negotiate_codec(context: Context, codec: str) -> dict[str, object]:
     set_options(context, codec=codec, hdr=False)
     view = context.session_snapshot_or_none()
@@ -3018,7 +3063,10 @@ def negotiate_codec(context: Context, codec: str) -> dict[str, object]:
         view = wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     restart_server_app(context)
     ensure_streaming(context)
-    view = context.session_snapshot()
+    choices = ("h264", "hevc", "av1") if codec == "auto" else (codec,)
+    view = wait_for_negotiation(
+        context, f"codec-{codec}-negotiated", {"codec": choices}
+    )
     negotiated = view.negotiated()
     report: dict[str, object] = {"requested": codec, "negotiated": negotiated}
     degrade = context.matched_element("Stream-Session-degrade")
@@ -3080,7 +3128,9 @@ def scenario_14_bitrate_negotiation(context: Context) -> Outcome:
         disconnect_session(context, soft=True)
         wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     ensure_streaming(context)
-    view = context.session_snapshot()
+    view = wait_for_negotiation(
+        context, "bitrate-negotiated", {"bitrate": ("40000",)}
+    )
     negotiated = view.negotiated()
     config = context.webui().configuration()
     maximum = None
@@ -3188,7 +3238,9 @@ def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
         wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     restart_server_app(context)
     ensure_streaming(context)
-    view = context.session_snapshot()
+    view = wait_for_negotiation(
+        context, "hdr-negotiated", {"hdr": ("false", "true")}
+    )
     negotiated = view.negotiated()
     requested = view.requested()
     context.record_channel(
@@ -3237,7 +3289,9 @@ def scenario_17_resolution_negotiation(context: Context) -> Outcome:
         disconnect_session(context, soft=True)
         wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     ensure_streaming(context)
-    view = context.session_snapshot()
+    view = wait_for_negotiation(
+        context, "resolution-negotiated", {"resolution": ("2560x1440",)}
+    )
     negotiated = view.negotiated()
     after = display_mode(context)
     sunshine = context.sunshine()

@@ -714,6 +714,23 @@ static int parseOpusConfigFromParamString(char* paramStr, int channelCount, POPU
     return 0;
 }
 
+// The host answers SETUP with the media ports of its own port family. A client
+// that reaches the host through a port-shifting route (an alternate RTSP port
+// carries the offset) has to send its media into that same family, so the
+// negotiated ports move with the offset the RTSP port carries.
+static uint16_t negotiatedMediaPort(uint16_t port)
+{
+    int offset = (int)RtspPortNumber - 48010;
+    int shifted = (int)port + offset;
+
+    if (offset == 0 || shifted < 1 || shifted > 65535) {
+        return port;
+    }
+
+    return (uint16_t)shifted;
+}
+
+
 // Parse the server port from the Transport header
 // Example: unicast;server_port=48000-48001;source=192.168.35.177
 static bool parseServerPortFromTransport(PRTSP_MESSAGE response, uint16_t* port) {
@@ -1191,11 +1208,12 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         LC_ASSERT(AudioPortNumber == 0);
         if (!parseServerPortFromTransport(&response, &AudioPortNumber)) {
             // Use the well known port if parsing fails
-            AudioPortNumber = 48000;
+            AudioPortNumber = negotiatedMediaPort(48000);
 
             Limelog("Audio port: %u (RTSP parsing failed)\n", AudioPortNumber);
         }
         else {
+            AudioPortNumber = negotiatedMediaPort(AudioPortNumber);
             Limelog("Audio port: %u\n", AudioPortNumber);
         }
 
@@ -1275,11 +1293,12 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         LC_ASSERT(VideoPortNumber == 0);
         if (!parseServerPortFromTransport(&response, &VideoPortNumber)) {
             // Use the well known port if parsing fails
-            VideoPortNumber = 47998;
+            VideoPortNumber = negotiatedMediaPort(47998);
 
             Limelog("Video port: %u (RTSP parsing failed)\n", VideoPortNumber);
         }
         else {
+            VideoPortNumber = negotiatedMediaPort(VideoPortNumber);
             Limelog("Video port: %u\n", VideoPortNumber);
         }
 
@@ -1319,11 +1338,12 @@ int performRtspHandshake(PSERVER_INFORMATION serverInfo) {
         LC_ASSERT(ControlPortNumber == 0);
         if (!parseServerPortFromTransport(&response, &ControlPortNumber)) {
             // Use the well known port if parsing fails
-            ControlPortNumber = 47999;
+            ControlPortNumber = negotiatedMediaPort(47999);
 
             Limelog("Control port: %u (RTSP parsing failed)\n", ControlPortNumber);
         }
         else {
+            ControlPortNumber = negotiatedMediaPort(ControlPortNumber);
             Limelog("Control port: %u\n", ControlPortNumber);
         }
 

@@ -38,6 +38,13 @@ public struct StreamingHomeView: View {
                 break
             }
         }
+        .onChange(of: model.session?.id) { _, sessionID in
+            // Presenting the session is the session's own effect, so a launch
+            // that did not come from a tapped card also puts its window up.
+            if sessionID != nil {
+                openWindow(id: "streaming")
+            }
+        }
         .task {
             if model.selectedHostID == nil, let firstHostID = model.hosts.first?.id {
                 model.selectHost(firstHostID)
