@@ -2948,6 +2948,7 @@ def pacing_round(context: Context, frame_pacing: bool, frame_rate: int) -> dict[
     if view is not None and view.state_name() == "streaming":
         disconnect_session(context, soft=True)
         wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
+    restart_server_app(context)
     ensure_streaming(context)
     first = context.session_snapshot().inputs()
     context.require_probe_health()
