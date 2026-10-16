@@ -416,7 +416,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
             // AV1 format description construction needs the FFmpeg bitstream parser,
             // which this package does not vendor yet.
             Log(LOG_E, @"AV1 format description construction is not compiled in");
-            formatDesc = NULL;
 #endif
         }
         else {

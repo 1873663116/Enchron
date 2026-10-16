@@ -29,6 +29,8 @@ struct Options {
     var seconds: Double = 15
     var keepRunning = false
     var workDir: String?
+    var mouseX: Float = 0.25
+    var mouseY: Float = 0.25
 }
 
 func parseOptions(_ arguments: [String]) -> Options {
@@ -47,6 +49,8 @@ func parseOptions(_ arguments: [String]) -> Options {
         case "--codec": options.codec = value ?? options.codec; index += 2
         case "--seconds": options.seconds = Double(value ?? "") ?? options.seconds; index += 2
         case "--work-dir": options.workDir = value; index += 2
+        case "--mouse-x": options.mouseX = Float(value ?? "") ?? options.mouseX; index += 2
+        case "--mouse-y": options.mouseY = Float(value ?? "") ?? options.mouseY; index += 2
         case "--keep-running": options.keepRunning = true; index += 1
         default: failLine("unknown option \(key)")
         }
@@ -54,9 +58,13 @@ func parseOptions(_ arguments: [String]) -> Options {
     return options
 }
 
-// MARK: - Control plane (owned by the stream-mig-control workstream)
+// MARK: - Control plane (MoonlightBridge HTTP/crypto stack)
 
-struct ServerSummary {
+// The control probe's work directory holds the pinned server certificate and the
+// client identity that pairing produced.
+let defaultWorkDir = "/tmp/mlc-control-probe"
+
+struct HostSessionInfo {
     var pairStatus: String
     var appVersion: String
     var gfeVersion: String?
@@ -65,25 +73,117 @@ struct ServerSummary {
 }
 
 enum ControlPlaneError: Error {
-    case unavailable(String)
     case request(String)
 }
 
-enum ControlPlane {
-    static func serverInfo(host: String) throws -> ServerSummary {
-        throw ControlPlaneError.unavailable("control plane not linked")
+func makeRequest(_ response: MLCResponse, _ urlRequest: URLRequest?) -> MLCHttpRequest? {
+    guard let urlRequest else { return nil }
+    let request = MLCHttpRequest()
+    request.request = urlRequest
+    request.response = response
+    return request
+}
+
+final class ControlPlane {
+    let host: String
+    let workDir: String
+    let pinnedCert: Data?
+
+    init(host: String, workDir: String?) {
+        self.host = host
+        self.workDir = workDir ?? defaultWorkDir
+        try? FileManager.default.createDirectory(atPath: self.workDir, withIntermediateDirectories: true)
+        MLCCryptoManager.setStorageDirectory(self.workDir)
+        MLCCryptoManager.generateKeyPairUsingSSL()
+        self.pinnedCert = FileManager.default.contents(atPath: (self.workDir as NSString).appendingPathComponent("server.crt"))
     }
 
-    static func appList(host: String) throws -> [(id: String, name: String)] {
-        throw ControlPlaneError.unavailable("control plane not linked")
+    var transportDescription: String {
+        pinnedCert != nil ? "https-pinned" : "http"
     }
 
-    static func launch(host: String, resume: Bool, config: MLCStreamConfiguration) throws -> String? {
-        throw ControlPlaneError.unavailable("control plane not linked")
+    private func manager() -> MLCHttpManager {
+        guard let manager = MLCHttpManager(address: host, httpsPort: 0, serverCert: pinnedCert) else {
+            failLine("could not create the HTTP manager")
+        }
+        return manager
     }
 
-    static func quitApp(host: String) throws {
-        throw ControlPlaneError.unavailable("control plane not linked")
+    func serverInfo() throws -> HostSessionInfo {
+        let response = MLCServerInfoResponse()
+        let httpManager = manager()
+        guard let request = makeRequest(response, httpManager.newServerInfoRequest(false)) else {
+            throw ControlPlaneError.request("no serverinfo URL")
+        }
+        httpManager.executeRequestSynchronously(request)
+
+        guard response.isStatusOk() else {
+            throw ControlPlaneError.request("serverinfo status=\(response.statusCode) message=\(response.statusMessage ?? "")")
+        }
+
+        let hostRecord = MLCHostRecord()
+        response.populateHost(hostRecord)
+        return HostSessionInfo(pairStatus: response.getStringTag("PairStatus") ?? "",
+                               appVersion: response.getStringTag("appversion") ?? "",
+                               gfeVersion: response.getStringTag("GfeVersion"),
+                               state: response.getStringTag("state") ?? "",
+                               codecModeSupport: Int32(hostRecord.serverCodecModeSupport))
+    }
+
+    func appList() throws -> [(id: String, name: String)] {
+        let response = MLCAppListResponse()
+        let httpManager = manager()
+        guard let request = makeRequest(response, httpManager.newAppListRequest()) else {
+            throw ControlPlaneError.request("no applist URL")
+        }
+        httpManager.executeRequestSynchronously(request)
+
+        guard response.isStatusOk() else {
+            throw ControlPlaneError.request("applist status=\(response.statusCode) message=\(response.statusMessage ?? "")")
+        }
+
+        let records = (response.getAppList() ?? []).compactMap { $0 as? MLCAppRecord }
+        return records.compactMap { record in
+            guard let id = record.id, let name = record.name else { return nil }
+            return (id: id, name: name)
+        }
+    }
+
+    func launch(resume: Bool, config: MLCStreamConfiguration) throws -> String {
+        let verb = resume ? "resume" : "launch"
+        let response = MLCHttpResponse()
+        let httpManager = manager()
+        guard let request = makeRequest(response, httpManager.newLaunchOrResumeRequest(verb, config: config)) else {
+            throw ControlPlaneError.request("no \(verb) URL")
+        }
+        httpManager.executeRequestSynchronously(request)
+
+        guard response.isStatusOk() else {
+            throw ControlPlaneError.request("\(verb) status=\(response.statusCode) message=\(response.statusMessage ?? "")")
+        }
+
+        let marker = resume ? response.getStringTag("resume") : response.getStringTag("gamesession")
+        guard let marker, marker != "0" else {
+            throw ControlPlaneError.request("host did not accept \(verb)")
+        }
+
+        guard let sessionUrl = response.getStringTag("sessionUrl0"), !sessionUrl.isEmpty else {
+            throw ControlPlaneError.request("\(verb) response carried no sessionUrl0")
+        }
+        return sessionUrl
+    }
+
+    func quitApp() throws {
+        let response = MLCHttpResponse()
+        let httpManager = manager()
+        guard let request = makeRequest(response, httpManager.newQuitAppRequest()) else {
+            throw ControlPlaneError.request("no quit URL")
+        }
+        httpManager.executeRequestSynchronously(request)
+
+        guard response.isStatusOk() else {
+            throw ControlPlaneError.request("quitapp status=\(response.statusCode) message=\(response.statusMessage ?? "")")
+        }
     }
 }
 
@@ -106,9 +206,11 @@ struct SessionSnapshot {
     var formatOK = false
     var formatName = "none"
     var queueDepth: Int32 = 0
+    var videoWidth: Int32 = 0
+    var videoHeight: Int32 = 0
 }
 
-final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuilderDelegate {
+final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuilderDelegate, @unchecked Sendable {
     private let lock = NSLock()
     private var state = SessionSnapshot()
     private let codecLabel: String
@@ -213,15 +315,18 @@ final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuil
                                                   outputCallback: nil,
                                                   decompressionSessionOut: &session)
         let fourCC = fourCCString(CMFormatDescriptionGetMediaSubType(formatDescription))
+        let dimensions = CMVideoFormatDescriptionGetDimensions(formatDescription)
 
         lock.lock()
         state.formatName = fourCC
         state.formatOK = status == noErr
+        state.videoWidth = dimensions.width
+        state.videoHeight = dimensions.height
         lock.unlock()
 
         if status == noErr, let session {
             vtSession = session
-            logLine("\(codecLabel)-OK format=\(fourCC) dimensions=\(CMVideoFormatDescriptionGetDimensions(formatDescription))")
+            logLine("\(codecLabel)-OK format=\(fourCC) dimensions=\(dimensions)")
         }
         else {
             logLine("\(codecLabel)-FAIL format=\(fourCC) vtStatus=\(status)")
@@ -294,19 +399,21 @@ func supportedVideoFormat(for codec: String) -> Int32 {
 struct SessionHandle {
     var connection: MLCConnection
     var consumer: SessionConsumer
-    var summary: ServerSummary
     var resumed: Bool
     var appName: String
 }
 
-func startSession(options: Options) throws -> SessionHandle {
-    let summary = try ControlPlane.serverInfo(host: options.host)
-    logLine("serverinfo PairStatus=\(summary.pairStatus) appversion=\(summary.appVersion) state=\(summary.state) codecModeSupport=\(summary.codecModeSupport)")
+func startSession(options: Options, control: ControlPlane) throws -> SessionHandle {
+    let summary = try control.serverInfo()
+    logLine("serverinfo transport=\(control.transportDescription) PairStatus=\(summary.pairStatus) appversion=\(summary.appVersion) state=\(summary.state) codecModeSupport=\(summary.codecModeSupport)")
     guard summary.pairStatus == "1" else {
+        if control.pinnedCert == nil {
+            failLine("host is not reachable as paired over plain HTTP: no pinned server certificate in \(control.workDir); point --work-dir at the directory that holds server.crt (default \(defaultWorkDir))")
+        }
         failLine("host is not paired (PairStatus=\(summary.pairStatus)); pair the host before running the session probe")
     }
 
-    let apps = try ControlPlane.appList(host: options.host)
+    let apps = try control.appList()
     guard let app = apps.first(where: { $0.id == options.appID }) else {
         failLine("app \(options.appID) missing from applist (\(apps.map { $0.id }.joined(separator: ",")))")
     }
@@ -336,7 +443,7 @@ func startSession(options: Options) throws -> SessionHandle {
 
     let resumed = summary.state.hasSuffix("_SERVER_BUSY")
     logLine("stage=\(resumed ? "resume" : "launch") hostState=\(summary.state)")
-    config.rtspSessionUrl = try ControlPlane.launch(host: options.host, resume: resumed, config: config)
+    config.rtspSessionUrl = try control.launch(resume: resumed, config: config)
     logLine("stage=\(resumed ? "resume" : "launch") rtspSessionUrl=\(config.rtspSessionUrl ?? "nil")")
 
     let consumer = SessionConsumer(codecLabel: options.codec == "hevc" ? "HEVC" : "H264")
@@ -345,12 +452,13 @@ func startSession(options: Options) throws -> SessionHandle {
     }
     consumer.attachAudio(to: connection)
     connection.videoConsumer = consumer
-    return SessionHandle(connection: connection, consumer: consumer, summary: summary, resumed: resumed, appName: app.name)
+    return SessionHandle(connection: connection, consumer: consumer, resumed: resumed, appName: app.name)
 }
 
 func startConnectionOffMainThread(_ handle: SessionHandle) {
+    let connection = handle.connection
     Thread {
-        handle.connection.start()
+        connection.start()
         logLine("stage=connectionThreadExited")
     }.start()
 }
@@ -410,13 +518,13 @@ func reportFinal(handle: SessionHandle, options: Options) -> Int32 {
     return (videoOK && stagesOK) ? 0 : 1
 }
 
-func quitAppUnlessKeptRunning(options: Options) {
+func quitAppUnlessKeptRunning(options: Options, control: ControlPlane) {
     guard !options.keepRunning else {
         logLine("stage=quitapp skipped (--keep-running)")
         return
     }
     do {
-        try ControlPlane.quitApp(host: options.host)
+        try control.quitApp()
         logLine("stage=quitapp sent")
     }
     catch {
@@ -426,8 +534,8 @@ func quitAppUnlessKeptRunning(options: Options) {
 
 // MARK: - Verbs
 
-func runStream(options: Options) throws -> Int32 {
-    let handle = try startSession(options: options)
+func runStream(options: Options, control: ControlPlane) throws -> Int32 {
+    let handle = try startSession(options: options, control: control)
     startConnectionOffMainThread(handle)
 
     let deadline = Date().addingTimeInterval(options.seconds)
@@ -448,7 +556,7 @@ func runStream(options: Options) throws -> Int32 {
     MLCInputSender.releaseAllPressedKeysAndButtons()
     handle.connection.terminate()
     Thread.sleep(forTimeInterval: 2)
-    quitAppUnlessKeptRunning(options: options)
+    quitAppUnlessKeptRunning(options: options, control: control)
     return exitCode
 }
 
@@ -459,16 +567,19 @@ func hidUsage(forASCII ascii: UInt8) -> Int? {
     return nil
 }
 
-func runInput(options: Options) throws -> Int32 {
-    let handle = try startSession(options: options)
+func runInput(options: Options, control: ControlPlane) throws -> Int32 {
+    let handle = try startSession(options: options, control: control)
     startConnectionOffMainThread(handle)
 
     let text = "ency" + String(format: "%04x", arc4random_uniform(0x10000))
     Thread.sleep(forTimeInterval: 3)
 
-    let x: Float = 0.25
-    let y: Float = 0.25
-    MLCInputSender.sendMousePositionNormalizedX(x, y: y)
+    let x: Float = options.mouseX
+    let y: Float = options.mouseY
+    let negotiated = handle.consumer.snapshot()
+    let referenceWidth = negotiated.videoWidth > 0 ? Int16(negotiated.videoWidth) : Int16(options.width)
+    let referenceHeight = negotiated.videoHeight > 0 ? Int16(negotiated.videoHeight) : Int16(options.height)
+    MLCInputSender.sendMousePositionNormalizedX(x, y: y, referenceWidth: referenceWidth, referenceHeight: referenceHeight)
     Thread.sleep(forTimeInterval: 0.3)
 
     for character in text.utf8 {
@@ -483,7 +594,7 @@ func runInput(options: Options) throws -> Int32 {
     MLCInputSender.sendScrollVerticalClicks(1)
     Thread.sleep(forTimeInterval: 0.5)
 
-    logLine("INPUT-SENT \(text) \(x) \(y)")
+    logLine("INPUT-SENT \(text) \(x) \(y) reference=\(referenceWidth)x\(referenceHeight)")
     logLine("INPUT-STATE \(handle.consumer.statusLine())")
 
     Thread.sleep(forTimeInterval: 2)
@@ -501,25 +612,25 @@ func runInput(options: Options) throws -> Int32 {
         "samples": handle.consumer.snapshot().samples,
     ], workDir: options.workDir)
 
-    quitAppUnlessKeptRunning(options: options)
+    quitAppUnlessKeptRunning(options: options, control: control)
     return 0
 }
 
-func runServerInfo(options: Options) throws -> Int32 {
-    let summary = try ControlPlane.serverInfo(host: options.host)
-    logLine("serverinfo PairStatus=\(summary.pairStatus) appversion=\(summary.appVersion) gfeVersion=\(summary.gfeVersion ?? "nil") state=\(summary.state) codecModeSupport=\(summary.codecModeSupport)")
+func runServerInfo(options: Options, control: ControlPlane) throws -> Int32 {
+    let summary = try control.serverInfo()
+    logLine("serverinfo transport=\(control.transportDescription) PairStatus=\(summary.pairStatus) appversion=\(summary.appVersion) gfeVersion=\(summary.gfeVersion ?? "nil") state=\(summary.state) codecModeSupport=\(summary.codecModeSupport)")
     return summary.pairStatus == "1" ? 0 : 3
 }
 
-func runAppList(options: Options) throws -> Int32 {
-    for app in try ControlPlane.appList(host: options.host) {
+func runAppList(options: Options, control: ControlPlane) throws -> Int32 {
+    for app in try control.appList() {
         logLine("app id=\(app.id) name=\(app.name)")
     }
     return 0
 }
 
-func runQuitApp(options: Options) throws -> Int32 {
-    try ControlPlane.quitApp(host: options.host)
+func runQuitApp(options: Options, control: ControlPlane) throws -> Int32 {
+    try control.quitApp()
     logLine("quitapp sent")
     return 0
 }
@@ -528,7 +639,7 @@ func showUsage() -> Never {
     logLine("""
     usage:
       MoonlightSessionProbe stream     --host <addr:port> --app <appid> [--width N] [--height N] [--fps N] [--bitrate N] [--codec h264|hevc] [--seconds N] [--work-dir DIR] [--keep-running]
-      MoonlightSessionProbe input      --host <addr:port> --app <appid> [--codec h264|hevc] [--work-dir DIR] [--keep-running]
+      MoonlightSessionProbe input      --host <addr:port> --app <appid> [--codec h264|hevc] [--mouse-x F] [--mouse-y F] [--work-dir DIR] [--keep-running]
       MoonlightSessionProbe applist    --host <addr:port>
       MoonlightSessionProbe serverinfo --host <addr:port>
       MoonlightSessionProbe quitapp    --host <addr:port>
@@ -541,19 +652,17 @@ guard arguments.count >= 2 else { showUsage() }
 let options = parseOptions(arguments)
 
 do {
+    let control = ControlPlane(host: options.host, workDir: options.workDir)
     let code: Int32
     switch arguments[1] {
-    case "stream": code = try runStream(options: options)
-    case "input": code = try runInput(options: options)
-    case "applist": code = try runAppList(options: options)
-    case "serverinfo": code = try runServerInfo(options: options)
-    case "quitapp": code = try runQuitApp(options: options)
+    case "stream": code = try runStream(options: options, control: control)
+    case "input": code = try runInput(options: options, control: control)
+    case "applist": code = try runAppList(options: options, control: control)
+    case "serverinfo": code = try runServerInfo(options: options, control: control)
+    case "quitapp": code = try runQuitApp(options: options, control: control)
     default: showUsage()
     }
     exit(code)
-}
-catch let ControlPlaneError.unavailable(message) {
-    failLine("control plane unavailable: \(message)")
 }
 catch let ControlPlaneError.request(message) {
     failLine("control plane request failed: \(message)")

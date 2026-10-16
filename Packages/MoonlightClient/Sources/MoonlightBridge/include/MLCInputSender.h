@@ -14,7 +14,9 @@ typedef NS_ENUM(int, MLCInputMouseButton) {
 @interface MLCInputSender : NSObject
 
 + (int)sendMouseMoveDeltaX:(short)deltaX deltaY:(short)deltaY;
-+ (int)sendMousePositionNormalizedX:(float)x y:(float)y;
+// x and y are fractions of referenceWidth/referenceHeight, which must be the
+// dimensions of the streaming surface the fraction was measured in.
++ (int)sendMousePositionNormalizedX:(float)x y:(float)y referenceWidth:(short)referenceWidth referenceHeight:(short)referenceHeight;
 + (int)sendMouseButton:(MLCInputMouseButton)button pressed:(BOOL)pressed;
 + (int)sendScrollVerticalClicks:(signed char)clicks;
 

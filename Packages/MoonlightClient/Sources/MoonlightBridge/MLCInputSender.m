@@ -9,10 +9,6 @@
 
 #include <Limelight.h>
 
-// Sunshine normalizes the absolute mouse packet by the reference dimensions, so
-// any consistent pair represents the full surface.
-#define MLC_INPUT_ABSOLUTE_REFERENCE 65535
-
 // moonlight-ios marks every key it sends with the extended-key bit; Sunshine
 // reads bit 15 of the key code as the extended-scancode selector.
 #define MLC_INPUT_EXTENDED_KEY_BIT 0x8000
@@ -80,11 +76,11 @@ static NSMutableSet<NSNumber*>* pressedMouseButtons;
     return LiSendMouseMoveEvent(deltaX, deltaY);
 }
 
-+ (int)sendMousePositionNormalizedX:(float)x y:(float)y {
-    return LiSendMousePositionEvent((short)(x * MLC_INPUT_ABSOLUTE_REFERENCE),
-                                    (short)(y * MLC_INPUT_ABSOLUTE_REFERENCE),
-                                    MLC_INPUT_ABSOLUTE_REFERENCE,
-                                    MLC_INPUT_ABSOLUTE_REFERENCE);
++ (int)sendMousePositionNormalizedX:(float)x y:(float)y referenceWidth:(short)referenceWidth referenceHeight:(short)referenceHeight {
+    return LiSendMousePositionEvent((short)(x * referenceWidth),
+                                    (short)(y * referenceHeight),
+                                    referenceWidth,
+                                    referenceHeight);
 }
 
 + (int)sendMouseButton:(MLCInputMouseButton)button pressed:(BOOL)pressed {
