@@ -1391,11 +1391,26 @@ def ensure_host(context: Context, *, pair: bool) -> str:
 
 def submit_pin(context: Context, pairing_id: str | None, pin: str) -> dict[str, object]:
     webui = context.webui()
-    pairings = webui.pending_pairings()
-    if not pairings:
-        raise BlockedBy(
-            "Sunshine lists no pending pairing request; the app must start pairing first"
-        )
+
+    def probe() -> dict[str, object] | None:
+        pending = webui.pending_pairings()
+        if not pending:
+            return None
+        if pairing_id and not any(str(entry.get("id")) == pairing_id for entry in pending):
+            # Another client's request may sit in the list; keep waiting for ours.
+            return None
+        return {"pairings": pending}
+
+    evidence = context.wait(
+        "Sunshine-pending-pairing",
+        FIXTURE_SECONDS,
+        probe,
+        lambda: [{"pairings": webui.pending_pairings()}],
+        poll_interval_seconds=1.0,
+    )
+    pairings = evidence["pairings"]
+    if not isinstance(pairings, list):
+        pairings = []
     chosen = None
     if pairing_id:
         chosen = next(
