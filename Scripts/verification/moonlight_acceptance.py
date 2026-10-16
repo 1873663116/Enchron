@@ -1866,10 +1866,18 @@ def scenario_02_pair(context: Context) -> Outcome:
             "SURFACE.md defines no pairing transition line, so the probe carries none"
         )
     relaunch_app(context)
+
+    def relaunched() -> dict[str, object] | None:
+        if context.matched_element("Stream-HostSidebar") is not None:
+            return {"relaunched": True}
+        if context.matched_element("Navigation-Ornament-tab-streaming") is not None:
+            context.tap("Navigation-Ornament-tab-streaming")
+        return None
+
     context.wait(
         "relaunch",
         APP_RELAUNCH_SECONDS,
-        lambda: {"relaunched": True} if context.matched_element("Stream-HostSidebar") else None,
+        relaunched,
         lambda: [{"identifiers": context.identifiers()[:40]}],
         poll_interval_seconds=2.0,
     )
