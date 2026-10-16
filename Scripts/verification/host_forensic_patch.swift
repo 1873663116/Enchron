@@ -9,7 +9,7 @@ let patchInterval = 2.0
 let patchRectNormalized = CGRect(x: 0.08, y: 0.08, width: 0.20, height: 0.20)
 let neutralGray = 0.5
 
-let usage = "usage: host_forensic_patch [--log <path>] [--seconds <n>] [--exit-file <path>] [--freeze-file <path>] [--tone <hz>] [--tone-gain-db <db>] [--seed <uint64>] [--self-test]"
+let usage = "usage: host_forensic_patch [--log <path>] [--seconds <n>] [--exit-file <path>] [--freeze-file <path>] [--tone <hz>] [--tone-gain-db <db>] [--tone-period <sec>] [--tone-on <sec>] [--seed <uint64>] [--self-test]"
 
 func currentWallMs() -> Int64 {
     Int64((Date().timeIntervalSince1970 * 1000.0).rounded())
@@ -71,6 +71,8 @@ struct Options {
     var freezeFilePath: String?
     var toneHz: Double?
     var toneGainDB: Double = -20.0
+    var tonePeriod: Double = 0
+    var toneOnSeconds: Double = 0.45
     var seed: UInt64?
     var selfTest = false
 }
@@ -109,6 +111,12 @@ func parseOptions(_ arguments: [String]) -> Options? {
         case "--tone-gain-db":
             guard let value = nextValue(argument), let decibels = Double(value), decibels.isFinite else { return nil }
             options.toneGainDB = decibels
+        case "--tone-period":
+            guard let value = nextValue(argument), let seconds = Double(value), seconds >= 0.2, seconds.isFinite else { return nil }
+            options.tonePeriod = seconds
+        case "--tone-on":
+            guard let value = nextValue(argument), let seconds = Double(value), seconds > 0, seconds.isFinite else { return nil }
+            options.toneOnSeconds = seconds
         case "--seed":
             guard let value = nextValue(argument), let seed = UInt64(value) else { return nil }
             options.seed = seed
@@ -396,10 +404,12 @@ final class TonePlayer {
         self.log = log
     }
 
-    func start(hertz: Double, gainDB: Double) {
+    func start(hertz: Double, gainDB: Double, periodSeconds: Double, onSeconds: Double) {
         let sampleRate = 48000.0
+        let capacity = periodSeconds > 0 ? periodSeconds * sampleRate : sampleRate
+        let onFrames = periodSeconds > 0 ? min(onSeconds, periodSeconds) * sampleRate : capacity
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2),
-              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(sampleRate)),
+              let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(capacity)),
               let channels = buffer.floatChannelData else {
             FileHandle.standardError.write(Data("tone: buffer allocation failed\n".utf8))
             log.write(["event": "tone", "action": "error", "hz": hertz, "wallMs": currentWallMs()])
@@ -407,9 +417,12 @@ final class TonePlayer {
         }
         buffer.frameLength = buffer.frameCapacity
         let increment = 2.0 * Double.pi * hertz / sampleRate
+        let toneFrames = Int(onFrames)
         for channel in 0..<Int(format.channelCount) {
             for frame in 0..<Int(buffer.frameLength) {
-                channels[channel][frame] = Float(sin(increment * Double(frame)))
+                channels[channel][frame] = frame < toneFrames
+                    ? Float(sin(increment * Double(frame)))
+                    : 0
             }
         }
         do {
@@ -426,6 +439,8 @@ final class TonePlayer {
                 "action": "start",
                 "hz": hertz,
                 "gainDB": gainDB,
+                "periodSeconds": periodSeconds,
+                "onSeconds": periodSeconds > 0 ? onSeconds : 0,
                 "sampleRate": sampleRate,
                 "wallMs": currentWallMs(),
             ])
@@ -632,7 +647,12 @@ final class ForensicController: NSObject {
         ])
 
         if let hertz = options.toneHz {
-            tone.start(hertz: hertz, gainDB: options.toneGainDB)
+            tone.start(
+                hertz: hertz,
+                gainDB: options.toneGainDB,
+                periodSeconds: options.tonePeriod,
+                onSeconds: min(options.toneOnSeconds, max(options.tonePeriod, options.toneOnSeconds))
+            )
         }
 
         installSignalHandlers()

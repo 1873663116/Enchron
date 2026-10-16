@@ -538,6 +538,48 @@ def tone_report(path: Path, hz: float) -> dict[str, object]:
     }
 
 
+def tone_plateau_report(
+    path: Path, hz: float, window_seconds: float = 0.02, threshold_dbfs: float = -55.0
+) -> dict[str, object]:
+    """Arrival structure of a pulsed tone in a capture.
+
+    The host's direct playback and the client's streamed playback of the same
+    pulsed tone land in one system capture; the client copy arrives one stream
+    latency later, so the total tone-on time on the capture exceeds the direct
+    pulse train whenever the client is really playing.
+    """
+    samples, rate = read_wav_mono(path)
+    if not samples:
+        return {"path": str(path), "plateaus": 0, "onSeconds": 0.0}
+    window = max(1, int(window_seconds * rate))
+    runs: list[int] = []
+    run = 0
+    for start in range(0, len(samples) - window + 1, window):
+        chunk = samples[start : start + window]
+        rms = math.sqrt(sum(sample * sample for sample in chunk) / len(chunk))
+        if dbfs(rms) > threshold_dbfs:
+            run += window
+        else:
+            if run:
+                runs.append(run)
+            run = 0
+    if run:
+        runs.append(run)
+    minimum = int(0.15 * rate)
+    widths = sorted(run / rate for run in runs if run >= minimum)
+    median = widths[len(widths) // 2] if widths else 0.0
+    return {
+        "path": str(path),
+        "hz": hz,
+        "plateaus": len(widths),
+        "medianPlateauSeconds": round(median, 3),
+        "onSeconds": round(sum(widths), 3),
+        "widthsSeconds": [round(width, 3) for width in widths],
+        "windowSeconds": window_seconds,
+        "thresholdDbfs": threshold_dbfs,
+    }
+
+
 def validate_result(document: object) -> list[str]:
     problems: list[str] = []
     if not isinstance(document, dict):
@@ -1758,14 +1800,18 @@ def simulator_application(context: Context) -> str:
     )
 
 
-def capture_audio(context: Context, seconds: float) -> tuple[Path, dict[str, object]]:
+def capture_audio(
+    context: Context, seconds: float, *, name: str = "capture.wav", scope: str | None = None
+) -> tuple[Path, dict[str, object]]:
     binary = compile_audio_capture(context)
-    scope = simulator_application(context)
-    wav = context.artifact("capture.wav")
-    option, _, value = scope.partition("=")
-    completed = context.host_command(
-        (str(binary), f"{seconds:g}", str(wav), option, value), verb="host-swift-run"
-    )
+    if scope is None:
+        scope = simulator_application(context)
+    wav = context.artifact(name)
+    arguments = [str(binary), f"{seconds:g}", str(wav)]
+    if scope != "unscoped":
+        option, _, value = scope.partition("=")
+        arguments.extend((option, value))
+    completed = context.host_command(tuple(arguments), verb="host-swift-run")
     if completed.returncode != 0 or not wav.is_file():
         raise InstrumentFault(
             "evidence-destroyed",
@@ -2117,7 +2163,9 @@ def scenario_05_rolling_picture_source(context: Context) -> Outcome:
 def scenario_06_audio_output(context: Context) -> Outcome:
     row, view = ensure_streaming(context)
     tone = ensure_host_tone(context)
-    wav, report = capture_audio(context, DEFAULT_CAPTURE_SECONDS)
+    streaming_wav, streaming_report = capture_audio(
+        context, DEFAULT_CAPTURE_SECONDS, name="audio-streaming.wav", scope="unscoped"
+    )
     context.session_snapshot()
     counters = view.inputs()
     host_audio = parse_boolean(view.first("hostAudio"))
@@ -2127,22 +2175,53 @@ def scenario_06_audio_output(context: Context) -> Outcome:
         "audio-flags.json",
         {"hostAudio": view.first("hostAudio"), "clientAudio": view.first("clientAudio")},
     )
-    if not report.get("tonePresent"):
+    if not streaming_report.get("tonePresent"):
         raise ProductVerdict(
             "tone-absent",
-            {"tone": tone, "report": report, "wav": str(wav)},
+            {"tone": tone, "report": streaming_report, "wav": str(streaming_wav)},
         )
     if host_audio is not False or client_audio is not True:
         raise ProductVerdict(
             "audio-flags",
             {"hostAudio": host_audio, "clientAudio": client_audio, "counters": counters},
         )
+
+    streaming_plateaus = tone_plateau_report(streaming_wav, float(tone.get("hz") or DEFAULT_TONE_HZ))
+    context.record_channel("host-audio", "plateaus-streaming.json", streaming_plateaus)
+
+    disconnect_session(context)
+    context.hold("direct-only-settle", 2.0)
+    direct_wav, direct_report = capture_audio(
+        context, DEFAULT_CAPTURE_SECONDS, name="audio-direct.wav", scope="unscoped"
+    )
+    direct_plateaus = tone_plateau_report(direct_wav, float(tone.get("hz") or DEFAULT_TONE_HZ))
+    context.record_channel("host-audio", "plateaus-direct.json", direct_plateaus)
+    if not direct_report.get("tonePresent"):
+        raise ProductVerdict(
+            "direct-tone-absent",
+            {"tone": tone, "report": direct_report, "wav": str(direct_wav)},
+        )
+
+    extra_on = float(streaming_plateaus.get("onSeconds", 0.0)) - float(
+        direct_plateaus.get("onSeconds", 0.0)
+    )
+    if extra_on < 0.8:
+        raise ProductVerdict(
+            "client-audio-not-distinguished",
+            {
+                "streaming": streaming_plateaus,
+                "direct": direct_plateaus,
+                "extraOnSeconds": round(extra_on, 3),
+            },
+        )
     return Outcome(
         PASSED,
         notes=(
-            f"capture of {report['seconds']}s carries {tone.get('hz')} Hz "
-            f"(ratio {report['toneRatio']}, rms {report['rmsDbfs']} dBFS); "
-            f"hostAudio={host_audio}; clientAudio={client_audio}"
+            f"capture of {streaming_report['seconds']}s carries {tone.get('hz')} Hz "
+            f"(ratio {streaming_report['toneRatio']}, rms {streaming_report['rmsDbfs']} dBFS); "
+            f"tone-on {streaming_plateaus['onSeconds']}s with the stream vs "
+            f"{direct_plateaus['onSeconds']}s direct-only (+{round(extra_on, 2)}s from the "
+            f"client's delayed copy); hostAudio={host_audio}; clientAudio={client_audio}"
         ),
     )
 

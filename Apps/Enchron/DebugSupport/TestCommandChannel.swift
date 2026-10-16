@@ -1010,11 +1010,12 @@ final class TestCommandChannel {
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "streamSendKey":
             guard let hid = request.args["hid"].flatMap(UInt32.init),
-                  let downRaw = request.args["down"].flatMap(Int.init) else {
+                  let downRaw = request.args["down"] else {
                 throw CommandError(message: "streamSendKey requires hid and down")
             }
+            let down = downRaw == "1" || downRaw.lowercased() == "true"
             let flags = request.args["flags"].flatMap(UInt32.init) ?? 0
-            streaming.sendKey(hidUsage: hid, down: downRaw != 0, modifierFlags: flags)
+            streaming.sendKey(hidUsage: hid, down: down, modifierFlags: flags)
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "streamSetOptions":
             streaming.updateSettings { options in
