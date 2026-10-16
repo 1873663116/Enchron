@@ -100,6 +100,7 @@ PATCH_SAMPLE_POINT = (0.18, 0.18)
 PATCH_RGB_TOLERANCE = 24
 PATCH_SAMPLE_ATTEMPTS = 3
 PATCH_RETRY_SECONDS = 1.0
+PATCH_FREEZE_SETTLE_SECONDS = 4.0
 POINTER_TARGET = (0.5, 0.5)
 POINTER_TOLERANCE_PIXELS = 12.0
 TONE_RATIO_FLOOR = 8.0
@@ -1561,7 +1562,7 @@ def stable_patch_sample(
         if freeze is not None:
             freeze.parent.mkdir(parents=True, exist_ok=True)
             freeze.write_text("freeze\n", encoding="utf-8")
-            context.hold("patch-freeze-settle", PATCH_RETRY_SECONDS)
+            context.hold("patch-freeze-settle", PATCH_FREEZE_SETTLE_SECONDS)
         try:
             before = latest_patch(context.forensic())
             if before is None:
