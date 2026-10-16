@@ -40,13 +40,14 @@ let package = Package(
             name: "CMoonlightCore",
             dependencies: ["COpenSSL"],
             path: "Sources/CMoonlightCore",
-            publicHeadersPath: "include",
             exclude: [
+                "nanors/t",
                 "nanors/rs16.c",
                 "nanors/rs16_afft.c",
                 "nanors/deps/obl/oblas16.c",
                 "nanors/deps/obl/oblas16_afft.c",
             ],
+            publicHeadersPath: "include",
             cSettings: [
                 .headerSearchPath("common"),
                 .headerSearchPath("enet/include"),
@@ -54,6 +55,7 @@ let package = Package(
                 .headerSearchPath("nanors/deps"),
                 .headerSearchPath("nanors/deps/obl"),
                 .define("NDEBUG"),
+                .define("__APPLE_USE_RFC_3542"),
             ]
         ),
         .target(
