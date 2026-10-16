@@ -19,9 +19,9 @@ class ReachabilityClosureTests(unittest.TestCase):
         self.assertIn('dock_choice="default"', snippet)
         self.assertIn('sdr-bframe-multiaudio-subtitles-30s.mkv', snippet)
 
-    def test_window_environment_delivers_volume(self):
+    def test_environment_home_delivers_volume(self):
         text = (pathlib.Path(__file__).resolve().parents[3] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")
-        idx = text.find("def window_environment_scenario")
+        idx = text.find("def environment_home_scenario")
         snippet = text[idx: idx + 9000]
         self.assertIn("environmentVolume:open-interact-close", snippet)
         self.assertIn("dismissEnvironmentCard", snippet)

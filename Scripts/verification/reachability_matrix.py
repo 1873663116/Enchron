@@ -127,7 +127,7 @@ SEGMENT_SCENARIO_NAMES = {
     "window-dv-format-round11",
     "window-media-information-round12",
     "window-top-menu-round12",
-    "window-environment-round11",
+    "environment-home-round14",
     "window-issues-round11",
     "window-menus-round11",
     "window-remote-audio-episodes",
@@ -6713,8 +6713,8 @@ class ReachabilityRun:
         if self.ensure_window_projection("Flat"):
             self.top_menu_scenario("window")
 
-    def window_environment_scenario(self) -> None:
-        presentation = "window"
+    def environment_home_scenario(self) -> None:
+        presentation = MAIN_WINDOW_BROWSER_CONTEXT
         self.relaunch()
         before = self.copy_probe("window-environment-before")
         offset = len(before)
@@ -6794,16 +6794,126 @@ class ReachabilityRun:
                     self.events[-1]["evidence"],
                     "The visible environment button reached the product toggle handler.",
                 )
+        capsule_restored = self.drive_environment_capsule(presentation)
+        self.drive_environment_default_button(presentation)
         dismissed = self.app_command("dismissEnvironmentCard")
         closed = self.wait_for_identifier_absent("EnvironmentHome-page")
-        if effect_delivered and dismissed.get("success") is True and closed:
+        if (
+            effect_delivered
+            and capsule_restored
+            and dismissed.get("success") is True
+            and closed
+        ):
             self.delivered(
-                presentation,
+                "window",
                 "environmentVolume:open-interact-close",
                 self.events[-1]["evidence"],
                 "Open, effect interaction, and application-driven close each produced device evidence.",
                 has_accessibility_target=False,
             )
+
+    def environment_action_delivered(
+        self,
+        presentation: str,
+        identifier: str,
+        marker: str,
+        label: str,
+        *,
+        operation_id: str | None = None,
+    ) -> bool:
+        """Tap one instrumented control and report whether its probe arrived."""
+        operation_id = operation_id or f"accessibility:{identifier}"
+        offset = len(self.copy_probe(f"{identifier}-before"))
+        tapped = self.tap(presentation, identifier, operation_id=operation_id)
+        probe = self.copy_probe(identifier)
+        if tapped.get("success") is not True or not any(
+            marker in line for line in probe[offset:]
+        ):
+            return False
+        self.delivered(
+            presentation,
+            operation_id,
+            self.events[-1]["evidence"],
+            label,
+        )
+        return True
+
+    def drive_environment_capsule(self, presentation: str) -> bool:
+        """Drive the three capsule buttons, then leave the page expanded.
+
+        The capsule only renders once the page is collapsed, so the minimize
+        button has to succeed first. The appearance button writes a persisted
+        preference, so it is pressed a second time to put the value back.
+        Returns whether the page is expanded again, because the caller's
+        dismissal check would otherwise pass on a page that never came back.
+        """
+        if not self.environment_action_delivered(
+            presentation,
+            "EnvironmentHome-button-minimize",
+            "environmentHome minimize delivered",
+            "The page header's minimize button collapsed the page into the capsule.",
+        ):
+            return False
+        capsule = self.wait_for_identifier("EnvironmentHome-compact")
+        if not isinstance(capsule.get("matchedElement"), dict):
+            return False
+        self.environment_action_delivered(
+            presentation,
+            "EnvironmentHome-button-appearance",
+            "environmentHome appearance delivered",
+            "The capsule's appearance button reached the product appearance setter.",
+        )
+        self.tap(presentation, "EnvironmentHome-button-appearance")
+        self.environment_action_delivered(
+            presentation,
+            "EnvironmentHome-button-scene",
+            "environmentHome scene delivered",
+            "The capsule's scene button reached the product environment toggle.",
+        )
+        restored = self.environment_action_delivered(
+            presentation,
+            "EnvironmentHome-button-restore",
+            "environmentHome restore delivered",
+            "The capsule's restore button expanded the page again.",
+        )
+        return restored and isinstance(
+            self.wait_for_identifier("EnvironmentHome-page").get("matchedElement"),
+            dict,
+        )
+
+    def drive_environment_default_button(self, presentation: str) -> None:
+        """Drive the card's default button on a card that is not already default.
+
+        Only the centered card is in the hierarchy, and the carousel centres the
+        default environment, whose own button is disabled. Swiping once centres
+        the neighbour, whose button is enabled.
+        """
+        operation_id = "accessibility:EnvironmentCard-default-{environment.id}"
+        if not self.provable(presentation, operation_id):
+            return
+        self.controller(
+            "swipeLeft",
+            "--identifier",
+            "EnvironmentCard-carousel",
+            "--no-screenshot",
+        )
+        page = self.wait_for_identifier("EnvironmentHome-page")
+        default_identifier = next(
+            (
+                value for value in sorted(self.hierarchy_identifiers(page))
+                if value.startswith("EnvironmentCard-default-")
+            ),
+            None,
+        )
+        if default_identifier is None:
+            return
+        self.environment_action_delivered(
+            presentation,
+            default_identifier,
+            "environmentCard default delivered",
+            "The card's default button reached the product default setter.",
+            operation_id=operation_id,
+        )
 
     def player_ui_candidate_scenario(self) -> None:
         presentation = "window"
@@ -8424,7 +8534,7 @@ class ReachabilityRun:
             "window-dv-format-round11": self.window_dv_format_scenario,
             "window-media-information-round12": self.window_media_information_scenario,
             "window-top-menu-round12": self.window_top_menu_scenario,
-            "window-environment-round11": self.window_environment_scenario,
+            "environment-home-round14": self.environment_home_scenario,
             "window-issues-round11": self.window_issue_scenario,
             "window-menus-round11": self.window_menu_scenario,
             "window-load-failure": self.window_load_failure_scenario,

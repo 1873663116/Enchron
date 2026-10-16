@@ -146,10 +146,10 @@ def current_route_for_unmapped_cell(key: CellKey) -> Route | None:
         scenario = "portal-issues-round11"
     elif key.context == "portal":
         scenario = "portal"
-    elif key.context == "window" and key.operation.startswith(
-        "accessibility:EnvironmentCard-"
+    elif key.context == "main-window-browser" and key.operation.startswith(
+        ("accessibility:EnvironmentCard-", "accessibility:EnvironmentHome-")
     ):
-        scenario = "window-environment-round11"
+        scenario = "environment-home-round14"
     elif key.context == "window" and key.operation in {
         "accessibility:PlayerUI-loadFailure-primary",
         "accessibility:PlayerUI-loadFailure-secondary",

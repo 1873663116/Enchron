@@ -112,7 +112,15 @@ class HarnessSource(unittest.TestCase):
         self.assertEqual(device, BROWSER_DEVICE_SCENARIOS)
 
     def test_a_presentation_context_is_device_regardless_of_its_scenarios(self) -> None:
-        self.assertEqual(matrix.segment_lane("window", ["window-environment-round11"]), DEVICE)
+        self.assertEqual(matrix.SCENARIO_LANES["browser-core"], SIMULATOR)
+        self.assertEqual(matrix.segment_lane("panorama", ["browser-core"]), DEVICE)
+
+    def test_the_environment_home_scenario_is_browser_and_needs_no_device(self) -> None:
+        self.assertEqual(matrix.SCENARIO_LANES["environment-home-round14"], SIMULATOR)
+        self.assertEqual(
+            matrix.segment_lane("main-window-browser", ["environment-home-round14"]),
+            SIMULATOR,
+        )
 
     def test_a_browser_segment_follows_its_most_demanding_scenario(self) -> None:
         self.assertEqual(

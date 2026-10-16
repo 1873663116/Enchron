@@ -1,9 +1,9 @@
 import unittest
 from pathlib import Path
 class WindowEffectDeliveryTests(unittest.TestCase):
-    def test_window_environment_delivers_effect(self) -> None:
+    def test_environment_home_delivers_effect(self) -> None:
         text = (Path(__file__).resolve().parents[3] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")
-        idx = text.find("def window_environment_scenario")
+        idx = text.find("def environment_home_scenario")
         snippet = text[idx: idx + 8000]
         self.assertIn("accessibility:EnvironmentCard-effect-", snippet)
         self.assertIn("accessibility:EnvironmentCard-card", snippet)
@@ -24,9 +24,9 @@ class WindowEffectDeliveryTests(unittest.TestCase):
         self.assertIn("received=True", snippet)
 
 class WindowPlaybackControlsNoRegressionTests(unittest.TestCase):
-    def test_window_environment_still_delivers_effect_after_controls_fix(self) -> None:
+    def test_environment_home_still_delivers_effect_after_controls_fix(self) -> None:
         text = (Path(__file__).resolve().parents[3] / "Scripts/verification/reachability_matrix.py").read_text(encoding="utf-8")
-        idx = text.find("def window_environment_scenario")
+        idx = text.find("def environment_home_scenario")
         snippet = text[idx: idx + 8000]
         self.assertIn("EnvironmentCard-effect-", snippet)
         self.assertIn("if effect_delivered:", snippet)
