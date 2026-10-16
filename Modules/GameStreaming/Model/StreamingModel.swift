@@ -119,13 +119,15 @@ public final class StreamingModel {
             )
         }
 
+        let userProvidedName = name?.isEmpty == false
         let stored = StoredHost(
             id: info.uniqueID,
-            name: name?.isEmpty == false ? name! : info.name,
+            name: userProvidedName ? name! : info.name,
             address: address,
             serverCert: nil,
             preferredAppID: nil,
-            hasPairingRecord: info.pairStatus == 1
+            hasPairingRecord: info.pairStatus == 1,
+            nameIsUserProvided: userProvidedName
         )
         _ = hostStore.upsert(stored)
         reloadHosts()
@@ -194,7 +196,8 @@ public final class StreamingModel {
         )
         if authoritativePairing, let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }) {
             storedHosts[storedIndex].hasPairingRecord = info.pairStatus == 1
-            if storedHosts[storedIndex].name != info.name, !info.name.isEmpty {
+            if !storedHosts[storedIndex].hasUserProvidedName,
+               storedHosts[storedIndex].name != info.name, !info.name.isEmpty {
                 storedHosts[storedIndex].name = info.name
                 _ = hostStore.upsert(storedHosts[storedIndex])
             }

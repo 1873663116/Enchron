@@ -189,7 +189,9 @@ public struct StreamDiagnostics: Sendable, Equatable {
         parts.append("hostAudio=\(hostAudioPlaying)")
         parts.append("clientAudio=\(clientAudioOutput)")
         if framesPresented > 0 || audioFramesReceived > 0 {
-            parts.append("audio:received=\(audioFramesReceived);enqueued=\(audioFramesEnqueued);dropped=\(audioFramesDropped)")
+            parts.append("audio:received=\(audioFramesReceived)")
+            parts.append("audio:enqueued=\(audioFramesEnqueued)")
+            parts.append("audio:dropped=\(audioFramesDropped)")
         }
         return parts.joined(separator: ";")
     }

@@ -7,6 +7,11 @@ public struct StoredHost: Codable, Equatable {
     public var serverCert: Data?
     public var preferredAppID: AppID?
     public var hasPairingRecord: Bool
+    public var nameIsUserProvided: Bool?
+
+    public var hasUserProvidedName: Bool {
+        nameIsUserProvided ?? false
+    }
 }
 
 public final class HostStore: @unchecked Sendable {
