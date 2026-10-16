@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import unittest
+import unittest.mock
 
 import sys
 from pathlib import Path
@@ -1071,6 +1072,179 @@ class CommittedMatrixBaselineTests(unittest.TestCase):
         self.assertEqual(
             verdicts[("docked", "accessibility:PlayerPanel-DockedPlacement-back")],
             "known-defect",
+        )
+
+
+class RetiredReachableAcknowledgementTests(unittest.TestCase):
+    """Retiring a reachable cell needs a reason, not just a new render host."""
+
+    RETIRED_KEY = (
+        "docked",
+        "accessibility:EnvironmentCard-card",
+    )
+
+    def baseline_with_a_retired_reachable_cell(self) -> dict:
+        return {
+            "schemaVersion": 2,
+            "coordinateSystem": "proof-context-v1",
+            "cells": [
+                {
+                    "context": self.RETIRED_KEY[0],
+                    "operation": self.RETIRED_KEY[1],
+                    "verdict": "reachable",
+                },
+            ],
+        }
+
+    def inventory_that_no_longer_renders_it(self) -> dict:
+        return {
+            "operations": [{
+                "id": self.RETIRED_KEY[1],
+                "proofContexts": ["main-window-browser"],
+                "proofDomain": "browser",
+            }],
+        }
+
+    def test_an_unacknowledged_retirement_is_a_reachable_regression(self) -> None:
+        with unittest.mock.patch.dict(
+            inventory.RETIRED_REACHABLE_CELLS, {}, clear=True
+        ):
+            _, report = inventory.reconcile_proof_context_baseline(
+                self.baseline_with_a_retired_reachable_cell(),
+                self.inventory_that_no_longer_renders_it(),
+            )
+
+        self.assertEqual(report["retiredReachableCount"], 1)
+        self.assertEqual(report["unacknowledgedRetiredReachableCount"], 1)
+        self.assertEqual(report["reachableRegressionCount"], 1)
+        self.assertEqual(
+            report["unacknowledgedRetiredReachableCells"],
+            [{
+                "context": self.RETIRED_KEY[0],
+                "operation": self.RETIRED_KEY[1],
+                "reason": "source-derived-proof-context-does-not-exist",
+            }],
+        )
+
+    def test_an_acknowledged_retirement_is_not_a_regression(self) -> None:
+        with unittest.mock.patch.dict(
+            inventory.RETIRED_REACHABLE_CELLS,
+            {self.RETIRED_KEY: "The card moved to the main window."},
+            clear=True,
+        ):
+            _, report = inventory.reconcile_proof_context_baseline(
+                self.baseline_with_a_retired_reachable_cell(),
+                self.inventory_that_no_longer_renders_it(),
+            )
+
+        self.assertEqual(report["retiredReachableCount"], 1)
+        self.assertEqual(report["reachableRegressionCount"], 0)
+
+    def test_a_retirement_the_table_does_not_name_is_reported_not_hidden(self) -> None:
+        with unittest.mock.patch.dict(
+            inventory.RETIRED_REACHABLE_CELLS,
+            {("window", "accessibility:Something-else"): "Another cell."},
+            clear=True,
+        ):
+            _, report = inventory.reconcile_proof_context_baseline(
+                self.baseline_with_a_retired_reachable_cell(),
+                self.inventory_that_no_longer_renders_it(),
+            )
+
+        self.assertEqual(report["reachableRegressionCount"], 1)
+
+
+class ReasonTableHygieneTests(unittest.TestCase):
+    """A reason table that names nothing real is a hole, not a decision."""
+
+    def test_every_retirement_reason_is_a_nonempty_sentence(self) -> None:
+        for key, reason in inventory.RETIRED_REACHABLE_CELLS.items():
+            with self.subTest(cell=key):
+                self.assertIsInstance(key, tuple)
+                self.assertEqual(len(key), 2)
+                self.assertIn(key[0], inventory.PROOF_CONTEXTS)
+                self.assertIsInstance(reason, str)
+                self.assertGreaterEqual(len(reason.strip()), 40)
+
+    def test_every_retired_cell_names_an_operation_the_inventory_derives(self) -> None:
+        derived = {
+            str(operation["id"]) for operation in inventory.build_inventory()["operations"]
+        }
+        for _, operation in inventory.RETIRED_REACHABLE_CELLS:
+            with self.subTest(operation=operation):
+                self.assertIn(operation, derived)
+
+    def test_every_excluded_literal_would_otherwise_become_an_identifier(self) -> None:
+        for template, reason in inventory.NON_VIEW_IDENTIFIER_LITERALS.items():
+            with self.subTest(template=template):
+                self.assertIsNotNone(
+                    inventory.family(template),
+                    "an excluded literal must look like an identifier, or the "
+                    "entry excludes nothing and only hides the table's intent",
+                )
+                self.assertGreaterEqual(len(reason.strip()), 40)
+
+    def test_no_excluded_literal_is_also_a_derived_identifier(self) -> None:
+        templates = {
+            str(record["template"]) for record in inventory.build_inventory()["identifiers"]
+        }
+        overlap = sorted(set(inventory.NON_VIEW_IDENTIFIER_LITERALS) & templates)
+        self.assertEqual(
+            overlap,
+            [],
+            "an excluded literal that the inventory still derives means the "
+            "exclusion is not applied",
+        )
+
+
+class BaselineCoverageMessageTests(unittest.TestCase):
+    """The coverage failure must name the command that actually fixes it."""
+
+    def coverage_advice(self, baseline_cells: list[dict], operations: list[dict]) -> str:
+        expected = {
+            (str(context), str(operation["id"]))
+            for operation in operations
+            for context in operation["proofContexts"]
+        }
+        actual = {
+            (str(cell["context"]), str(cell["operation"]))
+            for cell in baseline_cells
+        }
+        self.assertNotEqual(actual, expected)
+        if {operation for _, operation in actual} == {
+            operation for _, operation in expected
+        }:
+            return "--migrate-baseline-proof-contexts"
+        return "--accept-baseline"
+
+    def test_a_pure_context_move_points_at_the_migration(self) -> None:
+        operations = [{
+            "id": "accessibility:EnvironmentCard-card",
+            "proofContexts": ["main-window-browser"],
+        }]
+        baseline_cells = [{
+            "context": "window",
+            "operation": "accessibility:EnvironmentCard-card",
+        }]
+
+        self.assertEqual(
+            self.coverage_advice(baseline_cells, operations),
+            "--migrate-baseline-proof-contexts",
+        )
+
+    def test_a_changed_operation_set_points_at_a_full_run(self) -> None:
+        operations = [{
+            "id": "accessibility:BrandNew-button",
+            "proofContexts": ["main-window-browser"],
+        }]
+        baseline_cells = [{
+            "context": "main-window-browser",
+            "operation": "accessibility:Retired-button",
+        }]
+
+        self.assertEqual(
+            self.coverage_advice(baseline_cells, operations),
+            "--accept-baseline",
         )
 
 

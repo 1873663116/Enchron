@@ -1412,6 +1412,55 @@ NON_VIEW_IDENTIFIER_LITERALS: dict[str, str] = {
     "Emby-StillCard-": "The Continue Watching half of the same prefix. The card "
     "itself carries Emby-StillCard-{metadata.id.rawValue}.",
 }
+"""Literal strings that look like identifiers but carry no drivable view.
+
+Every entry states why the string has no object to drive. Removing a name here
+puts its cell back, so a deletion is visible in the diff as an addition.
+"""
+
+RETIRED_REACHABLE_CELLS: dict[tuple[str, str], str] = {
+    ("docked", "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}"):
+        "The environment card renders in the main window's browser surface, so "
+        "the docked proof context does not exist for it.",
+    ("docked", "accessibility:EnvironmentCard-card"):
+        "The environment card renders in the main window's browser surface, so "
+        "the docked proof context does not exist for it.",
+    ("docked", "accessibility:EnvironmentCard-carousel"):
+        "The environment card renders in the main window's browser surface, so "
+        "the docked proof context does not exist for it.",
+    ("docked", "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}"):
+        "The environment card renders in the main window's browser surface, so "
+        "the docked proof context does not exist for it.",
+    ("window", "accessibility:EnvironmentCard-button-environment-{environment.environment.rawValue}"):
+        "The environment card renders in the main window's browser surface, "
+        "which is the main-window-browser context, not the window one.",
+    ("window", "accessibility:EnvironmentCard-card"):
+        "The environment card renders in the main window's browser surface, "
+        "which is the main-window-browser context, not the window one.",
+    ("window", "accessibility:EnvironmentCard-carousel"):
+        "The environment card renders in the main window's browser surface, "
+        "which is the main-window-browser context, not the window one.",
+    ("window", "accessibility:EnvironmentCard-effect-{environment.environment.rawValue}"):
+        "The environment card renders in the main window's browser surface, "
+        "which is the main-window-browser context, not the window one.",
+}
+"""Reachable cells a proof-context reconciliation is allowed to retire.
+
+Retiring a reachable cell discards the only device evidence that operation ever
+had. Each entry names the cell and why its proof context no longer exists, so a
+retirement is a reviewed decision rather than a silent loss of coverage.
+"""
+
+
+def unacknowledged_retired_reachable(
+    retired: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    return [
+        cell
+        for cell in retired
+        if (str(cell.get("context")), str(cell.get("operation")))
+        not in RETIRED_REACHABLE_CELLS
+    ]
 
 
 def build_inventory() -> dict[str, object]:
@@ -1912,6 +1961,7 @@ def reconcile_proof_context_baseline(
         if (context, operation) not in expected
         and cell.get("verdict") == "reachable"
     ]
+    unacknowledged = unacknowledged_retired_reachable(retired_reachable)
     mapped_reachable_count = sum(
         cell.get("verdict") == "reachable" and key in expected
         for key, cell in existing.items()
@@ -1935,8 +1985,10 @@ def reconcile_proof_context_baseline(
         "remappedReachableCells": [],
         "retiredReachableCount": len(retired_reachable),
         "retiredReachableCells": retired_reachable,
-        "reachableRegressionCount": 0,
-        "reachableRegressions": [],
+        "unacknowledgedRetiredReachableCount": len(unacknowledged),
+        "unacknowledgedRetiredReachableCells": unacknowledged,
+        "reachableRegressionCount": len(unacknowledged),
+        "reachableRegressions": unacknowledged,
         "removedNotApplicableCount": 0,
     }
     return reconciled, report
@@ -1999,6 +2051,12 @@ def main() -> int:
         baseline = json.loads(MATRIX_BASELINE.read_text(encoding="utf-8"))
         migrated, report = migrate_matrix_baseline(baseline, inventory)
         if report["reachableRegressionCount"] != 0:
+            print(
+                "retiring a reachable cell discards its device evidence; add each "
+                "one to RETIRED_REACHABLE_CELLS with the reason its proof context "
+                "no longer exists:",
+                file=sys.stderr,
+            )
             print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
             return 1
         MATRIX_BASELINE.write_text(
@@ -2048,10 +2106,26 @@ def main() -> int:
         }
         if actual != expected:
             print(
-                "reachability matrix baseline does not cover the current inventory; "
-                "run the physical matrix with --accept-baseline",
+                "reachability matrix baseline does not cover the current inventory",
                 file=sys.stderr,
             )
+            if (
+                {operation for _, operation in actual}
+                == {operation for _, operation in expected}
+            ):
+                print(
+                    "every operation is present on both sides and only the proof "
+                    "contexts differ, so a render host moved. Reconcile the "
+                    "baseline with --migrate-baseline-proof-contexts; do not "
+                    "re-run the matrix.",
+                    file=sys.stderr,
+                )
+            else:
+                print(
+                    "the two sides name different operations, so the inventory "
+                    "itself moved. Re-run the matrix with --accept-baseline.",
+                    file=sys.stderr,
+                )
             return 1
         if any(
             cell.get("verdict") == "not-applicable"
