@@ -1,3 +1,4 @@
+import AVFAudio
 import AVFoundation
 import CoreMedia
 import Foundation
@@ -139,6 +140,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
         )
 
+        activateAudioSession()
         backend.start()
     }
 
@@ -167,6 +169,21 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         }
         terminatedFallback = fallback
         deliverQueue.asyncAfter(deadline: .now() + 5, execute: fallback)
+    }
+
+    private func activateAudioSession() {
+        Task { @MainActor in
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playback, mode: .moviePlayback)
+                try session.setActive(true)
+            } catch {
+                StreamSessionProbes.record(
+                    "audio session activation failed session=\(self.sessionID.rawValue) error=\(error.localizedDescription)",
+                    retention: .evidence
+                )
+            }
+        }
     }
 
     private func isStopped(_ state: StreamSessionState) -> Bool {
