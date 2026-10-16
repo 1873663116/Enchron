@@ -1009,12 +1009,20 @@ final class TestCommandChannel {
             streaming.sendPointerMove(normalizedX: x, normalizedY: y)
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "streamSendKey":
-            guard let hid = request.args["hid"].flatMap(UInt32.init),
-                  let downRaw = request.args["down"] else {
-                throw CommandError(message: "streamSendKey requires hid and down")
+            guard let hid = request.args["hid"].flatMap(UInt32.init) else {
+                throw CommandError(message: "streamSendKey requires hid")
+            }
+            let flags = request.args["flags"].flatMap(UInt32.init) ?? 0
+            if request.args["pulse"]?.flatMap(Int.init) == 1 {
+                streaming.sendKey(hidUsage: hid, down: true, modifierFlags: flags)
+                try? await Task.sleep(for: .milliseconds(40))
+                streaming.sendKey(hidUsage: hid, down: false, modifierFlags: flags)
+                return Response(id: request.id, ok: true, detail: "pulsed", payload: nil)
+            }
+            guard let downRaw = request.args["down"] else {
+                throw CommandError(message: "streamSendKey requires down or pulse")
             }
             let down = downRaw == "1" || downRaw.lowercased() == "true"
-            let flags = request.args["flags"].flatMap(UInt32.init) ?? 0
             streaming.sendKey(hidUsage: hid, down: down, modifierFlags: flags)
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "streamSetOptions":

@@ -407,11 +407,21 @@ def input_strings(forensic: Mapping[str, object]) -> list[str]:
     inputs = forensic.get("inputs")
     if not isinstance(inputs, list):
         return []
-    return [
+    values = [
         str(event.get("unicode", ""))
         for event in inputs
         if isinstance(event.get("unicode"), str) and event.get("unicode")
     ]
+    typed = "".join(
+        str(event.get("unicode", ""))
+        for event in inputs
+        if isinstance(event.get("kind"), str)
+        and event.get("kind") == "keyDown"
+        and isinstance(event.get("unicode"), str)
+    )
+    if typed:
+        values.append(typed)
+    return values
 
 
 def input_positions(forensic: Mapping[str, object]) -> list[tuple[float, float]]:
@@ -1535,12 +1545,17 @@ def wait_for_state(context: Context, name: str, seconds: float, label: str) -> S
     def probe() -> dict[str, object] | None:
         view = context.session_snapshot_or_none()
         if view is None:
+            if name == "ended":
+                return {"session": "ended(reason=session-ui-gone)"}
             return None
         return {"session": view.state()} if view.state_name() == name else None
 
     evidence = context.wait(label, seconds, probe, context.scene, poll_interval_seconds=2.0)
     context.record_text("control-surface", f"{label}.txt", str(evidence["session"]))
-    return context.session_snapshot()
+    snapshot = context.session_snapshot_or_none()
+    if snapshot is not None:
+        return snapshot
+    return SnapshotView((( "session", str(evidence["session"])),))
 
 
 def relaunch_app(context: Context) -> dict[str, object]:
@@ -1712,8 +1727,7 @@ def send_text(context: Context, text: str) -> str:
         usages.append(usage)
     try:
         for usage in usages:
-            context.app_verb("streamSendKey", hid=usage, down=True, flags=0)
-            context.app_verb("streamSendKey", hid=usage, down=False, flags=0)
+            context.app_verb("streamSendKey", hid=usage, pulse=1, flags=0)
         return "streamSendKey verb"
     except BlockedBy as error:
         raise BlockedBy(
