@@ -49,13 +49,15 @@ final class TidalEnvironmentRuntime {
                 reflectionGain = nil
             }
             hasSceneFrame = material.parameterNames.contains("SceneFrameOrigin")
-            hasSky = material.parameterNames.contains("SkyYaw")
+            hasSky = material.parameterNames.contains("SkyOrientationAxis")
             hasDarkMix = material.parameterNames.contains("DarkMix")
         }
     }
 
     private let surfaces: [Surface]
     private weak var orbit: Entity?
+    private weak var skyDome: Entity?
+    private var skyBaseOrientation = simd_quatf(angle: 0, axis: [0, 1, 0])
     private var timeline = TidalMotionTimeline()
     private var lastMix: Float?
     private let logger = Logger(subsystem: "com.xiongzhipeng.Enchron", category: "TidalMotion")
@@ -67,9 +69,14 @@ final class TidalEnvironmentRuntime {
             }) == true { return true }
             return entity.children.contains { hasParameter($0, name) }
         }
+        guard let skyDome = root.findEntity(named: "SkyDome") else {
+            throw TidalDarkMaterial.Failure.missingParameter("SkyDome")
+        }
+        self.skyDome = skyDome
+        self.skyBaseOrientation = skyDome.orientation
         for (entityName, parameter) in [
-            ("SkyDome", "SkyYaw"), ("PoolWater", "DarkMix"),
-            ("GlassPoolSide", "SkyYaw"), ("CartGlass350", "SkyYaw"), ("CartDrinkBottleBody", "SkyYaw")
+            ("PoolWater", "DarkMix"), ("PoolWater", "SkyOrientationAxis"),
+            ("GlassPoolSide", "SkyOrientationAxis"), ("CartGlass350", "SkyOrientationAxis"), ("CartDrinkBottleBody", "SkyOrientationAxis")
         ] {
             guard let entity = root.findEntity(named: entityName), hasParameter(entity, parameter) else {
                 throw TidalDarkMaterial.Failure.missingParameter(entityName + "." + parameter)
@@ -135,6 +142,8 @@ final class TidalEnvironmentRuntime {
     }
 
     private func write(_ sample: TidalMotionTimeline.Sample) {
+        let sky = skyBaseOrientation * simd_quatf(angle: sample.skyYaw, axis: [0, 1, 0])
+        skyDome?.orientation = sky
         let changed = lastMix != sample.darkMix
         for surface in surfaces where surface.hasSky || changed {
             modify(surface) { material in
@@ -147,8 +156,8 @@ final class TidalEnvironmentRuntime {
                     }
                 }
                 if surface.hasSky {
-                    try material.setParameter(name: "SkyYaw", value: .float(sample.skyYaw))
-                    try material.setParameter(name: "SkyBlurAngle", value: .float(sample.skyBlurAngle))
+                    try material.setParameter(name: "SkyOrientationAxis", value: .simd3Float(sky.imag))
+                    try material.setParameter(name: "SkyOrientationW", value: .float(sky.real))
                 }
             }
         }
@@ -203,7 +212,6 @@ final class TidalEnvironmentRuntime {
             try Task.checkCancellation()
             var material = value
             if material.parameterNames.contains("DarkMix") { try material.setParameter(name: "DarkMix", value: .float(0.5)) }
-            if material.parameterNames.contains("SkyBlurAngle") { try material.setParameter(name: "SkyBlurAngle", value: .float(0.033)) }
             let entity = ModelEntity(mesh: mesh, materials: [material])
             entity.position = [0, 0, -1]
             renderer.entities.append(entity)

@@ -9,7 +9,6 @@ nonisolated struct TidalMotionTimeline {
     struct Sample {
         var darkMix: Float
         var skyYaw: Float
-        var skyBlurAngle: Float
         var orbitYaw: Float
     }
 
@@ -58,7 +57,6 @@ nonisolated struct TidalMotionTimeline {
             darkMix: Float(value.mix),
             skyYaw: Float((elapsed.truncatingRemainder(dividingBy: Self.skyPeriod) * 2 * .pi / Self.skyPeriod
                 + value.turn).truncatingRemainder(dividingBy: 2 * .pi)),
-            skyBlurAngle: Float(abs(value.velocity) / 120),
             orbitYaw: Float(elapsed.truncatingRemainder(dividingBy: Self.orbitPeriod) * 2 * .pi / Self.orbitPeriod)
         )
     }
