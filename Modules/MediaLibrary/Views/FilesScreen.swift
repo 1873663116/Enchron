@@ -936,7 +936,10 @@ public struct FilesScreen: View {
                                 watchedProgress: nil,
                                 accessibilityIdentifier:
                                     "FileBrowsing-grid-bluray-content-\(title.playlistID.rawValue)",
-                                action: { viewModel.selectBluRayTitle(title) }
+                                action: {
+                                    recordReachability(.bluRayTitle(String(title.playlistID.rawValue)))
+                                    viewModel.selectBluRayTitle(title)
+                                }
                             )
                             .accessibilityLabel(BluRayTitleAccessibility.label(
                                 for: title,
@@ -948,7 +951,10 @@ public struct FilesScreen: View {
                                 title: group.kind.displayName,
                                 count: group.titles.count,
                                 accessibilityIdentifier: "FileBrowsing-grid-bluray-group-\(group.kind.rawValue)",
-                                action: { viewModel.openBluRayGroup(group.kind) }
+                                action: {
+                                    recordReachability(.bluRayGroup(group.kind.rawValue))
+                                    viewModel.openBluRayGroup(group.kind)
+                                }
                             )
                         }
                         if viewModel.canBrowseFilesInCurrentBluRayDisc {
@@ -956,7 +962,10 @@ public struct FilesScreen: View {
                                 title: String(localized: "Browse Files"),
                                 count: nil,
                                 accessibilityIdentifier: "FileBrowsing-grid-bluray-browseFiles",
-                                action: { Task { await viewModel.browseFilesInCurrentBluRayDisc() } }
+                                action: {
+                                    recordReachability(.bluRayBrowseFiles)
+                                    Task { await viewModel.browseFilesInCurrentBluRayDisc() }
+                                }
                             )
                             .contextMenu {
                                 if let dataSource = viewModel.activeDataSource,
@@ -986,6 +995,7 @@ public struct FilesScreen: View {
                                 accessibilityIdentifier:
                                     "FileBrowsing-grid-bluray-disc-\(file.name)",
                                 action: {
+                                    recordReachability(.bluRayDisc(file.name))
                                     recordReachability(.remoteFolder)
                                     viewModel.selectFile(file)
                                 }
@@ -1039,7 +1049,10 @@ public struct FilesScreen: View {
                                 watchedProgress: nil,
                                 accessibilityIdentifier:
                                     "MediaLibrary-grid-bluray-content-\(title.playlistID.rawValue)",
-                                action: { mediaLibrary.selectBluRayTitle(title) }
+                                action: {
+                                    recordReachability(.bluRayTitle(String(title.playlistID.rawValue)))
+                                    mediaLibrary.selectBluRayTitle(title)
+                                }
                             )
                             .accessibilityLabel(BluRayTitleAccessibility.label(
                                 for: title,
@@ -1051,7 +1064,10 @@ public struct FilesScreen: View {
                                 title: group.kind.displayName,
                                 count: group.titles.count,
                                 accessibilityIdentifier: "MediaLibrary-grid-bluray-group-\(group.kind.rawValue)",
-                                action: { mediaLibrary.openBluRayGroup(group.kind) }
+                                action: {
+                                    recordReachability(.bluRayGroup(group.kind.rawValue))
+                                    mediaLibrary.openBluRayGroup(group.kind)
+                                }
                             )
                         }
                     } else {
@@ -1075,7 +1091,10 @@ public struct FilesScreen: View {
                                     count: nil,
                                     accessibilityIdentifier:
                                         "MediaLibrary-grid-bluray-disc-\(reference.name)",
-                                    action: { activateMediaReference(reference) }
+                                    action: {
+                                        recordReachability(.bluRayDisc(reference.name))
+                                        activateMediaReference(reference)
+                                    }
                                 )
                                 .contextMenu { libraryReferenceActions(reference) }
                             } else {

@@ -134,6 +134,10 @@ public enum FilesScreenReachabilityAction: Equatable, Sendable {
     case viewMode
     case sort
     case libraryReferenceMove
+    case bluRayTitle(String)
+    case bluRayGroup(String)
+    case bluRayBrowseFiles
+    case bluRayDisc(String)
 
     public var probeName: String {
         switch self {
@@ -191,6 +195,14 @@ public enum FilesScreenReachabilityAction: Equatable, Sendable {
             "files.sort"
         case .libraryReferenceMove:
             "libraryReference.move"
+        case .bluRayTitle(let titleID):
+            "bluRay.title.\(titleID)"
+        case .bluRayGroup(let kind):
+            "bluRay.group.\(kind)"
+        case .bluRayBrowseFiles:
+            "bluRay.browseFiles"
+        case .bluRayDisc(let name):
+            "bluRay.disc.\(name)"
         }
     }
 }

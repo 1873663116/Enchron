@@ -1,4 +1,5 @@
 import DesignSystem
+import Playback
 import SwiftUI
 
 struct OpenSourceLicensesView: View {
@@ -21,6 +22,12 @@ struct OpenSourceLicensesView: View {
             .navigationTitle("Open-source Licenses")
             .navigationDestination(for: OpenSourceComponent.self) { component in
                 OpenSourceLicenseText(component: component)
+                    .onAppear {
+                        SurfaceInputProbes.record(
+                            "reachability licenses delivered row=\(component.id)",
+                            retention: .evidence
+                        )
+                    }
             }
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
