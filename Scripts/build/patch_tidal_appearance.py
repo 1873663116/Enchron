@@ -10,14 +10,12 @@ from pathlib import Path
 
 MATERIALS = ('SkyDome', 'SkyPoolWater', 'SkyPoolGlass', 'SkyPoolGlassDoor', 'SkyPoolGlassBottle')
 WATER_TEXTURES = ('FloorPlane_color', 'WallLeftPlane_color', 'RecessPlane_color')
-SAMPLERS = {'ND_RealityKitTexture2D_vector4', 'ND_RealityKitTexture2DLOD_vector4'}
-SKY_SIZE = (16384, 8192)
+SAMPLERS = {'ND_RealityKitTexture2D_vector4', 'ND_RealityKitTexture2DLOD_vector4',
+            'ND_RealityKitTextureCube_vector4', 'ND_RealityKitTextureCubeLOD_vector4'}
 TAPS = ((0.0, 0.125), (0.25, 0.25), (0.5, 0.25), (0.75, 0.25), (1.0, 0.125))
 SKY_TILT_DEGREES = 180.0
 SKY_TILT_SINE = round(math.sin(math.radians(SKY_TILT_DEGREES)), 12)
 SKY_TILT_COSINE = round(math.cos(math.radians(SKY_TILT_DEGREES)), 12)
-SKY_POLE_FEATHER = 15.0 / 180.0
-SKY_POLE_LOD_MAX = 7.0
 LEGACY_SKY_TILT_SINE = 0.8660253882408142
 SHADER_SOURCES = ('sky_dome.ssl', 'sky_pool_water.ssl', 'sky_pool_glass.ssl', 'sky_pool_interior_glass.ssl')
 SHADER_TILT_SOURCE = 'ray.y * 0.5f - ray.z * 0.8660254f, ray.y * 0.8660254f + ray.z * 0.5f'
@@ -117,20 +115,9 @@ class GraphEditor:
         return {link['to_connector_hash']: (link['from_node'], link['from_connector_hash'])
                 for link in self.graph['connections'] if link['to_node'] == target}
 
-    def scalar_input(self, target, port, default=0.0):
-        incoming = self.incoming(target)
-        if self.hash(port) in incoming:
-            return incoming[self.hash(port)]
-        item = next((item for item in self.graph.get('data', [])
-                     if item['to_node'] == target and item['to_connector_hash'] == self.hash(port)), None)
-        return item['data'].get('float', default) if item is not None else default
-
     def split(self, value, count):
         separated = self.node('ND_separate' + str(count) + '_vector' + str(count), **{'in': value})
         return tuple((separated[0], self.hash('out' + axis)) for axis in 'xyzw'[:count])
-
-    def vector2(self, x, y):
-        return self.node('ND_combine2_vector2', in1=x, in2=y)
 
     def sampler_copy(self, sampler, label):
         key = self.key + '/' + self.scope + '/' + label
@@ -176,132 +163,52 @@ class GraphEditor:
         return identifier(self.key + '/' + marker) in self.nodes
 
 
-def spherical_direction(editor, uv):
-    u, v = editor.split(uv, 2)
-    longitude = editor.binary('multiply', u, 2.0 * math.pi)
-    latitude = editor.binary('multiply', editor.binary('subtract', 1.0, v), math.pi)
-    sin_latitude = editor.unary('sin', latitude)
-    x = editor.binary('multiply', editor.unary('sin', editor.binary('add', longitude, math.pi / 2)), sin_latitude)
-    y = editor.unary('sin', editor.binary('add', latitude, math.pi / 2))
-    z = editor.binary('multiply', editor.unary('sin', longitude), editor.binary('multiply', sin_latitude, -1.0))
+def untilted_direction(editor, local):
+    x, y, z = editor.split(local, 3)
     return (
         x,
         editor.binary('add', editor.binary('multiply', y, SKY_TILT_COSINE), editor.binary('multiply', z, SKY_TILT_SINE)),
-        editor.binary('add', editor.binary('multiply', y, -SKY_TILT_SINE), editor.binary('multiply', z, SKY_TILT_COSINE)),
+        editor.binary('add', editor.binary('multiply', z, SKY_TILT_COSINE), editor.binary('multiply', y, -SKY_TILT_SINE)),
     )
 
 
-def rotated_uv(editor, direction, angle, original_uv):
+def tilted_direction(editor, direction):
+    x, y, z = direction
+    return editor.node('ND_combine3_vector3', in1=x,
+                       in2=editor.binary('subtract', editor.binary('multiply', y, SKY_TILT_COSINE),
+                                         editor.binary('multiply', z, SKY_TILT_SINE)),
+                       in3=editor.binary('add', editor.binary('multiply', y, SKY_TILT_SINE),
+                                         editor.binary('multiply', z, SKY_TILT_COSINE)))
+
+
+def rotated_direction(editor, direction, angle):
     x, y, z = direction
     sine = editor.unary('sin', angle)
     cosine = editor.unary('sin', editor.binary('add', angle, math.pi / 2))
     turned_x = editor.binary('subtract', editor.binary('multiply', cosine, x), editor.binary('multiply', sine, z))
     turned_z = editor.binary('add', editor.binary('multiply', sine, x), editor.binary('multiply', cosine, z))
-    local_y = editor.binary('subtract', editor.binary('multiply', y, SKY_TILT_COSINE), editor.binary('multiply', turned_z, SKY_TILT_SINE))
-    local_z = editor.binary('add', editor.binary('multiply', y, SKY_TILT_SINE), editor.binary('multiply', turned_z, SKY_TILT_COSINE))
-    longitude = editor.node('ND_atan2_float', iny=editor.binary('multiply', local_z, -1.0), inx=turned_x)
-    clamped_y = editor.node('ND_clamp_float', **{'in': local_y, 'low': -1.0, 'high': 1.0})
-    latitude = editor.unary('acos', clamped_y)
-    projected = editor.vector2(editor.binary('divide', longitude, 2.0 * math.pi),
-                               editor.binary('subtract', 1.0, editor.binary('divide', latitude, math.pi)))
-    magnitude = editor.binary('max', angle, editor.binary('multiply', angle, -1.0))
-    return editor.node('ND_ifgreater_vector2', value1=magnitude, value2=0.0, in1=projected, in2=original_uv)
-
-
-def footprint_lod(editor, first, second):
-    ax, ay = editor.split(first, 2)
-    bx, by = editor.split(second, 2)
-    du = editor.binary('subtract', bx, ax)
-    du = editor.binary('subtract', du, editor.unary('floor', editor.binary('add', du, 0.5)))
-    dx = editor.binary('multiply', du, float(SKY_SIZE[0]))
-    dy = editor.binary('multiply', editor.binary('subtract', by, ay), float(SKY_SIZE[1]))
-    squared = editor.binary('add', editor.binary('multiply', dx, dx), editor.binary('multiply', dy, dy))
-    return editor.binary('multiply', editor.node('ND_MTL_log2_float', x=editor.binary('max', squared, 1.0)), 0.5)
-
-
-def lod_parameter(editor, sampler):
-    return 'lod' if editor.nodes[sampler]['type'] == 'ND_RealityKitTexture2DLOD_vector4' else 'dynamic_min_lod_clamp'
-
-
-def pole_lod(editor, uv_value):
-    u, v = editor.split(uv_value, 2)
-    far = editor.binary('max', v, editor.binary('subtract', 1.0, v))
-    near = editor.binary('subtract', 1.0, far)
-    ramp = editor.binary('divide', editor.binary('subtract', SKY_POLE_FEATHER, near), SKY_POLE_FEATHER)
-    weight = editor.node('ND_clamp_float', **{'in': ramp, 'low': 0.0, 'high': 1.0})
-    return editor.binary('multiply', editor.binary('multiply', weight, weight), SKY_POLE_LOD_MAX)
-
-
-def migrate_pole_lod(editor, sampler):
-    marker = 'PoleLod_' + sampler
-    if editor.has_marker(marker):
-        return False
-    targets = [sampler] + [node['__uuid'] for node in editor.graph['nodes']
-                           if node.get('label', '').startswith('TidalAppearance_SkyTap_' + sampler + '_')]
-    port = lod_parameter(editor, sampler)
-    base = editor.incoming(targets[0]).get(editor.hash('texcoord'))
-    if base is None:
-        return False
-    pole = pole_lod(editor, base)
-    for target in targets:
-        editor.bind(target, port, editor.binary('max', editor.scalar_input(target, port), pole))
-    editor.mark(pole, marker)
-    return True
-
-
-def migrate_sky_lod(editor, sampler):
-    changed = False
-    targets = [sampler] + [node['__uuid'] for node in editor.graph['nodes']
-                           if node.get('label', '').startswith('TidalAppearance_SkyTap_' + sampler + '_')]
-    for target in targets:
-        if editor.nodes[target]['type'] != 'ND_RealityKitTexture2D_vector4':
-            continue
-        source = editor.incoming(target).get(editor.hash('min_lod_clamp')) or editor.incoming(target).get(editor.hash('bias'))
-        if source is not None:
-            editor.bind(target, 'dynamic_min_lod_clamp', source)
-            editor.bind(target, 'bias', 0.0)
-            changed = True
-        editor.bind(target, 'min_lod_clamp', 0.0)
-    return changed
+    return tilted_direction(editor, (turned_x, y, turned_z))
 
 
 def patch_sky(editor, sampler):
     marker = 'SkyOutput_' + sampler
     if editor.has_marker(marker):
-        changed = migrate_sky_lod(editor, sampler)
-        return migrate_pole_lod(editor, sampler) or changed
+        return False
     editor.start('Sky_' + sampler)
-    original_uv = editor.incoming(sampler)[editor.hash('texcoord')]
     original_links = [link for link in editor.graph['connections'] if link['from_node'] == sampler]
     yaw = editor.parameter('SkyYaw')
     blur = editor.parameter('SkyBlurAngle')
-    direction = spherical_direction(editor, original_uv)
-    uv_cache = {}
-
-    def uv(fraction):
-        if fraction not in uv_cache:
-            angle = editor.binary('subtract', yaw, editor.binary('multiply', blur, fraction))
-            uv_cache[fraction] = rotated_uv(editor, direction, angle, original_uv)
-        return uv_cache[fraction]
-
-    lod_port = lod_parameter(editor, sampler)
-    original_lod = editor.scalar_input(sampler, lod_port)
+    direction = untilted_direction(editor, editor.incoming(sampler)[editor.hash('texcoord')])
     copies = [sampler] + [editor.sampler_copy(sampler, 'SkyTap_' + sampler + '_' + str(i)) for i in range(1, len(TAPS))]
     weighted = []
     for (fraction, weight), target in zip(TAPS, copies):
-        coverage = footprint_lod(editor, uv(fraction - 0.125), uv(fraction + 0.125))
-        editor.bind(target, 'texcoord', uv(fraction))
-        editor.bind(target, lod_port, editor.binary('max', original_lod, coverage))
-        editor.bind(target, 'min_lod_clamp', 0.0)
+        angle = editor.binary('subtract', yaw, editor.binary('multiply', blur, fraction))
+        editor.bind(target, 'texcoord', rotated_direction(editor, direction, angle))
         weighted.append(editor.node('ND_multiply_vector4FA', in1=(target, editor.hash('out')), in2=weight))
     total = weighted[0]
     for value in weighted[1:]:
         total = editor.node('ND_add_vector4', in1=total, in2=value)
-    magnitude = editor.binary('max', blur, editor.binary('multiply', blur, -1.0))
-    result = editor.node('ND_ifgreater_vector4', value1=magnitude, value2=0.0,
-                         in1=total, in2=(sampler, editor.hash('out')))
-    editor.redirect(original_links, editor.mark(result, marker))
-    migrate_pole_lod(editor, sampler)
+    editor.redirect(original_links, editor.mark(total, marker))
     return True
 
 
