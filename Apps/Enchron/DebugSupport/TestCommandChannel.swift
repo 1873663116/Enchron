@@ -941,6 +941,9 @@ final class TestCommandChannel {
                     payload: nil
                 )
             }
+            if let current = streaming.pairing, current.state == .unpaired {
+                return Response(id: request.id, ok: true, detail: "existing pairing", payload: [current.id.rawValue, current.pin])
+            }
             let challenge = try await streaming.beginPairing(hostID: hostID)
             return Response(id: request.id, ok: true, detail: nil, payload: [challenge.id.rawValue, challenge.pin])
         case "streamLaunch":
