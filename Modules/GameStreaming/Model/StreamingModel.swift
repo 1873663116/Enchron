@@ -1,6 +1,8 @@
 import Foundation
 import Observation
 
+private let streamingProbe = StreamSessionProbes.self
+
 @MainActor
 @Observable
 public final class StreamingModel {
@@ -238,6 +240,10 @@ public final class StreamingModel {
 
         let challenge = PairingChallenge(id: backendPairing.pairingID, pin: backendPairing.pin)
         pairing = challenge
+        StreamSessionProbes.record(
+            "pairing begin host=\(stored.name) pin=\(challenge.pin)",
+            retention: .evidence
+        )
 
         pairingTask = Task { [weak self] in
             do {
@@ -253,6 +259,10 @@ public final class StreamingModel {
     }
 
     private func completePairing(hostID: HostID, outcome: PairingOutcome) {
+        StreamSessionProbes.record(
+            "pairing complete host=\(hostID.rawValue)",
+            retention: .evidence
+        )
         switch outcome {
         case .paired(let serverCert), .alreadyPaired(.some(let serverCert)):
             _ = hostStore.update(id: hostID.rawValue) { stored in
@@ -275,6 +285,10 @@ public final class StreamingModel {
     }
 
     private func pairingFailed(_ message: String) {
+        StreamSessionProbes.record(
+            "pairing failed error=\(message)",
+            retention: .evidence
+        )
         pairing?.state = .failed(message)
         pairingError = StreamFailure(
             stage: .pairing,
