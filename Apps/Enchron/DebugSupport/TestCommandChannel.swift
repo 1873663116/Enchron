@@ -1013,7 +1013,8 @@ final class TestCommandChannel {
                 throw CommandError(message: "streamSendKey requires hid")
             }
             let flags = request.args["flags"].flatMap(UInt32.init) ?? 0
-            if request.args["pulse"]?.flatMap(Int.init) == 1 {
+            let pulsed = request.args["pulse"] == "1" || request.args["pulse"]?.lowercased() == "true"
+            if pulsed {
                 streaming.sendKey(hidUsage: hid, down: true, modifierFlags: flags)
                 try? await Task.sleep(for: .milliseconds(40))
                 streaming.sendKey(hidUsage: hid, down: false, modifierFlags: flags)
