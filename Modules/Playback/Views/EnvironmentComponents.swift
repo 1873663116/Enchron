@@ -35,26 +35,8 @@ public struct FeaturedEnvironment: Identifiable {
         .init(
             environment: .tidal,
             lightImageName: "EnvironmentTidal",
-            darkImageName: "EnvironmentTidal",
+            darkImageName: "EnvironmentTidalDark",
             title: String(localized: "Tidal")
-        ),
-        .init(
-            environment: .placeholderRed,
-            lightImageName: "EnvironmentPlaceholderRed",
-            darkImageName: "EnvironmentPlaceholderRedDark",
-            title: "Red"
-        ),
-        .init(
-            environment: .placeholderGreen,
-            lightImageName: "EnvironmentPlaceholderGreen",
-            darkImageName: "EnvironmentPlaceholderGreenDark",
-            title: "Green"
-        ),
-        .init(
-            environment: .placeholderBlue,
-            lightImageName: "EnvironmentPlaceholderBlue",
-            darkImageName: "EnvironmentPlaceholderBlueDark",
-            title: "Blue"
         )
     ]
 }
@@ -67,6 +49,7 @@ public struct EnvironmentCard: View {
     var atmosphericFade: CGFloat = 0
     var onEffectChange: (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in }
     var onExpand: () -> Void = {}
+    var controlsEnabled = true
     var isDefault = false
     var onSetDefault: () -> Void = {}
 
@@ -104,7 +87,20 @@ public struct EnvironmentCard: View {
     }
 
     private var backgroundImage: some View {
-        Image(environment.imageName(for: effect))
+        ZStack {
+            thumbnail
+                .id(thumbnailName)
+                .transition(.opacity)
+        }
+        .animation(DesignTokens.AnimationToken.controlsTransition, value: thumbnailName)
+    }
+
+    private var thumbnailName: String {
+        environment.imageName(for: effect)
+    }
+
+    private var thumbnail: some View {
+        Image(thumbnailName)
             .resizable()
             .scaledToFill()
             .frame(
@@ -138,6 +134,7 @@ public struct EnvironmentCard: View {
                         accessibilityIdentifier:
                             "EnvironmentCard-effect-\(environment.environment.rawValue)"
                     )
+                    .disabled(controlsEnabled == false)
                 }
                 Spacer()
                 CircleIconButton.expandCollapse(
@@ -149,6 +146,7 @@ public struct EnvironmentCard: View {
                     accessibilityIdentifier:
                         "EnvironmentCard-button-environment-\(environment.environment.rawValue)"
                 )
+                .disabled(controlsEnabled == false)
             }
             .padding(DesignTokens.EnvironmentCard.chromePadding)
             Spacer()
@@ -239,6 +237,7 @@ public struct EnvironmentCard: View {
         atmosphericFade: CGFloat = 0,
         onEffectChange: @escaping (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in },
         onExpand: @escaping () -> Void = {},
+        controlsEnabled: Bool = true,
         isDefault: Bool = false,
         onSetDefault: @escaping () -> Void = {}
     ) {
@@ -249,6 +248,7 @@ public struct EnvironmentCard: View {
         self.atmosphericFade = atmosphericFade
         self.onEffectChange = onEffectChange
         self.onExpand = onExpand
+        self.controlsEnabled = controlsEnabled
         self.isDefault = isDefault
         self.onSetDefault = onSetDefault
     }
@@ -317,11 +317,11 @@ struct EnvironmentCardCarousel: View {
     var cardDefaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean
     var isPresented = true
     var onSetDefault: (SpatialSceneDomain.CinemaEnvironment) -> Void = { _ in }
-    var defaultEffect: SpatialSceneDomain.EnvironmentEffect = .inactiveFallback
-    var onEffectChange:
-        (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
-    var onExpand:
-        (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
+    var effect: SpatialSceneDomain.EnvironmentEffect = .inactiveFallback
+    var controlsEnabled = true
+    var onCenterChange: (SpatialSceneDomain.CinemaEnvironment) -> Void = { _ in }
+    var onEffectChange: (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in }
+    var onToggle: () -> Void = {}
 
     @State private var scrollPosition: CGFloat = 0
     @State private var dragTranslation: CGFloat = 0
@@ -330,8 +330,6 @@ struct EnvironmentCardCarousel: View {
     @State private var detailsVisible = true
     @State private var motionGeneration = 0
     @State private var detailRevealTask: Task<Void, Never>?
-    @State private var selectedEffects:
-        [SpatialSceneDomain.CinemaEnvironment: SpatialSceneDomain.EnvironmentEffect] = [:]
 
     var body: some View {
         ZStack {
@@ -349,28 +347,20 @@ struct EnvironmentCardCarousel: View {
                 ForEach(renderItems) { item in
                     EnvironmentCard(
                         environment: item.environment,
-                        effect: selectedEffect(for: item.environment),
-                        isEnvironmentActive:
-                            activeEnvironment == item.environment.environment,
+                        effect: effect,
+                        isEnvironmentActive: activeEnvironment != nil,
                         detailVisibility: interactionDetailVisibility(for: item.visualPosition),
                         atmosphericFade: atmosphericFade(for: item.visualPosition),
-                        onEffectChange: {
-                            selectedEffects[item.environment.environment] = $0
-                            onEffectChange(item.environment, $0)
-                        },
-                        onExpand: {
-                            onExpand(
-                                item.environment,
-                                selectedEffect(for: item.environment)
-                            )
-                        },
+                        onEffectChange: onEffectChange,
+                        onExpand: onToggle,
+                        controlsEnabled: controlsEnabled,
                         isDefault: item.environment.environment == cardDefaultEnvironment,
                         onSetDefault: { onSetDefault(item.environment.environment) }
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
                     .opacity(Double(cardOpacity(for: item.visualPosition)))
                     .enchronSpatialOffset(z: zOffset(for: item.visualPosition))
-                    .offset(x: xOffset(for: item.visualPosition), y: yOffset(for: item.visualPosition))
+                    .offset(x: xOffset(for: item.visualPosition))
                     .zIndex(zIndex(for: item.visualPosition))
                     .accessibilityHidden(abs(item.visualPosition) >= Metrics.centerHitTestingDistance)
                 }
@@ -390,12 +380,17 @@ struct EnvironmentCardCarousel: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
             EnvironmentSceneMapping.prefetch([])
         }
-        .onChange(of: defaultEffect) { _, effect in
-            if let activeEnvironment { selectedEffects[activeEnvironment] = effect }
+        .onChange(of: centeredEnvironment, initial: true) { _, environment in
+            onCenterChange(environment)
         }
         .onChange(of: isPresented) { _, presented in
             if presented { centerDefaultEnvironment() }
         }
+    }
+
+    private var centeredEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        renderItems.min { abs($0.visualPosition) < abs($1.visualPosition) }?
+            .environment.environment ?? cardDefaultEnvironment
     }
 
     private var prefetchEnvironment: SpatialSceneDomain.CinemaEnvironment? {
@@ -416,13 +411,6 @@ struct EnvironmentCardCarousel: View {
         scrollPosition = EnvironmentCarouselLayout.initialPosition(
             environments: environments, cardDefaultEnvironment: cardDefaultEnvironment
         )
-    }
-
-    private func selectedEffect(
-        for environment: FeaturedEnvironment
-    ) -> SpatialSceneDomain.EnvironmentEffect {
-        if environment.environment == activeEnvironment { return defaultEffect }
-        return selectedEffects[environment.environment] ?? defaultEffect
     }
 
     private var renderItems: [RenderItem] {
@@ -571,15 +559,11 @@ struct EnvironmentCardCarousel: View {
         return sign * (baseOffset + edgeExitProgress(for: distance) * Metrics.edgeSlideOutDistance)
     }
 
-    private func yOffset(for position: CGFloat) -> CGFloat {
-        abs(position) * Metrics.sideCardYOffset
-    }
-
     private func zOffset(for position: CGFloat) -> CGFloat {
         let distance = abs(position)
         let baseOffset = Metrics.centerDepthOffset - distance * Metrics.sideDepthOffset
         let edgeExitOffset = edgeExitProgress(for: distance) * Metrics.edgeDepthRetreat
-        return baseOffset - edgeExitOffset
+        return max(Metrics.windowFrontClearance, baseOffset - edgeExitOffset)
     }
 
     private func cardOpacity(for position: CGFloat) -> CGFloat {
@@ -687,9 +671,9 @@ struct EnvironmentCardCarousel: View {
         static let edgeAtmosphericBoost: CGFloat = DesignTokens.EnvironmentCarousel.edgeAtmosphericBoost
         static let centerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.centerCardGap
         static let outerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.outerCardGap
-        static let sideCardYOffset: CGFloat = DesignTokens.EnvironmentCarousel.sideCardYOffset
         static let centerDepthOffset: CGFloat = DesignTokens.EnvironmentCarousel.centerDepthOffset
         static let sideDepthOffset: CGFloat = DesignTokens.EnvironmentCarousel.sideDepthOffset
+        static let windowFrontClearance: CGFloat = DesignTokens.EnvironmentCarousel.windowFrontClearance
         static let atmosphericFadeStart: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeStart
         static let atmosphericFadeEnd: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeEnd
         static let atmosphericFadeMaxOpacity: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeMaxOpacity

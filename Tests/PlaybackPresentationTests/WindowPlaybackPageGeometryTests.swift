@@ -658,13 +658,13 @@ struct WindowPlaybackPageGeometryTests {
         state.toggleMenu(.dock)
 
         let requested = state.selectDockTarget(
-            environment: .placeholderGreen,
+            environment: .tidal,
             effect: .dark
         )
 
-        #expect(requested.0 == .placeholderGreen)
+        #expect(requested.0 == .tidal)
         #expect(requested.1 == .dark)
-        #expect(state.selectedDockEnvironment == .placeholderGreen)
+        #expect(state.selectedDockEnvironment == .tidal)
         #expect(state.selectedEffect == .dark)
         #expect(state.presentedMenu == nil)
     }

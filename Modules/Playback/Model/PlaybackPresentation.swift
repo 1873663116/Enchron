@@ -221,7 +221,7 @@ nonisolated public struct PlaybackDockedPlacementLimits: Equatable, Sendable {
     }
 
     public static let fallback = PlaybackDockedPlacementLimits(
-        geometry: EnvironmentSceneMapping.placeholderDescriptor.geometry
+        geometry: EnvironmentSceneMapping.fallbackDescriptor.geometry
     )
 
     public static func limits(
@@ -530,6 +530,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         _ target: PlaybackPresentation,
         environment requestedEnvironment: SpatialSceneDomain.CinemaEnvironment? = nil,
         effect requestedEffect: SpatialSceneDomain.EnvironmentEffect? = nil,
+        storedEffect: SpatialSceneDomain.EnvironmentEffect,
         id: UUID = UUID()
     ) throws -> PlaybackPresentationTransition {
         guard transition == nil else {
@@ -547,7 +548,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
             targetEnvironment = .active(
                 environment: dockingEnvironment,
                 effect: dockingEnvironment.supportsDarkAppearance
-                    ? requestedEffect ?? .inactiveFallback
+                    ? requestedEffect ?? storedEffect
                     : nil
             )
         } else if target == .panorama {
@@ -709,6 +710,7 @@ public final class PlaybackPresentationModel {
         (requestID: UUID, executionID: UUID, mediaSessionID: String)?
 
     public private(set) var defaultCardEnvironment: SpatialSceneDomain.CinemaEnvironment
+    public private(set) var storedEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect
 
     @ObservationIgnored private let environmentDefaults: UserDefaults
     public private(set) var dockedPlacement: PlaybackDockedPlacement
@@ -735,6 +737,9 @@ public final class PlaybackPresentationModel {
         let savedEnvironment = environmentDefaults.string(forKey: "defaultCardEnvironment")
             .flatMap(SpatialSceneDomain.CinemaEnvironment.init(rawValue:))
         defaultCardEnvironment = savedEnvironment.flatMap { $0.isCardEnvironment ? $0 : nil } ?? .ocean
+        let savedEffect = environmentDefaults.string(forKey: "environmentEffect")
+            .flatMap(SpatialSceneDomain.EnvironmentEffect.init(rawValue:))
+        storedEnvironmentEffect = savedEffect ?? .inactiveFallback
     }
 
     public var snapshot: PlaybackPresentationSnapshot {
@@ -779,7 +784,7 @@ public final class PlaybackPresentationModel {
     }
 
     public var currentEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect {
-        environmentContext.effect ?? .inactiveFallback
+        environmentContext.effect ?? storedEnvironmentEffect
     }
 
     @discardableResult
@@ -811,10 +816,14 @@ public final class PlaybackPresentationModel {
         case .enterImmersive, .exitImmersive, .projectionSwap:
             break
         }
+        if let effect {
+            storeEnvironmentEffect(effect)
+        }
         let transition = try presentationState.begin(
             presentation,
             environment: environment,
-            effect: effect
+            effect: effect,
+            storedEffect: storedEnvironmentEffect
         )
         let platformEffect: SpatialPlatformEffect = switch edge {
         case .enterImmersive:
@@ -875,6 +884,9 @@ public final class PlaybackPresentationModel {
             throw PlaybackPresentationTransitionError.platformEffectInFlight
         }
         environmentContextBeforePreviewRequest = environmentContext
+        if let effect {
+            storeEnvironmentEffect(effect)
+        }
         try presentationState.setEnvironment(
             .active(environment: environment, effect: effect)
         )
@@ -935,12 +947,25 @@ public final class PlaybackPresentationModel {
     public func setActiveEnvironmentEffect(
         _ effect: SpatialSceneDomain.EnvironmentEffect
     ) {
+        storeEnvironmentEffect(effect)
+        applyStoredEnvironmentEffect()
+    }
+
+    private func storeEnvironmentEffect(
+        _ effect: SpatialSceneDomain.EnvironmentEffect
+    ) {
+        guard effect != storedEnvironmentEffect else { return }
+        storedEnvironmentEffect = effect
+        environmentDefaults.set(effect.rawValue, forKey: "environmentEffect")
+    }
+
+    private func applyStoredEnvironmentEffect() {
         guard transition == nil,
               pendingSpatialPlatformEffect == nil,
               let environment = environmentContext.environment,
               environment.supportsDarkAppearance else { return }
         try? presentationState.setEnvironment(
-            .active(environment: environment, effect: effect)
+            .active(environment: environment, effect: storedEnvironmentEffect)
         )
     }
 

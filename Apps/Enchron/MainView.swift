@@ -41,27 +41,22 @@ public struct MainView: View {
                 .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
                     if !appModel.isEnvironmentHomeCompact && !environmentHomeTransitioning { expandedSize = size }
                 }
-                .opacity(appModel.isEnvironmentHomeCompact ? 0 : 1)
-                .animation(
-                    appModel.isEnvironmentHomeCompact
-                        ? DesignTokens.AnimationToken.panelContentExit
-                        : DesignTokens.AnimationToken.panelContentEntrance,
-                    value: appModel.isEnvironmentHomeCompact
+                .modifier(
+                    EnvironmentContentFade(
+                        isCompact: appModel.isEnvironmentHomeCompact,
+                        reduceMotion: reduceMotion
+                    )
                 )
                 .clipShape(environmentRevealShape)
-                .enchronGlassBackground(in: environmentRevealShape)
+                .enchronGlassBackground(in: environmentRevealShape, displayMode: environmentPlateGlassMode)
                 .allowsHitTesting(!appModel.isEnvironmentHomeCompact)
                 .accessibilityHidden(appModel.isEnvironmentHomeCompact)
-                .frame(
-                    width: appModel.isEnvironmentHomeCompact ? 0 : nil,
-                    height: appModel.isEnvironmentHomeCompact ? 0 : nil
-                )
 
             if appModel.isEnvironmentHomeCompact {
                 EnvironmentMiniControls { setEnvironmentHomeCompact(false) }
                     .transition(.asymmetric(
-                        insertion: .opacity.animation(DesignTokens.AnimationToken.panelContentEntrance),
-                        removal: .opacity.animation(DesignTokens.AnimationToken.panelContentExit)
+                        insertion: .opacity.animation(DesignTokens.AnimationToken.environmentControlsEntrance),
+                        removal: .opacity.animation(DesignTokens.AnimationToken.environmentControlsExit)
                     ))
             }
         }
@@ -69,13 +64,13 @@ public struct MainView: View {
             width: appModel.isEnvironmentHomeCompact ? DesignTokens.EnvironmentHome.compactSize.width : nil,
             height: appModel.isEnvironmentHomeCompact ? DesignTokens.EnvironmentHome.compactSize.height : nil
         )
-        .animation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring, value: appModel.isEnvironmentHomeCompact)
-        .browserWindowGeometry(isCompact: appModel.isEnvironmentHomeCompact) { windowScene in
+        .animation(reduceMotion ? nil : DesignTokens.AnimationToken.environmentPlateMorph, value: appModel.isEnvironmentHomeCompact)
+        .browserWindowGeometry(isCompact: false) { windowScene in
             spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
         }
         .onChange(of: playbackSession.environmentCardDismissalRequestRevision) { _, _ in
             if appModel.selectedTab == .environment { appModel.selectedTab = .files }
-            appModel.isEnvironmentHomeCompact = false
+            setEnvironmentHomeCompact(false)
             environmentTabBarHidden = false
         }
 #if DEBUG
@@ -147,33 +142,31 @@ public struct MainView: View {
     }
 
     private var environmentRevealShape: CenteredRevealShape {
-        CenteredRevealShape(
-            size: appModel.isEnvironmentHomeCompact ? .zero : expandedSize,
-            cornerRadius: DesignTokens.Radius.card
-        )
+        if appModel.isEnvironmentHomeCompact {
+            let restingSize = DesignTokens.EnvironmentHome.compactSize.height
+            return CenteredRevealShape(
+                size: CGSize(width: restingSize, height: restingSize),
+                cornerRadius: restingSize / 2
+            )
+        }
+        return CenteredRevealShape(size: expandedSize, cornerRadius: DesignTokens.Radius.card)
+    }
+
+    private var environmentPlateGlassMode: GlassBackgroundDisplayMode {
+        appModel.isEnvironmentHomeCompact && environmentHomeTransitioning == false ? .never : .always
     }
 
     private func setEnvironmentHomeCompact(_ compact: Bool) {
+        guard appModel.isEnvironmentHomeCompact != compact else { return }
         environmentHomeTransitioning = true
-        if compact {
-            withAnimation(DesignTokens.AnimationToken.levelExit, completionCriteria: .removed) {
-                environmentTabBarHidden = true
-            } completion: {
-                withAnimation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring, completionCriteria: .removed) {
-                    appModel.isEnvironmentHomeCompact = true
-                } completion: {
-                    environmentHomeTransitioning = false
-                }
-            }
-        } else {
-            withAnimation(reduceMotion ? nil : DesignTokens.AnimationToken.panelSpring, completionCriteria: .removed) {
-                appModel.isEnvironmentHomeCompact = false
-            } completion: {
-                environmentHomeTransitioning = false
-                withAnimation(DesignTokens.AnimationToken.levelExit) {
-                    environmentTabBarHidden = false
-                }
-            }
+        environmentTabBarHidden = compact
+        withAnimation(
+            reduceMotion ? nil : DesignTokens.AnimationToken.environmentPlateMorph,
+            completionCriteria: .removed
+        ) {
+            appModel.isEnvironmentHomeCompact = compact
+        } completion: {
+            environmentHomeTransitioning = false
         }
     }
 
@@ -538,5 +531,23 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
 #else
         "none"
 #endif
+    }
+}
+
+private struct EnvironmentContentFade: ViewModifier {
+    let isCompact: Bool
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isCompact ? 0 : 1)
+            .animation(
+                reduceMotion
+                    ? nil
+                    : (isCompact
+                        ? DesignTokens.AnimationToken.environmentContentExit
+                        : DesignTokens.AnimationToken.environmentContentEntrance),
+                value: isCompact
+            )
     }
 }

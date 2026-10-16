@@ -33,9 +33,11 @@ public struct EnvironmentHomeView: View {
                 cardDefaultEnvironment: appModel.defaultCardEnvironment,
                 isPresented: true,
                 onSetDefault: appModel.setDefaultCardEnvironment,
-                defaultEffect: appModel.currentEnvironmentEffect,
+                effect: appModel.currentEnvironmentEffect,
+                controlsEnabled: appModel.isTransitioningPlaybackPresentation == false,
+                onCenterChange: { appModel.cardEnvironment = $0 },
                 onEffectChange: updateEnvironmentEffect,
-                onExpand: toggleEnvironment
+                onToggle: toggleEnvironment
             )
             Spacer(minLength: 0)
         }
@@ -48,35 +50,29 @@ public struct EnvironmentHomeView: View {
     }
 
     private func updateEnvironmentEffect(
-        _ featured: FeaturedEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
+        _ effect: SpatialSceneDomain.EnvironmentEffect
     ) {
 #if DEBUG
         appModel.recordSurfaceInputProbe(
-            "environmentCard effect delivered environment=\(featured.environment.rawValue)"
+            "environmentCard effect delivered environment="
+                + "\(appModel.centeredCardEnvironment.rawValue)"
                 + " effect=\(effect.rawValue)",
             retention: .evidence
         )
 #endif
-        guard appModel.environmentContext.environment == featured.environment else {
-            return
-        }
         appModel.setActiveEnvironmentEffect(effect)
     }
 
-    private func toggleEnvironment(
-        _ featured: FeaturedEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
-    ) {
+    private func toggleEnvironment() {
         do {
 #if DEBUG
             appModel.recordSurfaceInputProbe(
-                "environmentCard toggle delivered environment=\(featured.environment.rawValue)"
-                    + " effect=\(effect.rawValue)",
+                "environmentCard toggle delivered environment="
+                    + "\(appModel.environmentContext.environment?.rawValue ?? appModel.centeredCardEnvironment.rawValue)",
                 retention: .evidence
             )
 #endif
-            try appModel.toggleEnvironmentPreview(environment: featured.environment, effect: effect)
+            try appModel.toggleEnvironmentPreview()
         } catch {
             return
         }
@@ -101,16 +97,19 @@ public struct EnvironmentMiniControls: View {
                 WindowRestoreIcon()
             }
         } secondary: {
-            EnvironmentMiniButton(
-                accessibilityLabel: appModel.currentEnvironmentEffect == .dark ? String(localized: "Light Mode") : String(localized: "Dark Mode"),
-                accessibilityIdentifier: "EnvironmentHome-button-appearance",
+            AppearanceModeButton(
+                isActive: appModel.currentEnvironmentEffect == .dark,
+                accessibilityLabel: appModel.currentEnvironmentEffect == .dark
+                    ? String(localized: "Light Mode")
+                    : String(localized: "Dark Mode"),
                 action: {
                     appModel.setActiveEnvironmentEffect(appModel.currentEnvironmentEffect == .dark ? .light : .dark)
                 },
-                icon: { AppearanceModeGlyph(isActive: false) }
+                accessibilityIdentifier: "EnvironmentHome-button-appearance",
+                visualSize: DesignTokens.EnvironmentHome.buttonSize,
+                targetSize: DesignTokens.EnvironmentHome.buttonSize
             )
-            .disabled(appModel.immersiveSpaceResidency != .open || appModel.environmentContext.environment?.supportsDarkAppearance != true)
-            .accessibilityValue(appModel.currentEnvironmentEffect == .dark ? "Active" : "Inactive")
+            .disabled(appModel.isTransitioningPlaybackPresentation)
         } trailing: {
             EnvironmentMiniButton(
                 accessibilityLabel: appModel.environmentContext.environment == nil ? String(localized: "Open environment") : String(localized: "Close environment"),
@@ -121,7 +120,7 @@ public struct EnvironmentMiniControls: View {
                     .font(.title2)
                     .contentTransition(.symbolEffect(.replace))
             }
-            .disabled(appModel.pendingSpatialPlatformEffect != nil)
+            .disabled(appModel.isTransitioningPlaybackPresentation)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("EnvironmentHome-compact")
@@ -129,7 +128,7 @@ public struct EnvironmentMiniControls: View {
 
     private func toggleScene() {
         do {
-            try appModel.toggleLastEnvironmentPreview()
+            try appModel.toggleEnvironmentPreview()
         } catch {
             return
         }

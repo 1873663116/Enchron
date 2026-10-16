@@ -59,8 +59,11 @@ private func enchronInsetsAreUniform(_ insets: EdgeInsets) -> Bool {
 
 public extension View {
     @ViewBuilder
-    func enchronGlassBackground<S: InsettableShape>(in shape: S) -> some View {
-        glassBackgroundEffect(in: shape)
+    func enchronGlassBackground<S: InsettableShape>(
+        in shape: S,
+        displayMode: GlassBackgroundDisplayMode = .always
+    ) -> some View {
+        glassBackgroundEffect(in: shape, displayMode: displayMode)
     }
 
     @ViewBuilder

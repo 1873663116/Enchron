@@ -52,6 +52,24 @@ visionOS 的窗口根自带玻璃。可复用控件因此一律使用非玻璃�
 
 原因不止是风格。`glassBackgroundEffect` 会把视图提升为**独立渲染层，任何祖先都无法裁切、遮罩或遮挡它**。网格卡片一旦带上它，滚动到边界时就画到窗口外并整张消失，而不是滑进侧栏下面。缩略图自带填充，玻璃从来只在占位符后面透出过。
 
+窗口平面同时是内容可见性的边界：窗口内容只有经 `offset(z:)` 落在平面之前才画得出来，落在平面及其之后的部分被窗口自己的材质挡掉。`EnvironmentCarousel` 的深度偏移因此在 `windowFrontClearance` 处封底，`centerDepthOffset` 与 `sideDepthOffset` 只决定卡片之间的前后差，不会把任何一张卡片推过这条边界。
+
+窗口对自身的 SwiftUI 内容不做裁切：内容超出窗口矩形时照样画在空间里，不会被窗口收掉，`clipShape` 因此仍是内容不越界的唯一手段。同一条性质也决定了玻璃不能由手写形状提供：形状尺寸归零时平台按自己的边界绘制，圆角随之丢失，轮廓不再跟随窗口。
+
+## 环境页的最小化
+
+浏览窗口缩到紧凑胶囊时，轮廓由 `MainView` 自绘的 `CenteredRevealShape` 给出，不依赖窗口自身的形状。形状尺寸在展开尺寸与 `compactSize.height` 见方之间动画，圆角同时从 `Radius.card` 收到 `compactSize.height / 2`，因此中间帧始终是圆角、末端是完整半圆；`animatableData` 是尺寸与圆角的复合，`verify_playback_surface_structure.py` 钉住它不走 `shape.size()` 包装。这条路径要求形状尺寸永不归零，归零会退回平台边界绘制。
+
+窗口的物理尺寸在整条过渡里保持不变：紧凑态是画在窗口内部的一个形状，窗口仍是展开尺寸。玻璃由 `glassBackgroundEffect(in:)` 按传入形状填充，轮廓因此逐帧跟随形状；形状行进期间底板保留自己的玻璃，落定后切 `.never` 让出可见表面，由胶囊控件自己的玻璃接替。
+
+形状变形与两侧的淡入淡出分属三个动画作用域：形状由外层的 `environmentPlateMorph`（`environmentPlateMorphDuration`，1.0 s spring）承载，内容透明度由 `EnvironmentContentFade` 承载，胶囊控件由转场承载。把淡入淡出写在同一修饰符链上时，靠上的 `.animation(_:value:)` 会把形状动画一起改成自己的时长，底板因此走完得比预期快得多。
+
+过渡是严格反向的：内容与控件在缩小时即刻离场（`environmentContentExit` 0.15 s、`environmentControlsExit` 0.45 s），在展开时于底板形状落定的尾段归位（`environmentContentEntrance`、`environmentControlsEntrance`，延迟为 `environmentPlateMorphDuration` 减去各自时长）。`.animation(_:value:)` 两个方向共用一个动画，做不到这件事，两个方向因此各有一个具名 token。
+
+tab bar 的隐藏与形状变形同一刻发出、不加动画包装；它是 `TabView` 的系统页签栏（`toolbarVisibility(_:for: .tabBar)`），淡出曲线与时长由系统决定，app 只能决定何时隐藏。
+
+`EnvironmentCard` 的缩略图按外观取浅色或深色图，切换以 `AnimationToken.controlsTransition` 溶解：图片以图片名为 `.id`、带 `.opacity` 转场，容器用 `.animation(_:value:)` 驱动，与 `LevelContent` 的层级替换同一手法。场景自身的浅深材质过渡是 1.2 秒，与这条 0.4 秒的溶解不同步，卡片会先落定。
+
 浏览侧栏出于同一理由是**窗口自身表面的一部分，不是浮在窗口里的一块板**：浮板自带玻璃边缘，它的下缘停在窗口下缘之上，两者之间会露出一条页面。侧栏因此是方角、满高，只在尾缘画一道主题强调色的边界线标出内容区从哪里开始；前缘落在窗口自己的边界上，不需要边线。
 
 ## 独立菜单

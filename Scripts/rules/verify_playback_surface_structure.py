@@ -182,6 +182,9 @@ def main() -> int:
     VIOLATIONS.clear()
     surface = read("Modules/Playback/Views/PlaybackVideoSurface.swift")
     main_view = read("Apps/Enchron/MainView.swift")
+    expanding_controls = read(
+        "Modules/DesignSystem/Components/ExpandingControls.swift"
+    )
     player_view = read("Apps/Enchron/PlayerView.swift")
     attachment_view = read(
         "Modules/Playback/Scenes/ImmersivePlaybackControlsAttachmentView.swift"
@@ -706,9 +709,79 @@ def main() -> int:
     require(
         "sceneRole" not in main_view
         and "Color.clear.enchronWindowGlassBackground" not in main_view
-        and ".enchronGlassBackground(in: environmentRevealShape)" in main_view
         and ".clipShape(environmentRevealShape)" in main_view
+        and ".enchronGlassBackground(in: environmentRevealShape, "
+        "displayMode: environmentPlateGlassMode)" in main_view,
+        "the browser drops its glass or the view splits by scene role again",
+    )
+    require(
+        order(
+            main_view,
+            "private var environmentRevealShape: CenteredRevealShape {",
+            "let restingSize = DesignTokens.EnvironmentHome.compactSize.height",
+            "cornerRadius: restingSize / 2",
+            "return CenteredRevealShape(size: expandedSize, "
+            "cornerRadius: DesignTokens.Radius.card)",
+        )
         and order(
+            main_view,
+            "private var environmentPlateGlassMode: GlassBackgroundDisplayMode {",
+            "appModel.isEnvironmentHomeCompact && environmentHomeTransitioning == false "
+            "? .never : .always",
+        )
+        and order(
+            main_view,
+            ".modifier(\n                    EnvironmentContentFade(",
+            ".clipShape(environmentRevealShape)",
+            ".enchronGlassBackground(in: environmentRevealShape, "
+            "displayMode: environmentPlateGlassMode)",
+        )
+        and ".animation(reduceMotion ? nil : DesignTokens.AnimationToken.environmentPlateMorph, "
+        "value: appModel.isEnvironmentHomeCompact)" in main_view
+        and ".browserWindowGeometry(isCompact: false)" in main_view
+        and order(
+            main_view,
+            "insertion: .opacity.animation("
+            "DesignTokens.AnimationToken.environmentControlsEntrance)",
+            "removal: .opacity.animation("
+            "DesignTokens.AnimationToken.environmentControlsExit)",
+        )
+        and order(
+            expanding_controls,
+            "public nonisolated var animatableData: "
+            "AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {",
+            "AnimatablePair(AnimatablePair(size.width, size.height), cornerRadius)",
+        ),
+        "the environment plate falls back to the platform's own window shape: it "
+        "stops drawing its own size and corner radius, collapses to zero, hides "
+        "its glass while the shape is still travelling, resizes the window on the "
+        "compact toggle, or the content fade shares an animation scope with the "
+        "shape morph and overrides its duration",
+    )
+    require(
+        order(
+            design_tokens,
+            "public static let environmentPlateMorphDuration: Double = 1.0",
+            "public static var environmentContentExit: Animation {",
+            ".easeOut(duration: environmentContentFadeDuration)",
+            "public static var environmentContentEntrance: Animation {",
+            ".easeIn(duration: environmentContentFadeDuration)\n"
+            "                .delay(environmentPlateMorphDuration "
+            "- environmentContentFadeDuration)",
+            "public static var environmentControlsExit: Animation {",
+            ".easeOut(duration: environmentControlsFadeDuration)",
+            "public static var environmentControlsEntrance: Animation {",
+            ".easeIn(duration: environmentControlsFadeDuration)\n"
+            "                .delay(environmentPlateMorphDuration "
+            "- environmentControlsFadeDuration)",
+        ),
+        "the compact transition stops being a strict reversal: the content and the "
+        "controls must leave at the start of the shrink and return at the end of "
+        "the expansion, each with its own duration, or the shape morph and the two "
+        "fades drift apart",
+    )
+    require(
+        order(
             player_view,
             "enum PlayerWindowGlassPolicy {",
             "guard isRevealingPlayerWindow == false else { return false }",

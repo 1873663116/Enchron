@@ -13,6 +13,16 @@ WATER_TEXTURES = ('FloorPlane_color', 'WallLeftPlane_color', 'RecessPlane_color'
 SAMPLERS = {'ND_RealityKitTexture2D_vector4', 'ND_RealityKitTexture2DLOD_vector4'}
 SKY_SIZE = (16384, 8192)
 TAPS = ((0.0, 0.125), (0.25, 0.25), (0.5, 0.25), (0.75, 0.25), (1.0, 0.125))
+SKY_TILT_DEGREES = 180.0
+SKY_TILT_SINE = round(math.sin(math.radians(SKY_TILT_DEGREES)), 12)
+SKY_TILT_COSINE = round(math.cos(math.radians(SKY_TILT_DEGREES)), 12)
+SKY_POLE_FEATHER = 15.0 / 180.0
+SKY_POLE_LOD_MAX = 7.0
+LEGACY_SKY_TILT_SINE = 0.8660253882408142
+SHADER_SOURCES = ('sky_dome.ssl', 'sky_pool_water.ssl', 'sky_pool_glass.ssl', 'sky_pool_interior_glass.ssl')
+SHADER_TILT_SOURCE = 'ray.y * 0.5f - ray.z * 0.8660254f, ray.y * 0.8660254f + ray.z * 0.5f'
+SHADER_TILT_TARGET = (f'ray.y * {SKY_TILT_COSINE:.1f}f - ray.z * {SKY_TILT_SINE:.1f}f, '
+                      f'ray.y * {SKY_TILT_SINE:.1f}f + ray.z * {SKY_TILT_COSINE:.1f}f')
 
 
 def identifier(key):
@@ -176,8 +186,8 @@ def spherical_direction(editor, uv):
     z = editor.binary('multiply', editor.unary('sin', longitude), editor.binary('multiply', sin_latitude, -1.0))
     return (
         x,
-        editor.binary('add', editor.binary('multiply', y, 0.5), editor.binary('multiply', z, 0.8660254)),
-        editor.binary('add', editor.binary('multiply', y, -0.8660254), editor.binary('multiply', z, 0.5)),
+        editor.binary('add', editor.binary('multiply', y, SKY_TILT_COSINE), editor.binary('multiply', z, SKY_TILT_SINE)),
+        editor.binary('add', editor.binary('multiply', y, -SKY_TILT_SINE), editor.binary('multiply', z, SKY_TILT_COSINE)),
     )
 
 
@@ -187,8 +197,8 @@ def rotated_uv(editor, direction, angle, original_uv):
     cosine = editor.unary('sin', editor.binary('add', angle, math.pi / 2))
     turned_x = editor.binary('subtract', editor.binary('multiply', cosine, x), editor.binary('multiply', sine, z))
     turned_z = editor.binary('add', editor.binary('multiply', sine, x), editor.binary('multiply', cosine, z))
-    local_y = editor.binary('subtract', editor.binary('multiply', y, 0.5), editor.binary('multiply', turned_z, 0.8660254))
-    local_z = editor.binary('add', editor.binary('multiply', y, 0.8660254), editor.binary('multiply', turned_z, 0.5))
+    local_y = editor.binary('subtract', editor.binary('multiply', y, SKY_TILT_COSINE), editor.binary('multiply', turned_z, SKY_TILT_SINE))
+    local_z = editor.binary('add', editor.binary('multiply', y, SKY_TILT_SINE), editor.binary('multiply', turned_z, SKY_TILT_COSINE))
     longitude = editor.node('ND_atan2_float', iny=editor.binary('multiply', local_z, -1.0), inx=turned_x)
     clamped_y = editor.node('ND_clamp_float', **{'in': local_y, 'low': -1.0, 'high': 1.0})
     latitude = editor.unary('acos', clamped_y)
@@ -207,6 +217,36 @@ def footprint_lod(editor, first, second):
     dy = editor.binary('multiply', editor.binary('subtract', by, ay), float(SKY_SIZE[1]))
     squared = editor.binary('add', editor.binary('multiply', dx, dx), editor.binary('multiply', dy, dy))
     return editor.binary('multiply', editor.node('ND_MTL_log2_float', x=editor.binary('max', squared, 1.0)), 0.5)
+
+
+def lod_parameter(editor, sampler):
+    return 'lod' if editor.nodes[sampler]['type'] == 'ND_RealityKitTexture2DLOD_vector4' else 'dynamic_min_lod_clamp'
+
+
+def pole_lod(editor, uv_value):
+    u, v = editor.split(uv_value, 2)
+    far = editor.binary('max', v, editor.binary('subtract', 1.0, v))
+    near = editor.binary('subtract', 1.0, far)
+    ramp = editor.binary('divide', editor.binary('subtract', SKY_POLE_FEATHER, near), SKY_POLE_FEATHER)
+    weight = editor.node('ND_clamp_float', **{'in': ramp, 'low': 0.0, 'high': 1.0})
+    return editor.binary('multiply', editor.binary('multiply', weight, weight), SKY_POLE_LOD_MAX)
+
+
+def migrate_pole_lod(editor, sampler):
+    marker = 'PoleLod_' + sampler
+    if editor.has_marker(marker):
+        return False
+    targets = [sampler] + [node['__uuid'] for node in editor.graph['nodes']
+                           if node.get('label', '').startswith('TidalAppearance_SkyTap_' + sampler + '_')]
+    port = lod_parameter(editor, sampler)
+    base = editor.incoming(targets[0]).get(editor.hash('texcoord'))
+    if base is None:
+        return False
+    pole = pole_lod(editor, base)
+    for target in targets:
+        editor.bind(target, port, editor.binary('max', editor.scalar_input(target, port), pole))
+    editor.mark(pole, marker)
+    return True
 
 
 def migrate_sky_lod(editor, sampler):
@@ -228,7 +268,8 @@ def migrate_sky_lod(editor, sampler):
 def patch_sky(editor, sampler):
     marker = 'SkyOutput_' + sampler
     if editor.has_marker(marker):
-        return migrate_sky_lod(editor, sampler)
+        changed = migrate_sky_lod(editor, sampler)
+        return migrate_pole_lod(editor, sampler) or changed
     editor.start('Sky_' + sampler)
     original_uv = editor.incoming(sampler)[editor.hash('texcoord')]
     original_links = [link for link in editor.graph['connections'] if link['from_node'] == sampler]
@@ -243,7 +284,7 @@ def patch_sky(editor, sampler):
             uv_cache[fraction] = rotated_uv(editor, direction, angle, original_uv)
         return uv_cache[fraction]
 
-    lod_port = 'lod' if editor.nodes[sampler]['type'] == 'ND_RealityKitTexture2DLOD_vector4' else 'dynamic_min_lod_clamp'
+    lod_port = lod_parameter(editor, sampler)
     original_lod = editor.scalar_input(sampler, lod_port)
     copies = [sampler] + [editor.sampler_copy(sampler, 'SkyTap_' + sampler + '_' + str(i)) for i in range(1, len(TAPS))]
     weighted = []
@@ -260,6 +301,7 @@ def patch_sky(editor, sampler):
     result = editor.node('ND_ifgreater_vector4', value1=magnitude, value2=0.0,
                          in1=total, in2=(sampler, editor.hash('out')))
     editor.redirect(original_links, editor.mark(result, marker))
+    migrate_pole_lod(editor, sampler)
     return True
 
 
@@ -417,6 +459,53 @@ def patch_appearances(project, parser, author):
                         'water_sampler_patches': water_count, 'changed_graphs': len(changed),
                         'parameters': sorted(required[material_path])})
     return reports
+
+
+def align_sky_tilt(document, hash_name):
+    graph = document['shader_graph']['graph'] if 'shader_graph' in document else document['graph']
+    sines = [item for item in graph.get('data', []) if item['data'].get('float') == LEGACY_SKY_TILT_SINE]
+    if not sines:
+        return 0
+    nodes = {node['__uuid']: node for node in graph['nodes']}
+    inputs = {}
+    for link in graph['connections']:
+        inputs.setdefault(link['to_node'], {})[link['to_connector_hash']] = link['from_node']
+    cosines = 0
+    for entry in sines:
+        sine_node = entry['to_node']
+        entry['data']['float'] = SKY_TILT_SINE
+        consumers = [link['to_node'] for link in graph['connections'] if link['from_node'] == sine_node]
+        if len(consumers) != 1:
+            raise ValueError('Sky tilt sine node must feed exactly one consumer: ' + sine_node)
+        for source in inputs.get(consumers[0], {}).values():
+            if source == sine_node or nodes[source]['type'] != 'ND_multiply_float':
+                continue
+            for item in graph.get('data', []):
+                if item['to_node'] == source and item['data'].get('float') == 0.5:
+                    item['data']['float'] = SKY_TILT_COSINE
+                    cosines += 1
+    if cosines != len(sines):
+        raise ValueError('Sky tilt cosine partners do not match the sine constants')
+    return len(sines)
+
+
+def sync_sky_tilt(project, parser, author):
+    aligned = []
+    for name in MATERIALS:
+        for path in sorted((project / 'Generated Materials' / name / 'functions').glob('*.tm_shadergraph')):
+            document = parser.load(path)
+            if align_sky_tilt(document, author.murmur64):
+                path.write_text(author.render_document(document))
+                aligned.append(str(path.relative_to(project)))
+    sources = []
+    for name in SHADER_SOURCES:
+        path = project.parents[1] / 'scripts/shaders' / name
+        text = path.read_text()
+        if SHADER_TILT_SOURCE not in text:
+            continue
+        path.write_text(text.replace(SHADER_TILT_SOURCE, SHADER_TILT_TARGET))
+        sources.append(name)
+    return {'sky_tilt_graphs': len(aligned), 'sky_tilt_shader_sources': sorted(sources), 'sky_tilt_degrees': SKY_TILT_DEGREES}
 
 
 def main():

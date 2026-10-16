@@ -77,9 +77,12 @@ public struct CenteredRevealShape: InsettableShape {
         self.cornerRadius = cornerRadius
     }
 
-    public nonisolated var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(size.width, size.height) }
-        set { size = CGSize(width: newValue.first, height: newValue.second) }
+    public nonisolated var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, CGFloat> {
+        get { AnimatablePair(AnimatablePair(size.width, size.height), cornerRadius) }
+        set {
+            size = CGSize(width: newValue.first.first, height: newValue.first.second)
+            cornerRadius = newValue.second
+        }
     }
 
     public nonisolated func path(in rect: CGRect) -> Path {

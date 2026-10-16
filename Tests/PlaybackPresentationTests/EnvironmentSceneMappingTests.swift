@@ -12,20 +12,11 @@ import Testing
 @MainActor
 struct EnvironmentSceneMappingTests {
 
-    @Test("the catalog exposes Ocean and Tidal followed by the three placeholders")
-    func catalogUsesAuthoredScenesAndPlaceholders() {
-        #expect(
-            FeaturedEnvironment.catalog.map(\.environment)
-                == [.ocean, .tidal, .placeholderRed, .placeholderGreen, .placeholderBlue]
-        )
-        #expect(
-            FeaturedEnvironment.catalog.map(\.id)
-                == ["ocean", "tidal", "placeholder-red", "placeholder-green", "placeholder-blue"]
-        )
-        #expect(
-            SpatialSceneDomain.CinemaEnvironment.cardEnvironments
-                == [.ocean, .tidal, .placeholderRed, .placeholderGreen, .placeholderBlue]
-        )
+    @Test("the catalog exposes the scene-backed card environments")
+    func catalogUsesAuthoredScenes() {
+        #expect(FeaturedEnvironment.catalog.map(\.environment) == [.ocean, .tidal])
+        #expect(FeaturedEnvironment.catalog.map(\.id) == ["ocean", "tidal"])
+        #expect(SpatialSceneDomain.CinemaEnvironment.cardEnvironments == [.ocean, .tidal])
         #expect(SpatialSceneDomain.EnvironmentEffect.allCases == [.light, .dark])
     }
 
@@ -56,16 +47,12 @@ struct EnvironmentSceneMappingTests {
         #expect(ocean.distanceStrategy == .movesViewer)
         #expect(ocean.ceilingHeightMeters == nil)
 
-        for placeholder: SpatialSceneDomain.CinemaEnvironment in [
-            .placeholderRed, .placeholderGreen, .placeholderBlue
-        ] {
-            let geometry = EnvironmentSceneMapping.geometry(for: placeholder)
-            #expect(geometry.distanceRangeMeters == 6...30)
-            #expect(geometry.defaultDistanceMeters == 12)
-            #expect(geometry.elevationRangeDegrees == 0...90)
-            #expect(geometry.screenHeightRangeMeters == 8...8)
-            #expect(geometry.defaultScreenHeightMeters == 8)
-        }
+        let tidal = EnvironmentSceneMapping.geometry(for: .tidal)
+        #expect(tidal.distanceRangeMeters == 13.550063...13.550063)
+        #expect(tidal.defaultDistanceMeters == 13.550063)
+        #expect(tidal.elevationRangeDegrees == 0...90)
+        #expect(tidal.screenHeightRangeMeters == 8...8)
+        #expect(tidal.defaultScreenHeightMeters == 8)
 
         let quietRoom = EnvironmentSceneMapping.geometry(for: .quietRoom)
         #expect(quietRoom.distanceRangeMeters == 5...18)
@@ -80,12 +67,10 @@ struct EnvironmentSceneMappingTests {
 
         #expect(EnvironmentSceneMapping.descriptor(for: .quietRoom).supportsDarkAppearance == false)
         #expect(EnvironmentSceneMapping.descriptor(for: .ocean).supportsDarkAppearance == true)
-        #expect(EnvironmentSceneMapping.descriptor(for: .placeholderRed).supportsDarkAppearance == true)
-        #expect(EnvironmentSceneMapping.descriptor(for: .placeholderGreen).supportsDarkAppearance == true)
-        #expect(EnvironmentSceneMapping.descriptor(for: .placeholderBlue).supportsDarkAppearance == true)
+        #expect(EnvironmentSceneMapping.descriptor(for: .tidal).supportsDarkAppearance == true)
     }
 
-    @Test("environment IDs resolve their screen heights with the placeholder fallback")
+    @Test("environment IDs resolve their screen heights with the fallback")
     func environmentIDsResolveScreenHeights() {
         for environment in SpatialSceneDomain.CinemaEnvironment.allCases {
             #expect(
@@ -201,16 +186,16 @@ struct DefaultCardEnvironmentTests {
         let model = PlaybackPresentationModel(environmentDefaults: defaults)
         try model.activateEnvironment(.ocean, effect: .dark)
         let before = model.snapshot
-        model.setDefaultCardEnvironment(.placeholderGreen)
-        #expect(model.defaultCardEnvironment == .placeholderGreen)
+        model.setDefaultCardEnvironment(.tidal)
+        #expect(model.defaultCardEnvironment == .tidal)
         #expect(model.environmentContext == before.environmentContext)
         #expect(model.presentation == before.presentation)
         #expect(model.pendingSpatialPlatformEffect == nil)
         let reopened = PlaybackPresentationModel(environmentDefaults: defaults)
-        #expect(reopened.defaultCardEnvironment == .placeholderGreen)
-        try model.activateEnvironment(.placeholderBlue, effect: .light)
-        #expect(model.defaultCardEnvironment == .placeholderGreen)
-        #expect(PlaybackPresentationModel(environmentDefaults: defaults).defaultCardEnvironment == .placeholderGreen)
+        #expect(reopened.defaultCardEnvironment == .tidal)
+        try model.activateEnvironment(.ocean, effect: .light)
+        #expect(model.defaultCardEnvironment == .tidal)
+        #expect(PlaybackPresentationModel(environmentDefaults: defaults).defaultCardEnvironment == .tidal)
         let position = EnvironmentCarouselLayout.initialPosition(
             environments: FeaturedEnvironment.catalog,
             cardDefaultEnvironment: reopened.defaultCardEnvironment
@@ -220,7 +205,7 @@ struct DefaultCardEnvironmentTests {
             scrollPosition: position,
             maximumDistance: 2
         ).filter { $0.visualPosition == 0 }
-        #expect(centered.map(\.environmentIndex) == [2])
+        #expect(centered.map(\.environmentIndex) == [1])
     }
 
     @Test("unsupported saved card preferences use Ocean")

@@ -18,21 +18,28 @@ struct PlaybackPresentationStateTests {
 
     @Test("Environment scene toggle opens, closes, and reopens the selected appearance")
     func environmentSceneToggleRoundTrip() throws {
-        let session = PlaybackSessionModel()
-        try session.toggleEnvironmentPreview(environment: .placeholderRed, effect: .dark)
+        let suite = "PlaybackPresentationStateTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let session = PlaybackSessionModel(
+            playbackPresentationModel: PlaybackPresentationModel(environmentDefaults: defaults)
+        )
+        session.setActiveEnvironmentEffect(.dark)
+        session.cardEnvironment = .ocean
+        try session.toggleEnvironmentPreview()
         #expect(session.pendingSpatialPlatformEffect?.effect == .presentEnvironmentPreview)
         _ = try completePendingEffect(session)
-        #expect(session.environmentContext.environment == .placeholderRed)
+        #expect(session.environmentContext.environment == .ocean)
         #expect(session.currentEnvironmentEffect == .dark)
 
-        try session.toggleEnvironmentPreview(environment: .placeholderRed, effect: .dark)
+        try session.toggleEnvironmentPreview()
         #expect(session.pendingSpatialPlatformEffect?.effect == .dismissEnvironmentPreview)
         _ = try completePendingEffect(session)
         #expect(session.environmentContext.environment == nil)
 
-        try session.toggleEnvironmentPreview(environment: .placeholderRed, effect: .dark)
+        try session.toggleEnvironmentPreview()
         _ = try completePendingEffect(session)
-        #expect(session.environmentContext.environment == .placeholderRed)
+        #expect(session.environmentContext.environment == .ocean)
         #expect(session.currentEnvironmentEffect == .dark)
     }
 
@@ -3775,11 +3782,11 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func directDockUsesSelectedTarget() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.placeholderRed, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
 
         _ = try model.requestPresentation(
             .docked,
-            environment: .placeholderGreen,
+            environment: .tidal,
             effect: .light,
             playbackContext: playingContext()
         )
@@ -3790,7 +3797,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.snapshot.presentation == .docked)
         #expect(
             model.snapshot.environmentContext == .active(
-                environment: .placeholderGreen,
+                environment: .tidal,
                 effect: .light
             )
         )
@@ -3853,10 +3860,10 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func undockKeepsEnvironment() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.placeholderRed, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(
             .docked,
-            environment: .placeholderGreen,
+            environment: .tidal,
             effect: .light,
             playbackContext: playingContext()
         )
@@ -3868,7 +3875,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .placeholderRed,
+                environment: .ocean,
                 effect: .dark
             )
         )
@@ -3921,7 +3928,7 @@ struct PlaybackPresentationStateTests {
         try activeModel.activateEnvironment(.ocean, effect: .dark)
         _ = try activeModel.requestPresentation(
             .docked,
-            environment: .placeholderGreen,
+            environment: .tidal,
             effect: .light,
             playbackContext: playingContext()
         )
@@ -3937,7 +3944,7 @@ struct PlaybackPresentationStateTests {
         #expect(activeModel.presentation == .docked)
         #expect(
             activeModel.environmentContext == .active(
-                environment: .placeholderGreen,
+                environment: .tidal,
                 effect: .light
             )
         )

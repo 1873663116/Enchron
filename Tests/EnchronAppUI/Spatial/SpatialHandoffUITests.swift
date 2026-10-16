@@ -1112,7 +1112,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let identifiers = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
         )
-        let activeEnvironmentID = "placeholder-red"
+        let activeEnvironmentID = "ocean"
         let dockedEnvironmentID = "quiet-room"
         guard let app = launchRegisteredMediaAfterOpeningDarkEnvironment(
             identifiers: identifiers,

@@ -75,13 +75,13 @@ private enum PresentationContract {
     ) {
         let (model, _) = try driveThroughDockingRollback()
         let activeEnvironment = EnvironmentContext.active(
-            environment: .placeholderRed,
+            environment: .ocean,
             effect: .dark
         )
-        try model.activateEnvironment(.placeholderRed, effect: .dark)
+        try model.activateEnvironment(.ocean, effect: .dark)
         _ = try model.requestPresentation(
             .docked,
-            environment: .placeholderGreen,
+            environment: .tidal,
             effect: .light,
             playbackContext: playingContext
         )
@@ -166,7 +166,7 @@ struct SpatialPlaybackPresentationContractTests {
         #expect(
             PlaybackDockedPlacementLimits.fallback.defaultDistance == 12
                 && PlaybackDockedPlacement().distanceMeters == 12,
-            "Docked placement defaults must fall back to the shared placeholder limits when no environment-specific limits are given"
+            "Docked placement defaults must fall back to the shared fallback limits when no environment-specific limits are given"
         )
         #expect(
             PlaybackDockedPlacementLimits.screenHeightStep == 0.25,
@@ -381,13 +381,16 @@ struct SpatialPlaybackPresentationContractTests {
 
     @Test("a failed Docking effect rolls back to Window without leaking its environment")
     func failedDockingEffectRollsBackToWindow() throws {
-        let presentationModel = PlaybackPresentationModel()
+        let suite = "SpatialPlaybackPresentationContractTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let presentationModel = PlaybackPresentationModel(environmentDefaults: defaults)
 
         #expect(
             presentationModel.environmentContext == .none
                 && presentationModel.currentEnvironmentEffect == .inactiveFallback
                 && presentationModel.currentEnvironmentEffect == .light,
-            "an inactive Environment Context must use deterministic Light fallback without stored Effect"
+            "an unset Effect must resolve to deterministic Light"
         )
 
         let requestedDock = try presentationModel.requestPresentation(
@@ -497,26 +500,26 @@ struct SpatialPlaybackPresentationContractTests {
         let (presentationModel, firstRequest) =
             try PresentationContract.driveThroughDockingRollback()
         let activeEnvironment = EnvironmentContext.active(
-            environment: .placeholderRed,
+            environment: .ocean,
             effect: .dark
         )
 
-        try presentationModel.activateEnvironment(.placeholderRed, effect: .dark)
+        try presentationModel.activateEnvironment(.ocean, effect: .dark)
         #expect(
-            presentationModel.snapshot.environmentContext.environment == .placeholderRed
+            presentationModel.snapshot.environmentContext.environment == .ocean
                 && presentationModel.snapshot.environmentContext.effect == .dark,
             "Environment Context must carry Environment identity and Environment Effect together"
         )
 
         let pendingDock = try presentationModel.requestPresentation(
             .docked,
-            environment: .placeholderGreen,
+            environment: .tidal,
             effect: .light,
             playbackContext: PresentationContract.playingContext
         )
         #expect(
             pendingDock.targetEnvironment == .active(
-                environment: .placeholderGreen,
+                environment: .tidal,
                 effect: .light
             ),
             "Docking must use the environment and appearance selected by the Dock menu"
@@ -560,7 +563,7 @@ struct SpatialPlaybackPresentationContractTests {
         )
         #expect(
             presentationModel.presentation == .docked
-                && presentationModel.environmentContext.environment == .placeholderGreen,
+                && presentationModel.environmentContext.environment == .tidal,
             "committing Docked must keep the Dock menu environment"
         )
 
@@ -660,8 +663,8 @@ struct SpatialPlaybackPresentationContractTests {
         presentationModel.setActiveEnvironmentEffect(.dark)
         #expect(
             presentationModel.environmentContext == .none
-                && presentationModel.currentEnvironmentEffect == .light,
-            "setting an Effect without an active Environment Context must not create global Effect state"
+                && presentationModel.currentEnvironmentEffect == .dark,
+            "an Effect chosen without an active Environment Context is retained for the next one"
         )
 
         try presentationModel.requestEnvironmentPreview(environment: .ocean, effect: .dark)
@@ -685,8 +688,9 @@ struct SpatialPlaybackPresentationContractTests {
         try PresentationContract.completePendingEffect(presentationModel)
         #expect(
             presentationModel.environmentContext == .none
-                && presentationModel.immersiveSpaceResidency == .closed,
-            "Environment preview dismissal must clear its active context after success"
+                && presentationModel.immersiveSpaceResidency == .closed
+                && presentationModel.currentEnvironmentEffect == .dark,
+            "Environment preview dismissal must clear its active context and keep the chosen Effect"
         )
     }
 

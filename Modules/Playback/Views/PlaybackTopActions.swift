@@ -195,6 +195,14 @@ struct PlaybackTopActionsState {
         return (environment, effect)
     }
 
+    mutating func synchronizeDockTarget(
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?
+    ) {
+        selectedDockEnvironment = environment
+        selectedEffect = effect
+    }
+
 }
 
 struct PlaybackVideoFormatEditor: View {
@@ -459,6 +467,7 @@ public struct PlaybackTopActions: View {
     private let committedHorizontalFieldOfViewDegrees: Int
     private let committedStereoLayout: PlaybackModel.StereoLayout
     private let cardEnvironment: SpatialSceneDomain.CinemaEnvironment
+    private let cardEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect
     private let onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)?
     private let onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)?
     private let onRestoreAutomaticFormat: (() -> Void)?
@@ -478,6 +487,7 @@ public struct PlaybackTopActions: View {
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
         stereoLayout: PlaybackModel.StereoLayout = .mono,
         cardEnvironment: SpatialSceneDomain.CinemaEnvironment = .ocean,
+        cardEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect = .light,
         onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
         onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)? = nil,
         onRestoreAutomaticFormat: (() -> Void)? = nil,
@@ -492,9 +502,8 @@ public struct PlaybackTopActions: View {
         self.committedProjection = projection
         self.committedHorizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         self.committedStereoLayout = stereoLayout
-        self.cardEnvironment = cardEnvironment.isCardEnvironment
-            ? cardEnvironment
-            : .ocean
+        self.cardEnvironment = cardEnvironment
+        self.cardEnvironmentEffect = cardEnvironmentEffect
         self.onEnterImmersive = onEnterImmersive
         self.onApplyFormat = onApplyFormat
         self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
@@ -503,7 +512,8 @@ public struct PlaybackTopActions: View {
         _state = State(
                 initialValue: PlaybackTopActionsState(
                     presentedMenu: initialPresentedMenu,
-                    selectedDockEnvironment: .quietRoom,
+                    selectedDockEnvironment: cardEnvironment,
+                    selectedEffect: cardEnvironmentEffect,
                     projection: projection,
                     horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
                     stereoLayout: stereoLayout
@@ -530,6 +540,18 @@ public struct PlaybackTopActions: View {
             }
             .onChange(of: committedVideoFormatSelection) { _, selection in
                 state.synchronizeCommittedVideoFormat(selection)
+            }
+            .onChange(of: cardEnvironment, initial: true) { _, environment in
+                state.synchronizeDockTarget(
+                    environment: environment,
+                    effect: cardEnvironmentEffect
+                )
+            }
+            .onChange(of: cardEnvironmentEffect) { _, effect in
+                state.synchronizeDockTarget(
+                    environment: cardEnvironment,
+                    effect: effect
+                )
             }
     }
 
@@ -608,12 +630,12 @@ public struct PlaybackTopActions: View {
                 .padding(.vertical, DesignTokens.Spacing.xs)
 
             dockMenuItem(
-                environment: cardEnvironment,
+                environment: dockCardEnvironment,
                 effect: .light,
                 thumbnailName: dockThumbnailName(for: .light)
             )
             dockMenuItem(
-                environment: cardEnvironment,
+                environment: dockCardEnvironment,
                 effect: .dark,
                 thumbnailName: dockThumbnailName(for: .dark)
             )
@@ -638,10 +660,14 @@ public struct PlaybackTopActions: View {
         )
     }
 
+    private var dockCardEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        cardEnvironment.isCardEnvironment ? cardEnvironment : .ocean
+    }
+
     private func dockThumbnailName(
         for effect: SpatialSceneDomain.EnvironmentEffect
     ) -> String {
-        FeaturedEnvironment.catalogEntry(for: cardEnvironment)?
+        FeaturedEnvironment.catalogEntry(for: dockCardEnvironment)?
             .imageName(for: effect)
             ?? FeaturedEnvironment.catalog[0].imageName(for: effect)
     }
@@ -653,7 +679,7 @@ public struct PlaybackTopActions: View {
     ) -> some View {
         let shape = DesignTokens.ShapeToken.card
         let isSelected = state.selectedDockEnvironment == environment
-            && state.selectedEffect == effect
+            && (effect == nil || state.selectedEffect == effect)
 
         return Button {
             onReachabilityAction(

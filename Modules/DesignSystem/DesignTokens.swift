@@ -75,6 +75,26 @@ public enum DesignTokens {
         public static let environmentControlsHover: Animation = .default
         public static let controlsTransition: Animation = .easeInOut(duration: 0.4)
         public static let panelSpring: Animation = .spring(duration: 0.7, bounce: 0.15)
+        public static let environmentPlateMorphDuration: Double = 1.0
+        public static var environmentPlateMorph: Animation {
+            .spring(duration: environmentPlateMorphDuration, bounce: 0.08)
+        }
+        public static let environmentContentFadeDuration: Double = 0.15
+        public static var environmentContentExit: Animation {
+            .easeOut(duration: environmentContentFadeDuration)
+        }
+        public static var environmentContentEntrance: Animation {
+            .easeIn(duration: environmentContentFadeDuration)
+                .delay(environmentPlateMorphDuration - environmentContentFadeDuration)
+        }
+        public static let environmentControlsFadeDuration: Double = 0.45
+        public static var environmentControlsExit: Animation {
+            .easeOut(duration: environmentControlsFadeDuration)
+        }
+        public static var environmentControlsEntrance: Animation {
+            .easeIn(duration: environmentControlsFadeDuration)
+                .delay(environmentPlateMorphDuration - environmentControlsFadeDuration)
+        }
         public static let menuPopup: Animation = .spring(duration: 0.4, bounce: 0.15)
         public static let menuInitialScale: CGFloat = 0.1
         public static let panelContentExit: Animation = .easeOut(duration: 0.315)
@@ -408,11 +428,11 @@ public enum DesignTokens {
     public enum EnvironmentCarousel {
         public static let stageWidth: CGFloat = EnvironmentHome.width
         public static let stageHeight: CGFloat = 510
-        public static let centerCardGap: CGFloat = 330
+        public static let centerCardGap: CGFloat = 420
         public static let outerCardGap: CGFloat = 140
-        public static let sideCardYOffset: CGFloat = 10
-        public static let centerDepthOffset: CGFloat = 132
-        public static let sideDepthOffset: CGFloat = 70
+        public static let centerDepthOffset: CGFloat = 272
+        public static let sideDepthOffset: CGFloat = 140
+        public static let windowFrontClearance: CGFloat = 16
         public static let atmosphericFadeStart: CGFloat = 0.18
         public static let atmosphericFadeEnd: CGFloat = 1.85
         public static let atmosphericFadeMaxOpacity: CGFloat = 0.52

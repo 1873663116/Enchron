@@ -12,17 +12,8 @@ nonisolated extension SpatialSceneDomain {
         case quietRoom = "quiet-room"
         case ocean
         case tidal
-        case placeholderRed = "placeholder-red"
-        case placeholderGreen = "placeholder-green"
-        case placeholderBlue = "placeholder-blue"
 
-        public static let cardEnvironments: [Self] = [
-            .ocean,
-            .tidal,
-            .placeholderRed,
-            .placeholderGreen,
-            .placeholderBlue
-        ]
+        public static let cardEnvironments: [Self] = [.ocean, .tidal]
 
         public var isCardEnvironment: Bool {
             self != .quietRoom
@@ -32,30 +23,11 @@ nonisolated extension SpatialSceneDomain {
             self != .quietRoom
         }
 
-        public var isSceneBacked: Bool {
-            switch self {
-            case .quietRoom, .ocean, .tidal: true
-            case .placeholderRed, .placeholderGreen, .placeholderBlue: false
-            }
-        }
-
-        public var placeholderColor: SIMD3<Float>? {
-            switch self {
-            case .placeholderRed: [0.85, 0.12, 0.12]
-            case .placeholderGreen: [0.12, 0.70, 0.20]
-            case .placeholderBlue: [0.12, 0.35, 0.90]
-            case .quietRoom, .ocean, .tidal: nil
-            }
-        }
-
         public var displayName: String {
             switch self {
             case .quietRoom: "Quiet Room"
             case .ocean: "Ocean"
             case .tidal: "Tidal"
-            case .placeholderRed: "Red"
-            case .placeholderGreen: "Green"
-            case .placeholderBlue: "Blue"
             }
         }
     }
@@ -84,8 +56,8 @@ nonisolated extension SpatialSceneDomain {
 }
 
 public nonisolated enum EnvironmentSceneMapping {
-    public static let placeholderDescriptor = EnvironmentSceneDescriptor(
-        identifier: "placeholder",
+    public static let fallbackDescriptor = EnvironmentSceneDescriptor(
+        identifier: "fallback",
         geometry: EnvironmentSceneGeometry(
             defaultDistanceMeters: 12,
             defaultScreenHeightMeters: 8,
@@ -101,7 +73,6 @@ public nonisolated enum EnvironmentSceneMapping {
         case .quietRoom: QuietRoomEnvironmentScene.descriptor
         case .ocean: OceanEnvironmentScene.descriptor
         case .tidal: TidalEnvironmentScene.descriptor
-        case .placeholderRed, .placeholderGreen, .placeholderBlue: placeholderDescriptor
         }
     }
 
@@ -113,7 +84,7 @@ public nonisolated enum EnvironmentSceneMapping {
 
     public static func defaultScreenHeightMeters(forEnvironmentID environmentID: String) -> Double {
         guard let environment = SpatialSceneDomain.CinemaEnvironment(rawValue: environmentID) else {
-            return placeholderDescriptor.geometry.defaultScreenHeightMeters
+            return fallbackDescriptor.geometry.defaultScreenHeightMeters
         }
         return geometry(for: environment).defaultScreenHeightMeters
     }
@@ -135,11 +106,8 @@ public nonisolated enum EnvironmentSceneMapping {
             scenes[stale] = nil
         }
         for environment in environments {
-            guard prefetchTasks[environment] == nil,
-                  let scene = scene(for: environment)
-            else {
-                continue
-            }
+            guard prefetchTasks[environment] == nil else { continue }
+            let scene = scene(for: environment)
             prefetchStarted[environment] = ContinuousClock().now
             prefetchTasks[environment] = Task { @MainActor in
                 let root = try await scene.load()
@@ -201,19 +169,16 @@ public nonisolated enum EnvironmentSceneMapping {
     @MainActor
     public static func scene(
         for environment: SpatialSceneDomain.CinemaEnvironment
-    ) -> (any EnvironmentScene)? {
+    ) -> any EnvironmentScene {
         if let existing = scenes[environment] {
             return existing
         }
-        let scene: (any EnvironmentScene)? = switch environment {
+        let scene: any EnvironmentScene = switch environment {
         case .quietRoom: QuietRoomEnvironmentScene()
         case .ocean: OceanEnvironmentScene()
         case .tidal: TidalEnvironmentScene()
-        case .placeholderRed, .placeholderGreen, .placeholderBlue: nil
         }
-        if let scene {
-            scenes[environment] = scene
-        }
+        scenes[environment] = scene
         return scene
     }
 }

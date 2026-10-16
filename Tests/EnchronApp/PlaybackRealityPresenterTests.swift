@@ -42,59 +42,6 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testPlaceholderEnvironmentsCreateATintedSphereWithTheRequestedBrightness() throws {
-        let world = Entity()
-
-        let darkBrightness = EnvironmentSceneAppearanceApplier.apply(
-            environment: .placeholderRed,
-            effect: .dark,
-            scene: nil,
-            to: world
-        )
-
-        XCTAssertEqual(darkBrightness, 0.5)
-        let placeholder = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
-        )
-        XCTAssertTrue(placeholder.isEnabled)
-
-        let lightBrightness = EnvironmentSceneAppearanceApplier.apply(
-            environment: .placeholderRed,
-            effect: .light,
-            scene: nil,
-            to: world
-        )
-        XCTAssertEqual(lightBrightness, 1)
-        XCTAssertTrue(placeholder.isEnabled)
-    }
-
-    @MainActor
-    func testApplyingASceneBackedEnvironmentClearsAnyExistingPlaceholder() async throws {
-        let world = try await loadAuthoredWorld()
-        _ = EnvironmentSceneAppearanceApplier.apply(
-            environment: .placeholderRed,
-            effect: .dark,
-            scene: nil,
-            to: world
-        )
-        XCTAssertNotNil(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
-        )
-
-        let brightness = EnvironmentSceneAppearanceApplier.apply(
-            environment: .ocean,
-            effect: .light,
-            scene: try XCTUnwrap(EnvironmentSceneMapping.scene(for: .ocean)),
-            to: world
-        )
-
-        XCTAssertEqual(brightness, 1)
-        XCTAssertNil(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
-        )
-    }
-
-    @MainActor
     func testQuietRoomIgnoresTheRequestedEffectAndAlwaysReturnsLightBrightness() async throws {
         let world = try await loadAuthoredWorld(for: .quietRoom)
 
@@ -106,25 +53,6 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         )
 
         XCTAssertEqual(brightness, 1)
-    }
-
-    @MainActor
-    func testClearingTheEnvironmentDisablesAnActivePlaceholder() throws {
-        let world = Entity()
-        _ = EnvironmentSceneAppearanceApplier.apply(
-            environment: .placeholderGreen,
-            effect: .light,
-            scene: nil,
-            to: world
-        )
-        let placeholder = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneAppearanceApplier.placeholderName)
-        )
-        XCTAssertTrue(placeholder.isEnabled)
-
-        EnvironmentSceneAppearanceApplier.clear(in: world)
-
-        XCTAssertFalse(placeholder.isEnabled)
     }
 
     @MainActor

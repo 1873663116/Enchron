@@ -38,7 +38,7 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
             viewerHeightMeters: 0
         )
         await store.savePosition(
-            for: "placeholder-red",
+            for: "tidal",
             distanceMeters: 4.8,
             elevationDegrees: -18,
             screenScale: 0.8,
@@ -46,15 +46,15 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
         )
 
         let storedOcean = await store.loadPosition(for: "ocean")
-        let storedPlaceholderRed = await store.loadPosition(for: "placeholder-red")
+        let storedTidal = await store.loadPosition(for: "tidal")
         let ocean = try XCTUnwrap(storedOcean)
-        let placeholderRed = try XCTUnwrap(storedPlaceholderRed)
+        let tidal = try XCTUnwrap(storedTidal)
         XCTAssertEqual(ocean.distanceMeters, 2.4)
         XCTAssertEqual(ocean.elevationDegrees, 12)
         XCTAssertEqual(ocean.screenScale, 1.3)
-        XCTAssertEqual(placeholderRed.distanceMeters, 4.8)
-        XCTAssertEqual(placeholderRed.elevationDegrees, -18)
-        XCTAssertEqual(placeholderRed.screenScale, 0.8)
+        XCTAssertEqual(tidal.distanceMeters, 4.8)
+        XCTAssertEqual(tidal.elevationDegrees, -18)
+        XCTAssertEqual(tidal.screenScale, 0.8)
     }
 
     func testSavedScreenPositionRoundTripsWithoutClampingIntoAnyEnvironmentsLimits() async throws {

@@ -11,100 +11,19 @@ import simd
 
 @MainActor
 enum EnvironmentSceneAppearanceApplier {
-    static let placeholderName = "EnchronScenicPlaceholder"
-
     @discardableResult
     static func apply(
         environment: SpatialSceneDomain.CinemaEnvironment,
         effect: SpatialSceneDomain.EnvironmentEffect?,
-        scene: (any EnvironmentScene)?,
-        to world: Entity,
-        emitEnablementWrite: (String) -> Void = { _ in }
+        scene: any EnvironmentScene,
+        to world: Entity
     ) -> Float {
         let resolvedEffect = environment.supportsDarkAppearance
             ? effect ?? .inactiveFallback
             : .light
         let appearance = resolvedEffect.appearance
-        if let scene {
-            scene.apply(appearance, to: world)
-            world.findEntity(named: placeholderName)?.removeFromParent()
-            return appearance.brightness
-        }
-        let color = placeholderColor(for: environment, brightness: appearance.brightness)
-        let placeholder: ModelEntity
-        if let existing = world.findEntity(named: placeholderName) as? ModelEntity {
-            placeholder = existing
-            placeholder.model?.materials = [placeholderMaterial(color: color)]
-        } else {
-            placeholder = ModelEntity(
-                mesh: .generateSphere(radius: 50),
-                materials: [placeholderMaterial(color: color)]
-            )
-            placeholder.name = placeholderName
-            world.addChild(placeholder)
-        }
-        let wasEnabled = placeholder.isEnabled
-        placeholder.isEnabled = true
-        if wasEnabled != placeholder.isEnabled {
-            emitEnablementWrite(
-                enablementWriteFact(
-                    writer: "EnvironmentSceneAppearanceApplier.apply.placeholder",
-                    entity: placeholder,
-                    value: true
-                )
-            )
-        }
+        scene.apply(appearance, to: world)
         return appearance.brightness
-    }
-
-    static func clear(
-        in world: Entity,
-        emitEnablementWrite: (String) -> Void = { _ in }
-    ) {
-        if let placeholder = world.findEntity(named: placeholderName) {
-            let previous = placeholder.isEnabled
-            placeholder.isEnabled = false
-            if previous != placeholder.isEnabled {
-                emitEnablementWrite(
-                    enablementWriteFact(
-                        writer: "EnvironmentSceneAppearanceApplier.clear.placeholder",
-                        entity: placeholder,
-                        value: false
-                    )
-                )
-            }
-        }
-    }
-
-    private static func enablementWriteFact(
-        writer: String,
-        entity: Entity,
-        value: Bool
-    ) -> String {
-        "entityEnablementWrite writer=\(writer)"
-            + " entity=\(ObjectIdentifier(entity))"
-            + " name=\(entity.name.isEmpty ? "unnamed" : entity.name)"
-            + " value=\(value)"
-            + " activeAfterWrite=\(entity.isActive)"
-    }
-
-    static func placeholderColor(
-        for environment: SpatialSceneDomain.CinemaEnvironment,
-        brightness: Float
-    ) -> UIColor {
-        let base = environment.placeholderColor ?? [0.5, 0.5, 0.5]
-        return UIColor(
-            red: CGFloat(base.x * brightness),
-            green: CGFloat(base.y * brightness),
-            blue: CGFloat(base.z * brightness),
-            alpha: 1
-        )
-    }
-
-    private static func placeholderMaterial(color: UIColor) -> UnlitMaterial {
-        var material = UnlitMaterial(color: color)
-        material.faceCulling = .front
-        return material
     }
 }
 
@@ -2181,10 +2100,8 @@ public struct ImmersiveSpaceView: View {
             let entity: Entity
             if let prefetched = EnvironmentSceneMapping.takePrefetch(for: environment) {
                 entity = try await prefetched.value
-            } else if let scene {
-                entity = try await scene.load()
             } else {
-                entity = Self.makePlaceholderWorld(for: environment)
+                entity = try await scene.load()
             }
 #if DEBUG
             if let started = world.loadStartedInstant {
@@ -2200,7 +2117,7 @@ public struct ImmersiveSpaceView: View {
             }
 #endif
             try Task.checkCancellation()
-            let restPose = scene?.restPose ?? Self.fallbackRestPose
+            let restPose = scene.restPose ?? Self.fallbackRestPose
             let anchor = Entity()
             anchor.name = Self.playbackSurfaceAnchorName
             world.rootAuthoredPosition = entity.position
@@ -2282,14 +2199,6 @@ public struct ImmersiveSpaceView: View {
         halfHeight: 2.25
     )
 
-    private static func makePlaceholderWorld(
-        for environment: SpatialSceneDomain.CinemaEnvironment
-    ) -> Entity {
-        let root = Entity()
-        root.name = "EnchronPlaceholderWorld.\(environment.rawValue)"
-        return root
-    }
-
     @MainActor
     private func recordRestPoseDrift(
         _ restPose: EnvironmentScreenRestPose,
@@ -2311,7 +2220,7 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     @discardableResult
     private func applyRequestedEnvironmentAppearance(to entity: Entity) -> Bool {
-        guard let environment = world.environment else { return false }
+        guard let environment = world.environment, let scene = world.scene else { return false }
         let effect = requestedEnvironmentContext.effect
         if world.appliedEnvironment == environment,
            world.appliedEnvironmentEffect == effect,
@@ -2321,9 +2230,8 @@ public struct ImmersiveSpaceView: View {
         let brightness = EnvironmentSceneAppearanceApplier.apply(
             environment: environment,
             effect: effect,
-            scene: world.scene,
-            to: entity,
-            emitEnablementWrite: { appModel.recordSurfaceInputProbe($0) }
+            scene: scene,
+            to: entity
         )
         world.appliedEnvironment = environment
         world.appliedEnvironmentEffect = effect

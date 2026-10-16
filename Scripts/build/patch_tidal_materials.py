@@ -4,7 +4,7 @@ import json
 import sys
 import uuid
 from pathlib import Path
-from patch_tidal_appearance import patch_appearances
+from patch_tidal_appearance import patch_appearances, sync_sky_tilt
 from patch_tidal_scene_frame import patch_scene_frames
 
 
@@ -126,10 +126,12 @@ def main():
     for name in ['SkyPoolWater', 'SkyPoolGlassDoor', 'SkyPoolGlassBottle']:
         assert any(report['gated_screen_coverage'] and Path(report['file']).name == name + '_fragment.tm_shadergraph'
                    for report in reports), name
+    reports.append(sync_sky_tilt(project, tm_parse, tm_graph))
     reports.extend(patch_scene_frames(project, tm_parse, tm_graph))
     reports.extend(patch_appearances(project, tm_parse, tm_graph))
     result = json.dumps([r for r in reports if r.get('sky_samplers') or r.get('gated_screen_coverage')
-                         or r.get('scene_frame_graphs') or r.get('appearance_graphs')], indent=2)
+                         or r.get('scene_frame_graphs') or r.get('appearance_graphs')
+                         or r.get('sky_tilt_graphs')], indent=2)
     if args.report:
         args.report.write_text(result + '\n')
     print(result)
