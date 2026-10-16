@@ -2,18 +2,7 @@
 import AudioToolbox
 import Foundation
 import OSLog
-
-enum RendererFailureKind: String, Sendable {
-    case video
-    case audio
-}
-
-struct RendererFailureFact: Equatable, Sendable {
-    var rendererKind: RendererFailureKind
-    var errorType: String
-    var message: String
-    var requiresFlushToResumeDecoding: Bool?
-}
+import SampleBufferRendering
 
 protocol RendererFailureMonitoring: AnyObject {
     func start(handler: @escaping @Sendable (RendererFailureFact) -> Void)

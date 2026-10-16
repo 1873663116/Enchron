@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
+import SampleBufferRendering
 
 extension SampleBufferPlaybackSession {
     func replaceVideoRendererGraph() async throws -> AVSampleBufferVideoRenderer {

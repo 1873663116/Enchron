@@ -54,6 +54,7 @@ let package = Package(
                 "DesignSystem",
                 .product(name: "BluRayDisc", package: "PlaybackCore"),
                 .product(name: "PlaybackCore", package: "PlaybackCore"),
+                .product(name: "SampleBufferRendering", package: "PlaybackCore"),
                 .product(name: "EnvironmentSceneContract", package: "EnvironmentSceneContract"),
                 .product(name: "OceanEnvironment", package: "OceanEnvironment"),
                 .product(name: "QuietRoomEnvironment", package: "QuietRoomEnvironment"),

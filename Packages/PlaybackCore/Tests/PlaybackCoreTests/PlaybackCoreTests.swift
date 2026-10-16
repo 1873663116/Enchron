@@ -2,6 +2,7 @@ import Foundation
 import AVFoundation
 import CoreVideo
 import PlaybackFFmpegBridge
+import SampleBufferRendering
 import Testing
 @testable import PlaybackCore
 
