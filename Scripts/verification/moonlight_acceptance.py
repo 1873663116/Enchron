@@ -1536,6 +1536,13 @@ def probe_evidence(context: Context, name: str, needles: Sequence[str]) -> list[
     return [line for line in lines if any(needle in line for needle in needles)]
 
 
+def forensic_freeze_path(context: Context) -> Path | None:
+    value = context.fixture("forensicFreezeFile")
+    if isinstance(value, str) and value:
+        return Path(value).expanduser()
+    return None
+
+
 def stable_patch_sample(
     context: Context, name: str
 ) -> tuple[dict, tuple[int, int, int], tuple[int, int, int], Path]:
@@ -1546,24 +1553,33 @@ def stable_patch_sample(
     frame with a colour it never showed. The index is read on both sides of the
     capture and a mismatch is retried, not judged.
     """
+    freeze = forensic_freeze_path(context)
     last_error = ""
     for attempt in range(PATCH_SAMPLE_ATTEMPTS):
         if attempt:
             context.hold(f"patch-sample-retry-{attempt}", PATCH_RETRY_SECONDS)
-        before = latest_patch(context.forensic())
-        if before is None:
-            raise BlockedBy("the host forensic log carries no patch colour yet")
-        screenshot, sample = context.capture(f"{name}-{attempt + 1}")
-        after = latest_patch(context.forensic())
-        rgb = patch_rgb(after)
-        if after is None or rgb is None:
-            raise BlockedBy("the host forensic log carries no patch colour yet")
-        if before.get("index") == after.get("index"):
-            return after, rgb, sample, screenshot
-        last_error = (
-            f"the patch advanced from index {before.get('index')} to {after.get('index')} "
-            "while the screenshot was taken"
-        )
+        if freeze is not None:
+            freeze.parent.mkdir(parents=True, exist_ok=True)
+            freeze.write_text("freeze\n", encoding="utf-8")
+            context.hold("patch-freeze-settle", PATCH_RETRY_SECONDS)
+        try:
+            before = latest_patch(context.forensic())
+            if before is None:
+                raise BlockedBy("the host forensic log carries no patch colour yet")
+            screenshot, sample = context.capture(f"{name}-{attempt + 1}")
+            after = latest_patch(context.forensic())
+            rgb = patch_rgb(after)
+            if after is None or rgb is None:
+                raise BlockedBy("the host forensic log carries no patch colour yet")
+            if before.get("index") == after.get("index"):
+                return after, rgb, sample, screenshot
+            last_error = (
+                f"the patch advanced from index {before.get('index')} to {after.get('index')} "
+                "while the screenshot was taken"
+            )
+        finally:
+            if freeze is not None:
+                freeze.unlink(missing_ok=True)
     raise InstrumentFault(
         "evidence-destroyed",
         {"scenario": context.scenario.number, "detail": last_error},

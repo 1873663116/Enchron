@@ -9,7 +9,7 @@ let patchInterval = 2.0
 let patchRectNormalized = CGRect(x: 0.08, y: 0.08, width: 0.20, height: 0.20)
 let neutralGray = 0.5
 
-let usage = "usage: host_forensic_patch [--log <path>] [--seconds <n>] [--exit-file <path>] [--tone <hz>] [--tone-gain-db <db>] [--seed <uint64>] [--self-test]"
+let usage = "usage: host_forensic_patch [--log <path>] [--seconds <n>] [--exit-file <path>] [--freeze-file <path>] [--tone <hz>] [--tone-gain-db <db>] [--seed <uint64>] [--self-test]"
 
 func currentWallMs() -> Int64 {
     Int64((Date().timeIntervalSince1970 * 1000.0).rounded())
@@ -68,6 +68,7 @@ struct Options {
     var logPath: String?
     var seconds: Double?
     var exitFilePath: String?
+    var freezeFilePath: String?
     var toneHz: Double?
     var toneGainDB: Double = -20.0
     var seed: UInt64?
@@ -99,6 +100,9 @@ func parseOptions(_ arguments: [String]) -> Options? {
         case "--exit-file":
             guard let value = nextValue(argument) else { return nil }
             options.exitFilePath = value
+        case "--freeze-file":
+            guard let value = nextValue(argument) else { return nil }
+            options.freezeFilePath = value
         case "--tone":
             guard let value = nextValue(argument), let hertz = Double(value), hertz > 0, hertz < 20000 else { return nil }
             options.toneHz = hertz
@@ -530,6 +534,8 @@ final class ForensicController: NSObject {
     private var patchIndex = -1
     private var patchRGB: (red: Int, green: Int, blue: Int) = (0, 0, 0)
     private var startMediaTime: Double = 0
+    private var lastTickMediaTime: Double = 0
+    private var frozenAccumulated: Double = 0
     private var shuttingDown = false
 
     init(options: Options) {
@@ -690,7 +696,17 @@ final class ForensicController: NSObject {
 
     @objc private func displayTick() {
         frameCounter += 1
-        let elapsed = CACurrentMediaTime() - startMediaTime
+        let now = CACurrentMediaTime()
+        if lastTickMediaTime == 0 {
+            lastTickMediaTime = now
+        }
+        let delta = max(0, now - lastTickMediaTime)
+        lastTickMediaTime = now
+        if let freezeFilePath = options.freezeFilePath,
+           FileManager.default.fileExists(atPath: freezeFilePath) {
+            frozenAccumulated += delta
+        }
+        let elapsed = now - startMediaTime - frozenAccumulated
         let index = Int((elapsed / patchInterval).rounded(.down))
         if index > patchIndex {
             applyPatch(index: index)
