@@ -19,6 +19,10 @@ __pycache__/
 # Session scratch: probes, DerivedData, logs (see AGENTS.md 构建产物)
 .scratch/
 .audit/
+# Agent scratch. Ignored so an untracked directory here cannot make `tmp/` a
+# repository top-level segment: verify_documentation_references reads those from
+# git, and the end-to-end skill documents container paths that start with it.
+tmp/
 
 # Xcode local build output
 /build/

@@ -17,7 +17,7 @@ public struct EnvironmentHomeView: View {
                 CircleIconButton(
                     systemName: "minus",
                     accessibilityLabel: String(localized: "Minimize environments"),
-                    action: { isCompact = true },
+                    action: minimize,
                     accessibilityIdentifier: "EnvironmentHome-button-minimize"
                 )
                 Spacer()
@@ -34,7 +34,7 @@ public struct EnvironmentHomeView: View {
                 activeEnvironment: appModel.environmentContext.environment,
                 cardDefaultEnvironment: appModel.defaultCardEnvironment,
                 isPresented: true,
-                onSetDefault: appModel.setDefaultCardEnvironment,
+                onSetDefault: setDefaultEnvironment,
                 effect: appModel.currentEnvironmentEffect,
                 controlsEnabled: appModel.isTransitioningPlaybackPresentation == false,
                 onCenterChange: { appModel.cardEnvironment = $0 },
@@ -50,6 +50,28 @@ public struct EnvironmentHomeView: View {
         .accessibilityLabel("Environments")
         .onAppear { appModel.receiveSpatialPlatformResult(.environmentCardAppeared) }
         .onDisappear { appModel.receiveSpatialPlatformResult(.environmentCardDisappeared) }
+    }
+
+    private func minimize() {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "environmentHome minimize delivered",
+            retention: .evidence
+        )
+#endif
+        isCompact = true
+    }
+
+    private func setDefaultEnvironment(
+        _ environment: SpatialSceneDomain.CinemaEnvironment
+    ) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "environmentCard default delivered environment=\(environment.rawValue)",
+            retention: .evidence
+        )
+#endif
+        appModel.setDefaultCardEnvironment(environment)
     }
 
     private func updateEnvironmentEffect(
@@ -95,7 +117,7 @@ public struct EnvironmentMiniControls: View {
             EnvironmentMiniButton(
                 accessibilityLabel: String(localized: "Restore environments"),
                 accessibilityIdentifier: "EnvironmentHome-button-restore",
-                action: restore
+                action: restoreEnvironment
             ) {
                 WindowRestoreIcon()
             }
@@ -105,9 +127,7 @@ public struct EnvironmentMiniControls: View {
                 accessibilityLabel: appModel.currentEnvironmentEffect == .dark
                     ? String(localized: "Light Mode")
                     : String(localized: "Dark Mode"),
-                action: {
-                    appModel.setActiveEnvironmentEffect(appModel.currentEnvironmentEffect == .dark ? .light : .dark)
-                },
+                action: toggleAppearance,
                 accessibilityIdentifier: "EnvironmentHome-button-appearance",
                 visualSize: DesignTokens.EnvironmentHome.buttonSize,
                 targetSize: DesignTokens.EnvironmentHome.buttonSize
@@ -129,7 +149,36 @@ public struct EnvironmentMiniControls: View {
         .accessibilityIdentifier("EnvironmentHome-compact")
     }
 
+    private func restoreEnvironment() {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "environmentHome restore delivered",
+            retention: .evidence
+        )
+#endif
+        restore()
+    }
+
+    private func toggleAppearance() {
+        let effect: SpatialSceneDomain.EnvironmentEffect =
+            appModel.currentEnvironmentEffect == .dark ? .light : .dark
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "environmentHome appearance delivered effect=\(effect.rawValue)",
+            retention: .evidence
+        )
+#endif
+        appModel.setActiveEnvironmentEffect(effect)
+    }
+
     private func toggleScene() {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "environmentHome scene delivered environment="
+                + "\(appModel.environmentContext.environment?.rawValue ?? "none")",
+            retention: .evidence
+        )
+#endif
         do {
             try appModel.toggleEnvironmentPreview()
         } catch {
