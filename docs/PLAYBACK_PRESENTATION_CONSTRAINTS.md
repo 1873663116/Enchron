@@ -195,6 +195,6 @@
 - 星空绕场景 Y 轴每 7200 秒一圈；每次外观切换额外旋转 180°，结束后恢复常规采样。星空是立方体贴图（`starmap_2020_16k`），天穹实体绕其作者朝向的局部 Y 轴自转，RCP 中设定的构图因此保持不变。水面与玻璃的星空采样接收天穹朝向的四元数（`SkyOrientationAxis` 与 `SkyOrientationW`），采样前把方向旋转回天穹的物体空间，使反射中的星图与天空同步。动画由场景内的 RealityKit System 驱动，材质不再注入模糊角，拖影交给 RealityKit。
 - 22 个碎片保持现有 Y 值与视觉编排，共同绕场景 Y 轴每 3600 秒一圈。它们属于同一旋转组，碎片间距离恒定。`Scripts/verification/verify_tidal_orbits.py --scene <tidal.reality>` 检查实际网格的全周路径与静态建筑、平台的间距，并检查全部碎片对。`Scripts/verification/verify_tidal_motion.py --output-directory <目录>` 验证实际材质叠化、贴图共享、星空拖影和半周轨道位置。
 - 水面池底、池壁与凹槽使用重投影 UV，允许保留小尺寸浅深两套贴图。提取坐标使用 RCP 水面材质的 `PoolFrameOrigin`，世界 X、Z 轴反向；凹槽材质的纵向采样范围为池沿向下 0.894 m。原始提取工具的世界坐标必须先转换到该池体坐标系。
-- `Scripts/build/prepare_tidal_resources.py --scene-workspace <Xrplay_scene> --delivery <SkyPool_交付包>` 重建场景、复制原始参数包并生成水面小贴图。Python 需要 numpy、Pillow 和 opencv-python-headless；几何采样需要本机 Blender，场景导出需要 Reality Composer Pro。水面制品生成临时使用参考解码器，需约 6 GB 峰值内存；此步骤只在开发机执行。
+- `Scripts/build/prepare_tidal_resources.py --scene-workspace <Xrplay_scene> --delivery <SkyPool_交付包>` 重建场景、复制原始参数包并生成水面小贴图。Python 需要 numpy、Pillow 和 opencv-python-headless；场景导出需要 Reality Composer Pro。水面制品生成临时使用参考解码器，需约 6 GB 峰值内存；此步骤只在开发机执行。
 - 原场景图集使用有损 ASTC 6×6 压缩。实时解码保留该输入的压缩误差。`python3 Scripts/verification/verify_tidal_runtime.py --output-directory <目录>` 在真实 GPU 上读取浅色像素，以参数公式校验解码结果，覆盖纹理边缘与宏块边界；它不把未压缩参考 PNG 当成压缩图集的逐位基线。
 - `tidal.reality` 由 Git LFS 管理。开发机须安装 Git LFS 并执行 `git lfs install --local --skip-repo`、`git lfs pull` 获取实体文件。仓库的 pre-push 入口先运行既有验证，再将同一份引用更新传给 Git LFS。
