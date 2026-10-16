@@ -1391,16 +1391,28 @@ def pair_host(context: Context, row: str) -> dict[str, object]:
             poll_interval_seconds=1.0,
         )["pin"]
     submitted = submit_pin(context, pairing_id, str(pin))
+
+    def pairing_done() -> dict[str, object] | None:
+        # The pairing page dismisses itself once the host accepts, so the row's
+        # readable value is the durable completion evidence.
+        value = context.identifier_value("Stream-Pairing-status")
+        row_value = context.identifier_value(f"Stream-HostRow-{row}")
+        if (value and "pairing=paired" in value) or (
+            row_value and "pairing=paired" in row_value
+        ):
+            return {"value": value, "row": row_value}
+        return None
+
     status = context.wait(
         "Stream-Pairing-status",
         STREAM_CONNECT_SECONDS,
-        lambda: (
-            {"value": value}
-            if (value := context.identifier_value("Stream-Pairing-status"))
-            and "pairing=paired" in value
-            else None
-        ),
-        lambda: [{"value": context.identifier_value("Stream-Pairing-status")}],
+        pairing_done,
+        lambda: [
+            {
+                "value": context.identifier_value("Stream-Pairing-status"),
+                "row": context.identifier_value(f"Stream-HostRow-{row}"),
+            }
+        ],
         poll_interval_seconds=2.0,
     )
     context.record_channel("control-surface", "pairing-status.txt", json.dumps(status, ensure_ascii=False))
