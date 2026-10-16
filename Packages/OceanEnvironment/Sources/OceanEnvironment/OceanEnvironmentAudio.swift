@@ -146,9 +146,6 @@ final class OceanEnvironmentAudio {
         return entity
     }
 
-    /// visionOS interrupts the app's audio when its last window closes even
-    /// though the immersive space keeps running; re-arm the ambient loop once
-    /// the interruption ends.
     private func installInterruptionObserver() {
         guard interruptionObserver == nil else { return }
         interruptionObserver = NotificationCenter.default.addObserver(

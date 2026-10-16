@@ -12,11 +12,6 @@ enum RuntimeEnvironmentLightingError: LocalizedError {
     }
 }
 
-/// Lights the ocean from the authored procedural sky.
-///
-/// The environment is synthesized from `SkyAppearance` rather than decoded from
-/// an HDRI, so the scene carries no environment texture: the equirect is rebuilt
-/// only when the authored sky parameters change.
 @MainActor
 enum RuntimeEnvironmentLighting {
     static let lightEntityName = "OceanEnvironmentLight"
@@ -31,14 +26,8 @@ enum RuntimeEnvironmentLighting {
         let changedIntensity: Bool
     }
 
-    /// Kept so the application runtime can announce itself without owning a
-    /// texture bundle any more.
     static func configure(applicationResourceBundle: Bundle) {}
 
-    /// Builds and caches the procedural-sky `EnvironmentResource` ahead of the
-    /// first rendered frame. Attaching still happens in `synchronize`, which
-    /// then hits the cache instead of paying the cold build (~98 ms on device)
-    /// inside the opening frames.
     static func prewarm(sky: SkyAppearance) {
         guard cachedEnvironment == nil else { return }
         _ = try? environmentResource(for: sky)

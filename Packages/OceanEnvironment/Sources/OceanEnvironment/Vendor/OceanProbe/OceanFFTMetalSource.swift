@@ -186,11 +186,6 @@ enum OceanFFTMetalSource {
             );
             float cosineModel = normalizationFactor(spread)
                 * pow(abs(cos(0.5f * (theta - parameters.angle))), 2.0f * spread);
-            // The reference writes this endpoint as an unrotated 2/PI*cos(theta)^2
-            // over the full circle, which peaks upwind as well as downwind and
-            // integrates to two. It ships spreadBlend at one, so that endpoint
-            // never runs there. windAlignment keeps it live here, so it carries
-            // the normalised half-plane form instead.
             float delta = atan2(
                 sin(theta - parameters.angle),
                 cos(theta - parameters.angle)
@@ -491,7 +486,6 @@ enum OceanFFTMetalSource {
             indices = uint2(first, first + span);
         }
 
-        // ROUND20_IFFT_THREADS_512
         void inverseFFTPair(
             uint threadIndex,
             float4 lowerInput,
@@ -701,11 +695,6 @@ enum OceanFFTMetalSource {
                     dyCross.x,
                     dxDz.y * uniforms.choppiness
                 );
-                // The reference divides by the signed horizontal jacobian factor,
-                // which drops below one where the surface folds forward and is what
-                // sharpens a choppy crest. Taking the magnitude instead can only
-                // flatten. Keep the sign, floor the magnitude so a fold cannot send
-                // one texel to a several-hundred slope spike.
                 float2 jacobianFactor = 1.0f
                     + horizontalDerivative * uniforms.choppiness;
                 float2 finalSlope = heightSlope
@@ -759,11 +748,6 @@ enum OceanFFTMetalSource {
                 dyCross.x,
                 dxDz.y * uniforms.choppiness
             );
-            // The reference divides by the signed horizontal jacobian factor,
-            // which drops below one where the surface folds forward and is what
-            // sharpens a choppy crest. Taking the magnitude instead can only
-            // flatten. Keep the sign, floor the magnitude so a fold cannot send
-            // one texel to a several-hundred slope spike.
             float2 jacobianFactor = 1.0f
                 + horizontalDerivative * uniforms.choppiness;
             float2 finalSlope = heightSlope

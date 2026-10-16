@@ -1099,10 +1099,6 @@ public struct ImmersiveSpaceView: View {
                 && requestedEnvironmentContext.environment != nil)
     }
 
-    /// Whether the loaded environment has presented its first frame. Only the
-    /// ocean reports this (its surface enables on the first presented FFT
-    /// frame); other environments are synchronous once loaded. Gating video on
-    /// it keeps the two first-frame cliffs from stacking on the same frames.
     private var environmentFirstFramePresented: Bool {
         guard world.environment == .ocean, let root = world.entity else {
             return true

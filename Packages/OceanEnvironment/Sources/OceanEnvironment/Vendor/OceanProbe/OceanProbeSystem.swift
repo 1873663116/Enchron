@@ -436,8 +436,6 @@ public struct OceanProbeSystem: System {
         return model.materials.first as? ShaderGraphMaterial
     }
 
-    /// The sky dome carries the same authored material the environment is built
-    /// from, so the water is lit by the sky the viewer is actually under.
     private func skyMaterial(near entity: Entity) -> ShaderGraphMaterial? {
         var root = entity
         while let parent = root.parent {

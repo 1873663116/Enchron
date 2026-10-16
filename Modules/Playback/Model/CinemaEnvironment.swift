@@ -93,10 +93,6 @@ public nonisolated enum EnvironmentSceneMapping {
     @MainActor private static var prefetchTasks: [SpatialSceneDomain.CinemaEnvironment: Task<Entity, Error>] = [:]
     @MainActor private static var prefetchStarted: [SpatialSceneDomain.CinemaEnvironment: ContinuousClock.Instant] = [:]
 
-    /// Starts decoding `environments` ahead of an imminent open (dock menu
-    /// shown, card toggled). Holds at most the requested batch: anything else
-    /// is cancelled. Never decodes more than asked — the card catalog is not
-    /// bulk-loaded.
     @MainActor
     public static func prefetch(_ environments: [SpatialSceneDomain.CinemaEnvironment]) {
         for stale in prefetchTasks.keys where !environments.contains(stale) {
@@ -137,9 +133,6 @@ public nonisolated enum EnvironmentSceneMapping {
         }
     }
 
-    /// Takes the in-flight or finished decode for `environment`, if any,
-    /// cancelling the rest. Awaiting the returned task reuses the prefetched
-    /// root instead of decoding twice.
     @MainActor
     public static func takePrefetch(
         for environment: SpatialSceneDomain.CinemaEnvironment
@@ -157,8 +150,6 @@ public nonisolated enum EnvironmentSceneMapping {
         return prefetchTasks[environment]
     }
 
-    /// When the decode for `environment` started, if prefetched. Lets the
-    /// opener measure the true decode cost even though it began earlier.
     @MainActor
     public static func prefetchStartedInstant(
         for environment: SpatialSceneDomain.CinemaEnvironment

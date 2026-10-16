@@ -3,9 +3,6 @@ import Foundation
 import RealityKit
 import simd
 
-/// Bumped whenever app code writes into the ocean material source or sky dome.
-/// OceanProbeSystem uses it to skip parameter synchronization on frames where
-/// nothing changed.
 @MainActor
 enum OceanMaterialSyncEpoch {
     static var value: UInt64 = 0
@@ -240,9 +237,6 @@ public final class OceanEnvironmentScene: EnvironmentScene {
         audio.setVideoPlaying(isPlaying)
     }
 
-    /// Builds the runtime IBL resource from an already-decoded root so the
-    /// first `OceanProbeSystem.update` finds it cached. No-op without a sky
-    /// dome material; `synchronize` then builds on demand as before.
     public func prewarmRuntime(in root: Entity) {
         guard let dome = root.findEntity(named: Self.skyDomeEntityName),
               let model = dome.components[ModelComponent.self],

@@ -1,14 +1,5 @@
 import RealityKit
 
-/// FFT 格点边长的单一真相源。
-///
-/// Metal 侧的 `FFT_SIZE` / `LOG_SIZE` 是编译期常量：蝶形运算的
-/// threadgroup 缓冲按 `FFT_SIZE` 分配，每一趟 IFFT 用
-/// `position + uint2(FFT_SIZE / 2, 0)` 读取上半区。若 Swift 侧
-/// 单独下调纹理尺寸，这些读取全部越界返回零，位移与坡度塌成常数，
-/// 海面变成一面平镜。`CascadeLayout` 的 k 网格截断
-/// (`cutoffHigh = pi * N / L`) 与 `FoamParameters.metersPerTexel`
-/// 同样按 N 标定，必须一并派生。
 enum OceanSimulationGrid {
     static let resolution = 512
     static let logResolution = 9

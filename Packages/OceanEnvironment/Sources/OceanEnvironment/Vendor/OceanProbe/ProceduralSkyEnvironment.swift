@@ -3,31 +3,9 @@ import Foundation
 import RealityKit
 import simd
 
-/// Builds the ocean's image-based light from the sky the ocean is standing under.
-///
-/// The sky itself is an 8K equirectangular HDRI on the dome. Decoding that file
-/// a second time here, only to average it down to a 128x64 irradiance probe,
-/// would cost half a gigabyte of transient memory to produce a few kilobytes of
-/// result. It is also unnecessary: the panorama is a closed eight-okta
-/// overcast, and measurement of the file says it is very nearly azimuthally
-/// uniform — the relative standard deviation around a ring of constant
-/// elevation averages 0.10 over the whole upper hemisphere and never exceeds
-/// 0.21. Practically all of its irradiance is therefore carried by a single
-/// elevation profile.
-///
-/// So the environment is that profile, fitted to the file rather than invented:
-/// a quadratic in sin(elevation), per channel, whose residual against the
-/// azimuthal mean of the real panorama is 0.014 in linear radiance — about 2.5%
-/// of the mean, and well under the azimuthal variation it is already averaging
-/// over. The constants below are that fit and nothing else; if the HDRI is
-/// replaced, re-measure them with `.scratch/…/exrdump.swift` and refit.
 struct SkyAppearance: Equatable {
-    /// Matches the material's `SkyGain`, so the probe tracks any re-levelling
-    /// of the dome.
     var skyGain: Float = 1
 
-    /// Linear Rec.709 radiance of the panorama, per channel, as
-    /// `a + b·sin(elevation) + c·sin²(elevation)`. Rows are R, G, B.
     var profile: (
         SIMD3<Float>, SIMD3<Float>, SIMD3<Float>
     ) = (
@@ -36,10 +14,6 @@ struct SkyAppearance: Equatable {
         SIMD3<Float>(0.3304, 0.3986, 0.1100)
     )
 
-    /// Colour of the water body below the horizon. A direction depressed by δ
-    /// sees distant sea that mirrors the sky at elevation δ with Schlick
-    /// Fresnel for incidence cos θ = sin δ, so the panorama falls from the
-    /// horizon sky to this colour without an edge.
     var seaColor = SIMD3<Float>(0.055, 0.070, 0.086)
 
     static func == (a: SkyAppearance, b: SkyAppearance) -> Bool {
@@ -50,8 +24,6 @@ struct SkyAppearance: Equatable {
             && a.seaColor == b.seaColor
     }
 
-    /// Reads whichever inputs the authored material publishes, leaving the rest
-    /// at the values the material ships with.
     init(material: ShaderGraphMaterial? = nil) {
         guard let material else { return }
         if case let .float(value)? = material.getParameter(name: "SkyGain") {

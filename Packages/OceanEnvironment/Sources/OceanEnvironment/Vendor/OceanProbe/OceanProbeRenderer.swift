@@ -399,9 +399,6 @@ struct FoamEvidenceSchedule {
 
 @MainActor
 private struct PublishedSurfaceFields {
-    // 512 rather than 1024: a full four-cascade update measured 4.97 ms median
-    // on an M4 at 1024 and 1.40 ms at 512, which is 45% of a 90 Hz frame
-    // against 13%. The cost tracks texel count; mip depth does not move it.
     static let resolution = OceanSimulationGrid.resolution
     static let resolutions = [Int](repeating: resolution, count: 4)
     static let mipLevelCounts = [Int](
@@ -546,9 +543,6 @@ final class OceanProbeRenderer {
     private let textures: Textures
     private let lowLevelMesh: LowLevelMesh
     private let meshResource: MeshResource
-    /// Immutable per-vertex grid data (baseXZ, stitch) the projection kernels
-    /// read from. `LowLevelMesh.replace(bufferIndex:using:)` hands back an
-    /// uninitialized buffer, so the kernels must never read the mesh itself.
     private let gridVertexBuffer: any MTLBuffer
     private let publishedFields: PublishedSurfaceFields
     private var surfaceMaterial: ShaderGraphMaterial
