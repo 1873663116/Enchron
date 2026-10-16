@@ -2175,6 +2175,10 @@ def scenario_05_rolling_picture_source(context: Context) -> Outcome:
 
 
 def scenario_06_audio_output(context: Context) -> Outcome:
+    # A fresh session launches a fresh host-side app instance, which is what
+    # carries the pulsed tone cadence the discrimination below relies on.
+    disconnect_session(context, soft=True)
+    context.hold("fresh-session-settle", 2.0)
     row, view = ensure_streaming(context)
     tone = ensure_host_tone(context)
     streaming_wav, streaming_report = capture_audio(
