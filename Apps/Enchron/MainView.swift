@@ -11,6 +11,8 @@ import SwiftUI
 public struct MainView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "MainView")
     @Environment(AppModel.self) private var appModel
+    @Environment(StreamingModel.self) private var streamingModel
+    @Environment(\.openWindow) private var openWindow
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
@@ -345,6 +347,10 @@ public struct MainView: View {
             appModel.selectedTab = .streaming
         }
 #endif
+        .onChange(of: streamingModel.session?.id, initial: true) { _, sessionID in
+            guard sessionID != nil else { return }
+            openWindow(id: "streaming")
+        }
     }
 
     private var browserVisibility: BrowserWindowVisibility {
