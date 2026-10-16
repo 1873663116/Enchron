@@ -6,6 +6,19 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
     case r3840x2160
     case r2560x1600
 
+    /// The display spelling of a resolution, e.g. `2560x1440`.
+    public var displayValue: String {
+        "\(width)x\(height)"
+    }
+
+    /// Reads a resolution from either its case name or its display spelling.
+    public static func parsed(_ raw: String) -> StreamResolution? {
+        if let value = StreamResolution(rawValue: raw) {
+            return value
+        }
+        return allCases.first { $0.displayValue == raw }
+    }
+
     public var width: Int {
         switch self {
         case .r1920x1080: 1920
@@ -74,7 +87,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
 
     public var readableValue: String {
         var parts: [String] = []
-        parts.append("resolution=\(resolution.width)x\(resolution.height)")
+        parts.append("resolution=\(resolution.displayValue)")
         parts.append("fps=\(frameRate)")
         parts.append("bitrate=\(bitrateKbps)")
         parts.append("codec=\(codec.rawValue)")

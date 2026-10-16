@@ -16,6 +16,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
     private let stateLock = NSLock()
     private var snapshotStorage: SessionSnapshot
+    private var sessionEndRecorded = false
     private var deliverQueue = DispatchQueue(label: "app.enchron.stream-session.deliver")
     private var diagnosticsTimer: DispatchSourceTimer?
 
@@ -155,6 +156,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             "input release session=\(sessionID.rawValue) cause=\(reason)",
             retention: .evidence
         )
+        // The end line is written here as well as in finishTeardown, because the
+        // teardown's delayed fallback dies with this coordinator once the model
+        // drops the session.
+        recordSessionEnd(reason: reason)
         backend.releaseAllInput()
         clearPressed()
 
@@ -221,16 +226,26 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             "audio stop session=\(sessionID.rawValue)",
             retention: .evidence
         )
-        StreamSessionProbes.record(
-            "session end session=\(sessionID.rawValue) reason=\(reason)",
-            retention: .evidence
-        )
+        recordSessionEnd(reason: reason)
 
         stateLock.withLock {
             snapshotStorage.state = .ended(reason: reason)
             snapshotStorage.diagnostics.queueDepth = 0
         }
         publishSnapshot()
+    }
+
+    private func recordSessionEnd(reason: String) {
+        let alreadyRecorded = stateLock.withLock {
+            if sessionEndRecorded { return true }
+            sessionEndRecorded = true
+            return false
+        }
+        guard !alreadyRecorded else { return }
+        StreamSessionProbes.record(
+            "session end session=\(sessionID.rawValue) reason=\(reason)",
+            retention: .evidence
+        )
     }
 
     // MARK: - Video path

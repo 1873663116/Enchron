@@ -2925,10 +2925,44 @@ STREAM_OPTION_KEYS = {
 }
 
 
+def setting_applied(readable: str, name: str, value: str) -> bool:
+    for fragment in readable.split(";"):
+        key, separator, raw = fragment.partition("=")
+        if not separator or key.strip() != name:
+            continue
+        raw = raw.strip()
+        if raw == value:
+            return True
+        if value in ("0", "1") and raw in ("true", "false"):
+            return (value == "1") == (raw == "true")
+    return False
+
+
 def set_options(context: Context, **options: object) -> dict[str, object]:
     payload = {STREAM_OPTION_KEYS[key]: value for key, value in options.items()}
-    document = context.app_verb("streamSetOptions", json=payload)
-    context.record_channel("control-surface", "stream-set-options.json", {"requested": payload, "response": document})
+    # The app command channel carries string key/value pairs, so the settings are
+    # sent as separate arguments rather than as one JSON document.
+    flattened = {
+        name: ("1" if value else "0") if isinstance(value, bool) else str(value)
+        for name, value in payload.items()
+    }
+    document = context.app_verb("streamSetOptions", **flattened)
+    applied = document.get("payload")
+    readable = applied[0] if isinstance(applied, list) and applied else ""
+    unapplied = {
+        name: value
+        for name, value in flattened.items()
+        if not isinstance(readable, str) or not setting_applied(readable, name, value)
+    }
+    context.record_channel(
+        "control-surface",
+        "stream-set-options.json",
+        {"requested": payload, "arguments": flattened, "response": document},
+    )
+    if unapplied:
+        raise ProductVerdict(
+            "settings-not-applied", {"unapplied": unapplied, "readable": readable}
+        )
     return payload
 
 

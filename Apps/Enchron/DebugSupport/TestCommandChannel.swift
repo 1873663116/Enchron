@@ -1032,7 +1032,7 @@ final class TestCommandChannel {
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "streamSetOptions":
             streaming.updateSettings { options in
-                if let raw = request.args["resolution"], let resolution = StreamResolution(rawValue: raw) {
+                if let raw = request.args["resolution"], let resolution = StreamResolution.parsed(raw) {
                     options.resolution = resolution
                 }
                 if let fps = request.args["fps"].flatMap(Int.init) {
@@ -1044,11 +1044,11 @@ final class TestCommandChannel {
                 if let raw = request.args["codec"], let codec = StreamCodecPreference(rawValue: raw) {
                     options.codec = codec
                 }
-                if let hdr = request.args["hdr"].flatMap(Int.init) {
-                    options.hdrEnabled = hdr != 0
+                if let hdr = flagValue(request.args["hdr"]) {
+                    options.hdrEnabled = hdr
                 }
-                if let pacing = request.args["framePacing"].flatMap(Int.init) {
-                    options.framePacing = pacing != 0
+                if let pacing = flagValue(request.args["framePacing"]) {
+                    options.framePacing = pacing
                 }
             }
             return Response(id: request.id, ok: true, detail: nil, payload: [streaming.settings.readableValue])
@@ -2319,6 +2319,19 @@ extension EnchronApplication {
             environment: environment,
             application: self
         )
+    }
+}
+
+/// Reads a setting the harness sends as a flag: `1`/`0`, `true`/`false`.
+private func flagValue(_ raw: String?) -> Bool? {
+    guard let raw, !raw.isEmpty else { return nil }
+    if let value = Int(raw) {
+        return value != 0
+    }
+    switch raw.lowercased() {
+    case "true", "yes", "on": return true
+    case "false", "no", "off": return false
+    default: return nil
     }
 }
 
