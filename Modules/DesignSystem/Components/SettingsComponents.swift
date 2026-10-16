@@ -800,10 +800,15 @@ public struct ListGroupRowShell<Content: View>: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityValue(accessibilityValue)
+        } else if accessibilityValue.isEmpty {
+            surface
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(accessibilityLabel)
         } else {
             surface
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(accessibilityValue)
         }
     }
 

@@ -270,7 +270,7 @@ def parse_sunshine_log(path: Path) -> dict[str, object]:
             report["sessionStarts"].append({"stamp": stamp, "message": message})
         if "CLIENT DISCONNECTED" in message or message.strip() == "Session ended":
             report["sessionEnds"].append({"stamp": stamp, "message": message})
-        if message.startswith("Executing: ["):
+        if message.startswith("Executing: [") or message.startswith("Executing ["):
             report["appLaunches"].append({"stamp": stamp, "message": message})
         encoder = SUNSHINE_ENCODER.search(message)
         if encoder is not None:
@@ -1617,15 +1617,128 @@ def relaunch_app(context: Context) -> dict[str, object]:
     return context.invoke("relaunch")
 
 
+def free_host(context: Context, label: str = "host-free") -> dict[str, object]:
+    """Quit whatever app Sunshine still runs, so a launch starts from nothing.
+
+    Sunshine reports SUNSHINE_SERVER_BUSY while an app is running, and a client
+    that is asked for one app while another one runs can only stream what the
+    host already started. Only the host can stop that app, so the runner ends it
+    through the Web UI and waits for the free state.
+    """
+    info = context.serverinfo()
+    if info.get("state") == "SUNSHINE_SERVER_FREE":
+        context.record_channel(
+            "host-log", f"{label}.json", {"state": info.get("state"), "closed": False}
+        )
+        return {"state": info.get("state"), "closed": False}
+
+    webui = context.webui()
+    result = webui.request("POST", "/api/apps/close", {})
+    context.record_channel(
+        "host-log", "sunshine-app-close.json", {"before": info, "result": result}
+    )
+
+    def free() -> dict[str, object] | None:
+        current = context.serverinfo()
+        if current.get("state") == "SUNSHINE_SERVER_FREE":
+            return {"state": current.get("state"), "currentgame": current.get("currentgame")}
+        return None
+
+    evidence = context.wait(
+        label,
+        SESSION_END_SECONDS,
+        free,
+        lambda: [{"state": context.serverinfo().get("state")}],
+        poll_interval_seconds=2.0,
+    )
+    context.record_channel("host-log", f"{label}-after.json", evidence)
+    return {**evidence, "closed": True}
+
+
+HOST_LAUNCH_SECONDS = 20.0
+
+
+def host_launches(context: Context) -> list[dict]:
+    return list(context.sunshine().get("appLaunches", []))
+
+
+def wait_for_host_launch(context: Context, before: int) -> dict[str, object] | None:
+    """The app Sunshine actually started, once its log shows the launch."""
+
+    def probe() -> dict[str, object] | None:
+        launches = host_launches(context)
+        if len(launches) > before:
+            return {"launch": launches[-1], "count": len(launches)}
+        return None
+
+    try:
+        evidence = context.wait(
+            "host-app-launch",
+            HOST_LAUNCH_SECONDS,
+            probe,
+            lambda: [{"launches": host_launches(context)[-2:]}],
+            poll_interval_seconds=1.0,
+        )
+    except InstrumentFault:
+        return None
+    context.record_channel("host-log", "host-app-launch.json", evidence)
+    return evidence
+
+
 def ensure_streaming(context: Context) -> tuple[str, SnapshotView]:
     row = ensure_host(context, pair=True)
     view = context.session_snapshot_or_none()
-    if view is None or view.state_name() != "streaming":
-        drive = launch_stream(context, row)
-        context.note(f"launched through {drive}")
+    if view is not None and view.state_name() == "streaming":
+        context.record_channel("control-surface", "session-snapshot.json", view.pairs)
+        return row, view
+    free_host(context)
+    before = len(host_launches(context))
+    drive = launch_stream(context, row)
+    context.note(f"launched through {drive}")
+    try:
         view = wait_for_state(context, "streaming", STREAM_CONNECT_SECONDS, "streaming")
+    except InstrumentFault:
+        raise host_launch_failure(context) from None
+    launch = wait_for_host_launch(context, before)
+    if launch is None:
+        raise host_launch_failure(context, detail="Sunshine logged no app launch for the session")
+    launched = str(launch["launch"].get("message", ""))
+    wanted = str(context.fixture("forensicAppName", DEFAULT_FORENSIC_APP_NAME))
+    if wanted.lower() not in launched.lower():
+        raise ProductVerdict(
+            "host-app-mismatch",
+            {
+                "drive": drive,
+                "sunshineLaunch": launched,
+                "expected": wanted,
+                "session": view.state(),
+            },
+        )
     context.record_channel("control-surface", "session-snapshot.json", view.pairs)
     return row, view
+
+
+def host_launch_failure(context: Context, detail: str = "") -> Exception:
+    view = context.session_snapshot_or_none()
+    if view is not None:
+        context.record_channel("control-surface", "session-after-launch.json", view.pairs)
+    if view is not None and (view.state_name() == "ended" or view.first("failure") is not None):
+        return ProductVerdict(
+            "launch-failed",
+            {
+                "session": view.state(),
+                "failure": view.first("failure"),
+                "detail": detail,
+                "sunshineLaunches": host_launches(context)[-2:],
+            },
+        )
+    return InstrumentFault(
+        "session-lost",
+        {
+            "scenario": context.scenario.number,
+            "detail": detail or "the session never reported streaming after the launch",
+        },
+    )
 
 
 def disconnect_session(context: Context, *, soft: bool = False) -> None:
@@ -1912,22 +2025,44 @@ def capture_audio(
 
 
 def ensure_host_tone(context: Context) -> dict[str, object]:
+    """The tone the current host app run plays, not one from an earlier run."""
     log = context.forensic()
-    for event in log["tones"]:
-        if event.get("action") == "start":
-            return {"hz": event.get("hz"), "source": "forensic-log", "wallMs": event.get("wallMs")}
+    launch_ms = (log.get("launch") or {}).get("wallMs")
+
+    def current() -> dict[str, object] | None:
+        log = context.forensic()
+        started = [
+            event
+            for event in log["tones"]
+            if event.get("action") == "start"
+            and (
+                not isinstance(launch_ms, (int, float))
+                or (
+                    isinstance(event.get("wallMs"), (int, float))
+                    and event["wallMs"] >= launch_ms
+                )
+            )
+        ]
+        if not started:
+            return None
+        event = started[-1]
+        return {"hz": event.get("hz"), "source": "forensic-log", "wallMs": event.get("wallMs")}
+
+    fresh = current()
+    if fresh is not None:
+        return fresh
     command = context.fixture("forensicToneCommand")
     if not isinstance(command, list) or not command:
         raise BlockedBy(
-            "the host forensic app plays no tone; start it with --tone or declare "
-            "fixtures.json forensicToneCommand"
+            "the host forensic app plays no tone for the current run; start it with "
+            "--tone or declare fixtures.json forensicToneCommand"
         )
     context.spawn([str(part) for part in command], "forensic-tone")
 
     def probe() -> dict[str, object] | None:
-        for event in context.forensic()["tones"]:
-            if event.get("action") == "start":
-                return {"hz": event.get("hz"), "source": "started-by-harness"}
+        value = current()
+        if value is not None:
+            return {**value, "source": "started-by-harness"}
         return None
 
     return context.wait("forensic-tone-start", FIXTURE_SECONDS, probe, context.scene, poll_interval_seconds=1.0)
@@ -2248,14 +2383,6 @@ def scenario_05_rolling_picture_source(context: Context) -> Outcome:
 def scenario_06_audio_output(context: Context) -> Outcome:
     # A fresh session launches a fresh host-side app instance, which is what
     # carries the pulsed tone cadence the discrimination below relies on.
-    try:
-        context.host_command(
-            ("pkill", "-f", "enchron-host/bin/host_forensic_patch"), verb="host-forensic-kill"
-        )
-    except InstrumentFault:
-        pass
-    disconnect_session(context, soft=True)
-    context.hold("fresh-session-settle", 2.0)
     row, view = ensure_streaming(context)
     tone = ensure_host_tone(context)
     context.record_channel("host-audio", "tone-cadence.json", tone)
@@ -2271,11 +2398,6 @@ def scenario_06_audio_output(context: Context) -> Outcome:
         "audio-flags.json",
         {"hostAudio": view.first("hostAudio"), "clientAudio": view.first("clientAudio")},
     )
-    if not streaming_report.get("tonePresent"):
-        raise ProductVerdict(
-            "tone-absent",
-            {"tone": tone, "report": streaming_report, "wav": str(streaming_wav)},
-        )
     if host_audio is not False or client_audio is not True:
         raise ProductVerdict(
             "audio-flags",
@@ -2285,12 +2407,14 @@ def scenario_06_audio_output(context: Context) -> Outcome:
     streaming_plateaus = tone_plateau_report(streaming_wav, float(tone.get("hz") or DEFAULT_TONE_HZ))
     context.record_channel("host-audio", "plateaus-streaming.json", streaming_plateaus)
 
-    # The headless simulator on this rig does not route app audio into the host's
-    # system mix (a sim-spawned 440 Hz tone measured inaudible), and the host app's
-    # direct playback shares the mix with any client copy, so the physical output
-    # of the client cannot be attributed from a host capture here. The client's
-    # decode-and-deliver chain is carried by the control surface instead: every
-    # decoded Opus frame must have reached the audio renderer with no drops.
+    # The headless simulator on this rig does not route client audio into the
+    # host's system mix (a sim-spawned 440 Hz tone measured inaudible), and the
+    # host app's direct playback shares that mix, so a host capture of a running
+    # session cannot attribute what it hears to the client. The client's own
+    # chain is carried by the control surface instead: every decoded Opus frame
+    # must have reached the audio renderer with no drops, at the frame rate the
+    # codec produces. Physical output of the client is verified on L2 only; the
+    # capture of the session is recorded for reference.
     audio_received = int(view.first("audio:received") or -1) if view.first("audio:received") is not None else None
     snapshot_final = context.session_snapshot_or_none()
     if snapshot_final is not None:
@@ -2317,6 +2441,23 @@ def scenario_06_audio_output(context: Context) -> Outcome:
         raise ProductVerdict(
             "audio-rate-too-low",
             {"enqueueRate": round(enqueue_rate, 1), "received": audio_received},
+        )
+    tone_events = [
+        event
+        for event in context.forensic()["tones"]
+        if isinstance(tone.get("wallMs"), (int, float))
+        and isinstance(event.get("wallMs"), (int, float))
+        and event["wallMs"] >= tone["wallMs"]
+    ]
+    context.record_channel(
+        "host-log",
+        "tone-events.json",
+        {"tone": tone, "events": tone_events[-6:]},
+    )
+    if not any(event.get("action") == "start" for event in tone_events):
+        raise ProductVerdict(
+            "host-tone-absent",
+            {"tone": tone, "events": tone_events[-6:], "forensic": context.forensic()["path"]},
         )
     context.record_channel(
         "control-surface",
@@ -2345,14 +2486,14 @@ def scenario_06_audio_output(context: Context) -> Outcome:
     return Outcome(
         PASSED,
         notes=(
-            f"capture of {streaming_report['seconds']}s carries {tone.get('hz')} Hz "
-            f"(ratio {streaming_report['toneRatio']}, rms {streaming_report['rmsDbfs']} dBFS); "
-            f"client chain received={audio_received} enqueued={audio_enqueued} "
+            f"host app played {tone.get('hz')} Hz from this launch ({len(tone_events)} tone "
+            f"event(s)); client chain received={audio_received} enqueued={audio_enqueued} "
             f"dropped={audio_dropped} (~{round(enqueue_rate, 1)} frames/s); "
-            f"hostAudio={host_audio}; clientAudio={client_audio}; "
-            "note: this headless simulator routes no app audio into the host system mix "
-            "(a sim-spawned tone measured inaudible), so the client's physical output is "
-            "verified on L2 only; the host-side plateau structure is recorded for reference"
+            f"hostAudio={host_audio}; clientAudio={client_audio}; the host mix carries the "
+            f"tone directly ({direct_report['toneRatio']} ratio after the disconnect) so the "
+            f"session capture ({streaming_report['toneRatio']} ratio) is reference only; "
+            "this headless simulator routes no client audio into the host system mix, so the "
+            "client's physical output is verified on L2 only"
         ),
     )
 
@@ -2526,6 +2667,7 @@ def scenario_09_network_interruption_recovery(context: Context) -> Outcome:
     )
     host_name = str(row["host"])
     try:
+        pair_host(context, host_name)
         launch_stream(context, host_name)
     except BlockedBy as error:
         raise BlockedBy(f"the forensic app could not be launched for the proxied host: {error.reason}") from None
@@ -2624,6 +2766,7 @@ def scenario_10_remote_session(context: Context) -> Outcome:
     except BlockedBy:
         launch_stream(context, row)
     view = context.session_snapshot()
+    context.record_channel("control-surface", "session-vs-remote.json", view.pairs)
     after = context.sunshine()
     starts_after = len(after["sessionStarts"])
     launches_after = len(after.get("appLaunches", []))
@@ -2633,11 +2776,21 @@ def scenario_10_remote_session(context: Context) -> Outcome:
         "sunshine-remote-session.json",
         {
             "sessionStarts": after["sessionStarts"],
+            "appLaunches": after["appLaunches"],
             "encoders": after["encoders"],
             "startsBefore": starts_before,
             "startsAfter": starts_after,
             "appLaunchesBefore": launches_before,
             "appLaunchesAfter": launches_after,
+        },
+    )
+    holder = context.background[-1] if context.background else None
+    context.record_channel(
+        "host-process",
+        "remote-session-holder.json",
+        {
+            "algorithm": "runner process table entry for the holder it started",
+            "alive": holder is not None and holder.poll() is None,
         },
     )
     if launches_after > launches_before:
@@ -2660,6 +2813,11 @@ def scenario_10_remote_session(context: Context) -> Outcome:
                 "encodersBefore": encoders_before,
                 "encodersAfter": encoders_after,
             },
+        )
+    if holder is not None and holder.poll() is not None:
+        raise ProductVerdict(
+            "remote-session-quit",
+            {"holder": "the remote session the client was not allowed to quit had exited"},
         )
     return Outcome(
         PASSED,
@@ -2828,20 +2986,7 @@ def restart_server_app(context: Context) -> None:
         )
     except InstrumentFault:
         pass
-
-    def free() -> dict[str, object] | None:
-        info = context.serverinfo()
-        if info.get("state") == "SUNSHINE_SERVER_FREE":
-            return {"state": info.get("state")}
-        return None
-
-    context.wait(
-        "host-free",
-        SESSION_END_SECONDS,
-        free,
-        lambda: [{"state": context.serverinfo().get("state")}],
-        poll_interval_seconds=2.0,
-    )
+    free_host(context)
 
 
 def negotiate_codec(context: Context, codec: str) -> dict[str, object]:
@@ -3115,6 +3260,20 @@ def scenario_18_resource_release(context: Context) -> Outcome:
     context.require_probe_health()
     disconnect_session(context, soft=True)
     ended_view = wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
+
+    def teardown_line() -> dict[str, object] | None:
+        # The coordinator writes the session-end line once teardown completes,
+        # which trails the window closing by the backend report grace.
+        lines = [line for line in context.probe_lines() if "session end" in line]
+        return {"lines": lines} if lines else None
+
+    context.wait(
+        "session-end-probe",
+        SESSION_END_SECONDS,
+        teardown_line,
+        lambda: [{"probe": str(context.artifact("stream-session-probe.log"))}],
+        poll_interval_seconds=2.0,
+    )
     lines = probe_evidence(
         context, "release-probe.log", ("input release", "audio stop", "session end")
     )

@@ -238,6 +238,14 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                 recovery: .retry,
                 upstreamDetail: detail
             )
+        case .hostOccupied(let detail):
+            StreamFailure(
+                stage: .launch,
+                kind: .hostBusy,
+                message: "主机正被其他会话占用，未启动请求的应用",
+                recovery: .repickApplication,
+                upstreamDetail: detail
+            )
         case .launchRejected(let detail):
             StreamFailure(
                 stage: .launch,

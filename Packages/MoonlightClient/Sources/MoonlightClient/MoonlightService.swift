@@ -122,10 +122,27 @@ public final class MoonlightService: @unchecked Sendable {
             let busy = summary.info.state.hasSuffix("_SERVER_BUSY")
             let resume: Bool
             switch preference {
-            case .automatic, .launchOnly:
-                resume = busy && preference != .launchOnly
+            case .launchOnly:
+                resume = false
             case .resumeOnly:
                 resume = true
+            case .automatic:
+                if busy {
+                    // The host runs somebody's app. Resuming it would stream a
+                    // different app than the one asked for, so only the running
+                    // app itself is resumed; anything else is a conflict the
+                    // caller reports without quitting the other session.
+                    let running = summary.info.currentGame ?? ""
+                    guard !running.isEmpty, running == request.appID else {
+                        throw MoonlightClientError.hostOccupied(
+                            "host runs app \(running.isEmpty ? "unknown" : running) while "
+                                + "\(request.appName) (\(request.appID)) was requested"
+                        )
+                    }
+                    resume = true
+                } else {
+                    resume = false
+                }
             }
             if preference == .resumeOnly, !busy {
                 throw MoonlightClientError.hostBusy("no existing session to resume")
@@ -235,7 +252,7 @@ public final class MoonlightService: @unchecked Sendable {
     static func manager(address: MoonlightHostAddress, serverCert: Data?) throws -> MLCHttpManager {
         guard let manager = MLCHttpManager(
             address: address.addressPortString,
-            httpsPort: 0,
+            httpsPort: address.httpsPort,
             serverCert: serverCert
         ) else {
             throw MoonlightClientError.unreachable("HTTP manager could not be created")
@@ -276,7 +293,7 @@ public final class MoonlightService: @unchecked Sendable {
         let offset = address.portOffset
         let httpsPort = offset == 0
             ? record.httpsPort
-            : UInt16(clamping: Int(record.httpsPort) + offset)
+            : address.httpsPort
 
         let info = MoonlightServerInfo(
             name: record.name ?? "",

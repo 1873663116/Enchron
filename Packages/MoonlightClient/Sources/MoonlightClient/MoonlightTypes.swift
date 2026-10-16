@@ -14,6 +14,12 @@ public struct MoonlightHostAddress: Hashable, Sendable {
 
     public var portOffset: Int { Int(portBase) - Int(MoonlightHostAddress.defaultPortBase) }
 
+    /// The HTTPS service of the same port family. Zero means the family runs on
+    /// the default base, where the host itself advertises the port.
+    public var httpsPort: UInt16 {
+        portOffset == 0 ? 0 : UInt16(clamping: Int(portBase) - 5)
+    }
+
     public var addressPortString: String {
         host.contains(":") ? "[\(host)]:\(portBase)" : "\(host):\(portBase)"
     }
@@ -126,6 +132,7 @@ public enum MoonlightClientError: Error, Sendable {
     case unreachable(String)
     case notPaired
     case hostBusy(String)
+    case hostOccupied(String)
     case launchRejected(String)
     case sessionMissing
     case cancelled

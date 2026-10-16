@@ -248,6 +248,7 @@ class TcpConnection:
         self.delayed_chunks = 0
         self.delay_ms_total = 0.0
         self.rtsp_buffer = bytearray()
+        self.rtsp_plaintext = None
         self.logged_rewrites = set()
         self.logged_skips = set()
 
@@ -640,7 +641,7 @@ class Proxy:
         while not self._stop.is_set() and any(pump.is_alive() for pump in pumps):
             for pump in pumps:
                 pump.join(timeout=TCP_PUMP_POLL_SECONDS * 4)
-        if rtsp_rewrite_active(offset, self.offset_delta):
+        if rtsp_rewrite_active(offset, self.offset_delta) and connection.rtsp_plaintext is not False:
             self._flush_rtsp_tail(connection)
         connection.close()
         with self._lock:
@@ -696,7 +697,21 @@ class Proxy:
                 except OSError:
                     pass
                 return
-            if rewrite:
+            if direction == "client_to_upstream" and connection.rtsp_plaintext is None:
+                connection.rtsp_plaintext = data[:8].startswith(b"OPTIONS ") or data[:4] == b"RTSP"
+                if not connection.rtsp_plaintext:
+                    # Sunshine advertises rtspenc:// for clients that hold a
+                    # session key; that stream is framed binary, so the
+                    # line-oriented port rewrite would hold it forever. Relay it
+                    # untouched; the client derives its remote ports from the
+                    # address family instead.
+                    self.log(
+                        "rtsp_opaque",
+                        id=connection.id,
+                        port=connection.listen_port,
+                        offset=connection.offset,
+                    )
+            if rewrite and connection.rtsp_plaintext is not False:
                 data = self._rewrite_rtsp_chunk(connection, data)
                 if not data:
                     continue
@@ -982,6 +997,12 @@ def rtsp_client_exchange(port, request, timeout):
         return data
 
 
+def framed_client_exchange(port, request, timeout, expected_bytes):
+    with socket.create_connection((LOOPBACK, port), timeout=timeout) as sock:
+        sock.sendall(request)
+        return receive_exactly(sock, expected_bytes, timeout)
+
+
 class TcpEchoServer:
     def __init__(self, port):
         self.listener = build_listener(port)
@@ -1063,6 +1084,15 @@ class RtspFixtureServer:
                     return
                 if not request:
                     return
+                if not (request[:8].startswith(b"OPTIONS ") or request[:4] == b"RTSP"):
+                    # The encrypted dialect (rtspenc) is framed binary: answer
+                    # with framed binary that carries the same port marker the
+                    # plaintext response uses, so a rewrite would be visible.
+                    try:
+                        conn.sendall(BINARY_RTSP_FIXTURE_RESPONSE)
+                    except OSError:
+                        return
+                    continue
                 payload = self.small_response if b"SMALL" in request else self.response
                 try:
                     if b"SPLIT" in request:
@@ -1172,6 +1202,10 @@ def pick_rtsp_base(rng, delta):
 RTSP_TEST_DELTA = 10000
 RTSP_FIXTURE_RESPONSE = b"RTSP/1.0 200 OK\r\nTransport: unicast;server_port=47998-47999;client_port=12345-12346\r\n\r\n"
 RTSP_FIXTURE_SMALL_RESPONSE = b"RTSP/1.0 200 OK\r\nTransport: unicast;server_port=4798-4799;client_port=12345-12346\r\n\r\n"
+BINARY_RTSP_BODY = b"server_port=47998-47999;cipher"
+BINARY_RTSP_FIXTURE_RESPONSE = (
+    len(BINARY_RTSP_BODY).to_bytes(4, "big") + b"\x00\x00\x00\x01" + BINARY_RTSP_BODY
+)
 
 
 def run_self_test():
@@ -1370,12 +1404,41 @@ def run_self_test():
                 raise AssertionError("rtsp_rewrite_skipped event missing from the RTSP proxy log")
             return f"server_port 47998-47999 -> 57998-57999, client_port untouched, width skip logged"
 
+        def test_rtsp_opaque():
+            request = bytes(range(120))
+            response = framed_client_exchange(
+                rtsp_upstream_base + RTSP_TEST_DELTA + RTSP_OFFSET,
+                request,
+                2.0,
+                len(BINARY_RTSP_FIXTURE_RESPONSE),
+            )
+            if response != BINARY_RTSP_FIXTURE_RESPONSE:
+                raise AssertionError(
+                    "framed (rtspenc) response was altered: "
+                    f"{response!r} != {BINARY_RTSP_FIXTURE_RESPONSE!r}"
+                )
+            events = [json.loads(line) for line in open(rtsp_log_path, encoding="utf-8")]
+            if not any(event["event"] == "rtsp_opaque" for event in events):
+                raise AssertionError("rtsp_opaque event missing from the RTSP proxy log")
+            plaintext = rtsp_client_exchange(
+                rtsp_upstream_base + RTSP_TEST_DELTA + RTSP_OFFSET, b"OPTIONS * RTSP/1.0\r\n\r\n", 2.0
+            )
+            expected = RTSP_FIXTURE_RESPONSE.replace(
+                b"server_port=47998-47999;", b"server_port=57998-57999;"
+            )
+            if plaintext != expected:
+                raise AssertionError(
+                    f"plaintext RTSP stopped being rewritten after a framed session: {plaintext!r}"
+                )
+            return f"{len(request)}B frame relayed byte-exactly, plaintext rewriting still active"
+
         check("pass mode forwards TCP and UDP byte-exactly", test_pass)
         check("udp_drop=1.0 loses all UDP, TCP survives", test_drop)
         check("udp_delay_ms=200 delays the echo", test_delay)
         check("blackhole tcp=true, udp=false times out TCP only", test_blackhole)
         check("disconnect closes an established TCP connection", test_disconnect)
         check(f"rtsp server_port rewriting at offset +{RTSP_TEST_DELTA}", test_rtsp_rewrite)
+        check("framed rtspenc traffic is relayed without rewriting", test_rtsp_opaque)
     finally:
         proxy.shutdown("self-test")
         rtsp_proxy.shutdown("self-test")
