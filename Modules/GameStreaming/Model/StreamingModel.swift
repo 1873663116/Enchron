@@ -120,8 +120,13 @@ public final class StreamingModel {
         }
 
         let userProvidedName = name?.isEmpty == false
+        // The same physical host reached through a different port route (for
+        // example a loopback proxy) is a distinct entry with its own pairing.
+        let hostID = address.portBase == HostAddress.defaultPortBase
+            ? info.uniqueID
+            : "\(info.uniqueID)@\(address.portBase)"
         let stored = StoredHost(
-            id: info.uniqueID,
+            id: hostID,
             name: userProvidedName ? name! : info.name,
             address: address,
             serverCert: nil,

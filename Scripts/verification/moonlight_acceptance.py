@@ -1465,35 +1465,36 @@ def pair_host(context: Context, row: str) -> dict[str, object]:
         )["pin"]
 
     submitted = None
-    for attempt in range(3):
+    last_reason = ""
+    for attempt in range(5):
         try:
             submitted = submit_pin(context, pairing_id, str(pin))
             break
         except BlockedBy as error:
-            status = context.identifier_value("Stream-Pairing-status") or ""
-            if "failed" in status and context.matched_element("Stream-Pairing-retry") is not None:
-                context.note(f"pairing attempt {attempt + 1} failed host-side; retrying")
+            last_reason = error.reason
+            context.note(f"pairing attempt {attempt + 1} did not register; retrying")
+            context.hold(f"pairing-retry-{attempt}", 4.0)
+            if context.matched_element("Stream-Pairing-retry") is not None:
                 context.tap("Stream-Pairing-retry")
-                context.hold(f"pairing-retry-{attempt}", 3.0)
-                pin = None
-                start_pairing()
-                if pin is None:
-                    pin = context.wait(
-                        "Stream-Pairing-PIN",
-                        FIXTURE_SECONDS,
-                        lambda: (
-                            {"pin": value}
-                            if (value := context.identifier_value("Stream-Pairing-PIN"))
-                            and re.fullmatch(r"[0-9]{4}", value)
-                            else None
-                        ),
-                        lambda: [{"value": context.identifier_value("Stream-Pairing-PIN")}],
-                        poll_interval_seconds=1.0,
-                    )["pin"]
-                continue
-            raise BlockedBy(f"pairing could not start ({error.reason})")
+                context.hold(f"pairing-retry-tap-{attempt}", 3.0)
+            pin = None
+            pairing_id = None
+            start_pairing()
+            if pin is None:
+                pin = context.wait(
+                    "Stream-Pairing-PIN",
+                    FIXTURE_SECONDS,
+                    lambda: (
+                        {"pin": value}
+                        if (value := context.identifier_value("Stream-Pairing-PIN"))
+                        and re.fullmatch(r"[0-9]{4}", value)
+                        else None
+                    ),
+                    lambda: [{"value": context.identifier_value("Stream-Pairing-PIN")}],
+                    poll_interval_seconds=1.0,
+                )["pin"]
     if submitted is None:
-        raise BlockedBy("pairing failed on every attempt")
+        raise BlockedBy(f"pairing failed on every attempt ({last_reason})")
 
     def pairing_done() -> dict[str, object] | None:
         # The pairing page dismisses itself once the host accepts, so the row's
