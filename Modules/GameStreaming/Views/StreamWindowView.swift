@@ -69,6 +69,15 @@ public struct StreamWindowView: View {
         .sheet(isPresented: $degradeExplanationVisible) {
             StreamDegradeExplanation(snapshot: model.session)
         }
+        .overlay(alignment: .bottomTrailing) {
+            Text(model.session?.state.readableValue ?? "unavailable")
+                .font(DesignTokens.Typography.monospacedDetail)
+                .opacity(0.001)
+                .frame(width: 1, height: 1)
+                .accessibilityIdentifier("Stream-Session-snapshot")
+                .accessibilityValue(model.session?.readableValue ?? "unavailable")
+                .allowsHitTesting(false)
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active {
                 model.releaseInputs(cause: "background")
