@@ -728,13 +728,18 @@ def driver_interrupt_recover(engine, context, run: Path, unit_id: str) -> tuple[
         raise engine.BlockedBy("09.1 的代理控制文件不存在；先在 09.1 里制造中断")
     host_name = str(read_unit_payload(run, "09.1", "proxy-host.json").get("host", ""))
     engine.proxy_control(control, "pass")
-    try:
-        if host_name:
+    resumed = False
+    if host_name:
+        try:
             context.app_verb("streamResume", host=host_name)
+            resumed = True
+        except Exception as error:
+            context.note(f"resume 未被接受，改走启动：{error}")
+    if resumed == False:
+        if host_name:
+            engine.launch_stream(context, host_name)
         else:
-            raise engine.BlockedBy("09.1 未记录代理主机名")
-    except engine.BlockedBy:
-        context.tap("Stream-Session-reconnect")
+            context.tap("Stream-Session-reconnect")
     outcome = observe_wait(
         engine,
         context,
