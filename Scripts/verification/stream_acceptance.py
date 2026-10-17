@@ -243,12 +243,12 @@ def raw_entry(kind: str, relative: str, payload: object) -> dict[str, object]:
 
 
 def write_raws(run: Path, unit_id: str, entries: list[dict[str, object]]) -> list[dict[str, str]]:
-    directory = unit_directory(run, unit_id)
+    directory = unit_directory(run, unit_id) / "raw"
     recorded: list[dict[str, str]] = []
     for entry in entries:
-        target = directory / str(entry["path"])
-        write_json(target, {"class": entry["class"], "payload": entry["payload"]})
-        recorded.append({"class": str(entry["class"]), "path": str(entry["path"])})
+        name = Path(str(entry["path"])).name
+        write_json(directory / name, {"class": entry["class"], "payload": entry["payload"]})
+        recorded.append({"class": str(entry["class"]), "path": f"raw/{name}"})
     return recorded
 
 
