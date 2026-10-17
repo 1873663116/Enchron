@@ -412,10 +412,15 @@ def driver_input_pointer(engine, context, run: Path, unit_id: str) -> tuple[list
             float(frame.get("x", 0.0)) + target[0] * float(frame["width"]),
             float(frame.get("y", 0.0)) + target[1] * float(frame["height"]),
         )
+    view = context.session_snapshot_or_none()
+    before = view.inputs() if view is not None else {}
     engine.sent_pointer(context, *target)
     context.hold("pointer-settle", 1.0)
     positions = [tuple(value) for value in engine.input_positions(context.forensic())]
+    after_view = context.session_snapshot_or_none()
+    after = after_view.inputs() if after_view is not None else {}
     entries = [
+        raw_entry("app", "pointer-counters.json", {"before": before, "after": after, "target": list(target)}),
         raw_entry(
             "host-forensic",
             "pointer-delivery.json",
