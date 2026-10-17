@@ -677,7 +677,7 @@ def fault_detail(error: Exception) -> str:
     return detail
 
 
-def record_failure(
+def record_failure(run: Path, unit_id: str, kind: str, detail: str, context) -> None:
     notes = []
     try:
         notes = [str(note) for note in context.notes]
