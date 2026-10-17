@@ -668,7 +668,16 @@ def unmet_needs(run: Path, unit: dict[str, object]) -> list[str]:
     return [str(need) for need in unit.get("needs", []) if verdict_of(run, str(need)) is None]
 
 
-def record_failure(run: Path, unit_id: str, kind: str, detail: str, context) -> None:
+def fault_detail(error: Exception) -> str:
+    detail = f"{type(error).__name__}: {error}"
+    evidence = getattr(error, "evidence", None)
+    diagnosis = evidence.get("diagnosis") if isinstance(evidence, dict) else None
+    if diagnosis:
+        detail = f"{detail}｜诊断：{diagnosis}"
+    return detail
+
+
+def record_failure(
     notes = []
     try:
         notes = [str(note) for note in context.notes]
@@ -739,8 +748,9 @@ def cmd_drive(engine_module, args) -> int:
         print(f"REFUSED: {refusal}")
         return 2
     except Exception as error:
-        record_failure(run, unit_id, "failed", f"{type(error).__name__}: {error}", context)
-        print(f"DRIVE-FAILED {unit_id}: {type(error).__name__}: {error}")
+        detail = fault_detail(error)
+        record_failure(run, unit_id, "failed", detail, context)
+        print(f"DRIVE-FAILED {unit_id}: {detail}")
         return 1
     if operator_aborted():
         print("ABORTED: 操作者按下 ESC 中止了本次运行；该单元的观察不完整，不写判决")
