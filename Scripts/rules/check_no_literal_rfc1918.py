@@ -66,7 +66,7 @@ PORT_PATTERN = re.compile(r":\s*\d{4,5}\b")
 IPV4_LITERAL = re.compile(r"(?<![\w.-])(\d{1,3}(?:\.\d{1,3}){3})(?![\w.-])")
 TAILNET_NAME = re.compile(r"\b[A-Za-z0-9][A-Za-z0-9-]*(?:\.[A-Za-z0-9-]+)*\.ts\.net\b")
 APPLE_DEVICE_ID = re.compile(r"\b0000[0-9A-Fa-f]{4}-([0-9A-Fa-f]{16})\b")
-VERSION_CONTEXT = re.compile(r"\b(?:version|release|revision|tag)\b[^0-9A-Za-z,;/|()\[\]<>-]{0,12}$", re.IGNORECASE)
+VERSION_CONTEXT = re.compile(r"\b(?:version|release|revision|tag|gfe)\b[^0-9A-Za-z,;/|()\[\]<>-]{0,12}$", re.IGNORECASE)
 URL_SCHEME = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]*://")
 PLACEHOLDER_DIGIT_COUNT = 3
 
