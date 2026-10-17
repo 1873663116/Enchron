@@ -998,6 +998,9 @@ final class TestCommandChannel {
         case "streamDisconnect":
             streaming.disconnect()
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamReleaseInput":
+            streaming.releaseInputs(cause: "control-hit")
+            return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "streamSnapshot":
             return Response(
                 id: request.id,
