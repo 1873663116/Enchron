@@ -345,14 +345,31 @@ def driver_input_type_string(engine, context, run: Path, unit_id: str) -> tuple[
     text = "enc" + os.urandom(3).hex()
     channel = engine.send_text(context, text)
     after = context.session_snapshot().inputs()
+    delivered: list[str] = []
+    for _ in range(10):
+        report = context.forensic()
+        delivered = [str(value) for value in engine.input_strings(report) if text in str(value)]
+        if delivered:
+            break
+        context.hold("host-echo-wait", 1.5)
     entries = [
         raw_entry(
             "app",
             "input-counters.json",
             {"text": text, "before": before, "after": after, "channel": channel},
-        )
+        ),
+        raw_entry(
+            "host-forensic",
+            "host-input-strings.json",
+            {
+                "path": str(context.forensic_path()),
+                "expected": text,
+                "delivered": delivered,
+                "strings": [str(value) for value in engine.input_strings(context.forensic())][-20:],
+            },
+        ),
     ]
-    return entries, f"输入 {text}；计数 {before} -> {after}（通道 {channel}）"
+    return entries, f"输入 {text}；计数 {before} -> {after}（通道 {channel}）；主机收到 {len(delivered)} 条"
 
 
 def driver_input_host_string(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:

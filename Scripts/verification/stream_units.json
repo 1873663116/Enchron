@@ -299,27 +299,14 @@
     {
       "id": "07.1",
       "s": "07",
-      "t": "键入唯一字符串",
+      "t": "键入并确认主机收到",
       "pre": "session=streaming",
       "needs": [],
       "cls": [
-        "app"
-      ],
-      "driver": "input.type-string",
-      "x": false
-    },
-    {
-      "id": "07.2",
-      "s": "07",
-      "t": "主机收到字符串",
-      "pre": "session=streaming",
-      "needs": [
-        "07.1"
-      ],
-      "cls": [
+        "app",
         "host-forensic"
       ],
-      "driver": "input.host-string",
+      "driver": "input.type-string",
       "x": false
     },
     {
