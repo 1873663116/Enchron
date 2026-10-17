@@ -204,30 +204,26 @@
       "id": "04.2",
       "s": "04",
       "t": "启动校验",
-      "pre": "session=streaming",
-      "needs": [
-        "04.1"
-      ],
+      "pre": "host=paired",
+      "needs": [],
       "cls": [
         "app",
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "launch.validate",
       "x": false
     },
     {
       "id": "04.3",
       "s": "04",
       "t": "首帧来源",
-      "pre": "session=streaming",
-      "needs": [
-        "04.1"
-      ],
+      "pre": "host=paired",
+      "needs": [],
       "cls": [
         "pixel",
         "host-forensic"
       ],
-      "driver": "pending",
+      "driver": "first.frame",
       "x": false
     },
     {
@@ -328,58 +324,62 @@
       "id": "08.1",
       "s": "08",
       "t": "进入捕获",
-      "pre": "session=streaming",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "probe",
         "host-forensic"
       ],
-      "driver": "pending",
+      "driver": "capture.enter",
       "x": false
     },
     {
       "id": "08.2",
       "s": "08",
       "t": "点 Dock",
-      "pre": "session=streaming",
-      "needs": [],
+      "pre": "host=paired",
+      "needs": [
+        "08.1"
+      ],
       "cls": [
         "pixel"
       ],
-      "driver": "pending",
+      "driver": "capture.dock",
       "x": false
     },
     {
       "id": "08.3",
       "s": "08",
       "t": "点返回",
-      "pre": "session=streaming",
-      "needs": [],
+      "pre": "host=paired",
+      "needs": [
+        "08.2"
+      ],
       "cls": [
         "probe",
         "app"
       ],
-      "driver": "pending",
+      "driver": "capture.back",
       "x": false
     },
     {
       "id": "09.1",
       "s": "09",
       "t": "注入中断",
-      "pre": "session=streaming",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app",
         "proxy"
       ],
-      "driver": "pending",
+      "driver": "interrupt.inject",
       "x": true
     },
     {
       "id": "09.2",
       "s": "09",
       "t": "恢复",
-      "pre": "session=streaming",
+      "pre": "host=paired",
       "needs": [
         "09.1"
       ],
@@ -387,26 +387,26 @@
         "app",
         "pixel"
       ],
-      "driver": "pending",
+      "driver": "interrupt.recover",
       "x": false
     },
     {
       "id": "10.1",
       "s": "10",
       "t": "制造占用",
-      "pre": "host=free",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "remote.hold",
       "x": true
     },
     {
       "id": "10.2",
       "s": "10",
       "t": "尝试启动",
-      "pre": "host=busy",
+      "pre": "host=paired",
       "needs": [
         "10.1"
       ],
@@ -414,47 +414,47 @@
         "app",
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "remote.start",
       "x": false
     },
     {
       "id": "10.3",
       "s": "10",
       "t": "释放",
-      "pre": "host=busy",
+      "pre": "host=paired",
       "needs": [
-        "10.1"
+        "10.2"
       ],
       "cls": [
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "remote.release",
       "x": false
     },
     {
       "id": "11.1",
       "s": "11",
       "t": "结束会话",
-      "pre": "session=streaming",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app"
       ],
-      "driver": "pending",
+      "driver": "quit.end",
       "x": false
     },
     {
       "id": "11.2",
       "s": "11",
       "t": "主机进程仍在",
-      "pre": "session=ended",
+      "pre": "host=paired",
       "needs": [
         "11.1"
       ],
       "cls": [
         "host-process"
       ],
-      "driver": "pending",
+      "driver": "quit.survive",
       "x": false
     },
     {
@@ -572,14 +572,14 @@
       "id": "14.2",
       "s": "14",
       "t": "主机采纳",
-      "pre": "session=streaming",
+      "pre": "host=paired",
       "needs": [
         "14.1"
       ],
       "cls": [
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "bitrate.host",
       "x": false
     },
     {
@@ -698,14 +698,14 @@
       "id": "17.2",
       "s": "17",
       "t": "主机显示模式不变",
-      "pre": "session=streaming",
+      "pre": "host=paired",
       "needs": [
         "17.1"
       ],
       "cls": [
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "display.mode",
       "x": false
     },
     {
@@ -725,14 +725,12 @@
       "id": "18.2",
       "s": "18",
       "t": "释放核对",
-      "pre": "session=ended",
-      "needs": [
-        "18.1"
-      ],
+      "pre": "host=paired",
+      "needs": [],
       "cls": [
         "probe"
       ],
-      "driver": "pending",
+      "driver": "release.check",
       "x": false
     }
   ]

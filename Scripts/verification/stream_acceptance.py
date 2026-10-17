@@ -565,7 +565,435 @@ def driver_degrade_notice(engine, context, run: Path, unit_id: str) -> tuple[lis
     return entries, f"降级说明读回 {len(value)} 字：{value[:60]}"
 
 
-def driver_settings_apply(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+def observe_wait(engine, context, name: str, seconds: float, probe, evidence=None) -> dict[str, object]:
+    try:
+        found = context.wait(name, seconds, probe, evidence or (lambda: []), poll_interval_seconds=2.0)
+        return {"found": found}
+    except engine.InstrumentFault as fault:
+        return {"found": None, "waitFault": str(fault)}
+
+
+def probe_lines_containing(context, needles) -> list[str]:
+    lines = [str(line) for line in context.probe_lines()]
+    matches = [line for line in lines if any(needle in line for needle in needles)]
+    return matches[-40:] if matches else lines[-20:]
+
+
+def read_unit_payload(run: Path, unit_id: str, name: str) -> dict[str, object]:
+    source = unit_directory(run, unit_id) / "raw" / name
+    if not source.is_file():
+        return {}
+    document = json.loads(source.read_text(encoding="utf-8"))
+    payload = document.get("payload")
+    return payload if isinstance(payload, dict) else {}
+
+
+def driver_capture_enter(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    engine.ensure_streaming(context)
+    engine.sent_pointer(context, *engine.POINTER_TARGET)
+
+    def capture_probe():
+        current = context.session_snapshot_or_none()
+        if current is None:
+            return None
+        mouse = current.inputs().get("mouse")
+        if isinstance(mouse, (int, float)) and mouse > 0:
+            return {"mouse": mouse, "session": current.state()}
+        return None
+
+    outcome = observe_wait(engine, context, "input-capture-active", engine.FIXTURE_SECONDS, capture_probe)
+    entries = [
+        raw_entry("app", "input-capture.json", outcome),
+        raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-30:]}),
+    ]
+    return entries, f"输入捕获观察：{outcome}"
+
+
+def driver_capture_dock(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    view = context.session_snapshot_or_none()
+    before_state = view.state() if view is not None else None
+    before_pairs = view.pairs if view is not None else None
+    dock = context.matched_element("Stream-Session-dock")
+    record = {
+        "dockPresent": dock is not None,
+        "dockHittable": bool(dock.get("isHittable")) if isinstance(dock, dict) else False,
+        "before": before_state,
+    }
+    if dock is None:
+        entries = [
+            raw_entry("app", "dock.json", {**record, "tapped": False}),
+            raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-20:]}),
+        ]
+        return entries, "输入捕获进行中 Dock 不存在，未点击（等判决）"
+    context.tap("Stream-Session-dock")
+
+    def dock_probe():
+        current = context.session_snapshot_or_none()
+        if current is None:
+            return None
+        if before_state is not None and current.state() != before_state:
+            return {"session": current.state(), "before": before_state}
+        if before_pairs is not None and current.pairs != before_pairs:
+            return {"session": current.state(), "before": before_state}
+        return None
+
+    outcome = observe_wait(engine, context, "dock-delivery", engine.FIXTURE_SECONDS, dock_probe)
+    entries = [
+        raw_entry("app", "dock.json", {**record, "tapped": True, "delivery": outcome}),
+        raw_entry(
+            "probe",
+            "probe-lines.json",
+            {"lines": probe_lines_containing(context, ("input release", "session end", "audio stop"))},
+        ),
+    ]
+    return entries, f"Dock 点击后观察：{outcome}"
+
+
+def driver_capture_back(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    context.tap("Stream-Session-back")
+    stages: list[dict[str, object]] = []
+    try:
+        ended = engine.wait_for_state(context, "ended", engine.FIXTURE_SECONDS, "ended-after-back")
+        stages.append({"tap": 1, "state": ended.state()})
+    except (engine.InstrumentFault, engine.ProductVerdict) as error:
+        stages.append({"tap": 1, "fault": str(error)})
+        context.hold("back-retry-settle", 3.0)
+        context.tap("Stream-Session-back")
+        try:
+            ended = engine.wait_for_state(context, "ended", engine.SESSION_END_SECONDS, "ended-after-controls")
+            stages.append({"tap": 2, "state": ended.state()})
+        except (engine.InstrumentFault, engine.ProductVerdict) as retry:
+            stages.append({"tap": 2, "fault": str(retry)})
+    entries = [
+        raw_entry("app", "ended.json", {"stages": stages}),
+        raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-30:]}),
+    ]
+    return entries, f"返回键后状态：{stages}"
+
+
+def driver_interrupt_inject(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    local = context.session_snapshot_or_none()
+    if local is not None and local.state_name() in ("connecting", "streaming", "stopping"):
+        engine.disconnect_session(context, soft=True)
+        context.hold("local-session-settle", 3.0)
+    control, _ = engine.start_proxy(context)
+    proxied = f"127.0.0.1:{engine.DEFAULT_PROXY_LISTEN_BASE}"
+    name = context.fixture("hostName")
+    extra = {"name": f"{name} (proxy)"} if isinstance(name, str) and name else {}
+    document = context.app_verb("streamAddHost", address=proxied, **extra)
+    row = context.wait(
+        "Stream-HostRow-proxy",
+        engine.STREAM_CONNECT_SECONDS,
+        lambda: (
+            {"host": rows[-1]}
+            if (rows := [item for item in engine.discover_host_rows(context) if "proxy" in item.lower()])
+            else None
+        ),
+        lambda: [{"hosts": engine.discover_host_rows(context)}],
+        poll_interval_seconds=2.0,
+    )
+    host_name = str(row["host"])
+    engine.pair_host(context, host_name)
+    engine.launch_stream(context, host_name)
+    engine.wait_for_state(context, "streaming", engine.STREAM_CONNECT_SECONDS, "streaming-through-proxy")
+    before = context.session_snapshot()
+    engine.proxy_control(control, "blackhole")
+    started = engine.datetime.now(engine.timezone.utc)
+    outcome = observe_wait(
+        engine,
+        context,
+        "interrupted",
+        engine.STREAM_CONNECT_SECONDS,
+        lambda: (
+            {"session": view.state(), "detail": view.state_detail()}
+            if (view := context.session_snapshot_or_none()) is not None and view.state_name() == "interrupted"
+            else None
+        ),
+    )
+    elapsed = (engine.datetime.now(engine.timezone.utc) - started).total_seconds()
+    if elapsed < engine.BLACKHOLE_SECONDS:
+        context.hold("blackhole-remainder", engine.BLACKHOLE_SECONDS - elapsed)
+    entries = [
+        raw_entry("app", "interrupted.json", {"host": host_name, "before": before.state(), "observed": outcome, "addHost": document}),
+        raw_entry("app", "proxy-host.json", {"host": host_name}),
+        raw_entry("host-sunshine", "sunshine-tail.log", {"path": str(context.sunshine_path()), "lines": tail_lines(context.sunshine_path(), 60)}),
+    ]
+    return entries, f"黑洞中断观察：{outcome}"
+
+
+def driver_interrupt_recover(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    control = unit_directory(run, "09.1") / "artifacts" / "proxy-control.json"
+    if not control.is_file():
+        raise engine.BlockedBy("09.1 的代理控制文件不存在；先在 09.1 里制造中断")
+    host_name = str(read_unit_payload(run, "09.1", "proxy-host.json").get("host", ""))
+    engine.proxy_control(control, "pass")
+    try:
+        if host_name:
+            context.app_verb("streamResume", host=host_name)
+        else:
+            raise engine.BlockedBy("09.1 未记录代理主机名")
+    except engine.BlockedBy:
+        context.tap("Stream-Session-reconnect")
+    outcome = observe_wait(
+        engine,
+        context,
+        "streaming-after-recovery",
+        engine.STREAM_CONNECT_SECONDS,
+        lambda: (
+            {"state": view.state_name()}
+            if (view := context.session_snapshot_or_none()) is not None and view.state_name() == "streaming"
+            else None
+        ),
+    )
+    screenshot, rgb = context.capture("after-recovery")
+    target = unit_directory(run, unit_id) / "raw" / "after-recovery.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(screenshot.read_bytes())
+    sunshine = context.sunshine()
+    entries = [
+        raw_entry("app", "recovered.json", {"host": host_name, "observed": outcome}),
+        raw_entry("host-sunshine", "sunshine-session-lines.json", {"sessionStarts": sunshine["sessionStarts"], "sessionEnds": sunshine["sessionEnds"], "encoders": sunshine["encoders"]}),
+        {"class": "pixel", "path": "after-recovery.png", "file": str(target), "payload": {"rgb": list(rgb)}},
+    ]
+    return entries, f"恢复观察：{outcome}；像素 {rgb}"
+
+
+def driver_remote_hold(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    local = context.session_snapshot_or_none()
+    if local is not None and local.state_name() in ("connecting", "streaming", "stopping"):
+        engine.disconnect_session(context, soft=True)
+        context.hold("local-session-settle", 3.0)
+    engine.free_host(context)
+    info = context.serverinfo()
+    state = str(info.get("state", ""))
+    current_game = str(info.get("currentgame", "0"))
+    entries = [raw_entry("host-sunshine", "serverinfo-before.json", {"state": state, "currentgame": current_game})]
+    holder_command = context.fixture("remoteSessionCommand")
+    if not (state == "SUNSHINE_SERVER_FREE" or current_game == "0"):
+        entries.append(raw_entry("host-process", "holder.json", {"spawned": False, "state": state, "currentgame": current_game}))
+        return entries, f"主机已被占用（{state}, currentgame={current_game}），未另行制造占用"
+    if not isinstance(holder_command, list) or not holder_command:
+        raise engine.BlockedBy("主机空闲且 fixtures 未声明 remoteSessionCommand，无法无人值守地制造占用")
+    context.spawn([str(part) for part in holder_command], "remote-session-holder")
+    pattern = Path(str(holder_command[0])).name
+    busy = observe_wait(
+        engine,
+        context,
+        "host-busy",
+        engine.STREAM_CONNECT_SECONDS,
+        lambda: ({"state": current.get("state")} if (current := context.serverinfo()).get("state", "").endswith("_SERVER_BUSY") else None),
+    )
+    after = context.serverinfo()
+    process = engine.host_process_running(context, None, pattern)
+    entries.extend(
+        [
+            raw_entry("host-sunshine", "serverinfo-held.json", {"state": after.get("state"), "currentgame": after.get("currentgame"), "observed": busy}),
+            raw_entry("host-process", "holder.json", {"spawned": True, "command": [str(part) for part in holder_command], "pattern": pattern, "running": process}),
+        ]
+    )
+    return entries, f"占用制造观察：{busy}"
+
+
+def driver_remote_start(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    pattern = str(read_unit_payload(run, "10.1", "holder.json").get("pattern", ""))
+    row = engine.ensure_host(context, pair=True)
+    sunshine = context.sunshine()
+    starts_before = len(sunshine["sessionStarts"])
+    launches_before = len(sunshine.get("appLaunches", []))
+    encoders_before = len(sunshine["encoders"])
+    try:
+        context.app_verb("streamResume", host=row)
+    except engine.BlockedBy:
+        engine.launch_stream(context, row)
+    context.hold("session-settle", 6.0)
+    view = context.session_snapshot()
+    after = context.sunshine()
+    entries = [
+        raw_entry("app", "session-vs-remote.json", {"state": view.state(), "pairs": view.pairs}),
+        raw_entry(
+            "host-sunshine",
+            "sunshine-remote-session.json",
+            {
+                "startsBefore": starts_before,
+                "startsAfter": len(after["sessionStarts"]),
+                "appLaunchesBefore": launches_before,
+                "appLaunchesAfter": len(after.get("appLaunches", [])),
+                "encodersBefore": encoders_before,
+                "encodersAfter": len(after["encoders"]),
+                "sessionStarts": after["sessionStarts"],
+                "appLaunches": after.get("appLaunches", []),
+            },
+        ),
+        raw_entry("host-process", "holder.json", {"pattern": pattern, "running": engine.host_process_running(context, None, pattern) if pattern else None}),
+    ]
+    return entries, f"占用主机时的启动尝试：{view.state()}"
+
+
+def driver_remote_release(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    pattern = str(read_unit_payload(run, "10.1", "holder.json").get("pattern", ""))
+    before = engine.host_process_running(context, None, pattern) if pattern else None
+    if pattern:
+        context.host_command(("pkill", "-f", pattern))
+        context.hold("holder-release-settle", 3.0)
+    engine.free_host(context)
+    info = context.serverinfo()
+    after = engine.host_process_running(context, None, pattern) if pattern else None
+    entries = [
+        raw_entry("host-process", "holder-before-release.json", {"pattern": pattern, "running": before}),
+        raw_entry("host-sunshine", "serverinfo-released.json", {"state": info.get("state"), "currentgame": info.get("currentgame")}),
+        raw_entry("host-process", "holder-after-release.json", {"pattern": pattern, "running": after}),
+    ]
+    return entries, f"释放后主机状态 {info.get('state')}"
+
+
+def driver_quit_end(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    engine.ensure_streaming(context)
+    app_name = str(context.fixture("forensicAppName", engine.DEFAULT_FORENSIC_APP_NAME))
+    forensic = context.forensic()
+    pid = (forensic.get("launch") or {}).get("pid")
+    numeric = int(pid) if isinstance(pid, (int, float)) else None
+    before = engine.host_process_running(context, numeric, app_name)
+
+    def ended_probe():
+        current = context.session_snapshot_or_none()
+        if current is not None and current.state_name() == "ended":
+            return {"state": current.state()}
+        return None
+
+    try:
+        engine.disconnect_session(context, soft=True)
+        outcome = observe_wait(engine, context, "ended", engine.SESSION_END_SECONDS, ended_probe)
+    except (engine.BlockedBy, engine.InstrumentFault, engine.ProductVerdict) as error:
+        context.tap("Stream-Session-back")
+        outcome = observe_wait(engine, context, "ended-by-back", engine.SESSION_END_SECONDS, ended_probe)
+        context.note(f"断连返回异常，改走返回键：{error}")
+    entries = [
+        raw_entry("host-process", "host-process-before.json", before),
+        raw_entry("app", "session-ended.json", outcome),
+    ]
+    return entries, f"结束会话观察：{outcome}"
+
+
+def driver_quit_survive(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    app_name = str(context.fixture("forensicAppName", engine.DEFAULT_FORENSIC_APP_NAME))
+    forensic = context.forensic()
+    pid = (forensic.get("launch") or {}).get("pid")
+    numeric = int(pid) if isinstance(pid, (int, float)) else None
+    after = engine.host_process_running(context, numeric, app_name)
+    entries = [
+        raw_entry("host-process", "host-process-after.json", after),
+        raw_entry("host-sunshine", "sunshine-tail.log", {"path": str(context.sunshine_path()), "lines": tail_lines(context.sunshine_path(), 40)}),
+    ]
+    return entries, f"断连后主机进程 running={after.get('running')}"
+
+
+def driver_launch_validate(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    current = context.session_snapshot_or_none()
+    if current is not None and current.state_name() in ("connecting", "streaming", "stopping"):
+        engine.disconnect_session(context, soft=True)
+        context.hold("relaunch-settle", 3.0)
+    before = len(engine.host_launches(context))
+    row, view = engine.ensure_streaming(context)
+    launch = engine.wait_for_host_launch(context, before)
+    entries = [
+        raw_entry("app", "session-launched.json", {"host": row, "state": view.state(), "detail": view.state_detail()}),
+        raw_entry("host-sunshine", "host-app-launch.json", {"launchesBefore": before, "launch": launch}),
+    ]
+    return entries, f"启动校验：会话 {view.state()}，主机启动记录 {launch is not None}"
+
+
+def driver_first_frame(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row, view = engine.ensure_streaming(context)
+    patch, rgb, sample, screenshot = engine.stable_patch_sample(context, "first-frame")
+    target = unit_directory(run, unit_id) / "raw" / "first-frame.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(screenshot.read_bytes())
+    forensic = context.forensic()
+    entries = [
+        raw_entry(
+            "host-sunshine",
+            "forensic-patch.json",
+            {
+                "latestPatch": patch,
+                "seedHex": forensic.get("seedHex"),
+                "expected": list(rgb),
+                "tolerance": engine.PATCH_RGB_TOLERANCE,
+                "samplePoint": list(engine.PATCH_SAMPLE_POINT),
+            },
+        ),
+        {"class": "pixel", "path": "first-frame.png", "file": str(target), "payload": {"sampled": list(sample), "expected": list(rgb)}},
+        raw_entry("app", "session.json", {"host": row, "state": view.state(), "inputs": view.inputs()}),
+    ]
+    return entries, f"首帧：patch#{patch.get('index')} 主机色 {rgb}，设备取样 {sample}"
+
+
+def driver_release_check(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row, view = engine.ensure_streaming(context)
+    engine.sent_pointer(context, *engine.POINTER_TARGET)
+    engine.send_text(context, "enc" + engine.os.urandom(2).hex())
+    context.hold("input-settle", 2.0)
+    engine.disconnect_session(context, soft=True)
+    outcome = observe_wait(
+        engine,
+        context,
+        "ended",
+        engine.SESSION_END_SECONDS,
+        lambda: (
+            {"state": current.state()}
+            if (current := context.session_snapshot_or_none()) is not None and current.state_name() == "ended"
+            else None
+        ),
+    )
+    context.hold("release-settle", engine.QUEUE_SETTLE_SECONDS)
+    final = context.session_snapshot_or_none()
+    counters = final.inputs() if final is not None else {}
+    entries = [
+        raw_entry(
+            "app",
+            "final-snapshot.json",
+            {
+                "state": final.state() if final is not None else "none",
+                "pressedKeys": counters.get("pressedKeys"),
+                "pressedButtons": counters.get("pressedButtons"),
+                "queue": counters.get("queue"),
+                "observed": outcome,
+            },
+        ),
+        raw_entry(
+            "probe",
+            "release-probe.json",
+            {"lines": probe_lines_containing(context, ("input release", "audio stop", "session end"))},
+        ),
+    ]
+    return entries, f"释放核对：{final.state() if final is not None else 'none'}"
+
+
+def driver_bitrate_host(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row, view = engine.ensure_streaming(context)
+    sunshine = context.sunshine()
+    entries = [
+        raw_entry(
+            "host-sunshine",
+            "sunshine-encoders.json",
+            {"encoders": sunshine["encoders"], "appLaunches": sunshine.get("appLaunches", []), "sessionStarts": sunshine["sessionStarts"]},
+        ),
+        raw_entry("app", "session-snapshot.json", {"state": view.state(), "requested": dict(view.requested()), "negotiated": dict(view.negotiated())}),
+    ]
+    return entries, f"主机采纳：encoders={len(sunshine['encoders'])}，协商 {dict(view.negotiated())}"
+
+
+def driver_display_mode(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    before = engine.display_mode(context)
+    row, view = engine.ensure_streaming(context)
+    after = engine.display_mode(context)
+    entries = [
+        raw_entry("host-display", "display-mode.json", {"before": before, "after": after, "unchanged": before == after}),
+        raw_entry("app", "session-snapshot.json", {"host": row, "state": view.state(), "negotiated": dict(view.negotiated())}),
+    ]
+    return entries, f"显示模式前后一致={before == after}"
+
+
+def driver_launch_validate(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     arguments = unit_arguments(unit_id)
     payload = engine.set_options(context, **arguments)
     entries = [
@@ -644,6 +1072,21 @@ DRIVERS.update(
         "settings.apply": driver_settings_apply,
         "settings.restart": driver_settings_restart,
         "notice.degrade": driver_degrade_notice,
+        "capture.enter": driver_capture_enter,
+        "capture.dock": driver_capture_dock,
+        "capture.back": driver_capture_back,
+        "interrupt.inject": driver_interrupt_inject,
+        "interrupt.recover": driver_interrupt_recover,
+        "remote.hold": driver_remote_hold,
+        "remote.start": driver_remote_start,
+        "remote.release": driver_remote_release,
+        "quit.end": driver_quit_end,
+        "quit.survive": driver_quit_survive,
+        "launch.validate": driver_launch_validate,
+        "first.frame": driver_first_frame,
+        "release.check": driver_release_check,
+        "bitrate.host": driver_bitrate_host,
+        "display.mode": driver_display_mode,
         "negotiate.check": driver_negotiate,
         "frame.advance": driver_frame_advance,
         "picture.source": driver_picture_source,
