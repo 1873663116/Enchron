@@ -22,6 +22,10 @@ and ``server_port=<n>-<m>`` shifted by ``listen_base - upstream_base``. Response
 handled whole-line, and an occurrence whose digits would change width is forwarded
 untouched and logged instead. A zero offset disables the rewriting completely.
 
+Sunshine advertises ``rtspenc://`` for clients that hold a session key; that stream is
+framed binary, so the line-oriented port rewrite would hold it forever. It is relayed
+untouched, and the client derives its remote ports from the address family instead.
+
 Control file schema (missing file means ``{"mode": "pass"}``)::
 
     {"mode": "pass"}
@@ -700,11 +704,6 @@ class Proxy:
             if direction == "client_to_upstream" and connection.rtsp_plaintext is None:
                 connection.rtsp_plaintext = data[:8].startswith(b"OPTIONS ") or data[:4] == b"RTSP"
                 if not connection.rtsp_plaintext:
-                    # Sunshine advertises rtspenc:// for clients that hold a
-                    # session key; that stream is framed binary, so the
-                    # line-oriented port rewrite would hold it forever. Relay it
-                    # untouched; the client derives its remote ports from the
-                    # address family instead.
                     self.log(
                         "rtsp_opaque",
                         id=connection.id,
@@ -1050,7 +1049,12 @@ class TcpEchoServer:
 
 
 class RtspFixtureServer:
-    """Answers every request line with a canned RTSP SETUP style response."""
+    """Answers every request line with a canned RTSP SETUP style response.
+
+    The encrypted dialect (rtspenc) is framed binary: it is answered with framed
+    binary that carries the same port marker the plaintext response uses, so a
+    rewrite would be visible.
+    """
 
     def __init__(self, port, response, small_response):
         self.listener = build_listener(port)
@@ -1085,9 +1089,6 @@ class RtspFixtureServer:
                 if not request:
                     return
                 if not (request[:8].startswith(b"OPTIONS ") or request[:4] == b"RTSP"):
-                    # The encrypted dialect (rtspenc) is framed binary: answer
-                    # with framed binary that carries the same port marker the
-                    # plaintext response uses, so a rewrite would be visible.
                     try:
                         conn.sendall(BINARY_RTSP_FIXTURE_RESPONSE)
                     except OSError:

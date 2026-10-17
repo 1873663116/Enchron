@@ -8,6 +8,7 @@ let hueStep = 0.61803398875
 let patchInterval = 2.0
 let patchRectNormalized = CGRect(x: 0.08, y: 0.08, width: 0.20, height: 0.20)
 let neutralGray = 0.5
+let defaultForensicLifetimeSeconds = 3600.0
 
 let usage = "usage: host_forensic_patch [--log <path>] [--seconds <n>] [--exit-file <path>] [--freeze-file <path>] [--tone <hz>] [--tone-gain-db <db>] [--tone-period <sec>] [--tone-on <sec>] [--seed <uint64>] [--self-test]"
 
@@ -468,6 +469,9 @@ final class PatchView: NSView {
     private let patchLayer = CALayer()
     private let hudField = NSTextField(labelWithString: "")
 
+    var desktopSize = NSSize.zero
+    var desktopTopOffset: CGFloat = 0
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -477,16 +481,16 @@ final class PatchView: NSView {
         patchLayer.minificationFilter = .nearest
         patchLayer.actions = ["backgroundColor": NSNull(), "position": NSNull(), "bounds": NSNull()]
         layer?.addSublayer(patchLayer)
-        hudField.font = NSFont.monospacedSystemFont(ofSize: 40.0, weight: .bold)
+        hudField.font = NSFont.monospacedSystemFont(ofSize: 13.0, weight: .semibold)
         hudField.textColor = .white
         hudField.drawsBackground = true
         hudField.backgroundColor = NSColor(calibratedWhite: 0.0, alpha: 0.72)
         hudField.isBezeled = false
         hudField.isEditable = false
         hudField.isSelectable = false
-        hudField.usesSingleLineMode = false
-        hudField.maximumNumberOfLines = 4
-        hudField.lineBreakMode = .byClipping
+        hudField.usesSingleLineMode = true
+        hudField.maximumNumberOfLines = 1
+        hudField.lineBreakMode = .byTruncatingTail
         hudField.wantsLayer = true
         addSubview(hudField)
     }
@@ -512,15 +516,14 @@ final class PatchView: NSView {
 
     override func layout() {
         super.layout()
-        let width = bounds.width
-        let height = bounds.height
-        patchLayer.frame = CGRect(
-            x: (patchRectNormalized.minX * width).rounded(),
-            y: ((1.0 - patchRectNormalized.maxY) * height).rounded(),
-            width: (patchRectNormalized.width * width).rounded(),
-            height: (patchRectNormalized.height * height).rounded()
-        )
-        hudField.frame = CGRect(x: 32.0, y: 32.0, width: 760.0, height: 250.0)
+        let reference = desktopSize.width > 0 && desktopSize.height > 0 ? desktopSize : bounds.size
+        let patchX = (patchRectNormalized.minX * reference.width).rounded()
+        let patchY = (bounds.height - (patchRectNormalized.maxY * reference.height - desktopTopOffset)).rounded()
+        let patchWidth = (patchRectNormalized.width * reference.width).rounded()
+        let patchHeight = (patchRectNormalized.height * reference.height).rounded()
+        patchLayer.frame = CGRect(x: patchX, y: patchY, width: patchWidth, height: patchHeight)
+        let stripHeight = max(16.0, patchY - 4.0)
+        hudField.frame = CGRect(x: 8.0, y: 2.0, width: max(0.0, bounds.width - 16.0), height: stripHeight)
     }
 
     override func viewDidMoveToWindow() {
@@ -539,6 +542,7 @@ final class ForensicController: NSObject {
     private let input: InputMonitor
     private let tone: TonePlayer
     private let seed: UInt64
+    private let lifetimeSeconds: Double
     private var window: NSWindow?
     private var view: PatchView?
     private var displayLink: CADisplayLink?
@@ -559,6 +563,7 @@ final class ForensicController: NSObject {
         self.log = log
         self.input = InputMonitor(log: log)
         self.tone = TonePlayer(log: log)
+        self.lifetimeSeconds = options.seconds ?? defaultForensicLifetimeSeconds
         self.seed = options.seed ?? UInt64.random(in: UInt64.min...UInt64.max)
     }
 
@@ -571,15 +576,24 @@ final class ForensicController: NSObject {
         ], echo: true)
 
         let application = NSApplication.shared
-        application.setActivationPolicy(.regular)
+        application.setActivationPolicy(.accessory)
 
         guard let screen = NSScreen.screens.first(where: { $0.frame.origin == .zero }) ?? NSScreen.main ?? NSScreen.screens.first else {
             log.write(["event": "error", "message": "no screen available", "wallMs": currentWallMs()])
             exit(3)
         }
 
+        let cornerFraction = max(patchRectNormalized.maxX, patchRectNormalized.maxY) + 0.04
+        let windowSize = NSSize(
+            width: (cornerFraction * screen.frame.width).rounded(),
+            height: (cornerFraction * screen.frame.height).rounded()
+        )
+        let windowOrigin = NSPoint(
+            x: screen.frame.origin.x,
+            y: screen.frame.origin.y + screen.frame.height - windowSize.height
+        )
         let window = NSWindow(
-            contentRect: screen.frame,
+            contentRect: NSRect(origin: windowOrigin, size: windowSize),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false,
@@ -588,22 +602,21 @@ final class ForensicController: NSObject {
         window.isOpaque = true
         window.backgroundColor = NSColor(calibratedWhite: neutralGray, alpha: 1.0)
         window.hasShadow = false
-        window.level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 1)
+        window.level = .floating
         window.collectionBehavior = [.fullScreenAuxiliary, .stationary, .canJoinAllSpaces, .ignoresCycle]
         window.animationBehavior = .none
-        window.ignoresMouseEvents = false
-        window.acceptsMouseMovedEvents = true
+        window.ignoresMouseEvents = true
+        window.acceptsMouseMovedEvents = false
         window.isMovable = false
         window.isReleasedWhenClosed = false
 
-        let view = PatchView(frame: NSRect(origin: .zero, size: screen.frame.size))
+        let view = PatchView(frame: NSRect(origin: .zero, size: windowSize))
+        view.desktopSize = screen.frame.size
         window.contentView = view
-        window.setFrame(screen.frame, display: true)
-        window.makeKeyAndOrderFront(nil)
+        window.setFrame(NSRect(origin: windowOrigin, size: windowSize), display: true)
         window.orderFrontRegardless()
-        window.makeFirstResponder(view)
+        view.desktopTopOffset = screen.frame.maxY - window.frame.maxY
         view.layoutSubtreeIfNeeded()
-        application.activate(ignoringOtherApps: true)
 
         self.window = window
         self.view = view
@@ -633,6 +646,14 @@ final class ForensicController: NSObject {
             "logPath": options.logPath ?? "",
             "toneHz": options.toneHz ?? 0,
             "seconds": options.seconds ?? 0,
+            "lifetimeSeconds": lifetimeSeconds,
+            "patchWindowFrame": [
+                "x": Double(window.frame.origin.x),
+                "y": Double(window.frame.origin.y),
+                "width": Double(window.frame.width),
+                "height": Double(window.frame.height),
+            ],
+            "windowIgnoresMouse": window.ignoresMouseEvents,
             "windowLevel": Int(window.level.rawValue),
             "listenAccess": CGPreflightListenEventAccess(),
             "postEventAccess": CGPreflightPostEventAccess(),
@@ -755,10 +776,11 @@ final class ForensicController: NSObject {
 
     private func updateHUD() {
         let rgb = patchRGB
+        let remaining = max(0, Int((lifetimeSeconds - (CACurrentMediaTime() - startMediaTime)).rounded()))
         let text = "FRAME " + hexText(Int64(frameCounter), width: 8)
-            + "\nWALL  " + String(currentWallMs()) + " ms"
-            + "\nPATCH " + String(patchIndex) + "  #" + hexText(Int64(rgb.red), width: 2) + hexText(Int64(rgb.green), width: 2) + hexText(Int64(rgb.blue), width: 2)
-            + "\nSEED  " + hexText(seed, width: 16)
+            + " · PATCH " + String(patchIndex)
+            + " #" + hexText(Int64(rgb.red), width: 2) + hexText(Int64(rgb.green), width: 2) + hexText(Int64(rgb.blue), width: 2)
+            + " · 取证窗口 " + String(remaining) + "s 后自动关闭（点击穿透，不影响使用）"
         view?.hudText = text
     }
 
@@ -786,13 +808,12 @@ final class ForensicController: NSObject {
             timers.append(poll)
         }
 
-        if let seconds = options.seconds {
-            let deadline = Timer(timeInterval: seconds, repeats: false) { [weak self] _ in
-                self?.shutdown(reason: "seconds")
-            }
-            RunLoop.main.add(deadline, forMode: .common)
-            timers.append(deadline)
+        let deadline = Timer(timeInterval: lifetimeSeconds, repeats: false) { [weak self] _ in
+            guard let self else { return }
+            self.shutdown(reason: self.options.seconds != nil ? "seconds" : "lifetime-cap")
         }
+        RunLoop.main.add(deadline, forMode: .common)
+        timers.append(deadline)
     }
 
     private func installSignalHandlers() {

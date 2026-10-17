@@ -16,6 +16,9 @@ public struct StreamingHomeView: View {
 
     public init() {}
 
+    /// Presents the session window whenever a session appears. Presenting the
+    /// session is the session's own effect, so a launch that did not come from a
+    /// tapped card puts its window up too.
     public var body: some View {
         SidebarSplitLayout(sidebarIsVisible: model.emptyStateVisible == false) {
             sidebar
@@ -39,8 +42,6 @@ public struct StreamingHomeView: View {
             }
         }
         .onChange(of: model.session?.id) { _, sessionID in
-            // Presenting the session is the session's own effect, so a launch
-            // that did not come from a tapped card also puts its window up.
             if sessionID != nil {
                 openWindow(id: "streaming")
             }

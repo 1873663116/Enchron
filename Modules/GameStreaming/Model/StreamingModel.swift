@@ -60,8 +60,6 @@ public final class StreamingModel {
         reloadHosts()
     }
 
-    // MARK: - Hosts
-
     public func reloadHosts() {
         storedHosts = hostStore.load()
         hosts = storedHosts.map(snapshot(from:))
@@ -87,6 +85,9 @@ public final class StreamingModel {
         }
     }
 
+    /// Adds a host and returns the identity key it is stored under. The same
+    /// physical host reached through a different port route (for example a
+    /// loopback proxy) is a distinct entry with its own pairing.
     public func addHost(addressString: String, name: String?) async throws -> HostID {
         guard let address = HostAddress(parsing: addressString) else {
             throw StreamFailure(
@@ -120,8 +121,6 @@ public final class StreamingModel {
         }
 
         let userProvidedName = name?.isEmpty == false
-        // The same physical host reached through a different port route (for
-        // example a loopback proxy) is a distinct entry with its own pairing.
         let hostID = address.portBase == HostAddress.defaultPortBase
             ? info.uniqueID
             : "\(info.uniqueID)@\(address.portBase)"
@@ -178,6 +177,9 @@ public final class StreamingModel {
         }
     }
 
+    /// Applies a server info reply. `authoritativePairing` says the query proved
+    /// this client's certificate: PairStatus can only name this client then, and
+    /// an unpinned reply says nothing about the stored pairing.
     private func applyServerInfo(
         _ info: BackendServerInfo,
         hostID: HostID,
@@ -185,8 +187,6 @@ public final class StreamingModel {
     ) {
         guard let index = hosts.firstIndex(where: { $0.id == hostID }) else { return }
         hosts[index].reachability = .online
-        // PairStatus can only name this client when the query proved the client
-        // certificate; an unpinned reply says nothing about the stored pairing.
         if authoritativePairing {
             hosts[index].pairing = info.pairStatus == 1 ? .paired : .unpaired
         } else if case .unknown = hosts[index].pairing {
@@ -215,8 +215,6 @@ public final class StreamingModel {
         hosts[index].reachability = reachability
     }
 
-    // MARK: - Discovery
-
     public func startDiscovery() {
         guard discoveryTask == nil else { return }
         isDiscovering = true
@@ -235,8 +233,6 @@ public final class StreamingModel {
         isDiscovering = false
         discoveredHosts = []
     }
-
-    // MARK: - Pairing
 
     public func beginPairing(hostID: HostID) async throws -> PairingChallenge {
         guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else {
@@ -323,8 +319,6 @@ public final class StreamingModel {
         pairingError = nil
     }
 
-    // MARK: - Applications
-
     public func loadApplications(hostID: HostID) {
         guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return }
         if let index = hosts.firstIndex(where: { $0.id == hostID }) {
@@ -343,8 +337,6 @@ public final class StreamingModel {
             }
         }
     }
-
-    // MARK: - Session
 
     public func launch(hostID: HostID, appID: AppID, appName: String) async throws {
         try await startSession(hostID: hostID, appID: appID, appName: appName, preferResume: false)
@@ -501,8 +493,6 @@ public final class StreamingModel {
             BackendCredentials(address: stored.address, serverCert: stored.serverCert)
         )
     }
-
-    // MARK: - Input and presentation
 
     public func sendPointerMove(normalizedX: Float, normalizedY: Float) {
         coordinator?.sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)

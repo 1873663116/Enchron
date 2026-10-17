@@ -145,6 +145,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         backend.start()
     }
 
+    /// Stops the session and records the end here as well as in the teardown,
+    /// because the teardown's delayed fallback dies with this coordinator once
+    /// the model drops the session.
     public func stop(reason: String = "user") {
         stateLock.withLock {
             guard !isStopped(snapshotStorage.state) else { return }
@@ -156,9 +159,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             "input release session=\(sessionID.rawValue) cause=\(reason)",
             retention: .evidence
         )
-        // The end line is written here as well as in finishTeardown, because the
-        // teardown's delayed fallback dies with this coordinator once the model
-        // drops the session.
         recordSessionEnd(reason: reason)
         backend.releaseAllInput()
         clearPressed()
@@ -247,8 +247,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             retention: .evidence
         )
     }
-
-    // MARK: - Video path
 
     private func handleVideoSample(_ sample: CMSampleBuffer) {
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
@@ -440,8 +438,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         publishSnapshot()
     }
 
-    // MARK: - Audio path
-
     private func handleAudioFrame(_ frame: BackendAudioFrame) {
         let received: Int64 = stateLock.withLock {
             counters.audioFramesReceived += 1
@@ -610,8 +606,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         return sampleBuffer
     }
 
-    // MARK: - Events
-
     private func handleEvent(_ event: BackendSessionEvent) {
         switch event {
         case .stage(let name, let phase):
@@ -765,8 +759,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let copy = stateLock.withLock { snapshotStorage }
         onSnapshot?(copy)
     }
-
-    // MARK: - Input
 
     public func sendMousePosition(normalizedX: Float, normalizedY: Float) {
         backend.sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)

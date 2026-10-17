@@ -1023,8 +1023,11 @@ class Context:
         return hierarchy_identifiers(self.hierarchy())
 
     def matched_element(self, identifier: str) -> dict[str, object] | None:
-        # Screenshots are evidence, not a control-plane read: keeping them off
-        # these lookups keeps a starved screenshot service from failing them.
+        """One element's own reading, with the screenshot left out of the lookup.
+
+        Screenshots are evidence, not a control-plane read: keeping them off
+        these lookups keeps a starved screenshot service from failing them.
+        """
         document = self.invoke("snapshot", ("--identifier", identifier, "--no-screenshot"))
         matched = document.get("matchedElement")
         return dict(matched) if isinstance(matched, Mapping) else None
@@ -1399,11 +1402,14 @@ def submit_pin(context: Context, pairing_id: str | None, pin: str) -> dict[str, 
     webui = context.webui()
 
     def probe() -> dict[str, object] | None:
+        """The pending pairing that is ours, None until it has registered.
+
+        Another client's request may sit in the list; keep waiting for ours.
+        """
         pending = webui.pending_pairings()
         if not pending:
             return None
         if pairing_id and not any(str(entry.get("id")) == pairing_id for entry in pending):
-            # Another client's request may sit in the list; keep waiting for ours.
             return None
         return {"pairings": pending}
 
@@ -1436,6 +1442,11 @@ def submit_pin(context: Context, pairing_id: str | None, pin: str) -> dict[str, 
 
 
 def pair_host(context: Context, row: str) -> dict[str, object]:
+    """Pair the row's host through the PIN Sunshine's Web UI asks for.
+
+    Sunshine holds one of its fixed request threads for a pairing that was never
+    answered, so the abandoned attempt is cancelled instead of being left open.
+    """
     context.require_identifier(f"Stream-HostRow-{row}")
     context.tap(f"Stream-HostRow-{row}")
     context.require_identifier("Stream-Pairing")
@@ -1478,9 +1489,6 @@ def pair_host(context: Context, row: str) -> dict[str, object]:
         except BlockedBy as error:
             last_reason = error.reason
             context.note(f"pairing attempt {attempt + 1} did not register; retrying")
-            # Sunshine holds one of its fixed request threads for a pairing that
-            # was never answered, so the abandoned attempt is cancelled instead
-            # of being left open.
             if context.matched_element("Stream-Pairing-cancel") is not None:
                 context.tap("Stream-Pairing-cancel")
                 context.record_channel(
@@ -1512,8 +1520,11 @@ def pair_host(context: Context, row: str) -> dict[str, object]:
         raise BlockedBy(f"pairing failed on every attempt ({last_reason})")
 
     def pairing_done() -> dict[str, object] | None:
-        # The pairing page dismisses itself once the host accepts, so the row's
-        # readable value is the durable completion evidence.
+        """The paired state as the UI reports it, page or host row.
+
+        The pairing page dismisses itself once the host accepts, so the row's
+        readable value is the durable completion evidence.
+        """
         value = context.identifier_value("Stream-Pairing-status")
         row_value = context.identifier_value(f"Stream-HostRow-{row}")
         if (value and "pairing=paired" in value) or (
@@ -1698,11 +1709,14 @@ def wait_for_host_launch(context: Context, before: int) -> dict[str, object] | N
 
 
 def ensure_streaming(context: Context) -> tuple[str, SnapshotView]:
+    """A paired host with the session window in front and reaching streaming.
+
+    A notice sheet from an earlier scenario covers the window and leaves every
+    control unhittable; ending the session through the command channel closes it
+    together with the window.
+    """
     row = ensure_host(context, pair=True)
     if context.matched_element("Stream-Session-degrade-explain") is not None:
-        # A notice sheet from an earlier scenario covers the window and leaves
-        # every control unhittable; ending the session through the command
-        # channel closes it together with the window.
         context.note("a degrade notice from an earlier scenario was still presented")
         try:
             disconnect_session(context, soft=True)
@@ -1849,7 +1863,8 @@ def stable_patch_sample(
     The screenshot takes a device round trip while the forensic app advances its
     patch every two seconds, so a colour read across an advance would compare a
     frame with a colour it never showed. The index is read on both sides of the
-    capture and a mismatch is retried, not judged.
+    capture and a mismatch is retried, not judged. A dark uniform frame means the
+    capture is not the stream window yet, and is retried the same way.
     """
     freeze = forensic_freeze_path(context)
     last_error = ""
@@ -1872,7 +1887,6 @@ def stable_patch_sample(
                 raise BlockedBy("the host forensic log carries no patch colour yet")
             if before.get("index") == after.get("index"):
                 if all(channel == sample[0] for channel in sample) and sample[0] < 110:
-                    # A dark uniform frame means the capture is not the stream window yet.
                     last_error = (
                         f"the capture returned a dark uniform frame {sample}; the stream "
                         "window was not the frontmost window"
@@ -2405,8 +2419,20 @@ def scenario_05_rolling_picture_source(context: Context) -> Outcome:
 
 
 def scenario_06_audio_output(context: Context) -> Outcome:
-    # A fresh session launches a fresh host-side app instance, which is what
-    # carries the pulsed tone cadence the discrimination below relies on.
+    """Host and client audio flags, and the client's own audio chain.
+
+    A fresh session launches a fresh host-side app instance, which is what
+    carries the pulsed tone cadence the discrimination below relies on.
+
+    The headless simulator on this rig does not route client audio into the
+    host's system mix (a sim-spawned 440 Hz tone measured inaudible), and the
+    host app's direct playback shares that mix, so a host capture of a running
+    session cannot attribute what it hears to the client. The client's own chain
+    is carried by the control surface instead: every decoded Opus frame must have
+    reached the audio renderer with no drops, at the frame rate the codec
+    produces. Physical output of the client is verified on L2 only; the capture
+    of the session is recorded for reference.
+    """
     row, view = ensure_streaming(context)
     tone = ensure_host_tone(context)
     context.record_channel("host-audio", "tone-cadence.json", tone)
@@ -2431,14 +2457,6 @@ def scenario_06_audio_output(context: Context) -> Outcome:
     streaming_plateaus = tone_plateau_report(streaming_wav, float(tone.get("hz") or DEFAULT_TONE_HZ))
     context.record_channel("host-audio", "plateaus-streaming.json", streaming_plateaus)
 
-    # The headless simulator on this rig does not route client audio into the
-    # host's system mix (a sim-spawned 440 Hz tone measured inaudible), and the
-    # host app's direct playback shares that mix, so a host capture of a running
-    # session cannot attribute what it hears to the client. The client's own
-    # chain is carried by the control surface instead: every decoded Opus frame
-    # must have reached the audio renderer with no drops, at the frame rate the
-    # codec produces. Physical output of the client is verified on L2 only; the
-    # capture of the session is recorded for reference.
     audio_received = int(view.first("audio:received") or -1) if view.first("audio:received") is not None else None
     snapshot_final = context.session_snapshot_or_none()
     if snapshot_final is not None:
@@ -2600,6 +2618,12 @@ def scenario_07_keyboard_mouse(context: Context) -> Outcome:
 
 
 def scenario_08_controls_during_capture(context: Context) -> Outcome:
+    """The dock control stays reachable while input capture is active.
+
+    The control answered the tap while capture was active; a second tap after the
+    pointer capture settles is the harness's retry, and the outcome of that retry
+    is what the session-end judgement rests on.
+    """
     row, view = ensure_streaming(context)
     sent_pointer(context, *POINTER_TARGET)
     captured = context.wait(
@@ -2650,9 +2674,6 @@ def scenario_08_controls_during_capture(context: Context) -> Outcome:
     try:
         wait_for_state(context, "ended", FIXTURE_SECONDS, "ended-after-back")
     except (InstrumentFault, ProductVerdict):
-        # The control answered the tap while capture was active; a second tap
-        # after the pointer capture settles is the harness's retry, and the
-        # outcome of that retry is what the session-end judgement rests on.
         context.note("the first back tap did not end the session; retrying once")
         context.hold("back-retry-settle", 3.0)
         context.tap("Stream-Session-back")
@@ -2667,14 +2688,17 @@ def scenario_08_controls_during_capture(context: Context) -> Outcome:
 
 
 def scenario_09_network_interruption_recovery(context: Context) -> Outcome:
+    """Recovery from injected network faults through the loopback proxy.
+
+    The proxied lane starts from no session: a live local one would make the
+    session layer refuse the launch the proxy is here to carry.
+    """
     try:
         context.require_execution_input("streamAddHost")
     except BlockedBy as error:
         raise BlockedBy(
             f"the proxied host entry is added through the app command channel: {error.reason}"
         ) from None
-    # The proxied lane starts from no session: a live local one would make the
-    # session layer refuse the launch the proxy is here to carry.
     local = context.session_snapshot_or_none()
     if local is not None and local.state_name() in ("connecting", "streaming", "stopping"):
         disconnect_session(context, soft=True)
@@ -2762,9 +2786,19 @@ def scenario_09_network_interruption_recovery(context: Context) -> Outcome:
 
 
 def scenario_10_remote_session(context: Context) -> Outcome:
-    # The remote session has to be the only holder: a leftover local session
-    # would make the client refuse a new one and the host would not be free for
-    # the holder to launch the app.
+    """Resume-or-conflict behaviour against a session another client holds.
+
+    The remote session has to be the only holder: a leftover local session would
+    make the client refuse a new one and the host would not be free for the
+    holder to launch the app. Where the host is free, the Moonlight protocol
+    session probe stands in for the person-held Moonlight session, holding the
+    host with its own paired identity so the app's resume-or-conflict behaviour
+    can run unattended.
+
+    The holder runs its own session beside ours, so its session start and its
+    encoder land in the host's counters too; what the client must not do is
+    launch the app again.
+    """
     local = context.session_snapshot_or_none()
     if local is not None and local.state_name() in ("connecting", "streaming", "stopping"):
         disconnect_session(context, soft=True)
@@ -2775,9 +2809,6 @@ def scenario_10_remote_session(context: Context) -> Outcome:
     current_game = info.get("currentgame", "0")
     context.record_channel("host-log", "serverinfo.json", info)
     if state == "SUNSHINE_SERVER_FREE" or current_game == "0":
-        # Stand in for the person-held Moonlight session: the Moonlight protocol
-        # session probe holds the host with its own paired identity so the app's
-        # resume-or-conflict behaviour can run unattended.
         holder = context.fixture("remoteSessionCommand")
         if not isinstance(holder, list) or not holder:
             raise BlockedBy(
@@ -2846,9 +2877,6 @@ def scenario_10_remote_session(context: Context) -> Outcome:
             {"launchesBefore": launches_before, "launchesAfter": launches_after},
         )
     conflict = view.state_name() == "ended" or "failure=" in view.state() or view.first("failure") is not None
-    # The holder runs its own session beside ours, so its session start and its
-    # encoder land in the host's counters too; what the client must not do is
-    # launch the app again.
     resumed_without_relaunch = view.state_name() in ("streaming", "connecting")
     if not conflict and not resumed_without_relaunch:
         raise ProductVerdict(
@@ -2949,9 +2977,12 @@ def setting_applied(readable: str, name: str, value: str) -> bool:
 
 
 def set_options(context: Context, **options: object) -> dict[str, object]:
+    """Apply stream options and report the payload the host surface read back.
+
+    The app command channel carries string key/value pairs, so the settings are
+    sent as separate arguments rather than as one JSON document.
+    """
     payload = {STREAM_OPTION_KEYS[key]: value for key, value in options.items()}
-    # The app command channel carries string key/value pairs, so the settings are
-    # sent as separate arguments rather than as one JSON document.
     flattened = {
         name: ("1" if value else "0") if isinstance(value, bool) else str(value)
         for name, value in payload.items()
@@ -3284,6 +3315,12 @@ def scenario_15_frame_pacing_and_rate(context: Context) -> Outcome:
 
 
 def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
+    """HDR requested against a host that can only offer SDR, and the notice it shows.
+
+    The notice is a sheet over the stream window with no control of its own;
+    ending the session through the command channel closes both the window and the
+    sheet, which is what the next scenario needs.
+    """
     row = ensure_host(context, pair=True)
     set_options(context, hdr=True)
     view = context.session_snapshot_or_none()
@@ -3312,9 +3349,6 @@ def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
     context.record_text("control-surface", "degrade-explain.txt", str(explain))
     screenshot, rgb = context.capture("degrade-explain")
     context.record_pointer("pixel", str(screenshot.relative_to(context.directory)))
-    # The notice is a sheet over the stream window with no control of its own;
-    # ending the session through the command channel closes both the window and
-    # the sheet, which is what the next scenario needs.
     disconnect_session(context, soft=True)
     sunshine = context.sunshine()
     context.record_channel(
@@ -3395,8 +3429,10 @@ def scenario_18_resource_release(context: Context) -> Outcome:
     ended_view = wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
 
     def teardown_line() -> dict[str, object] | None:
-        # The coordinator writes the session-end line once teardown completes,
-        # which trails the window closing by the backend report grace.
+        """The session-end line the coordinator writes once teardown completes.
+
+        It trails the window closing by the backend report grace.
+        """
         lines = [line for line in context.probe_lines() if "session end" in line]
         return {"lines": lines} if lines else None
 
