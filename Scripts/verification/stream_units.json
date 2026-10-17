@@ -610,8 +610,12 @@
         "app",
         "probe"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "framePacing": false,
+        "frameRate": 60
+      }
     },
     {
       "id": "15.3",
@@ -665,11 +669,13 @@
       "s": "16",
       "t": "说明可读",
       "pre": "session=streaming",
-      "needs": [],
+      "needs": [
+        "16.2"
+      ],
       "cls": [
         "app"
       ],
-      "driver": "pending",
+      "driver": "notice.degrade",
       "x": true
     },
     {

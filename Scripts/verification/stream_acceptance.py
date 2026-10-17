@@ -527,6 +527,22 @@ def unit_arguments(unit_id: str) -> dict[str, object]:
     return dict(arguments) if isinstance(arguments, dict) else {}
 
 
+def driver_degrade_notice(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    engine.focus_stream_window(context)
+    context.tap("Stream-Session-degrade")
+    value = context.identifier_value("Stream-Session-degrade-explain") or ""
+    screenshot, rgb = context.capture("degrade-explain")
+    target = unit_directory(run, unit_id) / "raw" / "degrade-explain.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(screenshot.read_bytes())
+    entries = [
+        raw_entry("app", "degrade-explain.json", {"text": value}),
+        {"class": "pixel", "path": "degrade-explain.png", "file": str(target), "payload": None},
+        raw_entry("pixel", "degrade-sample.json", {"rgb": list(rgb)}),
+    ]
+    return entries, f"降级说明读回 {len(value)} 字：{value[:60]}"
+
+
 def driver_settings_apply(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     arguments = unit_arguments(unit_id)
     payload = engine.set_options(context, **arguments)
@@ -604,6 +620,7 @@ DRIVERS.update(
         "host.details": driver_host_details,
         "host.apps": driver_host_apps,
         "settings.apply": driver_settings_apply,
+        "notice.degrade": driver_degrade_notice,
         "negotiate.check": driver_negotiate,
         "frame.advance": driver_frame_advance,
         "picture.source": driver_picture_source,
