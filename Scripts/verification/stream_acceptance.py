@@ -215,7 +215,7 @@ def build_engine_context(run: Path, unit_id: str):
     sys.path.insert(0, str(SCRIPTS_ROOT))
     import moonlight_acceptance as engine
 
-    scenario_number = int(unit_id.split(".")[0])
+    scenario_number = int("".join(ch for ch in unit_id.split(".")[0] if ch.isdigit()) or "0")
     scenario = engine.Scenario(
         number=scenario_number,
         slug=f"unit-{unit_id}",
@@ -270,10 +270,39 @@ def probe_host_free(context) -> tuple[bool, str]:
     return (state in ("SUNSHINE_SERVER_FREE", "SUNSHINE_SERVER_FREE_UNKNOWN"), state or "unknown")
 
 
+def probe_host_paired(context) -> tuple[bool, str]:
+    for identifier in context.identifiers():
+        if not identifier.startswith("Stream-HostRow-"):
+            continue
+        value = context.identifier_value(identifier) or ""
+        if "pairing=paired" in value:
+            return True, value
+    return False, "no paired host row"
+
+
+def probe_app_cards(context) -> tuple[bool, str]:
+    if context.matched_element("Stream-HostDetail") is None:
+        return False, "host detail is not open"
+    cards = [item for item in context.identifiers() if item.startswith("Stream-AppCard-")]
+    if not cards:
+        return False, "host detail carries no application card"
+    return True, f"cards={len(cards)}"
+
+
 PRECONDITIONS = {
     "session=streaming": probe_session_equals_streaming,
     "session!=ended": probe_session_not_ended,
     "host=free": probe_host_free,
+    "host=paired": probe_host_paired,
+    "app-list=cards": probe_app_cards,
+}
+
+PRECONDITION_PROVIDERS = {
+    "host=paired": ["P0.1", "02.2"],
+    "app-list=cards": ["03.1"],
+    "host=free": ["18.1", "10.3"],
+    "session=streaming": ["04.1"],
+    "session=ended": ["18.1"],
 }
 
 
@@ -374,12 +403,60 @@ def driver_session_disconnect(engine, context, run: Path, unit_id: str) -> tuple
 
 
 DRIVERS = {
+    "host.state": None,
+    "host.details": None,
+    "host.apps": None,
     "stream.launch": driver_stream_launch,
     "input.type-string": driver_input_type_string,
     "input.host-string": driver_input_host_string,
     "input.pointer": driver_input_pointer,
     "session.disconnect": driver_session_disconnect,
 }
+
+
+def driver_host_state(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row = engine.ensure_host(context, pair=True)
+    value = context.identifier_value(f"Stream-HostRow-{row}") or ""
+    apps = context.webui().apps()
+    entries = [
+        raw_entry("app", "host-row.json", {"row": row, "value": value}),
+        raw_entry("host-sunshine", "sunshine-apps.json", apps),
+    ]
+    return entries, f"主机行 {value!r}；主机应用 {len(apps)} 个"
+
+
+def driver_host_details(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row = engine.ensure_host(context, pair=True)
+    context.tap(f"Stream-HostRow-{row}")
+    context.require_identifier("Stream-HostDetail")
+    grid = context.identifier_value("Stream-AppGrid")
+    identifiers = context.identifiers()
+    cards = {
+        item: (context.identifier_value(item) or "")
+        for item in identifiers
+        if item.startswith("Stream-AppCard-")
+    }
+    missing = [item for item in identifiers if item.startswith("Stream-AppMissing-")]
+    entries = [
+        raw_entry("app", "app-grid.json", {"gridValue": grid, "cards": cards, "missing": missing}),
+    ]
+    return entries, f"详情页卡片 {len(cards)} 张，缺失 {len(missing)} 张；gridValue={grid!r}"
+
+
+def driver_host_apps(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    apps = context.webui().apps()
+    names = [str(entry.get("name", "")) for entry in apps]
+    entries = [raw_entry("host-sunshine", "sunshine-apps.json", apps)]
+    return entries, f"主机应用清单 {names}"
+
+
+DRIVERS.update(
+    {
+        "host.state": driver_host_state,
+        "host.details": driver_host_details,
+        "host.apps": driver_host_apps,
+    }
+)
 
 
 class Refused(Exception):
@@ -433,7 +510,9 @@ def cmd_drive(engine_module, args) -> int:
             print(f"REFUSED: 前置 {precondition!r} 探测出错：{type(error).__name__}: {error}")
             return 2
         if not satisfied:
-            print(f"REFUSED: 前置 {precondition!r} 不满足（当前 {state!r}）")
+            providers = PRECONDITION_PROVIDERS.get(precondition, [])
+            hint = f"；前置提供者：{', '.join(providers)}" if providers else ""
+            print(f"REFUSED: 前置 {precondition!r} 不满足（当前 {state!r}）{hint}")
             return 2
 
     started = time.time()
