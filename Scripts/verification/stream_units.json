@@ -240,7 +240,7 @@
         "host-forensic",
         "app"
       ],
-      "driver": "pending",
+      "driver": "frame.advance",
       "x": false
     },
     {
@@ -255,7 +255,7 @@
         "pixel",
         "host-forensic"
       ],
-      "driver": "pending",
+      "driver": "picture.source",
       "x": false
     },
     {
@@ -675,7 +675,8 @@
       "pre": "session!=ended",
       "needs": [],
       "cls": [
-        "app"
+        "app",
+        "probe"
       ],
       "driver": "session.disconnect",
       "x": false

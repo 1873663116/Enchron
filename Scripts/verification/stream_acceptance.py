@@ -439,8 +439,68 @@ def driver_session_disconnect(engine, context, run: Path, unit_id: str) -> tuple
     engine.disconnect_session(context, soft=True)
     view = context.session_snapshot_or_none()
     state = view.state() if view is not None else "none"
-    entries = [raw_entry("app", "session-after-disconnect.json", {"state": state})]
-    return entries, f"断连后会话 state={state}"
+    lines: list[str] = []
+    try:
+        lines = context.probe_lines()
+    except Exception:
+        lines = []
+    entries = [
+        raw_entry("app", "session-after-disconnect.json", {"state": state}),
+        raw_entry("probe", "probe-lines.json", {"lines": lines[-40:]}),
+    ]
+    return entries, f"断连后会话 state={state}；探针尾部 {len(lines)} 行"
+
+
+def driver_frame_advance(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    samples: list[dict[str, object]] = []
+    for index in range(3):
+        patch, rgb, expected, screenshot = engine.stable_patch_sample(context, f"advance-{index}")
+        view = context.session_snapshot_or_none()
+        samples.append(
+            {
+                "patchIndex": patch.get("index"),
+                "patchRgb": patch.get("rgbHex"),
+                "presented": view.first("presented") if view is not None else None,
+                "queue": view.first("queue") if view is not None else None,
+                "screenshot": str(screenshot),
+            }
+        )
+        if index < 2:
+            context.hold(f"advance-gap-{index}", engine.PATCH_RETRY_SECONDS)
+    entries = [
+        raw_entry("host-forensic", "patch-advances.json", {"path": str(context.forensic_path()), "samples": samples}),
+        raw_entry("app", "presented-samples.json", {"presented": [s["presented"] for s in samples]}),
+    ]
+    indices = [s["patchIndex"] for s in samples]
+    return entries, f"色块序号 {indices}；呈现帧 {[s['presented'] for s in samples]}"
+
+
+def driver_picture_source(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    samples: list[dict[str, object]] = []
+    files: list[dict[str, object]] = []
+    for index in range(3):
+        patch, rgb, expected, screenshot = engine.stable_patch_sample(context, f"source-{index}")
+        target = unit_directory(run, unit_id) / "raw" / f"source-{index}.png"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(screenshot.read_bytes())
+        files.append({"class": "pixel", "path": f"source-{index}.png", "file": str(target), "payload": None})
+        samples.append(
+            {
+                "patchIndex": patch.get("index"),
+                "hostColour": list(expected),
+                "capturedColour": list(rgb),
+                "screenshot": f"raw/source-{index}.png",
+            }
+        )
+        if index < 2:
+            context.hold(f"source-gap-{index}", engine.PATCH_RETRY_SECONDS)
+    entries = [
+        raw_entry("pixel", "picture-source.json", {"samples": samples}),
+        raw_entry("host-forensic", "patch-log.json", {"path": str(context.forensic_path()), "patchIndices": [s["patchIndex"] for s in samples]}),
+        *files,
+    ]
+    pairs = [(s["patchIndex"], s["hostColour"], s["capturedColour"]) for s in samples]
+    return entries, f"三档取样（序号/主机色/客户端读色）：{pairs}"
 
 
 DRIVERS = {
@@ -500,6 +560,8 @@ DRIVERS.update(
         "host.state": driver_host_state,
         "host.details": driver_host_details,
         "host.apps": driver_host_apps,
+        "frame.advance": driver_frame_advance,
+        "picture.source": driver_picture_source,
     }
 )
 
