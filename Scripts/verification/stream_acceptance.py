@@ -224,17 +224,17 @@ def build_engine_context(run: Path, unit_id: str):
         channels=(),
         run=lambda context: engine.Outcome("indeterminate"),
     )
+    fixtures_path = os.environ.get("ENCHRON_STREAM_FIXTURES")
+    fixtures = engine.load_fixtures(Path(fixtures_path)) if fixtures_path else {}
     arguments = argparse.Namespace(
         device=os.environ.get("ENCHRON_DEVICE", ""),
         output_directory=str(run),
         work_dir=str(run / "work"),
         execution_input=os.environ.get("ENCHRON_EXECUTION_INPUT"),
         timing_directory=None,
-        host=os.environ.get("ENCHRON_HOST", "127.0.0.1"),
+        host=os.environ.get("ENCHRON_HOST") or str(fixtures.get("hostAddress") or "") or engine.DEFAULT_HOST,
         quick=False,
     )
-    fixtures_path = os.environ.get("ENCHRON_STREAM_FIXTURES")
-    fixtures = engine.load_fixtures(Path(fixtures_path)) if fixtures_path else {}
     return engine, engine.build_context(scenario, arguments, fixtures)
 
 
@@ -427,7 +427,11 @@ def cmd_drive(engine_module, args) -> int:
         if probe is None:
             print(f"REFUSED: 前置 {precondition!r} 的探测尚未实现，无法确认状态")
             return 2
-        satisfied, state = probe(context)
+        try:
+            satisfied, state = probe(context)
+        except Exception as error:
+            print(f"REFUSED: 前置 {precondition!r} 探测出错：{type(error).__name__}: {error}")
+            return 2
         if not satisfied:
             print(f"REFUSED: 前置 {precondition!r} 不满足（当前 {state!r}）")
             return 2
@@ -438,12 +442,21 @@ def cmd_drive(engine_module, args) -> int:
     except Refused as refusal:
         print(f"REFUSED: {refusal}")
         return 2
+    except Exception as error:
+        print(f"DRIVE-FAILED {unit_id}: {type(error).__name__}: {error}")
+        return 1
+    recorded_state = None
+    if probe is not None:
+        try:
+            recorded_state = probe(context)[1]
+        except Exception:
+            recorded_state = None
     raw = write_raws(run, unit_id, entries)
     document = {
         "unit": unit_id,
         "title": unit.get("t"),
         "driver": driver_name,
-        "precondition": {"declared": precondition, "state": probe(context)[1] if probe else None},
+        "precondition": {"declared": precondition, "state": recorded_state},
         "raw": raw,
         "summary": summary,
         "drivenAt": utc_now(),
