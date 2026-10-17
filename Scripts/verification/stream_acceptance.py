@@ -527,6 +527,21 @@ def unit_arguments(unit_id: str) -> dict[str, object]:
     return dict(arguments) if isinstance(arguments, dict) else {}
 
 
+def driver_settings_restart(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    context.host_command(("xcrun", "simctl", "terminate", context.device, engine.APP_BUNDLE_ID), "simctl-terminate")
+    context.hold("after-terminate", 2.0)
+    context.invoke("ensure-session")
+    context.hold("after-ensure-session", 4.0)
+    document = context.app_verb("streamSetOptions")
+    payload = document.get("payload")
+    readable = payload[0] if isinstance(payload, list) and payload else ""
+    entries = [
+        raw_entry("app", "settings-after-restart.json", {"readback": readable, "response": document}),
+        raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-30:]}),
+    ]
+    return entries, f"App 重启后设置回读：{readable}"
+
+
 def driver_degrade_notice(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     engine.focus_stream_window(context)
     context.tap("Stream-Session-degrade")
@@ -620,6 +635,7 @@ DRIVERS.update(
         "host.details": driver_host_details,
         "host.apps": driver_host_apps,
         "settings.apply": driver_settings_apply,
+        "settings.restart": driver_settings_restart,
         "notice.degrade": driver_degrade_notice,
         "negotiate.check": driver_negotiate,
         "frame.advance": driver_frame_advance,
