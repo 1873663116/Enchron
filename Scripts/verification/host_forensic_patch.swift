@@ -359,18 +359,18 @@ final class InputMonitor {
             ])
             return
         }
+        log.write(formatInputEvent(event, kind: type, source: "tap"))
         if type == .keyDown, event.getIntegerValueField(.keyboardEventKeycode) == 53 {
             onEscape?()
         }
-        log.write(formatInputEvent(event, kind: type, source: "tap"))
     }
 
     func handle(nsEvent event: NSEvent) {
         if let cgEvent = event.cgEvent {
+            log.write(formatInputEvent(cgEvent, source: "nsEvent"))
             if event.type == .keyDown, cgEvent.getIntegerValueField(.keyboardEventKeycode) == 53 {
                 onEscape?()
             }
-            log.write(formatInputEvent(cgEvent, source: "nsEvent"))
             return
         }
         log.write([
