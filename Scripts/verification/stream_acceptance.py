@@ -454,12 +454,15 @@ def driver_session_disconnect(engine, context, run: Path, unit_id: str) -> tuple
 def driver_frame_advance(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     samples: list[dict[str, object]] = []
     for index in range(3):
-        patch, rgb, expected, screenshot = engine.stable_patch_sample(context, f"advance-{index}")
+        patch, expected, sample, screenshot, point = engine.stable_patch_sample(context, f"advance-{index}")
         view = context.session_snapshot_or_none()
         samples.append(
             {
                 "patchIndex": patch.get("index"),
                 "patchRgb": patch.get("rgbHex"),
+                "capturedColour": list(sample),
+                "expectedCaptureColour": list(expected),
+                "samplePoint": list(point),
                 "presented": view.first("presented") if view is not None else None,
                 "queue": view.first("queue") if view is not None else None,
                 "screenshot": str(screenshot),
@@ -479,7 +482,7 @@ def driver_picture_source(engine, context, run: Path, unit_id: str) -> tuple[lis
     samples: list[dict[str, object]] = []
     files: list[dict[str, object]] = []
     for index in range(3):
-        patch, rgb, expected, screenshot = engine.stable_patch_sample(context, f"source-{index}")
+        patch, expected, sample, screenshot, point = engine.stable_patch_sample(context, f"source-{index}")
         target = unit_directory(run, unit_id) / "raw" / f"source-{index}.png"
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(screenshot.read_bytes())
@@ -487,8 +490,10 @@ def driver_picture_source(engine, context, run: Path, unit_id: str) -> tuple[lis
         samples.append(
             {
                 "patchIndex": patch.get("index"),
-                "hostColour": list(expected),
-                "capturedColour": list(rgb),
+                "patchRgb": patch.get("rgbHex"),
+                "capturedColour": list(sample),
+                "expectedCaptureColour": list(expected),
+                "samplePoint": list(point),
                 "screenshot": f"raw/source-{index}.png",
             }
         )
@@ -499,7 +504,7 @@ def driver_picture_source(engine, context, run: Path, unit_id: str) -> tuple[lis
         raw_entry("host-forensic", "patch-log.json", {"path": str(context.forensic_path()), "patchIndices": [s["patchIndex"] for s in samples]}),
         *files,
     ]
-    pairs = [(s["patchIndex"], s["hostColour"], s["capturedColour"]) for s in samples]
+    pairs = [(s["patchIndex"], s["patchRgb"], s["capturedColour"]) for s in samples]
     return entries, f"三档取样（序号/主机色/客户端读色）：{pairs}"
 
 
@@ -910,21 +915,21 @@ def driver_launch_validate(engine, context, run: Path, unit_id: str) -> tuple[li
 
 def driver_first_frame(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     row, view = engine.ensure_streaming(context)
-    patch, rgb, sample, screenshot = engine.stable_patch_sample(context, "first-frame")
+    patch, rgb, sample, screenshot, point = engine.stable_patch_sample(context, "first-frame")
     target = unit_directory(run, unit_id) / "raw" / "first-frame.png"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(screenshot.read_bytes())
     forensic = context.forensic()
     entries = [
         raw_entry(
-            "host-sunshine",
+            "host-forensic",
             "forensic-patch.json",
             {
                 "latestPatch": patch,
                 "seedHex": forensic.get("seedHex"),
                 "expected": list(rgb),
                 "tolerance": engine.PATCH_RGB_TOLERANCE,
-                "samplePoint": list(engine.PATCH_SAMPLE_POINT),
+                "samplePoint": list(point),
             },
         ),
         {"class": "pixel", "path": "first-frame.png", "file": str(target), "payload": {"sampled": list(sample), "expected": list(rgb)}},
