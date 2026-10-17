@@ -77,7 +77,7 @@ struct Options {
     var toneOnSeconds: Double = 0.45
     var seed: UInt64?
     var selfTest = false
-    var windowMode = "full"
+    var windowMode = "corner"
     var escapeFilePath: String?
 }
 
@@ -270,6 +270,7 @@ func formatInputEvent(_ event: CGEvent, kind: CGEventType? = nil, source: String
 }
 
 final class InputMonitor {
+    var onEscape: (() -> Void)?
     private let log: EventLog
     private(set) var mode = "disabled"
     private var tap: CFMachPort?
@@ -358,11 +359,17 @@ final class InputMonitor {
             ])
             return
         }
+        if type == .keyDown, event.getIntegerValueField(.keyboardEventKeycode) == 53 {
+            onEscape?()
+        }
         log.write(formatInputEvent(event, kind: type, source: "tap"))
     }
 
     func handle(nsEvent event: NSEvent) {
         if let cgEvent = event.cgEvent {
+            if event.type == .keyDown, cgEvent.getIntegerValueField(.keyboardEventKeycode) == 53 {
+                onEscape?()
+            }
             log.write(formatInputEvent(cgEvent, source: "nsEvent"))
             return
         }
@@ -472,6 +479,11 @@ final class TonePlayer {
             "wallMs": currentWallMs(),
         ])
     }
+}
+
+final class PatchWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 }
 
 final class PatchView: NSView {
@@ -617,7 +629,7 @@ final class ForensicController: NSObject {
                 x: screen.frame.origin.x,
                 y: screen.frame.origin.y + screen.frame.height - windowSize.height
             )
-        let window = NSWindow(
+        let window = PatchWindow(
             contentRect: NSRect(origin: windowOrigin, size: windowSize),
             styleMask: [.borderless],
             backing: .buffered,
@@ -651,13 +663,8 @@ final class ForensicController: NSObject {
         view.desktopTopOffset = screen.frame.maxY - window.frame.maxY
         view.layoutSubtreeIfNeeded()
 
-        view.onEscape = { [weak self] in
-            guard let self else { return }
-            self.log.write(["event": "escape-abort", "wallMs": currentWallMs()], echo: true)
-            let marker = self.options.escapeFilePath ?? defaultEscapeMarkerPath
-            try? "escape".write(toFile: marker, atomically: true, encoding: .utf8)
-            self.shutdown(reason: "escape")
-        }
+        view.onEscape = { [weak self] in self?.abortFromEscape() }
+        input.onEscape = { [weak self] in self?.abortFromEscape() }
         try? FileManager.default.removeItem(atPath: options.escapeFilePath ?? defaultEscapeMarkerPath)
 
         self.window = window
@@ -727,6 +734,14 @@ final class ForensicController: NSObject {
         startFrameSourceWatchdog()
 
         application.run()
+    }
+
+    private func abortFromEscape() {
+        guard !shuttingDown else { return }
+        log.write(["event": "escape-abort", "wallMs": currentWallMs()], echo: true)
+        let marker = options.escapeFilePath ?? defaultEscapeMarkerPath
+        try? "escape".write(toFile: marker, atomically: true, encoding: .utf8)
+        shutdown(reason: "escape")
     }
 
     private func startDisplayLink() {
