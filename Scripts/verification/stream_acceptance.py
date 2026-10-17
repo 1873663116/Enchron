@@ -440,6 +440,7 @@ DRIVERS = {
 
 
 def driver_host_state(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    engine.normalize_streaming_navigation(context)
     row = engine.ensure_host(context, pair=True)
     value = context.identifier_value(f"Stream-HostRow-{row}") or ""
     apps = context.webui().apps()
@@ -504,6 +505,26 @@ def unmet_needs(run: Path, unit: dict[str, object]) -> list[str]:
     return [str(need) for need in unit.get("needs", []) if verdict_of(run, str(need)) is None]
 
 
+def record_failure(run: Path, unit_id: str, kind: str, detail: str, context) -> None:
+    notes = []
+    try:
+        notes = [str(note) for note in context.notes]
+    except AttributeError:
+        notes = []
+    write_json(
+        unit_directory(run, unit_id) / "failure.json",
+        {
+            "unit": unit_id,
+            "kind": kind,
+            "detail": detail,
+            "notes": notes,
+            "recordedAt": utc_now(),
+            "toolDigest": tool_digest(),
+            "gitRevision": git_revision(),
+        },
+    )
+
+
 def cmd_drive(engine_module, args) -> int:
     registry = load_registry()
     run = resolve_run(args.run_dir, create=True)
@@ -547,9 +568,11 @@ def cmd_drive(engine_module, args) -> int:
     try:
         entries, summary = DRIVERS[driver_name](engine, context, run, unit_id)
     except Refused as refusal:
+        record_failure(run, unit_id, "refused", str(refusal), context)
         print(f"REFUSED: {refusal}")
         return 2
     except Exception as error:
+        record_failure(run, unit_id, "failed", f"{type(error).__name__}: {error}", context)
         print(f"DRIVE-FAILED {unit_id}: {type(error).__name__}: {error}")
         return 1
     recorded_state = None
