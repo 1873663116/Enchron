@@ -650,6 +650,7 @@ def driver_capture_dock(engine, context, run: Path, unit_id: str) -> tuple[list[
 
 
 def driver_capture_back(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    engine.ensure_streaming(context)
     context.tap("Stream-Session-back")
     stages: list[dict[str, object]] = []
     try:
@@ -722,7 +723,7 @@ def driver_interrupt_inject(engine, context, run: Path, unit_id: str) -> tuple[l
 
 
 def driver_interrupt_recover(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
-    control = unit_directory(run, "09.1") / "artifacts" / "proxy-control.json"
+    control = run / "unit-09.1" / "artifacts" / "proxy-control.json"
     if not control.is_file():
         raise engine.BlockedBy("09.1 的代理控制文件不存在；先在 09.1 里制造中断")
     host_name = str(read_unit_payload(run, "09.1", "proxy-host.json").get("host", ""))
@@ -933,19 +934,20 @@ def driver_release_check(engine, context, run: Path, unit_id: str) -> tuple[list
     engine.send_text(context, "enc" + engine.os.urandom(2).hex())
     context.hold("input-settle", 2.0)
     engine.disconnect_session(context, soft=True)
-    outcome = observe_wait(
-        engine,
-        context,
-        "ended",
-        engine.SESSION_END_SECONDS,
-        lambda: (
-            {"state": current.state()}
-            if (current := context.session_snapshot_or_none()) is not None and current.state_name() == "ended"
-            else None
-        ),
-    )
+    context.hold("release-immediate", 1.0)
+    immediate = context.session_snapshot_or_none()
+
+    def release_probe():
+        current = context.session_snapshot_or_none()
+        if current is None:
+            return {"state": "none"}
+        if current.state_name() in ("ended", "none"):
+            return {"state": current.state()}
+        return None
+
+    outcome = observe_wait(engine, context, "ended", engine.SESSION_END_SECONDS, release_probe)
     context.hold("release-settle", engine.QUEUE_SETTLE_SECONDS)
-    final = context.session_snapshot_or_none()
+    final = context.session_snapshot_or_none() or immediate
     counters = final.inputs() if final is not None else {}
     entries = [
         raw_entry(
@@ -971,12 +973,14 @@ def driver_release_check(engine, context, run: Path, unit_id: str) -> tuple[list
 def driver_bitrate_host(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     row, view = engine.ensure_streaming(context)
     sunshine = context.sunshine()
+    configuration = context.webui().configuration()
     entries = [
         raw_entry(
             "host-sunshine",
             "sunshine-encoders.json",
             {"encoders": sunshine["encoders"], "appLaunches": sunshine.get("appLaunches", []), "sessionStarts": sunshine["sessionStarts"]},
         ),
+        raw_entry("host-sunshine", "sunshine-config.json", configuration),
         raw_entry("app", "session-snapshot.json", {"state": view.state(), "requested": dict(view.requested()), "negotiated": dict(view.negotiated())}),
     ]
     return entries, f"主机采纳：encoders={len(sunshine['encoders'])}，协商 {dict(view.negotiated())}"
@@ -987,7 +991,7 @@ def driver_display_mode(engine, context, run: Path, unit_id: str) -> tuple[list[
     row, view = engine.ensure_streaming(context)
     after = engine.display_mode(context)
     entries = [
-        raw_entry("host-display", "display-mode.json", {"before": before, "after": after, "unchanged": before == after}),
+        raw_entry("host-sunshine", "display-mode.json", {"before": before, "after": after, "unchanged": before == after}),
         raw_entry("app", "session-snapshot.json", {"host": row, "state": view.state(), "negotiated": dict(view.negotiated())}),
     ]
     return entries, f"显示模式前后一致={before == after}"
@@ -1114,9 +1118,8 @@ def unmet_needs(run: Path, unit: dict[str, object]) -> list[str]:
 def fault_detail(error: Exception) -> str:
     detail = f"{type(error).__name__}: {error}"
     evidence = getattr(error, "evidence", None)
-    diagnosis = evidence.get("diagnosis") if isinstance(evidence, dict) else None
-    if diagnosis:
-        detail = f"{detail}｜诊断：{diagnosis}"
+    if isinstance(evidence, dict) and evidence:
+        detail = f"{detail}｜证据：{json.dumps(evidence, ensure_ascii=False)[:400]}"
     return detail
 
 
