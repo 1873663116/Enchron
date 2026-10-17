@@ -40,6 +40,17 @@ PROTOCOL = """串流验收单元驱动协议
 """
 
 
+def escape_marker_path() -> Path:
+    configured = os.environ.get("ENCHRON_ESCAPE_MARKER")
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".config" / "sunshine" / "enchron-probe.escape"
+
+
+def operator_aborted() -> bool:
+    return escape_marker_path().is_file()
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -545,6 +556,10 @@ def cmd_drive(engine_module, args) -> int:
         print(f"REFUSED: {unit_id} 的驱动器尚未实现（driver=pending）")
         return 2
 
+    if operator_aborted():
+        print(f"REFUSED: 操作者按下 ESC 中止了本次运行；确认后删除 {escape_marker_path()} 再继续")
+        return 2
+
     engine, context = build_engine_context(run, unit_id)
     precondition = str(unit.get("pre", ""))
     probe = None
@@ -575,6 +590,10 @@ def cmd_drive(engine_module, args) -> int:
         record_failure(run, unit_id, "failed", f"{type(error).__name__}: {error}", context)
         print(f"DRIVE-FAILED {unit_id}: {type(error).__name__}: {error}")
         return 1
+    if operator_aborted():
+        print("ABORTED: 操作者按下 ESC 中止了本次运行；该单元的观察不完整，不写判决")
+        return 2
+
     recorded_state = None
     if probe is not None:
         try:

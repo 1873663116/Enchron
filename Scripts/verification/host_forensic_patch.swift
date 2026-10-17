@@ -9,8 +9,9 @@ let patchInterval = 2.0
 let patchRectNormalized = CGRect(x: 0.08, y: 0.08, width: 0.20, height: 0.20)
 let neutralGray = 0.5
 let defaultForensicLifetimeSeconds = 3600.0
+let defaultEscapeMarkerPath = NSHomeDirectory() + "/.config/sunshine/enchron-probe.escape"
 
-let usage = "usage: host_forensic_patch [--log <path>] [--seconds <n>] [--exit-file <path>] [--freeze-file <path>] [--tone <hz>] [--tone-gain-db <db>] [--tone-period <sec>] [--tone-on <sec>] [--seed <uint64>] [--self-test]"
+let usage = "usage: host_forensic_patch [--window full|corner] [--escape-file <path>] [--log <path>] [--seconds <n>] [--exit-file <path>] [--freeze-file <path>] [--tone <hz>] [--tone-gain-db <db>] [--tone-period <sec>] [--tone-on <sec>] [--seed <uint64>] [--self-test]"
 
 func currentWallMs() -> Int64 {
     Int64((Date().timeIntervalSince1970 * 1000.0).rounded())
@@ -76,6 +77,8 @@ struct Options {
     var toneOnSeconds: Double = 0.45
     var seed: UInt64?
     var selfTest = false
+    var windowMode = "full"
+    var escapeFilePath: String?
 }
 
 func parseOptions(_ arguments: [String]) -> Options? {
@@ -103,6 +106,12 @@ func parseOptions(_ arguments: [String]) -> Options? {
         case "--exit-file":
             guard let value = nextValue(argument) else { return nil }
             options.exitFilePath = value
+        case "--window":
+            guard let value = nextValue(argument), value == "full" || value == "corner" else { return nil }
+            options.windowMode = value
+        case "--escape-file":
+            guard let value = nextValue(argument) else { return nil }
+            options.escapeFilePath = value
         case "--freeze-file":
             guard let value = nextValue(argument) else { return nil }
             options.freezeFilePath = value
@@ -468,6 +477,17 @@ final class TonePlayer {
 final class PatchView: NSView {
     private let patchLayer = CALayer()
     private let hudField = NSTextField(labelWithString: "")
+    var onEscape: (() -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func keyDown(with event: NSEvent) {
+        if event.keyCode == 53 {
+            onEscape?()
+            return
+        }
+        super.keyDown(with: event)
+    }
 
     var desktopSize = NSSize.zero
     var desktopTopOffset: CGFloat = 0
@@ -583,15 +603,20 @@ final class ForensicController: NSObject {
             exit(3)
         }
 
+        let fullScreen = options.windowMode != "corner"
         let cornerFraction = max(patchRectNormalized.maxX, patchRectNormalized.maxY) + 0.04
-        let windowSize = NSSize(
-            width: (cornerFraction * screen.frame.width).rounded(),
-            height: (cornerFraction * screen.frame.height).rounded()
-        )
-        let windowOrigin = NSPoint(
-            x: screen.frame.origin.x,
-            y: screen.frame.origin.y + screen.frame.height - windowSize.height
-        )
+        let windowSize = fullScreen
+            ? screen.frame.size
+            : NSSize(
+                width: (cornerFraction * screen.frame.width).rounded(),
+                height: (cornerFraction * screen.frame.height).rounded()
+            )
+        let windowOrigin = fullScreen
+            ? screen.frame.origin
+            : NSPoint(
+                x: screen.frame.origin.x,
+                y: screen.frame.origin.y + screen.frame.height - windowSize.height
+            )
         let window = NSWindow(
             contentRect: NSRect(origin: windowOrigin, size: windowSize),
             styleMask: [.borderless],
@@ -602,11 +627,13 @@ final class ForensicController: NSObject {
         window.isOpaque = true
         window.backgroundColor = NSColor(calibratedWhite: neutralGray, alpha: 1.0)
         window.hasShadow = false
-        window.level = .floating
+        window.level = fullScreen
+            ? NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 1)
+            : .floating
         window.collectionBehavior = [.fullScreenAuxiliary, .stationary, .canJoinAllSpaces, .ignoresCycle]
         window.animationBehavior = .none
-        window.ignoresMouseEvents = true
-        window.acceptsMouseMovedEvents = false
+        window.ignoresMouseEvents = !fullScreen
+        window.acceptsMouseMovedEvents = fullScreen
         window.isMovable = false
         window.isReleasedWhenClosed = false
 
@@ -614,9 +641,24 @@ final class ForensicController: NSObject {
         view.desktopSize = screen.frame.size
         window.contentView = view
         window.setFrame(NSRect(origin: windowOrigin, size: windowSize), display: true)
-        window.orderFrontRegardless()
+        if fullScreen {
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(view)
+            application.activate(ignoringOtherApps: true)
+        } else {
+            window.orderFrontRegardless()
+        }
         view.desktopTopOffset = screen.frame.maxY - window.frame.maxY
         view.layoutSubtreeIfNeeded()
+
+        view.onEscape = { [weak self] in
+            guard let self else { return }
+            self.log.write(["event": "escape-abort", "wallMs": currentWallMs()], echo: true)
+            let marker = self.options.escapeFilePath ?? defaultEscapeMarkerPath
+            try? "escape".write(toFile: marker, atomically: true, encoding: .utf8)
+            self.shutdown(reason: "escape")
+        }
+        try? FileManager.default.removeItem(atPath: options.escapeFilePath ?? defaultEscapeMarkerPath)
 
         self.window = window
         self.view = view
@@ -780,7 +822,7 @@ final class ForensicController: NSObject {
         let text = "FRAME " + hexText(Int64(frameCounter), width: 8)
             + " · PATCH " + String(patchIndex)
             + " #" + hexText(Int64(rgb.red), width: 2) + hexText(Int64(rgb.green), width: 2) + hexText(Int64(rgb.blue), width: 2)
-            + " · 取证窗口 " + String(remaining) + "s 后自动关闭（点击穿透，不影响使用）"
+            + " · 取证窗口 " + String(remaining) + "s 后自动关闭"
         view?.hudText = text
     }
 
