@@ -588,7 +588,6 @@ def driver_settings_restart(engine, context, run: Path, unit_id: str) -> tuple[l
 
 
 def driver_degrade_notice(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
-    engine.focus_stream_window(context)
     context.tap("Stream-Session-degrade")
     value = context.identifier_value("Stream-Session-degrade-explain") or ""
     screenshot, rgb = context.capture("degrade-explain")

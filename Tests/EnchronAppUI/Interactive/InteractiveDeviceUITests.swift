@@ -258,7 +258,9 @@ private final class InteractiveDeviceUIChannel {
             let startedAt = Date()
             var relativePaths: [String] = []
             for index in 0..<count {
-                let png = capturedScreenPNG()
+                let png = capturedScreenPNG(
+                    identifier: command.screenshotIdentifier
+                )
                 let millis = Int(Date().timeIntervalSince1970 * 1_000)
                 let name = "\(command.id)-burst-\(String(format: "%03d", index))-\(millis).png"
                 try? png.write(to: responsesURL.appending(path: name), options: .atomic)
@@ -551,6 +553,13 @@ private final class InteractiveDeviceUIChannel {
         }
     }
 
+    private func element(withIdentifier identifier: String) -> XCUIElement? {
+        let element = app.descendants(matching: .any)
+            .matching(identifier: identifier)
+            .element(boundBy: 0)
+        return element.exists ? element : nil
+    }
+
     private func element(
         for command: InteractiveDeviceUICommand
     ) -> XCUIElement? {
@@ -604,7 +613,11 @@ private final class InteractiveDeviceUIChannel {
         return nil
     }
 
-    private func capturedScreenPNG() -> Data {
+    private func capturedScreenPNG(identifier: String? = nil) -> Data {
+        if let identifier, identifier.isEmpty == false,
+           let element = element(withIdentifier: identifier) {
+            return element.screenshot().pngRepresentation
+        }
 #if targetEnvironment(simulator)
         return app.screenshot().pngRepresentation
 #else
@@ -634,7 +647,8 @@ private final class InteractiveDeviceUIChannel {
         } else {
             let name = "\(command.id).png"
             let screenshotURL = responsesURL.appending(path: name)
-            try capturedScreenPNG().write(to: screenshotURL, options: .atomic)
+            try capturedScreenPNG(identifier: command.screenshotIdentifier)
+                .write(to: screenshotURL, options: .atomic)
             screenshotName = "responses/\(name)"
         }
 
@@ -839,6 +853,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let normalizedX: Double?
     let normalizedY: Double?
     let includeScreenshot: Bool?
+    let screenshotIdentifier: String?
     let count: Int?
     let intervalMilliseconds: Int?
 }

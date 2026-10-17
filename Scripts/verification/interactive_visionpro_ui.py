@@ -878,6 +878,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "normalizedY",
         "count",
         "intervalMilliseconds",
+        "screenshotIdentifier",
     ):
         value = getattr(arguments, key, None)
         if value is not None:
@@ -1625,6 +1626,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--normalized-x", dest="normalizedX", type=float)
     parser.add_argument("--normalized-y", dest="normalizedY", type=float)
     parser.add_argument("--no-screenshot", action="store_true")
+    parser.add_argument("--screenshot-identifier", dest="screenshotIdentifier")
     parser.add_argument("--verb")
     parser.add_argument("--arg", dest="app_arguments", action="append", default=[])
     parser.add_argument("--defer-response", action="store_true")

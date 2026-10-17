@@ -101,7 +101,7 @@ PATCH_RGB_TOLERANCE = 30
 PATCH_SAMPLE_ATTEMPTS = 3
 PATCH_RETRY_SECONDS = 1.0
 PATCH_FREEZE_SETTLE_SECONDS = 4.0
-STREAM_WINDOW_RAISE_POINT = (0.88, 0.88)
+STREAM_VIDEO_IDENTIFIER = "Stream-Session-video"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 PNG_EXTENT_OFFSET = 16
 POINTER_TARGET = (0.5, 0.5)
@@ -1009,9 +1009,6 @@ class Context:
             raise ProductVerdict("app-command-failed", {"verb": verb, "detail": detail})
         return document
 
-    def snapshot_document(self) -> dict[str, object]:
-        return self.invoke("snapshot")
-
     def hierarchy(self) -> str:
         document = self.invoke("snapshot", ("--no-screenshot",))
         hierarchy = document.get("hierarchy")
@@ -1254,8 +1251,11 @@ class Context:
             raise BlockedBy(f"Sunshine Web UI credentials are unreadable: {error}") from None
         return SunshineWebUI(base, credentials)
 
-    def capture_blob(self, name: str) -> tuple[Path, bytes]:
-        document = self.snapshot_document()
+    def capture_blob(
+        self, name: str, identifier: str | None = None
+    ) -> tuple[Path, bytes]:
+        arguments = ("--screenshot-identifier", identifier) if identifier else ()
+        document = self.invoke("snapshot", arguments)
         source = document.get("localScreenshotPath")
         if not isinstance(source, str):
             raise InstrumentFault(
@@ -1864,53 +1864,25 @@ def capture_extent(blob: bytes) -> tuple[int, int]:
     return width, height
 
 
-def session_video_frame(context: Context) -> tuple[float, float, float, float]:
-    """The stream window's video surface, in the points of its own window."""
-    matched = context.matched_element("Stream-Session-video")
-    frame = matched.get("frame") if isinstance(matched, Mapping) else None
-    if not isinstance(frame, Mapping):
-        raise BlockedBy("the stream window publishes no video surface to sample")
-    try:
-        x, y, width, height = (
-            float(frame[key]) for key in ("x", "y", "width", "height")
-        )
-    except (KeyError, TypeError, ValueError):
-        raise BlockedBy(f"the video surface frame is unreadable: {frame!r}") from None
-    if width <= 0 or height <= 0:
-        raise BlockedBy(f"the video surface frame {frame!r} encloses no picture")
-    return x, y, width, height
+def require_video_surface(context: Context) -> None:
+    """The stream window's video surface, as the capture's precondition."""
+    if context.matched_element(STREAM_VIDEO_IDENTIFIER) is None:
+        raise BlockedBy("the stream window publishes no video surface to capture")
 
 
 def patch_sample(
     context: Context, blob: bytes
 ) -> tuple[tuple[float, float], tuple[int, int, int]]:
-    """The patch point in a capture, carried by the stream window's geometry.
+    """The patch point inside a capture of the video surface.
 
-    The patch is painted at PATCH_SAMPLE_POINT of the streamed picture and the
-    picture fills the window's video surface, so the surface's own frame holds
-    the point. The frame is published in the points of its window while the
-    capture holds the scene the window sits in, so the point is measured against
-    the capture's extent.
+    The capture is the video surface itself, so the patch painted at
+    PATCH_SAMPLE_POINT of the streamed picture sits at the same point of the
+    capture; the extent is read back as the integrity check that the capture
+    encloses a picture.
     """
-    x, y, width, height = session_video_frame(context)
-    capture_width, capture_height = capture_extent(blob)
-    point = (
-        (x + PATCH_SAMPLE_POINT[0] * width) / capture_width,
-        (y + PATCH_SAMPLE_POINT[1] * height) / capture_height,
-    )
-    if not all(0.0 <= value <= 1.0 for value in point):
-        raise InstrumentFault(
-            "evidence-destroyed",
-            {
-                "scenario": context.scenario.number,
-                "detail": (
-                    f"the video surface at ({x}, {y}) of {width}x{height} leaves the "
-                    f"{capture_width}x{capture_height} capture at {point}"
-                ),
-            },
-        )
+    capture_extent(blob)
     try:
-        rgb = region_rgb(blob, *point)
+        rgb = region_rgb(blob, *PATCH_SAMPLE_POINT)
     except RasterError as error:
         raise InstrumentFault(
             "evidence-destroyed",
@@ -1919,53 +1891,7 @@ def patch_sample(
                 "detail": f"the screenshot carries no usable pixel: {error}",
             },
         ) from None
-    return point, rgb
-
-
-def focus_stream_window(context: Context) -> None:
-    try:
-        if context.matched_element("Stream-Session-dock") is not None:
-            context.tap("Stream-Session-dock")
-            context.hold("stream-window-focus", 1.5)
-    except (BlockedBy, InstrumentFault, ProductVerdict):
-        context.note("the stream window could not be brought forward for the capture")
-
-
-def raise_stream_window(context: Context, attempt: int) -> None:
-    """Ask the stream window in front when the capture holds another window.
-
-    The stream window is its own scene: a browser window left in front hides the
-    picture from every capture while the session controls still answer through
-    the accessibility tree. A tap inside the video surface asks the system to
-    forward the window it belongs to; a relaunch dismisses the stream window and
-    opens it again in front of the browser window.
-    """
-    focus_stream_window(context)
-    if attempt < PATCH_SAMPLE_ATTEMPTS - 1:
-        try:
-            context.invoke(
-                "coordinateTap",
-                (
-                    "--identifier",
-                    "Stream-Session-video",
-                    "--normalized-x",
-                    str(STREAM_WINDOW_RAISE_POINT[0]),
-                    "--normalized-y",
-                    str(STREAM_WINDOW_RAISE_POINT[1]),
-                ),
-            )
-        except (BlockedBy, InstrumentFault, ProductVerdict):
-            context.note("the stream window did not answer a tap inside its video surface")
-        return
-    if context.matched_element("Navigation-Ornament-tab-streaming") is None:
-        context.note("no browser window is open to cover the stream window")
-        return
-    try:
-        disconnect_session(context, soft=True)
-        context.hold("stream-window-raise", PATCH_RETRY_SECONDS)
-        ensure_streaming(context)
-    except (BlockedBy, InstrumentFault, ProductVerdict) as error:
-        context.note(f"the stream window could not be reopened in front: {error}")
+    return PATCH_SAMPLE_POINT, rgb
 
 
 def forensic_freeze_path(context: Context) -> Path | None:
@@ -1980,20 +1906,19 @@ def stable_patch_sample(
 ) -> tuple[dict, tuple[int, int, int], tuple[int, int, int], Path, tuple[float, float]]:
     """Sample the patch rect only while the host patch index holds still.
 
-    The screenshot takes a device round trip while the forensic app advances its
-    patch every two seconds, so a colour read across an advance would compare a
-    frame with a colour it never showed. The index is read on both sides of the
-    capture and a mismatch is retried, not judged. The point is the one the
-    stream window's video surface carries, and a capture that holds another
-    colour there is retried after the stream window is asked in front.
+    The capture is the stream window's video surface, so the patch sits at
+    PATCH_SAMPLE_POINT of the capture. The screenshot takes a device round trip
+    while the forensic app advances its patch every two seconds, so a colour
+    read across an advance would compare a frame with a colour it never showed.
+    The index is read on both sides of the capture and a mismatch is retried,
+    not judged.
     """
+    require_video_surface(context)
     freeze = forensic_freeze_path(context)
     last_error = ""
     for attempt in range(PATCH_SAMPLE_ATTEMPTS):
         if attempt:
-            raise_stream_window(context, attempt)
             context.hold(f"patch-sample-retry-{attempt}", PATCH_RETRY_SECONDS)
-        focus_stream_window(context)
         if freeze is not None:
             freeze.parent.mkdir(parents=True, exist_ok=True)
             freeze.write_text("freeze\n", encoding="utf-8")
@@ -2002,7 +1927,9 @@ def stable_patch_sample(
             before = latest_patch(context.forensic())
             if before is None:
                 raise BlockedBy("the host forensic log carries no patch colour yet")
-            screenshot, blob = context.capture_blob(f"{name}-{attempt + 1}")
+            screenshot, blob = context.capture_blob(
+                f"{name}-{attempt + 1}", identifier=STREAM_VIDEO_IDENTIFIER
+            )
             after = latest_patch(context.forensic())
             rgb = patch_rgb(after)
             if after is None or rgb is None:
@@ -2016,8 +1943,8 @@ def stable_patch_sample(
             point, sample = patch_sample(context, blob)
             if all(channel == sample[0] for channel in sample) and sample[0] < 110:
                 last_error = (
-                    f"the capture returned a dark uniform frame {sample} at {point}; the stream "
-                    "window was not the frontmost window"
+                    f"the capture returned a dark uniform frame {sample} at {point}; the "
+                    "video surface is not painting the patch"
                 )
                 continue
             expected = capture_space_rgb(rgb)
@@ -4064,23 +3991,32 @@ def self_test_session_sample(check: Callable[[str, bool], None]) -> None:
     from regression.tools.raster import Raster, encode_png
 
     capture_width, capture_height = 100, 50
+    patch_column = int(PATCH_SAMPLE_POINT[0] * capture_width)
+    patch_row = int(PATCH_SAMPLE_POINT[1] * capture_height)
     samples = bytearray()
     for row in range(capture_height):
         for column in range(capture_width):
-            samples.extend((9, 9, 9) if (column, row) != (14, 7) else (200, 100, 50))
+            patch_pixel = (column, row) == (patch_column, patch_row)
+            samples.extend((200, 100, 50) if patch_pixel else (9, 9, 9))
     capture = encode_png(Raster(capture_width, capture_height, 3, bytes(samples)))
 
-    def context_for(frame: object) -> Context:
+    invocations: list[list[str]] = []
+
+    def context_for(present: bool, source: Path | None = None) -> Context:
         directory = Path(tempfile.mkdtemp(prefix="enchron-acceptance-sample-"))
         budgets = BudgetProvider(timings_directory=directory / "timings")
         document = json.dumps(
             {
                 "success": True,
-                "matchedElement": {"identifier": "Stream-Session-video", "frame": frame},
+                "matchedElement": (
+                    {"identifier": STREAM_VIDEO_IDENTIFIER} if present else None
+                ),
+                "localScreenshotPath": str(source) if source is not None else None,
             }
         )
 
         def run(command, seconds):
+            invocations.append(list(command))
             return CompletedInvocation(0, document, "")
 
         return Context(
@@ -4113,27 +4049,39 @@ def self_test_session_sample(check: Callable[[str, bool], None]) -> None:
         except InstrumentFault:
             check(f"{label} is refused", True)
 
-    window = context_for({"x": 0.0, "y": 0.0, "width": 80.0, "height": 40.0})
+    window = context_for(True)
     point, rgb = patch_sample(window, capture)
     check(
-        "the patch point follows the video surface frame",
-        all(abs(value - 0.144) < 1e-9 for value in point),
+        "the patch point is the sample point of the capture",
+        point == PATCH_SAMPLE_POINT,
     )
     check("the patch colour is read at that point", rgb == (200, 100, 50))
 
-    absent = context_for(None)
     try:
-        patch_sample(absent, capture)
-        check("a window without a video surface is refused", False)
+        require_video_surface(context_for(False))
+        check("a session window without a video surface is refused", False)
     except BlockedBy:
-        check("a window without a video surface is refused", True)
+        check("a session window without a video surface is refused", True)
 
-    outside = context_for({"x": 900.0, "y": 0.0, "width": 80.0, "height": 40.0})
-    try:
-        patch_sample(outside, capture)
-        check("a video surface outside the capture is refused", False)
-    except InstrumentFault:
-        check("a video surface outside the capture is refused", True)
+    source = (
+        Path(tempfile.mkdtemp(prefix="enchron-acceptance-capture-")) / "surface.png"
+    )
+    source.write_bytes(capture)
+    screenshot, blob = context_for(True, source).capture_blob(
+        "first-frame-1", identifier=STREAM_VIDEO_IDENTIFIER
+    )
+    check("the capture is kept as an artifact", screenshot.read_bytes() == capture)
+    check("the capture bytes are the runner's screenshot", blob == capture)
+    invoked = invocations[-1]
+    requested = (
+        invoked[invoked.index("--screenshot-identifier") + 1]
+        if "--screenshot-identifier" in invoked
+        else None
+    )
+    check(
+        "the capture asks the runner for the video surface element",
+        requested == STREAM_VIDEO_IDENTIFIER,
+    )
 
 
 def self_test_snapshot_view(check: Callable[[str, bool], None]) -> None:
