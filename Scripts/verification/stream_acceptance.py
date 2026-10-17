@@ -616,6 +616,13 @@ def probe_lines_containing(context, needles) -> list[str]:
     return matches[-40:] if matches else lines[-20:]
 
 
+def session_token(line: str) -> str:
+    for token in line.split():
+        if token.startswith("session="):
+            return token.partition("=")[2]
+    return ""
+
+
 def read_unit_payload(run: Path, unit_id: str, name: str) -> dict[str, object]:
     source = unit_directory(run, unit_id) / "raw" / name
     if not source.is_file():
@@ -731,7 +738,7 @@ def driver_capture_back(engine, context, run: Path, unit_id: str) -> tuple[list[
         if not released or not ended:
             return None
         return {
-            "session": current.state() if current is not None else "ended(reason=session-ui-gone)",
+            "session": current.state() if current is not None else engine.session_end_state(context),
             "release": released[-1],
             "end": ended[-1],
         }
@@ -865,7 +872,7 @@ def driver_remote_hold(engine, context, run: Path, unit_id: str) -> tuple[list[d
     if not isinstance(holder_command, list) or not holder_command:
         raise engine.BlockedBy("主机空闲且 fixtures 未声明 remoteSessionCommand，无法无人值守地制造占用")
     context.spawn([str(part) for part in holder_command], "remote-session-holder")
-    pattern = Path(str(holder_command[0])).name
+    pattern = engine.launched_executable(holder_command)
     busy = observe_wait(
         engine,
         context,
@@ -922,14 +929,16 @@ def driver_remote_start(engine, context, run: Path, unit_id: str) -> tuple[list[
 def driver_remote_release(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     pattern = str(read_unit_payload(run, "10.1", "holder.json").get("pattern", ""))
     before = engine.host_process_running(context, None, pattern) if pattern else None
+    released = None
     if pattern:
-        context.host_command(("pkill", "-f", pattern))
+        completed = context.host_command(("pkill", "-f", pattern))
+        released = {"command": ["pkill", "-f", pattern], "returncode": completed.returncode, "stdout": completed.stdout.strip()}
         context.hold("holder-release-settle", 3.0)
     engine.free_host(context)
     info = context.serverinfo()
     after = engine.host_process_running(context, None, pattern) if pattern else None
     entries = [
-        raw_entry("host-process", "holder-before-release.json", {"pattern": pattern, "running": before}),
+        raw_entry("host-process", "holder-before-release.json", {"pattern": pattern, "running": before, "release": released}),
         raw_entry("host-sunshine", "serverinfo-released.json", {"state": info.get("state"), "currentgame": info.get("currentgame")}),
         raw_entry("host-process", "holder-after-release.json", {"pattern": pattern, "running": after}),
     ]
@@ -1407,10 +1416,9 @@ def driver_audio_chain(engine, context, run: Path, unit_id: str) -> tuple[list[d
             return None
 
     first = {"received": counter(view, "audio:received"), "enqueued": counter(view, "audio:enqueued"), "dropped": counter(view, "audio:dropped")}
-    started = time.monotonic()
-    context.hold("audio-chain-window", engine.DEFAULT_CAPTURE_SECONDS)
+    held = context.hold("audio-chain-window", engine.DEFAULT_CAPTURE_SECONDS)
     second_view = context.session_snapshot_or_none()
-    elapsed = round(time.monotonic() - started, 2)
+    elapsed = round(held, 2)
     second = {
         "received": counter(second_view, "audio:received"),
         "enqueued": counter(second_view, "audio:enqueued"),
@@ -1453,6 +1461,15 @@ def driver_audio_contrast(engine, context, run: Path, unit_id: str) -> tuple[lis
     )
     direct_plateaus = engine.tone_plateau_report(direct_wav, float(tone.get("hz") or engine.DEFAULT_TONE_HZ))
     after_view = context.session_snapshot_or_none()
+    audio_lines = probe_lines_containing(context, ("audio start", "audio stop", "session end"))
+    ends = [line for line in audio_lines if "session end" in line]
+    end_session = session_token(ends[-1]) if ends else ""
+    stops = [
+        line
+        for line in audio_lines
+        if "audio stop" in line and session_token(line) == end_session
+    ]
+    client_stopped = bool(end_session and stops)
     entries = [
         {"class": "host-audio", "path": "audio-streaming.wav", "file": str(streaming_wav), "payload": None},
         raw_entry("host-audio", "tone-report-streaming.json", streaming_report),
@@ -1465,11 +1482,16 @@ def driver_audio_contrast(engine, context, run: Path, unit_id: str) -> tuple[lis
             "session-after-disconnect.json",
             {"host": row, "before": view.state(), "after": after_view.state() if after_view is not None else "none"},
         ),
-        raw_entry("probe", "probe-audio.json", {"lines": probe_lines_containing(context, ("audio start", "audio stop", "session end"))}),
+        raw_entry(
+            "probe",
+            "probe-audio.json",
+            {"lines": audio_lines, "endSession": end_session, "audioStopped": client_stopped},
+        ),
     ]
     return entries, (
-        f"串流期混音 {streaming_report.get('toneRatio')}（{streaming_plateaus.get('plateaus')} 段）；"
-        f"断连后 {direct_report.get('toneRatio')}（{direct_plateaus.get('plateaus')} 段）"
+        f"串流期混音 {streaming_report.get('toneRatio')}（{streaming_plateaus.get('plateaus')} 段，仅参考）；"
+        f"断连后客户端 audio stop {'成立' if client_stopped else '未观察'}（会话 {end_session or '未记录'}）；"
+        f"宿主直放音调 {direct_report.get('toneRatio')}（{direct_plateaus.get('plateaus')} 段）"
     )
 
 

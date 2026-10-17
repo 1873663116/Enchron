@@ -47,6 +47,7 @@ import ssl
 import struct
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -1086,7 +1087,8 @@ class Context:
             poll_interval_seconds=poll_interval_seconds,
         )
 
-    def hold(self, label: str, seconds: float) -> None:
+    def hold(self, label: str, seconds: float) -> float:
+        started = time.monotonic()
         self.wait(
             label,
             seconds,
@@ -1094,6 +1096,7 @@ class Context:
             lambda: [],
             poll_interval_seconds=seconds,
         )
+        return time.monotonic() - started
 
     def scene(self) -> list[object]:
         observations: list[object] = []
@@ -1678,12 +1681,32 @@ def launch_stream(context: Context, row: str) -> str:
     return card
 
 
+def session_end_state(context: Context) -> str:
+    """The end state when the session snapshot is already gone.
+
+    The snapshot leaves with the session window, but the probe keeps the product's
+    own `session end … reason=` line, so the end reason stays the product's word.
+    """
+
+    try:
+        lines = context.probe_lines()
+    except (BlockedBy, InstrumentFault, ProductVerdict):
+        lines = []
+    for line in reversed(lines):
+        if "session end" not in line or "reason=" not in line:
+            continue
+        reason = line.partition("reason=")[2].split()
+        if reason:
+            return f"ended(reason={reason[0]})"
+    return "ended(observed=session-ui-gone)"
+
+
 def wait_for_state(context: Context, name: str, seconds: float, label: str) -> SnapshotView:
     def probe() -> dict[str, object] | None:
         view = context.session_snapshot_or_none()
         if view is None:
             if name == "ended":
-                return {"session": "ended(reason=session-ui-gone)"}
+                return {"session": session_end_state(context)}
             return None
         return {"session": view.state()} if view.state_name() == name else None
 
@@ -2229,6 +2252,23 @@ def display_mode(context: Context) -> str:
     if completed.returncode != 0:
         return "unavailable"
     return completed.stdout.strip()
+
+
+def launched_executable(command: Sequence[str]) -> str:
+    """The name the spawned executable runs under.
+
+    `xcrun simctl spawn` replaces its own process image, so argv[0] never shows up in
+    the process table; the spawned binary does.
+    """
+
+    parts = [str(part) for part in command]
+    if not parts:
+        return ""
+    if Path(parts[0]).name == "xcrun" and parts[1:3] == ["simctl", "spawn"]:
+        rest = [token for token in parts[3:] if not token.startswith("-")]
+        if len(rest) > 1:
+            return Path(rest[1]).name
+    return Path(parts[0]).name
 
 
 def host_process_running(context: Context, pid: int | None, pattern: str) -> dict[str, object]:
@@ -3428,12 +3468,9 @@ def negotiate_codec(context: Context, codec: str) -> dict[str, object]:
     report: dict[str, object] = {"requested": codec, "negotiated": negotiated}
     degrade = context.matched_element("Stream-Session-degrade")
     if degrade is not None:
-        context.tap("Stream-Session-degrade")
-        explain = context.identifier_value("Stream-Session-degrade-explain")
+        explain = context.identifier_value("Stream-Session-degrade")
         report["degradeExplain"] = explain
-        screenshot, rgb = context.capture(f"degrade-{codec}")
-        context.record_pointer("pixel", str(screenshot.relative_to(context.directory)))
-        report["degradeSample"] = rgb
+        report["degradeDriveRoute"] = "accessibility-value"
     context.record_channel("control-surface", f"codec-{codec}.json", report)
     return report
 
@@ -3589,9 +3626,10 @@ def scenario_15_frame_pacing_and_rate(context: Context) -> Outcome:
 def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
     """HDR requested against a host that can only offer SDR, and the notice it shows.
 
-    The notice is a sheet over the stream window with no control of its own;
-    ending the session through the command channel closes both the window and the
-    sheet, which is what the next scenario needs.
+    The notice button publishes its summary as an accessibility value, which is the
+    channel that reaches it on the simulator lane. Ending the session through the
+    command channel closes both the window and the notice, which is what the next
+    scenario needs.
     """
     row = ensure_host(context, pair=True)
     set_options(context, hdr=True)
@@ -3616,11 +3654,8 @@ def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
         raise ProductVerdict(
             "degrade-button-absent", {"requested": requested, "negotiated": negotiated}
         )
-    context.tap("Stream-Session-degrade")
-    explain = context.identifier_value("Stream-Session-degrade-explain")
+    explain = context.identifier_value("Stream-Session-degrade")
     context.record_text("control-surface", "degrade-explain.txt", str(explain))
-    screenshot, rgb = context.capture("degrade-explain")
-    context.record_pointer("pixel", str(screenshot.relative_to(context.directory)))
     disconnect_session(context, soft=True)
     sunshine = context.sunshine()
     context.record_channel(
@@ -3638,8 +3673,7 @@ def scenario_16_hdr_request_sdr_host(context: Context) -> Outcome:
         PASSED,
         notes=(
             f"HDR requested, negotiated hdr={negotiated.get('hdr')}; the degrade notice reads "
-            f"{explain!r}; host colour coding lines={len(sunshine['hdrRejected'])}; "
-            f"pixel sample {rgb}"
+            f"{explain!r}; host colour coding lines={len(sunshine['hdrRejected'])}"
         ),
     )
 
