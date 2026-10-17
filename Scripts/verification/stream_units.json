@@ -461,13 +461,20 @@
       "id": "12.1",
       "s": "12",
       "t": "改设置",
-      "pre": "app=settings-open",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app"
       ],
-      "driver": "pending",
-      "x": false
+      "driver": "settings.apply",
+      "x": false,
+      "args": {
+        "resolution": "2560x1440",
+        "frameRate": 60,
+        "bitrate": 40000,
+        "codec": "hevc",
+        "framePacing": true
+      }
     },
     {
       "id": "12.2",
@@ -502,51 +509,63 @@
       "id": "13.1",
       "s": "13",
       "t": "请求 H.264",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app",
         "host-sunshine"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "codec": "h264"
+      }
     },
     {
       "id": "13.2",
       "s": "13",
       "t": "请求 HEVC",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app",
         "host-sunshine"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "codec": "hevc"
+      }
     },
     {
       "id": "13.3",
       "s": "13",
       "t": "自动",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "codec": "auto"
+      }
     },
     {
       "id": "14.1",
       "s": "14",
       "t": "请求 40 Mbps",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "bitrate": 40000
+      }
     },
     {
       "id": "14.2",
@@ -566,20 +585,24 @@
       "id": "15.1",
       "s": "15",
       "t": "帧调度开",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app",
         "probe"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "framePacing": true,
+        "frameRate": 60
+      }
     },
     {
       "id": "15.2",
       "s": "15",
       "t": "帧调度关",
-      "pre": "app=settings-open",
+      "pre": "session=streaming",
       "needs": [
         "15.1"
       ],
@@ -594,32 +617,38 @@
       "id": "15.3",
       "s": "15",
       "t": "请求 120",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app",
         "probe"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "frameRate": 120
+      }
     },
     {
       "id": "16.1",
       "s": "16",
       "t": "请求 HDR",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "settings.apply",
+      "x": true,
+      "args": {
+        "hdr": true
+      }
     },
     {
       "id": "16.2",
       "s": "16",
       "t": "主机 SDR 降级",
-      "pre": "session=streaming",
+      "pre": "session!=ended",
       "needs": [
         "16.1"
       ],
@@ -627,8 +656,9 @@
         "app",
         "host-sunshine"
       ],
-      "driver": "pending",
-      "x": false
+      "driver": "negotiate.check",
+      "x": false,
+      "args": {}
     },
     {
       "id": "16.3",
@@ -646,13 +676,16 @@
       "id": "17.1",
       "s": "17",
       "t": "请求 2560x1440",
-      "pre": "app=settings-open",
+      "pre": "session!=ended",
       "needs": [],
       "cls": [
         "app"
       ],
-      "driver": "pending",
-      "x": true
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "resolution": "2560x1440"
+      }
     },
     {
       "id": "17.2",

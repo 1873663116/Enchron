@@ -515,6 +515,49 @@ DRIVERS = {
 }
 
 
+def tail_lines(path: Path, count: int) -> list[str]:
+    if not path.is_file():
+        return []
+    return path.read_text(encoding="utf-8", errors="replace").splitlines()[-count:]
+
+
+def unit_arguments(unit_id: str) -> dict[str, object]:
+    entry = units_by_id(load_registry()).get(unit_id, {})
+    arguments = entry.get("args")
+    return dict(arguments) if isinstance(arguments, dict) else {}
+
+
+def driver_settings_apply(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    arguments = unit_arguments(unit_id)
+    payload = engine.set_options(context, **arguments)
+    entries = [
+        raw_entry("app", "settings-applied.json", {"requested": arguments, "readback": payload}),
+        raw_entry("host-sunshine", "sunshine-tail.log", {"path": str(context.sunshine_path()), "lines": tail_lines(context.sunshine_path(), 40)}),
+    ]
+    return entries, f"设置写入并回读：{payload}"
+
+
+def driver_negotiate(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    arguments = unit_arguments(unit_id)
+    view = context.session_snapshot_or_none()
+    if view is not None and view.state_name() == "streaming":
+        engine.disconnect_session(context, soft=True)
+    if arguments:
+        engine.set_options(context, **arguments)
+    row, view = engine.ensure_streaming(context)
+    requested = dict(view.requested())
+    negotiated = dict(view.negotiated())
+    entries = [
+        raw_entry(
+            "app",
+            "session-snapshot.json",
+            {"state": view.state(), "requested": requested, "negotiated": negotiated, "arguments": arguments},
+        ),
+        raw_entry("host-sunshine", "sunshine-tail.log", {"path": str(context.sunshine_path()), "lines": tail_lines(context.sunshine_path(), 60)}),
+    ]
+    return entries, f"请求 {arguments or '不变'} → 协商 {negotiated}"
+
+
 def driver_host_state(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     engine.normalize_streaming_navigation(context)
     row = engine.ensure_host(context, pair=True)
@@ -560,6 +603,8 @@ DRIVERS.update(
         "host.state": driver_host_state,
         "host.details": driver_host_details,
         "host.apps": driver_host_apps,
+        "settings.apply": driver_settings_apply,
+        "negotiate.check": driver_negotiate,
         "frame.advance": driver_frame_advance,
         "picture.source": driver_picture_source,
     }

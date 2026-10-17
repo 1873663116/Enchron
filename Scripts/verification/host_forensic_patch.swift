@@ -664,7 +664,7 @@ final class ForensicController: NSObject {
         view.layoutSubtreeIfNeeded()
 
         view.onEscape = { [weak self] in self?.abortFromEscape() }
-        input.onEscape = { [weak self] in self?.abortFromEscape() }
+        input.onEscape = fullScreen ? { [weak self] in self?.abortFromEscape() } : nil
         try? FileManager.default.removeItem(atPath: options.escapeFilePath ?? defaultEscapeMarkerPath)
 
         self.window = window
