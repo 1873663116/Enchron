@@ -202,11 +202,11 @@ def parse_evidence(run: Path, unit_id: str, values: list[str]) -> list[dict[str,
             raise SystemExit(f"invalid --evidence {value!r}; expected class=path")
         if kind not in EVIDENCE_CLASSES:
             raise SystemExit(f"unknown evidence class {kind!r}; known: {', '.join(EVIDENCE_CLASSES)}")
-        candidate = (directory / relative).resolve()
+        candidate = (directory / relative).resolve() if not relative.startswith("units/") else (run / relative).resolve()
         if not candidate.is_file():
-            raise SystemExit(f"evidence file does not exist under the unit directory: {relative}")
-        if directory.resolve() not in candidate.parents:
-            raise SystemExit(f"evidence must live inside the unit directory: {relative}")
+            raise SystemExit(f"evidence file does not exist under the run directory: {relative}")
+        if run.resolve() not in candidate.parents:
+            raise SystemExit(f"evidence must live inside the run directory: {relative}")
         parsed.append({"class": kind, "path": relative})
     return parsed
 
@@ -247,7 +247,12 @@ def write_raws(run: Path, unit_id: str, entries: list[dict[str, object]]) -> lis
     recorded: list[dict[str, str]] = []
     for entry in entries:
         name = Path(str(entry["path"])).name
-        write_json(directory / name, {"class": entry["class"], "payload": entry["payload"]})
+        source = entry.get("file")
+        if isinstance(source, str) and source:
+            (directory / name).parent.mkdir(parents=True, exist_ok=True)
+            (directory / name).write_bytes(Path(source).read_bytes())
+        else:
+            write_json(directory / name, {"class": entry["class"], "payload": entry["payload"]})
         recorded.append({"class": str(entry["class"]), "path": f"raw/{name}"})
     return recorded
 
@@ -437,8 +442,11 @@ def driver_host_details(engine, context, run: Path, unit_id: str) -> tuple[list[
         if item.startswith("Stream-AppCard-")
     }
     missing = [item for item in identifiers if item.startswith("Stream-AppMissing-")]
+    screenshot, rgb = context.capture("host-detail")
     entries = [
         raw_entry("app", "app-grid.json", {"gridValue": grid, "cards": cards, "missing": missing}),
+        {"class": "pixel", "path": "host-detail.png", "file": str(screenshot), "payload": None},
+        raw_entry("pixel", "host-detail-sample.json", {"rgb": list(rgb), "screenshot": str(screenshot)}),
     ]
     return entries, f"详情页卡片 {len(cards)} 张，缺失 {len(missing)} 张；gridValue={grid!r}"
 
