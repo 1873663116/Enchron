@@ -7,6 +7,8 @@ public struct StreamVideoSurface: View {
     public let accessibilityIdentifier: String
 
     @State private var videoEntity = Entity()
+    @State private var surfaceActivation = PlaybackSurfaceActivation()
+    @State private var attachedWhileActive = false
 
     public init(
         renderer: AVSampleBufferVideoRenderer,
@@ -22,15 +24,17 @@ public struct StreamVideoSurface: View {
         GeometryReader3D { geometry in
             RealityView { content in
                 installEntity(into: content)
-                updateLayout(content: content, proxy: geometry)
+                armActivation(content: content, proxy: geometry)
             } update: { content in
                 installEntity(into: content)
-                updateLayout(content: content, proxy: geometry)
+                armActivation(content: content, proxy: geometry)
             }
             .frame(depth: WindowPlaybackSurfaceGeometry.flatWindowDepth)
         }
         .frame(depth: WindowPlaybackSurfaceGeometry.flatWindowDepth)
         .onDisappear {
+            surfaceActivation.cancel()
+            attachedWhileActive = false
             PlaybackRealityPresenter.releaseVideoRenderer(from: videoEntity)
         }
         .accessibilityElement(children: .ignore)
@@ -44,7 +48,26 @@ public struct StreamVideoSurface: View {
         content.add(videoEntity)
     }
 
+    private func armActivation(content: RealityViewContent, proxy: GeometryProxy3D) {
+        surfaceActivation.observe(videoEntity, in: content) {
+            updateLayout(content: content, proxy: proxy)
+        }
+    }
+
     private func updateLayout(content: RealityViewContent, proxy: GeometryProxy3D) {
+        guard videoEntity.isActive else {
+            attachedWhileActive = false
+            return
+        }
+        let bound = PlaybackRealityPresenter.isBound(
+            videoEntity,
+            to: renderer,
+            presentation: .window
+        )
+        if bound == false || attachedWhileActive == false {
+            PlaybackRealityPresenter.releaseVideoRenderer(from: videoEntity)
+            attachedWhileActive = true
+        }
         PlaybackRealityPresenter.configure(
             videoEntity,
             renderer: renderer,
