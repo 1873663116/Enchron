@@ -993,7 +993,7 @@ def driver_display_mode(engine, context, run: Path, unit_id: str) -> tuple[list[
     return entries, f"显示模式前后一致={before == after}"
 
 
-def driver_launch_validate(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+def driver_settings_apply(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     arguments = unit_arguments(unit_id)
     payload = engine.set_options(context, **arguments)
     entries = [
