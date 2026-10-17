@@ -72,7 +72,7 @@ from harness import (
     wait_for,
 )
 from regression.tools.pixel_heuristics import region_rgb, region_rgb_matches
-from regression.tools.raster import RasterError
+from regression.tools.raster import RasterError, decode_png
 
 RUNNER_PATH = VERIFICATION_ROOT / "interactive_visionpro_ui.py"
 PROXY_PATH = VERIFICATION_ROOT / "moonlight_loopback_proxy.py"
@@ -95,15 +95,22 @@ DEFAULT_FORENSIC_APP_NAME = "Enchron Forensics"
 DEFAULT_TONE_HZ = 997.0
 DEFAULT_SIMULATOR_APP_NAME = "Simulator"
 DEFAULT_WORK_DIRECTORY = Path(os.environ.get("TMPDIR", "/tmp")).expanduser() / "enchron-moonlight-acceptance"
+SIMULATOR_CAPTURE_DIRECTORY = Path(os.environ.get("TMPDIR", "/tmp")).expanduser() / "enchron-simulator-captures"
 
-PATCH_SAMPLE_POINT = (0.18, 0.18)
+CAPTURE_SAMPLE_POINT = (0.18, 0.18)
 PATCH_RGB_TOLERANCE = 30
+PATCH_SCAN_STEP = 4
+PATCH_RECTANGLE_FILL = 0.9
+PATCH_MINIMUM_AREA_FRACTION = 0.0005
+PATCH_MAXIMUM_AREA_FRACTION = 0.25
+PATCH_MINIMUM_ASPECT = 0.4
+PATCH_MAXIMUM_ASPECT = 2.5
 PATCH_SAMPLE_ATTEMPTS = 3
 PATCH_RETRY_SECONDS = 1.0
 PATCH_FREEZE_SETTLE_SECONDS = 4.0
 STREAM_VIDEO_IDENTIFIER = "Stream-Session-video"
-PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-PNG_EXTENT_OFFSET = 16
+SIMULATOR_SCREENSHOT_VERB = "simulator-screenshot"
+PROBE_SEQUENCE = re.compile(r"probeSequence=(\d+)")
 POINTER_TARGET = (0.5, 0.5)
 POINTER_TOLERANCE_PIXELS = 12.0
 TONE_RATIO_FLOOR = 8.0
@@ -1254,6 +1261,55 @@ class Context:
     def capture_blob(
         self, name: str, identifier: str | None = None
     ) -> tuple[Path, bytes]:
+        """A capture of the target, kept as a run artifact.
+
+        The runner's own screenshot renders the app's main window, not the
+        session window in front of it, so the simulator lane takes the whole
+        scene from the host's simctl channel instead. Lanes without that
+        channel keep the runner's screenshot, where `identifier` narrows it to
+        the video surface element the picture is painted on.
+        """
+        blob = (
+            self.simulator_screenshot(name)
+            if self.lane == "simulator"
+            else self.runner_screenshot(identifier)
+        )
+        path = self.artifact(f"{name}.png")
+        path.write_bytes(blob)
+        return path, blob
+
+    def simulator_screenshot(self, name: str) -> bytes:
+        """The simulator scene, through simctl, staged under the host's TMPDIR.
+
+        simctl only writes the screenshot into paths it is allowed to write,
+        and the run directory is not one of them, so the capture lands in the
+        per-user TMPDIR first and is copied into the run directory from there.
+        """
+        device = self.require_device()
+        staging = SIMULATOR_CAPTURE_DIRECTORY / device
+        staging.mkdir(parents=True, exist_ok=True)
+        temporary = staging / f"{self.scenario.slug}-{name}.png"
+        temporary.unlink(missing_ok=True)
+        completed = self.host_command(
+            ("xcrun", "simctl", "io", device, "screenshot", str(temporary)),
+            verb=SIMULATOR_SCREENSHOT_VERB,
+        )
+        if completed.returncode != 0 or not temporary.is_file():
+            raise InstrumentFault(
+                "evidence-destroyed",
+                {
+                    "scenario": self.scenario.number,
+                    "detail": (
+                        f"xcrun simctl io {device} screenshot exited "
+                        f"{completed.returncode}: {completed.stderr.strip()[-200:]}"
+                    ),
+                },
+            )
+        blob = temporary.read_bytes()
+        temporary.unlink(missing_ok=True)
+        return blob
+
+    def runner_screenshot(self, identifier: str | None = None) -> bytes:
         arguments = ("--screenshot-identifier", identifier) if identifier else ()
         document = self.invoke("snapshot", arguments)
         source = document.get("localScreenshotPath")
@@ -1262,15 +1318,12 @@ class Context:
                 "evidence-destroyed",
                 {"scenario": self.scenario.number, "detail": "the snapshot carries no screenshot"},
             )
-        path = self.artifact(f"{name}.png")
-        blob = Path(source).read_bytes()
-        path.write_bytes(blob)
-        return path, blob
+        return Path(source).read_bytes()
 
     def capture(self, name: str) -> tuple[Path, tuple[int, int, int]]:
         path, blob = self.capture_blob(name)
         try:
-            rgb = region_rgb(blob, *PATCH_SAMPLE_POINT)
+            rgb = region_rgb(blob, *CAPTURE_SAMPLE_POINT)
         except RasterError as error:
             raise InstrumentFault(
                 "evidence-destroyed",
@@ -1786,18 +1839,87 @@ def host_launch_failure(context: Context, detail: str = "") -> Exception:
     )
 
 
-def disconnect_session(context: Context, *, soft: bool = False) -> None:
+def drive_back_control(context: Context) -> str:
+    """Drive the back control through the test channel, or tap it as a fallback.
+
+    Synthetic taps do not reach the session window's SwiftUI controls, so the
+    verb is the route that carries; the tap stays as the fallback for lanes
+    where no app command channel is configured.
+    """
     try:
-        try:
-            context.app_verb("streamDisconnect")
-        except BlockedBy:
-            context.tap("Stream-Session-back")
+        context.app_verb("streamDisconnect")
+        return "test-channel"
+    except BlockedBy as error:
+        context.note(
+            f"streamDisconnect verb unusable ({error.reason}); tapping the back control"
+        )
+    context.tap("Stream-Session-back")
+    return "synthetic-tap"
+
+
+def drive_dock_control(context: Context) -> str:
+    """Drive the dock control's release through the test channel, or tap it.
+
+    The dock button and the verb call the same handler, which releases every
+    held input with cause=control-hit; the route is recorded with the evidence
+    because only the test channel reaches the session window's controls.
+    """
+    try:
+        context.app_verb("streamReleaseInput")
+        return "test-channel"
+    except BlockedBy as error:
+        context.note(
+            f"streamReleaseInput verb unusable ({error.reason}); tapping the dock control"
+        )
+    context.tap("Stream-Session-dock")
+    return "synthetic-tap"
+
+
+def disconnect_session(context: Context, *, soft: bool = False) -> str:
+    route = "none"
+    try:
+        route = drive_back_control(context)
         if not soft:
             wait_for_state(context, "ended", SESSION_END_SECONDS, "ended")
     except (BlockedBy, InstrumentFault, ProductVerdict):
         if not soft:
             raise
+        route = "blocked"
         context.note("the session was left as it was: disconnect could not be driven")
+    return route
+
+
+def probe_lines_with(context: Context, needle: str) -> list[str]:
+    """Every probe line carrying a needle; an unreadable probe carries none yet."""
+    try:
+        return [line for line in context.probe_lines() if needle in line]
+    except BlockedBy:
+        return []
+
+
+def probe_sequence(line: str) -> int | None:
+    """The journal's own sequence number, when the line carries one."""
+    match = PROBE_SEQUENCE.search(line)
+    return int(match.group(1)) if match else None
+
+
+def probe_watermark(context: Context) -> int:
+    """The newest probe sequence the journal carries, or -1 when it carries none."""
+    sequences = [
+        sequence
+        for line in probe_lines_with(context, "probeSequence=")
+        if (sequence := probe_sequence(line)) is not None
+    ]
+    return max(sequences, default=-1)
+
+
+def fresh_probe_lines(context: Context, needle: str, watermark: int) -> list[str]:
+    """The lines carrying a needle that the journal wrote after the watermark."""
+    return [
+        line
+        for line in probe_lines_with(context, needle)
+        if (sequence := probe_sequence(line)) is not None and sequence > watermark
+    ]
 
 
 def probe_evidence(context: Context, name: str, needles: Sequence[str]) -> list[str]:
@@ -1819,10 +1941,10 @@ XYZ_TO_P3 = (
 
 
 def capture_space_rgb(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
-    """Convert the host's sRGB patch colour into the numbers a window capture holds.
+    """Convert the host's sRGB patch colour into the numbers a simulator capture holds.
 
-    Simulator window screenshots encode the display in Display P3 while the file
-    is tagged sRGB, so raw captures of the same colour differ by the P3 encoding
+    Simulator screenshots encode the display in Display P3 while the file is
+    tagged sRGB, so raw captures of the same colour differ by the P3 encoding
     (measured residual <= 20 per channel against this conversion).
     """
 
@@ -1846,52 +1968,126 @@ def capture_space_rgb(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
     return tuple(round(to_encoded(value) * 255) for value in p3_linear)
 
 
-def capture_extent(blob: bytes) -> tuple[int, int]:
-    """The capture's own geometry, read from its PNG header."""
-    if len(blob) < PNG_EXTENT_OFFSET + 8 or not blob.startswith(PNG_SIGNATURE):
-        raise InstrumentFault(
-            "evidence-destroyed",
-            {"detail": f"a capture of {len(blob)} bytes is not a PNG"},
+def locate_patch_rectangle(
+    blob: bytes, expected: tuple[int, int, int], tolerance: int
+) -> dict[str, object]:
+    """The largest block of the expected colour inside a whole-screen capture.
+
+    The capture is the simulator scene, so no window geometry places the
+    streamed picture inside it; the patch is found by its colour instead. The
+    scan is coarse because the scene is 3840x2160 while the patch is a solid
+    block of about a fifth of the picture, so a filled bounding box at that
+    resolution still separates the block from stray matching pixels. A block
+    whose fill, area fraction or aspect is implausible carries a `rejection`
+    instead of being taken for the patch.
+    """
+    raster = decode_png(blob)
+    if raster.degenerate:
+        raise RasterError(
+            f"a capture of {raster.width}x{raster.height} encloses no picture "
+            "to locate a patch in"
         )
-    width, height = struct.unpack(
-        ">II", blob[PNG_EXTENT_OFFSET : PNG_EXTENT_OFFSET + 8]
-    )
-    if width <= 1 or height <= 1:
-        raise InstrumentFault(
-            "evidence-destroyed",
-            {"detail": f"a capture of {width}x{height} encloses no picture"},
+    width, height, channels = raster.width, raster.height, raster.channels
+    samples = raster.samples
+    step = PATCH_SCAN_STEP
+    hits: dict[tuple[int, int], tuple[int, int, int]] = {}
+    for row in range(0, height, step):
+        base = row * width * channels
+        for column in range(0, width, step):
+            index = base + column * channels
+            if channels <= 2:
+                level = samples[index]
+                rgb = (level, level, level)
+            else:
+                rgb = (samples[index], samples[index + 1], samples[index + 2])
+            if all(
+                abs(rgb[channel] - expected[channel]) <= tolerance
+                for channel in range(3)
+            ):
+                hits[(column, row)] = rgb
+    if not hits:
+        return {
+            "hits": 0,
+            "rejection": (
+                f"no pixel within {tolerance} of the expected capture colour "
+                f"{expected} anywhere in the {width}x{height} capture"
+            ),
+        }
+    remaining = set(hits)
+    block: list[tuple[int, int]] = []
+    while remaining:
+        seed = remaining.pop()
+        component = [seed]
+        pending = [seed]
+        while pending:
+            column, row = pending.pop()
+            for neighbour in (
+                (column - step, row),
+                (column + step, row),
+                (column, row - step),
+                (column, row + step),
+            ):
+                if neighbour in remaining:
+                    remaining.remove(neighbour)
+                    component.append(neighbour)
+                    pending.append(neighbour)
+        if len(component) > len(block):
+            block = component
+    columns = [entry[0] for entry in block]
+    rows = [entry[1] for entry in block]
+    left, right = min(columns), max(columns)
+    top, bottom = min(rows), max(rows)
+    box_width = right - left + step
+    box_height = bottom - top + step
+    fill = len(block) / (((right - left) // step + 1) * ((bottom - top) // step + 1))
+    centre_column = left + box_width // 2
+    centre_row = top + box_height // 2
+    index = (centre_row * width + centre_column) * channels
+    if channels <= 2:
+        level = samples[index]
+        centre = (level, level, level)
+    else:
+        centre = (samples[index], samples[index + 1], samples[index + 2])
+    located: dict[str, object] = {
+        "left": left,
+        "top": top,
+        "width": box_width,
+        "height": box_height,
+        "hits": len(block),
+        "fill": round(fill, 4),
+        "areaFraction": round((box_width * box_height) / (width * height), 6),
+        "aspect": round(box_height / box_width, 4),
+        "extent": (width, height),
+        "point": (centre_column / width, centre_row / height),
+        "rgb": centre,
+    }
+    rejection = patch_rectangle_rejection(located)
+    if rejection:
+        located["rejection"] = rejection
+    return located
+
+
+def patch_rectangle_rejection(located: Mapping[str, object]) -> str | None:
+    """Why a located block is not the patch rectangle, or None when it is."""
+    fill = float(located["fill"])
+    area_fraction = float(located["areaFraction"])
+    aspect = float(located["aspect"])
+    if fill < PATCH_RECTANGLE_FILL:
+        return (
+            f"it fills only {fill:.2f} of its {located['width']}x{located['height']} "
+            "bounding box"
         )
-    return width, height
+    if not PATCH_MINIMUM_AREA_FRACTION <= area_fraction <= PATCH_MAXIMUM_AREA_FRACTION:
+        return f"it covers {area_fraction:.4%} of the capture"
+    if not PATCH_MINIMUM_ASPECT <= aspect <= PATCH_MAXIMUM_ASPECT:
+        return f"its height is {aspect:.2f} of its width"
+    return None
 
 
 def require_video_surface(context: Context) -> None:
     """The stream window's video surface, as the capture's precondition."""
     if context.matched_element(STREAM_VIDEO_IDENTIFIER) is None:
         raise BlockedBy("the stream window publishes no video surface to capture")
-
-
-def patch_sample(
-    context: Context, blob: bytes
-) -> tuple[tuple[float, float], tuple[int, int, int]]:
-    """The patch point inside a capture of the video surface.
-
-    The capture is the video surface itself, so the patch painted at
-    PATCH_SAMPLE_POINT of the streamed picture sits at the same point of the
-    capture; the extent is read back as the integrity check that the capture
-    encloses a picture.
-    """
-    capture_extent(blob)
-    try:
-        rgb = region_rgb(blob, *PATCH_SAMPLE_POINT)
-    except RasterError as error:
-        raise InstrumentFault(
-            "evidence-destroyed",
-            {
-                "scenario": context.scenario.number,
-                "detail": f"the screenshot carries no usable pixel: {error}",
-            },
-        ) from None
-    return PATCH_SAMPLE_POINT, rgb
 
 
 def forensic_freeze_path(context: Context) -> Path | None:
@@ -1906,12 +2102,14 @@ def stable_patch_sample(
 ) -> tuple[dict, tuple[int, int, int], tuple[int, int, int], Path, tuple[float, float]]:
     """Sample the patch rect only while the host patch index holds still.
 
-    The capture is the stream window's video surface, so the patch sits at
-    PATCH_SAMPLE_POINT of the capture. The screenshot takes a device round trip
-    while the forensic app advances its patch every two seconds, so a colour
-    read across an advance would compare a frame with a colour it never showed.
-    The index is read on both sides of the capture and a mismatch is retried,
-    not judged.
+    The capture is the whole scene, so the patch is located inside it by its
+    colour and the sample point is the located rectangle's own centre. The
+    screenshot takes a round trip while the forensic app advances its patch
+    every two seconds, so a colour read across an advance would compare a frame
+    with a colour it never showed. The index is read on both sides of the
+    capture and a mismatch is retried, not judged; a capture without a solid
+    rectangle of the expected colour destroys the evidence rather than judging
+    the product.
     """
     require_video_surface(context)
     freeze = forensic_freeze_path(context)
@@ -1940,23 +2138,31 @@ def stable_patch_sample(
                     "while the screenshot was taken"
                 )
                 continue
-            point, sample = patch_sample(context, blob)
-            if all(channel == sample[0] for channel in sample) and sample[0] < 110:
-                last_error = (
-                    f"the capture returned a dark uniform frame {sample} at {point}; the "
-                    "video surface is not painting the patch"
-                )
-                continue
             expected = capture_space_rgb(rgb)
-            if not region_rgb_matches(blob, *point, expected, PATCH_RGB_TOLERANCE):
+            try:
+                located = locate_patch_rectangle(blob, expected, PATCH_RGB_TOLERANCE)
+            except RasterError as error:
+                raise InstrumentFault(
+                    "evidence-destroyed",
+                    {
+                        "scenario": context.scenario.number,
+                        "detail": f"the capture carries no usable raster: {error}",
+                    },
+                ) from None
+            if located.get("rejection"):
                 last_error = (
-                    f"the capture reads {sample} at {point} of the video surface; patch "
-                    f"#{after.get('index')} sRGB {rgb} reads as {expected} there"
+                    f"the capture's best {located['hits']}-sample block of the expected "
+                    f"capture colour {expected} (patch #{after.get('index')} sRGB {rgb}) is "
+                    f"not a patch rectangle: {located['rejection']}"
                 )
                 continue
+            point = located["point"]
+            sample = located["rgb"]
             context.note(
-                f"patch #{after.get('index')} sRGB {rgb} reads as {expected} at {point} in the "
-                "capture colour space"
+                f"patch #{after.get('index')} sRGB {rgb} reads as {expected} inside a "
+                f"{located['width']}x{located['height']} block at "
+                f"({located['left']}, {located['top']}) of the "
+                f"{located['extent'][0]}x{located['extent'][1]} capture"
             )
             return after, expected, sample, screenshot, point
         finally:
@@ -1968,10 +2174,11 @@ def stable_patch_sample(
     )
 
 
-def sent_pointer(context: Context, x: float, y: float) -> None:
+def sent_pointer(context: Context, x: float, y: float) -> str:
+    """One absolute pointer move, through the test channel where it is served."""
     try:
         context.app_verb("streamSendPointer", x=x, y=y)
-        return
+        return "test-channel"
     except BlockedBy as error:
         context.note(
             f"streamSendPointer unusable ({error.reason}); the runner exposes no pointer move, "
@@ -1979,6 +2186,7 @@ def sent_pointer(context: Context, x: float, y: float) -> None:
             "report it as a button event rather than a move"
         )
     context.invoke("coordinateTap", ("--normalized-x", str(x), "--normalized-y", str(y)))
+    return "synthetic-tap"
 
 
 HID_USAGES = {
@@ -2251,7 +2459,7 @@ def scenario_01_add_host(context: Context) -> Outcome:
             )
     screenshot, rgb = context.capture("streaming-page")
     context.record_pointer("pixel", str(screenshot.relative_to(context.directory)))
-    context.note(f"sidebar sample rgb={rgb} at {PATCH_SAMPLE_POINT}")
+    context.note(f"scene sample rgb={rgb} at {CAPTURE_SAMPLE_POINT}")
     context.record_channel(
         "host-log",
         "host-identity.json",
@@ -2678,12 +2886,13 @@ def scenario_07_keyboard_mouse(context: Context) -> Outcome:
 def scenario_08_controls_during_capture(context: Context) -> Outcome:
     """The dock control stays reachable while input capture is active.
 
-    The control answered the tap while capture was active; a second tap after the
-    pointer capture settles is the harness's retry, and the outcome of that retry
-    is what the session-end judgement rests on.
+    The dock and the back control are the session window's own SwiftUI
+    controls, which synthetic taps do not reach; both are driven through the
+    app command channel when it is served, and the route each drive took is
+    recorded beside its evidence.
     """
     row, view = ensure_streaming(context)
-    sent_pointer(context, *POINTER_TARGET)
+    pointer_route = sent_pointer(context, *POINTER_TARGET)
     captured = context.wait(
         "input-capture-active",
         FIXTURE_SECONDS,
@@ -2696,30 +2905,41 @@ def scenario_08_controls_during_capture(context: Context) -> Outcome:
         context.scene,
         poll_interval_seconds=2.0,
     )
-    context.record_channel("control-surface", "input-capture.json", captured)
+    context.record_channel(
+        "control-surface", "input-capture.json", {**captured, "driveRoute": pointer_route}
+    )
     dock = context.matched_element("Stream-Session-dock")
     if dock is None:
         raise BlockedBy(
             "Stream-Session-dock is absent while input capture is active; the release "
             "rule of acceptance plan section 5.5 is not established (scenario 8 holds)"
         )
-    before_state = context.session_snapshot_or_none()
-    context.tap("Stream-Session-dock")
+    watermark = probe_watermark(context)
+    dock_route = drive_dock_control(context)
 
     def dock_probe() -> dict[str, object] | None:
         current = context.session_snapshot_or_none()
-        if current is None:
+        counts = current.inputs() if current is not None else {}
+        if counts.get("pressedKeys") or counts.get("pressedButtons"):
             return None
-        if before_state is not None and current.state() != before_state.state():
-            return {"session": current.state(), "before": before_state.state()}
-        if before_state is not None and current.pairs != before_state.pairs:
-            return {"session": current.state(), "before": before_state.state()}
-        return None
+        released = fresh_probe_lines(context, "cause=control-hit", watermark)
+        if not released:
+            return None
+        return {
+            "session": current.state() if current is not None else None,
+            "release": released[-1],
+            "pressedKeys": counts.get("pressedKeys"),
+            "pressedButtons": counts.get("pressedButtons"),
+        }
 
     delivered = context.wait(
         "dock-delivery", FIXTURE_SECONDS, dock_probe, context.scene, poll_interval_seconds=2.0
     )
-    context.record_channel("control-surface", "dock-delivery.json", delivered)
+    context.record_channel(
+        "control-surface",
+        "dock-delivery.json",
+        {**delivered, "driveRoute": dock_route, "dockHittable": bool(dock.get("isHittable"))},
+    )
     lines = probe_evidence(
         context, "controls-probe.log", ("input release", "session end", "audio stop")
     )
@@ -2728,19 +2948,13 @@ def scenario_08_controls_during_capture(context: Context) -> Outcome:
             "input-release-line-absent",
             {"probeLines": lines, "dockHittable": bool(dock.get("isHittable"))},
         )
-    context.tap("Stream-Session-back")
-    try:
-        wait_for_state(context, "ended", FIXTURE_SECONDS, "ended-after-back")
-    except (InstrumentFault, ProductVerdict):
-        context.note("the first back tap did not end the session; retrying once")
-        context.hold("back-retry-settle", 3.0)
-        context.tap("Stream-Session-back")
-        wait_for_state(context, "ended", SESSION_END_SECONDS, "ended-after-controls")
+    back_route = disconnect_session(context)
     return Outcome(
         PASSED,
         notes=(
-            "the dock control was reachable and hittable during input capture; the probe "
-            f"carries the release transition: {lines[0] if lines else 'input release'}"
+            "the dock control was present and hittable during input capture; the probe "
+            f"carries the release transition: {lines[0] if lines else 'input release'}; "
+            f"dock route={dock_route}, back route={back_route}"
         ),
     )
 
@@ -2838,7 +3052,7 @@ def scenario_09_network_interruption_recovery(context: Context) -> Outcome:
             f"interrupted({reason}) observed under blackhole; after pass the session "
             f"returned to {recovered.state()}; host session lines "
             f"{len(sunshine['sessionStarts'])} start(s) / {len(sunshine['sessionEnds'])} end(s); "
-            f"pixel {rgb} at {PATCH_SAMPLE_POINT}"
+            f"scene pixel {rgb} at {CAPTURE_SAMPLE_POINT}"
         ),
     )
 
@@ -3990,98 +4204,193 @@ def self_test_session_sample(check: Callable[[str, bool], None]) -> None:
 
     from regression.tools.raster import Raster, encode_png
 
-    capture_width, capture_height = 100, 50
-    patch_column = int(PATCH_SAMPLE_POINT[0] * capture_width)
-    patch_row = int(PATCH_SAMPLE_POINT[1] * capture_height)
-    samples = bytearray()
-    for row in range(capture_height):
-        for column in range(capture_width):
-            patch_pixel = (column, row) == (patch_column, patch_row)
-            samples.extend((200, 100, 50) if patch_pixel else (9, 9, 9))
-    capture = encode_png(Raster(capture_width, capture_height, 3, bytes(samples)))
+    width, height = 480, 320
+    patch_left, patch_top, patch_width, patch_height = 140, 60, 96, 64
+    patch_rgb = (102, 255, 0)
+    expected = capture_space_rgb(patch_rgb)
 
-    invocations: list[list[str]] = []
+    def synthetic(
+        filled: Sequence[tuple[int, int, int, int]], colour: tuple[int, int, int]
+    ) -> bytes:
+        samples = bytearray(bytes((9, 9, 9)) * (width * height))
+        for left, top, box_width, box_height in filled:
+            for row in range(top, top + box_height):
+                start = (row * width + left) * 3
+                samples[start : start + box_width * 3] = bytes(colour) * box_width
+        return encode_png(Raster(width, height, 3, bytes(samples)))
 
-    def context_for(present: bool, source: Path | None = None) -> Context:
+    def specks(points: Sequence[tuple[int, int]]) -> bytes:
+        samples = bytearray(bytes((9, 9, 9)) * (width * height))
+        for column, row in points:
+            start = (row * width + column) * 3
+            samples[start : start + 3] = bytes(expected)
+        return encode_png(Raster(width, height, 3, bytes(samples)))
+
+    capture = synthetic(((patch_left, patch_top, patch_width, patch_height),), expected)
+
+    class ScreenshotTools:
+        def __init__(self, image: bytes) -> None:
+            self.image = image
+            self.commands: list[list[str]] = []
+
+        def run(self, verb, command, env=None, budget=None):
+            self.commands.append(list(command))
+            Path(command[-1]).write_bytes(self.image)
+            return CompletedInvocation(0, "", "")
+
+    def context_for(
+        present: bool = True, screenshot: Path | None = None
+    ) -> tuple[Context, ScreenshotTools, list[list[str]]]:
         directory = Path(tempfile.mkdtemp(prefix="enchron-acceptance-sample-"))
         budgets = BudgetProvider(timings_directory=directory / "timings")
+        forensic = directory / "host-forensic.jsonl"
+        forensic.write_text(
+            json.dumps(
+                {
+                    "event": "patch",
+                    "index": 7,
+                    "rgb": list(patch_rgb),
+                    "displayedAtWallMs": 100,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         document = json.dumps(
             {
                 "success": True,
                 "matchedElement": (
                     {"identifier": STREAM_VIDEO_IDENTIFIER} if present else None
                 ),
-                "localScreenshotPath": str(source) if source is not None else None,
+                "localScreenshotPath": str(screenshot) if screenshot is not None else None,
             }
         )
+        runner_commands: list[list[str]] = []
 
         def run(command, seconds):
-            invocations.append(list(command))
+            runner_commands.append(list(command))
             return CompletedInvocation(0, document, "")
 
-        return Context(
-            scenario=SCENARIOS[0],
-            device="sample-fixture",
-            developer_dir=None,
-            lane="simulator",
-            host=DEFAULT_HOST,
-            fixtures={},
-            output_directory=directory,
-            work_directory=directory,
-            execution_input=None,
-            quick=True,
-            budgets=budgets,
-            controller=Client("simulator", command_prefix=["fixture"], budgets=budgets, run=run),
-            tools=LocalToolRunner("host", budgets=budgets),
+        tools = ScreenshotTools(capture)
+        return (
+            Context(
+                scenario=SCENARIOS[0],
+                device="sample-fixture",
+                developer_dir=None,
+                lane="simulator",
+                host=DEFAULT_HOST,
+                fixtures={"forensicLog": str(forensic)},
+                output_directory=directory,
+                work_directory=directory,
+                execution_input=None,
+                quick=True,
+                budgets=budgets,
+                controller=Client(
+                    "simulator", command_prefix=["fixture"], budgets=budgets, run=run
+                ),
+                tools=tools,
+            ),
+            tools,
+            runner_commands,
         )
 
+    located = locate_patch_rectangle(capture, expected, PATCH_RGB_TOLERANCE)
+    check("the locator accepts a painted patch block", located.get("rejection") is None)
     check(
-        "the capture extent comes from the PNG header",
-        capture_extent(capture) == (capture_width, capture_height),
+        "the located block is the painted rectangle",
+        (
+            located.get("left"),
+            located.get("top"),
+            located.get("width"),
+            located.get("height"),
+        )
+        == (patch_left, patch_top, patch_width, patch_height),
     )
-    for label, blob in (
-        ("a capture that is not a PNG", b"not a png"),
-        ("a capture without pixels", encode_png(Raster(1, 40, 3, bytes(120)))),
-    ):
-        try:
-            capture_extent(blob)
-            check(f"{label} is refused", False)
-        except InstrumentFault:
-            check(f"{label} is refused", True)
+    check("the located block is filled", located.get("fill") == 1.0)
+    check("the located block's centre reads the patch colour", located.get("rgb") == expected)
 
-    window = context_for(True)
-    point, rgb = patch_sample(window, capture)
-    check(
-        "the patch point is the sample point of the capture",
-        point == PATCH_SAMPLE_POINT,
-    )
-    check("the patch colour is read at that point", rgb == (200, 100, 50))
+    diagonal = [(100 + 4 * step, 100) for step in range(16)]
+    diagonal.extend((100, 100 + 4 * step) for step in range(1, 16))
+    for label, blob, needle in (
+        ("a capture with no matching pixel", synthetic((), expected), "no pixel"),
+        (
+            "a capture whose block carries the wrong colour",
+            synthetic(((patch_left, patch_top, patch_width, patch_height),), (10, 200, 10)),
+            "no pixel",
+        ),
+        ("a capture with only stray matching pixels", specks(((60, 60), (200, 40), (300, 200))), "covers"),
+        ("a capture whose block is too small", synthetic(((patch_left, patch_top, 8, 8),), expected), "covers"),
+        ("a capture whose block is not filled", specks(diagonal), "fills"),
+        ("a capture whose block is too flat", synthetic(((100, 100, 200, 8),), expected), "height"),
+    ):
+        rejected = locate_patch_rectangle(blob, expected, PATCH_RGB_TOLERANCE)
+        check(
+            f"{label} is rejected",
+            rejected.get("rejection") is not None and needle in str(rejected["rejection"]),
+        )
 
     try:
-        require_video_surface(context_for(False))
+        locate_patch_rectangle(b"not a png", expected, PATCH_RGB_TOLERANCE)
+        check("a capture that is not a PNG is refused", False)
+    except RasterError:
+        check("a capture that is not a PNG is refused", True)
+
+    context, tools, _ = context_for()
+    patch, sampled_expected, sample, screenshot, point = stable_patch_sample(
+        context, "first-frame"
+    )
+    check("the sample carries the host patch index", patch.get("index") == 7)
+    check("the sample carries the capture-space colour", sampled_expected == expected)
+    check("the sample reads the located block", sample == expected)
+    check(
+        "the sample point is the located block's centre",
+        point
+        == (
+            (patch_left + patch_width // 2) / width,
+            (patch_top + patch_height // 2) / height,
+        ),
+    )
+    check("the capture is kept as an artifact", screenshot.read_bytes() == capture)
+    check("the capture lands under the run's artifacts", screenshot.parent == context.artifacts)
+    command = tools.commands[-1]
+    check(
+        "the capture is the host's simctl scene screenshot",
+        command[:5] == ["xcrun", "simctl", "io", "sample-fixture", "screenshot"],
+    )
+    check(
+        "the capture stages under the host's TMPDIR",
+        str(SIMULATOR_CAPTURE_DIRECTORY) in command[-1],
+    )
+
+    runner_source = Path(tempfile.mkdtemp(prefix="enchron-acceptance-runner-")) / "runner.png"
+    runner_source.write_bytes(capture)
+    context, _, runner_commands = context_for(screenshot=runner_source)
+    context.lane = "device"
+    path, blob = context.capture_blob("runner-frame", identifier=STREAM_VIDEO_IDENTIFIER)
+    check("a lane without simctl keeps the runner's screenshot", blob == capture)
+    check("the runner screenshot lands as an artifact", path.read_bytes() == capture)
+    invoked = runner_commands[-1]
+    check(
+        "the runner screenshot asks for the video surface element",
+        invoked[invoked.index("--screenshot-identifier") + 1] == STREAM_VIDEO_IDENTIFIER,
+    )
+
+    context, tools, _ = context_for()
+    tools.image = synthetic((), expected)
+    try:
+        stable_patch_sample(context, "no-patch")
+        check("a capture without a patch block destroys the evidence", False)
+    except InstrumentFault as fault:
+        check(
+            "a capture without a patch block destroys the evidence",
+            fault.kind == "evidence-destroyed",
+        )
+
+    try:
+        require_video_surface(context_for(False)[0])
         check("a session window without a video surface is refused", False)
     except BlockedBy:
         check("a session window without a video surface is refused", True)
-
-    source = (
-        Path(tempfile.mkdtemp(prefix="enchron-acceptance-capture-")) / "surface.png"
-    )
-    source.write_bytes(capture)
-    screenshot, blob = context_for(True, source).capture_blob(
-        "first-frame-1", identifier=STREAM_VIDEO_IDENTIFIER
-    )
-    check("the capture is kept as an artifact", screenshot.read_bytes() == capture)
-    check("the capture bytes are the runner's screenshot", blob == capture)
-    invoked = invocations[-1]
-    requested = (
-        invoked[invoked.index("--screenshot-identifier") + 1]
-        if "--screenshot-identifier" in invoked
-        else None
-    )
-    check(
-        "the capture asks the runner for the video surface element",
-        requested == STREAM_VIDEO_IDENTIFIER,
-    )
 
 
 def self_test_snapshot_view(check: Callable[[str, bool], None]) -> None:

@@ -151,6 +151,9 @@
   "rollback-settlement": {
     "seconds": 60
   },
+  "simulator-screenshot": {
+    "seconds": 60
+  },
   "smb-aggregate": {
     "seconds": 120
   },

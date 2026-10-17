@@ -627,7 +627,7 @@ def read_unit_payload(run: Path, unit_id: str, name: str) -> dict[str, object]:
 
 def driver_capture_enter(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     engine.ensure_streaming(context)
-    engine.sent_pointer(context, *engine.POINTER_TARGET)
+    route = engine.sent_pointer(context, *engine.POINTER_TARGET)
 
     def capture_probe():
         current = context.session_snapshot_or_none()
@@ -640,73 +640,120 @@ def driver_capture_enter(engine, context, run: Path, unit_id: str) -> tuple[list
 
     outcome = observe_wait(engine, context, "input-capture-active", engine.FIXTURE_SECONDS, capture_probe)
     entries = [
-        raw_entry("app", "input-capture.json", outcome),
+        raw_entry("app", "input-capture.json", {**outcome, "driveRoute": route}),
         raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-30:]}),
     ]
-    return entries, f"输入捕获观察：{outcome}"
+    return entries, f"输入捕获观察：{outcome}（驱动路线 {route}）"
+
+
+def held_key(engine, context) -> dict[str, object]:
+    """Hold one key down through the test channel, so a release has a held set.
+
+    A release with nothing pressed reads the same whether the handler ran or
+    not; the held key makes the pressed counters say something.
+    """
+    try:
+        context.app_verb("streamSendKey", hid=engine.HID_USAGES["k"], down=1)
+    except engine.BlockedBy as error:
+        return {"held": False, "reason": error.reason}
+
+    def held_probe():
+        current = context.session_snapshot_or_none()
+        counts = current.inputs() if current is not None else {}
+        if counts.get("pressedKeys"):
+            return {"pressedKeys": counts.get("pressedKeys")}
+        return None
+
+    outcome = observe_wait(engine, context, "key-held", engine.FIXTURE_SECONDS, held_probe)
+    return {"held": outcome.get("found") is not None, "observed": outcome}
 
 
 def driver_capture_dock(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    engine.ensure_streaming(context)
+    pointer_route = engine.sent_pointer(context, *engine.POINTER_TARGET)
+    hold = held_key(engine, context)
     view = context.session_snapshot_or_none()
-    before_state = view.state() if view is not None else None
-    before_pairs = view.pairs if view is not None else None
+    before = view.inputs() if view is not None else {}
     dock = context.matched_element("Stream-Session-dock")
     record = {
         "dockPresent": dock is not None,
         "dockHittable": bool(dock.get("isHittable")) if isinstance(dock, dict) else False,
-        "before": before_state,
+        "pointerRoute": pointer_route,
+        "keyHold": hold,
+        "sessionBefore": view.state() if view is not None else None,
+        "pressedBefore": {
+            "pressedKeys": before.get("pressedKeys"),
+            "pressedButtons": before.get("pressedButtons"),
+        },
     }
-    if dock is None:
-        entries = [
-            raw_entry("app", "dock.json", {**record, "tapped": False}),
-            raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-20:]}),
-        ]
-        return entries, "输入捕获进行中 Dock 不存在，未点击（等判决）"
-    context.tap("Stream-Session-dock")
+    watermark = engine.probe_watermark(context)
+    route = engine.drive_dock_control(context)
 
     def dock_probe():
         current = context.session_snapshot_or_none()
-        if current is None:
+        counts = current.inputs() if current is not None else {}
+        if counts.get("pressedKeys") or counts.get("pressedButtons"):
             return None
-        if before_state is not None and current.state() != before_state:
-            return {"session": current.state(), "before": before_state}
-        if before_pairs is not None and current.pairs != before_pairs:
-            return {"session": current.state(), "before": before_state}
-        return None
+        released = engine.fresh_probe_lines(context, "cause=control-hit", watermark)
+        if not released:
+            return None
+        return {
+            "release": released[-1],
+            "pressedKeys": counts.get("pressedKeys"),
+            "pressedButtons": counts.get("pressedButtons"),
+            "session": current.state() if current is not None else None,
+        }
 
-    outcome = observe_wait(engine, context, "dock-delivery", engine.FIXTURE_SECONDS, dock_probe)
+    outcome = observe_wait(engine, context, "dock-release", engine.FIXTURE_SECONDS, dock_probe)
     entries = [
-        raw_entry("app", "dock.json", {**record, "tapped": True, "delivery": outcome}),
+        raw_entry("app", "dock.json", {**record, "driveRoute": route, "delivery": outcome}),
         raw_entry(
             "probe",
             "probe-lines.json",
             {"lines": probe_lines_containing(context, ("input release", "session end", "audio stop"))},
         ),
     ]
-    return entries, f"Dock 点击后观察：{outcome}"
+    return entries, f"Dock 驱动（{route}）后观察：{outcome}"
 
 
 def driver_capture_back(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     engine.ensure_streaming(context)
-    context.tap("Stream-Session-back")
-    stages: list[dict[str, object]] = []
-    try:
-        ended = engine.wait_for_state(context, "ended", engine.FIXTURE_SECONDS, "ended-after-back")
-        stages.append({"tap": 1, "state": ended.state()})
-    except (engine.InstrumentFault, engine.ProductVerdict) as error:
-        stages.append({"tap": 1, "fault": str(error)})
-        context.hold("back-retry-settle", 3.0)
-        context.tap("Stream-Session-back")
-        try:
-            ended = engine.wait_for_state(context, "ended", engine.SESSION_END_SECONDS, "ended-after-controls")
-            stages.append({"tap": 2, "state": ended.state()})
-        except (engine.InstrumentFault, engine.ProductVerdict) as retry:
-            stages.append({"tap": 2, "fault": str(retry)})
+    before = context.session_snapshot_or_none()
+    watermark = engine.probe_watermark(context)
+    route = engine.drive_back_control(context)
+
+    def ended_probe():
+        current = context.session_snapshot_or_none()
+        if current is not None and current.state_name() != "ended":
+            return None
+        released = engine.fresh_probe_lines(context, "cause=user", watermark)
+        ended = engine.fresh_probe_lines(context, "reason=user", watermark)
+        if not released or not ended:
+            return None
+        return {
+            "session": current.state() if current is not None else "ended(reason=session-ui-gone)",
+            "release": released[-1],
+            "end": ended[-1],
+        }
+
+    outcome = observe_wait(engine, context, "ended", engine.SESSION_END_SECONDS, ended_probe)
     entries = [
-        raw_entry("app", "ended.json", {"stages": stages}),
-        raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-30:]}),
+        raw_entry(
+            "app",
+            "ended.json",
+            {
+                "driveRoute": route,
+                "sessionBefore": before.state() if before is not None else None,
+                "delivery": outcome,
+            },
+        ),
+        raw_entry(
+            "probe",
+            "probe-lines.json",
+            {"lines": probe_lines_containing(context, ("cause=user", "reason=user", "audio stop"))},
+        ),
     ]
-    return entries, f"返回键后状态：{stages}"
+    return entries, f"返回驱动（{route}）后观察：{outcome}"
 
 
 def driver_interrupt_inject(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
