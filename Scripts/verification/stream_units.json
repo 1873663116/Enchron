@@ -494,7 +494,7 @@
       "id": "12.3",
       "s": "12",
       "t": "重连生效",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [
         "12.2"
       ],
@@ -510,7 +510,7 @@
       "id": "13.1",
       "s": "13",
       "t": "请求 H.264",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app",
@@ -526,7 +526,7 @@
       "id": "13.2",
       "s": "13",
       "t": "请求 HEVC",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app",
@@ -542,7 +542,7 @@
       "id": "13.3",
       "s": "13",
       "t": "自动",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app"
@@ -557,7 +557,7 @@
       "id": "14.1",
       "s": "14",
       "t": "请求 40 Mbps",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app"
@@ -586,7 +586,7 @@
       "id": "15.1",
       "s": "15",
       "t": "帧调度开",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app",
@@ -622,7 +622,7 @@
       "id": "15.3",
       "s": "15",
       "t": "请求 120",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app",
@@ -638,7 +638,7 @@
       "id": "16.1",
       "s": "16",
       "t": "请求 HDR",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app"
@@ -653,7 +653,7 @@
       "id": "16.2",
       "s": "16",
       "t": "主机 SDR 降级",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [
         "16.1"
       ],
@@ -683,7 +683,7 @@
       "id": "17.1",
       "s": "17",
       "t": "请求 2560x1440",
-      "pre": "session!=ended",
+      "pre": "host=paired",
       "needs": [],
       "cls": [
         "app"
