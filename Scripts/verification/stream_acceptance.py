@@ -588,16 +588,16 @@ def driver_settings_restart(engine, context, run: Path, unit_id: str) -> tuple[l
 
 
 def driver_degrade_notice(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
-    context.tap("Stream-Session-degrade")
-    value = context.identifier_value("Stream-Session-degrade-explain") or ""
-    screenshot, rgb = context.capture("degrade-explain")
-    target = unit_directory(run, unit_id) / "raw" / "degrade-explain.png"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(screenshot.read_bytes())
+    degrade = context.matched_element("Stream-Session-degrade")
+    present = isinstance(degrade, dict)
+    value = str(degrade.get("value") or "") if present else ""
     entries = [
-        raw_entry("app", "degrade-explain.json", {"text": value}),
-        {"class": "pixel", "path": "degrade-explain.png", "file": str(target), "payload": None},
-        raw_entry("pixel", "degrade-sample.json", {"rgb": list(rgb)}),
+        raw_entry(
+            "app",
+            "degrade-explain.json",
+            {"driveRoute": "accessibility-value", "present": present, "text": value},
+        ),
+        raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-20:]}),
     ]
     return entries, f"降级说明读回 {len(value)} 字：{value[:60]}"
 
