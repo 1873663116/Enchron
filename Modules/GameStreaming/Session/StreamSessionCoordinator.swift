@@ -37,6 +37,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var pendingVideo: [(sample: CMSampleBuffer, presentationTimeUs: Int64)] = []
     private var recoveringFromRendererFailure = false
     private var lastReportedQueueDepth = 0
+    private var videoDeliveryStartedAt: Date?
+    private var surfaceBindingRevision: Int?
+    private var surfaceHasBound = false
+    private var lastAwaitingSurfaceReport = Date.distantPast
 
     private var nextAudioPTS: CMTime = .invalid
     private var firstVideoPTS: CMTime = .invalid
@@ -60,6 +64,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var audioFramesReceived: Int64 = 0
         var audioFramesEnqueued: Int64 = 0
         var audioFramesDropped: Int64 = 0
+        var framesAwaitingSurface: Int64 = 0
+        var framesEnqueuedWithoutSurface: Int64 = 0
         var mouseEvents: Int64 = 0
         var scrollEvents: Int64 = 0
         var keyboardEvents: Int64 = 0
@@ -134,6 +140,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             "renderer group create session=\(sessionID.rawValue)",
             retention: .evidence
         )
+        stateLock.withLock {
+            videoDeliveryStartedAt = Date()
+        }
 
         synchronizer.setRate(
             1.0,
@@ -249,6 +258,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     private func handleVideoSample(_ sample: CMSampleBuffer) {
+        guard videoSampleDeliveryIsOpen else {
+            noteFrameAwaitingSurface()
+            return
+        }
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
         let ptsUs = max(0, Int64((pts.seconds * 1_000_000).rounded()))
 
@@ -320,6 +333,82 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         videoSink.stopRenderingEventObservation()
     }
 
+    private static let surfaceBindingGrace: TimeInterval = 5
+
+    private var videoSampleDeliveryIsOpen: Bool {
+        stateLock.withLock {
+            if surfaceBindingRevision != nil {
+                return true
+            }
+            guard !surfaceHasBound, let videoDeliveryStartedAt else { return false }
+            return Date().timeIntervalSince(videoDeliveryStartedAt)
+                >= Self.surfaceBindingGrace
+        }
+    }
+
+    private func noteFrameAwaitingSurface() {
+        let report: (dropped: Int64, due: Bool) = stateLock.withLock {
+            counters.framesAwaitingSurface += 1
+            let dropped = counters.framesAwaitingSurface
+            let now = Date()
+            let due = dropped == 1
+                || now.timeIntervalSince(lastAwaitingSurfaceReport) >= 1
+            if due {
+                lastAwaitingSurfaceReport = now
+            }
+            return (dropped, due)
+        }
+        guard report.due else { return }
+        StreamSessionProbes.record(
+            "frame awaiting surface session=\(sessionID.rawValue) dropped=\(report.dropped)",
+            retention: .evidence
+        )
+    }
+
+    /// The window surface reports which renderer graph revision it has bound,
+    /// so video delivery can wait for a target that can consume frames; a
+    /// renderer without a target drops every sample it is fed.
+    public func videoSurfaceDidBind(revision: Int) {
+        var firstBind = false
+        let counts: (awaitingSurface: Int64, enqueuedWithoutSurface: Int64) =
+            stateLock.withLock {
+                firstBind = !surfaceHasBound
+                surfaceHasBound = true
+                surfaceBindingRevision = revision
+                return (
+                    counters.framesAwaitingSurface,
+                    counters.framesEnqueuedWithoutSurface
+                )
+            }
+        let droppedBacklog = videoQueueLock.withLock { () -> Int in
+            let count = pendingVideo.count
+            pendingVideo.removeAll()
+            return count
+        }
+        StreamSessionProbes.record(
+            "video surface bind session=\(sessionID.rawValue) revision=\(revision)"
+                + " firstBind=\(firstBind)"
+                + " droppedBacklog=\(droppedBacklog)"
+                + " framesAwaitingSurface=\(counts.awaitingSurface)"
+                + " framesEnqueuedWithoutSurface=\(counts.enqueuedWithoutSurface)",
+            retention: .evidence
+        )
+        requestIdrFrame(reason: "surfaceBound")
+    }
+
+    public func videoSurfaceDidUnbind(revision: Int) {
+        let wasBound: Bool = stateLock.withLock {
+            guard surfaceBindingRevision == revision else { return false }
+            surfaceBindingRevision = nil
+            return true
+        }
+        guard wasBound else { return }
+        StreamSessionProbes.record(
+            "video surface unbind session=\(sessionID.rawValue) revision=\(revision)",
+            retention: .evidence
+        )
+    }
+
     private func pumpVideoQueue() {
         while true {
             videoQueueLock.lock()
@@ -358,6 +447,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 stateLock.withLock {
                     counters.presented += 1
                     counters.lastPresentedTimestampMs = head.presentationTimeUs / 1000
+                    if surfaceBindingRevision == nil {
+                        counters.framesEnqueuedWithoutSurface += 1
+                    }
                     snapshotStorage.diagnostics.framesPresented = counters.presented
                     snapshotStorage.diagnostics.lastPresentedTimestampMs = counters.lastPresentedTimestampMs
                     snapshotStorage.diagnostics.duplicatedFrames = counters.duplicatedFrames
@@ -404,12 +496,16 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             pendingVideo.removeAll()
         }
 
-        stateLock.withLock {
+        let surfaceWasBound = stateLock.withLock { () -> Bool in
             counters.decodeRecoveries += 1
             snapshotStorage.diagnostics.decodeRecoveries = counters.decodeRecoveries
+            let bound = surfaceBindingRevision != nil
+            surfaceBindingRevision = nil
+            return bound
         }
         StreamSessionProbes.record(
-            "renderer rebuild session=\(sessionID.rawValue) reason=\(reason)",
+            "renderer rebuild session=\(sessionID.rawValue) reason=\(reason)"
+                + " surfaceWasBound=\(surfaceWasBound)",
             retention: .evidence
         )
 

@@ -518,6 +518,14 @@ public final class StreamingModel {
         coordinator?.releaseAllInput(cause: cause)
     }
 
+    public func recordVideoSurfaceBinding(revision: Int, bound: Bool) {
+        if bound {
+            coordinator?.videoSurfaceDidBind(revision: revision)
+        } else {
+            coordinator?.videoSurfaceDidUnbind(revision: revision)
+        }
+    }
+
     public func updateSettings(_ transform: (inout StreamOptions) -> Void) {
         var next = settings
         transform(&next)

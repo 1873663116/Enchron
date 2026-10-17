@@ -20,8 +20,16 @@ public struct StreamWindowView: View {
                 ZStack {
                     Color.black
                     if let binding = model.renderBinding {
-                        StreamVideoSurface(renderer: binding.videoRenderer)
-                            .id(binding.version)
+                        StreamVideoSurface(
+                            renderer: binding.videoRenderer,
+                            renderRevision: binding.version,
+                            onSurfaceBinding: { revision, bound in
+                                model.recordVideoSurfaceBinding(revision: revision, bound: bound)
+                            },
+                            onProbe: { line, retention in
+                                StreamSessionProbes.record(line, retention: retention)
+                            }
+                        )
                     }
                     StreamPointerInputLayer(
                         videoAspectRatio: videoAspectRatio,
@@ -77,7 +85,18 @@ public struct StreamWindowView: View {
                 .accessibilityValue(model.session?.readableValue ?? "unavailable")
                 .allowsHitTesting(false)
         }
+        .onAppear {
+            StreamSessionProbes.record(
+                "window appear session=\(model.session?.id.rawValue ?? "none")",
+                retention: .evidence
+            )
+        }
         .onChange(of: scenePhase) { _, phase in
+            StreamSessionProbes.record(
+                "window scene phase=\(String(describing: phase))"
+                    + " session=\(model.session?.id.rawValue ?? "none")",
+                retention: .evidence
+            )
             if phase != .active {
                 model.releaseInputs(cause: "background")
             }
@@ -93,6 +112,10 @@ public struct StreamWindowView: View {
             }
         }
         .onDisappear {
+            StreamSessionProbes.record(
+                "window disappear session=\(model.session?.id.rawValue ?? "none")",
+                retention: .evidence
+            )
             model.releaseInputs(cause: "disconnect")
         }
     }
