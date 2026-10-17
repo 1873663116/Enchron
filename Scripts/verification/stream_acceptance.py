@@ -129,8 +129,11 @@ def resolve_run(argument: str | None, *, create: bool) -> Path:
         refresh_latest(run)
         return run
     if root.is_dir():
-        for candidate in sorted((entry for entry in root.iterdir() if entry.is_dir()), reverse=True):
-            return candidate
+        for candidate in sorted(
+            (entry for entry in root.iterdir() if entry.is_dir() and not entry.is_symlink()),
+            reverse=True,
+        ):
+            return candidate.resolve()
     raise SystemExit(f"no run directory under {root}; drive a unit first")
 
 
@@ -259,13 +262,13 @@ def write_raws(run: Path, unit_id: str, entries: list[dict[str, object]]) -> lis
 
 def probe_session_equals_streaming(context) -> tuple[bool, str]:
     view = context.session_snapshot_or_none()
-    state = view.state if view is not None else "none"
+    state = view.state() if view is not None else "none"
     return (view is not None and view.state_name() == "streaming"), state
 
 
 def probe_session_not_ended(context) -> tuple[bool, str]:
     view = context.session_snapshot_or_none()
-    state = view.state if view is not None else "none"
+    state = view.state() if view is not None else "none"
     return (view is not None and view.state_name() != "ended"), state
 
 
@@ -322,7 +325,7 @@ def driver_stream_launch(engine, context, run: Path, unit_id: str) -> tuple[list
             "app",
             "session-snapshot.json",
             {
-                "state": view.state,
+                "state": view.state(),
                 "stateName": view.state_name(),
                 "requested": dict(view.requested()),
                 "negotiated": dict(view.negotiated()),
@@ -402,7 +405,7 @@ def driver_input_pointer(engine, context, run: Path, unit_id: str) -> tuple[list
 def driver_session_disconnect(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     engine.disconnect_session(context, soft=True)
     view = context.session_snapshot_or_none()
-    state = view.state if view is not None else "none"
+    state = view.state() if view is not None else "none"
     entries = [raw_entry("app", "session-after-disconnect.json", {"state": state})]
     return entries, f"断连后会话 state={state}"
 
