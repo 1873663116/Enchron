@@ -101,7 +101,7 @@
       "cls": [
         "app"
       ],
-      "driver": "pending",
+      "driver": "add.form",
       "x": false
     },
     {
@@ -116,7 +116,7 @@
         "app",
         "pixel"
       ],
-      "driver": "pending",
+      "driver": "add.submit",
       "x": false
     },
     {
@@ -128,7 +128,7 @@
       "cls": [
         "app"
       ],
-      "driver": "pending",
+      "driver": "pair.pin",
       "x": false
     },
     {
@@ -142,7 +142,7 @@
       "cls": [
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "pair.submit",
       "x": false
     },
     {
@@ -157,7 +157,7 @@
         "app",
         "host-sunshine"
       ],
-      "driver": "pending",
+      "driver": "pair.survive",
       "x": true
     },
     {
@@ -263,7 +263,7 @@
       "cls": [
         "host-forensic"
       ],
-      "driver": "pending",
+      "driver": "audio.tone",
       "x": false
     },
     {
@@ -275,7 +275,7 @@
       "cls": [
         "probe"
       ],
-      "driver": "pending",
+      "driver": "audio.chain",
       "x": false
     },
     {
@@ -289,7 +289,7 @@
       "cls": [
         "host-audio"
       ],
-      "driver": "pending",
+      "driver": "audio.contrast",
       "x": true
     },
     {

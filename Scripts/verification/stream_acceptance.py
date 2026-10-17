@@ -308,16 +308,60 @@ def probe_app_cards(context) -> tuple[bool, str]:
     return True, f"cards={len(cards)}"
 
 
+def probe_streaming_tab(context) -> tuple[bool, str]:
+    if context.matched_element("Navigation-Ornament-tab-streaming") is None:
+        return False, "the streaming tab is absent"
+    for identifier in ("Stream-HostSidebar", "Stream-EmptyState"):
+        if context.matched_element(identifier) is not None:
+            return True, f"the streaming page is open ({identifier})"
+    return False, "the streaming page is open on neither the sidebar nor the empty state"
+
+
+def probe_add_host_form(context) -> tuple[bool, str]:
+    if context.matched_element("Stream-AddHost") is None:
+        return False, "the add-host form is not open"
+    return True, "the add-host form is open"
+
+
+def probe_host_unpaired(context) -> tuple[bool, str]:
+    for identifier in context.identifiers():
+        if not identifier.startswith("Stream-HostRow-"):
+            continue
+        value = context.identifier_value(identifier) or ""
+        if "pairing=unpaired" in value:
+            return True, value
+    return False, "no host row reads pairing=unpaired"
+
+
+def probe_pair_pending(context) -> tuple[bool, str]:
+    if context.matched_element("Stream-Pairing") is None:
+        return False, "the pairing page is not open"
+    pin = context.identifier_value("Stream-Pairing-PIN")
+    if not isinstance(pin, str) or not (pin.isdigit() and len(pin) == 4):
+        return False, "the pairing page publishes no PIN"
+    return True, f"PIN {pin} is pending"
+
+
 PRECONDITIONS = {
     "session=streaming": probe_session_equals_streaming,
     "session!=ended": probe_session_not_ended,
     "host=free": probe_host_free,
     "host=paired": probe_host_paired,
+    "host=unpaired": probe_host_unpaired,
+    "pair=pending": probe_pair_pending,
+    "pair=paired": probe_host_paired,
     "app-list=cards": probe_app_cards,
+    "app=streaming-tab": probe_streaming_tab,
+    "form=add-host-open": probe_add_host_form,
 }
 
 PRECONDITION_PROVIDERS = {
     "host=paired": ["P0.1", "02.2"],
+    "pair=paired": ["02.2"],
+    "host=unpaired": ["01.2"],
+    "pair=pending": ["02.1"],
+    "app=streaming-tab": ["P0.1"],
+    "form=add-host-open": ["01.1"],
     "app-list=cards": ["03.1"],
     "host=free": ["18.1", "10.3"],
     "session=streaming": ["04.1"],
@@ -1078,6 +1122,322 @@ def driver_host_apps(engine, context, run: Path, unit_id: str) -> tuple[list[dic
     return entries, f"主机应用清单 {names}"
 
 
+def driver_add_form(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    engine.normalize_streaming_navigation(context)
+    if context.matched_element("Stream-EmptyState") is not None:
+        context.tap("Stream-AddHost-entry")
+    else:
+        context.require_identifier("Stream-HostSidebar-addButton")
+        context.tap("Stream-HostSidebar-addButton")
+    form = context.require_identifier("Stream-AddHost")
+    entries = [
+        raw_entry(
+            "app",
+            "add-form.json",
+            {
+                "form": {key: form.get(key) for key in ("identifier", "elementType", "isHittable")},
+                "entries": [
+                    item
+                    for item in context.identifiers()
+                    if item.startswith(("Stream-AddHost", "Stream-Manual", "Stream-Discovery"))
+                ],
+                "address": context.identifier_value("Stream-ManualAddress-field"),
+                "name": context.identifier_value("Stream-ManualName-field"),
+            },
+        )
+    ]
+    screenshot, rgb = context.capture("add-form")
+    entries.append({"class": "pixel", "path": "add-form.png", "file": str(screenshot), "payload": None})
+    entries.append(raw_entry("pixel", "add-form-sample.json", {"rgb": list(rgb), "screenshot": str(screenshot)}))
+    return entries, f"添加表单 {form.get('identifier')!r} 已打开"
+
+
+def driver_add_submit(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    address = engine.host_address(context)
+    name = context.fixture("hostName")
+    display_name = name if isinstance(name, str) and name else None
+    if context.matched_element("Stream-AddHost-manual-entry") is not None:
+        context.tap("Stream-AddHost-manual-entry")
+    context.require_identifier("Stream-ManualAddress-field")
+    context.invoke(
+        "replaceText",
+        ("--identifier", "Stream-ManualAddress-field", "--text", address),
+    )
+    if display_name:
+        context.invoke(
+            "replaceText",
+            ("--identifier", "Stream-ManualName-field", "--text", display_name),
+        )
+    context.tap("Stream-ManualAdd-submitButton")
+
+    def probe() -> dict[str, object] | None:
+        row = engine.find_host_row(context)
+        return {"host": row} if row else None
+
+    observed = observe_wait(
+        engine,
+        context,
+        "Stream-HostRow-appearance",
+        engine.STREAM_CONNECT_SECONDS,
+        probe,
+        lambda: [{"identifiers": context.identifiers()[:40]}],
+    )
+    found = observed.get("found")
+    row = str(found["host"]) if isinstance(found, dict) and found.get("host") else engine.find_host_row(context)
+    value = context.identifier_value(f"Stream-HostRow-{row}") if row else None
+    error = context.identifier_value("Stream-AddHost-error")
+    screenshot, rgb = context.capture("add-submit")
+    entries = [
+        raw_entry(
+            "app",
+            "added-host.json",
+            {"host": row, "value": value, "address": address, "name": display_name, "error": error, "observed": observed},
+        ),
+        {"class": "pixel", "path": "add-submit.png", "file": str(screenshot), "payload": None},
+        raw_entry("pixel", "add-submit-sample.json", {"rgb": list(rgb), "screenshot": str(screenshot)}),
+    ]
+    return entries, f"手动添加 {address} → 主机行 {row}：{value!r}；错误 {error!r}"
+
+
+def driver_pair_pin(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row = engine.find_host_row(context)
+    if row is None:
+        raise engine.BlockedBy("no host row is present to pair")
+    row_value = context.identifier_value(f"Stream-HostRow-{row}")
+    context.tap(f"Stream-HostRow-{row}")
+    pairing_page = context.matched_element("Stream-Pairing")
+    verb: dict[str, object] = {}
+    try:
+        document = context.app_verb("streamPair", host=row)
+        verb = {"pairingID": document.get("pairingID"), "pin": document.get("pin")}
+    except engine.BlockedBy as error:
+        verb = {"unusable": str(error)}
+
+    def probe() -> dict[str, object] | None:
+        pin = context.identifier_value("Stream-Pairing-PIN")
+        if isinstance(pin, str) and pin.isdigit() and len(pin) == 4:
+            return {"pin": pin}
+        return None
+
+    observed = observe_wait(
+        engine,
+        context,
+        "Stream-Pairing-PIN",
+        engine.FIXTURE_SECONDS,
+        probe,
+        lambda: [{"value": context.identifier_value("Stream-Pairing-PIN")}],
+    )
+    found = observed.get("found")
+    pin = str(found["pin"]) if isinstance(found, dict) and found.get("pin") else context.identifier_value("Stream-Pairing-PIN")
+    status = context.identifier_value("Stream-Pairing-status")
+    screenshot, rgb = context.capture("pairing-pin")
+    entries = [
+        raw_entry(
+            "app",
+            "pairing.json",
+            {
+                "host": row,
+                "rowValue": row_value,
+                "pairingPage": pairing_page is not None,
+                "pin": pin,
+                "pairingID": verb.get("pairingID"),
+                "status": status,
+                "verb": verb,
+                "observed": observed,
+            },
+        ),
+        {"class": "pixel", "path": "pairing-pin.png", "file": str(screenshot), "payload": None},
+        raw_entry("pixel", "pairing-pin-sample.json", {"rgb": list(rgb), "screenshot": str(screenshot)}),
+    ]
+    return entries, f"配对页 PIN={pin!r}；状态 {status!r}"
+
+
+def driver_pair_submit(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    pairing = read_unit_payload(run, "02.1", "pairing.json")
+    pairing_id = pairing.get("pairingID")
+    if not isinstance(pairing_id, str) or not pairing_id:
+        pairing_id = None
+    row = str(pairing.get("host") or engine.find_host_row(context) or "")
+    pin = context.identifier_value("Stream-Pairing-PIN")
+    if not isinstance(pin, str) or not (pin.isdigit() and len(pin) == 4):
+        pin = pairing.get("pin")
+    if not isinstance(pin, str) or not pin:
+        raise engine.BlockedBy("no PIN is published to submit; 02.1 must drive the pairing first")
+    submitted = engine.submit_pin(context, pairing_id, pin)
+
+    def probe() -> dict[str, object] | None:
+        value = context.identifier_value(f"Stream-HostRow-{row}") if row else None
+        return {"value": value} if value and "pairing=paired" in value else None
+
+    observed = observe_wait(
+        engine,
+        context,
+        "Stream-Pairing-status",
+        engine.STREAM_CONNECT_SECONDS,
+        probe,
+        lambda: [{"row": context.identifier_value(f"Stream-HostRow-{row}") if row else None}],
+    )
+    row_value = context.identifier_value(f"Stream-HostRow-{row}") if row else None
+    client = engine.paired_client_entry(context)
+    entries = [
+        raw_entry("host-sunshine", "sunshine-pin.json", submitted),
+        raw_entry(
+            "app",
+            "pairing-result.json",
+            {
+                "host": row,
+                "rowValue": row_value,
+                "pairingPage": context.matched_element("Stream-Pairing") is not None,
+                "status": context.identifier_value("Stream-Pairing-status"),
+                "observed": observed,
+            },
+        ),
+        raw_entry(
+            "host-sunshine",
+            "paired-client.json",
+            {"client": client, "pairStatus": engine.serverinfo_pair_status(context)},
+        ),
+    ]
+    return entries, f"PIN 已提交；主机行 {row_value!r}；主机客户端条目 {client is not None}"
+
+
+def driver_pair_survive(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row = engine.find_host_row(context)
+    if row is None:
+        raise engine.BlockedBy("no host row is present to read across the relaunch")
+    before = engine.paired_status(context, row)
+    client_before = engine.paired_client_entry(context)
+    relaunched = engine.relaunch_app(context)
+    observed = observe_wait(
+        engine,
+        context,
+        "relaunch",
+        engine.APP_RELAUNCH_SECONDS,
+        lambda: {"ok": True} if context.matched_element("Navigation-Ornament-tab-streaming") else None,
+        lambda: [{"identifiers": context.identifiers()[:40]}],
+    )
+    engine.normalize_streaming_navigation(context)
+    try:
+        after = engine.paired_status(context, row)
+    except engine.BlockedBy as error:
+        after = f"unreadable: {error}"
+    client_after = engine.paired_client_entry(context)
+    entries = [
+        raw_entry("app", "pairing-before.json", {"host": row, "value": before}),
+        raw_entry("app", "pairing-after.json", {"host": row, "value": after, "relaunch": relaunched, "observed": observed}),
+        raw_entry(
+            "host-sunshine",
+            "paired-client.json",
+            {"before": client_before, "after": client_after, "pairStatus": engine.serverinfo_pair_status(context)},
+        ),
+    ]
+    return entries, f"重启前 {before!r}；重启后 {after!r}"
+
+
+def driver_audio_tone(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row, view = engine.ensure_streaming(context)
+    tone = engine.ensure_host_tone(context)
+    app_name = str(context.fixture("forensicAppName", engine.DEFAULT_FORENSIC_APP_NAME))
+    forensic = context.forensic()
+    pid = (forensic.get("launch") or {}).get("pid")
+    numeric = int(pid) if isinstance(pid, (int, float)) else None
+    process = engine.host_process_running(context, numeric, app_name)
+    events = [
+        event
+        for event in forensic["tones"]
+        if isinstance(tone.get("wallMs"), (int, float))
+        and isinstance(event.get("wallMs"), (int, float))
+        and event["wallMs"] >= tone["wallMs"]
+    ]
+    entries = [
+        raw_entry(
+            "host-forensic",
+            "tone-events.json",
+            {"path": str(context.forensic_path()), "tone": tone, "events": events[-8:], "toneCount": len(events)},
+        ),
+        raw_entry("host-process", "host-process.json", process),
+        raw_entry("app", "session.json", {"host": row, "state": view.state(), "hostAudio": view.first("hostAudio")}),
+    ]
+    return entries, f"主机 {tone.get('hz')} Hz 事件 {len(events)} 条；进程 running={process.get('running')}"
+
+
+def driver_audio_chain(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row, view = engine.ensure_streaming(context)
+
+    def counter(snapshot, key: str) -> int | None:
+        value = snapshot.first(key) if snapshot is not None else None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    first = {"received": counter(view, "audio:received"), "enqueued": counter(view, "audio:enqueued"), "dropped": counter(view, "audio:dropped")}
+    started = time.monotonic()
+    context.hold("audio-chain-window", engine.DEFAULT_CAPTURE_SECONDS)
+    second_view = context.session_snapshot_or_none()
+    elapsed = round(time.monotonic() - started, 2)
+    second = {
+        "received": counter(second_view, "audio:received"),
+        "enqueued": counter(second_view, "audio:enqueued"),
+        "dropped": counter(second_view, "audio:dropped"),
+    }
+    lines = probe_lines_containing(context, ("audio start", "audio stop"))
+    entries = [
+        raw_entry(
+            "app",
+            "audio-chain.json",
+            {
+                "host": row,
+                "state": second_view.state() if second_view is not None else "none",
+                "first": first,
+                "second": second,
+                "windowSeconds": elapsed,
+                "hostAudio": (second_view or view).first("hostAudio"),
+                "clientAudio": (second_view or view).first("clientAudio"),
+            },
+        ),
+        raw_entry("probe", "probe-audio.json", {"lines": lines}),
+    ]
+    return entries, (
+        f"received {first['received']}→{second['received']}；enqueued {first['enqueued']}→{second['enqueued']}；"
+        f"dropped {first['dropped']}→{second['dropped']}；探针音频行 {len(lines)}"
+    )
+
+
+def driver_audio_contrast(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    row, view = engine.ensure_streaming(context)
+    tone = engine.ensure_host_tone(context)
+    streaming_wav, streaming_report = engine.capture_audio(
+        context, engine.DEFAULT_CAPTURE_SECONDS, name="audio-streaming.wav", scope="unscoped"
+    )
+    streaming_plateaus = engine.tone_plateau_report(streaming_wav, float(tone.get("hz") or engine.DEFAULT_TONE_HZ))
+    engine.disconnect_session(context, soft=True)
+    context.hold("direct-only-settle", 2.0)
+    direct_wav, direct_report = engine.capture_audio(
+        context, engine.DEFAULT_CAPTURE_SECONDS, name="audio-direct.wav", scope="unscoped"
+    )
+    direct_plateaus = engine.tone_plateau_report(direct_wav, float(tone.get("hz") or engine.DEFAULT_TONE_HZ))
+    after_view = context.session_snapshot_or_none()
+    entries = [
+        {"class": "host-audio", "path": "audio-streaming.wav", "file": str(streaming_wav), "payload": None},
+        raw_entry("host-audio", "tone-report-streaming.json", streaming_report),
+        raw_entry("host-audio", "plateaus-streaming.json", streaming_plateaus),
+        {"class": "host-audio", "path": "audio-direct.wav", "file": str(direct_wav), "payload": None},
+        raw_entry("host-audio", "tone-report-direct.json", direct_report),
+        raw_entry("host-audio", "plateaus-direct.json", direct_plateaus),
+        raw_entry(
+            "app",
+            "session-after-disconnect.json",
+            {"host": row, "before": view.state(), "after": after_view.state() if after_view is not None else "none"},
+        ),
+        raw_entry("probe", "probe-audio.json", {"lines": probe_lines_containing(context, ("audio start", "audio stop", "session end"))}),
+    ]
+    return entries, (
+        f"串流期混音 {streaming_report.get('toneRatio')}（{streaming_plateaus.get('plateaus')} 段）；"
+        f"断连后 {direct_report.get('toneRatio')}（{direct_plateaus.get('plateaus')} 段）"
+    )
+
+
 DRIVERS.update(
     {
         "host.state": driver_host_state,
@@ -1104,6 +1464,14 @@ DRIVERS.update(
         "negotiate.check": driver_negotiate,
         "frame.advance": driver_frame_advance,
         "picture.source": driver_picture_source,
+        "add.form": driver_add_form,
+        "add.submit": driver_add_submit,
+        "pair.pin": driver_pair_pin,
+        "pair.submit": driver_pair_submit,
+        "pair.survive": driver_pair_survive,
+        "audio.tone": driver_audio_tone,
+        "audio.chain": driver_audio_chain,
+        "audio.contrast": driver_audio_contrast,
     }
 )
 
@@ -1153,6 +1521,15 @@ def record_failure(run: Path, unit_id: str, kind: str, detail: str, context) -> 
     )
 
 
+def driver_or_die(unit: dict[str, object]) -> str:
+    name = str(unit.get("driver", "pending"))
+    if name == "pending":
+        raise Refused(f"{unit['id']} 的驱动器尚未实现（driver=pending）")
+    if name not in DRIVERS:
+        raise Refused(f"{unit['id']} 的驱动器 {name!r} 未登记")
+    return name
+
+
 def cmd_drive(engine_module, args) -> int:
     registry = load_registry()
     run = resolve_run(args.run_dir, create=True)
@@ -1168,9 +1545,10 @@ def cmd_drive(engine_module, args) -> int:
         print(f"REFUSED: 上游未判决，先驱动并判决：{', '.join(pending)}")
         return 2
 
-    driver_name = str(unit.get("driver", "pending"))
-    if driver_name == "pending":
-        print(f"REFUSED: {unit_id} 的驱动器尚未实现（driver=pending）")
+    try:
+        driver_name = driver_or_die(unit)
+    except Refused as refusal:
+        print(f"REFUSED: {refusal}")
         return 2
 
     if operator_aborted():
@@ -1495,16 +1873,24 @@ def cmd_self_test(args) -> int:
         expect_refusal("场景级执行", lambda: unit_or_die(registry, "07"))
 
         units = units_by_id(registry)
-        pending_units = [name for name, entry in units.items() if str(entry.get("driver")) == "pending"]
-        if not pending_units:
-            failures.append("没有 pending 单元可检查")
+        expect_refusal(
+            "驱动器未实现（合成单元）",
+            lambda: driver_or_die({"id": "99.9", "driver": "pending"}),
+        )
+        expect_refusal(
+            "驱动器未登记（合成单元）",
+            lambda: driver_or_die({"id": "99.9", "driver": "no.such.driver"}),
+        )
+        unimplemented = [
+            str(entry["id"])
+            for entry in units.values()
+            if str(entry.get("driver", "pending")) not in DRIVERS
+            and str(entry.get("driver", "pending")) != "pending"
+        ]
+        if unimplemented:
+            failures.append(f"未登记的驱动器名：{', '.join(unimplemented)}")
         else:
-            expect_refusal(
-                f"驱动器未实现（{pending_units[0]}）",
-                lambda: (_ for _ in ()).throw(Refused("driver=pending"))
-                if str(units[pending_units[0]].get("driver")) == "pending"
-                else None,
-            )
+            print(f"PASS 登记表的驱动器名都已实现（{len(DRIVERS)} 个）")
 
         with_need = next(entry for entry in units.values() if entry.get("needs"))
         expect_refusal(
