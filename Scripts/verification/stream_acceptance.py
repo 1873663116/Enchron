@@ -540,6 +540,7 @@ def driver_settings_restart(engine, context, run: Path, unit_id: str) -> tuple[l
     )
     engine.open_settings(context)
     after = engine.settings_values(context)
+    engine.ensure_host(context, pair=False)
     entries = [
         raw_entry("app", "settings-before-restart.json", before),
         raw_entry("app", "settings-after-restart.json", after),
