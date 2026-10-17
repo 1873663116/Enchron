@@ -528,7 +528,7 @@ def unit_arguments(unit_id: str) -> dict[str, object]:
 
 
 def driver_settings_restart(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
-    context.host_command(("xcrun", "simctl", "terminate", context.device, engine.APP_BUNDLE_ID), "simctl-terminate")
+    context.spawn(("xcrun", "simctl", "terminate", context.device, engine.APP_BUNDLE_ID), "app-terminate")
     context.hold("after-terminate", 2.0)
     context.invoke("ensure-session")
     context.hold("after-ensure-session", 4.0)
