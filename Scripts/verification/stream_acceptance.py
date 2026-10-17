@@ -528,20 +528,24 @@ def unit_arguments(unit_id: str) -> dict[str, object]:
 
 
 def driver_settings_restart(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
-    before = len(context.probe_lines())
+    engine.open_settings(context)
+    before = engine.settings_values(context)
     engine.relaunch_app(context)
-    context.hold("after-relaunch", 3.0)
-    context.invoke("ensure-session")
-    context.hold("after-ensure-session", 3.0)
-    document = context.app_verb("streamSetOptions")
-    restarted = len(context.probe_lines()) > before
-    payload = document.get("payload")
-    readable = payload[0] if isinstance(payload, list) and payload else ""
+    context.wait(
+        "relaunch",
+        engine.APP_RELAUNCH_SECONDS,
+        lambda: {"ok": True} if context.matched_element("Navigation-Ornament-tab-streaming") else None,
+        lambda: [{"identifiers": context.identifiers()[:40]}],
+        poll_interval_seconds=2.0,
+    )
+    engine.open_settings(context)
+    after = engine.settings_values(context)
     entries = [
-        raw_entry("app", "settings-after-restart.json", {"readback": readable, "response": document, "restarted": restarted}),
-        raw_entry("probe", "probe-lines.json", {"before": before, "after": len(context.probe_lines()), "lines": context.probe_lines()[-30:]}),
+        raw_entry("app", "settings-before-restart.json", before),
+        raw_entry("app", "settings-after-restart.json", after),
+        raw_entry("probe", "probe-lines.json", {"lines": context.probe_lines()[-20:]}),
     ]
-    return entries, f"App 重启后设置回读：{readable}"
+    return entries, f"重启前 requested={before.get('requested')}；重启后 requested={after.get('requested')}"
 
 
 def driver_degrade_notice(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
