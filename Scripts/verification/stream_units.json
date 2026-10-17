@@ -96,7 +96,7 @@
       "id": "01.1",
       "s": "01",
       "t": "打开添加表单",
-      "pre": "app=streaming-tab",
+      "pre": "",
       "needs": [],
       "cls": [
         "app"
@@ -124,7 +124,9 @@
       "s": "02",
       "t": "取 PIN",
       "pre": "host=unpaired",
-      "needs": [],
+      "needs": [
+        "01.2"
+      ],
       "cls": [
         "app"
       ],

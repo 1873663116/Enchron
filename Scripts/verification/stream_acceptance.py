@@ -308,15 +308,6 @@ def probe_app_cards(context) -> tuple[bool, str]:
     return True, f"cards={len(cards)}"
 
 
-def probe_streaming_tab(context) -> tuple[bool, str]:
-    if context.matched_element("Navigation-Ornament-tab-streaming") is None:
-        return False, "the streaming tab is absent"
-    for identifier in ("Stream-HostSidebar", "Stream-EmptyState"):
-        if context.matched_element(identifier) is not None:
-            return True, f"the streaming page is open ({identifier})"
-    return False, "the streaming page is open on neither the sidebar nor the empty state"
-
-
 def probe_add_host_form(context) -> tuple[bool, str]:
     if context.matched_element("Stream-AddHost") is None:
         return False, "the add-host form is not open"
@@ -351,7 +342,6 @@ PRECONDITIONS = {
     "pair=pending": probe_pair_pending,
     "pair=paired": probe_host_paired,
     "app-list=cards": probe_app_cards,
-    "app=streaming-tab": probe_streaming_tab,
     "form=add-host-open": probe_add_host_form,
 }
 
@@ -360,7 +350,6 @@ PRECONDITION_PROVIDERS = {
     "pair=paired": ["02.2"],
     "host=unpaired": ["01.2"],
     "pair=pending": ["02.1"],
-    "app=streaming-tab": ["P0.1"],
     "form=add-host-open": ["01.1"],
     "app-list=cards": ["03.1"],
     "host=free": ["18.1", "10.3"],
