@@ -380,9 +380,19 @@ public final class StreamingModel {
 
     private func startSession(hostID: HostID, appID: AppID?, appName: String?, preferResume: Bool) async throws {
         if let current = session {
+            let replacesTheRunningApp = appID.map { $0 != current.appID } ?? false
             switch current.state {
             case .connecting, .streaming:
-                throw StreamFailure(stage: .launch, kind: .hostBusy, message: "已有进行中的会话", recovery: .none)
+                guard replacesTheRunningApp else {
+                    throw StreamFailure(
+                        stage: .launch,
+                        kind: .hostBusy,
+                        message: "已有进行中的会话",
+                        recovery: .none
+                    )
+                }
+                stopSessionInternal(reason: "replace")
+                finishSessionDismissal()
             case .interrupted, .ended, .stopping:
                 stopSessionInternal(reason: "replace")
                 finishSessionDismissal()

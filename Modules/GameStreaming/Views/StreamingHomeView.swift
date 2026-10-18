@@ -108,6 +108,8 @@ public struct StreamingHomeView: View {
             }
             .accessibilityIdentifier("Stream-HostDetail-removeButton")
 
+            remoteSessionLine(host)
+
             failureLine(host)
 
             StreamAppGridView(state: host.applications) { application in
@@ -125,6 +127,61 @@ public struct StreamingHomeView: View {
             isPresented: $isConfirmingRemoval
         ) {
             forget(host)
+        }
+    }
+
+    @ViewBuilder
+    private func remoteSessionLine(_ host: HostSnapshot) -> some View {
+        if let session = host.remoteSession, session.isBusy {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text("主机正在运行：\(runningApplicationName(session, host: host))")
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+                    .accessibilityIdentifier("Stream-HostDetail-remoteSession")
+                    .accessibilityValue(
+                        "busy=true;game=\(session.currentGame ?? "none")"
+                    )
+                Button(role: .destructive) {
+                    quitRemoteApplication(host)
+                } label: {
+                    Label("退出主机应用", systemImage: "stop.circle")
+                }
+                .accessibilityIdentifier("Stream-HostDetail-quitAppButton")
+            }
+        }
+    }
+
+    private func runningApplicationName(
+        _ session: RemoteSessionInfo,
+        host: HostSnapshot
+    ) -> String {
+        guard let identifier = session.currentGame else { return host.name }
+        if let applications = host.applications.applications,
+           let matched = applications.first(where: { $0.id.rawValue == identifier }) {
+            return matched.name
+        }
+        return identifier
+    }
+
+    private func quitRemoteApplication(_ host: HostSnapshot) {
+        model.clearFailure(hostID: host.id)
+        Task {
+            do {
+                try await model.quitApplication(hostID: host.id)
+                model.refreshReachability(hostID: host.id)
+            } catch let failure as StreamFailure {
+                model.recordFailure(failure, hostID: host.id)
+            } catch {
+                model.recordFailure(
+                    StreamFailure(
+                        stage: .teardown,
+                        kind: .unknown,
+                        message: "退出主机应用失败",
+                        recovery: .retry
+                    ),
+                    hostID: host.id
+                )
+            }
         }
     }
 

@@ -1039,6 +1039,22 @@ final class TestCommandChannel {
             let down = downRaw == "1" || downRaw.lowercased() == "true"
             streaming.sendKey(hidUsage: hid, down: down, modifierFlags: flags)
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamQuitApp":
+            guard let host = request.args["host"], let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamQuitApp requires a resolvable host",
+                    payload: nil
+                )
+            }
+            do {
+                try await streaming.quitApplication(hostID: hostID)
+            } catch {
+                return Response(id: request.id, ok: false, detail: "\(error)", payload: nil)
+            }
+            streaming.refreshReachability(hostID: hostID)
+            return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "streamSetOptions":
             streaming.updateSettings { options in
                 if let raw = request.args["resolution"], let resolution = StreamResolution.parsed(raw) {
