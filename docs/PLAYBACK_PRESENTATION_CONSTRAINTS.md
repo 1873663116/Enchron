@@ -192,7 +192,7 @@
 
 - 潮汐力的 RCP 源工程为 Xrplay_scene 的 `scenes/sykpool.realitycomposerpro`。`暗色参数12M.bin` 依赖交付 USDZ 中的 `textures/Scene_Unlit_16K.png`，其量化后的 RGB8 必须与场景浅色图集一致。深色材质实时解码参数，浅深材质共享唯一浅色图集。运行时与资源包均不保留完整深色图集。卧室门旁与右侧地面的细紫色灯带丢失属于已接受的交付误差。
 - 浅深色切换持续 1.2 秒。单份几何的材质以 `DarkMix` 混合浅色采样与实时深色解码结果，水面小贴图和玻璃高光同步插值。卧室控制面板采样自己的贴图、不进共享图集，浅色与深色两张贴图都随 `.reality` 交付，由同一个 `DarkMix` 混合。加载阶段准备纹理并逐种离屏渲染材质以预热，每种完成后让出主线程；切换阶段只更新参数。RealityRenderer 的提交 API 限定主线程，预热需分批提交。首次载入直接显示目标外观，切换中再次操作从当前显示值继续。
-- 星空绕场景 Y 轴每 7200 秒一圈；每次外观切换额外旋转 180°，结束后恢复常规采样。星空是立方体贴图（`starmap_2020_16k`），天穹实体绕其作者朝向的局部 Y 轴自转，RCP 中设定的构图因此保持不变。水面与玻璃的星空采样接收天穹朝向的四元数（`SkyOrientationAxis` 与 `SkyOrientationW`），采样前把方向旋转回天穹的物体空间，使反射中的星图与天空同步。动画由场景内的 RealityKit System 驱动，材质不再注入模糊角，拖影交给 RealityKit。
+- 星空绕场景 Y 轴每 7200 秒一圈；每次外观切换额外旋转 180°，结束后恢复常规采样。星空是立方体贴图（`starmap_2020_16k`），天穹的偏航作用在场景空间，作者朝向作为基座保持不变，星图极轴随自转绕天顶画圈。水面与玻璃的星空采样接收天穹朝向的四元数（`SkyOrientationAxis` 与 `SkyOrientationW`），采样前把方向旋转回天穹的物体空间，使反射中的星图与天空同步。动画由场景内的 RealityKit System 驱动，材质不再注入模糊角，拖影交给 RealityKit。
 - 22 个碎片保持现有 Y 值与视觉编排，共同绕场景 Y 轴每 3600 秒一圈。它们属于同一旋转组，碎片间距离恒定。`Scripts/verification/verify_tidal_orbits.py --scene <tidal.reality>` 检查实际网格的全周路径与静态建筑、平台的间距，并检查全部碎片对。`Scripts/verification/verify_tidal_motion.py --output-directory <目录>` 验证实际材质叠化、贴图共享、星空拖影和半周轨道位置。
 - 水面池底、池壁与凹槽使用重投影 UV，允许保留小尺寸浅深两套贴图。提取坐标使用 RCP 水面材质的 `PoolFrameOrigin`，世界 X、Z 轴反向；凹槽材质的纵向采样范围为池沿向下 0.894 m。原始提取工具的世界坐标必须先转换到该池体坐标系。
 - `Scripts/build/prepare_tidal_resources.py --scene-workspace <Xrplay_scene> --delivery <SkyPool_交付包>` 重建场景、复制原始参数包并生成水面小贴图。Python 需要 numpy、Pillow 和 opencv-python-headless；场景导出需要 Reality Composer Pro。水面制品生成临时使用参考解码器，需约 6 GB 峰值内存；此步骤只在开发机执行。

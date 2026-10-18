@@ -27,6 +27,7 @@ struct TidalMotionGPUVerification {
         let runtimeStart = ContinuousClock.now
         let runtime = try TidalEnvironmentRuntime(root: root, template: template, darkTextures: darkTextures)
         print("Runtime setup: \(runtimeStart.duration(to: .now))")
+        let skyBaseOrientation = root.findEntity(named: "SkyDome")!.orientation
         let warmStart = ContinuousClock.now
         try await runtime.prewarm()
         print("Runtime prewarm: \(warmStart.duration(to: .now))")
@@ -102,6 +103,9 @@ struct TidalMotionGPUVerification {
         runtime.advance(by: 1.2)
         precondition(material().getParameter(name: "DarkMix") == .float(1))
         runtime.advance(by: 1800 - 2.7)
+        let skySpin = root.findEntity(named: "SkyDome")!.orientation * skyBaseOrientation.inverse
+        precondition(abs(skySpin.imag.x) < 0.00001 && abs(skySpin.imag.z) < 0.00001)
+        precondition(abs(skySpin.imag.y) > 0.001)
         var orbitError: Float = 0
         for (name, position) in fragments {
             let actual = root.findEntity(named: name)!.position(relativeTo: root)
@@ -145,6 +149,7 @@ struct TidalMotionGPUVerification {
         precondition(mean(blurred) > mean(sharp) * 0.5 && mean(blurred) < mean(sharp) * 2)
         times.sort()
         let report: [String: Any] = ["system_driven_transition": true, "frames": rows, "frame_times_ms": frameTimes, "orbit_error_m": orbitError, "fragments": fragments.count,
+                                   "sky_spin_axis": [skySpin.imag.x, skySpin.imag.y, skySpin.imag.z],
                                    "sky_sharp_mean": mean(sharp), "sky_blurred_mean": mean(blurred),
                                    "sky_sharp_gradient": gradient(sharp), "sky_blurred_gradient": gradient(blurred),
                                    "median_frame_ms": times[times.count / 2], "maximum_frame_ms": times.last!]

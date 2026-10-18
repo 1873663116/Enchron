@@ -142,7 +142,7 @@ final class TidalEnvironmentRuntime {
     }
 
     private func write(_ sample: TidalMotionTimeline.Sample) {
-        let sky = skyBaseOrientation * simd_quatf(angle: sample.skyYaw, axis: [0, 1, 0])
+        let sky = simd_quatf(angle: sample.skyYaw, axis: [0, 1, 0]) * skyBaseOrientation
         skyDome?.orientation = sky
         let changed = lastMix != sample.darkMix
         for surface in surfaces where surface.hasSky || changed {
