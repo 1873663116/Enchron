@@ -68,12 +68,12 @@ public struct MainView: View {
         .browserWindowGeometry(isCompact: false) { windowScene in
             spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
         }
+#if DEBUG
         .onChange(of: playbackSession.environmentCardDismissalRequestRevision) { _, _ in
             if appModel.selectedTab == .environment { appModel.selectedTab = .files }
             setEnvironmentHomeCompact(false)
             environmentTabBarHidden = false
         }
-#if DEBUG
         .developerStatsOverlay(
             isEnabled: settingsViewModel.preferences.developerModeEnabled
                 && playbackSession.immersiveSpaceResidency == .closed,
