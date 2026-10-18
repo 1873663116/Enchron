@@ -470,6 +470,15 @@ public final class StreamingModel {
             coordinator.start()
         } catch let failure as StreamFailure {
             failures[hostID] = failure
+            StreamSessionProbes.record(
+                "session start failed host=\(hostID.rawValue)"
+                    + " app=\(resolvedAppName)"
+                    + " stage=\(failure.stage.rawValue)"
+                    + " kind=\(failure.kind.rawValue)"
+                    + " message=\(failure.message)"
+                    + " upstream=\(failure.upstreamDetail ?? "none")",
+                retention: .evidence
+            )
             throw failure
         } catch {
             let failure = StreamFailure(
@@ -480,6 +489,15 @@ public final class StreamingModel {
                 upstreamDetail: String(describing: error)
             )
             failures[hostID] = failure
+            StreamSessionProbes.record(
+                "session start failed host=\(hostID.rawValue)"
+                    + " app=\(resolvedAppName)"
+                    + " stage=\(failure.stage.rawValue)"
+                    + " kind=\(failure.kind.rawValue)"
+                    + " message=\(failure.message)"
+                    + " upstream=\(failure.upstreamDetail ?? "none")",
+                retention: .evidence
+            )
             throw failure
         }
     }
