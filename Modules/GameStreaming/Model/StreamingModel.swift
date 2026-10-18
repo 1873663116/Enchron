@@ -393,6 +393,12 @@ public final class StreamingModel {
                 }
                 stopSessionInternal(reason: "replace")
                 finishSessionDismissal()
+                if let stored = storedHosts.first(where: { $0.hostID == hostID }) {
+                    try? await backend.quitApplication(
+                        BackendCredentials(address: stored.address, serverCert: stored.serverCert)
+                    )
+                }
+                try await waitForHostToReleaseTheSession()
             case .interrupted, .ended, .stopping:
                 stopSessionInternal(reason: "replace")
                 finishSessionDismissal()
@@ -504,6 +510,18 @@ public final class StreamingModel {
             guard let self else { return }
             if self.session != nil, self.coordinator != nil {
                 self.finishSessionDismissal()
+            }
+        }
+    }
+
+    private func waitForHostToReleaseTheSession() async throws {
+        guard let stored = storedHosts.first else { return }
+        let credentials = BackendCredentials(address: stored.address, serverCert: stored.serverCert)
+        for _ in 0..<12 {
+            try? await Task.sleep(for: .milliseconds(750))
+            guard let info = try? await backend.fetchServerInfo(credentials) else { continue }
+            guard let remote = info.currentGame, remote.isEmpty == false, remote != "0" else {
+                return
             }
         }
     }
