@@ -53,8 +53,8 @@ $(SRCROOT)/Modules/GameStreaming/Storage/HostStore.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamAddHostView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamAppGridView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamPairingView.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamSessionContentView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamSettingsSection.swift
-$(SRCROOT)/Modules/GameStreaming/Views/StreamWindowView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamingHomeView.swift
 $(SRCROOT)/Modules/MediaLibrary/AppManagedMediaImportStore.swift
 $(SRCROOT)/Modules/MediaLibrary/FileBrowsingViewModel.swift

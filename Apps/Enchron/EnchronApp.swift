@@ -127,19 +127,6 @@ struct EnchronApp: App {
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.suppressed)
 
-        WindowGroup("Stream", id: "streaming") {
-            StreamWindowView()
-                .enchronEnvironment(application)
-        }
-        .windowStyle(.plain)
-        .defaultSize(
-            width: BrowserWindowLayout.defaultSize.width,
-            height: BrowserWindowLayout.defaultSize.height
-        )
-        .windowResizability(.contentSize)
-        .restorationBehavior(.disabled)
-        .defaultLaunchBehavior(.suppressed)
-
 #if DEBUG
         WindowGroup("Blackout Probe", id: "blackoutProbe") {
             Color.clear.frame(width: 760, height: 220)

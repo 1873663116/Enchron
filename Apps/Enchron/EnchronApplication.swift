@@ -551,14 +551,6 @@ final class EnchronApplication {
                 launcher?.savePlaybackMode(mode)
             }
         )
-        spatialPlatformEffectCoordinator.onPlayerWindowClosedByWearer = {
-            [weak launcher] in
-            SurfaceInputProbes.record(
-                "playerWindowScene closedByWearer stoppingPlayback",
-                retention: .evidence
-            )
-            launcher?.stopPlayback(reason: .windowClosedByWearer)
-        }
         self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in
             spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)
@@ -627,6 +619,24 @@ final class EnchronApplication {
         }
         suspensionWatchdog.onResumeFromSuspension = { [weak self] gap in
             self?.handleResumeFromSuspension(gap: gap)
+        }
+        spatialPlatformEffectCoordinator.onPlayerWindowClosedByWearer = {
+            [weak self, weak launcher] in
+            guard let self else { return }
+            if self.streamingModel.session != nil {
+                SurfaceInputProbes.record(
+                    "playerWindowScene closedByWearer disconnectingStream",
+                    retention: .evidence
+                )
+                self.streamingModel.releaseInputs(cause: "window-closed")
+                self.streamingModel.disconnect()
+                return
+            }
+            SurfaceInputProbes.record(
+                "playerWindowScene closedByWearer stoppingPlayback",
+                retention: .evidence
+            )
+            launcher?.stopPlayback(reason: .windowClosedByWearer)
         }
         suspensionWatchdog.start()
     }

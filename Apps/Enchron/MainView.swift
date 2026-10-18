@@ -12,7 +12,6 @@ public struct MainView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "MainView")
     @Environment(AppModel.self) private var appModel
     @Environment(StreamingModel.self) private var streamingModel
-    @Environment(\.openWindow) private var openWindow
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
@@ -107,8 +106,8 @@ public struct MainView: View {
                 playbackSession.showControls = true
             }
         }
-        .onChange(of: playbackRuntime.residency, initial: true) { _, residency in
-            spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
+        .onChange(of: playbackRuntime.residency, initial: true) { _, _ in
+            syncPlayerWindowResidency()
         }
         .alert(
             Text(connectionSecurityPrompt.question?.title ?? ""),
@@ -347,10 +346,16 @@ public struct MainView: View {
             appModel.selectedTab = .streaming
         }
 #endif
-        .onChange(of: streamingModel.session?.id, initial: true) { _, sessionID in
-            guard sessionID != nil else { return }
-            openWindow(id: "streaming")
+        .onChange(of: streamingModel.session?.id) { _, _ in
+            syncPlayerWindowResidency()
         }
+    }
+
+    private func syncPlayerWindowResidency() {
+        let residency: PlaybackResidency = streamingModel.session != nil
+            ? .playing(host: .window)
+            : playbackRuntime.residency
+        spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
     }
 
     private var browserVisibility: BrowserWindowVisibility {
