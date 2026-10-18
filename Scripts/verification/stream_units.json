@@ -120,6 +120,20 @@
       "x": false
     },
     {
+      "id": "01.3",
+      "s": "01",
+      "t": "发现行地址即可添加地址",
+      "pre": "form=add-host-open",
+      "needs": [
+        "01.1"
+      ],
+      "cls": [
+        "app"
+      ],
+      "driver": "discover.address",
+      "x": false
+    },
+    {
       "id": "02.1",
       "s": "02",
       "t": "取 PIN",

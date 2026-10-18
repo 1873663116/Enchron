@@ -1243,6 +1243,50 @@ def driver_add_submit(engine, context, run: Path, unit_id: str) -> tuple[list[di
     return entries, f"手动添加 {address} → 主机行 {row}：{value!r}；错误 {error!r}"
 
 
+def driver_discover_address(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
+    if context.matched_element("Stream-AddHost-discover-entry") is not None:
+        context.tap("Stream-AddHost-discover-entry")
+
+    def probe() -> dict[str, object] | None:
+        rows = [
+            identifier
+            for identifier in context.identifiers()
+            if identifier.startswith("Stream-Discovery-row-")
+        ]
+        if not rows:
+            return None
+        return {"rows": rows}
+
+    observed = observe_wait(
+        engine,
+        context,
+        "Stream-Discovery-row",
+        engine.STREAM_CONNECT_SECONDS,
+        probe,
+        lambda: [{"identifiers": context.identifiers()[:60]}],
+    )
+    found = observed.get("found")
+    rows = [str(identifier) for identifier in found["rows"]] if isinstance(found, dict) else []
+    addresses: list[dict[str, object]] = []
+    for identifier in rows:
+        value = context.identifier_value(identifier)
+        marker = "address="
+        address = value.split(marker, 1)[1] if isinstance(value, str) and marker in value else None
+        addresses.append({"identifier": identifier, "value": value, "address": address})
+    entries = [
+        raw_entry(
+            "app",
+            "discovery-addresses.json",
+            {"rows": addresses, "observed": observed},
+        )
+    ]
+    summary = (
+        "；".join(f"{item['identifier']} → {item['address']!r}" for item in addresses)
+        or "发现列表没有行"
+    )
+    return entries, f"发现行地址：{summary}"
+
+
 def driver_pair_pin(engine, context, run: Path, unit_id: str) -> tuple[list[dict[str, object]], str]:
     row = engine.find_host_row(context)
     if row is None:
@@ -1523,6 +1567,7 @@ DRIVERS.update(
         "picture.source": driver_picture_source,
         "add.form": driver_add_form,
         "add.submit": driver_add_submit,
+        "discover.address": driver_discover_address,
         "pair.pin": driver_pair_pin,
         "pair.submit": driver_pair_submit,
         "pair.survive": driver_pair_survive,

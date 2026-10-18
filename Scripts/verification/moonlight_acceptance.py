@@ -2490,6 +2490,18 @@ def scenario_01_add_host(context: Context) -> Outcome:
     )
     rows = [str(identifier) for identifier in found["rows"]]
     context.record_channel("control-surface", "discovery-rows.json", rows)
+    addresses: list[dict[str, object]] = []
+    for identifier in rows:
+        value = context.identifier_value(identifier)
+        marker = "address="
+        address = value.split(marker, 1)[1] if isinstance(value, str) and marker in value else None
+        addresses.append({"identifier": identifier, "value": value, "address": address})
+    context.record_channel("control-surface", "discovery-addresses.json", addresses)
+    unusable = [
+        item for item in addresses if not item["address"] or "%" in str(item["address"])
+    ]
+    if unusable:
+        raise ProductVerdict("discovery-address-unusable", {"rows": addresses})
     matched_name = False
     if expected:
         matched_name = any(expected.lower() in identifier.lower() for identifier in rows)

@@ -112,7 +112,7 @@ public final class MoonlightDiscovery: @unchecked Sendable {
             case .ready:
                 if let remote = connection.currentPath?.remoteEndpoint,
                    case .hostPort(let host, let port) = remote {
-                    complete("\(host)", port.rawValue)
+                    complete(Self.hostString(from: host), port.rawValue)
                 } else {
                     complete(nil, nil)
                 }
@@ -135,5 +135,15 @@ public final class MoonlightDiscovery: @unchecked Sendable {
         let continuation = self.continuation
         lock.unlock()
         continuation?.yield(snapshot)
+    }
+
+    /// Network.framework qualifies a resolved address with the interface it was
+    /// reached on, as in `192.168.5.28%en1`, and the resolved port. The scope is
+    /// not part of an address that later stages may carry: URL construction reads
+    /// `%` as an escape and `getaddrinfo` rejects a scoped IPv4 literal.
+    static func hostString(from host: NWEndpoint.Host) -> String {
+        let description = "\(host)"
+        guard let scope = description.firstIndex(of: "%") else { return description }
+        return String(description[description.startIndex..<scope])
     }
 }
