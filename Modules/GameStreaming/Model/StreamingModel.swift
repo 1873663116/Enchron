@@ -8,13 +8,12 @@ private let streamingProbe = StreamSessionProbes.self
 public final class StreamingModel {
     public private(set) var hosts: [HostSnapshot] = []
     public private(set) var selectedHostID: HostID?
-    public private(set) var pairing: PairingChallenge?
-    public private(set) var pairingError: StreamFailure?
+    public private(set) var pairings: [HostID: PairingChallenge] = [:]
+    public private(set) var failures: [HostID: StreamFailure] = [:]
     public private(set) var discoveredHosts: [DiscoveredHost] = []
     public private(set) var isDiscovering = false
     public private(set) var session: SessionSnapshot?
     public private(set) var renderBinding: StreamRenderBinding?
-    public private(set) var failure: StreamFailure?
 
     public var settings: StreamOptions {
         didSet {
@@ -35,14 +34,39 @@ public final class StreamingModel {
         hosts.isEmpty
     }
 
+    public var videoAspectRatio: CGFloat {
+        if let negotiated = session?.negotiated, negotiated.width > 0, negotiated.height > 0 {
+            return CGFloat(negotiated.width) / CGFloat(negotiated.height)
+        }
+        let resolution = session?.requested.resolution ?? settings.resolution
+        guard resolution.height > 0 else { return 16.0 / 9.0 }
+        return CGFloat(resolution.width) / CGFloat(resolution.height)
+    }
+
+    public func pairing(for hostID: HostID) -> PairingChallenge? {
+        pairings[hostID]
+    }
+
+    public func failure(for hostID: HostID) -> StreamFailure? {
+        failures[hostID]
+    }
+
+    public func recordFailure(_ failure: StreamFailure, hostID: HostID) {
+        failures[hostID] = failure
+    }
+
+    public func clearFailure(hostID: HostID) {
+        failures[hostID] = nil
+    }
+
     private let backend: any StreamingBackend
     private let hostStore: HostStore
     private let settingsStore: StreamSettingsStore
 
     private var storedHosts: [StoredHost] = []
     private var discoveryTask: Task<Void, Never>?
-    private var pairingTask: Task<Void, Never>?
-    private var activePairingSession: (any BackendPairingSession)?
+    private var pairingTasks: [HostID: Task<Void, Never>] = [:]
+    private var activePairingSessions: [HostID: any BackendPairingSession] = [:]
     private var coordinator: StreamSessionCoordinator?
     private var teardownRequested = false
     private var teardownFallbackTask: Task<Void, Never>?
@@ -149,6 +173,7 @@ public final class StreamingModel {
             )
         }
         _ = hostStore.remove(id: hostID.rawValue)
+        cancelPairing(hostID: hostID)
         if selectedHostID == hostID {
             selectedHostID = nil
         }
@@ -238,26 +263,26 @@ public final class StreamingModel {
         guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else {
             throw StreamFailure(stage: .pairing, kind: .unreachable, message: "主机不存在", recovery: .none)
         }
-        pairingError = nil
+        failures[hostID] = nil
         let credentials = BackendCredentials(address: stored.address, serverCert: stored.serverCert)
         let backendPairing = try await backend.beginPairing(credentials)
-        activePairingSession = backendPairing
+        activePairingSessions[hostID] = backendPairing
 
         let challenge = PairingChallenge(id: backendPairing.pairingID, pin: backendPairing.pin)
-        pairing = challenge
+        pairings[hostID] = challenge
         StreamSessionProbes.record(
             "pairing begin host=\(stored.name) pin=\(challenge.pin)",
             retention: .evidence
         )
 
-        pairingTask = Task { [weak self] in
+        pairingTasks[hostID] = Task { [weak self] in
             do {
                 let outcome = try await backendPairing.waitForOutcome()
                 guard !Task.isCancelled else { return }
                 self?.completePairing(hostID: hostID, outcome: outcome)
             } catch {
                 guard !Task.isCancelled else { return }
-                self?.pairingFailed(String(describing: error))
+                self?.pairingFailed(hostID: hostID, message: String(describing: error))
             }
         }
         return challenge
@@ -274,7 +299,7 @@ public final class StreamingModel {
                 stored.serverCert = serverCert
                 stored.hasPairingRecord = true
             }
-            pairing?.state = .paired
+            pairings[hostID] = nil
             reloadHosts()
             refreshReachability(hostID: hostID)
             loadApplications(hostID: hostID)
@@ -282,41 +307,38 @@ public final class StreamingModel {
             _ = hostStore.update(id: hostID.rawValue) { stored in
                 stored.hasPairingRecord = true
             }
-            pairing?.state = .paired
+            pairings[hostID] = nil
             reloadHosts()
             refreshReachability(hostID: hostID)
         }
-        activePairingSession = nil
+        activePairingSessions[hostID] = nil
+        pairingTasks[hostID] = nil
     }
 
-    private func pairingFailed(_ message: String) {
+    private func pairingFailed(hostID: HostID, message: String) {
         StreamSessionProbes.record(
             "pairing failed error=\(message)",
             retention: .evidence
         )
-        pairing?.state = .failed(message)
-        pairingError = StreamFailure(
+        pairings[hostID]?.state = .failed(message)
+        failures[hostID] = StreamFailure(
             stage: .pairing,
             kind: .pairingRejected,
             message: "配对失败",
             recovery: .pairAgain,
             upstreamDetail: message
         )
-        activePairingSession = nil
+        activePairingSessions[hostID] = nil
+        pairingTasks[hostID] = nil
     }
 
-    public func cancelPairing() {
-        pairingTask?.cancel()
-        pairingTask = nil
-        activePairingSession?.cancel()
-        activePairingSession = nil
-        pairing = nil
-        pairingError = nil
-    }
-
-    public func clearPairing() {
-        pairing = nil
-        pairingError = nil
+    public func cancelPairing(hostID: HostID) {
+        pairingTasks[hostID]?.cancel()
+        pairingTasks[hostID] = nil
+        activePairingSessions[hostID]?.cancel()
+        activePairingSessions[hostID] = nil
+        pairings[hostID] = nil
+        failures[hostID] = nil
     }
 
     public func loadApplications(hostID: HostID) {
@@ -417,7 +439,7 @@ public final class StreamingModel {
             teardownRequested = false
             session = coordinator.snapshot
             renderBinding = coordinator.binding
-            failure = nil
+            failures[hostID] = nil
             coordinator.onSnapshot = { [weak self] snapshot in
                 Task { @MainActor in
                     self?.applySessionSnapshot(snapshot)
@@ -430,7 +452,7 @@ public final class StreamingModel {
             }
             coordinator.start()
         } catch let failure as StreamFailure {
-            self.failure = failure
+            failures[hostID] = failure
             throw failure
         } catch {
             let failure = StreamFailure(
@@ -440,7 +462,7 @@ public final class StreamingModel {
                 recovery: .retry,
                 upstreamDetail: String(describing: error)
             )
-            self.failure = failure
+            failures[hostID] = failure
             throw failure
         }
     }

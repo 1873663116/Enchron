@@ -2,23 +2,12 @@ import DesignSystem
 import SwiftUI
 
 public struct StreamingHomeView: View {
-    private enum Route: Hashable {
-        case addHost
-        case pairing(HostID)
-    }
-
     @Environment(StreamingModel.self) private var model
-    @Environment(\.openWindow) private var openWindow
-    @State private var route: [Route] = []
-    @State private var launchFailureText: String?
-    @State private var removalFailureText: String?
+    @State private var isAddingHost = false
     @State private var isConfirmingRemoval = false
 
     public init() {}
 
-    /// Presents the session window whenever a session appears. Presenting the
-    /// session is the session's own effect, so a launch that did not come from a
-    /// tapped card puts its window up too.
     public var body: some View {
         SidebarSplitLayout(sidebarIsVisible: model.emptyStateVisible == false) {
             sidebar
@@ -28,52 +17,26 @@ public struct StreamingHomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .onAppear { model.refreshReachability() }
-        .onChange(of: model.pairing?.state) { _, state in
-            guard let state else { return }
-            switch state {
-            case .unpaired:
-                guard route.isEmpty, let hostID = model.selectedHostID else { return }
-                route.append(.pairing(hostID))
-            case .paired:
-                guard let hostID = model.selectedHostID ?? model.hosts.first?.id else { return }
-                model.loadApplications(hostID: hostID)
-            case .unknown, .failed:
-                break
-            }
-        }
-        .onChange(of: model.session?.id) { _, sessionID in
-            if sessionID != nil {
-                openWindow(id: "streaming")
-            }
-        }
         .task {
             if model.selectedHostID == nil, let firstHostID = model.hosts.first?.id {
                 model.selectHost(firstHostID)
             }
         }
-    }
-
-    private var contentColumn: some View {
-        NavigationStack(path: $route) {
-            detailColumn
-                .navigationDestination(for: Route.self) { destination in
-                    switch destination {
-                    case .addHost:
-                        StreamAddHostView()
-                    case .pairing(let hostID):
-                        StreamPairingView(hostID: hostID)
-                    }
-                }
+        .sheet(isPresented: $isAddingHost) {
+            StreamAddHostView()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     @ViewBuilder
-    private var detailColumn: some View {
+    private var contentColumn: some View {
         if model.emptyStateVisible {
             emptyState
         } else if let host = model.selectedHost {
-            hostDetail(host)
+            if host.pairing.isPaired {
+                hostDetail(host)
+            } else {
+                StreamPairingView(hostID: host.id)
+            }
         } else {
             Text("从左侧选择主机")
                 .font(DesignTokens.Typography.metadata)
@@ -98,7 +61,7 @@ public struct StreamingHomeView: View {
                 title: "添加主机",
                 systemName: "plus",
                 accessibilityLabel: "添加主机",
-                action: { route.append(.addHost) },
+                action: { isAddingHost = true },
                 accessibilityIdentifier: "Stream-AddHost-entry"
             )
             Spacer(minLength: 0)
@@ -113,17 +76,9 @@ public struct StreamingHomeView: View {
         StreamHostSidebar(
             hosts: model.hosts,
             selectedHostID: model.selectedHostID,
-            onAdd: { route.append(.addHost) },
-            onSelect: select
+            onAdd: { isAddingHost = true },
+            onSelect: { model.selectHost($0.id) }
         )
-    }
-
-    private func select(_ host: HostSnapshot) {
-        model.selectHost(host.id)
-        launchFailureText = nil
-        removalFailureText = nil
-        guard host.pairing.isPaired == false, route.isEmpty else { return }
-        route.append(.pairing(host.id))
     }
 
     private func hostDetail(_ host: HostSnapshot) -> some View {
@@ -144,34 +99,14 @@ public struct StreamingHomeView: View {
                     .accessibilityValue("pairing=\(host.pairing.readableValue)")
             }
 
-            HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
-                if host.pairing.isPaired == false {
-                    Button {
-                        route.append(.pairing(host.id))
-                    } label: {
-                        Label("配对", systemImage: "link.badge.plus")
-                    }
-                    .accessibilityIdentifier("Stream-HostDetail-pairButton")
-                }
-                Button(role: .destructive) {
-                    isConfirmingRemoval = true
-                } label: {
-                    Label("移除主机", systemImage: "trash")
-                }
-                .accessibilityIdentifier("Stream-HostDetail-removeButton")
+            Button(role: .destructive) {
+                isConfirmingRemoval = true
+            } label: {
+                Label("移除主机", systemImage: "trash")
             }
+            .accessibilityIdentifier("Stream-HostDetail-removeButton")
 
-            if let removalFailureText {
-                Text(removalFailureText)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.SourceConnection.failureColor)
-            }
-
-            if let launchFailureText {
-                Text(launchFailureText)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.SourceConnection.failureColor)
-            }
+            failureLine(host)
 
             StreamAppGridView(state: host.applications) { application in
                 launch(host, application)
@@ -191,6 +126,18 @@ public struct StreamingHomeView: View {
         }
     }
 
+    private func failureLine(_ host: HostSnapshot) -> some View {
+        Group {
+            if let failure = model.failure(for: host.id) {
+                Text(failure.message)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.SourceConnection.failureColor)
+                    .accessibilityIdentifier("Stream-HostDetail-error")
+                    .accessibilityValue(failure.readableValue)
+            }
+        }
+    }
+
     private func pairingSummary(_ pairing: PairingState) -> String {
         switch pairing {
         case .unknown: "配对状态未知"
@@ -203,16 +150,23 @@ public struct StreamingHomeView: View {
     private func forget(_ host: HostSnapshot) {
         do {
             try model.forgetHost(host.id)
-            removalFailureText = nil
         } catch let failure as StreamFailure {
-            removalFailureText = failure.message
+            model.recordFailure(failure, hostID: host.id)
         } catch {
-            removalFailureText = "移除主机失败"
+            model.recordFailure(
+                StreamFailure(
+                    stage: .teardown,
+                    kind: .unknown,
+                    message: "移除主机失败",
+                    recovery: .none
+                ),
+                hostID: host.id
+            )
         }
     }
 
     private func launch(_ host: HostSnapshot, _ application: HostApplication) {
-        launchFailureText = nil
+        model.clearFailure(hostID: host.id)
         Task {
             do {
                 try await model.launch(
@@ -220,11 +174,18 @@ public struct StreamingHomeView: View {
                     appID: application.id,
                     appName: application.name
                 )
-                openWindow(id: "streaming")
             } catch let failure as StreamFailure {
-                launchFailureText = failure.message
+                model.recordFailure(failure, hostID: host.id)
             } catch {
-                launchFailureText = "启动串流失败"
+                model.recordFailure(
+                    StreamFailure(
+                        stage: .launch,
+                        kind: .unknown,
+                        message: "启动串流失败",
+                        recovery: .retry
+                    ),
+                    hostID: host.id
+                )
             }
         }
     }

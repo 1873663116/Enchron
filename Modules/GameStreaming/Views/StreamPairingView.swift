@@ -5,15 +5,11 @@ struct StreamPairingView: View {
     let hostID: HostID
 
     @Environment(StreamingModel.self) private var model
-    @Environment(\.dismiss) private var dismiss
-    @State private var pairingRequested = false
-    @State private var failureText: String?
+    @State private var isStarting = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            Text(hostName)
-                .font(DesignTokens.Typography.title)
-                .lineLimit(1)
+            header
             pinBlock
             statusLine
             controls
@@ -24,16 +20,23 @@ struct StreamPairingView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Stream-Pairing")
-        .task { await beginIfNeeded() }
-        .onChange(of: model.pairing?.state) { _, state in
-            if state == .paired {
-                dismiss()
-            }
-        }
     }
 
-    private var hostName: String {
-        model.hosts.first { $0.id == hostID }?.name ?? "配对"
+    private var host: HostSnapshot? {
+        model.hosts.first { $0.id == hostID }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(host?.name ?? "配对")
+                .font(DesignTokens.Typography.title)
+                .lineLimit(1)
+            if let address = host?.address.displayString {
+                Text(address)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+            }
+        }
     }
 
     private var pinBlock: some View {
@@ -62,41 +65,51 @@ struct StreamPairingView: View {
 
     private var controls: some View {
         HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
-            Button(role: .cancel) {
-                model.cancelPairing()
-                dismiss()
-            } label: {
-                Label("取消", systemImage: "xmark")
-            }
-            .accessibilityIdentifier("Stream-Pairing-cancel")
-
-            if isFailed {
+            if challenge == nil || isFailed {
                 Button {
-                    model.cancelPairing()
                     Task { await beginPairing() }
                 } label: {
-                    Label("重试", systemImage: "arrow.clockwise")
+                    Label("开始配对", systemImage: "link.badge.plus")
                 }
-                .accessibilityIdentifier("Stream-Pairing-retry")
+                .disabled(isStarting)
+                .accessibilityIdentifier("Stream-Pairing-start")
+            } else {
+                Button(role: .cancel) {
+                    model.cancelPairing(hostID: hostID)
+                } label: {
+                    Label("取消", systemImage: "xmark")
+                }
+                .accessibilityIdentifier("Stream-Pairing-cancel")
+            }
+
+            if isStarting {
+                ProgressView()
+                    .controlSize(.small)
             }
         }
     }
 
     @ViewBuilder
     private var failureLine: some View {
-        if let failureText {
-            Text(failureText)
+        if let failure = model.failure(for: hostID) {
+            Text(failure.message)
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.SourceConnection.failureColor)
+                .accessibilityIdentifier("Stream-Pairing-error")
+                .accessibilityValue(failure.readableValue)
         }
     }
 
+    private var challenge: PairingChallenge? {
+        model.pairing(for: hostID)
+    }
+
     private var pinText: String {
-        model.pairing?.pin ?? "----"
+        challenge?.pin ?? "----"
     }
 
     private var pairingState: PairingState {
-        model.pairing?.state ?? .unknown
+        challenge?.state ?? .unknown
     }
 
     private var statusSummary: String {
@@ -104,7 +117,7 @@ struct StreamPairingView: View {
         case .unknown: "尚未开始"
         case .unpaired: "等待主机确认"
         case .paired: "已配对"
-        case .failed: "配对失败"
+        case .failed(let message): "配对失败（\(message)）"
         }
     }
 
@@ -112,27 +125,29 @@ struct StreamPairingView: View {
         if case .failed = pairingState {
             return true
         }
-        return failureText != nil
-    }
-
-    private func beginIfNeeded() async {
-        guard pairingRequested == false else { return }
-        pairingRequested = true
-        if model.pairing?.state == .paired {
-            model.clearPairing()
-        }
-        guard model.pairing == nil else { return }
-        await beginPairing()
+        return false
     }
 
     private func beginPairing() async {
-        failureText = nil
+        isStarting = true
+        defer { isStarting = false }
+        if challenge != nil {
+            model.cancelPairing(hostID: hostID)
+        }
         do {
             _ = try await model.beginPairing(hostID: hostID)
         } catch let failure as StreamFailure {
-            failureText = failure.readableValue
+            model.recordFailure(failure, hostID: hostID)
         } catch {
-            failureText = "配对无法开始"
+            model.recordFailure(
+                StreamFailure(
+                    stage: .pairing,
+                    kind: .unknown,
+                    message: "配对无法开始",
+                    recovery: .retry
+                ),
+                hostID: hostID
+            )
         }
     }
 }

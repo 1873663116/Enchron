@@ -14,8 +14,7 @@ struct StreamAddHostView: View {
     @State private var addressText = ""
     @State private var nameText = ""
     @State private var isSubmitting = false
-    @State private var failureText: String?
-    @State private var failureMessage: String?
+    @State private var failure: StreamFailure?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
@@ -33,21 +32,24 @@ struct StreamAddHostView: View {
             Spacer(minLength: 0)
         }
         .padding(DesignTokens.Spacing.xl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .frame(width: DesignTokens.SourceConnection.panelWidth, alignment: .leading)
+        .enchronListGroupSurface(in: DesignTokens.ShapeToken.card)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Stream-AddHost")
+        .interactiveDismissDisabled(isSubmitting)
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: DesignTokens.Spacing.md) {
-            CircleIconButton.back(
-                accessibilityLabel: "返回",
-                action: { dismiss() },
-                accessibilityIdentifier: "Stream-AddHost-back"
-            )
             Text("添加主机")
                 .font(DesignTokens.Typography.title)
             Spacer(minLength: 0)
+            Button(role: .cancel) {
+                dismiss()
+            } label: {
+                Label("取消", systemImage: "xmark")
+            }
+            .accessibilityIdentifier("Stream-AddHost-cancel")
         }
     }
 
@@ -116,7 +118,7 @@ struct StreamAddHostView: View {
             count: model.discoveredHosts.count,
             cornerRadius: DesignTokens.Radius.element,
             accessibilityLabel: host.instanceName,
-            accessibilityValue: "host=\(host.instanceName);address=\(host.address.displayString)",
+            accessibilityValue: discoveryRowValue(host),
             action: { add(host) }
         ) { _ in
             HStack(spacing: DesignTokens.Spacing.md) {
@@ -130,6 +132,11 @@ struct StreamAddHostView: View {
                         .foregroundStyle(DesignTokens.Surface.supportingText)
                 }
                 Spacer(minLength: 0)
+                if existingHostID(for: host) != nil {
+                    Text("已添加")
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
             }
             .padding(.horizontal, DesignTokens.Spacing.lg)
             .frame(minHeight: DesignTokens.Interactive.rowHeight)
@@ -184,12 +191,12 @@ struct StreamAddHostView: View {
 
     @ViewBuilder
     private var failureLine: some View {
-        if let failureText {
-            Text(failureMessage ?? failureText)
+        if let failure {
+            Text(failure.message)
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.SourceConnection.failureColor)
                 .accessibilityIdentifier("Stream-AddHost-error")
-                .accessibilityValue(failureText)
+                .accessibilityValue(failure.readableValue)
         }
     }
 
@@ -197,14 +204,27 @@ struct StreamAddHostView: View {
         addressText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private func existingHostID(for host: DiscoveredHost) -> HostID? {
+        model.hosts.first { $0.address == host.address }?.id
+    }
+
+    private func discoveryRowValue(_ host: DiscoveredHost) -> String {
+        let added = existingHostID(for: host) != nil ? "true" : "false"
+        return "host=\(host.instanceName);address=\(host.address.displayString);added=\(added)"
+    }
+
     private func add(_ host: DiscoveredHost) {
+        if let hostID = existingHostID(for: host) {
+            model.selectHost(hostID)
+            dismiss()
+            return
+        }
         Task { await submit(address: host.address.displayString, name: host.instanceName) }
     }
 
     private func submit(address: String, name: String) async {
         isSubmitting = true
-        failureText = nil
-        failureMessage = nil
+        failure = nil
         defer { isSubmitting = false }
         do {
             let hostID = try await model.addHost(
@@ -213,12 +233,16 @@ struct StreamAddHostView: View {
             )
             model.selectHost(hostID)
             dismiss()
-        } catch let failure as StreamFailure {
-            failureText = failure.readableValue
-            failureMessage = failure.message
+        } catch let streamFailure as StreamFailure {
+            failure = streamFailure
         } catch {
-            failureText = String(describing: error)
-            failureMessage = "添加主机失败"
+            failure = StreamFailure(
+                stage: .connect,
+                kind: .unknown,
+                message: "添加主机失败",
+                recovery: .retry,
+                upstreamDetail: String(describing: error)
+            )
         }
     }
 }
