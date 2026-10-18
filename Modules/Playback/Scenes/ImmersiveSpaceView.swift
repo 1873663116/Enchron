@@ -1982,7 +1982,7 @@ public struct ImmersiveSpaceView: View {
             entityID: entityID(for: presentation),
             technicalSessionID: playbackRuntime.activeTechnicalSessionID,
             videoComponentRevision: playbackRuntime.videoComponentRevision,
-            streamEpoch: debugSnapshot?.streamEpoch,
+            streamEpoch: playbackRuntime.reportedStreamEpoch,
             realityViewID: realityViewID,
             entityParentID: parentID,
             desiredImmersiveViewingMode: String(describing: component.desiredImmersiveViewingMode),

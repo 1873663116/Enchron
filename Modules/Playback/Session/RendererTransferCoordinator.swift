@@ -201,6 +201,7 @@ final class RendererTransferCoordinator {
     private var cutoverSerial: UInt64 = 0
     private var closingSerial: UInt64 = 0
     private var closeTask: Task<Void, Never>?
+    private var externallyDrivenPresentationRecord: PresentationStateRecord?
 
     var phase: Phase {
         switch state {
@@ -318,6 +319,7 @@ final class RendererTransferCoordinator {
         switch state {
         case .empty:
             epoch &+= 1
+            externallyDrivenPresentationRecord = nil
             state = .active(
                 Active(
                     resource: resource,
@@ -331,6 +333,7 @@ final class RendererTransferCoordinator {
             epoch &+= 1
             active.resource = resource
             active.rendererEpoch = epoch
+            externallyDrivenPresentationRecord = nil
             state = .active(active)
         case .active, .preparing, .prepared, .cutover, .settled, .closing:
             throw TransferError.transferPending
@@ -356,6 +359,7 @@ final class RendererTransferCoordinator {
         guard case .active(let active) = state,
               active.resource.driver == nil else { return false }
         epoch &+= 1
+        externallyDrivenPresentationRecord = nil
         state = .empty
         closeTask = nil
         return true
@@ -805,6 +809,7 @@ final class RendererTransferCoordinator {
 
     func invalidatePresentationState() {
         epoch &+= 1
+        externallyDrivenPresentationRecord = nil
         mutateActive(includingClosing: true) { active in
             active.rendererEpoch = epoch
             active.consumer = .available(released: nil)
@@ -1196,6 +1201,15 @@ extension RendererTransferCoordinator {
         activeDriver?.debugSnapshot()
     }
 
+    /// The presentation facts recorded for the active resource when no driver
+    /// owns it. A PlaybackCore session keeps them in the session the runtime
+    /// reads through `debugSnapshot()`; an externally driven resource has no
+    /// session, so the coordinator keeps them itself.
+    var externallyDrivenPresentationState: PresentationStateRecord? {
+        guard let active, active.resource.driver == nil else { return nil }
+        return externallyDrivenPresentationRecord
+    }
+
     func preparedDebugSnapshot() -> PlaybackDebugSnapshotV1? {
         preparedDriver?.debugSnapshot()
     }
@@ -1279,7 +1293,11 @@ extension RendererTransferCoordinator {
     }
 
     func start() throws {
-        try requireActiveDriver().start()
+        guard let driver = activeDriver else {
+            guard hasActiveResource else { throw TransferError.noActiveRenderer }
+            return
+        }
+        try driver.start()
     }
 
     func presentationDidAttach() throws {
@@ -1381,7 +1399,11 @@ extension RendererTransferCoordinator {
     }
 
     func recordPresentationState(_ record: PresentationStateRecord) {
-        activeDriver?.recordPresentationState(record)
+        guard let driver = activeDriver else {
+            externallyDrivenPresentationRecord = hasActiveResource ? record : nil
+            return
+        }
+        driver.recordPresentationState(record)
     }
 
     func updateAudioSessionActive(_ isActive: Bool) {

@@ -826,7 +826,7 @@ public struct PlaybackVideoSurface: View {
             }
             let reportedTechnicalSessionID = playbackRuntime.activeTechnicalSessionID
             let reportedVideoComponentRevision = playbackRuntime.videoComponentRevision
-            let reportedStreamEpoch = playbackRuntime.debugSnapshot()?.streamEpoch
+            let reportedStreamEpoch = playbackRuntime.reportedStreamEpoch
             let currentPixelIdentityWasAccepted = playbackRuntime.recordPresentationState(
                 presentation: presentation,
                 phase: presentationPhase,

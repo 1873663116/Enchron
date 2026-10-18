@@ -166,6 +166,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     /// controls; it holds the renderer and the presentation only.
     public private(set) var externalVideoSessionID: String?
     public var externalVideoSessionDidEnd: (() -> Void)?
+    /// Rebuilds the renderer graph of an externally driven session for a
+    /// presentation root that cannot reuse the current graph. The session's owner
+    /// returns the renderer its session now feeds, or nil when it cannot rebuild.
+    public var externalVideoRendererRebuild: (() -> AVSampleBufferVideoRenderer?)?
     public private(set) var prefetchedMetadata: PlaybackMediaMetadata?
     public var overview: String? { prefetchedMetadata?.overview }
     public private(set) var presentationState: PresentationState = .hidden
@@ -1257,14 +1261,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func performSpatialPlaybackTransport(
         _ intent: SpatialPlaybackTransportIntent
     ) async throws {
+        // An externally driven session has no driver in the runtime: its own
+        // owner owns the transport, so intents reach it as a no-op.
+        let holdsExternallyDrivenSession = externalVideoSessionID != nil
         guard activeSessionID == intent.mediaSessionID,
-              rendererTransferCoordinator.hasActiveDriver else {
+              rendererTransferCoordinator.hasActiveDriver
+                  || holdsExternallyDrivenSession else {
             throw RuntimeError.mediaSessionChanged
         }
 
         switch intent {
         case .pause:
             updateLoadingState { $0.clearTransientLoading() }
+            if holdsExternallyDrivenSession { return }
             if productLifecycle == .paused { return }
             guard productLifecycle == .playing else {
                 throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
@@ -1336,11 +1345,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard mediaKind == .video else {
             throw RuntimeError.audioOnlyRequiresWindowPresentation
         }
+        let holdsExternallyDrivenSession = externalVideoSessionID != nil
         guard activeSessionID == mediaSessionID,
-              rendererTransferCoordinator.hasActiveDriver else {
+              holdsExternallyDrivenSession
+                || rendererTransferCoordinator.hasActiveDriver else {
             throw RuntimeError.mediaSessionChanged
         }
-        if productLifecycle == .playing { return }
+        // An externally driven session paces its own samples, so there is nothing
+        // to resume here: its owner already plays it.
+        if holdsExternallyDrivenSession || productLifecycle == .playing { return }
         guard productLifecycle == .paused || productLifecycle == .ready else {
             throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
         }
@@ -1994,6 +2007,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard rendererTransferCoordinator.transferIsInFlight == false else {
             throw RuntimeError.rendererTransferPending
         }
+        if externalVideoSessionID != nil {
+            guard externalVideoRendererRebuild != nil else {
+                throw RuntimeError.noSession
+            }
+            technicalSessionReplacementStage = .installingRenderer
+            beginOpeningForActiveTechnicalSession()
+            return
+        }
         guard let request = currentLaunchRequest,
               let logicalSessionID = activeSessionID,
               let sourceTechnicalSessionID = rendererTransferCoordinator.activeSessionID else {
@@ -2146,6 +2167,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func activatePreparedTechnicalSessionReplacement() async throws {
+        if externalVideoSessionID != nil {
+            try activateExternalRendererReplacement()
+            return
+        }
         if rendererTransferCoordinator.preparedTechnicalSession == nil,
            rendererTransferCoordinator.phase == .prepared {
             try await activateReplacementRendererGraph()
@@ -2384,6 +2409,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func rebaseActivatedTechnicalSessionReplacement(
         to presentation: PlaybackPresentation
     ) async throws {
+        if externalVideoSessionID != nil {
+            try await awaitExternalRendererTargetSettlement(to: presentation)
+            technicalSessionReplacementStage = .completed
+            return
+        }
         guard let cutover = currentCutoverSnapshot() else {
             throw RuntimeError.noSession
         }
@@ -2449,6 +2479,62 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         to targetPresentation: PlaybackPresentation
     ) -> Bool {
         sourcePresentation == .portal && targetPresentation == .panorama
+    }
+
+    /// Installs the renderer graph an externally driven session rebuilt for the
+    /// target presentation root. The runtime has no technical session to replace
+    /// there, so it adopts the new graph and lets the target root claim it.
+    private func activateExternalRendererReplacement() throws {
+        guard let sessionID = externalVideoSessionID,
+              let rebuild = externalVideoRendererRebuild,
+              let renderer = rebuild() else {
+            throw RuntimeError.noSession
+        }
+        guard externalVideoSessionID == sessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        if rendererTransferCoordinator.activeRenderer !== renderer {
+            do {
+                try rendererTransferCoordinator.installActive(
+                    .init(externallyDrivenSessionID: sessionID, renderer: renderer)
+                )
+            } catch let error as RendererTransferCoordinator.TransferError {
+                throw runtimeError(for: error)
+            }
+            rendererTransferCoordinator.invalidatePresentationState()
+        }
+        detach()
+        videoRendererIsPublished = true
+        publishRendererTransferObservation()
+        clearVideoComponentBindingObservation()
+        presentationState = .placeholder
+        startsWhenAttached = true
+        firstAttachedPresentationForActiveTechnicalSession = nil
+        videoComponentRevision &+= 1
+        effectiveVideoFormatRevision = nil
+        technicalSessionReplacementStage = .installingRenderer
+        beginOpeningForActiveTechnicalSession()
+    }
+
+    /// Waits until the target presentation root holds the rebuilt renderer graph.
+    private func awaitExternalRendererTargetSettlement(
+        to presentation: PlaybackPresentation
+    ) async throws {
+        let sessionID = externalVideoSessionID
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        while replacementRendererTargetIsCurrent(for: presentation) == false {
+            guard externalVideoSessionID == sessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+            guard clock.now - startedAt < Self.presentationSettlementDeadline else {
+                throw RuntimeError.presentationDidNotSettle(presentation)
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        guard externalVideoSessionID == sessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
     }
 
     public func cancelPreparedTechnicalSessionReplacement() async {
@@ -2559,12 +2645,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func leavePlayback(reason: PlaybackLeaveReason) {
+        endExternalVideoSessionIfHeld()
         beginStop(leaveReason: reason, releasingSourceAccess: true)
     }
 
     public func leavePlaybackAndWait(reason: PlaybackLeaveReason) async {
+        endExternalVideoSessionIfHeld()
         let closeTask = beginStop(leaveReason: reason, releasingSourceAccess: true)
         await closeTask?.value
+    }
+
+    /// An externally driven session has no launch request to leave, so stopping
+    /// playback ends it: its owner hears about it and stops its own session.
+    private func endExternalVideoSessionIfHeld() {
+        guard externalVideoSessionID != nil else { return }
+        endExternalVideoSession()
     }
 
     public func stopForNextRequest(releasingSourceAccess: Bool) {
@@ -2862,7 +2957,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     return false
                 }
             }
-            let sessionIsAvailable = currentLaunchRequest != nil
+            let sessionIsAvailable = hasActivePlaybackRequest
                 && activeSessionID != nil
                 && activeTechnicalSessionID != nil
             guard sessionIsAvailable || allowsPendingSessionStart else {
@@ -2895,13 +2990,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    /// The presentation facts of the active session. A PlaybackCore session keeps
+    /// them in the session's debug state; an externally driven session has no
+    /// session, so the coordinator keeps them itself.
+    private var activePresentationStateRecord: PresentationStateRecord? {
+        rendererTransferCoordinator.debugSnapshot()?.presentationState
+            ?? rendererTransferCoordinator.externallyDrivenPresentationState
+    }
+
     private func presentationIsSettled(_ presentation: PlaybackPresentation) -> Bool {
         guard activeSessionID != nil,
               attachedPresentation == presentation,
-              let snapshot = rendererTransferCoordinator.debugSnapshot(),
-              let record = snapshot.presentationState,
+              let record = activePresentationStateRecord,
+              let streamEpoch = reportedStreamEpoch,
               rendererPixelVideoComponentRevision == videoComponentRevision,
-              rendererPixelStreamEpoch == snapshot.streamEpoch else {
+              rendererPixelStreamEpoch == streamEpoch else {
             return false
         }
         return Self.presentationTransitionCanCommit(
@@ -2954,7 +3057,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) -> Bool {
         guard activeSessionID != nil,
               let mediaSessionID = rendererTransferCoordinator.activeDriverSessionID else { return false }
-        let snapshot = rendererTransferCoordinator.debugSnapshot()
         let record = PresentationStateRecord(
             mediaSessionID: mediaSessionID,
             requestedMode: presentation.rawValue,
@@ -2983,7 +3085,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let currentPixelIdentity = PlaybackPresentationSurfacePixelIdentity(
             technicalSessionID: activeTechnicalSessionID,
             videoComponentRevision: self.videoComponentRevision,
-            streamEpoch: snapshot?.streamEpoch
+            streamEpoch: reportedStreamEpoch
         )
         let pixelIdentityIsCurrent = boundVideoComponentRevision
             == reportedPixelIdentity.videoComponentRevision
@@ -3006,7 +3108,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 markActivePresentationUsable()
             }
         }
-        if snapshot?.presentationState != record {
+        if activePresentationStateRecord != record {
             rendererTransferCoordinator.recordPresentationState(record)
         }
         return attachedPresentation == presentation
@@ -3246,6 +3348,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func debugSnapshot() -> PlaybackDebugSnapshotV1? {
         guard activeSessionID != nil else { return nil }
         return rendererTransferCoordinator.debugSnapshot()
+    }
+
+    /// The stream epoch a presentation surface reports for the pixels it sees. A
+    /// PlaybackCore session takes it from its driver; an externally driven session
+    /// has none, so the epoch of the renderer graph the runtime installed stands
+    /// in, and it changes exactly when that graph does.
+    public var reportedStreamEpoch: UInt64? {
+        if externalVideoSessionID != nil {
+            return UInt64(rendererTransferCoordinator.consumerSnapshot.rendererEpoch)
+        }
+        return debugSnapshot()?.streamEpoch
     }
 
     #if DEBUG

@@ -363,7 +363,14 @@ public struct MainView: View {
     /// stream runs; the stream's own model keeps decoding, pacing and input.
     private func syncExternallyDrivenSession() {
         guard let session = streamingModel.session else {
+            guard playbackRuntime.externalVideoSessionID != nil else { return }
+            let presentationLeftTheWindow =
+                playbackSession.playbackPresentation.usesImmersiveSpace
+                || playbackSession.pendingSpatialPlatformEffect != nil
             playbackRuntime.endExternalVideoSession()
+            if presentationLeftTheWindow {
+                playbackSession.requestStoppedPlaybackCleanup()
+            }
             return
         }
         guard let binding = streamingModel.renderBinding else { return }

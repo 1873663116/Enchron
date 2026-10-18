@@ -518,18 +518,7 @@ public struct PlayerView: View {
                 accessibilityIdentifier: "Stream-Session-back"
             )
         } spatialActions: {
-            HStack(spacing: 0) {
-                Spacer(minLength: 0)
-                PlaybackChromeGlassButton(
-                    systemName: "mountain.2.fill",
-                    accessibilityLabel: "Dock",
-                    action: { enterStreamDock() },
-                    accessibilityIdentifier: "Stream-Session-dock",
-                    iconTier: .compact
-                )
-                .disabled(playbackRuntime.canEnterSpatialPresentation == false)
-                Spacer(minLength: 0)
-            }
+            PlaybackWindowDockAction()
         } moreControl: {
             EmptyView()
         }
@@ -538,21 +527,6 @@ public struct PlayerView: View {
     private func stopStream() {
         streamingModel.releaseInputs(cause: "disconnect")
         streamingModel.disconnect()
-    }
-
-    private func enterStreamDock() {
-        playbackSession.registerControlsInteraction()
-        guard playbackRuntime.canEnterSpatialPresentation,
-              let target = playbackSession.playbackPresentation.enterImmersiveTarget else { return }
-        do {
-            _ = try playbackSession.requestPlaybackPresentation(
-                target,
-                mediaSessionID: playbackRuntime.activeSessionID,
-                wasPlaying: playbackRuntime.productLifecycle == .playing
-            )
-        } catch {
-            playbackRuntime.setUserVisibleIssue(.presentationTransitionFailed)
-        }
     }
 
     private var windowPlaybackLayout: WindowPlaybackLayout {

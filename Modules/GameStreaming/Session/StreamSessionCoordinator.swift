@@ -489,16 +489,28 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     private func recoverFromRendererFailure(reason: String) {
-        let alreadyRecovering = videoQueueLock.withLock { recoveringFromRendererFailure }
-        guard !alreadyRecovering else { return }
-        videoQueueLock.withLock {
-            recoveringFromRendererFailure = true
-            pendingVideo.removeAll()
-        }
-
-        let surfaceWasBound = stateLock.withLock { () -> Bool in
+        stateLock.withLock {
             counters.decodeRecoveries += 1
             snapshotStorage.diagnostics.decodeRecoveries = counters.decodeRecoveries
+        }
+        _ = rebuildRendererGraph(reason: reason)
+    }
+
+    /// Replaces the renderer graph and returns the renderer the session now
+    /// feeds. The caller is either a failure recovery or a presentation root the
+    /// current graph cannot follow. The departing graph keeps its last
+    /// presentation and leaves the synchronizer afterwards.
+    @discardableResult
+    public func rebuildRendererGraph(reason: String) -> AVSampleBufferVideoRenderer {
+        let departing = videoQueueLock.withLock { () -> AVSampleBufferVideoRenderer? in
+            guard recoveringFromRendererFailure == false else { return nil }
+            recoveringFromRendererFailure = true
+            pendingVideo.removeAll()
+            return videoRenderer
+        }
+        guard let departing else { return videoRenderer }
+
+        let surfaceWasBound = stateLock.withLock { () -> Bool in
             let bound = surfaceBindingRevision != nil
             surfaceBindingRevision = nil
             return bound
@@ -510,7 +522,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         )
 
         let replacement = AVSampleBufferVideoRenderer()
-        let departing = videoRenderer
         stopRenderingEventObservation()
 
         videoRenderer = replacement
@@ -532,6 +543,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             recoveringFromRendererFailure = false
         }
         publishSnapshot()
+        return replacement
     }
 
     private func handleAudioFrame(_ frame: BackendAudioFrame) {

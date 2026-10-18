@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Observation
 
@@ -547,6 +548,12 @@ public final class StreamingModel {
         } else {
             coordinator?.videoSurfaceDidUnbind(revision: revision)
         }
+    }
+
+    /// Rebuilds the renderer graph for a presentation root that cannot reuse the
+    /// current graph, and returns the renderer the running session now feeds.
+    public func rebuildRendererGraphForPresentation() -> AVSampleBufferVideoRenderer? {
+        coordinator?.rebuildRendererGraph(reason: "presentationRebuild")
     }
 
     public func updateSettings(_ transform: (inout StreamOptions) -> Void) {

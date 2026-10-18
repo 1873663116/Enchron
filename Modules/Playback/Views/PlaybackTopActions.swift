@@ -1,4 +1,5 @@
 import DesignSystem
+import OSLog
 import SwiftUI
 
 public enum PlaybackTopSecondaryMenu: String {
@@ -614,39 +615,21 @@ public struct PlaybackTopActions: View {
     }
 
     private var dockMenu: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text("View in an environment")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, DesignTokens.Spacing.sm)
-
-            dockMenuItem(
-                environment: .quietRoom,
-                effect: nil,
-                thumbnailName: FeaturedEnvironment.quietRoomThumbnailName
+        PlaybackDockMenuContent(
+            cardEnvironment: dockCardEnvironment,
+            selectedEnvironment: state.selectedDockEnvironment,
+            selectedEffect: state.selectedEffect
+        ) { environment, effect in
+            onReachabilityAction(
+                "dock.select"
+                    + " environment=\(environment.rawValue)"
+                    + " effect=\(effect?.rawValue ?? "none")"
             )
-
-            Divider()
-                .padding(.vertical, DesignTokens.Spacing.xs)
-
-            dockMenuItem(
-                environment: dockCardEnvironment,
-                effect: .light,
-                thumbnailName: dockThumbnailName(for: .light)
+            let requested = state.selectDockTarget(
+                environment: environment,
+                effect: effect
             )
-            dockMenuItem(
-                environment: dockCardEnvironment,
-                effect: .dark,
-                thumbnailName: dockThumbnailName(for: .dark)
-            )
-        }
-        .padding(DesignTokens.Spacing.md)
-        .frame(width: DesignTokens.Menu.environmentContentWidth)
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PlayerUI-DockMenu")
-        .onAppear {
-            EnvironmentSceneMapping.prefetch([.quietRoom, cardEnvironment])
+            onEnterImmersive?(requested.0, requested.1)
         }
     }
 
@@ -662,82 +645,6 @@ public struct PlaybackTopActions: View {
 
     private var dockCardEnvironment: SpatialSceneDomain.CinemaEnvironment {
         cardEnvironment.isCardEnvironment ? cardEnvironment : .ocean
-    }
-
-    private func dockThumbnailName(
-        for effect: SpatialSceneDomain.EnvironmentEffect
-    ) -> String {
-        FeaturedEnvironment.catalogEntry(for: dockCardEnvironment)?
-            .imageName(for: effect)
-            ?? FeaturedEnvironment.catalog[0].imageName(for: effect)
-    }
-
-    private func dockMenuItem(
-        environment: SpatialSceneDomain.CinemaEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect?,
-        thumbnailName: String
-    ) -> some View {
-        let shape = DesignTokens.ShapeToken.card
-        let isSelected = state.selectedDockEnvironment == environment
-            && (effect == nil || state.selectedEffect == effect)
-
-        return Button {
-            onReachabilityAction(
-                "dock.select"
-                    + " environment=\(environment.rawValue)"
-                    + " effect=\(effect?.rawValue ?? "none")"
-            )
-            let requested = state.selectDockTarget(
-                environment: environment,
-                effect: effect
-            )
-            onEnterImmersive?(requested.0, requested.1)
-        } label: {
-            HStack(spacing: DesignTokens.Spacing.md) {
-                Image(thumbnailName)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 48, height: 48)
-                    .clipped()
-                    .clipShape(Circle())
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(environment.displayName)
-                        .font(DesignTokens.Typography.selectionHeader)
-                    if let effect {
-                        Text(effect == .dark ? "Dark Mode" : "Light Mode")
-                            .font(DesignTokens.Typography.metadata)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, DesignTokens.Spacing.sm)
-            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
-            .contentShape(.interaction, shape)
-        }
-        .buttonStyle(.plain)
-        .background {
-            if isSelected {
-                shape.fill(DesignTokens.Surface.selected)
-            }
-        }
-        .clipShape(shape)
-        .contentShape(.interaction, shape)
-        .enchronHoverContentShape(shape)
-        .enchronHoverEffect(.automatic)
-        .accessibilityLabel(
-            effect.map {
-                "\(environment.displayName), \($0 == .dark ? "Dark Mode" : "Light Mode")"
-            }
-                ?? environment.displayName
-        )
-        .accessibilityIdentifier(
-            effect.map { "PlayerUI-DockMenu-\($0.rawValue)" }
-                ?? "PlayerUI-DockMenu-default"
-        )
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func toggle(_ menu: PlaybackTopSecondaryMenu) {
@@ -812,4 +719,208 @@ public struct PlaybackTopActions: View {
         )
     }
 
+}
+
+/// The environment choices the player window's Dock entry offers. File playback
+/// and streaming dock through this list, so both land in the same presentations
+/// with the same choices.
+struct PlaybackDockMenuContent: View {
+    let cardEnvironment: SpatialSceneDomain.CinemaEnvironment
+    let selectedEnvironment: SpatialSceneDomain.CinemaEnvironment?
+    let selectedEffect: SpatialSceneDomain.EnvironmentEffect?
+    let onSelect: (
+        SpatialSceneDomain.CinemaEnvironment,
+        SpatialSceneDomain.EnvironmentEffect?
+    ) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text("View in an environment")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+
+            item(
+                environment: .quietRoom,
+                effect: nil,
+                thumbnailName: FeaturedEnvironment.quietRoomThumbnailName
+            )
+
+            Divider()
+                .padding(.vertical, DesignTokens.Spacing.xs)
+
+            item(
+                environment: cardEnvironment,
+                effect: .light,
+                thumbnailName: thumbnailName(for: .light)
+            )
+            item(
+                environment: cardEnvironment,
+                effect: .dark,
+                thumbnailName: thumbnailName(for: .dark)
+            )
+        }
+        .padding(DesignTokens.Spacing.md)
+        .frame(width: DesignTokens.Menu.environmentContentWidth)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-DockMenu")
+        .onAppear {
+            EnvironmentSceneMapping.prefetch([.quietRoom, cardEnvironment])
+        }
+    }
+
+    private func thumbnailName(
+        for effect: SpatialSceneDomain.EnvironmentEffect
+    ) -> String {
+        FeaturedEnvironment.catalogEntry(for: cardEnvironment)?
+            .imageName(for: effect)
+            ?? FeaturedEnvironment.catalog[0].imageName(for: effect)
+    }
+
+    private func item(
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?,
+        thumbnailName: String
+    ) -> some View {
+        let shape = DesignTokens.ShapeToken.card
+        let isSelected = selectedEnvironment == environment
+            && (effect == nil || selectedEffect == effect)
+
+        return Button {
+            onSelect(environment, effect)
+        } label: {
+            HStack(spacing: DesignTokens.Spacing.md) {
+                Image(thumbnailName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 48, height: 48)
+                    .clipped()
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(environment.displayName)
+                        .font(DesignTokens.Typography.selectionHeader)
+                    if let effect {
+                        Text(effect == .dark ? "Dark Mode" : "Light Mode")
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .contentShape(.interaction, shape)
+        }
+        .buttonStyle(.plain)
+        .background {
+            if isSelected {
+                shape.fill(DesignTokens.Surface.selected)
+            }
+        }
+        .clipShape(shape)
+        .contentShape(.interaction, shape)
+        .enchronHoverContentShape(shape)
+        .enchronHoverEffect(.automatic)
+        .accessibilityLabel(
+            effect.map {
+                "\(environment.displayName), \($0 == .dark ? "Dark Mode" : "Light Mode")"
+            }
+                ?? environment.displayName
+        )
+        .accessibilityIdentifier(
+            effect.map { "PlayerUI-DockMenu-\($0.rawValue)" }
+                ?? "PlayerUI-DockMenu-default"
+        )
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
+/// The player window's Dock entry: the chip the window's chrome shows and the
+/// environment menu it opens. It is the window's route into the immersive
+/// presentations for file playback and streaming alike.
+public struct PlaybackWindowDockAction: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlaybackDock")
+    @Environment(PlaybackSessionModel.self) private var appModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @State private var isMenuPresented = false
+    @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment?
+    @State private var selectedEffect: SpatialSceneDomain.EnvironmentEffect?
+
+    public init() {}
+
+    public var body: some View {
+        WindowPlaybackSpatialActions {
+            dockChip
+        } formatControl: {
+            EmptyView()
+        }
+    }
+
+    private var dockChip: some View {
+        PlaybackChromeGlassButton(
+            systemName: "mountain.2.fill",
+            accessibilityLabel: String(localized: "Dock"),
+            action: { isMenuPresented.toggle() },
+            accessibilityIdentifier: "PlayerUI-TopAction-dock",
+            iconTier: .compact
+        )
+        .anchoredMenu(
+            isPresented: menuIsPresented,
+            key: "playback.environment",
+            width: DesignTokens.Layout.environmentMenuWidth
+        ) {
+            PlaybackDockMenuContent(
+                cardEnvironment: cardEnvironment,
+                selectedEnvironment: selectedEnvironment ?? cardEnvironment,
+                selectedEffect: selectedEnvironment == nil
+                    ? appModel.currentEnvironmentEffect
+                    : selectedEffect
+            ) { environment, effect in
+                selectedEnvironment = environment
+                selectedEffect = effect
+                isMenuPresented = false
+                enterDock(environment: environment, effect: effect)
+            }
+        }
+    }
+
+    private var menuIsPresented: Binding<Bool> {
+        Binding(
+            get: { isMenuPresented },
+            set: { isMenuPresented = $0 }
+        )
+    }
+
+    private var cardEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        let card = appModel.environmentContext.environment
+            ?? appModel.centeredCardEnvironment
+        return card.isCardEnvironment ? card : .ocean
+    }
+
+    private func enterDock(
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?
+    ) {
+        appModel.registerControlsInteraction()
+        guard playbackRuntime.canEnterSpatialPresentation,
+              let target = appModel.playbackPresentation.enterImmersiveTarget else {
+            return
+        }
+        do {
+            _ = try appModel.requestPlaybackPresentation(
+                target,
+                environment: environment,
+                effect: effect,
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+        } catch {
+            logger.error(
+                "dock request failed error=\(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
 }

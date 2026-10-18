@@ -642,6 +642,9 @@ final class EnchronApplication {
             self.streamingModel.releaseInputs(cause: "session-ended")
             self.streamingModel.disconnect()
         }
+        playbackRuntime.externalVideoRendererRebuild = { [weak self] in
+            self?.streamingModel.rebuildRendererGraphForPresentation()
+        }
         suspensionWatchdog.start()
     }
 
