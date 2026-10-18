@@ -485,6 +485,7 @@ public final class StreamingModel {
     }
 
     public func disconnect() {
+        guard !teardownRequested else { return }
         stopSessionInternal(reason: "user")
         teardownRequested = true
         Task { [weak self] in

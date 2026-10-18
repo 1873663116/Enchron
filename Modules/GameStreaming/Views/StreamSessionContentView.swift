@@ -1,5 +1,4 @@
 import DesignSystem
-import Playback
 import SwiftUI
 import UIKit
 
@@ -11,19 +10,6 @@ public struct StreamSessionContentView: View {
 
     public var body: some View {
         ZStack {
-            Color.black
-            if let binding = model.renderBinding {
-                StreamVideoSurface(
-                    renderer: binding.videoRenderer,
-                    renderRevision: binding.version,
-                    onSurfaceBinding: { revision, bound in
-                        model.recordVideoSurfaceBinding(revision: revision, bound: bound)
-                    },
-                    onProbe: { line, retention in
-                        StreamSessionProbes.record(line, retention: retention)
-                    }
-                )
-            }
             StreamPointerInputLayer(
                 videoAspectRatio: model.videoAspectRatio,
                 onMove: { x, y in model.sendPointerMove(normalizedX: x, normalizedY: y) },

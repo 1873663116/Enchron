@@ -312,7 +312,7 @@ final class RendererTransferCoordinator {
     func installActive(
         _ resource: PlaybackMediaSessionDriver.SessionResource
     ) throws {
-        guard resource.driver.owns(resource) else {
+        if let driver = resource.driver, driver.owns(resource) == false {
             throw TransferError.noActiveRenderer
         }
         switch state {
@@ -327,7 +327,7 @@ final class RendererTransferCoordinator {
                     boundVideoComponentRevision: nil
                 )
             )
-        case .active(var active) where active.resource.driver === resource.driver:
+        case .active(var active) where activeCanAdopt(resource, into: active):
             epoch &+= 1
             active.resource = resource
             active.rendererEpoch = epoch
@@ -335,6 +335,30 @@ final class RendererTransferCoordinator {
         case .active, .preparing, .prepared, .cutover, .settled, .closing:
             throw TransferError.transferPending
         }
+    }
+
+    private func activeCanAdopt(
+        _ resource: PlaybackMediaSessionDriver.SessionResource,
+        into active: Active
+    ) -> Bool {
+        if let driver = resource.driver {
+            return active.resource.driver === driver
+        }
+        return active.resource.driver == nil
+            && active.resource.sessionID == resource.sessionID
+    }
+
+    /// Releases the active resource of an externally driven session, whose
+    /// renderer no driver owns. The session's owner tears it down; the
+    /// coordinator only forgets it.
+    @discardableResult
+    func releaseExternallyDrivenActive() -> Bool {
+        guard case .active(let active) = state,
+              active.resource.driver == nil else { return false }
+        epoch &+= 1
+        state = .empty
+        closeTask = nil
+        return true
     }
 
     func beginTransfer(
@@ -347,7 +371,7 @@ final class RendererTransferCoordinator {
             }
             throw TransferError.transferPending
         }
-        guard active.resource.driver.owns(active.resource) else {
+        guard active.resource.isHeldByItsSource else {
             throw TransferError.noActiveRenderer
         }
         guard active.resource.sessionID == key.sourceTechnicalSessionID else {
@@ -380,7 +404,7 @@ final class RendererTransferCoordinator {
         guard case .preparing(let preparation) = state,
               preparation.key == key,
               preparation.mode == .technicalSession,
-              replacement.resource.driver.owns(replacement.resource),
+              replacement.resource.isHeldByItsSource,
               preparation.active.resource.driver !== replacement.resource.driver,
               preparation.active.resource.renderer !== replacement.resource.renderer,
               preparation.active.resource.sessionID != replacement.resource.sessionID else {
@@ -406,15 +430,16 @@ final class RendererTransferCoordinator {
         guard case .prepared(let prepared) = state,
               prepared.key == key,
               prepared.active.resource.sessionID == key.sourceTechnicalSessionID,
-              prepared.active.resource.driver.owns(prepared.active.resource),
+              prepared.active.resource.isHeldByItsSource,
               case .technicalSession(let replacement) = prepared.replacement,
-              replacement.resource.driver.owns(replacement.resource) else {
+              replacement.resource.isHeldByItsSource,
+              let departingDriver = prepared.active.resource.driver else {
             throw TransferError.staleTransfer
         }
         beforeCutover()
         var source = prepared.active
         releaseConsumerForCutover(&source)
-        source.resource.driver.unbindCallbacks()
+        source.resource.driver?.unbindCallbacks()
         let active = replacingActive(
             source,
             with: replacement.resource
@@ -428,7 +453,7 @@ final class RendererTransferCoordinator {
         state = .cutover(
             Cutover(
                 active: active,
-                departing: .technicalSession(source.resource.driver),
+                departing: .technicalSession(departingDriver),
                 token: token,
                 sourcePresentation: sourcePresentation,
                 delivery: .pending(continuity),
@@ -456,9 +481,10 @@ final class RendererTransferCoordinator {
               prepared.key == key,
               prepared.active.resource.sessionID == key.sourceTechnicalSessionID,
               case .rendererGraph = prepared.replacement,
-              replacement.driver === prepared.active.resource.driver,
+              let replacementDriver = replacement.driver,
+              replacementDriver === prepared.active.resource.driver,
               replacement.sessionID == prepared.active.resource.sessionID,
-              replacement.driver.owns(replacement),
+              replacement.isHeldByItsSource,
               prepared.active.resource.renderer !== replacement.renderer else {
             throw TransferError.staleTransfer
         }
@@ -475,7 +501,7 @@ final class RendererTransferCoordinator {
         state = .cutover(
             Cutover(
                 active: active,
-                departing: .rendererGraph(replacement.driver),
+                departing: .rendererGraph(replacementDriver),
                 token: token,
                 sourcePresentation: sourcePresentation,
                 delivery: .pending(continuity),
@@ -500,11 +526,11 @@ final class RendererTransferCoordinator {
             switch prepared.replacement {
             case .rendererGraph:
                 state = reconciledState(for: prepared.active)
-                await prepared.active.resource.driver
+                await prepared.active.resource.driver?
                     .retireDepartingVideoRendererGraph()
             case .technicalSession(let replacement):
                 state = reconciledState(for: prepared.active)
-                await replacement.resource.driver.close(clearSource: false)
+                await replacement.resource.driver?.close(clearSource: false)
             }
             return true
         case .empty, .active, .cutover, .settled, .closing:
@@ -520,11 +546,12 @@ final class RendererTransferCoordinator {
         guard case .prepared(let prepared) = state,
               prepared.key == key,
               case .rendererGraph = prepared.replacement,
-              replacement.driver === prepared.active.resource.driver,
+              let replacementDriver = replacement.driver,
+              replacementDriver === prepared.active.resource.driver,
               replacement.sessionID == prepared.active.resource.sessionID,
-              replacement.driver.owns(replacement) else { return false }
+              replacement.isHeldByItsSource else { return false }
         state = .active(replacingActive(prepared.active, with: replacement))
-        await replacement.driver.retireDepartingVideoRendererGraph()
+        await replacementDriver.retireDepartingVideoRendererGraph()
         return true
     }
 
@@ -564,7 +591,7 @@ final class RendererTransferCoordinator {
               cutover.token == token else { return nil }
         let departingContinuity = cutover.departing?.driver.endedContinuity
         guard let continuity = departingContinuity
-            ?? cutover.active.resource.driver.endedContinuity else {
+            ?? cutover.active.resource.driver?.endedContinuity else {
             return nil
         }
         switch cutover.delivery.continuity {
@@ -601,8 +628,8 @@ final class RendererTransferCoordinator {
               cutover.token == token else {
             throw TransferError.staleTransfer
         }
-        guard case .pending(let continuity) = cutover.delivery else { return }
-        let driver = cutover.active.resource.driver
+        guard case .pending(let continuity) = cutover.delivery,
+              let driver = cutover.active.resource.driver else { return }
         switch continuity {
         case .timeline(let time):
             try await driver.restartVideoSampleDelivery(at: time, after: .pause)
@@ -804,7 +831,7 @@ final class RendererTransferCoordinator {
         }
         state = .closing(closing)
         let task = Task { @MainActor [weak self] in
-            await closing.active?.resource.driver.close()
+            await closing.active?.resource.driver?.close()
             if let departing = closing.departing,
                departing.driver !== closing.active?.resource.driver {
                 await departing.driver.close(clearSource: false)
@@ -812,7 +839,7 @@ final class RendererTransferCoordinator {
             if let prepared = closing.prepared,
                prepared.resource.driver !== closing.active?.resource.driver,
                prepared.resource.driver !== closing.departing?.driver {
-                await prepared.resource.driver.close(clearSource: false)
+                await prepared.resource.driver?.close(clearSource: false)
             }
             self?.finishClose(serial: closing.serial)
         }
@@ -852,7 +879,7 @@ final class RendererTransferCoordinator {
     }
 
     private var drivers: [PlaybackMediaSessionDriver] {
-        let values: [PlaybackMediaSessionDriver]
+        let values: [PlaybackMediaSessionDriver?]
         switch state {
         case .empty:
             values = []
@@ -871,8 +898,10 @@ final class RendererTransferCoordinator {
                 ]
             }
         case .cutover(let cutover):
-            values = [cutover.active.resource.driver]
-                + [cutover.departing?.driver].compactMap(\.self)
+            values = [
+                cutover.active.resource.driver,
+                cutover.departing?.driver
+            ]
         case .settled(let settled):
             values = [
                 settled.active.resource.driver,
@@ -882,7 +911,7 @@ final class RendererTransferCoordinator {
             values = uniqueDrivers(in: closing)
         }
         var identifiers = Set<ObjectIdentifier>()
-        return values.filter {
+        return values.compactMap(\.self).filter {
             identifiers.insert(ObjectIdentifier($0)).inserted
         }
     }
@@ -932,7 +961,10 @@ final class RendererTransferCoordinator {
     }
 
     private func reconciledState(for source: Active) -> State {
-        guard let resource = source.resource.driver.attachedResource() else {
+        guard let driver = source.resource.driver else {
+            return .active(source)
+        }
+        guard let resource = driver.attachedResource() else {
             return .empty
         }
         guard resource.renderer !== source.resource.renderer else {
@@ -943,7 +975,7 @@ final class RendererTransferCoordinator {
 
     private func releaseConsumerForCutover(_ active: inout Active) {
         if case .claimed(let consumer, _) = active.consumer {
-            active.resource.driver.recordRealityKitBinding(
+            active.resource.driver?.recordRealityKitBinding(
                 entityIdentity: consumer.entityID,
                 active: false
             )
@@ -1082,6 +1114,8 @@ final class RendererTransferCoordinator {
 extension RendererTransferCoordinator {
     var hasActiveDriver: Bool { activeDriver != nil }
 
+    var hasActiveResource: Bool { active != nil }
+
     var inFlightTransferKey: TransferKey? {
         switch state {
         case .preparing(let preparation):
@@ -1206,8 +1240,10 @@ extension RendererTransferCoordinator {
         activeDriver?.activeSubtitleFrame
     }
 
+    /// The ID of the session that holds the renderer, whether a PlaybackCore
+    /// driver or an externally driven session owns its samples.
     var activeDriverSessionID: String? {
-        activeDriver?.sessionID
+        active?.resource.sessionID
     }
 
     /// What the active driver contributes to the display criteria: its nominal
@@ -1247,7 +1283,11 @@ extension RendererTransferCoordinator {
     }
 
     func presentationDidAttach() throws {
-        try requireActiveDriver().presentationDidAttach()
+        guard let driver = activeDriver else {
+            guard hasActiveResource else { throw TransferError.noActiveRenderer }
+            return
+        }
+        try driver.presentationDidAttach()
     }
 
     func audioOnlyPresentationDidBecomeReady() throws {

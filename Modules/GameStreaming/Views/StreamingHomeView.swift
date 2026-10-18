@@ -1,8 +1,10 @@
 import DesignSystem
+import Playback
 import SwiftUI
 
 public struct StreamingHomeView: View {
     @Environment(StreamingModel.self) private var model
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
     @State private var isAddingHost = false
     @State private var isConfirmingRemoval = false
 
@@ -167,6 +169,18 @@ public struct StreamingHomeView: View {
 
     private func launch(_ host: HostSnapshot, _ application: HostApplication) {
         model.clearFailure(hostID: host.id)
+        guard playbackRuntime.currentLaunchRequest == nil else {
+            model.recordFailure(
+                StreamFailure(
+                    stage: .launch,
+                    kind: .unknown,
+                    message: "播放窗口正在播放媒体文件，先结束播放再开始串流",
+                    recovery: .retry
+                ),
+                hostID: host.id
+            )
+            return
+        }
         Task {
             do {
                 try await model.launch(

@@ -28,6 +28,7 @@ public struct MainView: View {
 
     @State private var environmentTabBarHidden = false
     @State private var environmentHomeTransitioning = false
+    @State private var streamSurfaceBindingRevision: Int?
     @State private var expandedSize = BrowserWindowLayout.defaultSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -106,8 +107,8 @@ public struct MainView: View {
                 playbackSession.showControls = true
             }
         }
-        .onChange(of: playbackRuntime.residency, initial: true) { _, _ in
-            syncPlayerWindowResidency()
+        .onChange(of: playbackRuntime.residency, initial: true) { _, residency in
+            spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
         }
         .alert(
             Text(connectionSecurityPrompt.question?.title ?? ""),
@@ -346,16 +347,60 @@ public struct MainView: View {
             appModel.selectedTab = .streaming
         }
 #endif
-        .onChange(of: streamingModel.session?.id) { _, _ in
-            syncPlayerWindowResidency()
+        .onChange(of: streamingModel.session?.id, initial: true) { _, _ in
+            syncExternallyDrivenSession()
+        }
+        .onChange(of: streamingModel.renderBinding?.version, initial: true) { _, _ in
+            syncExternallyDrivenSession()
+        }
+        .onChange(of: playbackRuntime.boundVideoComponentRevision, initial: true) { _, revision in
+            syncStreamSurfaceBinding(revision)
         }
     }
 
-    private func syncPlayerWindowResidency() {
-        let residency: PlaybackResidency = streamingModel.session != nil
-            ? .playing(host: .window)
-            : playbackRuntime.residency
-        spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
+    /// Keeps the player window's session in step with the streaming session. The
+    /// runtime holds the renderer, the presentation and the window while a
+    /// stream runs; the stream's own model keeps decoding, pacing and input.
+    private func syncExternallyDrivenSession() {
+        guard let session = streamingModel.session else {
+            playbackRuntime.endExternalVideoSession()
+            return
+        }
+        guard let binding = streamingModel.renderBinding else { return }
+        do {
+            try playbackRuntime.beginExternalVideoSession(
+                sessionID: binding.sessionID.rawValue,
+                renderer: binding.videoRenderer
+            )
+        } catch {
+            logger.error(
+                "stream session refused by the playback runtime session=\(session.id.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            streamingModel.disconnect()
+        }
+    }
+
+    /// The stream's coordinator waits for a bound surface before it accepts
+    /// decoded frames, and asks the host for a key frame when one binds. The
+    /// player window's surface is the stream's surface, so its binding record is
+    /// the signal the coordinator reads.
+    private func syncStreamSurfaceBinding(_ revision: UInt64?) {
+        guard streamingModel.session != nil else {
+            streamSurfaceBindingRevision = nil
+            return
+        }
+        guard let revision else {
+            guard let boundRevision = streamSurfaceBindingRevision else { return }
+            streamSurfaceBindingRevision = nil
+            streamingModel.recordVideoSurfaceBinding(
+                revision: boundRevision,
+                bound: false
+            )
+            return
+        }
+        let boundRevision = Int(revision)
+        streamSurfaceBindingRevision = boundRevision
+        streamingModel.recordVideoSurfaceBinding(revision: boundRevision, bound: true)
     }
 
     private var browserVisibility: BrowserWindowVisibility {

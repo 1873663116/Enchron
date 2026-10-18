@@ -623,6 +623,7 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     var productLifecycle: ProductPlaybackLifecycle = .idle
     var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 600)
     var currentLaunchRequest: PlaybackLaunchRequest?
+    var externalVideoSessionID: String? { nil }
     var prefetchedMetadata: PlaybackMediaMetadata?
     var displayMediaProfile: PlaybackModel.MediaProfile?
     var displayFileSizeInBytes: Int64?
@@ -687,6 +688,8 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
         currentAudioTrackID = availableAudioTracks[0].id
         currentSubtitleTrackID = availableSubtitleTracks[0].id
     }
+
+    func endExternalVideoSession() {}
 
     func prepareForPlayback(_ request: PlaybackLaunchRequest) {
         if currentLaunchRequest == nil || currentLaunchRequest != request {

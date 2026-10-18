@@ -480,12 +480,33 @@ public struct PlayerView: View {
                 playbackSession.setWindowSurfaceHeight($0)
             }
         ) {
-            StreamSessionContentView()
+            streamCanvas
         } topChrome: {
             streamTopChrome
         }
+        .enchronWindowGlassBackground(.always)
+        .persistentSystemOverlays(.visible)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
+    }
+
+    private var streamCanvas: some View {
+        ZStack {
+            PlaybackVideoSurface(
+                presentation: hostedPlaybackPresentation,
+                isActive: playbackRuntime.activeSessionID != nil,
+                viewportRefreshRevision: spatialPlatformEffectCoordinator
+                    .mainWindowPlaybackSurfaceRefreshRevision,
+                onViewportRefreshApplied: {
+                    spatialPlatformEffectCoordinator
+                        .recordMainWindowPlaybackSurfaceRefreshApplied($0)
+                }
+            )
+            StreamSessionContentView()
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
+        .accessibilityValue(playbackRuntime.lifecycle.label)
     }
 
     private var streamTopChrome: some View {

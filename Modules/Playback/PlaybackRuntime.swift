@@ -106,6 +106,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case noSession
         case sourceAccessUnavailable
         case unableToOpenFile
+        case playerWindowBusy
         case rendererConsumerBusy(PlaybackPresentation)
         case rendererTransferPending
         case mediaSessionChanged
@@ -122,6 +123,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "The original media source is no longer available. Choose it again to restore access."
             case .unableToOpenFile:
                 "Unable to open this file."
+            case .playerWindowBusy:
+                "The player window is presenting another session."
             case .rendererConsumerBusy(let presentation):
                 "The \(presentation.rawValue) RealityView still owns the active video renderer."
             case .rendererTransferPending:
@@ -158,6 +161,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var currentPlaybackSpeed = PlaybackModel.PlaybackSpeed.default
     public private(set) var currentLaunchRequest: PlaybackLaunchRequest?
     public var currentPlaybackURL: URL? { currentLaunchRequest?.url }
+    /// The session whose samples come from outside PlaybackCore, when the player
+    /// window presents one. Such a session has no launch request and no media
+    /// controls; it holds the renderer and the presentation only.
+    public private(set) var externalVideoSessionID: String?
+    public var externalVideoSessionDidEnd: (() -> Void)?
     public private(set) var prefetchedMetadata: PlaybackMediaMetadata?
     public var overview: String? { prefetchedMetadata?.overview }
     public private(set) var presentationState: PresentationState = .hidden
@@ -255,7 +263,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             DebugPresentationSettlementFault?
     #endif
 
-    public var hasActivePlaybackRequest: Bool { currentLaunchRequest != nil }
+    public var hasActivePlaybackRequest: Bool {
+        currentLaunchRequest != nil || externalVideoSessionID != nil
+    }
     public var productLifecycle: ProductPlaybackLifecycle {
         switch lifecycle {
         case .idle: .idle
@@ -269,7 +279,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
     public var canPresentControls: Bool { currentLaunchRequest != nil }
     public var canEnterSpatialPresentation: Bool {
-        guard currentLaunchRequest != nil,
+        guard currentLaunchRequest != nil || externalVideoSessionID != nil,
               activeSessionID != nil,
               mediaKind == .video,
               renderer != nil,
@@ -504,6 +514,111 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         audioSpectrumFrame = .silent
         videoRendererIsPublished = false
         videoComponentRevision = 0
+        boundVideoComponentRevision = nil
+        rendererPixelVideoComponentRevision = nil
+        rendererPixelStreamEpoch = nil
+        effectiveVideoFormatRevision = nil
+        technicalSessionFormatReplacementIsPending = false
+        technicalSessionMediaFormatInterpretation = nil
+        activeTechnicalSessionID = nil
+        firstAttachedPresentationForActiveTechnicalSession = nil
+        rendererTransferCoordinator.resetBindingHistoryForPlaybackPreparation()
+        publishRendererTransferObservation()
+        invalidatePendingDisplayedImageClear()
+        resetFrameStepping()
+    }
+
+    /// Presents a session whose samples are produced outside PlaybackCore in the
+    /// player window. The runtime owns the renderer, the presentation and the
+    /// window's residency while the session is attached; the session's own owner
+    /// keeps decoding, pacing and its lifecycle.
+    public func beginExternalVideoSession(
+        sessionID: String,
+        renderer: AVSampleBufferVideoRenderer
+    ) throws {
+        guard currentLaunchRequest == nil else {
+            throw RuntimeError.playerWindowBusy
+        }
+        if externalVideoSessionID == sessionID,
+           rendererTransferCoordinator.activeRenderer === renderer {
+            return
+        }
+        if externalVideoSessionID != nil, externalVideoSessionID != sessionID {
+            teardownExternalVideoSession()
+        }
+        generation += 1
+        resetPresentationForExternalSession()
+        do {
+            try rendererTransferCoordinator.installActive(
+                .init(externallyDrivenSessionID: sessionID, renderer: renderer)
+            )
+        } catch let error as RendererTransferCoordinator.TransferError {
+            throw runtimeError(for: error)
+        }
+        externalVideoSessionID = sessionID
+        mediaKind = .video
+        updateActiveSessionID(sessionID)
+        activeTechnicalSessionID = sessionID
+        videoRendererIsPublished = true
+        videoComponentRevision &+= 1
+        startsWhenAttached = false
+        lifecycle = .playing
+        publishRendererTransferObservation()
+        enterPlayingResidency()
+        updateLoadingState { $0.clear() }
+        SurfaceInputProbes.record(
+            "externalSession.begin session=\(sessionID)",
+            retention: .evidence
+        )
+    }
+
+    /// Ends the externally driven session and returns the player window to
+    /// browsing. The session's owner hears about it through
+    /// `externalVideoSessionDidEnd` and stops its own media session.
+    public func endExternalVideoSession() {
+        guard let sessionID = externalVideoSessionID else { return }
+        teardownExternalVideoSession()
+        residency = .browsing
+        SurfaceInputProbes.record(
+            "externalSession.end session=\(sessionID)",
+            retention: .evidence
+        )
+        externalVideoSessionDidEnd?()
+    }
+
+    /// Releases what the runtime holds for an externally driven session without
+    /// ending the session on its owner's side: the owner is ending it, or a
+    /// different session is taking its place.
+    private func teardownExternalVideoSession() {
+        generation += 1
+        externalVideoSessionID = nil
+        detach()
+        rendererTransferCoordinator.releaseExternallyDrivenActive()
+        clearPresentation()
+    }
+
+    private func resetPresentationForExternalSession() {
+        deferredNaturalEndSessionID = nil
+        sharedSurfaceGestureController?.cancel()
+        seekIntentGeneration &+= 1
+        seekIsInProgress = false
+        presentationState = .placeholder
+        diagnostics = PlaybackDiagnostics()
+        playbackPosition = .init(seconds: 0, duration: 0)
+        currentPlaybackSpeed = .default
+        startsWhenAttached = false
+        selectedProjectionType = .flat
+        selectedHorizontalFieldOfViewDegrees = nil
+        selectedStereoLayout = .mono
+        usesDolbyVisionFallback = false
+        sourceVideoContentKind = .rectilinear
+        sourceStereoLayout = .mono
+        sourceMediaFormatIsCaptured = false
+        usesSourceFormat = true
+        mediaFormatIsKnown = true
+        mediaKind = .video
+        audioSpectrumFrame = .silent
+        videoRendererIsPublished = false
         boundVideoComponentRevision = nil
         rendererPixelVideoComponentRevision = nil
         rendererPixelStreamEpoch = nil
@@ -838,7 +953,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         presentation: PlaybackPresentation
     ) throws {
         guard activeSessionID != nil,
-              rendererTransferCoordinator.activeDriverSessionID != nil else {
+              rendererTransferCoordinator.hasActiveResource else {
             throw RuntimeError.noSession
         }
         if attachment?.entityID == entityID,
@@ -895,7 +1010,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public func detach() {
         guard activeSessionID != nil,
-              rendererTransferCoordinator.hasActiveDriver,
+              rendererTransferCoordinator.hasActiveResource,
               let attachment else { return }
         rendererTransferCoordinator.recordPresentationBinding(
             realityViewIdentity: attachment.realityViewID,
@@ -2049,8 +2164,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard generation == key.generation,
               activeSessionID == key.logicalSessionID,
               sourceTechnicalSessionID == key.sourceTechnicalSessionID,
-              rendererTransferCoordinator.isPrepared(prepared.resource.driver),
-              prepared.resource.driver.sessionID != nil else {
+              let preparedDriver = prepared.resource.driver,
+              rendererTransferCoordinator.isPrepared(preparedDriver),
+              preparedDriver.sessionID != nil else {
             _ = await rendererTransferCoordinator.cancelPreparedTransfer()
             technicalSessionReplacementStage = .failed
             throw RuntimeError.mediaSessionChanged
@@ -2082,7 +2198,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
               activeSessionID == key.logicalSessionID,
               rendererTransferCoordinator.activeDriverSessionID
                 == sourceTechnicalSessionID,
-              rendererTransferCoordinator.isPrepared(prepared.resource.driver) else {
+              rendererTransferCoordinator.isPrepared(preparedDriver) else {
             _ = await rendererTransferCoordinator.cancelPreparedTransfer()
             technicalSessionReplacementStage = .failed
             throw RuntimeError.mediaSessionChanged
@@ -2108,7 +2224,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             technicalSessionReplacementStage = .failed
             throw runtimeError(for: error)
         }
-        bindDriverCallbacks(to: activation.activeResource.driver)
+        bindDriverCallbacks(to: preparedDriver)
         activeSourceReadFailureSequence = currentLaunchRequest?.source.byteStreamHandle?
             .latestReadFailure()?.sequence ?? 0
         activeTechnicalSessionID = activation.activeResource.sessionID
@@ -2124,19 +2240,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         technicalSessionMediaFormatInterpretation = effectiveMediaFormatInterpretation
         technicalSessionFormatReplacementIsPending = false
         currentPlaybackSpeed = prepared.speed
-        availableAudioTracks = prepared.resource.driver.availableAudioTracks.map {
+        availableAudioTracks = preparedDriver.availableAudioTracks.map {
             Self.audioTrack(
                 $0,
                 isDefault: String($0.streamIndex) == prepared.selectedAudioTrackID
             )
         }
-        currentAudioTrackID = prepared.resource.driver.selectedAudioStreamIndex
+        currentAudioTrackID = preparedDriver.selectedAudioStreamIndex
             .map(String.init)
-        availableSubtitleTracks = prepared.resource.driver.availableSubtitleTracks
+        availableSubtitleTracks = preparedDriver.availableSubtitleTracks
             .map(Self.subtitleTrack)
-        currentSubtitleTrackID = prepared.resource.driver.selectedSubtitleTrackID
-        activeSubtitleCues = prepared.resource.driver.activeSubtitleCues
-        activeSubtitleFrame = prepared.resource.driver.activeSubtitleFrame
+        currentSubtitleTrackID = preparedDriver.selectedSubtitleTrackID
+        activeSubtitleCues = preparedDriver.activeSubtitleCues
+        activeSubtitleFrame = preparedDriver.activeSubtitleFrame
         do {
             try await applySubtitleSelectionIntent(technicalSessionID: activation.activeResource.sessionID)
         } catch {
@@ -2144,13 +2260,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "replacement subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
             )
         }
-        startAutomaticExternalSubtitles(on: activation.activeResource.driver, logicalSessionID: key.logicalSessionID)
+        startAutomaticExternalSubtitles(on: preparedDriver, logicalSessionID: key.logicalSessionID)
         if case .ended(let continuity) = activation.continuity,
            let snapshot = currentCutoverSnapshot() {
             adoptEndedContinuity(continuity, cutover: snapshot)
         }
-        receive(prepared.resource.driver.status, from: prepared.resource.driver)
-        receive(prepared.resource.driver.diagnostics)
+        receive(preparedDriver.status, from: preparedDriver)
+        receive(preparedDriver.diagnostics)
         logger.info(
             "prepared technical session activated logical=\(key.logicalSessionID, privacy: .public) technical=\(activation.activeResource.sessionID, privacy: .public)"
         )
@@ -2837,8 +2953,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         displayedPixelBuffer: Bool? = nil
     ) -> Bool {
         guard activeSessionID != nil,
-              let mediaSessionID = rendererTransferCoordinator.activeDriverSessionID,
-              let snapshot = rendererTransferCoordinator.debugSnapshot() else { return false }
+              let mediaSessionID = rendererTransferCoordinator.activeDriverSessionID else { return false }
+        let snapshot = rendererTransferCoordinator.debugSnapshot()
         let record = PresentationStateRecord(
             mediaSessionID: mediaSessionID,
             requestedMode: presentation.rawValue,
@@ -2867,7 +2983,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let currentPixelIdentity = PlaybackPresentationSurfacePixelIdentity(
             technicalSessionID: activeTechnicalSessionID,
             videoComponentRevision: self.videoComponentRevision,
-            streamEpoch: snapshot.streamEpoch
+            streamEpoch: snapshot?.streamEpoch
         )
         let pixelIdentityIsCurrent = boundVideoComponentRevision
             == reportedPixelIdentity.videoComponentRevision
@@ -2890,7 +3006,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 markActivePresentationUsable()
             }
         }
-        if snapshot.presentationState != record {
+        if snapshot?.presentationState != record {
             rendererTransferCoordinator.recordPresentationState(record)
         }
         return attachedPresentation == presentation

@@ -623,13 +623,12 @@ final class EnchronApplication {
         spatialPlatformEffectCoordinator.onPlayerWindowClosedByWearer = {
             [weak self, weak launcher] in
             guard let self else { return }
-            if self.streamingModel.session != nil {
+            if self.playbackRuntime.externalVideoSessionID != nil {
                 SurfaceInputProbes.record(
-                    "playerWindowScene closedByWearer disconnectingStream",
+                    "playerWindowScene closedByWearer endingExternalSession",
                     retention: .evidence
                 )
-                self.streamingModel.releaseInputs(cause: "window-closed")
-                self.streamingModel.disconnect()
+                self.playbackRuntime.endExternalVideoSession()
                 return
             }
             SurfaceInputProbes.record(
@@ -637,6 +636,11 @@ final class EnchronApplication {
                 retention: .evidence
             )
             launcher?.stopPlayback(reason: .windowClosedByWearer)
+        }
+        playbackRuntime.externalVideoSessionDidEnd = { [weak self] in
+            guard let self, self.streamingModel.session != nil else { return }
+            self.streamingModel.releaseInputs(cause: "session-ended")
+            self.streamingModel.disconnect()
         }
         suspensionWatchdog.start()
     }

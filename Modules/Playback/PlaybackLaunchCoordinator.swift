@@ -232,6 +232,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         _ request: PlaybackLaunchRequest,
         origin: PlaybackRequestOrigin
     ) {
+        if let externalSessionID = playbackRuntime.externalVideoSessionID {
+            SurfaceInputProbes.record(
+                "playback.request replacesExternalSession session=\(externalSessionID)",
+                retention: .evidence
+            )
+            playbackRuntime.endExternalVideoSession()
+        }
         preparation.cancel()
         releasePendingLaunch(excluding: request)
         pendingLaunchRequest = request
