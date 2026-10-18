@@ -374,6 +374,20 @@ def bind_booted_vision_target(device: str) -> dict[str, str]:
     return binding
 
 
+def native_shot_size(device: str, width: float, height: float) -> tuple[int, int]:
+    """The screenshot size the caller's coordinates were measured in.
+
+    Chrome that repeats the preview's pixel coordinates under the original
+    capture's dimensions lands every pointer action at the wrong physical
+    place while the command still reports success. When the caller omits the
+    size, read it from the device itself so the two can never disagree.
+    """
+    if width > 0 and height > 0:
+        return (int(width), int(height))
+    _, size = simulator_screenshot(device)
+    return size
+
+
 def map_point(canvas: dict[str, int], shot_size: tuple[int, int], x: float, y: float) -> tuple[int, int]:
     shot_width, shot_height = shot_size
     return (
@@ -443,8 +457,8 @@ def main(argv: list[str] | None = None) -> int:
         action = sub.add_parser(name)
         action.add_argument("--shot-x", type=float, required=True)
         action.add_argument("--shot-y", type=float, required=True)
-        action.add_argument("--shot-width", type=float, required=True)
-        action.add_argument("--shot-height", type=float, required=True)
+        action.add_argument("--shot-width", type=float, default=0.0)
+        action.add_argument("--shot-height", type=float, default=0.0)
         action.add_argument("--allow-small", action="store_true")
         if name == "pinch":
             action.add_argument("--count", type=int, choices=(1, 2), default=1)
@@ -510,7 +524,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         select_pointer_mode(rect, canvas)
-        point = map_point(canvas, (args.shot_width, args.shot_height), args.shot_x, args.shot_y)
+        shot_size = native_shot_size(args.device, args.shot_width, args.shot_height)
+        point = map_point(canvas, shot_size, args.shot_x, args.shot_y)
         if args.command == "gaze":
             gaze(point)
         elif args.command in ("hold", "pinch-drag"):
@@ -521,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise CanvasError("--drag-seconds must be finite and nonnegative")
             endpoint = (
                 map_point(
-                    canvas, (args.shot_width, args.shot_height),
+                    canvas, shot_size,
                     args.to_shot_x, args.to_shot_y,
                 )
                 if args.command == "pinch-drag" else point
