@@ -77,5 +77,13 @@ Agent 回归的成功表达式只引用结构证据和可自动判定的物理�
 - [format-editing.md](format-editing.md)：Video Format 编辑（窗口菜单与面板 Advanced Settings 两个宿主）。
 - [controls-summon.md](controls-summon.md)：播放控件的显示与隐藏。
 
+**串流**
+- [streaming-hosts.md](streaming-hosts.md)：主机的添加、配对与应用清单，侧栏与内容列的一致性。
+- [streaming-session.md](streaming-session.md)：会话的启动、协商与首帧。
+- [streaming-presentation.md](streaming-presentation.md)：串流复用播放窗口与 Dock，window／docked 的往返。
+- [streaming-input.md](streaming-input.md)：键盘与指针送入主机。
+- [streaming-audio.md](streaming-audio.md)：主机声音的接收与收口。
+- [streaming-resilience.md](streaming-resilience.md)：中断、断连与会话结束后的资源回收。
+
 **存储**
 - [cache-and-artwork.md](cache-and-artwork.md)：容器索引缓存与 Artwork。

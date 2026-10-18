@@ -37,6 +37,7 @@ CANVAS_ASPECT = 16 / 9
 ASPECT_TOLERANCE = 0.01
 CANVAS_WIDTH_FLOOR = 1200
 MODE_GLYPH_DARKNESS = 100
+MODE_GLYPH_CONTRAST = 0.4
 MODE_GLYPH_GAP = 20
 MODE_GLYPH_EDGE_MARGIN = 0.02
 MODE_BUTTON_COUNTS = frozenset({10, 11})
@@ -224,11 +225,23 @@ def canvas_rect(rect: dict[str, float] | None = None) -> dict[str, int]:
 
 
 def _glyph_spans(band) -> tuple[list[list[int]], object]:
-    dark = band < MODE_GLYPH_DARKNESS
-    columns = dark.sum(axis=0) > 2
+    """Glyph columns in the toolbar band, whichever way the chrome is lit.
+
+    The threshold is relative to the band's own median rather than a fixed level.
+    The toolbar has shipped light-on-dark and dark-on-light across Xcode
+    releases, and an absolute cut either collapses the whole band into one span
+    or splits every icon when the chrome's brightness moves.
+    """
+    import numpy
+
+    median = float(numpy.median(band))
+    light_on_dark = median < MODE_GLYPH_DARKNESS
+    level = median + (255 - median) * MODE_GLYPH_CONTRAST if light_on_dark else median * (1 - MODE_GLYPH_CONTRAST)
+    glyphs = band > level if light_on_dark else band < level
+    columns = glyphs.sum(axis=0) > 2
     spans: list[list[int]] = []
-    for index, lit in enumerate(columns):
-        if not lit:
+    for index, column in enumerate(columns):
+        if not column:
             continue
         if spans and index - spans[-1][1] <= MODE_GLYPH_GAP:
             spans[-1][1] = index
@@ -242,7 +255,7 @@ def _glyph_spans(band) -> tuple[list[list[int]], object]:
         if span[1] - span[0] >= 2
         and lower <= (span[0] + span[1]) / 2 <= upper
     ]
-    return spans, dark
+    return spans, glyphs
 
 
 def mode_buttons(rect: dict[str, float], canvas: dict[str, int]) -> list[tuple[float, float]]:
@@ -261,14 +274,14 @@ def mode_buttons(rect: dict[str, float], canvas: dict[str, int]) -> list[tuple[f
     finally:
         shot.unlink(missing_ok=True)
     scale = band.shape[1] / rect["width"]
-    spans, dark = _glyph_spans(band)
+    spans, lit = _glyph_spans(band)
     spans = [
         span for span in spans
         if canvas["x"] <= rect["x"] + (span[0] + span[1]) / 2 / scale <= canvas["x"] + canvas["width"]
     ]
-    glyph_mask = numpy.zeros_like(dark)
+    glyph_mask = numpy.zeros_like(lit)
     for lower, upper in spans:
-        glyph_mask[:, lower : upper + 1] = dark[:, lower : upper + 1]
+        glyph_mask[:, lower : upper + 1] = lit[:, lower : upper + 1]
     rows = numpy.where(glyph_mask)[0]
     if rows.size == 0:
         raise CanvasError("toolbar band has no glyphs")

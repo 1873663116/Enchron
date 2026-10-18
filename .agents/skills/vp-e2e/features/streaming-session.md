@@ -1,0 +1,56 @@
+# 串流会话
+
+从应用卡片启动的串流会话，在窗口里显示主机画面并持续推进。会话状态、协商结果与呈现健康由产品自己发布，取证以探针与控制面读数为准。
+
+## Sub-features
+
+- 点应用卡片启动会话，状态从 connecting 进入 streaming。
+- 会话协商出分辨率、帧率、码率与编码格式，协商值可读。
+- 首帧到达后窗口内出现画面。
+- 画面持续推进：主机的画面内容变化能被观察到，客户端丢弃帧计数保持为 0。
+- 会话建立后主机发来的画面拥有正确的色彩与几何，不是错位的、拉伸的或单一色块。
+- 同一时刻只允许一个会话；已有会话进行时再次启动被拒绝。
+- 会话进行中文件播放被拒绝；文件播放进行中启动串流被拒绝，错误为 `playerWindowBusy`。
+
+## How to get to it (user POV)
+
+串流标签页选中主机 → 应用网格点一个卡片。会话窗口出现。结束时用窗口的返回控件或直接关闭窗口。
+
+## Driving it with computer use
+
+Preconditions: 主机已配对、应用清单非空。会话必须由真实点击应用卡片启动——命令通道的 `streamLaunch` 只用于比较与非呈现类单元，用它启动的会话不能作为「用户能启动会话」的证据。
+
+```sh
+# 启动：真实点击应用卡片
+python3 Scripts/verification/device_hub_canvas.py --device <UDID> --device <UDID> pinch \
+  --shot-x <x> --shot-y <y> --shot-width 3840 --shot-height 2160
+```
+
+启动后读控制面与探针：
+
+```sh
+./.scratch/stream-cmd.sh streamSnapshot '{}'
+D="$(xcrun simctl get_app_container <UDID> com.xiongzhipeng.Enchron data)/Documents"
+tail -30 "$D/stream-session-probe.log"
+```
+
+## 证据
+
+| 种类 | 判据 | 谁守 |
+|---|---|---|
+| 结构 | 会话状态机只从 connecting 进入 streaming，失败停在明确的失败态 | `StreamSessionState` 单测 |
+| 结构 | 互斥：streaming 与文件播放不会同时持有窗口 | `PlaybackRuntime` 单测 |
+| 物理 | `streamSnapshot` 的 `presented` 在两次读取之间增长，`dropped=0` | 控制面读数 |
+| 物理 | 协商值非 `unavailable`，且与请求值一致或给出降级 | 控制面读数 |
+| 物理 | 窗口呈现区域内的像素来自主机画面 | Agent 读截图 |
+| 感知 | 画面是否流畅、有无明显撕裂 | **待做** |
+
+## 证明的终态
+
+会话进入 streaming 且 `presented` 增长，窗口内有画面。三条同时成立才算启动成功；仅状态进入 streaming 而窗口无画面是缺陷，不是成功。
+
+## Gotchas
+
+- **`presented` 增长不等于用户看见画面。** 探针可以一路报健康而窗口是均匀灰的。画面必须单独取证。
+- **启动失败不写探针。** 真实原因只在窗口内那行红字里，identifier 为 `Stream-HostDetail-error`，详情在 accessibilityValue。
+- **模拟后端的应用会启动失败。** 应用网格里的 `Enchron Probe` 这类条目来自 `SimulatedStreamingBackend`，点它必然失败。
