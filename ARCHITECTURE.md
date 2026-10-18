@@ -13,6 +13,7 @@ Modules/MediaSource/         公共名词：来源身份、授权与字节访问
 Modules/MediaLibrary/        feature：虚拟媒体库与来源浏览
 Modules/MediaServer/         feature：Emby、Jellyfin、Plex 媒体服务器
 Modules/Playback/            feature：播放的领域、呈现与平台代码
+Modules/GameStreaming/       feature：Moonlight 主机发现与配对、串流会话、串流呈现与输入转发
 Modules/DesignSystem/        公共名词：设计 token 与多消费者组件
 Packages/PlaybackCore/       播放引擎，独立 Package
 Packages/EnvironmentSceneContract/  观影环境场景的契约：协议、几何、屏幕静止位姿与屏幕状态类型
@@ -30,11 +31,11 @@ Config/                      检查器的基线与清单
 
 ## 编译所有权
 
-`Modules/` 下的每一个 Swift 文件恰好由一个包 target 编译。[`Package.swift`](Package.swift) 声明五个 library target（`MediaSource`、`MediaLibrary`、`MediaServer`、`Playback`、`DesignSystem`），每个 target 的 `path` 恰为 `Modules/<name>`，`exclude` 为空，不声明 `sources` 子集——即整目录编译，新增文件不需要登记。
+`Modules/` 下的每一个 Swift 文件恰好由一个包 target 编译。[`Package.swift`](Package.swift) 声明六个 library target（`MediaSource`、`MediaLibrary`、`MediaServer`、`Playback`、`GameStreaming`、`DesignSystem`），每个 target 的 `path` 恰为 `Modules/<name>`，`exclude` 为空，不声明 `sources` 子集——即整目录编译，新增文件不需要登记。
 
 [`Enchron.xcodeproj`](Enchron.xcodeproj) 声明五个原生 target：`Enchron` 与测试宿主 `EnchronDebug` 两个 App，`EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests` 三个测试 bundle。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里，条目数与 `Modules` 下 Swift 文件数相等，因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
 
-`Modules/Playback` 在清单里带 `.defaultIsolation(MainActor.self)`，其余模块用 Swift 默认的 nonisolated。往 Playback 加纯值类型时要注意它默认被主线程隔离；往 MediaLibrary 加视图时要注意它没有这层默认，主线程隔离来自 SwiftUI 自身。
+`Modules/Playback` 在清单里带 `.defaultIsolation(MainActor.self)`，其余模块（含 `Modules/GameStreaming`）用 Swift 默认的 nonisolated。往 Playback 加纯值类型时要注意它默认被主线程隔离；往 MediaLibrary 加视图时要注意它没有这层默认，主线程隔离来自 SwiftUI 自身。
 
 ## 依赖方向
 
@@ -47,6 +48,7 @@ flowchart LR
     MediaLibrary["MediaLibrary"]
     Playback["Playback"]
     MediaServer["MediaServer"]
+    GameStreaming["GameStreaming"]
     App["Apps/Enchron"]
 
     MediaLibrary --> MediaSource
@@ -60,9 +62,12 @@ flowchart LR
     MediaServer --> MediaSource
     MediaServer --> DesignSystem
     MediaServer --> Playback
+    GameStreaming --> DesignSystem
+    GameStreaming --> Playback
     App --> MediaLibrary
     App --> Playback
     App --> MediaServer
+    App --> GameStreaming
     App --> MediaSource
     App --> DesignSystem
     App --> PlaybackCore
@@ -101,6 +106,8 @@ flowchart LR
 **它是否属于媒体服务器**——三种服务的 API 转换、认证、图片与流地址、共用浏览模型、货架与详情页？属 [`Modules/MediaServer`](Modules/MediaServer)。
 
 **它是否是解码、解复用、渲染、时钟、字幕栅格化或蓝光结构读取**？属 [`Packages/PlaybackCore`](Packages/PlaybackCore)。该 Package 只依赖 vendored 二进制与自己的 C 桥，不依赖本仓任何模块。`BluRayDisc` 负责 ISO／目录验证、播放列表与轨道描述、选定播放列表的随机读取；`PlaybackCore` 通过自定义 AVIO 接入选定的整片字节流，并保持连续的整片时间轴。文件页识别、卡片与播放项目身份属 `MediaLibrary`，`Modules/Playback` 的 `PlaybackRuntime` 是播放引擎的适配层。
+
+**它是否属于 Moonlight 串流**——主机的发现与配对、Moonlight 会话与其输入、串流在本机的呈现代理，以及串流的调试探针？属 [`Modules/GameStreaming`](Modules/GameStreaming)。它依赖 `Playback` 与 `DesignSystem`：串流会话把渲染器交给 `PlaybackRuntime` 的外部会话入口（`beginExternalVideoSession`），自己保留解码、计时与输入，呈现层与播放窗口共用同一套窗口／docked／panorama 状态机。因此往这里加代码前先问：这段行为是串流特有的，还是播放呈现共有的？共有的住 `Modules/Playback`。
 
 **它是否只在把上面几件东西拼起来时才需要**——Scene 声明、导航壳、模态协调、设置存储？属 [`Apps/Enchron`](Apps/Enchron)。这里现在很薄：`AppModel` 只剩导航标签页，播放会话状态住在 `Modules/Playback` 的 `PlaybackSessionModel`。全部 `WindowGroup`、`Window` 与 `ImmersiveSpace` 在 `EnchronApp.swift` 里声明，内容视图两边都有——`MainView` 在 App，`ImmersiveSpaceView` 与 `EnvironmentHomeView` 在 Playback。新增或删除一个 Scene 必然要动 App。
 
