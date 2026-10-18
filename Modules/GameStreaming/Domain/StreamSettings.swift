@@ -1,4 +1,5 @@
 import Foundation
+import VideoToolbox
 
 public enum StreamResolution: String, Sendable, Codable, CaseIterable {
     case r1920x1080
@@ -97,6 +98,26 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     }
 }
 
+public enum StreamCodecAvailability {
+    public static var av1DecodeSupported: Bool {
+        VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+    }
+}
+
+extension StreamOptions {
+    /// The codec this device can actually play back.
+    ///
+    /// A stored preference can name a codec the current device cannot decode,
+    /// and a session built from it connects and then never presents a frame.
+    /// Resolving on the way in keeps a stale preference from disabling streaming
+    /// with no visible cause.
+    public mutating func resolveCodecAvailability() {
+        if codec == .av1, StreamCodecAvailability.av1DecodeSupported == false {
+            codec = .hevc
+        }
+    }
+}
+
 public final class StreamSettingsStore: @unchecked Sendable {
     private let defaults: UserDefaults
     private let key = "enchron.streaming.settings"
@@ -108,10 +129,11 @@ public final class StreamSettingsStore: @unchecked Sendable {
     public func load() -> StreamOptions {
         guard
             let data = defaults.data(forKey: key),
-            let options = try? JSONDecoder().decode(StreamOptions.self, from: data)
+            var options = try? JSONDecoder().decode(StreamOptions.self, from: data)
         else {
             return StreamOptions()
         }
+        options.resolveCodecAvailability()
         return options
     }
 

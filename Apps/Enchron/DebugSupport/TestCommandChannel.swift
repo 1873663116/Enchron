@@ -762,10 +762,16 @@ final class TestCommandChannel {
     private func processRequestIfPresent() async {
         do {
             guard let requestURL = try nextRequestURL() else { return }
-            let request = try JSONDecoder().decode(
-                Request.self,
-                from: Data(contentsOf: requestURL)
-            )
+            let request: Request
+            do {
+                request = try JSONDecoder().decode(
+                    Request.self,
+                    from: Data(contentsOf: requestURL)
+                )
+            } catch {
+                try? fileManager.removeItem(at: requestURL)
+                throw error
+            }
 #if DEBUG
             try prepareEvidenceSession(for: request, requestURL: requestURL)
 #endif

@@ -559,6 +559,7 @@ public final class StreamingModel {
     public func updateSettings(_ transform: (inout StreamOptions) -> Void) {
         var next = settings
         transform(&next)
+        next.resolveCodecAvailability()
         settings = next
     }
 

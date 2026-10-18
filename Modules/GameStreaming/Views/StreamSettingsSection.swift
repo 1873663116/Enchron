@@ -9,7 +9,7 @@ public struct StreamSettingsSection: View {
     private let av1DecodeAvailable: Bool
 
     public init() {
-        av1DecodeAvailable = VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+        av1DecodeAvailable = StreamCodecAvailability.av1DecodeSupported
     }
 
     public var body: some View {
