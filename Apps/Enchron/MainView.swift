@@ -295,12 +295,14 @@ public struct MainView: View {
                 .accessibilityIdentifier("Jellyfin-Navigation-Tab")
             }
 
-            Tab("串流", systemImage: "desktopcomputer", value: AppModel.NavigationTab.streaming) {
-                StreamingHomeView()
-                    .enchronScreenAppearance()
-                    .browserTabBarVisibility(browserVisibility)
+            if settingsViewModel.preferences.moonlightEnabled {
+                Tab("Moonlight", systemImage: "desktopcomputer", value: AppModel.NavigationTab.streaming) {
+                    StreamingHomeView()
+                        .enchronScreenAppearance()
+                        .browserTabBarVisibility(browserVisibility)
+                }
+                .accessibilityIdentifier("Navigation-Ornament-tab-streaming")
             }
-            .accessibilityIdentifier("Navigation-Ornament-tab-streaming")
 
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()

@@ -14,6 +14,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
     private static let developerModeKey = "enchron.preferences.developerMode"
     private static let surroundingsDimmingKey = "enchron.preferences.surroundingsDimming"
     private static let mediaLibraryTabsKey = "enchron.preferences.mediaLibraryTabs"
+    private static let moonlightEnabledKey = "enchron.preferences.moonlightEnabled"
 
     public init(defaults: UserDefaults = .standard, playbackSpeedOverride: Double? = nil) {
         self.defaults = defaults
@@ -62,7 +63,8 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
                 emby: preferenceIsEnabled(storedTabs?["emby"]),
                 plex: preferenceIsEnabled(storedTabs?["plex"]),
                 jellyfin: preferenceIsEnabled(storedTabs?["jellyfin"])
-            )
+            ),
+            moonlightEnabled: defaults.bool(forKey: Self.moonlightEnabledKey)
         )
     }
 
@@ -100,6 +102,7 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPr
             "plex": preferences.mediaLibraryTabs.plex,
             "jellyfin": preferences.mediaLibraryTabs.jellyfin
         ], forKey: Self.mediaLibraryTabsKey)
+        defaults.set(preferences.moonlightEnabled, forKey: Self.moonlightEnabledKey)
     }
 
     private func preferenceIsEnabled(_ value: Any?) -> Bool {

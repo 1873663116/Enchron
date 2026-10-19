@@ -33,7 +33,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: String(localized: "General")
             case .playback: String(localized: "Playback Behavior")
-            case .streaming: String(localized: "串流")
+            case .streaming: String(localized: "Moonlight")
             case .storagePrivacy: String(localized: "Storage & Privacy")
 #if DEBUG
             case .developer: String(localized: "Developer")
@@ -74,6 +74,12 @@ struct SettingsScreen: View {
         Category(rawValue: selectedCategoryID) ?? .playback
     }
 
+    private var visibleCategories: [Category] {
+        Category.allCases.filter { category in
+            category != .streaming || viewModel.preferences.moonlightEnabled
+        }
+    }
+
     /// Apple's supported way to switch an app's language is the system's
     /// per-app language setting, which relaunches the app in the new language.
     /// The app's job is the affordance that gets the wearer there.
@@ -95,6 +101,26 @@ struct SettingsScreen: View {
         ]
     }
 
+    private var moonlightItems: [SettingListGroup.Item] {
+        [
+            SettingListGroup.Item(
+                id: "moonlight-enabled",
+                title: String(localized: "Moonlight"),
+                systemName: "desktopcomputer",
+                supportingText: String(localized: "实验性功能，建议以 sunshine 作为服务端。"),
+                supportingTextLineLimit: nil,
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { viewModel.preferences.moonlightEnabled },
+                        set: { value in viewModel.update { $0.moonlightEnabled = value } }
+                    ),
+                    isEnabled: true,
+                    marker: nil
+                )
+            )
+        ]
+    }
+
     private func openLanguageSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
@@ -103,7 +129,7 @@ struct SettingsScreen: View {
     var body: some View {
         HStack(spacing: 0) {
             CategorySidebar(
-                items: Category.allCases.map { CategorySidebarItem(id: $0.rawValue, icon: $0.icon, title: $0.title) },
+                items: visibleCategories.map { CategorySidebarItem(id: $0.rawValue, icon: $0.icon, title: $0.title) },
                 selection: $selectedCategoryID,
                 title: String(localized: "Settings"),
                 containerIdentifier: "Settings-MainWindow-sidebar",
@@ -116,6 +142,11 @@ struct SettingsScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-SettingsScreen")
         .task { await refreshCacheUsage() }
+        .onChange(of: viewModel.preferences.moonlightEnabled) { _, isEnabled in
+            if isEnabled == false, selectedCategoryID == Category.streaming.rawValue {
+                selectedCategoryID = Category.general.rawValue
+            }
+        }
         .onChange(of: selectedCategoryID) { _, category in
 #if DEBUG
             playbackSession.recordSurfaceInputProbe(
@@ -170,6 +201,10 @@ struct SettingsScreen: View {
                 emby: mediaLibraryTabBinding(\.emby),
                 plex: mediaLibraryTabBinding(\.plex),
                 jellyfin: mediaLibraryTabBinding(\.jellyfin)
+            )
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-Moonlight-group",
+                items: moonlightItems
             )
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
