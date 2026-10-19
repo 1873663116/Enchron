@@ -5,11 +5,15 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
     case r1280x720
     case r1920x1080
     case r2560x1440
+    case r3360x1440
+    case r5120x1440
     case r3840x2160
     case custom
 
     public static let customWidthRange = 320...7680
     public static let customHeightRange = 240...4320
+
+    public static let maximumPixelCount = 7680 * 4320
 
     /// The display spelling of a resolution, e.g. `2560x1440`.
     public var displayValue: String {
@@ -36,6 +40,8 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
         case .r1280x720: 1280
         case .r1920x1080: 1920
         case .r2560x1440: 2560
+        case .r3360x1440: 3360
+        case .r5120x1440: 5120
         case .r3840x2160: 3840
         case .custom: 2560
         }
@@ -46,6 +52,8 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
         case .r1280x720: 720
         case .r1920x1080: 1080
         case .r2560x1440: 1440
+        case .r3360x1440: 1440
+        case .r5120x1440: 1440
         case .r3840x2160: 2160
         case .custom: 1440
         }
@@ -55,22 +63,18 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
         if self == .custom {
             return "自定义"
         }
-        return "\(shortLabel)　\(width) × \(height)"
+        return "\(width) × \(height)"
     }
 
-    /// Moonlight spells the fixed resolution steps by height.
-    public var shortLabel: String {
-        switch self {
-        case .r1280x720: "720p"
-        case .r1920x1080: "1080p"
-        case .r2560x1440: "1440p"
-        case .r3840x2160: "4K"
-        case .custom: "自定义"
-        }
+    public var pixelCount: Int {
+        width * height
     }
 
     public static func isCustomDimensionsValid(width: Int, height: Int) -> Bool {
-        customWidthRange.contains(width) && customHeightRange.contains(height)
+        guard customWidthRange.contains(width), customHeightRange.contains(height) else {
+            return false
+        }
+        return width * height <= maximumPixelCount
     }
 }
 
