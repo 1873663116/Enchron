@@ -112,8 +112,18 @@ public struct StreamingHomeView: View {
 
             failureLine(host)
 
-            StreamAppGridView(state: host.applications) { application in
+            StreamAppGridView(
+                state: host.applications,
+                artworkURL: { appID in
+                    model.artworkCache["\(host.id.rawValue)-\(appID.rawValue)"]
+                }
+            ) { application in
                 launch(host, application)
+            }
+            .task(id: host.applications) {
+                for application in host.applications.applications ?? [] {
+                    _ = await model.artworkFileURL(hostID: host.id, appID: application.id)
+                }
             }
         }
         .padding(DesignTokens.Spacing.xl)

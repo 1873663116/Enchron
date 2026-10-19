@@ -58,7 +58,7 @@ public final class MoonlightService: @unchecked Sendable {
     ) async throws -> Data {
         try await run {
             let manager = try Self.manager(address: address, serverCert: serverCert)
-            let response = MLCHttpResponse()
+            let response = MLCAppAssetResponse()
             let request = MLCHttpRequest()
             request.response = response
             request.request = manager.newAppAssetRequest(withAppId: appID)
@@ -66,7 +66,7 @@ public final class MoonlightService: @unchecked Sendable {
                 throw MoonlightClientError.unreachable("appasset request could not be built")
             }
             manager.executeRequestSynchronously(request)
-            guard response.isStatusOk(), let data = response.data, !data.isEmpty else {
+            guard let data = response.data, !data.isEmpty else {
                 throw MoonlightClientError.unreachable("appasset unavailable")
             }
             return data

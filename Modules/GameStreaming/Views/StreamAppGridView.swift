@@ -49,6 +49,7 @@ struct StreamAppGridView: View {
     }
 
     let state: HostApplicationsState
+    let artworkURL: (AppID) -> URL?
     let onLaunch: (HostApplication) -> Void
 
     var body: some View {
@@ -116,7 +117,7 @@ struct StreamAppGridView: View {
     private func card(_ application: HostApplication, identifier: String) -> some View {
         GridCard.poster(
             title: application.name,
-            artworkURL: nil,
+            artworkURL: artworkURL(application.id),
             accessibilityIdentifier: identifier,
             action: { onLaunch(application) }
         )

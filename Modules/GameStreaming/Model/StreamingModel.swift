@@ -15,6 +15,7 @@ public final class StreamingModel {
     public private(set) var isDiscovering = false
     public private(set) var session: SessionSnapshot?
     public private(set) var renderBinding: StreamRenderBinding?
+    public private(set) var artworkCache: [String: URL] = [:]
 
     public var settings: StreamOptions {
         didSet {
@@ -627,4 +628,21 @@ public final class StreamingModel {
             appID: appID
         )
     }
+
+    public func artworkFileURL(hostID: HostID, appID: AppID) async -> URL? {
+        let key = "\(hostID.rawValue)-\(appID.rawValue)"
+        if let cached = artworkCache[key] {
+            return cached
+        }
+        guard let data = await artwork(hostID: hostID, appID: appID) else { return nil }
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let directory = base.appendingPathComponent("enchron-app-artwork", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("app-\(key).png")
+        guard (try? data.write(to: file, options: .atomic)) != nil else { return nil }
+        artworkCache[key] = file
+        return file
+    }
+
 }
