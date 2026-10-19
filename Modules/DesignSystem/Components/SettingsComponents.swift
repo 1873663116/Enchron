@@ -631,7 +631,15 @@ public struct SettingListGroup: View {
             selectedIndex: Binding<Int>,
             detentCount: Int,
             valueText: String,
-            accessibilityLabel: String
+            accessibilityLabel: String,
+            isEnabled: Bool = true
+        )
+        case dimensionSteppers(
+            width: Binding<Int>,
+            height: Binding<Int>,
+            widthRange: ClosedRange<Int>,
+            heightRange: ClosedRange<Int>,
+            step: Int
         )
     }
 
@@ -1185,13 +1193,22 @@ struct SettingListGroupRow: View {
                 title: title,
                 accessibilityLabel: accessibilityLabel
             )
-        case .detentedSlider(let selectedIndex, let detentCount, let valueText, let accessibilityLabel):
+        case .detentedSlider(let selectedIndex, let detentCount, let valueText, let accessibilityLabel, let isEnabled):
             SettingListDetentedSliderRow(
                 selectedIndex: selectedIndex,
                 detentCount: detentCount,
                 valueText: valueText,
                 title: title,
-                accessibilityLabel: accessibilityLabel
+                accessibilityLabel: accessibilityLabel,
+                isEnabled: isEnabled
+            )
+        case .dimensionSteppers(let width, let height, let widthRange, let heightRange, let step):
+            SettingListDimensionStepperRow(
+                width: width,
+                height: height,
+                widthRange: widthRange,
+                heightRange: heightRange,
+                step: step
             )
         }
     }
@@ -1486,10 +1503,10 @@ private struct SettingListDetentedSliderRow: View {
     let valueText: String
     let title: String
     let accessibilityLabel: String
+    var isEnabled: Bool = true
 
     @Namespace private var hoverNamespace
     @State private var rowWidth: CGFloat = 0
-    @State private var isDragging = false
 
     private var resolvedTrackWidth: CGFloat {
         let sidePadding = DesignTokens.Spacing.lg * 2
@@ -1504,37 +1521,18 @@ private struct SettingListDetentedSliderRow: View {
     }
 
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            HStack {
-                Text(title)
-                    .font(DesignTokens.Typography.selectionHeader)
-                    .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
-                    .lineLimit(1)
-                Spacer(minLength: DesignTokens.Spacing.sm)
-                Text(valueText)
-                    .font(DesignTokens.Typography.selectionHeader)
-                    .monospacedDigit()
-                    .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
-                    .lineLimit(1)
-            }
-            .enchronHoverOpacity(
-                active: 1,
-                inactive: 0,
-                in: hoverGroup(.followsGroup),
-                forcedActive: isDragging
-            )
-
-            RangeSlider(
-                value: resolvedIndex,
-                range: 0...Double(max(detentCount - 1, 1)),
-                accessibilityLabel: accessibilityLabel,
-                accessibilityValue: valueText,
-                trackWidth: resolvedTrackWidth,
-                onDraggingChanged: { isDragging = $0 }
-            )
-        }
+        RangeSlider(
+            value: resolvedIndex,
+            range: 0...Double(max(detentCount - 1, 1)),
+            accessibilityLabel: accessibilityLabel,
+            accessibilityValue: valueText,
+            trackWidth: resolvedTrackWidth
+        )
         .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
         .frame(maxWidth: .infinity)
+        .opacity(isEnabled ? 1 : DesignTokens.Surface.disabledControlOpacity)
+        .allowsHitTesting(isEnabled)
         .background {
             GeometryReader { geo in
                 Color.clear
@@ -1548,6 +1546,60 @@ private struct SettingListDetentedSliderRow: View {
 
     private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
         EnchronHoverGroup(id: "settingListDetentedSliderLabel", in: hoverNamespace, behavior: behavior)
+    }
+}
+
+private struct SettingListDimensionStepperRow: View {
+    @Binding var width: Int
+    @Binding var height: Int
+    let widthRange: ClosedRange<Int>
+    let heightRange: ClosedRange<Int>
+    let step: Int
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.lg) {
+            stepper(title: "宽度", value: $width, range: widthRange, id: "width")
+            stepper(title: "高度", value: $height, range: heightRange, id: "height")
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
+    }
+
+    private func stepper(
+        title: String,
+        value: Binding<Int>,
+        range: ClosedRange<Int>,
+        id: String
+    ) -> some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+            Spacer(minLength: DesignTokens.Spacing.xs)
+            Text("\(value.wrappedValue)")
+                .font(DesignTokens.Typography.selectionHeader)
+                .monospacedDigit()
+                .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+                .frame(minWidth: DesignTokens.Interactive.compact, alignment: .trailing)
+            Button {
+                value.wrappedValue = max(range.lowerBound, value.wrappedValue - step)
+            } label: {
+                Image(systemName: "minus")
+            }
+            .buttonStyle(.borderless)
+            .disabled(value.wrappedValue <= range.lowerBound)
+            .accessibilityLabel("\(title)减小")
+            .accessibilityIdentifier("DesignSystem-dimension-\(id)-decrease")
+            Button {
+                value.wrappedValue = min(range.upperBound, value.wrappedValue + step)
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderless)
+            .disabled(value.wrappedValue >= range.upperBound)
+            .accessibilityLabel("\(title)增大")
+            .accessibilityIdentifier("DesignSystem-dimension-\(id)-increase")
+        }
     }
 }
 

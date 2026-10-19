@@ -99,6 +99,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var codec: StreamCodecPreference
     public var hdrEnabled: Bool
     public var framePacing: Bool
+    public var customBitrateEnabled: Bool
 
     public static let defaultFrameRates = [30, 60, 90, 120]
 
@@ -110,6 +111,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
 
     public static let bitrateRangeMbps = 5...200
 
+    public static let customBitrateKbpsRange = 1_000...500_000
+
     public init(
         resolution: StreamResolution = .r2560x1440,
         customWidth: Int = 2560,
@@ -118,7 +121,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         bitrateKbps: Int = 40_000,
         codec: StreamCodecPreference = .auto,
         hdrEnabled: Bool = false,
-        framePacing: Bool = true
+        framePacing: Bool = true,
+        customBitrateEnabled: Bool = false
     ) {
         self.resolution = resolution
         self.customWidth = customWidth
@@ -128,6 +132,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.codec = codec
         self.hdrEnabled = hdrEnabled
         self.framePacing = framePacing
+        self.customBitrateEnabled = customBitrateEnabled
     }
 
     public var streamWidth: Int {
@@ -139,7 +144,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case resolution, customWidth, customHeight, frameRate, bitrateKbps, codec, hdrEnabled, framePacing
+        case resolution, customWidth, customHeight, frameRate, bitrateKbps
+        case codec, hdrEnabled, framePacing, customBitrateEnabled
     }
 
     /// Older stored settings predate custom resolutions, so a missing pair
@@ -154,6 +160,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         codec = try container.decodeIfPresent(StreamCodecPreference.self, forKey: .codec) ?? .auto
         hdrEnabled = try container.decodeIfPresent(Bool.self, forKey: .hdrEnabled) ?? false
         framePacing = try container.decodeIfPresent(Bool.self, forKey: .framePacing) ?? true
+        customBitrateEnabled = try container.decodeIfPresent(Bool.self, forKey: .customBitrateEnabled) ?? false
     }
 
     public var readableValue: String {
@@ -164,6 +171,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("codec=\(codec.rawValue)")
         parts.append("hdr=\(hdrEnabled)")
         parts.append("framePacing=\(framePacing)")
+        parts.append("customBitrate=\(customBitrateEnabled)")
         return parts.joined(separator: ";")
     }
 }
@@ -198,6 +206,16 @@ extension StreamOptions {
     public mutating func normalize() {
         resolveCodecAvailability()
         resolveHDRSupport()
+        clampBitrate()
+    }
+
+    public mutating func clampBitrate() {
+        guard customBitrateEnabled == false else {
+            bitrateKbps = min(max(bitrateKbps, Self.customBitrateKbpsRange.lowerBound),
+                               Self.customBitrateKbpsRange.upperBound)
+            return
+        }
+        bitrateKbps = Self.nearestLadderMbps(bitrateKbps) * 1000
     }
 
     /// Moonlight's own suggestion, so the wearer does not have to guess which

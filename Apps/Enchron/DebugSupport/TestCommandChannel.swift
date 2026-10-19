@@ -1075,6 +1075,15 @@ final class TestCommandChannel {
                 if let pacing = flagValue(request.args["framePacing"]) {
                     options.framePacing = pacing
                 }
+                if let custom = flagValue(request.args["customBitrate"]) {
+                    options.customBitrateEnabled = custom
+                }
+                if let width = request.args["customWidth"].flatMap(Int.init) {
+                    options.customWidth = width
+                }
+                if let height = request.args["customHeight"].flatMap(Int.init) {
+                    options.customHeight = height
+                }
             }
             return Response(id: request.id, ok: true, detail: nil, payload: [streaming.settings.readableValue])
         case "probeStatus":

@@ -7,6 +7,8 @@ public struct StreamSettingsSection: View {
     @Environment(StreamingModel.self) private var model
 
     private let av1DecodeAvailable: Bool
+    @State private var isConfirmingCustomBitrate = false
+    @State private var customBitrateText = ""
 
     public init() {
         av1DecodeAvailable = StreamCodecAvailability.av1DecodeSupported
@@ -18,18 +20,49 @@ public struct StreamSettingsSection: View {
                 accessibilityIdentifier: "Settings-Streaming-group",
                 items: settingItems
             )
+            if model.settings.customBitrateEnabled {
+                customBitrateInputRow
+                    .enchronListGroupSurface(cornerRadius: DesignTokens.Radius.element)
+            }
             sessionConfigurationGroup
+                .enchronDestructiveConfirmation(
+                    "启用自定义码率？",
+                    message: "超过档位上限的码率会让主机编码与头显解码更吃力，可能造成卡顿、掉帧与设备发热。只有在网络与设备都余量充足时才建议开启。",
+                    confirmTitle: "启用",
+                    isPresented: $isConfirmingCustomBitrate
+                ) {
+                    applyCustomBitrateEnabled(true)
+                }
         }
     }
 
     private var settingItems: [SettingListGroup.Item] {
-        [
+        var items: [SettingListGroup.Item] = [
             SettingListGroup.Item(
                 id: "Streaming-resolution",
                 title: "分辨率",
                 systemName: "rectangle.on.rectangle",
                 accessory: .menu(title: resolutionMenuTitle, options: resolutionOptions)
-            ),
+            )
+        ]
+        if model.settings.resolution == .custom {
+            items.append(
+                SettingListGroup.Item(
+                    id: "Streaming-customResolution",
+                    title: "自定义尺寸",
+                    systemName: "aspectratio",
+                    accessory: .value("\(model.settings.customWidth) × \(model.settings.customHeight)"),
+                    embeddedControl: .dimensionSteppers(
+                        width: customWidthBinding,
+                        height: customHeightBinding,
+                        widthRange: StreamResolution.customWidthRange,
+                        heightRange: StreamResolution.customHeightRange,
+                        step: 16
+                    )
+                )
+            )
+        }
+        items.append(contentsOf: [
             SettingListGroup.Item(
                 id: "Streaming-frameRate",
                 title: "帧率",
@@ -45,7 +78,20 @@ public struct StreamSettingsSection: View {
                     selectedIndex: bitrateLadderIndex,
                     detentCount: StreamOptions.bitrateLadderMbps.count,
                     valueText: bitrateLabel,
-                    accessibilityLabel: "码率"
+                    accessibilityLabel: "码率",
+                    isEnabled: model.settings.customBitrateEnabled == false
+                )
+            ),
+            SettingListGroup.Item(
+                id: "Streaming-customBitrate",
+                title: "自定义码率",
+                systemName: "slider.horizontal.3",
+                supportingText: "高码率会让主机编码与头显解码更吃力，可能造成卡顿与发热。",
+                supportingTextLineLimit: nil,
+                accessory: .boundToggle(
+                    isOn: customBitrateBinding,
+                    isEnabled: true,
+                    marker: nil
                 )
             ),
             SettingListGroup.Item(
@@ -74,7 +120,92 @@ public struct StreamSettingsSection: View {
                 supportingText: "按显示刷新节奏安排帧呈现。",
                 accessory: .menu(title: framePacingLabel, options: framePacingOptions)
             )
-        ]
+        ])
+        return items
+    }
+
+    private var customWidthBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.customWidth },
+            set: { value in
+                applyBitrateFollowing { $0.customWidth = value }
+            }
+        )
+    }
+
+    private var customHeightBinding: Binding<Int> {
+        Binding(
+            get: { model.settings.customHeight },
+            set: { value in
+                applyBitrateFollowing { $0.customHeight = value }
+            }
+        )
+    }
+
+    private var customBitrateBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.customBitrateEnabled },
+            set: { isOn in
+                if isOn {
+                    customBitrateText = "\(model.settings.bitrateKbps / 1000)"
+                    isConfirmingCustomBitrate = true
+                } else {
+                    applyCustomBitrateEnabled(false)
+                }
+            }
+        )
+    }
+
+    private func seedCustomBitrateText() {
+        guard customBitrateText.isEmpty else { return }
+        customBitrateText = "\(model.settings.bitrateKbps / 1000)"
+    }
+
+    private func applyCustomBitrateEnabled(_ isOn: Bool) {
+        model.updateSettings { $0.customBitrateEnabled = isOn }
+        if isOn {
+            customBitrateText = "\(model.settings.bitrateKbps / 1000)"
+        }
+    }
+
+    private var customBitrateKbps: Int? {
+        guard let megabits = Int(customBitrateText.trimmingCharacters(in: .whitespaces)) else {
+            return nil
+        }
+        let kbps = megabits * 1000
+        guard StreamOptions.customBitrateKbpsRange.contains(kbps) else {
+            return nil
+        }
+        return kbps
+    }
+
+    private var customBitrateInputRow: some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            Text("码率上限")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+            TextField("300", text: $customBitrateText)
+                .textFieldStyle(.plain)
+                .keyboardType(.numberPad)
+                .accessibilityIdentifier("Settings-Streaming-customBitrateInput")
+                .frame(width: DesignTokens.Layout.settingsValueColumnWidth)
+                .onChange(of: customBitrateText) { _, _ in
+                    guard let kbps = customBitrateKbps else { return }
+                    model.updateSettings { $0.bitrateKbps = kbps }
+                }
+            Text("Mbps")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+            Spacer(minLength: 0)
+            if customBitrateKbps == nil, customBitrateText.isEmpty == false {
+                Text("请输入 1 到 500 之间的整数")
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.destructiveAction)
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
+        .onAppear { seedCustomBitrateText() }
     }
 
     private var resolutionMenuTitle: String {
@@ -158,6 +289,9 @@ public struct StreamSettingsSection: View {
     private func applyBitrateFollowing(_ mutate: (inout StreamOptions) -> Void) {
         model.updateSettings { options in
             mutate(&options)
+            guard options.customBitrateEnabled == false, options.resolution != .custom else {
+                return
+            }
             options.bitrateKbps = options.suggestedBitrateKbps()
         }
     }
