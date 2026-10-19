@@ -50,7 +50,9 @@ struct StreamAppGridView: View {
 
     let state: HostApplicationsState
     let artworkURL: (AppID) -> URL?
+    let hiddenAppIDs: Set<String>
     let onLaunch: (HostApplication) -> Void
+    let onRemove: (HostApplication) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -99,7 +101,7 @@ struct StreamAppGridView: View {
             } else {
                 missingEntry(.desktop)
             }
-            ForEach(matches.others) { application in
+            ForEach(matches.others.filter { hiddenAppIDs.contains($0.id.rawValue) == false }) { application in
                 card(application, identifier: "Stream-AppCard-\(application.id.rawValue)")
             }
         }
@@ -122,6 +124,12 @@ struct StreamAppGridView: View {
             action: { onLaunch(application) }
         )
         .accessibilityValue(application.name)
+        .contextMenu {
+            Button("移除主机应用卡片", role: .destructive) {
+                onRemove(application)
+            }
+            .accessibilityIdentifier("Stream-AppCard-remove-\(application.id.rawValue)")
+        }
     }
 
     private var posterHeight: CGFloat {

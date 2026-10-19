@@ -481,6 +481,10 @@ public struct PlayerView: View {
             }
         ) {
             streamCanvas
+                .overlay(alignment: .bottom) {
+                    WindowPlaybackStatusBar(text: streamStatusText)
+                        .padding(.bottom, DesignTokens.Spacing.sm)
+                }
         } topChrome: {
             streamTopChrome
         }
@@ -522,6 +526,15 @@ public struct PlayerView: View {
         } moreControl: {
             EmptyView()
         }
+    }
+
+    private var streamStatusText: String {
+        guard let session = streamingModel.session else { return "未连接" }
+        let options = session.requested
+        let size = "\(options.streamWidth)×\(options.streamHeight)"
+        let rate = "\(options.frameRate)fps"
+        let bitrate = "\(options.bitrateKbps / 1000)Mbps"
+        return [size, rate, bitrate, options.codec.label].joined(separator: "  ")
     }
 
     private func stopStream() {

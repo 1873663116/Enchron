@@ -7,6 +7,8 @@ public struct StreamingHomeView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @State private var isAddingHost = false
     @State private var isConfirmingRemoval = false
+    @State private var isPresentingHostActions = false
+    @State private var pendingRemovalHostID: HostID?
 
     public init() {}
 
@@ -79,16 +81,33 @@ public struct StreamingHomeView: View {
             hosts: model.hosts,
             selectedHostID: model.selectedHostID,
             onAdd: { isAddingHost = true },
-            onSelect: { model.selectHost($0.id) }
+            onSelect: { model.selectHost($0.id) },
+            onRemove: { host in
+                pendingRemovalHostID = host.id
+                isConfirmingRemoval = true
+            }
         )
     }
 
     private func hostDetail(_ host: HostSnapshot) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                Text(host.name)
-                    .font(DesignTokens.Typography.title)
-                    .lineLimit(1)
+                Button {
+                    isPresentingHostActions = true
+                } label: {
+                    HStack(spacing: DesignTokens.Spacing.sm) {
+                        Text(host.name)
+                            .font(DesignTokens.Typography.title)
+                            .lineLimit(1)
+                        Image(systemName: "ellipsis.circle")
+                            .font(DesignTokens.SymbolSize.label)
+                            .foregroundStyle(DesignTokens.Surface.supportingText)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("主机操作")
+                .accessibilityValue(host.name)
+                .accessibilityIdentifier("Stream-HostActions-button")
                 Text(host.address.displayString)
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(DesignTokens.Surface.supportingText)
@@ -101,13 +120,6 @@ public struct StreamingHomeView: View {
                     .accessibilityValue("pairing=\(host.pairing.readableValue)")
             }
 
-            Button(role: .destructive) {
-                isConfirmingRemoval = true
-            } label: {
-                Label("移除主机", systemImage: "trash")
-            }
-            .accessibilityIdentifier("Stream-HostDetail-removeButton")
-
             remoteSessionLine(host)
 
             failureLine(host)
@@ -116,9 +128,12 @@ public struct StreamingHomeView: View {
                 state: host.applications,
                 artworkURL: { appID in
                     model.artworkCache["\(host.id.rawValue)-\(appID.rawValue)"]
-                }
+                },
+                hiddenAppIDs: model.hiddenApplicationIDs(hostID: host.id)
             ) { application in
                 launch(host, application)
+            } onRemove: { application in
+                model.hideApplication(hostID: host.id, appID: application.id)
             }
             .task(id: host.applications) {
                 for application in host.applications.applications ?? [] {
@@ -130,13 +145,38 @@ public struct StreamingHomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Stream-HostDetail")
+        .confirmationDialog(
+            host.name,
+            isPresented: $isPresentingHostActions,
+            titleVisibility: .visible
+        ) {
+            if host.pairing.isPaired {
+                Button("查看全部应用") {
+                    model.selectHost(host.id)
+                }
+                .accessibilityIdentifier("Stream-HostActions-viewApps")
+            }
+            Button("移除主机", role: .destructive) {
+                isConfirmingRemoval = true
+            }
+            .accessibilityIdentifier("Stream-HostActions-remove")
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(host.address.displayString)
+        }
         .enchronDestructiveConfirmation(
             "移除主机？",
             message: "移除后可以重新添加该主机。主机上正在运行的游戏不会退出。",
             confirmTitle: "移除",
             isPresented: $isConfirmingRemoval
         ) {
-            forget(host)
+            if let pendingRemovalHostID,
+               let target = model.hosts.first(where: { $0.id == pendingRemovalHostID }) {
+                forget(target)
+            } else {
+                forget(host)
+            }
+            pendingRemovalHostID = nil
         }
     }
 
@@ -151,12 +191,6 @@ public struct StreamingHomeView: View {
                     .accessibilityValue(
                         "busy=true;game=\(session.currentGame ?? "none")"
                     )
-                Button(role: .destructive) {
-                    quitRemoteApplication(host)
-                } label: {
-                    Label("退出主机应用", systemImage: "stop.circle")
-                }
-                .accessibilityIdentifier("Stream-HostDetail-quitAppButton")
             }
         }
     }
@@ -171,28 +205,6 @@ public struct StreamingHomeView: View {
             return matched.name
         }
         return identifier
-    }
-
-    private func quitRemoteApplication(_ host: HostSnapshot) {
-        model.clearFailure(hostID: host.id)
-        Task {
-            do {
-                try await model.quitApplication(hostID: host.id)
-                model.refreshReachability(hostID: host.id)
-            } catch let failure as StreamFailure {
-                model.recordFailure(failure, hostID: host.id)
-            } catch {
-                model.recordFailure(
-                    StreamFailure(
-                        stage: .teardown,
-                        kind: .unknown,
-                        message: "退出主机应用失败",
-                        recovery: .retry
-                    ),
-                    hostID: host.id
-                )
-            }
-        }
     }
 
     private func failureLine(_ host: HostSnapshot) -> some View {
@@ -277,6 +289,8 @@ private struct StreamHostSidebar: View {
     let selectedHostID: HostID?
     let onAdd: () -> Void
     let onSelect: (HostSnapshot) -> Void
+    let onRemove: (HostSnapshot) -> Void
+    @State private var expandedHostID: HostID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
@@ -329,12 +343,20 @@ private struct StreamHostSidebar: View {
             isSelectionMode: false,
             isChecked: false,
             isAppearing: false,
-            isSwipeExpanded: false,
+            isSwipeExpanded: expandedHostID == host.id,
             isDragging: false,
             rowOffset: 0,
             allowsReordering: false,
-            allowsSwipe: false,
-            onTap: { onSelect(host) }
+            allowsSwipe: true,
+            onTap: { onSelect(host) },
+            onToggleSelection: {},
+            onSwipeBegan: { expandedHostID = nil },
+            onSwipeExpanded: { expandedHostID = host.id },
+            onSwipeCollapsed: { expandedHostID = nil },
+            onDelete: { onRemove(host) },
+            onReorderBegan: {},
+            onReorderChanged: { _ in },
+            onReorderEnded: {}
         )
         .overlay(alignment: .trailing) {
             statusLight(host.statusLight)

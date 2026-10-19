@@ -6,11 +6,16 @@ public struct StoredHost: Codable, Equatable {
     public var address: HostAddress
     public var serverCert: Data?
     public var preferredAppID: AppID?
+    public var hiddenAppIDs: [String]?
     public var hasPairingRecord: Bool
     public var nameIsUserProvided: Bool?
 
     public var hasUserProvidedName: Bool {
         nameIsUserProvided ?? false
+    }
+
+    public var hiddenApps: Set<String> {
+        Set(hiddenAppIDs ?? [])
     }
 }
 

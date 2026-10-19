@@ -617,6 +617,19 @@ public final class StreamingModel {
         reloadHosts()
     }
 
+    public func hideApplication(hostID: HostID, appID: AppID) {
+        _ = hostStore.update(id: hostID.rawValue) { stored in
+            var hidden = stored.hiddenApps
+            hidden.insert(appID.rawValue)
+            stored.hiddenAppIDs = Array(hidden).sorted()
+        }
+        reloadHosts()
+    }
+
+    public func hiddenApplicationIDs(hostID: HostID) -> Set<String> {
+        storedHosts.first { $0.hostID == hostID }?.hiddenApps ?? []
+    }
+
     public func preferredApplicationID(hostID: HostID) -> AppID? {
         storedHosts.first { $0.hostID == hostID }?.preferredAppID
     }
