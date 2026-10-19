@@ -89,14 +89,12 @@ public struct StreamingHomeView: View {
     }
 
     private func hostDetail(_ host: HostSnapshot) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                Text(host.name)
-                    .font(DesignTokens.Typography.title)
-                    .lineLimit(1)
-                    .accessibilityIdentifier("Stream-HostDetail-name")
-                    .accessibilityValue(host.name)
-            }
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+            Text(host.name)
+                .font(DesignTokens.Typography.title)
+                .lineLimit(1)
+                .accessibilityIdentifier("Stream-HostDetail-name")
+                .accessibilityValue(host.name)
 
             failureLine(host)
 
