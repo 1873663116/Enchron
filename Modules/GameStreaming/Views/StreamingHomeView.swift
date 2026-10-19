@@ -98,8 +98,6 @@ public struct StreamingHomeView: View {
                     .accessibilityValue(host.name)
             }
 
-            remoteSessionLine(host)
-
             failureLine(host)
 
             StreamAppGridView(
@@ -138,32 +136,6 @@ public struct StreamingHomeView: View {
     }
 
     @ViewBuilder
-    private func remoteSessionLine(_ host: HostSnapshot) -> some View {
-        if let session = host.remoteSession, session.isBusy {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                Text("主机正在运行：\(runningApplicationName(session, host: host))")
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.supportingText)
-                    .accessibilityIdentifier("Stream-HostDetail-remoteSession")
-                    .accessibilityValue(
-                        "busy=true;game=\(session.currentGame ?? "none")"
-                    )
-            }
-        }
-    }
-
-    private func runningApplicationName(
-        _ session: RemoteSessionInfo,
-        host: HostSnapshot
-    ) -> String {
-        guard let identifier = session.currentGame else { return host.name }
-        if let applications = host.applications.applications,
-           let matched = applications.first(where: { $0.id.rawValue == identifier }) {
-            return matched.name
-        }
-        return identifier
-    }
-
     private func failureLine(_ host: HostSnapshot) -> some View {
         Group {
             if let failure = model.failure(for: host.id) {

@@ -56,9 +56,6 @@ struct StreamAppGridView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text("应用")
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(DesignTokens.Surface.supportingText)
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
