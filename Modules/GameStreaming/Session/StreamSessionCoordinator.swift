@@ -749,7 +749,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                     frameRate: frameRate,
                     bitrateKbps: options.bitrateKbps,
                     codec: codecValue,
-                    hostHdrActive: snapshotStorage.negotiated?.hostHdrActive ?? false,
+                    hostHdrActive: snapshotStorage.negotiated?.hostHdrActive
+                        ?? snapshotStorage.hdrModeReported,
                     audioChannels: snapshotStorage.negotiated?.audioChannels ?? 2
                 )
                 snapshotStorage.adjustments = Self.adjustments(
@@ -760,6 +761,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             publishSnapshot()
         case .hdrMode(let active):
             stateLock.withLock {
+                snapshotStorage.hdrModeReported = active
                 if var negotiated = snapshotStorage.negotiated {
                     negotiated.hostHdrActive = active
                     snapshotStorage.negotiated = negotiated

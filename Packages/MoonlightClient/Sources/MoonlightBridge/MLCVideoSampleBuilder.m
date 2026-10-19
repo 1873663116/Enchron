@@ -29,6 +29,7 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     NSMutableArray* parameterSetBuffers;
     NSData* masteringDisplayColorVolume;
     NSData* contentLightLevelInfo;
+    BOOL hdrModeEnabled;
     CMVideoFormatDescriptionRef formatDesc;
 }
 
@@ -381,6 +382,20 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
             NSMutableDictionary* videoFormatParams = [[NSMutableDictionary alloc] init];
 
+            if (hdrModeEnabled) {
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionColorPrimaries_ITU_R_2020
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_ColorPrimaries];
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_TransferFunction];
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionYCbCrMatrix_ITU_R_2020
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_YCbCrMatrix];
+                [videoFormatParams setObject:@NO
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_FullRangeVideo];
+                [videoFormatParams setObject:@(1)
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_FieldCount];
+                [videoFormatParams setObject:@(10) forKey:@"BitsPerComponent"];
+            }
+
             if (contentLightLevelInfo) {
                 [videoFormatParams setObject:contentLightLevelInfo forKey:(__bridge NSString*)kCMFormatDescriptionExtension_ContentLightLevelInfo];
             }
@@ -514,6 +529,11 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
     BOOL hasMetadata = enabled && LiGetHdrMetadata(&hdrMetadata);
     BOOL metadataChanged = NO;
+
+    if (hdrModeEnabled != enabled) {
+        hdrModeEnabled = enabled;
+        metadataChanged = YES;
+    }
 
     if (hasMetadata && hdrMetadata.displayPrimaries[0].x != 0 && hdrMetadata.maxDisplayLuminance != 0) {
         // This data is all in big-endian

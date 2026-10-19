@@ -220,6 +220,7 @@ public struct SessionSnapshot: Sendable, Identifiable {
     public var diagnostics: StreamDiagnostics
     public var failure: StreamFailure?
     public var adjustments: [StreamAdjustmentNotice]
+    public var hdrModeReported: Bool
 
     public init(
         id: SessionID,
@@ -233,7 +234,8 @@ public struct SessionSnapshot: Sendable, Identifiable {
         input: StreamInputDiagnostics = StreamInputDiagnostics(),
         diagnostics: StreamDiagnostics = StreamDiagnostics(),
         failure: StreamFailure? = nil,
-        adjustments: [StreamAdjustmentNotice] = []
+        adjustments: [StreamAdjustmentNotice] = [],
+        hdrModeReported: Bool = false
     ) {
         self.id = id
         self.hostID = hostID
@@ -247,6 +249,7 @@ public struct SessionSnapshot: Sendable, Identifiable {
         self.diagnostics = diagnostics
         self.failure = failure
         self.adjustments = adjustments
+        self.hdrModeReported = hdrModeReported
     }
 
     public var readableValue: String {
