@@ -211,6 +211,20 @@ extension StreamOptions {
         resolveCodecAvailability()
         resolveHDRSupport()
         clampBitrate()
+        clampCustomDimensions()
+    }
+
+    public mutating func clampCustomDimensions() {
+        customWidth = min(max(customWidth, StreamResolution.customWidthRange.lowerBound),
+                          StreamResolution.customWidthRange.upperBound)
+        customHeight = min(max(customHeight, StreamResolution.customHeightRange.lowerBound),
+                           StreamResolution.customHeightRange.upperBound)
+        let maximum = StreamResolution.maximumPixelCount
+        guard customWidth * customHeight > maximum else { return }
+        customHeight = max(
+            StreamResolution.customHeightRange.lowerBound,
+            maximum / max(customWidth, 1)
+        )
     }
 
     public mutating func clampBitrate() {
