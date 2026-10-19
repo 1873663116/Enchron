@@ -7,7 +7,7 @@
 - 网络中断后会话进入 interrupted，恢复后可以回到 streaming。
 - 主机主动断开会话时客户端进入 ended，原因为产品自己给出的原因。
 - 会话结束后输入全部释放、音频停止、渲染器归还。
-- 断连后主窗口仍可用，串流标签页的主机列表与内容列不受影响。
+- 断连后主窗口仍可用，Moonlight 标签页的主机列表与内容列不受影响。
 - 退出 App 时会话干净收口，不留下悬挂的会话。
 
 ## How to get to it (user POV)
@@ -42,7 +42,7 @@ grep -E "session end|input release|audio stop|stream content disappeared" "$D/st
 | 结构 | 会话结束路径释放输入、停止音频、归还渲染器，三条同时发生 | `StreamSessionCoordinator` 单测 |
 | 结构 | 断连不销毁主机记录与会话窗口之外的界面状态 | 源码结构检查 |
 | 物理 | 会话结束后探针三行齐备：`input release`、`session end`、`audio stop` | 探针 |
-| 物理 | 结束后主窗口的串流标签页仍可操作，主机行仍在 | Agent 读截图 |
+| 物理 | 结束后主窗口的Moonlight 标签页仍可操作，主机行仍在 | Agent 读截图 |
 | 物理 | 中断后恢复，`streamSnapshot` 从 interrupted 回到 streaming | 控制面读数 |
 | 感知 | 卡住时的等待感、有没有明确的提示 | **待做** |
 
