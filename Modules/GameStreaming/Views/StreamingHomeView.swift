@@ -8,11 +8,14 @@ public struct StreamingHomeView: View {
     @State private var isAddingHost = false
     @State private var isConfirmingRemoval = false
     @State private var pendingRemovalHostID: HostID?
+    @State private var isSidebarVisible = true
 
     public init() {}
 
     public var body: some View {
-        SidebarSplitLayout(sidebarIsVisible: model.emptyStateVisible == false) {
+        SidebarSplitLayout(
+            sidebarIsVisible: model.emptyStateVisible == false && isSidebarVisible
+        ) {
             sidebar
         } content: {
             contentColumn
@@ -90,11 +93,18 @@ public struct StreamingHomeView: View {
 
     private func hostDetail(_ host: HostSnapshot) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
-            Text(host.name)
-                .font(DesignTokens.Typography.title)
-                .lineLimit(1)
-                .accessibilityIdentifier("Stream-HostDetail-name")
-                .accessibilityValue(host.name)
+            HStack(spacing: DesignTokens.Spacing.lg) {
+                SidebarToggleButton(
+                    isVisible: $isSidebarVisible,
+                    accessibilityIdentifier: "Stream-Sidebar-Toggle"
+                )
+                Text(host.name)
+                    .font(DesignTokens.Typography.title)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("Stream-HostDetail-name")
+                    .accessibilityValue(host.name)
+                Spacer(minLength: 0)
+            }
 
             failureLine(host)
 
