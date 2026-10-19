@@ -2,10 +2,14 @@ import Foundation
 import VideoToolbox
 
 public enum StreamResolution: String, Sendable, Codable, CaseIterable {
+    case r1280x720
     case r1920x1080
     case r2560x1440
     case r3840x2160
-    case r2560x1600
+    case custom
+
+    public static let customWidthRange = 320...7680
+    public static let customHeightRange = 240...4320
 
     /// The display spelling of a resolution, e.g. `2560x1440`.
     public var displayValue: String {
@@ -17,29 +21,56 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
         if let value = StreamResolution(rawValue: raw) {
             return value
         }
-        return allCases.first { $0.displayValue == raw }
+        if let match = allCases.first(where: { $0 != .custom && $0.displayValue == raw }) {
+            return match
+        }
+        let parts = raw.split(separator: "x")
+        guard parts.count == 2,
+              let width = Int(parts[0]),
+              let height = Int(parts[1]) else { return nil }
+        return .custom
     }
 
     public var width: Int {
         switch self {
+        case .r1280x720: 1280
         case .r1920x1080: 1920
         case .r2560x1440: 2560
         case .r3840x2160: 3840
-        case .r2560x1600: 2560
+        case .custom: 2560
         }
     }
 
     public var height: Int {
         switch self {
+        case .r1280x720: 720
         case .r1920x1080: 1080
         case .r2560x1440: 1440
         case .r3840x2160: 2160
-        case .r2560x1600: 1600
+        case .custom: 1440
         }
     }
 
     public var label: String {
-        "\(width) × \(height)"
+        if self == .custom {
+            return "自定义"
+        }
+        return "\(shortLabel)　\(width) × \(height)"
+    }
+
+    /// Moonlight spells the fixed resolution steps by height.
+    public var shortLabel: String {
+        switch self {
+        case .r1280x720: "720p"
+        case .r1920x1080: "1080p"
+        case .r2560x1440: "1440p"
+        case .r3840x2160: "4K"
+        case .custom: "自定义"
+        }
+    }
+
+    public static func isCustomDimensionsValid(width: Int, height: Int) -> Bool {
+        customWidthRange.contains(width) && customHeightRange.contains(height)
     }
 }
 
@@ -61,24 +92,37 @@ public enum StreamCodecPreference: String, Sendable, Codable, CaseIterable {
 
 public struct StreamOptions: Sendable, Equatable, Codable {
     public var resolution: StreamResolution
+    public var customWidth: Int
+    public var customHeight: Int
     public var frameRate: Int
     public var bitrateKbps: Int
     public var codec: StreamCodecPreference
     public var hdrEnabled: Bool
     public var framePacing: Bool
 
-    public static let defaultFrameRates = [60, 90, 120]
-    public static let bitrateRangeMbps = 10...100
+    public static let defaultFrameRates = [30, 60, 90, 120]
+
+    /// Non-uniform so the low end stays fine grained where bandwidth is tight,
+    /// matching how Moonlight lays out its bitrate ladder.
+    public static let bitrateLadderMbps: [Int] = [
+        5, 8, 10, 12, 15, 18, 20, 25, 30, 35, 40, 50, 60, 70, 80, 100, 120, 150, 200
+    ]
+
+    public static let bitrateRangeMbps = 5...200
 
     public init(
         resolution: StreamResolution = .r2560x1440,
+        customWidth: Int = 2560,
+        customHeight: Int = 1440,
         frameRate: Int = 90,
         bitrateKbps: Int = 40_000,
-        codec: StreamCodecPreference = .hevc,
-        hdrEnabled: Bool = true,
+        codec: StreamCodecPreference = .auto,
+        hdrEnabled: Bool = false,
         framePacing: Bool = true
     ) {
         self.resolution = resolution
+        self.customWidth = customWidth
+        self.customHeight = customHeight
         self.frameRate = frameRate
         self.bitrateKbps = bitrateKbps
         self.codec = codec
@@ -86,9 +130,35 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.framePacing = framePacing
     }
 
+    public var streamWidth: Int {
+        resolution == .custom ? customWidth : resolution.width
+    }
+
+    public var streamHeight: Int {
+        resolution == .custom ? customHeight : resolution.height
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case resolution, customWidth, customHeight, frameRate, bitrateKbps, codec, hdrEnabled, framePacing
+    }
+
+    /// Older stored settings predate custom resolutions, so a missing pair
+    /// decodes to the default size instead of failing the whole record.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        resolution = (try? container.decodeIfPresent(StreamResolution.self, forKey: .resolution)) ?? .r2560x1440
+        customWidth = try container.decodeIfPresent(Int.self, forKey: .customWidth) ?? 2560
+        customHeight = try container.decodeIfPresent(Int.self, forKey: .customHeight) ?? 1440
+        frameRate = try container.decodeIfPresent(Int.self, forKey: .frameRate) ?? 90
+        bitrateKbps = try container.decodeIfPresent(Int.self, forKey: .bitrateKbps) ?? 40_000
+        codec = try container.decodeIfPresent(StreamCodecPreference.self, forKey: .codec) ?? .auto
+        hdrEnabled = try container.decodeIfPresent(Bool.self, forKey: .hdrEnabled) ?? false
+        framePacing = try container.decodeIfPresent(Bool.self, forKey: .framePacing) ?? true
+    }
+
     public var readableValue: String {
         var parts: [String] = []
-        parts.append("resolution=\(resolution.displayValue)")
+        parts.append("resolution=\(streamWidth)x\(streamHeight)")
         parts.append("fps=\(frameRate)")
         parts.append("bitrate=\(bitrateKbps)")
         parts.append("codec=\(codec.rawValue)")
@@ -116,6 +186,56 @@ extension StreamOptions {
             codec = .hevc
         }
     }
+
+    /// The host ignores HDR on an H.264 stream, so a stored combination of the
+    /// two would show HDR as enabled on a picture that never carries it.
+    public mutating func resolveHDRSupport() {
+        if codec == .h264 {
+            hdrEnabled = false
+        }
+    }
+
+    public mutating func normalize() {
+        resolveCodecAvailability()
+        resolveHDRSupport()
+    }
+
+    /// Moonlight's own suggestion, so the wearer does not have to guess which
+    /// bitrate belongs to a resolution and frame rate.
+    public func suggestedBitrateKbps() -> Int {
+        let frameRateFactor = (frameRate <= 60 ? Double(frameRate) : (Double(frameRate) / 60).squareRoot() * 60) / 30
+        let resolutionFactor = Self.resolutionFactor(pixels: streamWidth * streamHeight)
+        return min(Int((resolutionFactor * frameRateFactor).rounded()) * 1000, 200_000)
+    }
+
+    private static func resolutionFactor(pixels: Int) -> Double {
+        let table: [(pixels: Int, factor: Double)] = [
+            (640 * 360, 1),
+            (854 * 480, 2),
+            (1280 * 720, 5),
+            (1920 * 1080, 10),
+            (2560 * 1440, 20),
+            (3840 * 2160, 40)
+        ]
+        guard let first = table.first else { return 10 }
+        if pixels <= first.pixels {
+            return first.factor
+        }
+        for index in 1..<table.count where pixels < table[index].pixels {
+            let low = table[index - 1]
+            let high = table[index]
+            let ratio = Double(pixels - low.pixels) / Double(high.pixels - low.pixels)
+            return ratio * (high.factor - low.factor) + low.factor
+        }
+        return table[table.count - 1].factor
+    }
+
+    /// Snaps a bitrate onto the ladder entry a slider can actually reach.
+    public static func nearestLadderMbps(_ kbps: Int) -> Int {
+        let target = Double(kbps) / 1000
+        return bitrateLadderMbps.min { abs(Double($0) - target) < abs(Double($1) - target) }
+            ?? bitrateLadderMbps[1]
+    }
 }
 
 public final class StreamSettingsStore: @unchecked Sendable {
@@ -133,7 +253,8 @@ public final class StreamSettingsStore: @unchecked Sendable {
         else {
             return StreamOptions()
         }
-        options.resolveCodecAvailability()
+        options.normalize()
+        save(options)
         return options
     }
 

@@ -28,7 +28,7 @@ public struct StreamSettingsSection: View {
                 id: "Streaming-resolution",
                 title: "分辨率",
                 systemName: "rectangle.on.rectangle",
-                accessory: .menu(title: model.settings.resolution.label, options: resolutionOptions)
+                accessory: .menu(title: resolutionMenuTitle, options: resolutionOptions)
             ),
             SettingListGroup.Item(
                 id: "Streaming-frameRate",
@@ -40,7 +40,13 @@ public struct StreamSettingsSection: View {
                 id: "Streaming-bitrate",
                 title: "码率",
                 systemName: "gauge.with.dots.needle.bottom.50percent",
-                accessory: .menu(title: bitrateLabel, options: bitrateOptions)
+                accessory: .value(bitrateLabel),
+                embeddedControl: .detentedSlider(
+                    selectedIndex: bitrateLadderIndex,
+                    detentCount: StreamOptions.bitrateLadderMbps.count,
+                    valueText: bitrateLabel,
+                    accessibilityLabel: "码率"
+                )
             ),
             SettingListGroup.Item(
                 id: "Streaming-codec",
@@ -51,7 +57,7 @@ public struct StreamSettingsSection: View {
             ),
             SettingListGroup.Item(
                 id: "Streaming-hdr",
-                title: "HDR",
+                title: "HDR (Beta)",
                 systemName: "sun.max",
                 supportingText: hdrExplanation,
                 supportingTextLineLimit: nil,
@@ -66,19 +72,22 @@ public struct StreamSettingsSection: View {
                 title: "帧调度",
                 systemName: "metronome",
                 supportingText: "按显示刷新节奏安排帧呈现。",
-                accessory: .boundToggle(
-                    isOn: framePacingBinding,
-                    isEnabled: true,
-                    marker: nil
-                )
+                accessory: .menu(title: framePacingLabel, options: framePacingOptions)
             )
         ]
+    }
+
+    private var resolutionMenuTitle: String {
+        guard model.settings.resolution == .custom else {
+            return model.settings.resolution.label
+        }
+        return "自定义　\(model.settings.customWidth) × \(model.settings.customHeight)"
     }
 
     private var resolutionOptions: [SettingListGroup.MenuOption] {
         StreamResolution.allCases.map { resolution in
             SettingListGroup.MenuOption(resolution.label, id: resolution.rawValue) {
-                model.updateSettings { $0.resolution = resolution }
+                applyBitrateFollowing { $0.resolution = resolution }
             }
         }
     }
@@ -86,21 +95,24 @@ public struct StreamSettingsSection: View {
     private var frameRateOptions: [SettingListGroup.MenuOption] {
         StreamOptions.defaultFrameRates.map { frameRate in
             SettingListGroup.MenuOption("\(frameRate) fps", id: "\(frameRate)") {
-                model.updateSettings { $0.frameRate = frameRate }
+                applyBitrateFollowing { $0.frameRate = frameRate }
             }
         }
     }
 
-    private var bitrateOptions: [SettingListGroup.MenuOption] {
-        stride(
-            from: StreamOptions.bitrateRangeMbps.lowerBound,
-            through: StreamOptions.bitrateRangeMbps.upperBound,
-            by: 10
-        ).map { megabits in
-            SettingListGroup.MenuOption("\(megabits) Mbps", id: "\(megabits)") {
-                model.updateSettings { $0.bitrateKbps = megabits * 1000 }
+    private var bitrateLadderIndex: Binding<Int> {
+        Binding(
+            get: {
+                let current = StreamOptions.nearestLadderMbps(model.settings.bitrateKbps)
+                return StreamOptions.bitrateLadderMbps.firstIndex(of: current) ?? 0
+            },
+            set: { index in
+                let clamped = min(max(index, 0), StreamOptions.bitrateLadderMbps.count - 1)
+                model.updateSettings {
+                    $0.bitrateKbps = StreamOptions.bitrateLadderMbps[clamped] * 1000
+                }
             }
-        }
+        )
     }
 
     private var codecOptions: [SettingListGroup.MenuOption] {
@@ -128,11 +140,26 @@ public struct StreamSettingsSection: View {
         )
     }
 
-    private var framePacingBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.framePacing },
-            set: { value in model.updateSettings { $0.framePacing = value } }
-        )
+    private var framePacingLabel: String {
+        model.settings.framePacing ? "最平滑" : "最低延迟"
+    }
+
+    private var framePacingOptions: [SettingListGroup.MenuOption] {
+        [
+            SettingListGroup.MenuOption("最平滑", id: "smooth") { applyFramePacing(true) },
+            SettingListGroup.MenuOption("最低延迟", id: "latency") { applyFramePacing(false) }
+        ]
+    }
+
+    private func applyFramePacing(_ smooth: Bool) {
+        model.updateSettings { $0.framePacing = smooth }
+    }
+
+    private func applyBitrateFollowing(_ mutate: (inout StreamOptions) -> Void) {
+        model.updateSettings { options in
+            mutate(&options)
+            options.bitrateKbps = options.suggestedBitrateKbps()
+        }
     }
 
     private var frameRateLabel: String {

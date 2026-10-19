@@ -627,6 +627,12 @@ public struct SettingListGroup: View {
             unit: String? = nil,
             accessibilityLabel: String
         )
+        case detentedSlider(
+            selectedIndex: Binding<Int>,
+            detentCount: Int,
+            valueText: String,
+            accessibilityLabel: String
+        )
     }
 
     public struct KeyValue: Identifiable {
@@ -1179,6 +1185,14 @@ struct SettingListGroupRow: View {
                 title: title,
                 accessibilityLabel: accessibilityLabel
             )
+        case .detentedSlider(let selectedIndex, let detentCount, let valueText, let accessibilityLabel):
+            SettingListDetentedSliderRow(
+                selectedIndex: selectedIndex,
+                detentCount: detentCount,
+                valueText: valueText,
+                title: title,
+                accessibilityLabel: accessibilityLabel
+            )
         }
     }
 
@@ -1463,6 +1477,77 @@ private struct SettingListRangeSliderRow: View {
 
     private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
         EnchronHoverGroup(id: "settingListRangeSliderLabel", in: hoverNamespace, behavior: behavior)
+    }
+}
+
+private struct SettingListDetentedSliderRow: View {
+    @Binding var selectedIndex: Int
+    let detentCount: Int
+    let valueText: String
+    let title: String
+    let accessibilityLabel: String
+
+    @Namespace private var hoverNamespace
+    @State private var rowWidth: CGFloat = 0
+    @State private var isDragging = false
+
+    private var resolvedTrackWidth: CGFloat {
+        let sidePadding = DesignTokens.Spacing.lg * 2
+        return max(rowWidth - sidePadding, 200)
+    }
+
+    private var resolvedIndex: Binding<Double> {
+        Binding(
+            get: { Double(selectedIndex) },
+            set: { selectedIndex = Int($0.rounded()) }
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.xs) {
+            HStack {
+                Text(title)
+                    .font(DesignTokens.Typography.selectionHeader)
+                    .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+                    .lineLimit(1)
+                Spacer(minLength: DesignTokens.Spacing.sm)
+                Text(valueText)
+                    .font(DesignTokens.Typography.selectionHeader)
+                    .monospacedDigit()
+                    .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+                    .lineLimit(1)
+            }
+            .enchronHoverOpacity(
+                active: 1,
+                inactive: 0,
+                in: hoverGroup(.followsGroup),
+                forcedActive: isDragging
+            )
+
+            RangeSlider(
+                value: resolvedIndex,
+                range: 0...Double(max(detentCount - 1, 1)),
+                accessibilityLabel: accessibilityLabel,
+                accessibilityValue: valueText,
+                trackWidth: resolvedTrackWidth,
+                onDraggingChanged: { isDragging = $0 }
+            )
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity)
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { rowWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
+            }
+        }
+        .enchronHoverContentShape(DesignTokens.ShapeToken.element)
+        .enchronHoverActivation(in: hoverGroup(.activatesGroup))
+    }
+
+    private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
+        EnchronHoverGroup(id: "settingListDetentedSliderLabel", in: hoverNamespace, behavior: behavior)
     }
 }
 
