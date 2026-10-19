@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 public extension View {
     func enchronSidebarSurface() -> some View {
@@ -37,10 +38,10 @@ struct SourceSidebarRow: View {
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: icon)
-                .font(DesignTokens.Typography.headline)
-                .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
-                .frame(width: DesignTokens.Interactive.mini)
+            SidebarRowIcon(
+                icon: icon,
+                isSelected: isSelected
+            )
 
             Text(title)
                 .font(DesignTokens.Typography.metadata)
@@ -500,5 +501,34 @@ public struct EditableSourceSidebarRow: View {
                 hoverRestoreTask = nil
             }
         }
+    }
+}
+
+private struct SidebarRowIcon: View {
+    let icon: String
+    let isSelected: Bool
+
+    var body: some View {
+        Group {
+            if let uiImage = UIImage(named: icon) {
+                Image(uiImage: uiImage)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(
+                        width: DesignTokens.Interactive.mini * 0.72,
+                        height: DesignTokens.Interactive.mini * 0.72
+                    )
+            } else {
+                Image(systemName: icon)
+                    .font(DesignTokens.Typography.headline)
+                    .frame(
+                        width: DesignTokens.Interactive.mini * 0.72,
+                        height: DesignTokens.Interactive.mini * 0.72
+                    )
+            }
+        }
+        .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
+        .frame(width: DesignTokens.Interactive.mini)
     }
 }

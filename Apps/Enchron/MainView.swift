@@ -296,7 +296,7 @@ public struct MainView: View {
             }
 
             if settingsViewModel.preferences.moonlightEnabled {
-                Tab("Moonlight", systemImage: "desktopcomputer", value: AppModel.NavigationTab.streaming) {
+                Tab("Moonlight", image: "MoonlightTabIcon", value: AppModel.NavigationTab.streaming) {
                     StreamingHomeView()
                         .enchronScreenAppearance()
                         .browserTabBarVisibility(browserVisibility)

@@ -60,7 +60,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: "gearshape.fill"
             case .playback: "play.circle.fill"
-            case .streaming: "desktopcomputer"
+            case .streaming: "MoonlightTabIcon"
             case .storagePrivacy: "internaldrive.fill"
 #if DEBUG
             case .developer: "wrench.and.screwdriver.fill"
@@ -106,8 +106,8 @@ struct SettingsScreen: View {
             SettingListGroup.Item(
                 id: "moonlight-enabled",
                 title: String(localized: "Moonlight"),
-                systemName: "desktopcomputer",
-                supportingText: String(localized: "实验性功能，建议以 sunshine 作为服务端。"),
+                imageName: "MoonlightTabIcon",
+                supportingText: String(localized: "实验性功能。需要 Sunshine 或兼容的 GameStream 服务端。"),
                 supportingTextLineLimit: nil,
                 accessory: .boundToggle(
                     isOn: Binding(

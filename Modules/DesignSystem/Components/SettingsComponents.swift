@@ -641,6 +641,29 @@ public struct SettingListGroup: View {
             heightRange: ClosedRange<Int>,
             step: Int
         )
+        case numberFields(fields: [NumberField])
+    }
+
+    public struct NumberField: Identifiable {
+        public let id: String
+        public let title: String
+        public let text: Binding<String>
+        public let suffix: String?
+        public let message: String?
+
+        public init(
+            id: String,
+            title: String,
+            text: Binding<String>,
+            suffix: String? = nil,
+            message: String? = nil
+        ) {
+            self.id = id
+            self.title = title
+            self.text = text
+            self.suffix = suffix
+            self.message = message
+        }
     }
 
     public struct KeyValue: Identifiable {
@@ -665,12 +688,14 @@ public struct SettingListGroup: View {
         public var expansion: ExpansionOrigin = .top
         public var accessory: Accessory = .automatic
         public var embeddedControl: EmbeddedControl?
+        public var imageName: String?
         public var action: () -> Void = {}
 
         public init(
             id: String? = nil,
             title: String,
             systemName: String? = nil,
+            imageName: String? = nil,
             supportingText: String? = nil,
             supportingTextLineLimit: Int? = 1,
             detail: String? = nil,
@@ -690,6 +715,7 @@ public struct SettingListGroup: View {
             self.expansion = expansion
             self.accessory = accessory
             self.embeddedControl = embeddedControl
+            self.imageName = imageName
             self.action = action
         }
     }
@@ -725,6 +751,7 @@ public struct SettingListGroup: View {
                     id: item.id,
                     title: item.title,
                     systemName: item.systemName,
+                    imageName: item.imageName,
                     supportingText: item.supportingText,
                     supportingTextLineLimit: item.supportingTextLineLimit,
                     detail: item.detail,
@@ -866,6 +893,7 @@ struct SettingListGroupRow: View {
     let id: String
     let title: String
     let systemName: String?
+    var imageName: String?
     var supportingText: String?
     var supportingTextLineLimit: Int? = 1
     var detail: String?
@@ -1011,7 +1039,15 @@ struct SettingListGroupRow: View {
 
     private var rowContent: some View {
         HStack(spacing: DesignTokens.Spacing.md) {
-            if let systemName {
+            if let imageName {
+                Image(imageName)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(DesignTokens.Surface.accessoryText)
+                    .frame(width: DesignTokens.Interactive.mini, height: DesignTokens.Interactive.mini)
+                    .frame(width: DesignTokens.Interactive.compact)
+            } else if let systemName {
                 Image(systemName: systemName)
                     .font(DesignTokens.SymbolSize.selectionHeaderIcon)
                     .foregroundStyle(DesignTokens.Surface.accessoryText)
@@ -1210,6 +1246,8 @@ struct SettingListGroupRow: View {
                 heightRange: heightRange,
                 step: step
             )
+        case .numberFields(let fields):
+            SettingListNumberFieldsRow(fields: fields)
         }
     }
 
@@ -1546,6 +1584,45 @@ private struct SettingListDetentedSliderRow: View {
 
     private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
         EnchronHoverGroup(id: "settingListDetentedSliderLabel", in: hoverNamespace, behavior: behavior)
+    }
+}
+
+private struct SettingListNumberFieldsRow: View {
+    let fields: [SettingListGroup.NumberField]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            ForEach(fields) { field in
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Text(field.title)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                    TextField("", text: field.text)
+                        .textFieldStyle(.plain)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(DesignTokens.Typography.selectionHeader)
+                        .monospacedDigit()
+                        .frame(width: DesignTokens.Layout.settingsValueColumnWidth)
+                        .accessibilityLabel(field.title)
+                        .accessibilityIdentifier("DesignSystem-numberField-\(field.id)")
+                    if let suffix = field.suffix {
+                        Text(suffix)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(DesignTokens.Surface.supportingText)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if let message = field.message {
+                    Text(message)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.destructiveAction)
+                        .accessibilityIdentifier("DesignSystem-numberField-\(field.id)-message")
+                }
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
     }
 }
 

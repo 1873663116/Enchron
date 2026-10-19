@@ -17,13 +17,21 @@ public struct StreamSettingsSection: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
             SettingListGroup(
-                accessibilityIdentifier: "Settings-Streaming-group",
-                items: settingItems
+                accessibilityIdentifier: "Settings-Streaming-resolutionGroup",
+                items: resolutionItems
             )
-            if model.settings.customBitrateEnabled {
-                customBitrateInputRow
-                    .enchronListGroupSurface(cornerRadius: DesignTokens.Radius.element)
-            }
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-Streaming-bitrateGroup",
+                items: bitrateItems
+            )
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-Streaming-timingGroup",
+                items: timingItems
+            )
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-Streaming-qualityGroup",
+                items: qualityItems
+            )
             sessionConfigurationGroup
                 .enchronDestructiveConfirmation(
                     "启用自定义码率？",
@@ -36,39 +44,36 @@ public struct StreamSettingsSection: View {
         }
     }
 
-    private var settingItems: [SettingListGroup.Item] {
-        var items: [SettingListGroup.Item] = [
-            SettingListGroup.Item(
-                id: "Streaming-resolution",
-                title: "分辨率",
-                systemName: "rectangle.on.rectangle",
-                accessory: .menu(title: resolutionMenuTitle, options: resolutionOptions)
-            )
-        ]
+    private var resolutionItems: [SettingListGroup.Item] {
+        var item = SettingListGroup.Item(
+            id: "Streaming-resolution",
+            title: "分辨率",
+            systemName: "rectangle.on.rectangle",
+            accessory: .menu(title: resolutionMenuTitle, options: resolutionOptions)
+        )
         if model.settings.resolution == .custom {
-            items.append(
-                SettingListGroup.Item(
-                    id: "Streaming-customResolution",
-                    title: "自定义尺寸",
-                    systemName: "aspectratio",
-                    accessory: .value("\(model.settings.customWidth) × \(model.settings.customHeight)"),
-                    embeddedControl: .dimensionSteppers(
-                        width: customWidthBinding,
-                        height: customHeightBinding,
-                        widthRange: StreamResolution.customWidthRange,
-                        heightRange: StreamResolution.customHeightRange,
-                        step: 16
-                    )
+            item.embeddedControl = .numberFields(fields: [
+                SettingListGroup.NumberField(
+                    id: "Streaming-customWidth",
+                    title: "宽度",
+                    text: customWidthText,
+                    suffix: nil,
+                    message: customWidthMessage
+                ),
+                SettingListGroup.NumberField(
+                    id: "Streaming-customHeight",
+                    title: "高度",
+                    text: customHeightText,
+                    suffix: nil,
+                    message: customHeightMessage
                 )
-            )
+            ])
         }
-        items.append(contentsOf: [
-            SettingListGroup.Item(
-                id: "Streaming-frameRate",
-                title: "帧率",
-                systemName: "speedometer",
-                accessory: .menu(title: frameRateLabel, options: frameRateOptions)
-            ),
+        return [item]
+    }
+
+    private var bitrateItems: [SettingListGroup.Item] {
+        var items: [SettingListGroup.Item] = [
             SettingListGroup.Item(
                 id: "Streaming-bitrate",
                 title: "码率",
@@ -92,8 +97,43 @@ public struct StreamSettingsSection: View {
                     isOn: customBitrateBinding,
                     isEnabled: true,
                     marker: nil
-                )
+                ),
+                embeddedControl: model.settings.customBitrateEnabled
+                    ? .numberFields(fields: [
+                        SettingListGroup.NumberField(
+                            id: "Streaming-customBitrateInput",
+                            title: "上限",
+                            text: customBitrateTextBinding,
+                            suffix: "Mbps",
+                            message: customBitrateMessage
+                        )
+                    ])
+                    : nil
+            )
+        ]
+        return items
+    }
+
+    private var timingItems: [SettingListGroup.Item] {
+        [
+            SettingListGroup.Item(
+                id: "Streaming-frameRate",
+                title: "帧率",
+                systemName: "speedometer",
+                accessory: .menu(title: frameRateLabel, options: frameRateOptions)
             ),
+            SettingListGroup.Item(
+                id: "Streaming-framePacing",
+                title: "帧调度",
+                systemName: "metronome",
+                supportingText: "按显示刷新节奏安排帧呈现。",
+                accessory: .menu(title: framePacingLabel, options: framePacingOptions)
+            )
+        ]
+    }
+
+    private var qualityItems: [SettingListGroup.Item] {
+        [
             SettingListGroup.Item(
                 id: "Streaming-codec",
                 title: "编码格式",
@@ -112,34 +152,103 @@ public struct StreamSettingsSection: View {
                     isEnabled: model.settings.codec != .h264,
                     marker: nil
                 )
-            ),
-            SettingListGroup.Item(
-                id: "Streaming-framePacing",
-                title: "帧调度",
-                systemName: "metronome",
-                supportingText: "按显示刷新节奏安排帧呈现。",
-                accessory: .menu(title: framePacingLabel, options: framePacingOptions)
             )
-        ])
-        return items
+        ]
     }
 
-    private var customWidthBinding: Binding<Int> {
-        Binding(
+    private var customWidthText: Binding<String> {
+        dimensionText(
             get: { model.settings.customWidth },
-            set: { value in
-                applyBitrateFollowing { $0.customWidth = value }
+            set: { applyCustomWidth($0) }
+        )
+    }
+
+    private var customHeightText: Binding<String> {
+        dimensionText(
+            get: { model.settings.customHeight },
+            set: { applyCustomHeight($0) }
+        )
+    }
+
+    private func dimensionText(
+        get: @escaping () -> Int,
+        set: @escaping (Int) -> Void
+    ) -> Binding<String> {
+        Binding(
+            get: { "\(get())" },
+            set: { text in
+                guard let value = Int(text.trimmingCharacters(in: .whitespaces)) else {
+                    return
+                }
+                set(value)
             }
         )
     }
 
-    private var customHeightBinding: Binding<Int> {
+    private func applyCustomWidth(_ value: Int) {
+        guard value > 0 else { return }
+        applyBitrateFollowing { $0.customWidth = value }
+    }
+
+    private func applyCustomHeight(_ value: Int) {
+        guard value > 0 else { return }
+        applyBitrateFollowing { $0.customHeight = value }
+    }
+
+    private var customWidthMessage: String? {
+        guard model.settings.customWidth > 0 else { return "请输入正整数" }
+        guard StreamResolution.customWidthRange.contains(model.settings.customWidth) else {
+            return "宽度需在 \(StreamResolution.customWidthRange.lowerBound) 到 \(StreamResolution.customWidthRange.upperBound) 之间"
+        }
+        return dimensionPairMessage
+    }
+
+    private var customHeightMessage: String? {
+        guard model.settings.customHeight > 0 else { return "请输入正整数" }
+        guard StreamResolution.customHeightRange.contains(model.settings.customHeight) else {
+            return "高度需在 \(StreamResolution.customHeightRange.lowerBound) 到 \(StreamResolution.customHeightRange.upperBound) 之间"
+        }
+        return dimensionPairMessage
+    }
+
+    private var dimensionPairMessage: String? {
+        guard StreamResolution.isCustomDimensionsValid(
+            width: model.settings.customWidth,
+            height: model.settings.customHeight
+        ) else {
+            return "宽高相乘不能超过 7680 × 4320"
+        }
+        return nil
+    }
+
+    private var customBitrateTextBinding: Binding<String> {
         Binding(
-            get: { model.settings.customHeight },
-            set: { value in
-                applyBitrateFollowing { $0.customHeight = value }
+            get: { customBitrateText },
+            set: { text in
+                customBitrateText = text
+                guard let kbps = parsedCustomBitrateKbps else { return }
+                model.updateSettings { $0.bitrateKbps = kbps }
             }
         )
+    }
+
+    private var parsedCustomBitrateKbps: Int? {
+        guard let megabits = Int(customBitrateText.trimmingCharacters(in: .whitespaces)) else {
+            return nil
+        }
+        let kbps = megabits * 1000
+        guard StreamOptions.customBitrateKbpsRange.contains(kbps) else {
+            return nil
+        }
+        return kbps
+    }
+
+    private var customBitrateMessage: String? {
+        guard customBitrateText.isEmpty == false else { return "请输入数值" }
+        guard parsedCustomBitrateKbps == nil else { return nil }
+        let low = StreamOptions.customBitrateKbpsRange.lowerBound / 1000
+        let high = StreamOptions.customBitrateKbpsRange.upperBound / 1000
+        return "请输入 \(low) 到 \(high) 之间的整数"
     }
 
     private var customBitrateBinding: Binding<Bool> {
@@ -156,56 +265,11 @@ public struct StreamSettingsSection: View {
         )
     }
 
-    private func seedCustomBitrateText() {
-        guard customBitrateText.isEmpty else { return }
-        customBitrateText = "\(model.settings.bitrateKbps / 1000)"
-    }
-
     private func applyCustomBitrateEnabled(_ isOn: Bool) {
         model.updateSettings { $0.customBitrateEnabled = isOn }
         if isOn {
             customBitrateText = "\(model.settings.bitrateKbps / 1000)"
         }
-    }
-
-    private var customBitrateKbps: Int? {
-        guard let megabits = Int(customBitrateText.trimmingCharacters(in: .whitespaces)) else {
-            return nil
-        }
-        let kbps = megabits * 1000
-        guard StreamOptions.customBitrateKbpsRange.contains(kbps) else {
-            return nil
-        }
-        return kbps
-    }
-
-    private var customBitrateInputRow: some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            Text("码率上限")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(DesignTokens.Surface.supportingText)
-            TextField("300", text: $customBitrateText)
-                .textFieldStyle(.plain)
-                .keyboardType(.numberPad)
-                .accessibilityIdentifier("Settings-Streaming-customBitrateInput")
-                .frame(width: DesignTokens.Layout.settingsValueColumnWidth)
-                .onChange(of: customBitrateText) { _, _ in
-                    guard let kbps = customBitrateKbps else { return }
-                    model.updateSettings { $0.bitrateKbps = kbps }
-                }
-            Text("Mbps")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(DesignTokens.Surface.supportingText)
-            Spacer(minLength: 0)
-            if customBitrateKbps == nil, customBitrateText.isEmpty == false {
-                Text("请输入 1 到 500 之间的整数")
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.destructiveAction)
-            }
-        }
-        .padding(.horizontal, DesignTokens.Spacing.lg)
-        .padding(.bottom, DesignTokens.Spacing.md)
-        .onAppear { seedCustomBitrateText() }
     }
 
     private var resolutionMenuTitle: String {
