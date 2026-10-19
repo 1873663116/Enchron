@@ -7,7 +7,6 @@ public struct StreamingHomeView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @State private var isAddingHost = false
     @State private var isConfirmingRemoval = false
-    @State private var isPresentingHostActions = false
     @State private var pendingRemovalHostID: HostID?
 
     public init() {}
@@ -92,32 +91,11 @@ public struct StreamingHomeView: View {
     private func hostDetail(_ host: HostSnapshot) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                Button {
-                    isPresentingHostActions = true
-                } label: {
-                    HStack(spacing: DesignTokens.Spacing.sm) {
-                        Text(host.name)
-                            .font(DesignTokens.Typography.title)
-                            .lineLimit(1)
-                        Image(systemName: "ellipsis.circle")
-                            .font(DesignTokens.SymbolSize.label)
-                            .foregroundStyle(DesignTokens.Surface.supportingText)
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("主机操作")
-                .accessibilityValue(host.name)
-                .accessibilityIdentifier("Stream-HostActions-button")
-                Text(host.address.displayString)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.supportingText)
-                    .accessibilityIdentifier("Stream-HostDetail-address")
-                    .accessibilityValue(host.address.displayString)
-                Text(pairingSummary(host.pairing))
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.supportingText)
-                    .accessibilityIdentifier("Stream-HostDetail-pairing")
-                    .accessibilityValue("pairing=\(host.pairing.readableValue)")
+                Text(host.name)
+                    .font(DesignTokens.Typography.title)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("Stream-HostDetail-name")
+                    .accessibilityValue(host.name)
             }
 
             remoteSessionLine(host)
@@ -145,25 +123,6 @@ public struct StreamingHomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Stream-HostDetail")
-        .confirmationDialog(
-            host.name,
-            isPresented: $isPresentingHostActions,
-            titleVisibility: .visible
-        ) {
-            if host.pairing.isPaired {
-                Button("查看全部应用") {
-                    model.selectHost(host.id)
-                }
-                .accessibilityIdentifier("Stream-HostActions-viewApps")
-            }
-            Button("移除主机", role: .destructive) {
-                isConfirmingRemoval = true
-            }
-            .accessibilityIdentifier("Stream-HostActions-remove")
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text(host.address.displayString)
-        }
         .enchronDestructiveConfirmation(
             "移除主机？",
             message: "移除后可以重新添加该主机。主机上正在运行的游戏不会退出。",
@@ -173,8 +132,6 @@ public struct StreamingHomeView: View {
             if let pendingRemovalHostID,
                let target = model.hosts.first(where: { $0.id == pendingRemovalHostID }) {
                 forget(target)
-            } else {
-                forget(host)
             }
             pendingRemovalHostID = nil
         }
@@ -216,15 +173,6 @@ public struct StreamingHomeView: View {
                     .accessibilityIdentifier("Stream-HostDetail-error")
                     .accessibilityValue(failure.readableValue)
             }
-        }
-    }
-
-    private func pairingSummary(_ pairing: PairingState) -> String {
-        switch pairing {
-        case .unknown: "配对状态未知"
-        case .unpaired: "未配对"
-        case .paired: "已配对"
-        case .failed: "配对失败"
         }
     }
 
@@ -301,16 +249,12 @@ private struct StreamHostSidebar: View {
                         .foregroundStyle(.secondary)
                         .textCase(.uppercase)
                     Spacer(minLength: 0)
-                    Button(action: onAdd) {
-                        Image(systemName: "plus")
-                            .frame(
-                                width: DesignTokens.Interactive.large,
-                                height: DesignTokens.Interactive.large
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("添加主机")
-                    .accessibilityIdentifier("Stream-HostSidebar-addButton")
+                    CircleIconButton(
+                        systemName: "plus",
+                        accessibilityLabel: String(localized: "添加主机"),
+                        action: onAdd,
+                        accessibilityIdentifier: "Stream-HostSidebar-addButton"
+                    )
                 }
                 .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 
@@ -339,7 +283,7 @@ private struct StreamHostSidebar: View {
             isSelected: host.id == selectedHostID,
             isEnabled: true,
             isActiveSource: false,
-            isDeletable: false,
+            isDeletable: true,
             isSelectionMode: false,
             isChecked: false,
             isAppearing: false,
@@ -348,6 +292,7 @@ private struct StreamHostSidebar: View {
             rowOffset: 0,
             allowsReordering: false,
             allowsSwipe: true,
+            statusColor: color(for: host.statusLight),
             onTap: { onSelect(host) },
             onToggleSelection: {},
             onSwipeBegan: { expandedHostID = nil },
@@ -358,24 +303,10 @@ private struct StreamHostSidebar: View {
             onReorderChanged: { _ in },
             onReorderEnded: {}
         )
-        .overlay(alignment: .trailing) {
-            statusLight(host.statusLight)
-                .padding(.trailing, DesignTokens.SourceSidebar.listPaddingH)
-                .allowsHitTesting(false)
-        }
         .accessibilityLabel(host.name)
         .accessibilityValue(host.readableStatus)
         .accessibilityAddTraits(host.id == selectedHostID ? .isSelected : [])
         .accessibilityIdentifier("Stream-HostRow-\(host.name)")
-    }
-
-    private func statusLight(_ light: HostStatusLight) -> some View {
-        Circle()
-            .fill(color(for: light))
-            .frame(
-                width: DesignTokens.Interactive.statusDotSize,
-                height: DesignTokens.Interactive.statusDotSize
-            )
     }
 
     private func color(for light: HostStatusLight) -> Color {

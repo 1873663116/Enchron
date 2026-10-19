@@ -44,12 +44,12 @@ struct StreamAddHostView: View {
             Text("添加主机")
                 .font(DesignTokens.Typography.title)
             Spacer(minLength: 0)
-            Button(role: .cancel) {
-                dismiss()
-            } label: {
-                Label("取消", systemImage: "xmark")
-            }
-            .accessibilityIdentifier("Stream-AddHost-cancel")
+            CircleIconButton(
+                systemName: "xmark",
+                accessibilityLabel: String(localized: "取消"),
+                action: { dismiss() },
+                accessibilityIdentifier: "Stream-AddHost-cancel"
+            )
         }
     }
 

@@ -18,6 +18,7 @@ struct SourceSidebarRow: View {
     var isSelected = false
     var isEnabled = true
     var isActiveSource = false
+    var statusColor: Color?
     var showsSelectionBackground = true
 
     init(
@@ -26,6 +27,7 @@ struct SourceSidebarRow: View {
         isSelected: Bool = false,
         isEnabled: Bool = true,
         isActiveSource: Bool = false,
+        statusColor: Color? = nil,
         showsSelectionBackground: Bool = true
     ) {
         self.icon = icon
@@ -33,6 +35,7 @@ struct SourceSidebarRow: View {
         self.isSelected = isSelected
         self.isEnabled = isEnabled
         self.isActiveSource = isActiveSource
+        self.statusColor = statusColor
         self.showsSelectionBackground = showsSelectionBackground
     }
 
@@ -50,7 +53,14 @@ struct SourceSidebarRow: View {
 
             Spacer(minLength: 0)
 
-            if isActiveSource {
+            if let statusColor {
+                Circle()
+                    .fill(statusColor)
+                    .frame(
+                        width: DesignTokens.Interactive.statusDotSize,
+                        height: DesignTokens.Interactive.statusDotSize
+                    )
+            } else if isActiveSource {
                 Circle()
                     .fill(DesignTokens.Theme.accent)
                     .frame(width: DesignTokens.Spacing.xs, height: DesignTokens.Spacing.xs)
@@ -82,6 +92,7 @@ public struct EditableSourceSidebarRow: View {
     let rowOffset: CGFloat
     var allowsReordering = true
     var allowsSwipe = true
+    var statusColor: Color?
     var onTap: (() -> Void)?
     let onToggleSelection: () -> Void
     let onSwipeBegan: () -> Void
@@ -122,6 +133,7 @@ public struct EditableSourceSidebarRow: View {
         rowOffset: CGFloat,
         allowsReordering: Bool = true,
         allowsSwipe: Bool = true,
+        statusColor: Color? = nil,
         onTap: (() -> Void)? = nil,
         onToggleSelection: @escaping () -> Void = {},
         onSwipeBegan: @escaping () -> Void = {},
@@ -146,6 +158,7 @@ public struct EditableSourceSidebarRow: View {
         self.rowOffset = rowOffset
         self.allowsReordering = allowsReordering
         self.allowsSwipe = allowsSwipe
+        self.statusColor = statusColor
         self.onTap = onTap
         self.onToggleSelection = onToggleSelection
         self.onSwipeBegan = onSwipeBegan
@@ -243,6 +256,7 @@ public struct EditableSourceSidebarRow: View {
                 isSelected: isSelected || isChecked,
                 isEnabled: isEnabled,
                 isActiveSource: isActiveSource,
+                statusColor: statusColor,
                 showsSelectionBackground: false
             )
             .frame(maxWidth: .infinity)
