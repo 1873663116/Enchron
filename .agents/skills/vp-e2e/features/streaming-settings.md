@@ -64,6 +64,7 @@ Preconditions: 标签页已由 General 分区的 Moonlight 开关打开。
 | 物理 | 打开「PC 端播放音频」后启动 URL 带 `localAudioPlayMode=1` | 模拟器日志 + 命令通道 |
 | 物理 | 打开「交换 ABXY」后 A 报文的 flags 从 `0x1000` 变 `0x2000` | 命令通道 + 会话探针 `controller flags=` |
 | 物理 | 设置写入后冷启动重读仍是写入值 | 命令通道往返 |
+| 结构 | 旧记录缺四个新字段时解码为关，且编码往返不丢字段 | `StreamOptionsCompatibilityTests` 单测 |
 | 感知 | 滑杆拖动的手感、下拉菜单的排布、四个开关的排布 | **待做** |
 
 ## 证明的终态

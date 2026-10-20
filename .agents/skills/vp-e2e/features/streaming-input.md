@@ -55,10 +55,10 @@ grep "input release" "$D/stream-session-probe.log" | tail
 | 物理 | 键入后控制面 `input:keyboard` 增长，主机侧读到对应文字 | 控制面读数 + 主机取证 |
 | 物理 | 指针移动后控制面 `input:mouse` 增长 | 控制面读数 |
 | 物理 | 会话结束后 `input release cause=user` 出现，按住的键全部释放 | 探针 |
-| 结构 | 手柄位映射逐键等于 Moonlight 字段：A `0x1000`、B `0x2000`、X `0x4000`、Y `0x8000`、方向键 `0x1…0x8`、肩键 `0x100/0x200` | 命令通道 + 会话探针 |
+| 结构 | 手柄位映射逐键等于 Moonlight 字段：A `0x1000`、B `0x2000`、X `0x4000`、Y `0x8000`、方向键 `0x1…0x8`、肩键 `0x100/0x200` | `StreamGamepadMappingTests` 单测 + 命令通道 |
 | 物理 | 交换 ABXY 关闭时报 A 为 `0x1000`，打开时为 `0x2000` | 命令通道 + 探针 `controller flags=` |
 | 物理 | 松开全部按键后报文 flags 回到 `0` | 命令通道 |
-| 物理 | 滚轮按累计整格转发，半格输入不产生报文 | **待做**：模拟器无法注入 GCMouse 滚轮 |
+| 物理 | 滚轮按累计整格转发，半格输入不产生报文 | `StreamScrollAccumulatorTests` 单测；真机滚轮**待做** |
 | 感知 | 输入延迟、手柄震动的到达 | **待做** |
 
 ## 证明的终态
