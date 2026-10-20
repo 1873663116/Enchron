@@ -2968,6 +2968,26 @@ def scenario_07_keyboard_mouse(context: Context) -> Outcome:
             "gamepad-mapping",
             {"swap": swap, "pressed": pressed, "released": released, "expected": expected_flag},
         )
+    before_scroll = after_view.inputs().get("scroll", 0)
+    context.app_verb("streamSendMouse", dx=6, dy=-4)
+    context.app_verb("streamSendMouse", scroll=1)
+    mouse_evidence = context.wait(
+        "host-mouse-delta",
+        STREAM_CONNECT_SECONDS,
+        lambda: (
+            {"scroll": value}
+            if (value := (context.session_snapshot_or_none() or SnapshotView(())).inputs().get("scroll"))
+            and value > before_scroll
+            else None
+        ),
+        context.scene,
+        poll_interval_seconds=2.0,
+    )
+    context.record_channel(
+        "control-surface",
+        "mouse-delta.json",
+        {"beforeScroll": before_scroll, **mouse_evidence},
+    )
     return Outcome(
         PASSED,
         notes=(
