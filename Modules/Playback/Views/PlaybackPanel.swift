@@ -462,6 +462,8 @@ public struct WindowPlaybackControls: View {
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
+    var streaming: Bool = false
+    var streamDetail: String?
 
     public var body: some View {
         FusedPlayerPanel(
@@ -469,7 +471,9 @@ public struct WindowPlaybackControls: View {
             onInteraction: onInteraction,
             surface: .windowOrnament,
             initialExpansion: initialExpansion,
-            controlsVisible: controlsVisible
+            controlsVisible: controlsVisible,
+            streaming: streaming,
+            streamDetail: streamDetail
         )
     }
 
@@ -477,12 +481,16 @@ public struct WindowPlaybackControls: View {
         live: FusedPlayerPanelLive,
         onInteraction: @escaping () -> Void = {},
         initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
-        controlsVisible: Bool = true
+        controlsVisible: Bool = true,
+        streaming: Bool = false,
+        streamDetail: String? = nil
     ) {
         self.live = live
         self.onInteraction = onInteraction
         self.initialExpansion = initialExpansion
         self.controlsVisible = controlsVisible
+        self.streaming = streaming
+        self.streamDetail = streamDetail
     }
 }
 
@@ -491,6 +499,8 @@ public struct PlayerControlDock: View {
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
+    var streaming: Bool = false
+    var streamDetail: String?
 
     public var body: some View {
         FusedPlayerPanel(
@@ -498,7 +508,9 @@ public struct PlayerControlDock: View {
             onInteraction: onInteraction,
             surface: .playerControlDock,
             initialExpansion: initialExpansion,
-            controlsVisible: controlsVisible
+            controlsVisible: controlsVisible,
+            streaming: streaming,
+            streamDetail: streamDetail
         )
     }
 
@@ -506,12 +518,16 @@ public struct PlayerControlDock: View {
         live: FusedPlayerPanelLive,
         onInteraction: @escaping () -> Void = {},
         initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
-        controlsVisible: Bool = true
+        controlsVisible: Bool = true,
+        streaming: Bool = false,
+        streamDetail: String? = nil
     ) {
         self.live = live
         self.onInteraction = onInteraction
         self.initialExpansion = initialExpansion
         self.controlsVisible = controlsVisible
+        self.streaming = streaming
+        self.streamDetail = streamDetail
     }
 }
 
@@ -519,13 +535,17 @@ public struct FusedPlayerPanel: View {
     @Environment(\.immersivePlaybackMenu) private var playbackMenu
     var live: FusedPlayerPanelLive?
     var onInteraction: () -> Void = {}
+    var streaming: Bool = false
+    var streamDetail: String?
     private let surface: PlaybackControlPanelSurface
 
     public init(
         live: FusedPlayerPanelLive? = nil,
         onInteraction: @escaping () -> Void = {},
         initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
-        controlsVisible: Bool = true
+        controlsVisible: Bool = true,
+        streaming: Bool = false,
+        streamDetail: String? = nil
     ) {
         let presentation = live?.presentation ?? .window
         let resolvedSurface: PlaybackControlPanelSurface = (
@@ -535,6 +555,8 @@ public struct FusedPlayerPanel: View {
         )
         self.live = live
         self.onInteraction = onInteraction
+        self.streaming = streaming
+        self.streamDetail = streamDetail
         self.surface = resolvedSurface
         self.controlsVisible = controlsVisible
         _expansion = State(
@@ -562,10 +584,14 @@ public struct FusedPlayerPanel: View {
         onInteraction: @escaping () -> Void,
         surface: PlaybackControlPanelSurface,
         initialExpansion: PlaybackPanelExpansion.Layout,
-        controlsVisible: Bool = true
+        controlsVisible: Bool = true,
+        streaming: Bool = false,
+        streamDetail: String? = nil
     ) {
         self.live = live
         self.onInteraction = onInteraction
+        self.streaming = streaming
+        self.streamDetail = streamDetail
         self.surface = surface
         self.controlsVisible = controlsVisible
         _expansion = State(
@@ -833,7 +859,7 @@ public struct FusedPlayerPanel: View {
             mediaInformationWell(width: clusterWidth)
 
             HStack(spacing: DesignTokens.Spacing.sm) {
-                windowTransportControls
+                if streaming == false { windowTransportControls }
                 progressBar(width: windowProgressBarWidth)
             }
         }
@@ -842,7 +868,7 @@ public struct FusedPlayerPanel: View {
     private var playerControlDockContent: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             mediaInformationWell(width: clusterWidth)
-            playerControlDockControls
+            if streaming == false { playerControlDockControls }
             progressBar(width: clusterWidth)
         }
     }
@@ -865,7 +891,7 @@ public struct FusedPlayerPanel: View {
                 )
                 .keyboardShortcut(.escape, modifiers: [])
                 .padding(.trailing, DesignTokens.Spacing.xxxl - DesignTokens.ControlBar.buttonSpacing)
-                windowTransportControls
+                if streaming == false { windowTransportControls }
                 PrecisionTimelineZoomSlider(
                     pixelsPerSecond: $pixelsPerSecond,
                     duration: timelineDuration,
@@ -1127,7 +1153,7 @@ public struct FusedPlayerPanel: View {
         let shape = DesignTokens.ShapeToken.element
         return ZStack {
             let titleRow = HStack(spacing: DesignTokens.Spacing.sm) {
-                Text(live?.mediaName ?? "Unknown")
+                Text(streamDetail ?? live?.mediaName ?? "Unknown")
                     .font(DesignTokens.Typography.headline)
                     .lineLimit(1)
                     .truncationMode(.middle)

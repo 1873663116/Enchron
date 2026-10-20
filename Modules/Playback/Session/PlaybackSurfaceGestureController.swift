@@ -24,6 +24,11 @@ public final class PlaybackSurfaceGestureController {
         presentation = session.playbackPresentation
     }
 
+    private var extraGesturesEnabled: Bool {
+        guard runtime?.isStreamingPlayback != true else { return false }
+        return session.playbackShortcutsEnabled
+    }
+
     @discardableResult
     public func begin(owner: UUID) -> Bool {
         synchronize()
@@ -106,13 +111,17 @@ public final class PlaybackSurfaceGestureController {
                     session.toggleControlsFromPlaybackSurface()
                 }
             case .togglePlayback:
+                guard extraGesturesEnabled else { break }
                 runtime?.togglePlaybackFromSurfaceGesture()
             case .setRate(let rate):
+                guard extraGesturesEnabled else { break }
                 if state.phase == .holding { originalPlaybackRate = runtime?.currentPlaybackSpeed.value }
                 runtime?.setRateFromSurfaceGesture(rate)
             case .seekPreviewActive(let active):
+                guard extraGesturesEnabled else { break }
                 runtime?.setSurfaceGestureSeekPreviewActive(active)
             case .seek(let target, let wasPlaying):
+                guard extraGesturesEnabled else { break }
                 runtime?.seekFromSurfaceGesture(to: target, wasPlaying: wasPlaying)
             }
         }

@@ -1,4 +1,5 @@
 import Foundation
+import MoonlightClient
 import VideoToolbox
 
 public enum StreamResolution: String, Sendable, Codable, CaseIterable {
@@ -181,24 +182,18 @@ public struct StreamOptions: Sendable, Equatable, Codable {
 }
 
 public enum StreamCodecAvailability {
+    /// AV1 needs both a decode unit to sample buffer path and hardware decode.
+    ///
+    /// Hardware decode alone is not enough. A build without the AV1 format
+    /// description path connects on AV1 and never presents a frame, so the
+    /// bridge reports its own support and that answer gates the choice.
     public static var av1DecodeSupported: Bool {
-        VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+        MoonlightService.isAV1PlaybackSupported
+            && VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
     }
 }
 
 extension StreamOptions {
-    /// The codec this device can actually play back.
-    ///
-    /// A stored preference can name a codec the current device cannot decode,
-    /// and a session built from it connects and then never presents a frame.
-    /// Resolving on the way in keeps a stale preference from disabling streaming
-    /// with no visible cause.
-    public mutating func resolveCodecAvailability() {
-        if codec == .av1, StreamCodecAvailability.av1DecodeSupported == false {
-            codec = .hevc
-        }
-    }
-
     /// The host ignores HDR on an H.264 stream, so a stored combination of the
     /// two would show HDR as enabled on a picture that never carries it.
     public mutating func resolveHDRSupport() {
@@ -208,7 +203,6 @@ extension StreamOptions {
     }
 
     public mutating func normalize() {
-        resolveCodecAvailability()
         resolveHDRSupport()
         clampBitrate()
         clampCustomDimensions()

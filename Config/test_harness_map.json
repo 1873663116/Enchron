@@ -2,9 +2,9 @@
   "schema": "enchron.test-harness-map@1",
   "note": "Every test-bearing directory maps to exactly the harnesses that compile it. verify_test_target_membership.py asserts this map stays in sync with project.pbxproj synchronized groups and Package.swift testTargets.",
   "harnesses": {
-    "EnchronAppTests": { "kind": "xcode", "host": "EnchronDebug" },
-    "EnchronAppUITests": { "kind": "xcode", "host": "EnchronDebug" },
-    "EnchronDomainTests": { "kind": "xcode", "host": "EnchronDebug" },
+    "EnchronAppTests": { "kind": "xcode", "host": "Enchron" },
+    "EnchronAppUITests": { "kind": "xcode", "host": "Enchron" },
+    "EnchronDomainTests": { "kind": "xcode", "host": "Enchron" },
     "MediaLibraryTests": { "kind": "swiftpm", "package": "EnchronModules" },
     "EmbyTests": { "kind": "swiftpm", "package": "EnchronModules" },
     "PlaybackFeatureTests": { "kind": "swiftpm", "package": "EnchronModules" },

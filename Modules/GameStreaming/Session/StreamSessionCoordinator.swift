@@ -37,6 +37,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var pendingVideo: [(sample: CMSampleBuffer, presentationTimeUs: Int64)] = []
     private var recoveringFromRendererFailure = false
     private var lastReportedQueueDepth = 0
+    private var lastSampledPresentedCount: Int64 = 0
+    private var flushingRenderer = false
     private var videoDeliveryStartedAt: Date?
     private var surfaceBindingRevision: Int?
     private var surfaceHasBound = false
@@ -461,7 +463,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                         pendingVideo.removeFirst()
                     }
                 }
-            case .requiresFlush, .failed:
+            case .requiresFlush:
+                recoverFromFlushRequirement(reason: "enqueue outcome \(outcome)")
+                return
+            case .failed:
                 recoverFromRendererFailure(reason: "enqueue outcome \(outcome)")
                 return
             }
@@ -485,6 +490,29 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let overflow = depth > 48
         if overflow {
             recoverFromRendererFailure(reason: "frame queue overflow depth=\(depth)")
+        }
+    }
+
+    private func recoverFromFlushRequirement(reason: String) {
+        let alreadyFlushing = videoQueueLock.withLock { () -> Bool in
+            if flushingRenderer { return true }
+            flushingRenderer = true
+            pendingVideo.removeAll()
+            return false
+        }
+        guard !alreadyFlushing else { return }
+        StreamSessionProbes.record(
+            "renderer flush session=\(sessionID.rawValue) reason=\(reason)",
+            retention: .evidence
+        )
+        requestIdrFrame(reason: "flushRequired")
+        Task { [weak self] in
+            guard let self else { return }
+            await self.videoSink.flush(removingDisplayedImage: false)
+            self.videoQueueLock.withLock {
+                self.flushingRenderer = false
+            }
+            self.ensurePumpScheduled()
         }
     }
 
@@ -840,6 +868,19 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private func sampleDiagnostics() {
         let stats = backend.videoStats()
         let rtt = backend.estimatedRTT()
+        let pendingDepth = videoQueueLock.withLock { pendingVideo.count }
+        let readyForMore = videoRenderer.isReadyForMoreMediaData
+        let presentedNow = stateLock.withLock { counters.presented }
+        let deliveredThisSample = presentedNow - lastSampledPresentedCount
+        lastSampledPresentedCount = presentedNow
+        StreamSessionProbes.record(
+            "video pump delivered=\(deliveredThisSample)"
+                + " total=\(presentedNow)"
+                + " pending=\(pendingDepth)"
+                + " ready=\(readyForMore)"
+                + " pacing=\(options.framePacing)",
+            retention: .evidence
+        )
         stateLock.withLock {
             if let stats {
                 counters.packetsReceived = Int64(stats.receivedFrames)

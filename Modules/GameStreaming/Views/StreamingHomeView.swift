@@ -12,6 +12,21 @@ public struct StreamingHomeView: View {
 
     public init() {}
 
+    private var launchFailure: (hostID: HostID, failure: StreamFailure)? {
+        for host in model.hosts {
+            guard let failure = model.failure(for: host.id), failure.stage == .launch else {
+                continue
+            }
+            return (host.id, failure)
+        }
+        return nil
+    }
+
+    private func dismissLaunchFailure() {
+        guard let launchFailure else { return }
+        model.clearFailure(hostID: launchFailure.hostID)
+    }
+
     public var body: some View {
         SidebarSplitLayout(
             sidebarIsVisible: model.emptyStateVisible == false && isSidebarVisible
@@ -22,6 +37,20 @@ public struct StreamingHomeView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
+        .alert(
+            "无法建立串流",
+            isPresented: Binding(
+                get: { launchFailure != nil },
+                set: { presented in
+                    if presented == false { dismissLaunchFailure() }
+                }
+            ),
+            presenting: launchFailure
+        ) { item in
+            Button("确认") { dismissLaunchFailure() }
+        } message: { item in
+            Text(item.failure.message)
+        }
         .onAppear { model.refreshReachability() }
         .task {
             if model.selectedHostID == nil, let firstHostID = model.hosts.first?.id {

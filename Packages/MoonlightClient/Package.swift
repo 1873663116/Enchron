@@ -65,6 +65,8 @@ let package = Package(
             publicHeadersPath: "include",
             cSettings: [
                 .headerSearchPath("."),
+                .headerSearchPath("ffmpeginclude"),
+                .define("MLC_ENABLE_AV1", to: "1"),
             ],
             linkerSettings: [
                 .linkedFramework("AVFoundation"),

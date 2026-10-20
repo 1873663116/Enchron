@@ -122,6 +122,8 @@ final class EnchronApplication {
     let connectionSecurityPrompt: ConnectionSecurityPrompt
     let developerMetrics = DeveloperMetricsModel()
     private let suspensionWatchdog = ApplicationSuspensionWatchdog()
+    @ObservationIgnored
+    private var backgroundNotificationObserver: NSObjectProtocol?
     private var applicationBackgroundedAt: Date?
     private var suspendedPlaybackPresentation: PlaybackPresentation?
     private var suspendedPlaybackPositionSeconds: Double?
@@ -628,6 +630,7 @@ final class EnchronApplication {
                     "playerWindowScene closedByWearer endingExternalSession",
                     retention: .evidence
                 )
+                self.streamingModel.endStream()
                 self.playbackRuntime.endExternalVideoSession()
                 return
             }
@@ -646,6 +649,21 @@ final class EnchronApplication {
             self?.streamingModel.rebuildRendererGraphForPresentation()
         }
         suspensionWatchdog.start()
+        backgroundNotificationObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.streamingModel.session != nil else { return }
+                SurfaceInputProbes.record(
+                    "applicationBackgrounded endingStream",
+                    retention: .evidence
+                )
+                self.streamingModel.endStreamInBackground()
+                self.playbackRuntime.endExternalVideoSession()
+            }
+        }
     }
 
     /// Whether a playback session is holding the source stream. A suspended

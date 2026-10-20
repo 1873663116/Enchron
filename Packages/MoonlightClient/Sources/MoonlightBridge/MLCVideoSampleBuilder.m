@@ -41,6 +41,14 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     return self;
 }
 
++ (BOOL)isAV1PlaybackSupported {
+#if MLC_ENABLE_AV1
+    return YES;
+#else
+    return NO;
+#endif
+}
+
 - (void)dealloc {
     if (formatDesc != nil) {
         CFRelease(formatDesc);

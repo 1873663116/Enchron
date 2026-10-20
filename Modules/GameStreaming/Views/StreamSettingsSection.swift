@@ -321,7 +321,7 @@ public struct StreamSettingsSection: View {
     }
 
     private var codecSupportingText: String? {
-        av1DecodeAvailable ? nil : "本机不支持 AV1 硬件解码，AV1 不可选。"
+        nil
     }
 
     private var hdrExplanation: String {

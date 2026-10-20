@@ -20,7 +20,7 @@ from typing import Callable
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 APP_BUNDLE_ID = "com.xiongzhipeng.Enchron.debug"
-DEVICE_PROCESS_MARKER = "EnchronDebug"
+DEVICE_PROCESS_MARKER = "Enchron.app/Enchron"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"
 DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
@@ -1082,7 +1082,7 @@ def _bound_app_bundle_id(arguments: argparse.Namespace) -> str:
     bundle_id = execution.build_identity.bundle_identifier
     if bundle_id != APP_BUNDLE_ID:
         raise RuntimeError(
-            "The frozen UI test app is not the isolated EnchronDebug bundle."
+            "The frozen UI test app is not the isolated debug bundle."
         )
     return bundle_id
 

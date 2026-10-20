@@ -33,7 +33,7 @@ Config/                      检查器的基线与清单
 
 `Modules/` 下的每一个 Swift 文件恰好由一个包 target 编译。[`Package.swift`](Package.swift) 声明六个 library target（`MediaSource`、`MediaLibrary`、`MediaServer`、`Playback`、`GameStreaming`、`DesignSystem`），每个 target 的 `path` 恰为 `Modules/<name>`，`exclude` 为空，不声明 `sources` 子集——即整目录编译，新增文件不需要登记。
 
-[`Enchron.xcodeproj`](Enchron.xcodeproj) 声明五个原生 target：`Enchron` 与测试宿主 `EnchronDebug` 两个 App，`EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests` 三个测试 bundle。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里，条目数与 `Modules` 下 Swift 文件数相等，因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
+[`Enchron.xcodeproj`](Enchron.xcodeproj) 声明四个原生 target：App `Enchron` 与测试 bundle `EnchronDomainTests`、`EnchronAppTests`、`EnchronAppUITests`。`Enchron` 的 Debug 配置产出 `com.xiongzhipeng.Enchron.debug`，是自动化测试与真机交互会话的宿主；Release 配置产出 `com.xiongzhipeng.Enchron`，是发布产物。`Enchron` target 用同步文件夹方式关联 `Modules` 与 `Apps/Enchron` 两个目录，其中 `Modules` 全量落在 membershipExceptions 里，条目数与 `Modules` 下 Swift 文件数相等，因此 App 一个模块源文件也不编译，只链接包产品。这一条由 [`Scripts/rules/verify_package_membership.py`](Scripts/rules/verify_package_membership.py) 断言：清单缺项、清单陈旧、target 不整目录编译都会失败。
 
 `Modules/Playback` 在清单里带 `.defaultIsolation(MainActor.self)`，其余模块（含 `Modules/GameStreaming`）用 Swift 默认的 nonisolated。往 Playback 加纯值类型时要注意它默认被主线程隔离；往 MediaLibrary 加视图时要注意它没有这层默认，主线程隔离来自 SwiftUI 自身。
 
@@ -127,7 +127,7 @@ flowchart LR
 
 ## 测试与验证入口
 
-`EnchronDomainTests` 是以 `EnchronDebug` 为宿主的域测试 bundle，覆盖 [`Tests/MediaSourceTests`](Tests/MediaSourceTests)、[`Tests/MediaLibraryPackageTests`](Tests/MediaLibraryPackageTests)、[`Tests/EmbyPackageTests`](Tests/EmbyPackageTests)、[`Tests/PlaybackFeaturePackageTests`](Tests/PlaybackFeaturePackageTests)、[`Tests/PlaybackPresentationTests`](Tests/PlaybackPresentationTests)、[`Tests/EnchronAppLogicTests`](Tests/EnchronAppLogicTests)、[`Tests/EnchronDomainSupport`](Tests/EnchronDomainSupport) 与 [`Packages/PlaybackCore/Tests/Standalone`](Packages/PlaybackCore/Tests/Standalone)。其中 `Tests/MediaLibraryPackageTests`、`Tests/EmbyPackageTests`、`Tests/PlaybackFeaturePackageTests` 三个目录同时由 `Package.swift` 的 SwiftPM testTarget 编译，改动它们要同时顾及两条编译路径。
+`EnchronDomainTests` 是以 `Enchron` 的 Debug 配置为宿主的域测试 bundle，覆盖 [`Tests/MediaSourceTests`](Tests/MediaSourceTests)、[`Tests/MediaLibraryPackageTests`](Tests/MediaLibraryPackageTests)、[`Tests/EmbyPackageTests`](Tests/EmbyPackageTests)、[`Tests/PlaybackFeaturePackageTests`](Tests/PlaybackFeaturePackageTests)、[`Tests/PlaybackPresentationTests`](Tests/PlaybackPresentationTests)、[`Tests/EnchronAppLogicTests`](Tests/EnchronAppLogicTests)、[`Tests/EnchronDomainSupport`](Tests/EnchronDomainSupport) 与 [`Packages/PlaybackCore/Tests/Standalone`](Packages/PlaybackCore/Tests/Standalone)。其中 `Tests/MediaLibraryPackageTests`、`Tests/EmbyPackageTests`、`Tests/PlaybackFeaturePackageTests` 三个目录同时由 `Package.swift` 的 SwiftPM testTarget 编译，改动它们要同时顾及两条编译路径。
 
 `EnchronAppTests` 对应 [`Tests/EnchronApp`](Tests/EnchronApp)，`EnchronAppUITests` 对应 [`Tests/EnchronAppUI`](Tests/EnchronAppUI)。测试计划见仓根四个 `.xctestplan`。引擎自身的测试在 [`Packages/PlaybackCore/Tests`](Packages/PlaybackCore/Tests)，字节流一致性套件是独立 Package [`Tests/MediaByteStreamConformance`](Tests/MediaByteStreamConformance)。
 

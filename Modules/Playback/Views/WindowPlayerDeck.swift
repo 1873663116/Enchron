@@ -26,15 +26,37 @@ public struct WindowPlayerDeckView: View {
                 WindowPlaybackControls(
                     live: live,
                     onInteraction: register,
-                    controlsVisible: appModel.showControls
+                    controlsVisible: appModel.showControls,
+                    streamDetail: playbackRuntime.externalVideoSummary
                 )
                 .onHover { appModel.setControlsFocused($0) }
             } else {
-                PlayerControlDock(
-                    live: live,
-                    onInteraction: register,
-                    controlsVisible: appModel.showControls
-                )
+                VStack(spacing: DesignTokens.Spacing.sm) {
+                    PlayerControlDock(
+                        live: live,
+                        onInteraction: register,
+                        controlsVisible: appModel.showControls,
+                        streaming: playbackRuntime.isStreamingPlayback,
+                        streamDetail: playbackRuntime.externalVideoSummary
+                    )
+                    if playbackRuntime.isStreamingPlayback {
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Button("场景设置") {
+                                register()
+                                _ = try? appModel.requestEnvironmentCard(
+                                    mediaSessionID: playbackRuntime.activeSessionID,
+                                    wasPlaying: playbackRuntime.productLifecycle == .playing
+                                )
+                            }
+                            .accessibilityIdentifier("PlayerUI-Dock-scene-settings")
+                            Button("退出沉浸场景") {
+                                register()
+                                exitImmersive()
+                            }
+                            .accessibilityIdentifier("PlayerUI-Dock-exit-spatial")
+                        }
+                    }
+                }
                 .onHover { appModel.setControlsFocused($0) }
             }
         }

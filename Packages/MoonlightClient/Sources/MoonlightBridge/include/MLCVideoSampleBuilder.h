@@ -28,6 +28,10 @@
 
 @property (nonatomic, weak) id<MLCVideoSampleBuilderDelegate> delegate;
 
+// Reports whether this build can turn AV1 decode units into sample buffers.
+// False unless the AV1 format description path is compiled in.
+@property (class, nonatomic, readonly) BOOL isAV1PlaybackSupported;
+
 - (void)setupWithVideoFormat:(int)videoFormat;
 - (int)submitDecodeBuffer:(unsigned char*)data length:(int)length bufferType:(int)bufferType decodeUnit:(PDECODE_UNIT)du;
 - (void)setHdrMode:(BOOL)enabled;

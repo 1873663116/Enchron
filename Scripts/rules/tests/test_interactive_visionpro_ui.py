@@ -100,7 +100,7 @@ class DeferredAppCommandTests(unittest.TestCase):
             bundle_identifier="com.xiongzhipeng.Enchron"
         ))
         with patch.object(controller, "load_execution_input", return_value=frozen):
-            with self.assertRaisesRegex(RuntimeError, "isolated EnchronDebug bundle"):
+            with self.assertRaisesRegex(RuntimeError, "isolated debug bundle"):
                 controller._bound_app_bundle_id(arguments)
 
     def test_deferred_command_sends_once_without_copying_its_response(self) -> None:

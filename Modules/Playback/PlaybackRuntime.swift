@@ -165,6 +165,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     /// window presents one. Such a session has no launch request and no media
     /// controls; it holds the renderer and the presentation only.
     public private(set) var externalVideoSessionID: String?
+
+    public var isStreamingPlayback: Bool { externalVideoSessionID != nil }
+
+    public private(set) var externalVideoSummary: String?
+
+    public func setExternalVideoSummary(_ summary: String?) {
+        externalVideoSummary = summary
+    }
     public var externalVideoSessionDidEnd: (() -> Void)?
     /// Rebuilds the renderer graph of an externally driven session for a
     /// presentation root that cannot reuse the current graph. The session's owner
@@ -532,6 +540,39 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         resetFrameStepping()
     }
 
+    public func beginExternalVideoLoading(sessionID: String) {
+        guard currentLaunchRequest == nil,
+              externalVideoSessionID != sessionID else { return }
+        if externalVideoSessionID != nil {
+            teardownExternalVideoSession()
+        }
+        generation += 1
+        resetPresentationForExternalSession()
+        externalVideoSessionID = sessionID
+        lifecycle = .loading
+        enterPlayingResidency()
+        updateLoadingState { stateMachine in
+            stateMachine.beginOpening(
+                runtimeGeneration: observationGeneration,
+                requestID: sessionID
+            )
+        }
+    }
+
+    public func finishExternalVideoLoading(sessionID: String) {
+        guard externalVideoSessionID == sessionID else { return }
+        updateLoadingState { stateMachine in
+            stateMachine.bindTechnicalSession(
+                sessionID,
+                runtimeGeneration: observationGeneration
+            )
+            stateMachine.presentationBecameUsable(
+                technicalSessionID: sessionID,
+                runtimeGeneration: observationGeneration
+            )
+        }
+    }
+
     /// Presents a session whose samples are produced outside PlaybackCore in the
     /// player window. The runtime owns the renderer, the presentation and the
     /// window's residency while the session is attached; the session's own owner
@@ -569,11 +610,27 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         lifecycle = .playing
         publishRendererTransferObservation()
         enterPlayingResidency()
-        updateLoadingState { $0.clear() }
+        if externalLoadingIsOpening(for: sessionID) {
+            updateLoadingState { stateMachine in
+                stateMachine.bindTechnicalSession(
+                    sessionID,
+                    runtimeGeneration: observationGeneration
+                )
+            }
+        } else {
+            updateLoadingState { $0.clear() }
+        }
         SurfaceInputProbes.record(
             "externalSession.begin session=\(sessionID)",
             retention: .evidence
         )
+    }
+
+    private func externalLoadingIsOpening(for sessionID: String) -> Bool {
+        guard case .loading(.opening(let evidence)) = loadingState else {
+            return false
+        }
+        return evidence.requestID == sessionID
     }
 
     /// Ends the externally driven session and returns the player window to
@@ -599,6 +656,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         detach()
         rendererTransferCoordinator.releaseExternallyDrivenActive()
         clearPresentation()
+        updateLoadingState { $0.clear() }
     }
 
     private func resetPresentationForExternalSession() {

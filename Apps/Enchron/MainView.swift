@@ -36,6 +36,20 @@ public struct MainView: View {
 
     public var body: some View {
         ZStack {
+            Color.clear
+                .alert(
+                    "串流已退出",
+                    isPresented: Binding(
+                        get: { streamingModel.hostQuitFailureMessage != nil },
+                        set: { presented in
+                            if presented == false { streamingModel.hostQuitFailureMessage = nil }
+                        }
+                    )
+                ) {
+                    Button("确认") { streamingModel.hostQuitFailureMessage = nil }
+                } message: {
+                    Text(streamingModel.hostQuitFailureMessage ?? "")
+                }
             browserPrimaryContent
                 .frame(
                     width: appModel.isEnvironmentHomeCompact || environmentHomeTransitioning ? expandedSize.width : nil,
@@ -71,12 +85,12 @@ public struct MainView: View {
         .browserWindowGeometry(isCompact: false) { windowScene in
             spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .main)
         }
+#if DEBUG
         .onChange(of: playbackSession.environmentCardDismissalRequestRevision) { _, _ in
             if appModel.selectedTab == .environment { appModel.selectedTab = .files }
             setEnvironmentHomeCompact(false)
             environmentTabBarHidden = false
         }
-#if DEBUG
         .developerStatsOverlay(
             isEnabled: settingsViewModel.preferences.developerModeEnabled
                 && playbackSession.immersiveSpaceResidency == .closed,
@@ -352,6 +366,17 @@ public struct MainView: View {
         .onChange(of: streamingModel.session?.id, initial: true) { _, _ in
             syncExternallyDrivenSession()
         }
+        .onChange(of: streamingModel.session?.state, initial: true) { _, state in
+            guard let state, let session = streamingModel.session else { return }
+            switch state {
+            case .streaming, .interrupted, .stopping, .ended:
+                playbackRuntime.finishExternalVideoLoading(
+                    sessionID: session.id.rawValue
+                )
+            case .connecting:
+                break
+            }
+        }
         .onChange(of: streamingModel.renderBinding?.version, initial: true) { _, _ in
             syncExternallyDrivenSession()
         }
@@ -363,6 +388,13 @@ public struct MainView: View {
     /// Keeps the player window's session in step with the streaming session. The
     /// runtime holds the renderer, the presentation and the window while a
     /// stream runs; the stream's own model keeps decoding, pacing and input.
+    private static func streamSummary(for session: SessionSnapshot) -> String {
+        let options = session.requested
+        let size = "\(options.streamWidth)×\(options.streamHeight)"
+        return [size, "\(options.frameRate)fps", "\(options.bitrateKbps / 1000)Mbps", options.codec.label]
+            .joined(separator: "  ")
+    }
+
     private func syncExternallyDrivenSession() {
         guard let session = streamingModel.session else {
             guard playbackRuntime.externalVideoSessionID != nil else { return }
@@ -375,12 +407,19 @@ public struct MainView: View {
             }
             return
         }
-        guard let binding = streamingModel.renderBinding else { return }
+        guard let binding = streamingModel.renderBinding else {
+            playbackRuntime.beginExternalVideoLoading(
+                sessionID: session.id.rawValue
+            )
+            playbackRuntime.setExternalVideoSummary(Self.streamSummary(for: session))
+            return
+        }
         do {
             try playbackRuntime.beginExternalVideoSession(
                 sessionID: binding.sessionID.rawValue,
                 renderer: binding.videoRenderer
             )
+            playbackRuntime.setExternalVideoSummary(Self.streamSummary(for: session))
         } catch {
             logger.error(
                 "stream session refused by the playback runtime session=\(session.id.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"

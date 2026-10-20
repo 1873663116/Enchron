@@ -10,14 +10,20 @@ set -euo pipefail
 # project-stored team resolves fine. This exact failure has recurred
 # whenever the override was hand-added to the invocation.
 #
+# The Debug configuration builds com.xiongzhipeng.Enchron.debug, the bundle the
+# interactive UI runner and the paired test install use. The Release
+# configuration builds com.xiongzhipeng.Enchron.
+#
 # Usage:
 #   ENCHRON_DEVICE_UDID=<udid> Scripts/build/build_to_device.sh [scratch-topic]
+#   ENCHRON_DEVICE_UDID=<udid> ENCHRON_CONFIGURATION=Release Scripts/build/build_to_device.sh [scratch-topic]
 #
 # Environment:
 #   ENCHRON_DEVICE_UDID  Vision Pro UDID, required. No default is stored here:
 #                        a device identifier committed to the repository
 #                        identifies one headset to everyone who reads it.
 #                        `xcrun devicectl list devices` prints the identifier.
+#   ENCHRON_CONFIGURATION Build configuration (default: Debug)
 #   XCODEBIN             xcodebuild to use (default: the Xcode on Cortisol)
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -25,6 +31,7 @@ TOPIC="${1:-device-build}"
 STAMP="$(date +%F)"
 DERIVED_DATA="$ROOT_DIR/.scratch/$STAMP-$TOPIC"
 DEVICE_UDID="${ENCHRON_DEVICE_UDID:-}"
+CONFIGURATION="${ENCHRON_CONFIGURATION:-Debug}"
 XCODE_BIN="${XCODEBIN:-}"
 if [[ -z "$XCODE_BIN" ]]; then
   XCODE_BIN="/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild"
@@ -40,7 +47,7 @@ mkdir -p "$DERIVED_DATA"
 "$XCODE_BIN" \
   -project "$ROOT_DIR/Enchron.xcodeproj" \
   -scheme Enchron \
-  -configuration Debug \
+  -configuration "$CONFIGURATION" \
   -destination "platform=visionOS,id=$DEVICE_UDID" \
   -derivedDataPath "$DERIVED_DATA" \
   -allowProvisioningUpdates \

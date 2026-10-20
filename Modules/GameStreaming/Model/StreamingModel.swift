@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import Observation
+import UIKit
 
 private let streamingProbe = StreamSessionProbes.self
 
@@ -72,6 +73,8 @@ public final class StreamingModel {
     private var coordinator: StreamSessionCoordinator?
     private var teardownRequested = false
     private var teardownFallbackTask: Task<Void, Never>?
+    private var hostQuitRetryTasks: [HostID: Task<Void, Never>] = [:]
+    public var hostQuitFailureMessage: String?
     private var reachabilityTask: Task<Void, Never>?
 
     public init(
@@ -175,6 +178,8 @@ public final class StreamingModel {
             )
         }
         _ = hostStore.remove(id: hostID.rawValue)
+        hostQuitRetryTasks[hostID]?.cancel()
+        hostQuitRetryTasks[hostID] = nil
         cancelPairing(hostID: hostID)
         if selectedHostID == hostID {
             selectedHostID = nil
@@ -380,18 +385,13 @@ public final class StreamingModel {
     }
 
     private func startSession(hostID: HostID, appID: AppID?, appName: String?, preferResume: Bool) async throws {
+        hostQuitRetryTasks[hostID]?.cancel()
+        hostQuitRetryTasks[hostID] = nil
         if let current = session {
             let replacesTheRunningApp = appID.map { $0 != current.appID } ?? false
             switch current.state {
             case .connecting, .streaming:
-                guard replacesTheRunningApp else {
-                    throw StreamFailure(
-                        stage: .launch,
-                        kind: .hostBusy,
-                        message: "已有进行中的会话",
-                        recovery: .none
-                    )
-                }
+                _ = replacesTheRunningApp
                 stopSessionInternal(reason: "replace")
                 finishSessionDismissal()
                 if let stored = storedHosts.first(where: { $0.hostID == hostID }) {
@@ -440,12 +440,29 @@ public final class StreamingModel {
             options: settings
         )
 
+        let sessionID = SessionID()
+        session = SessionSnapshot(
+            id: sessionID,
+            hostID: hostID,
+            appID: resolvedAppID,
+            hostName: stored.name,
+            appName: resolvedAppName,
+            state: .connecting(stage: "starting"),
+            requested: settings,
+            negotiated: nil,
+            input: StreamInputDiagnostics(),
+            diagnostics: StreamDiagnostics(),
+            failure: nil,
+            adjustments: [],
+            hdrModeReported: false
+        )
+
         do {
             let backendSession = preferResume
                 ? try await backend.resumeSession(request)
                 : try await backend.launchSession(request)
             let coordinator = StreamSessionCoordinator(
-                sessionID: SessionID(),
+                sessionID: sessionID,
                 hostID: hostID,
                 appID: resolvedAppID,
                 hostName: stored.name,
@@ -471,6 +488,8 @@ public final class StreamingModel {
             coordinator.start()
         } catch let failure as StreamFailure {
             failures[hostID] = failure
+            session = nil
+            startHostQuit(hostID: hostID)
             StreamSessionProbes.record(
                 "session start failed host=\(hostID.rawValue)"
                     + " app=\(resolvedAppName)"
@@ -482,6 +501,7 @@ public final class StreamingModel {
             )
             throw failure
         } catch {
+            session = nil
             let failure = StreamFailure(
                 stage: .launch,
                 kind: .unknown,
@@ -522,13 +542,94 @@ public final class StreamingModel {
 
     public func disconnect() {
         guard !teardownRequested else { return }
-        stopSessionInternal(reason: "user")
         teardownRequested = true
-        Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+        let coordinator = self.coordinator
+        self.coordinator = nil
+        session = nil
+        renderBinding = nil
+        teardownRequested = false
+        Task {
+            coordinator?.stop(reason: "user")
+        }
+    }
+
+    public func endStream() {
+        guard !teardownRequested else { return }
+        let hostID = session?.hostID
+        releaseInputs(cause: "disconnect")
+        disconnect()
+        guard let hostID else { return }
+        startHostQuit(hostID: hostID)
+    }
+
+    public func endStreamInBackground() {
+        guard !teardownRequested else { return }
+        let hostID = session?.hostID
+        releaseInputs(cause: "background")
+        disconnect()
+        guard let hostID else { return }
+        startHostQuit(hostID: hostID)
+    }
+
+    private func startHostQuit(hostID: HostID) {
+        hostQuitRetryTasks[hostID]?.cancel()
+        hostQuitRetryTasks[hostID] = Task { [weak self] in
             guard let self else { return }
-            if self.session != nil, self.coordinator != nil {
-                self.finishSessionDismissal()
+            let assertion = await MainActor.run {
+                UIApplication.shared.beginBackgroundTask(withName: "host-quit")
+            }
+            defer {
+                Task { @MainActor in
+                    UIApplication.shared.endBackgroundTask(assertion)
+                }
+            }
+            for attempt in 1...2 {
+                if Task.isCancelled { break }
+                if self.session != nil {
+                    self.hostQuitRetryTasks[hostID] = nil
+                    return
+                }
+                guard let stored = self.storedHosts.first(where: { $0.hostID == hostID }) else {
+                    self.hostQuitRetryTasks[hostID] = nil
+                    return
+                }
+                do {
+                    try await self.backend.quitApplication(
+                        BackendCredentials(
+                            address: stored.address,
+                            serverCert: stored.serverCert
+                        )
+                    )
+                    self.hostQuitRetryTasks[hostID] = nil
+                    streamingProbe.record(
+                        "host quit confirmed host=\(hostID.rawValue)",
+                        retention: .evidence
+                    )
+                    return
+                } catch {
+                    streamingProbe.record(
+                        "host quit attempt \(attempt) failed host=\(hostID.rawValue)"
+                            + " error=\(error.localizedDescription)",
+                        retention: .evidence
+                    )
+                }
+                if attempt < 2 {
+                    try? await Task.sleep(for: .seconds(1))
+                }
+            }
+            self.hostQuitRetryTasks[hostID] = nil
+            streamingProbe.record(
+                "host quit abandoned host=\(hostID.rawValue)",
+                retention: .evidence
+            )
+            if let stored = self.storedHosts.first(where: { $0.hostID == hostID }),
+               (try? await self.backend.fetchServerInfo(
+                   BackendCredentials(
+                       address: stored.address,
+                       serverCert: stored.serverCert
+                   )
+               )) != nil {
+                self.hostQuitFailureMessage = "服务端可能仍在运行该应用。"
             }
         }
     }
