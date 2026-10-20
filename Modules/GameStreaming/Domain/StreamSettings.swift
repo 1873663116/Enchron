@@ -105,6 +105,10 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var hdrEnabled: Bool
     public var framePacing: Bool
     public var customBitrateEnabled: Bool
+    public var swapABXYButtons: Bool
+    public var playAudioOnPC: Bool
+    public var bluetoothMouseEnabled: Bool
+    public var optimizeGameSettings: Bool
 
     public static let defaultFrameRates = [30, 60, 90, 120]
 
@@ -127,7 +131,11 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         codec: StreamCodecPreference = .auto,
         hdrEnabled: Bool = false,
         framePacing: Bool = true,
-        customBitrateEnabled: Bool = false
+        customBitrateEnabled: Bool = false,
+        swapABXYButtons: Bool = false,
+        playAudioOnPC: Bool = false,
+        bluetoothMouseEnabled: Bool = false,
+        optimizeGameSettings: Bool = false
     ) {
         self.resolution = resolution
         self.customWidth = customWidth
@@ -138,6 +146,10 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.hdrEnabled = hdrEnabled
         self.framePacing = framePacing
         self.customBitrateEnabled = customBitrateEnabled
+        self.swapABXYButtons = swapABXYButtons
+        self.playAudioOnPC = playAudioOnPC
+        self.bluetoothMouseEnabled = bluetoothMouseEnabled
+        self.optimizeGameSettings = optimizeGameSettings
     }
 
     public var streamWidth: Int {
@@ -151,6 +163,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     private enum CodingKeys: String, CodingKey {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
         case codec, hdrEnabled, framePacing, customBitrateEnabled
+        case swapABXYButtons, playAudioOnPC, bluetoothMouseEnabled, optimizeGameSettings
     }
 
     /// Older stored settings predate custom resolutions, so a missing pair
@@ -166,6 +179,10 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         hdrEnabled = try container.decodeIfPresent(Bool.self, forKey: .hdrEnabled) ?? false
         framePacing = try container.decodeIfPresent(Bool.self, forKey: .framePacing) ?? true
         customBitrateEnabled = try container.decodeIfPresent(Bool.self, forKey: .customBitrateEnabled) ?? false
+        swapABXYButtons = try container.decodeIfPresent(Bool.self, forKey: .swapABXYButtons) ?? false
+        playAudioOnPC = try container.decodeIfPresent(Bool.self, forKey: .playAudioOnPC) ?? false
+        bluetoothMouseEnabled = try container.decodeIfPresent(Bool.self, forKey: .bluetoothMouseEnabled) ?? false
+        optimizeGameSettings = try container.decodeIfPresent(Bool.self, forKey: .optimizeGameSettings) ?? false
     }
 
     public var readableValue: String {
@@ -177,6 +194,10 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("hdr=\(hdrEnabled)")
         parts.append("framePacing=\(framePacing)")
         parts.append("customBitrate=\(customBitrateEnabled)")
+        parts.append("swapABXY=\(swapABXYButtons)")
+        parts.append("audioOnPC=\(playAudioOnPC)")
+        parts.append("bluetoothMouse=\(bluetoothMouseEnabled)")
+        parts.append("optimizeGameSettings=\(optimizeGameSettings)")
         return parts.joined(separator: ";")
     }
 }
