@@ -462,8 +462,6 @@ public struct WindowPlaybackControls: View {
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
-    var streaming: Bool = false
-    var streamDetail: String?
 
     public var body: some View {
         FusedPlayerPanel(
@@ -471,9 +469,7 @@ public struct WindowPlaybackControls: View {
             onInteraction: onInteraction,
             surface: .windowOrnament,
             initialExpansion: initialExpansion,
-            controlsVisible: controlsVisible,
-            streaming: streaming,
-            streamDetail: streamDetail
+            controlsVisible: controlsVisible
         )
     }
 
@@ -481,16 +477,12 @@ public struct WindowPlaybackControls: View {
         live: FusedPlayerPanelLive,
         onInteraction: @escaping () -> Void = {},
         initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
-        controlsVisible: Bool = true,
-        streaming: Bool = false,
-        streamDetail: String? = nil
+        controlsVisible: Bool = true
     ) {
         self.live = live
         self.onInteraction = onInteraction
         self.initialExpansion = initialExpansion
         self.controlsVisible = controlsVisible
-        self.streaming = streaming
-        self.streamDetail = streamDetail
     }
 }
 
@@ -499,8 +491,6 @@ public struct PlayerControlDock: View {
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
-    var streaming: Bool = false
-    var streamDetail: String?
 
     public var body: some View {
         FusedPlayerPanel(
@@ -508,9 +498,7 @@ public struct PlayerControlDock: View {
             onInteraction: onInteraction,
             surface: .playerControlDock,
             initialExpansion: initialExpansion,
-            controlsVisible: controlsVisible,
-            streaming: streaming,
-            streamDetail: streamDetail
+            controlsVisible: controlsVisible
         )
     }
 
@@ -518,16 +506,72 @@ public struct PlayerControlDock: View {
         live: FusedPlayerPanelLive,
         onInteraction: @escaping () -> Void = {},
         initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
-        controlsVisible: Bool = true,
-        streaming: Bool = false,
-        streamDetail: String? = nil
+        controlsVisible: Bool = true
     ) {
         self.live = live
         self.onInteraction = onInteraction
         self.initialExpansion = initialExpansion
         self.controlsVisible = controlsVisible
-        self.streaming = streaming
-        self.streamDetail = streamDetail
+    }
+}
+
+public struct StreamingWindowPlaybackControls: View {
+    let live: FusedPlayerPanelLive
+    let information: StreamingPlaybackInformation
+    var onInteraction: () -> Void = {}
+    var controlsVisible: Bool = true
+
+    public var body: some View {
+        FusedPlayerPanel(
+            live: live,
+            onInteraction: onInteraction,
+            surface: .windowOrnament,
+            initialExpansion: .collapsed,
+            controlsVisible: controlsVisible,
+            streamingInformation: information
+        )
+    }
+
+    public init(
+        live: FusedPlayerPanelLive,
+        information: StreamingPlaybackInformation,
+        onInteraction: @escaping () -> Void = {},
+        controlsVisible: Bool = true
+    ) {
+        self.live = live
+        self.information = information
+        self.onInteraction = onInteraction
+        self.controlsVisible = controlsVisible
+    }
+}
+
+public struct StreamingDockPlaybackControls: View {
+    let live: FusedPlayerPanelLive
+    let information: StreamingPlaybackInformation
+    var onInteraction: () -> Void = {}
+    var controlsVisible: Bool = true
+
+    public var body: some View {
+        FusedPlayerPanel(
+            live: live,
+            onInteraction: onInteraction,
+            surface: .playerControlDock,
+            initialExpansion: .collapsed,
+            controlsVisible: controlsVisible,
+            streamingInformation: information
+        )
+    }
+
+    public init(
+        live: FusedPlayerPanelLive,
+        information: StreamingPlaybackInformation,
+        onInteraction: @escaping () -> Void = {},
+        controlsVisible: Bool = true
+    ) {
+        self.live = live
+        self.information = information
+        self.onInteraction = onInteraction
+        self.controlsVisible = controlsVisible
     }
 }
 
@@ -535,8 +579,7 @@ public struct FusedPlayerPanel: View {
     @Environment(\.immersivePlaybackMenu) private var playbackMenu
     var live: FusedPlayerPanelLive?
     var onInteraction: () -> Void = {}
-    var streaming: Bool = false
-    var streamDetail: String?
+    var streamingInformation: StreamingPlaybackInformation?
     private let surface: PlaybackControlPanelSurface
 
     public init(
@@ -544,8 +587,7 @@ public struct FusedPlayerPanel: View {
         onInteraction: @escaping () -> Void = {},
         initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
         controlsVisible: Bool = true,
-        streaming: Bool = false,
-        streamDetail: String? = nil
+        streamingInformation: StreamingPlaybackInformation? = nil
     ) {
         let presentation = live?.presentation ?? .window
         let resolvedSurface: PlaybackControlPanelSurface = (
@@ -555,8 +597,7 @@ public struct FusedPlayerPanel: View {
         )
         self.live = live
         self.onInteraction = onInteraction
-        self.streaming = streaming
-        self.streamDetail = streamDetail
+        self.streamingInformation = streamingInformation
         self.surface = resolvedSurface
         self.controlsVisible = controlsVisible
         _expansion = State(
@@ -585,13 +626,11 @@ public struct FusedPlayerPanel: View {
         surface: PlaybackControlPanelSurface,
         initialExpansion: PlaybackPanelExpansion.Layout,
         controlsVisible: Bool = true,
-        streaming: Bool = false,
-        streamDetail: String? = nil
+        streamingInformation: StreamingPlaybackInformation? = nil
     ) {
         self.live = live
         self.onInteraction = onInteraction
-        self.streaming = streaming
-        self.streamDetail = streamDetail
+        self.streamingInformation = streamingInformation
         self.surface = surface
         self.controlsVisible = controlsVisible
         _expansion = State(
@@ -836,20 +875,73 @@ public struct FusedPlayerPanel: View {
         case .mediaInformation:
             expandedMediaInformation
         case .timeline:
-            timelineLayout
+            if streamingInformation != nil {
+                streamingContent
+            } else {
+                timelineLayout
+            }
         case .settings:
-            switch surface {
-            case .windowOrnament:
-                windowOrnamentContent
-            case .playerControlDock:
-                dockSettingsLayout
+            if streamingInformation != nil {
+                if surface == .playerControlDock {
+                    dockSettingsLayout
+                } else {
+                    streamingContent
+                }
+            } else {
+                switch surface {
+                case .windowOrnament:
+                    windowOrnamentContent
+                case .playerControlDock:
+                    dockSettingsLayout
+                }
             }
         case .collapsed:
-            switch surface {
-            case .windowOrnament:
-                windowOrnamentContent
-            case .playerControlDock:
-                playerControlDockContent
+            if streamingInformation != nil {
+                streamingContent
+            } else {
+                switch surface {
+                case .windowOrnament:
+                    windowOrnamentContent
+                case .playerControlDock:
+                    playerControlDockContent
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var streamingContent: some View {
+        switch surface {
+        case .windowOrnament:
+            streamingWindowContent
+        case .playerControlDock:
+            streamingDockContent
+        }
+    }
+
+    private var streamingWindowContent: some View {
+        mediaInformationWell(width: clusterWidth)
+    }
+
+    private var streamingDockContent: some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            mediaInformationWell(width: clusterWidth)
+            if let live {
+                HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                    if PlaybackPanelSettingsPolicy.settingsAreAvailable(
+                        for: live.presentation
+                    ) {
+                        CircleIconButton.settings(
+                            isExpanded: expansion.isShowing(.settings),
+                            accessibilityLabel: expansion.isShowing(.settings) ? "Close Advanced Settings" : "Open Advanced Settings",
+                            action: toggleSettings,
+                            accessibilityIdentifier: "PlayerPanel-button-settings"
+                        )
+                    }
+                    returnToWindowButton(live)
+                    Spacer(minLength: 0)
+                }
+                .frame(width: clusterWidth, height: DesignTokens.Interactive.large)
             }
         }
     }
@@ -859,7 +951,7 @@ public struct FusedPlayerPanel: View {
             mediaInformationWell(width: clusterWidth)
 
             HStack(spacing: DesignTokens.Spacing.sm) {
-                if streaming == false { windowTransportControls }
+                windowTransportControls
                 progressBar(width: windowProgressBarWidth)
             }
         }
@@ -868,7 +960,7 @@ public struct FusedPlayerPanel: View {
     private var playerControlDockContent: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             mediaInformationWell(width: clusterWidth)
-            if streaming == false { playerControlDockControls }
+            playerControlDockControls
             progressBar(width: clusterWidth)
         }
     }
@@ -891,7 +983,7 @@ public struct FusedPlayerPanel: View {
                 )
                 .keyboardShortcut(.escape, modifiers: [])
                 .padding(.trailing, DesignTokens.Spacing.xxxl - DesignTokens.ControlBar.buttonSpacing)
-                if streaming == false { windowTransportControls }
+                windowTransportControls
                 PrecisionTimelineZoomSlider(
                     pixelsPerSecond: $pixelsPerSecond,
                     duration: timelineDuration,
@@ -1153,7 +1245,7 @@ public struct FusedPlayerPanel: View {
         let shape = DesignTokens.ShapeToken.element
         return ZStack {
             let titleRow = HStack(spacing: DesignTokens.Spacing.sm) {
-                Text(streamDetail ?? live?.mediaName ?? "Unknown")
+                Text(mediaInformationTitle)
                     .font(DesignTokens.Typography.headline)
                     .lineLimit(1)
                     .truncationMode(.middle)
@@ -1165,7 +1257,9 @@ public struct FusedPlayerPanel: View {
             }
             .padding(.horizontal, DesignTokens.Spacing.xl)
 
-            if revealSize == nil {
+            if streamingInformation != nil {
+                titleRow
+            } else if revealSize == nil {
                 titleRow
                     .enchronHoverOffset(
                         activeY: -DesignTokens.Spacing.sm,
@@ -1179,13 +1273,15 @@ public struct FusedPlayerPanel: View {
             }
 
             let metadataRow = PlaybackMediaMetadataRow(
-                spatialMetadataLabel: spatialMetadataLabel,
-                technicalMetadataLabel: technicalMetadataLabel
+                spatialMetadataLabel: leadingMetadataLabel,
+                technicalMetadataLabel: trailingMetadataLabel
             )
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, DesignTokens.Spacing.sm)
 
-            if revealSize == nil {
+            if streamingInformation != nil {
+                metadataRow
+            } else if revealSize == nil {
                 metadataRow
                     .enchronHoverOffset(
                         activeY: 0,
@@ -1225,26 +1321,108 @@ public struct FusedPlayerPanel: View {
             toggleMediaInformation()
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(live?.mediaName ?? "Unknown media")
+        .accessibilityLabel(mediaInformationAccessibilityLabel)
         .accessibilityValue(mediaInformationAccessibilityValue)
         .accessibilityIdentifier("PlayerPanel-media-information")
     }
 
     private var persistentCapabilities: [UnmetCapability] {
-        (live?.unmetCapabilities ?? []).filter { $0.preventsPlayback == false }
+        guard streamingInformation == nil else { return [] }
+        return (live?.unmetCapabilities ?? []).filter { $0.preventsPlayback == false }
+    }
+
+    private var mediaInformationTitle: String {
+        streamingInformation?.title ?? live?.mediaName ?? "Unknown"
+    }
+
+    private var mediaInformationAccessibilityLabel: String {
+        streamingInformation?.title ?? live?.mediaName ?? "Unknown media"
+    }
+
+    private var leadingMetadataLabel: String {
+        streamingInformation?.leadingLabel ?? spatialMetadataLabel
+    }
+
+    private var trailingMetadataLabel: String {
+        streamingInformation?.trailingLabel ?? technicalMetadataLabel
     }
 
     private var mediaInformationIsExpandable: Bool {
-        live != nil
+        streamingInformation != nil || live != nil
     }
 
     private var mediaInformationAccessibilityValue: String {
+        if let streamingInformation {
+            return streamingInformation.accessibilityValue
+        }
         var parts = ["\(spatialMetadataLabel), \(technicalMetadataLabel)"]
         parts.append(contentsOf: persistentCapabilities.map(\.summary))
         return parts.joined(separator: ". ")
     }
 
+    @ViewBuilder
     private var expandedMediaInformation: some View {
+        if let streamingInformation {
+            expandedStreamingInformation(streamingInformation)
+        } else {
+            expandedPlaybackInformation
+        }
+    }
+
+    private func expandedStreamingInformation(
+        _ information: StreamingPlaybackInformation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            CircleIconButton.back(
+                accessibilityLabel: String(localized: "Back"),
+                action: toggleMediaInformation,
+                accessibilityIdentifier: "PlayerPanel-media-information-close"
+            )
+            .keyboardShortcut(.escape, modifiers: [])
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                    Text(information.title)
+                        .font(DesignTokens.Typography.title)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(information.trailingLabel)
+                        .font(DesignTokens.Typography.metadata.monospacedDigit())
+                        .foregroundStyle(.secondary)
+
+                    ForEach(information.details) { detail in
+                        HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.md) {
+                            Text(detail.title)
+                                .foregroundStyle(.secondary)
+                            Text(detail.value)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .font(DesignTokens.Typography.metadata.monospacedDigit())
+                        .accessibilityIdentifier(
+                            "PlayerPanel-media-information-\(detail.id)"
+                        )
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .padding(.bottom, DesignTokens.Spacing.xl)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(
+                minHeight: DesignTokens.Layout.expandedMediaInformationMinimumHeight
+                    - DesignTokens.Interactive.large
+                    - DesignTokens.Spacing.sm,
+                maxHeight: DesignTokens.Layout.expandedMediaInformationMaximumHeight
+                    - DesignTokens.Interactive.large
+                    - DesignTokens.Spacing.sm
+            )
+        }
+        .frame(width: clusterWidth)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-media-information-expanded")
+    }
+
+    private var expandedPlaybackInformation: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             CircleIconButton.back(
                 accessibilityLabel: String(localized: "Back"),

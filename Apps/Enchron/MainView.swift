@@ -388,13 +388,6 @@ public struct MainView: View {
     /// Keeps the player window's session in step with the streaming session. The
     /// runtime holds the renderer, the presentation and the window while a
     /// stream runs; the stream's own model keeps decoding, pacing and input.
-    private static func streamSummary(for session: SessionSnapshot) -> String {
-        let options = session.requested
-        let size = "\(options.streamWidth)×\(options.streamHeight)"
-        return [size, "\(options.frameRate)fps", "\(options.bitrateKbps / 1000)Mbps", options.codec.label]
-            .joined(separator: "  ")
-    }
-
     private func syncExternallyDrivenSession() {
         guard let session = streamingModel.session else {
             guard playbackRuntime.externalVideoSessionID != nil else { return }
@@ -411,7 +404,6 @@ public struct MainView: View {
             playbackRuntime.beginExternalVideoLoading(
                 sessionID: session.id.rawValue
             )
-            playbackRuntime.setExternalVideoSummary(Self.streamSummary(for: session))
             return
         }
         do {
@@ -419,7 +411,6 @@ public struct MainView: View {
                 sessionID: binding.sessionID.rawValue,
                 renderer: binding.videoRenderer
             )
-            playbackRuntime.setExternalVideoSummary(Self.streamSummary(for: session))
         } catch {
             logger.error(
                 "stream session refused by the playback runtime session=\(session.id.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"

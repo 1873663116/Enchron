@@ -38,6 +38,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var recoveringFromRendererFailure = false
     private var lastReportedQueueDepth = 0
     private var lastSampledPresentedCount: Int64 = 0
+    private var lastSampledVideoBytes: Int64 = 0
     private var flushingRenderer = false
     private var videoDeliveryStartedAt: Date?
     private var surfaceBindingRevision: Int?
@@ -68,6 +69,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var audioFramesDropped: Int64 = 0
         var framesAwaitingSurface: Int64 = 0
         var framesEnqueuedWithoutSurface: Int64 = 0
+        var videoBytes: Int64 = 0
         var mouseEvents: Int64 = 0
         var scrollEvents: Int64 = 0
         var keyboardEvents: Int64 = 0
@@ -260,6 +262,12 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     private func handleVideoSample(_ sample: CMSampleBuffer) {
+        let sampleBytes = CMSampleBufferGetDataBuffer(sample).map {
+            Int64(CMBlockBufferGetDataLength($0))
+        } ?? Int64(CMSampleBufferGetTotalSampleSize(sample))
+        stateLock.withLock {
+            counters.videoBytes &+= max(0, sampleBytes)
+        }
         guard videoSampleDeliveryIsOpen else {
             noteFrameAwaitingSurface()
             return
@@ -873,6 +881,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let presentedNow = stateLock.withLock { counters.presented }
         let deliveredThisSample = presentedNow - lastSampledPresentedCount
         lastSampledPresentedCount = presentedNow
+        let bytesNow = stateLock.withLock { counters.videoBytes }
+        let bytesThisSample = max(0, bytesNow - lastSampledVideoBytes)
+        lastSampledVideoBytes = bytesNow
+        let measuredBitrateKbps = bytesThisSample * 8 / 1000
         StreamSessionProbes.record(
             "video pump delivered=\(deliveredThisSample)"
                 + " total=\(presentedNow)"
@@ -894,6 +906,14 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             }
             snapshotStorage.diagnostics.decodeRecoveries = counters.decodeRecoveries
             snapshotStorage.diagnostics.idrRequests = counters.idrRequests
+            if counters.videoBytes > 0 {
+                snapshotStorage.diagnostics.measuredBitrateKbps = Int(
+                    measuredBitrateKbps
+                )
+                snapshotStorage.diagnostics.presentedFramesPerSecond = Int(
+                    deliveredThisSample
+                )
+            }
             snapshotStorage.diagnostics.audioFramesReceived = counters.audioFramesReceived
             snapshotStorage.diagnostics.audioFramesEnqueued = counters.audioFramesEnqueued
             snapshotStorage.diagnostics.audioFramesDropped = counters.audioFramesDropped

@@ -15,6 +15,7 @@ public final class StreamingModel {
     public private(set) var discoveredHosts: [DiscoveredHost] = []
     public private(set) var isDiscovering = false
     public private(set) var session: SessionSnapshot?
+    public var onSessionChanged: ((SessionSnapshot?) -> Void)?
     public private(set) var renderBinding: StreamRenderBinding?
     public private(set) var artworkCache: [String: URL] = [:]
 
@@ -441,20 +442,22 @@ public final class StreamingModel {
         )
 
         let sessionID = SessionID()
-        session = SessionSnapshot(
-            id: sessionID,
-            hostID: hostID,
-            appID: resolvedAppID,
-            hostName: stored.name,
-            appName: resolvedAppName,
-            state: .connecting(stage: "starting"),
-            requested: settings,
-            negotiated: nil,
-            input: StreamInputDiagnostics(),
-            diagnostics: StreamDiagnostics(),
-            failure: nil,
-            adjustments: [],
-            hdrModeReported: false
+        setSession(
+            SessionSnapshot(
+                id: sessionID,
+                hostID: hostID,
+                appID: resolvedAppID,
+                hostName: stored.name,
+                appName: resolvedAppName,
+                state: .connecting(stage: "starting"),
+                requested: settings,
+                negotiated: nil,
+                input: StreamInputDiagnostics(),
+                diagnostics: StreamDiagnostics(),
+                failure: nil,
+                adjustments: [],
+                hdrModeReported: false
+            )
         )
 
         do {
@@ -472,7 +475,7 @@ public final class StreamingModel {
             )
             self.coordinator = coordinator
             teardownRequested = false
-            session = coordinator.snapshot
+            setSession(coordinator.snapshot)
             renderBinding = coordinator.binding
             failures[hostID] = nil
             coordinator.onSnapshot = { [weak self] snapshot in
@@ -488,7 +491,7 @@ public final class StreamingModel {
             coordinator.start()
         } catch let failure as StreamFailure {
             failures[hostID] = failure
-            session = nil
+            setSession(nil)
             startHostQuit(hostID: hostID)
             StreamSessionProbes.record(
                 "session start failed host=\(hostID.rawValue)"
@@ -501,7 +504,7 @@ public final class StreamingModel {
             )
             throw failure
         } catch {
-            session = nil
+            setSession(nil)
             let failure = StreamFailure(
                 stage: .launch,
                 kind: .unknown,
@@ -523,9 +526,14 @@ public final class StreamingModel {
         }
     }
 
+    private func setSession(_ snapshot: SessionSnapshot?) {
+        session = snapshot
+        onSessionChanged?(snapshot)
+    }
+
     private func applySessionSnapshot(_ snapshot: SessionSnapshot) {
         guard coordinator?.sessionID == snapshot.id else { return }
-        session = snapshot
+        setSession(snapshot)
         if case .ended = snapshot.state {
             if teardownRequested {
                 finishSessionDismissal()
@@ -545,7 +553,7 @@ public final class StreamingModel {
         teardownRequested = true
         let coordinator = self.coordinator
         self.coordinator = nil
-        session = nil
+        setSession(nil)
         renderBinding = nil
         teardownRequested = false
         Task {
@@ -654,7 +662,7 @@ public final class StreamingModel {
 
     private func finishSessionDismissal() {
         coordinator = nil
-        session = nil
+        setSession(nil)
         renderBinding = nil
         teardownRequested = false
     }

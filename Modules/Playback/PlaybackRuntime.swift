@@ -168,10 +168,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public var isStreamingPlayback: Bool { externalVideoSessionID != nil }
 
-    public private(set) var externalVideoSummary: String?
+    public private(set) var externalVideoInformation: StreamingPlaybackInformation?
 
-    public func setExternalVideoSummary(_ summary: String?) {
-        externalVideoSummary = summary
+    public func setExternalVideoInformation(
+        _ information: StreamingPlaybackInformation?
+    ) {
+        externalVideoInformation = information
     }
     public var externalVideoSessionDidEnd: (() -> Void)?
     /// Rebuilds the renderer graph of an externally driven session for a
@@ -653,6 +655,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func teardownExternalVideoSession() {
         generation += 1
         externalVideoSessionID = nil
+        externalVideoInformation = nil
         detach()
         rendererTransferCoordinator.releaseExternallyDrivenActive()
         clearPresentation()

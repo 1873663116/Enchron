@@ -46,6 +46,7 @@ $(SRCROOT)/Modules/GameStreaming/Domain/StreamIdentity.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSessionState.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSettings.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingModel.swift
+$(SRCROOT)/Modules/GameStreaming/Model/StreamingPlaybackInformation+Session.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamRenderBinding.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionCoordinator.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionProbes.swift
@@ -141,6 +142,7 @@ $(SRCROOT)/Modules/Playback/Model/PlaybackResidency.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackState.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackSurfacePlacement.swift
 $(SRCROOT)/Modules/Playback/Model/SpatialPlaybackSurfaceSettlementPolicy.swift
+$(SRCROOT)/Modules/Playback/Model/StreamingPlaybackInformation.swift
 $(SRCROOT)/Modules/Playback/Model/UnmetCapability.swift
 $(SRCROOT)/Modules/Playback/Model/WindowPlaybackPageGeometry.swift
 $(SRCROOT)/Modules/Playback/Platform/PlaybackDisplayCriteria.swift

@@ -159,6 +159,8 @@ public struct StreamDiagnostics: Sendable, Equatable {
     public var decodeRecoveries: Int64 = 0
     public var idrRequests: Int64 = 0
     public var queueDepth: Int = 0
+    public var measuredBitrateKbps: Int? = nil
+    public var presentedFramesPerSecond: Int? = nil
     public var estimatedRttMs: Int? = nil
     public var estimatedRttVarianceMs: Int? = nil
     public var hostAudioPlaying: Bool = false

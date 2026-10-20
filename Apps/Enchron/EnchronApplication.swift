@@ -588,6 +588,11 @@ final class EnchronApplication {
         self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator
         self.streamingModel = StreamingModel(backend: MoonlightStreamingBackend.shared)
+        self.streamingModel.onSessionChanged = { [weak playbackRuntime] session in
+            playbackRuntime?.setExternalVideoInformation(
+                session?.streamingPlaybackInformation
+            )
+        }
         #if DEBUG
             playbackSessionModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
                 playbackRuntime?.debugCapturePlaybackSwitchRendererState()

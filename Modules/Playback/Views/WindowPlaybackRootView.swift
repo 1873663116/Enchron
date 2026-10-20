@@ -283,34 +283,6 @@ public struct WindowPlaybackTopChrome<
     }
 }
 
-public struct WindowPlaybackStatusBar: View {
-    private let text: String
-
-    public init(text: String) {
-        self.text = text
-    }
-
-    public var body: some View {
-        Text(text)
-            .font(DesignTokens.Typography.monospacedDetail)
-            .foregroundStyle(DesignTokens.Surface.supportingText)
-            .lineLimit(1)
-            .padding(.horizontal, DesignTokens.Spacing.md)
-            .padding(.vertical, DesignTokens.Spacing.xs)
-            .background(.regularMaterial, in: Capsule())
-            .overlay {
-                Capsule().stroke(
-                    DesignTokens.Surface.chromeBorder,
-                    lineWidth: DesignTokens.Stroke.subtle
-                )
-            }
-            .allowsHitTesting(false)
-            .accessibilityIdentifier("Stream-Session-statusBar")
-            .accessibilityValue(text)
-            .zIndex(1)
-    }
-}
-
 struct WindowPlaybackSpatialActions<
     DockControl: View,
     FormatControl: View
