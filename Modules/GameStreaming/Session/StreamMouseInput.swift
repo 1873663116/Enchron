@@ -15,80 +15,73 @@ public struct StreamScrollAccumulator: Equatable, Sendable {
     }
 }
 
-public final class StreamMouseInput: @unchecked Sendable {
+/// GameController delivers mouse callbacks on the main queue. The window gesture
+/// path keeps movement and the primary click, so this owner forwards only the
+/// scroll wheel and the secondary buttons that path cannot carry.
+public final class StreamMouseInput: NSObject {
     private static let middleButtonCode: Int32 = 0x02
     private static let rightButtonCode: Int32 = 0x03
 
-    private var observers: [NSObjectProtocol] = []
     private var mouse: GCMouse?
     private var accumulator = StreamScrollAccumulator()
     private var onScrollClicks: (@Sendable (Int32) -> Void)?
     private var onButton: (@Sendable (Int32, Bool) -> Void)?
 
-    public init() {}
+    public override init() {
+        super.init()
+    }
 
     public func start(
         onScrollClicks: @escaping @Sendable (Int32) -> Void,
         onButton: @escaping @Sendable (Int32, Bool) -> Void
     ) {
+        stop()
         self.onScrollClicks = onScrollClicks
         self.onButton = onButton
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.installObservers()
-            if let mouse = GCMouse.mice().first {
-                self.attach(mouse)
-            }
-        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(mouseDidConnect(_:)),
+            name: .GCMouseDidConnect,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(mouseDidDisconnect(_:)),
+            name: .GCMouseDidDisconnect,
+            object: nil
+        )
+        attachCurrentMouse()
     }
 
     public func stop() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.removeObservers()
-            self.detach()
-            self.onScrollClicks = nil
-            self.onButton = nil
-        }
+        NotificationCenter.default.removeObserver(self, name: .GCMouseDidConnect, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .GCMouseDidDisconnect, object: nil)
+        detach()
+        onScrollClicks = nil
+        onButton = nil
     }
 
-    private func installObservers() {
-        guard observers.isEmpty else { return }
-        let center = NotificationCenter.default
-        observers = [
-            center.addObserver(
-                forName: .GCMouseDidConnect,
-                object: nil,
-                queue: .main
-            ) { [weak self] note in
-                guard let self, let mouse = note.object as? GCMouse else { return }
-                self.attach(mouse)
-            },
-            center.addObserver(
-                forName: .GCMouseDidDisconnect,
-                object: nil,
-                queue: .main
-            ) { [weak self] note in
-                guard let self, let mouse = note.object as? GCMouse else { return }
-                if self.mouse === mouse {
-                    self.detach()
-                }
-            }
-        ]
+    @objc private func mouseDidConnect(_ notification: Notification) {
+        guard mouse == nil, let connected = notification.object as? GCMouse else { return }
+        attach(connected)
     }
 
-    private func removeObservers() {
-        let center = NotificationCenter.default
-        observers.forEach(center.removeObserver)
-        observers.removeAll()
+    @objc private func mouseDidDisconnect(_ notification: Notification) {
+        guard let departing = notification.object as? GCMouse, departing === mouse else { return }
+        detach()
+        attachCurrentMouse()
     }
 
-    private func attach(_ mouse: GCMouse) {
-        guard self.mouse == nil else { return }
-        guard let input = mouse.mouseInput else {
+    private func attachCurrentMouse() {
+        guard mouse == nil, let candidate = GCMouse.mice().first(where: { $0.mouseInput != nil }) else {
             return
         }
-        self.mouse = mouse
+        attach(candidate)
+    }
+
+    private func attach(_ candidate: GCMouse) {
+        guard let input = candidate.mouseInput else { return }
+        mouse = candidate
         accumulator = StreamScrollAccumulator()
         input.scroll.valueChangedHandler = { [weak self] _, _, yValue in
             self?.handleScroll(yValue)

@@ -102,13 +102,16 @@ public enum StreamGamepadMapping {
     }
 }
 
-public final class StreamGamepadInput: @unchecked Sendable {
-    private var observers: [NSObjectProtocol] = []
+/// GameController delivers input and connection callbacks on the main queue, so
+/// start and stop are main-thread calls and this owner needs no cross-thread lock.
+public final class StreamGamepadInput: NSObject {
     private var controller: GCController?
     private var onState: (@Sendable (StreamGamepadState) -> Void)?
     private var onPresence: (@Sendable (Bool) -> Void)?
 
-    public init() {}
+    public override init() {
+        super.init()
+    }
 
     public static func connectedMask() -> Int {
         GCController.controllers().contains { $0.extendedGamepad != nil } ? 1 : 0
@@ -118,75 +121,69 @@ public final class StreamGamepadInput: @unchecked Sendable {
         onState: @escaping @Sendable (StreamGamepadState) -> Void,
         onPresence: @escaping @Sendable (Bool) -> Void
     ) {
+        stop()
         self.onState = onState
         self.onPresence = onPresence
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.installObservers()
-            self.attachCurrentController(reportPresence: true)
-        }
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(controllerDidConnect(_:)),
+            name: .GCControllerDidConnect,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(controllerDidDisconnect(_:)),
+            name: .GCControllerDidDisconnect,
+            object: nil
+        )
+        attachCurrentController(reportPresence: true)
     }
 
     public func stop() {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.removeObservers()
-            self.detachController(reportPresence: false)
-            self.onState = nil
-            self.onPresence = nil
-        }
+        NotificationCenter.default.removeObserver(self, name: .GCControllerDidConnect, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .GCControllerDidDisconnect, object: nil)
+        detachController(reportPresence: false)
+        onState = nil
+        onPresence = nil
     }
 
-    private func installObservers() {
-        guard observers.isEmpty else { return }
-        let center = NotificationCenter.default
-        observers = [
-            center.addObserver(
-                forName: .GCControllerDidConnect,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                self?.attachCurrentController(reportPresence: true)
-            },
-            center.addObserver(
-                forName: .GCControllerDidDisconnect,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                self?.detachController(reportPresence: true)
-                self?.attachCurrentController(reportPresence: true)
-            }
-        ]
+    @objc private func controllerDidConnect(_ notification: Notification) {
+        guard controller == nil, let connected = notification.object as? GCController else { return }
+        attach(connected, reportPresence: true)
     }
 
-    private func removeObservers() {
-        let center = NotificationCenter.default
-        observers.forEach(center.removeObserver)
-        observers.removeAll()
+    @objc private func controllerDidDisconnect(_ notification: Notification) {
+        guard let departing = notification.object as? GCController,
+              departing === controller else { return }
+        detachController(reportPresence: true)
+        attachCurrentController(reportPresence: true)
     }
 
     private func attachCurrentController(reportPresence: Bool) {
-        guard controller == nil else { return }
-        guard let candidate = GCController.controllers().first(where: { $0.extendedGamepad != nil }) else {
-            return
-        }
+        guard controller == nil,
+              let candidate = GCController.controllers().first(where: { $0.extendedGamepad != nil })
+        else { return }
+        attach(candidate, reportPresence: reportPresence)
+    }
+
+    private func attach(_ candidate: GCController, reportPresence: Bool) {
+        guard let gamepad = candidate.extendedGamepad else { return }
         candidate.playerIndex = .index1
         controller = candidate
-        candidate.extendedGamepad?.valueChangedHandler = { [weak self] gamepad, _ in
+        gamepad.valueChangedHandler = { [weak self] gamepad, _ in
             self?.emit(gamepad)
         }
         if reportPresence {
             onPresence?(true)
         }
-        emit(candidate.extendedGamepad)
+        emit(gamepad)
     }
 
     private func detachController(reportPresence: Bool) {
-        if let controller {
-            controller.extendedGamepad?.valueChangedHandler = nil
-            controller.playerIndex = .indexUnset
-        }
-        controller = nil
+        guard let controller else { return }
+        controller.extendedGamepad?.valueChangedHandler = nil
+        controller.playerIndex = .indexUnset
+        self.controller = nil
         if reportPresence {
             onPresence?(false)
             onState?(.neutral)
@@ -229,6 +226,6 @@ public final class StreamGamepadInput: @unchecked Sendable {
     }
 
     private static func axisValue(_ value: Float) -> Int16 {
-        Int16(clamping: Int((value * 32767).rounded()))
+        Int16(clamping: Int((value * 32_767).rounded()))
     }
 }
