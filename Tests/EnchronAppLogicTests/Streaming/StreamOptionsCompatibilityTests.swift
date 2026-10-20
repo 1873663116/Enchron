@@ -23,6 +23,17 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         XCTAssertFalse(options.optimizeGameSettings)
     }
 
+    func testCustomResolutionDrivesTheStreamDimensions() {
+        var options = StreamOptions()
+        options.resolution = .custom
+        options.customWidth = 1600
+        options.customHeight = 900
+
+        XCTAssertEqual(options.streamWidth, 1600)
+        XCTAssertEqual(options.streamHeight, 900)
+        XCTAssertTrue(options.readableValue.hasPrefix("resolution=1600x900;"), options.readableValue)
+    }
+
     func testRoundTripKeepsTheNewPreferences() throws {
         var options = StreamOptions()
         options.swapABXYButtons = true
