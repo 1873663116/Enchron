@@ -18,6 +18,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var snapshotStorage: SessionSnapshot
     private var sessionEndRecorded = false
     private var deliverQueue = DispatchQueue(label: "app.enchron.stream-session.deliver")
+    private let audioSessionQueryQueue = DispatchQueue(label: "app.enchron.stream-session.audio-session")
+    private let audioSessionCacheLock = NSLock()
+    private var audioSessionCache: (volume: Float, channels: Int, route: String, category: String) =
+        (1, 2, "none", "playback")
     private var diagnosticsTimer: DispatchSourceTimer?
 
     public var onSnapshot: (@Sendable (SessionSnapshot) -> Void)?
@@ -30,6 +34,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var audioSink: AVSampleBufferAudioRendererInputSink
     private var pumpTimer: DispatchSourceTimer?
     private var pumpActive = false
+    private var lastPumpTickNanoseconds: UInt64 = 0
+    private var maxPumpGapMilliseconds: Double = 0
     private var renderingEventObservationActive = false
     private var graphVersion = 1
 
@@ -38,7 +44,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var recoveringFromRendererFailure = false
     private var lastReportedQueueDepth = 0
     private var lastSampledPresentedCount: Int64 = 0
+    private var lastSampledVideoOutcomes: (warnings: Int64, flush: Int64, requiresFlush: Int64, failed: Int64, decodeWarnings: Int64) = (0, 0, 0, 0, 0)
+    private var lastSampledAudioOutcomes: (warnings: Int64, flushDrops: Int64, failed: Int64, autoFlush: Int64, config: Int64, short: Int64, long: Int64, other: Int64) = (0, 0, 0, 0, 0, 0, 0, 0)
     private var flushingRenderer = false
+    private var lastCancelledByFlushIdrAt = Date.distantPast
     private var videoDeliveryStartedAt: Date?
     private var surfaceBindingRevision: Int?
     private var surfaceHasBound = false
@@ -76,6 +85,20 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var audioFramesDropped: Int64 = 0
         var framesAwaitingSurface: Int64 = 0
         var framesEnqueuedWithoutSurface: Int64 = 0
+        var videoEnqueueWarnings: Int64 = 0
+        var videoEnqueueCancelledByFlush: Int64 = 0
+        var videoEnqueueRequiresFlush: Int64 = 0
+        var videoEnqueueFailed: Int64 = 0
+        var videoDecodeWarnings: Int64 = 0
+        var audioEnqueueWarnings: Int64 = 0
+        var audioEnqueueCancelledByFlush: Int64 = 0
+        var audioEnqueueFailed: Int64 = 0
+        var audioFlushEvents: Int64 = 0
+        var audioOutputConfigurationEvents: Int64 = 0
+        var audioFailureEvents: Int64 = 0
+        var audioFramesShort: Int64 = 0
+        var audioFramesLong: Int64 = 0
+        var audioFramesOther: Int64 = 0
         var mouseEvents: Int64 = 0
         var scrollEvents: Int64 = 0
         var keyboardEvents: Int64 = 0
@@ -326,6 +349,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             guard let self, !self.pumpActive else { return }
             self.pumpActive = true
             let timer = DispatchSource.makeTimerSource(queue: self.deliverQueue)
+            self.lastPumpTickNanoseconds = 0
             timer.schedule(
                 deadline: .now() + .milliseconds(4),
                 repeating: .milliseconds(4),
@@ -333,6 +357,14 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             )
             timer.setEventHandler { [weak self] in
                 guard let self else { return }
+                let now = DispatchTime.now().uptimeNanoseconds
+                if self.lastPumpTickNanoseconds != 0 {
+                    let gapMs = Double(now - self.lastPumpTickNanoseconds) / 1_000_000
+                    if gapMs > self.maxPumpGapMilliseconds {
+                        self.maxPumpGapMilliseconds = gapMs
+                    }
+                }
+                self.lastPumpTickNanoseconds = now
                 let empty = self.videoQueueLock.withLock { self.pendingVideo.isEmpty }
                 if empty {
                     self.pumpTimer?.cancel()
@@ -359,11 +391,46 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         guard !renderingEventObservationActive else { return }
         renderingEventObservationActive = true
         videoSink.observeRenderingEventsAfterFinishedEnqueuing { [weak self] fact in
+            guard let self else { return }
             switch fact {
             case .failure:
-                self?.recoverFromRendererFailure(reason: "renderer failure event")
-            case .warning:
-                break
+                self.recoverFromRendererFailure(reason: "renderer failure event")
+            case .warning(_, let message):
+                let count: Int64 = self.stateLock.withLock {
+                    self.counters.videoDecodeWarnings += 1
+                    return self.counters.videoDecodeWarnings
+                }
+                if count <= 5 || count % 100 == 0 {
+                    StreamSessionProbes.record(
+                        "video decode warning session=\(self.sessionID.rawValue)"
+                            + " count=\(count) message=\(message)",
+                        retention: .evidence
+                    )
+                }
+            }
+        }
+        audioSink.observeRenderingEventsAfterFinishedEnqueuing { [weak self] fact in
+            guard let self else { return }
+            switch fact {
+            case .warning(_, let message):
+                let counts: (flush: Int64, config: Int64) = self.stateLock.withLock {
+                    if message.contains("configuration") {
+                        self.counters.audioOutputConfigurationEvents += 1
+                    } else {
+                        self.counters.audioFlushEvents += 1
+                        self.nextAudioPTS = .invalid
+                    }
+                    return (self.counters.audioFlushEvents, self.counters.audioOutputConfigurationEvents)
+                }
+                if counts.flush + counts.config <= 8 || (counts.flush + counts.config) % 100 == 0 {
+                    StreamSessionProbes.record(
+                        "audio renderer warning session=\(self.sessionID.rawValue)"
+                            + " count=\(counts.flush + counts.config) message=\(message)",
+                        retention: .evidence
+                    )
+                }
+            case .failure:
+                self.stateLock.withLock { self.counters.audioFailureEvents += 1 }
             }
         }
     }
@@ -481,7 +548,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             }
 
             switch outcome {
-            case .accepted, .acceptedWithWarnings:
+            case .accepted:
                 videoQueueLock.withLock {
                     if !pendingVideo.isEmpty {
                         pendingVideo.removeFirst()
@@ -498,16 +565,49 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                     snapshotStorage.diagnostics.duplicatedFrames = counters.duplicatedFrames
                 }
                 reportQueueDepthIfNeeded()
+            case .acceptedWithWarnings:
+                videoQueueLock.withLock {
+                    if !pendingVideo.isEmpty {
+                        pendingVideo.removeFirst()
+                    }
+                }
+                stateLock.withLock {
+                    counters.presented += 1
+                    counters.videoEnqueueWarnings += 1
+                    counters.lastPresentedTimestampMs = head.presentationTimeUs / 1000
+                }
+                reportQueueDepthIfNeeded()
             case .cancelledByFlush:
                 videoQueueLock.withLock {
                     if !pendingVideo.isEmpty {
                         pendingVideo.removeFirst()
                     }
                 }
+                let flushDrop: (count: Int64, shouldRequestIDR: Bool) = stateLock.withLock {
+                    counters.videoEnqueueCancelledByFlush += 1
+                    let now = Date()
+                    let shouldRequest = now.timeIntervalSince(lastCancelledByFlushIdrAt) >= 0.5
+                    if shouldRequest {
+                        lastCancelledByFlushIdrAt = now
+                    }
+                    return (counters.videoEnqueueCancelledByFlush, shouldRequest)
+                }
+                if flushDrop.count <= 5 || flushDrop.count % 100 == 0 {
+                    StreamSessionProbes.record(
+                        "video enqueue cancelled by flush session=\(sessionID.rawValue)"
+                            + " count=\(flushDrop.count)",
+                        retention: .evidence
+                    )
+                }
+                if flushDrop.shouldRequestIDR {
+                    requestIdrFrame(reason: "cancelledByFlush")
+                }
             case .requiresFlush:
+                stateLock.withLock { counters.videoEnqueueRequiresFlush += 1 }
                 recoverFromFlushRequirement(reason: "enqueue outcome \(outcome)")
                 return
             case .failed:
+                stateLock.withLock { counters.videoEnqueueFailed += 1 }
                 recoverFromRendererFailure(reason: "enqueue outcome \(outcome)")
                 return
             }
@@ -619,6 +719,11 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         rearmSynchronizerIfStalled()
         let received: Int64 = stateLock.withLock {
             counters.audioFramesReceived += 1
+            switch frame.frameCount {
+            case 240: counters.audioFramesShort += 1
+            case 480: counters.audioFramesLong += 1
+            default: counters.audioFramesOther += 1
+            }
             var peak: Int32 = 0
             frame.pcm.withUnsafeBytes { raw in
                 let samples = raw.bindMemory(to: Int16.self)
@@ -676,10 +781,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             let lead = nextAudioPTS.isValid
                 ? CMTimeSubtract(nextAudioPTS, current).seconds
                 : Double.nan
-            if !nextAudioPTS.isValid || lead < -0.02 || lead > 0.4 {
+            if !nextAudioPTS.isValid || lead < -0.10 || lead > 0.60 {
                 nextAudioPTS = CMTimeAdd(
                     current,
-                    CMTimeMakeWithSeconds(0.05, preferredTimescale: 1_000_000)
+                    CMTimeMakeWithSeconds(0.15, preferredTimescale: 1_000_000)
                 )
                 if !lead.isNaN {
                     audioPTSReanchorCount += 1
@@ -735,7 +840,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         do {
             let outcome = try audioSink.enqueueImmediately(RendererInputSample(sampleBuffer: sample))
             switch outcome {
-            case .accepted, .acceptedWithWarnings:
+            case .accepted:
                 let enqueued: Int64 = stateLock.withLock {
                     counters.audioFramesEnqueued += 1
                     return counters.audioFramesEnqueued
@@ -746,11 +851,32 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                         retention: .evidence
                     )
                 }
-            default:
-                stateLock.withLock { counters.audioFramesDropped += 1 }
+            case .acceptedWithWarnings:
+                stateLock.withLock {
+                    counters.audioFramesEnqueued += 1
+                    counters.audioEnqueueWarnings += 1
+                }
+            case .cancelledByFlush:
+                stateLock.withLock {
+                    counters.audioFramesDropped += 1
+                    counters.audioEnqueueCancelledByFlush += 1
+                }
+            case .requiresFlush:
+                stateLock.withLock {
+                    counters.audioFramesDropped += 1
+                    counters.audioEnqueueFailed += 1
+                }
+            case .failed:
+                stateLock.withLock {
+                    counters.audioFramesDropped += 1
+                    counters.audioEnqueueFailed += 1
+                }
             }
         } catch {
-            stateLock.withLock { counters.audioFramesDropped += 1 }
+            stateLock.withLock {
+                counters.audioFramesDropped += 1
+                counters.audioEnqueueFailed += 1
+            }
         }
     }
 
@@ -993,7 +1119,22 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         timer.resume()
     }
 
+    private func refreshAudioSessionCache() {
+        audioSessionQueryQueue.async { [weak self] in
+            guard let self else { return }
+            let session = AVAudioSession.sharedInstance()
+            let cache: (volume: Float, channels: Int, route: String, category: String) = (
+                session.outputVolume,
+                session.outputNumberOfChannels,
+                session.currentRoute.outputs.first?.portType.rawValue ?? "none",
+                session.category.rawValue
+            )
+            self.audioSessionCacheLock.withLock { self.audioSessionCache = cache }
+        }
+    }
+
     private func sampleDiagnostics() {
+        let diagnosticStartedAt = DispatchTime.now().uptimeNanoseconds
         let stats = backend.videoStats()
         let rtt = backend.estimatedRTT()
         let pendingDepth = videoQueueLock.withLock { pendingVideo.count }
@@ -1017,10 +1158,11 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             return values
         }
         let tbRate: Double = audioRenderer.timebase.rate
-        let session = AVAudioSession.sharedInstance()
-        let outVolume: Float = session.outputVolume
-        let outChannels = session.outputNumberOfChannels
-        let routeName = session.currentRoute.outputs.first?.portType.rawValue ?? "none"
+        refreshAudioSessionCache()
+        let audioSessionInfo = audioSessionCacheLock.withLock { audioSessionCache }
+        let outVolume: Float = audioSessionInfo.volume
+        let outChannels = audioSessionInfo.channels
+        let routeName = audioSessionInfo.route
         let audioReady: Bool = audioRenderer.isReadyForMoreMediaData
         let audioStatus: Int = audioRenderer.status.rawValue
         let rendererVolume: Float = audioRenderer.volume
@@ -1042,7 +1184,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             + " volumeOut=\(outVolume)"
             + " outChannels=\(outChannels)"
             + " route=\(routeName)"
-            + " cat=\(session.category.rawValue)"
+            + " cat=\(audioSessionInfo.category)"
         StreamSessionProbes.record(audioMessage, retention: .evidence)
         StreamSessionProbes.record(
             "video pump delivered=\(deliveredThisSample)"
@@ -1050,6 +1192,84 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " pending=\(pendingDepth)"
                 + " ready=\(readyForMore)"
                 + " pacing=\(options.framePacing)",
+            retention: .evidence
+        )
+        let details = stateLock.withLock {
+            () -> (video: String, audio: String) in
+            let videoNow = (
+                counters.videoEnqueueWarnings,
+                counters.videoEnqueueCancelledByFlush,
+                counters.videoEnqueueRequiresFlush,
+                counters.videoEnqueueFailed,
+                counters.videoDecodeWarnings
+            )
+            let videoDelta = (
+                videoNow.0 - lastSampledVideoOutcomes.warnings,
+                videoNow.1 - lastSampledVideoOutcomes.flush,
+                videoNow.2 - lastSampledVideoOutcomes.requiresFlush,
+                videoNow.3 - lastSampledVideoOutcomes.failed,
+                videoNow.4 - lastSampledVideoOutcomes.decodeWarnings
+            )
+            lastSampledVideoOutcomes = videoNow
+            let audioNow = (
+                counters.audioEnqueueWarnings,
+                counters.audioEnqueueCancelledByFlush,
+                counters.audioEnqueueFailed,
+                counters.audioFlushEvents,
+                counters.audioOutputConfigurationEvents,
+                counters.audioFramesShort,
+                counters.audioFramesLong,
+                counters.audioFramesOther
+            )
+            let audioDelta = (
+                audioNow.0 - lastSampledAudioOutcomes.warnings,
+                audioNow.1 - lastSampledAudioOutcomes.flushDrops,
+                audioNow.2 - lastSampledAudioOutcomes.failed,
+                audioNow.3 - lastSampledAudioOutcomes.autoFlush,
+                audioNow.4 - lastSampledAudioOutcomes.config,
+                audioNow.5 - lastSampledAudioOutcomes.short,
+                audioNow.6 - lastSampledAudioOutcomes.long,
+                audioNow.7 - lastSampledAudioOutcomes.other
+            )
+            lastSampledAudioOutcomes = audioNow
+            let statsText: String
+            if let stats {
+                statsText = "packets=\(stats.receivedFrames)"
+                    + " totalFrames=\(stats.totalFrames)"
+                    + " netDrop=\(stats.networkDroppedFrames)"
+                    + " interval=\(stats.measuredIntervalSeconds)"
+            } else {
+                statsText = "packets=none"
+            }
+            let videoText = "video detail \(statsText)"
+                + " enqWarn=\(videoDelta.0)"
+                + " flushDrop=\(videoDelta.1)"
+                + " reqFlush=\(videoDelta.2)"
+                + " enqFail=\(videoDelta.3)"
+                + " decodeWarn=\(videoDelta.4)"
+                + " rebuilds=\(counters.decodeRecoveries)"
+                + " awaitingSurface=\(counters.framesAwaitingSurface)"
+                + " pumpGapMaxMs=\(String(format: "%.1f", maxPumpGapMilliseconds))"
+            maxPumpGapMilliseconds = 0
+            let audioText = "audio detail"
+                + " enqWarn=\(audioDelta.0)"
+                + " flushDrop=\(audioDelta.1)"
+                + " enqFail=\(audioDelta.2)"
+                + " autoFlush=\(audioDelta.3)"
+                + " cfgChange=\(audioDelta.4)"
+                + " evFail=\(counters.audioFailureEvents)"
+                + " f240=\(audioDelta.5)"
+                + " f480=\(audioDelta.6)"
+                + " fOther=\(audioDelta.7)"
+            return (videoText, audioText)
+        }
+        StreamSessionProbes.record(details.video, retention: .evidence)
+        StreamSessionProbes.record(details.audio, retention: .evidence)
+        let diagnosticMilliseconds = Double(
+            DispatchTime.now().uptimeNanoseconds - diagnosticStartedAt
+        ) / 1_000_000
+        StreamSessionProbes.record(
+            "diagnostics tick ms=\(String(format: "%.1f", diagnosticMilliseconds))",
             retention: .evidence
         )
         stateLock.withLock {
