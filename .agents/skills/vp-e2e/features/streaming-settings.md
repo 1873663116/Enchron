@@ -14,6 +14,11 @@
 - 编码格式取值为自动、H.264、HEVC、AV1；本机不支持 AV1 解码时该选项不出现。
 - HDR 标注 Beta，默认关闭。编码选择 H.264 时 HDR 显示为关并灰显。
 - 帧调度是最低延迟与最平滑二选一，默认最平滑。
+- 交换 ABXY 默认关闭；打开后 A 与 B、X 与 Y 的报文位互换，方向键、肩键与摇杆不变。
+- 蓝牙鼠标默认打开；打开时外接鼠标的移动、按键与滚轮转发到主机，关闭后交互回到注视与捏合。
+- PC 端播放音频默认关闭；打开后主机在本地播放声音，本机不再解码音频。
+- 优化游戏设置默认关闭；打开后向主机请求调整游戏内设置，仅 GeForce Experience 主机响应。
+- 上述四项与分辨率、帧率一样，只影响下一次启动，不改变进行中的会话。
 
 ## How to get to it (user POV)
 
@@ -33,6 +38,13 @@ Preconditions: 标签页已由 General 分区的 Moonlight 开关打开。
 ./.scratch/stream-cmd.sh streamSetOptions '{"customBitrate":"true","bitrate":"300000"}'
 ```
 
+```sh
+./.scratch/stream-cmd.sh streamSetOptions \
+  '{"swapABXY":"true","audioOnPC":"true","bluetoothMouse":"true","optimizeGameSettings":"true"}'
+```
+
+`swapABXY`、`audioOnPC`、`bluetoothMouse`、`optimizeGameSettings` 的读写都走同一条通道。`audioOnPC` 与 `optimizeGameSettings` 的生效位置是启动请求，判据见下表；`swapABXY` 的生效位置是会话内的手柄报文；`bluetoothMouse` 的生效位置是会话内 GCMouse 转发。
+
 分辨率的像素量排序、码率与分辨率和帧率的对应、自定义码率的上下限，都能由这条通道直接断言，不需要点开菜单。
 
 菜单本身的下拉内容、滑杆的拖动手感、警告弹窗的文案属于界面呈现，需要读截图。
@@ -48,7 +60,12 @@ Preconditions: 标签页已由 General 分区的 Moonlight 开关打开。
 | 物理 | 关闭自定义码率后码率回到档位表上的值 | 命令通道往返 |
 | 物理 | H.264 下 HDR 的开状态被归一化为关 | 命令通道往返 + 截图 |
 | 物理 | 选预设分辨率后码率读数变化 | 截图 + 命令通道 |
-| 感知 | 滑杆拖动的手感、下拉菜单的排布 | **待做** |
+| 物理 | 打开「优化游戏设置」后启动 URL 带 `sops=1` | 模拟器日志 `[Moonlight] Requesting:` + 命令通道 |
+| 物理 | 打开「PC 端播放音频」后启动 URL 带 `localAudioPlayMode=1` | 模拟器日志 + 命令通道 |
+| 物理 | 打开「交换 ABXY」后 A 报文的 flags 从 `0x1000` 变 `0x2000` | 命令通道 + 会话探针 `controller flags=` |
+| 物理 | 设置写入后冷启动重读仍是写入值 | 命令通道往返 |
+| 结构 | 旧记录缺四个新字段时解码为关，且编码往返不丢字段 | `StreamOptionsCompatibilityTests` 单测 |
+| 感知 | 滑杆拖动的手感、下拉菜单的排布、四个开关的排布 | **待做** |
 
 ## 证明的终态
 
@@ -59,3 +76,6 @@ Preconditions: 标签页已由 General 分区的 Moonlight 开关打开。
 - **自定义码率打开时，码率不再随分辨率或帧率变化。** 这是佩戴者接过控制权的意思，不是联动失效。
 - **命令通道改分辨率不会触发码率联动。** 联动写在菜单回调里。用命令通道验证联动会得出错误结论，要改用点击菜单。
 - **H.264 与 HDR 同时存储时，读出的 HDR 是关。** 归一化在读取时发生，主机在 H.264 上本来就不会送 HDR。
+- **交换 ABXY 只改本机发出的报文位，不发给主机。** Moonlight 协议没有按键交换参数，主机收到的仍是交换后的 A/B/X/Y 语义。
+- **PC 端播放音频时本机收不到音频帧。** 声音留在主机，音频链路没有可断言的输入，判据只能取启动 URL。
+- **优化游戏设置只对 GeForce Experience 主机有可观察效果。** Sunshine 接受参数但不调整游戏设置，不能据此判定失败。

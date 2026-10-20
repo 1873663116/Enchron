@@ -32,6 +32,14 @@ public struct StreamSettingsSection: View {
                 accessibilityIdentifier: "Settings-Streaming-qualityGroup",
                 items: qualityItems
             )
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-Streaming-inputGroup",
+                items: inputItems
+            )
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-Streaming-hostGroup",
+                items: hostItems
+            )
             sessionConfigurationGroup
                 .enchronDestructiveConfirmation(
                     "启用自定义码率？",
@@ -154,6 +162,73 @@ public struct StreamSettingsSection: View {
                 )
             )
         ]
+    }
+
+    private var inputItems: [SettingListGroup.Item] {
+        [
+            SettingListGroup.Item(
+                id: "Streaming-swapABXY",
+                title: "交换 ABXY",
+                systemName: "gamecontroller",
+                supportingText: "适配任天堂式按键布局：A 与 B、X 与 Y 互换。",
+                accessory: .boundToggle(isOn: swapABXYBinding, isEnabled: true, marker: nil)
+            ),
+            SettingListGroup.Item(
+                id: "Streaming-bluetoothMouse",
+                title: "蓝牙鼠标",
+                systemName: "computermouse",
+                supportingText: "外接鼠标直接控制主机指针：转发移动、按键与滚轮。",
+                accessory: .boundToggle(isOn: bluetoothMouseBinding, isEnabled: true, marker: nil)
+            )
+        ]
+    }
+
+    private var hostItems: [SettingListGroup.Item] {
+        [
+            SettingListGroup.Item(
+                id: "Streaming-audioOnPC",
+                title: "PC 端播放音频",
+                systemName: "hifispeaker",
+                supportingText: "声音留在主机扬声器，不串流到本机。",
+                accessory: .boundToggle(isOn: audioOnPCBinding, isEnabled: true, marker: nil)
+            ),
+            SettingListGroup.Item(
+                id: "Streaming-optimizeSettings",
+                title: "优化游戏设置",
+                systemName: "wand.and.stars",
+                supportingText: "请求主机为串流调整游戏内设置；仅 GeForce Experience 主机响应。",
+                supportingTextLineLimit: nil,
+                accessory: .boundToggle(isOn: optimizeGameSettingsBinding, isEnabled: true, marker: nil)
+            )
+        ]
+    }
+
+    private var swapABXYBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.swapABXYButtons },
+            set: { value in model.updateSettings { $0.swapABXYButtons = value } }
+        )
+    }
+
+    private var bluetoothMouseBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.bluetoothMouseEnabled },
+            set: { value in model.updateSettings { $0.bluetoothMouseEnabled = value } }
+        )
+    }
+
+    private var audioOnPCBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.playAudioOnPC },
+            set: { value in model.updateSettings { $0.playAudioOnPC = value } }
+        )
+    }
+
+    private var optimizeGameSettingsBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.optimizeGameSettings },
+            set: { value in model.updateSettings { $0.optimizeGameSettings = value } }
+        )
     }
 
     private var customWidthText: Binding<String> {

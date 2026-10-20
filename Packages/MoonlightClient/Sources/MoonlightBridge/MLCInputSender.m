@@ -16,6 +16,7 @@
 static NSLock* pressedStateLock;
 static NSMutableSet<NSNumber*>* pressedVirtualKeys;
 static NSMutableSet<NSNumber*>* pressedMouseButtons;
+static BOOL controllerInputActive;
 
 @implementation MLCInputSender
 
@@ -70,6 +71,11 @@ static NSMutableSet<NSNumber*>* pressedMouseButtons;
     for (NSNumber* button in buttons) {
         LiSendMouseButtonEvent(BUTTON_ACTION_RELEASE, button.intValue);
     }
+
+    if (controllerInputActive) {
+        controllerInputActive = NO;
+        LiSendControllerEvent(0, 0, 0, 0, 0, 0, 0);
+    }
 }
 
 + (int)sendMouseMoveDeltaX:(short)deltaX deltaY:(short)deltaY {
@@ -98,6 +104,35 @@ static NSMutableSet<NSNumber*>* pressedMouseButtons;
 
 + (int)sendScrollVerticalClicks:(signed char)clicks {
     return LiSendScrollEvent(clicks);
+}
+
++ (int)sendControllerStateWithButtonFlags:(int)buttonFlags
+                             leftTrigger:(unsigned char)leftTrigger
+                            rightTrigger:(unsigned char)rightTrigger
+                              leftStickX:(short)leftStickX
+                              leftStickY:(short)leftStickY
+                             rightStickX:(short)rightStickX
+                             rightStickY:(short)rightStickY {
+    controllerInputActive = YES;
+    return LiSendControllerEvent(buttonFlags, leftTrigger, rightTrigger,
+                                 leftStickX, leftStickY, rightStickX, rightStickY);
+}
+
++ (int)sendControllerPresenceArrived:(BOOL)arrived {
+    if (arrived) {
+        uint32_t supported = A_FLAG | B_FLAG | X_FLAG | Y_FLAG
+            | UP_FLAG | DOWN_FLAG | LEFT_FLAG | RIGHT_FLAG
+            | LB_FLAG | RB_FLAG | PLAY_FLAG | BACK_FLAG
+            | LS_CLK_FLAG | RS_CLK_FLAG;
+        int result = LiSendControllerArrivalEvent(0, 0x1, LI_CTYPE_XBOX, supported,
+                                                  LI_CCAP_ANALOG_TRIGGERS);
+        if (result != LI_ERR_UNSUPPORTED) {
+            return result;
+        }
+        return LiSendMultiControllerEvent(0, 0x1, 0, 0, 0, 0, 0, 0, 0);
+    }
+    controllerInputActive = NO;
+    return LiSendMultiControllerEvent(0, 0, 0, 0, 0, 0, 0, 0, 0);
 }
 
 + (void)requestIdrFrame {

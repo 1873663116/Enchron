@@ -1,4 +1,5 @@
 #if DEBUG
+import AVFoundation
 import DesignSystem
 import CryptoKit
 import GameStreaming
@@ -897,11 +898,75 @@ final class TestCommandChannel {
     }
 #endif
 
+    private static func makeSelfTestPlayer(frequency: Double, seconds: Double) -> AVAudioPlayer? {
+        let sampleRate = 48_000
+        let frameCount = max(1, Int(Double(sampleRate) * seconds))
+        let amplitude = 0.6 * Double(Int16.max)
+        var samples = Data(capacity: frameCount * 4)
+        for index in 0..<frameCount {
+            let value = Int16(amplitude * sin(2 * .pi * frequency * Double(index) / Double(sampleRate)))
+            samples.append(UInt8(truncatingIfNeeded: value))
+            samples.append(UInt8(truncatingIfNeeded: value >> 8))
+            samples.append(UInt8(truncatingIfNeeded: value))
+            samples.append(UInt8(truncatingIfNeeded: value >> 8))
+        }
+        var wav = Data()
+        func appendASCII(_ text: String) { wav.append(contentsOf: Array(text.utf8)) }
+        func appendUInt32(_ value: UInt32) {
+            var little = value.littleEndian
+            withUnsafeBytes(of: &little) { wav.append(contentsOf: $0) }
+        }
+        func appendUInt16(_ value: UInt16) {
+            var little = value.littleEndian
+            withUnsafeBytes(of: &little) { wav.append(contentsOf: $0) }
+        }
+        appendASCII("RIFF")
+        appendUInt32(UInt32(36 + samples.count))
+        appendASCII("WAVEfmt ")
+        appendUInt32(16)
+        appendUInt16(1)
+        appendUInt16(2)
+        appendUInt32(UInt32(sampleRate))
+        appendUInt32(UInt32(sampleRate * 4))
+        appendUInt16(4)
+        appendUInt16(16)
+        appendASCII("data")
+        appendUInt32(UInt32(samples.count))
+        wav.append(samples)
+        return try? AVAudioPlayer(data: wav)
+    }
+
     private func execute(_ request: Request) async throws -> Response {
         switch request.verb {
         case "ping":
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
 #if DEBUG
+        case "audioSelfTest":
+            let seconds = request.args["seconds"].flatMap(Double.init) ?? 5
+            let frequency = request.args["frequency"].flatMap(Double.init) ?? 880
+            let session = AVAudioSession.sharedInstance()
+            var payload: [String] = []
+            if let player = Self.makeSelfTestPlayer(frequency: frequency, seconds: seconds) {
+                player.volume = 1
+                let started = player.play()
+                payload.append("started=\(started)")
+                payload.append("duration=\(player.duration)")
+                payload.append("frequency=\(frequency)")
+                try? await Task.sleep(for: .seconds(seconds))
+                player.stop()
+            } else {
+                payload.append("player=none")
+            }
+            payload.append("sampleRate=\(session.sampleRate)")
+            payload.append("volumeOut=\(session.outputVolume)")
+            payload.append(
+                "route=\(session.currentRoute.outputs.first?.portType.rawValue ?? "none")"
+            )
+            StreamSessionProbes.record(
+                "audio self test " + payload.joined(separator: " "),
+                retention: .evidence
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: payload)
         case "setRendererLeadFrames":
             let frames = request.args["frames"].flatMap(Int.init)
             RendererLeadBudget.setFixedFramesOverride(frames)
@@ -1084,8 +1149,56 @@ final class TestCommandChannel {
                 if let height = request.args["customHeight"].flatMap(Int.init) {
                     options.customHeight = height
                 }
+                if let swap = flagValue(request.args["swapABXY"]) {
+                    options.swapABXYButtons = swap
+                }
+                if let audio = flagValue(request.args["audioOnPC"]) {
+                    options.playAudioOnPC = audio
+                }
+                if let mouse = flagValue(request.args["bluetoothMouse"]) {
+                    options.bluetoothMouseEnabled = mouse
+                }
+                if let optimize = flagValue(request.args["optimizeGameSettings"]) {
+                    options.optimizeGameSettings = optimize
+                }
             }
             return Response(id: request.id, ok: true, detail: nil, payload: [streaming.settings.readableValue])
+        case "streamSendController":
+            let buttons = Set(
+                (request.args["buttons"] ?? "")
+                    .split(separator: ",")
+                    .compactMap { StreamGamepadButton(rawValue: $0.trimmingCharacters(in: .whitespaces)) }
+            )
+            let state = StreamGamepadState(
+                buttons: buttons,
+                leftTrigger: UInt8(clamping: Int(request.args["lt"] ?? "") ?? 0),
+                rightTrigger: UInt8(clamping: Int(request.args["rt"] ?? "") ?? 0),
+                sticks: StreamGamepadSticks(
+                    leftX: Int16(clamping: Int(request.args["lx"] ?? "") ?? 0),
+                    leftY: Int16(clamping: Int(request.args["ly"] ?? "") ?? 0),
+                    rightX: Int16(clamping: Int(request.args["rx"] ?? "") ?? 0),
+                    rightY: Int16(clamping: Int(request.args["ry"] ?? "") ?? 0)
+                )
+            )
+            guard let flags = streaming.sendGamepad(state) else {
+                return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: ["flags=\(flags)"])
+        case "streamSendMouse":
+            guard streaming.session != nil else {
+                return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)
+            }
+            if let dx = request.args["dx"].flatMap(Int32.init), let dy = request.args["dy"].flatMap(Int32.init) {
+                streaming.sendPointerDelta(dx: dx, dy: dy)
+            }
+            if let code = request.args["button"].flatMap(Int32.init) {
+                let down = flagValue(request.args["down"]) ?? true
+                streaming.sendMouseButton(code: code, down: down)
+            }
+            if let scroll = request.args["scroll"].flatMap(Int32.init) {
+                streaming.sendScroll(amount: scroll)
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: [streaming.session?.readableValue ?? "unavailable"])
         case "probeStatus":
             let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit

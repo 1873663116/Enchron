@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "PlaybackCore", targets: ["PlaybackCore"]),
+        .library(name: "PlaybackFFmpeg", targets: ["PlaybackFFmpeg"]),
         .library(name: "SampleBufferRendering", targets: ["SampleBufferRendering"]),
         .library(name: "BluRayDisc", targets: ["BluRayDisc"]),
         .library(name: "BluRayDiscBridge", targets: ["BluRayDiscBridge"]),

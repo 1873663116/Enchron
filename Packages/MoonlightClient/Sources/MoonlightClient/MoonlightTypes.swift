@@ -61,6 +61,9 @@ public struct MoonlightStreamRequest: Sendable {
     public var bitrateKbps: Int
     public var codec: MoonlightVideoCodec
     public var hdrEnabled: Bool
+    public var playAudioOnPC: Bool
+    public var optimizeGameSettings: Bool
+    public var gamepadMask: Int
 
     public init(
         address: MoonlightHostAddress,
@@ -72,7 +75,10 @@ public struct MoonlightStreamRequest: Sendable {
         frameRate: Int,
         bitrateKbps: Int,
         codec: MoonlightVideoCodec,
-        hdrEnabled: Bool
+        hdrEnabled: Bool,
+        playAudioOnPC: Bool = false,
+        optimizeGameSettings: Bool = false,
+        gamepadMask: Int = 0
     ) {
         self.address = address
         self.serverCert = serverCert
@@ -84,6 +90,9 @@ public struct MoonlightStreamRequest: Sendable {
         self.bitrateKbps = bitrateKbps
         self.codec = codec
         self.hdrEnabled = hdrEnabled
+        self.playAudioOnPC = playAudioOnPC
+        self.optimizeGameSettings = optimizeGameSettings
+        self.gamepadMask = gamepadMask
     }
 }
 

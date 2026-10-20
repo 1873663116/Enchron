@@ -156,6 +156,16 @@ public protocol BackendSession: AnyObject, Sendable {
     func sendMouseButton(code: Int32, down: Bool)
     func sendScroll(amount: Int32)
     func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32)
+    func sendControllerState(
+        buttonFlags: Int32,
+        leftTrigger: UInt8,
+        rightTrigger: UInt8,
+        leftStickX: Int16,
+        leftStickY: Int16,
+        rightStickX: Int16,
+        rightStickY: Int16
+    )
+    func sendControllerPresence(connected: Bool)
     func releaseAllInput()
     func requestIdrFrame()
 

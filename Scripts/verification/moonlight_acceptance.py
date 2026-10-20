@@ -747,7 +747,18 @@ def parse_snapshot_value(value: str) -> "SnapshotView":
     return SnapshotView(tuple(pairs))
 
 
-REQUESTED_MEMBERS = ("resolution", "fps", "bitrate", "codec", "hdr", "framePacing")
+REQUESTED_MEMBERS = (
+    "resolution",
+    "fps",
+    "bitrate",
+    "codec",
+    "hdr",
+    "framePacing",
+    "swapABXY",
+    "audioOnPC",
+    "bluetoothMouse",
+    "optimizeGameSettings",
+)
 NEGOTIATED_MEMBERS = ("bitrate", "codec", "hdr")
 
 
@@ -2245,6 +2256,16 @@ def send_text(context: Context, text: str) -> str:
         ) from None
 
 
+def gamepad_button_flags(context: Context, buttons: str) -> int:
+    """Send one controller state through the same mapping the hardware path uses."""
+    document = context.app_verb("streamSendController", buttons=buttons)
+    payload = [str(value) for value in (document.get("payload") or [])]
+    flags = [value for value in payload if value.startswith("flags=")]
+    if not flags:
+        raise ProductVerdict("gamepad-verb-reply", {"payload": payload})
+    return int(flags[0].split("=", 1)[1])
+
+
 def display_mode(context: Context) -> str:
     completed = context.host_command(
         ("system_profiler", "SPDisplaysDataType", "-detailLevel", "mini")
@@ -2926,11 +2947,53 @@ def scenario_07_keyboard_mouse(context: Context) -> Outcome:
     ]
     if not moved:
         raise ProductVerdict("input-counters", {"before": before, "after": after})
+    requested = after_view.requested()
+    swap = str(requested.get("swapABXY", "false")).lower() == "true"
+    pressed = gamepad_button_flags(context, "a")
+    released = gamepad_button_flags(context, "")
+    expected_flag = 0x2000 if swap else 0x1000
+    context.record_channel(
+        "probe",
+        "gamepad-mapping.json",
+        {
+            "swap": swap,
+            "pressed": pressed,
+            "released": released,
+            "expected": expected_flag,
+            "probe": context.probe_lines()[-5:],
+        },
+    )
+    if pressed != expected_flag or released != 0:
+        raise ProductVerdict(
+            "gamepad-mapping",
+            {"swap": swap, "pressed": pressed, "released": released, "expected": expected_flag},
+        )
+    before_scroll = after_view.inputs().get("scroll", 0)
+    context.app_verb("streamSendMouse", dx=6, dy=-4)
+    context.app_verb("streamSendMouse", scroll=1)
+    mouse_evidence = context.wait(
+        "host-mouse-delta",
+        STREAM_CONNECT_SECONDS,
+        lambda: (
+            {"scroll": value}
+            if (value := (context.session_snapshot_or_none() or SnapshotView(())).inputs().get("scroll"))
+            and value > before_scroll
+            else None
+        ),
+        context.scene,
+        poll_interval_seconds=2.0,
+    )
+    context.record_channel(
+        "control-surface",
+        "mouse-delta.json",
+        {"beforeScroll": before_scroll, **mouse_evidence},
+    )
     return Outcome(
         PASSED,
         notes=(
             f"host received {unique!r} via {channel}; pointer landed {distance:.1f}px from "
-            f"{expected}; counters advanced for {moved}"
+            f"{expected}; counters advanced for {moved}; controller A mapped to "
+            f"{pressed:#06x} with swap={swap}"
         ),
     )
 
@@ -3284,6 +3347,10 @@ STREAM_OPTION_KEYS = {
     "codec": "codec",
     "framePacing": "framePacing",
     "hdr": "hdr",
+    "swapABXYButtons": "swapABXY",
+    "playAudioOnPC": "audioOnPC",
+    "bluetoothMouseEnabled": "bluetoothMouse",
+    "optimizeGameSettings": "optimizeGameSettings",
 }
 
 
@@ -3863,7 +3930,7 @@ SCENARIOS: tuple[Scenario, ...] = (
         "07-keyboard-mouse",
         "键盘与鼠标回传",
         "合成唯一字符串与一次坐标移动",
-        ("host-log", "control-surface"),
+        ("host-log", "control-surface", "probe"),
         scenario_07_keyboard_mouse,
     ),
     Scenario(

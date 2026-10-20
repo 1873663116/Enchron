@@ -47,6 +47,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
     private var nextAudioPTS: CMTime = .invalid
     private var firstVideoPTS: CMTime = .invalid
+    private var audioPTSProbeLogged = false
+    private var audioSampleProbeLogged = false
+    private var audioPTSReanchorCount = 0
     private var audioFormatDescription: CMAudioFormatDescription?
     private var audioFormatKey: String?
     private var audioFrameDurationSeconds: Double = 0
@@ -55,6 +58,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var terminatedFallback: DispatchWorkItem?
 
     private var counters = Counters()
+    private let gamepadInput = StreamGamepadInput()
+    private let mouseInput = StreamMouseInput()
+    private var controllerFlags: Int32 = 0
+    private var hardwareMouseActive = false
 
     private struct Counters {
         var presented: Int64 = 0
@@ -65,6 +72,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var networkDroppedFrames: Int64 = 0
         var duplicatedFrames: Int64 = 0
         var audioFramesReceived: Int64 = 0
+        var audioPeakAbs: Int32 = 0
         var audioFramesEnqueued: Int64 = 0
         var audioFramesDropped: Int64 = 0
         var framesAwaitingSurface: Int64 = 0
@@ -73,6 +81,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var mouseEvents: Int64 = 0
         var scrollEvents: Int64 = 0
         var keyboardEvents: Int64 = 0
+        var gamepadEvents: Int64 = 0
     }
 
     private var pressedKeys: Set<UInt32> = []
@@ -154,7 +163,22 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
         )
 
+        stateLock.withLock {
+            snapshotStorage.diagnostics.hostAudioPlaying = options.playAudioOnPC
+        }
         activateAudioSession()
+        gamepadInput.start(
+            onState: { [weak self] state in self?.sendGamepad(state) },
+            onPresence: { [weak self] connected in self?.handleControllerPresence(connected) }
+        )
+        if options.bluetoothMouseEnabled {
+            mouseInput.start(
+                onMove: { [weak self] dx, dy in self?.sendMouseMove(dx: dx, dy: dy) },
+                onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) },
+                onScrollClicks: { [weak self] clicks in self?.sendScroll(amount: clicks) },
+                onPresence: { [weak self] attached in self?.handleMousePresence(attached) }
+            )
+        }
         backend.start()
     }
 
@@ -173,6 +197,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             retention: .evidence
         )
         recordSessionEnd(reason: reason)
+        gamepadInput.stop()
+        mouseInput.stop()
         backend.releaseAllInput()
         clearPressed()
 
@@ -191,10 +217,22 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
     private func activateAudioSession() {
         Task { @MainActor in
+            let rateBefore = self.synchronizer.rate
             do {
                 let session = AVAudioSession.sharedInstance()
                 try session.setCategory(.playback, mode: .moviePlayback)
                 try session.setActive(true)
+                let rateAfter = self.synchronizer.rate
+                if rateAfter == 0 {
+                    self.rearmSynchronizer()
+                }
+                StreamSessionProbes.record(
+                    "audio session active session=\(self.sessionID.rawValue)"
+                        + " rateBefore=\(rateBefore)"
+                        + " rateAfter=\(rateAfter)"
+                        + " rearmed=\(rateAfter == 0)",
+                    retention: .evidence
+                )
             } catch {
                 StreamSessionProbes.record(
                     "audio session activation failed session=\(self.sessionID.rawValue) error=\(error.localizedDescription)",
@@ -433,6 +471,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             videoQueueLock.unlock()
 
             guard videoRenderer.isReadyForMoreMediaData else {
+                if synchronizer.rate == 0 {
+                    rearmSynchronizerIfStalled()
+                }
                 ensurePumpScheduled()
                 return
             }
@@ -583,8 +624,18 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     private func handleAudioFrame(_ frame: BackendAudioFrame) {
+        rearmSynchronizerIfStalled()
         let received: Int64 = stateLock.withLock {
             counters.audioFramesReceived += 1
+            var peak: Int32 = 0
+            frame.pcm.withUnsafeBytes { raw in
+                let samples = raw.bindMemory(to: Int16.self)
+                for value in samples {
+                    let magnitude = abs(Int32(value))
+                    if magnitude > peak { peak = magnitude }
+                }
+            }
+            if peak > counters.audioPeakAbs { counters.audioPeakAbs = peak }
             return counters.audioFramesReceived
         }
         if received == 1 {
@@ -628,23 +679,65 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let pts: CMTime
         var resolvedPTS: CMTime = .invalid
         stateLock.withLock {
-            if !nextAudioPTS.isValid {
-                let current = synchronizer.currentTime()
-                var anchor = firstVideoPTS.isValid ? firstVideoPTS : current
-                anchor = CMTimeMaximum(anchor, current)
-                nextAudioPTS = CMTimeAdd(anchor, CMTimeMakeWithSeconds(frameDuration * 2, preferredTimescale: 1_000_000))
+            let frameDurationTime = CMTimeMakeWithSeconds(frameDuration, preferredTimescale: 1_000_000)
+            let current = synchronizer.currentTime()
+            let lead = nextAudioPTS.isValid
+                ? CMTimeSubtract(nextAudioPTS, current).seconds
+                : Double.nan
+            if !nextAudioPTS.isValid || lead < -0.02 || lead > 0.4 {
+                nextAudioPTS = CMTimeAdd(
+                    current,
+                    CMTimeMakeWithSeconds(0.05, preferredTimescale: 1_000_000)
+                )
+                if !lead.isNaN {
+                    audioPTSReanchorCount += 1
+                    if audioPTSReanchorCount <= 5 || audioPTSReanchorCount % 100 == 0 {
+                        StreamSessionProbes.record(
+                            "audio pts re-anchor session=\(sessionID.rawValue)"
+                                + " count=\(audioPTSReanchorCount)"
+                                + " lead=\(lead)"
+                                + " syncTime=\(current.seconds)",
+                            retention: .diagnostic
+                        )
+                    }
+                }
+            }
+            if !audioPTSProbeLogged {
+                audioPTSProbeLogged = true
+                StreamSessionProbes.record(
+                    "audio first pts=\(nextAudioPTS.seconds)"
+                        + " syncTime=\(synchronizer.currentTime().seconds)"
+                        + " syncRate=\(synchronizer.rate)",
+                    retention: .evidence
+                )
             }
             resolvedPTS = nextAudioPTS
-            nextAudioPTS = CMTimeAdd(nextAudioPTS, CMTimeMakeWithSeconds(frameDuration, preferredTimescale: 1_000_000))
+            nextAudioPTS = CMTimeAdd(nextAudioPTS, frameDurationTime)
         }
 
         guard let sample = Self.makeAudioSampleBuffer(
             frame: frame,
             formatDescription: formatDescription,
-            presentationTime: resolvedPTS,
-            duration: CMTimeMakeWithSeconds(frameDuration, preferredTimescale: 1_000_000)
+            presentationTime: resolvedPTS
         ) else {
             return
+        }
+
+        let reportFirstSample = stateLock.withLock { () -> Bool in
+            guard !audioSampleProbeLogged else { return false }
+            audioSampleProbeLogged = true
+            return true
+        }
+        if reportFirstSample {
+            let dataLength = CMSampleBufferGetDataBuffer(sample)
+                .map { CMBlockBufferGetDataLength($0) } ?? -1
+            StreamSessionProbes.record(
+                "audio first sample frames=\(CMSampleBufferGetNumSamples(sample))"
+                    + " duration=\(CMSampleBufferGetDuration(sample).seconds)"
+                    + " bytes=\(dataLength)"
+                    + " pcmBytes=\(frame.pcm.count)",
+                retention: .evidence
+            )
         }
 
         do {
@@ -701,11 +794,23 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private static func makeAudioSampleBuffer(
         frame: BackendAudioFrame,
         formatDescription: CMAudioFormatDescription,
-        presentationTime: CMTime,
-        duration: CMTime
+        presentationTime: CMTime
     ) -> CMSampleBuffer? {
+        let bytesPerFrame = Int(frame.channels) * MemoryLayout<Int16>.size
         let byteCount = frame.pcm.count
-        guard byteCount > 0 else { return nil }
+        guard frame.sampleRate > 0,
+              frame.frameCount > 0,
+              bytesPerFrame > 0,
+              byteCount == Int(frame.frameCount) * bytesPerFrame else {
+            StreamSessionProbes.record(
+                "audio frame rejected frames=\(frame.frameCount)"
+                    + " channels=\(frame.channels)"
+                    + " rate=\(frame.sampleRate)"
+                    + " bytes=\(byteCount)",
+                retention: .evidence
+            )
+            return nil
+        }
 
         var blockBuffer: CMBlockBuffer?
         guard CMBlockBufferCreateWithMemoryBlock(
@@ -731,20 +836,21 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         guard copied == noErr else { return nil }
 
         var timing = CMSampleTimingInfo(
-            duration: duration,
+            duration: CMTime(value: 1, timescale: CMTimeScale(frame.sampleRate)),
             presentationTimeStamp: presentationTime,
             decodeTimeStamp: .invalid
         )
+        var sampleSize = bytesPerFrame
         var sampleBuffer: CMSampleBuffer?
         guard CMSampleBufferCreateReady(
             allocator: kCFAllocatorDefault,
             dataBuffer: blockBuffer,
             formatDescription: formatDescription,
-            sampleCount: 1,
+            sampleCount: CMItemCount(frame.frameCount),
             sampleTimingEntryCount: 1,
             sampleTimingArray: &timing,
-            sampleSizeEntryCount: 0,
-            sampleSizeArray: nil,
+            sampleSizeEntryCount: 1,
+            sampleSizeArray: &sampleSize,
             sampleBufferOut: &sampleBuffer
         ) == noErr else { return nil }
         return sampleBuffer
@@ -863,6 +969,28 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         publishSnapshot()
     }
 
+    private func rearmSynchronizerIfStalled() {
+        let state = stateLock.withLock { snapshotStorage.state }
+        guard !isStopped(state), synchronizer.rate == 0 else { return }
+        rearmSynchronizer()
+    }
+
+    private func rearmSynchronizer() {
+        let stalledTime = synchronizer.currentTime()
+        synchronizer.setRate(
+            1.0,
+            time: stalledTime,
+            atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
+        )
+        stateLock.withLock { nextAudioPTS = .invalid }
+        StreamSessionProbes.record(
+            "synchronizer rearm session=\(sessionID.rawValue)"
+                + " stalledTime=\(stalledTime.seconds)"
+                + " rate=\(synchronizer.rate)",
+            retention: .evidence
+        )
+    }
+
     private func startDiagnosticsTimer() {
         let timer = DispatchSource.makeTimerSource(queue: deliverQueue)
         timer.schedule(deadline: .now() + 1, repeating: 1)
@@ -885,6 +1013,49 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let bytesThisSample = max(0, bytesNow - lastSampledVideoBytes)
         lastSampledVideoBytes = bytesNow
         let measuredBitrateKbps = bytesThisSample * 8 / 1000
+        rearmSynchronizerIfStalled()
+        let syncRate: Float = synchronizer.rate
+        let syncSeconds: Double = synchronizer.currentTime().seconds
+        let audioCounters = stateLock.withLock {
+            () -> (received: Int64, enqueued: Int64, dropped: Int64, peak: Int32, lead: Double) in
+            let values = (
+                counters.audioFramesReceived,
+                counters.audioFramesEnqueued,
+                counters.audioFramesDropped,
+                counters.audioPeakAbs,
+                nextAudioPTS.isValid ? nextAudioPTS.seconds - syncSeconds : Double.nan
+            )
+            counters.audioPeakAbs = 0
+            return values
+        }
+        let tbRate: Double = audioRenderer.timebase.rate
+        let session = AVAudioSession.sharedInstance()
+        let outVolume: Float = session.outputVolume
+        let outChannels = session.outputNumberOfChannels
+        let routeName = session.currentRoute.outputs.first?.portType.rawValue ?? "none"
+        let audioReady: Bool = audioRenderer.isReadyForMoreMediaData
+        let audioStatus: Int = audioRenderer.status.rawValue
+        let rendererVolume: Float = audioRenderer.volume
+        let rendererMuted: Bool = audioRenderer.isMuted
+        let rendererError = audioRenderer.error?.localizedDescription ?? "none"
+        let audioMessage = "audio pump received=\(audioCounters.received)"
+            + " enqueued=\(audioCounters.enqueued)"
+            + " dropped=\(audioCounters.dropped)"
+            + " peak=\(audioCounters.peak)"
+            + " lead=\(audioCounters.lead)"
+            + " ready=\(audioReady)"
+            + " status=\(audioStatus)"
+            + " syncRate=\(syncRate)"
+            + " syncTime=\(syncSeconds)"
+            + " tbRate=\(tbRate)"
+            + " rendererVol=\(rendererVolume)"
+            + " rendererMuted=\(rendererMuted)"
+            + " rendererError=\(rendererError)"
+            + " volumeOut=\(outVolume)"
+            + " outChannels=\(outChannels)"
+            + " route=\(routeName)"
+            + " cat=\(session.category.rawValue)"
+        StreamSessionProbes.record(audioMessage, retention: .evidence)
         StreamSessionProbes.record(
             "video pump delivered=\(deliveredThisSample)"
                 + " total=\(presentedNow)"
@@ -920,6 +1091,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             snapshotStorage.input.mouseEventsSent = counters.mouseEvents
             snapshotStorage.input.scrollEventsSent = counters.scrollEvents
             snapshotStorage.input.keyboardEventsSent = counters.keyboardEvents
+            snapshotStorage.input.gamepadEventsSent = counters.gamepadEvents
             snapshotStorage.input.pressedKeyCount = pressedKeys.count
             snapshotStorage.input.pressedButtonCount = pressedButtons.count
         }
@@ -932,8 +1104,37 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     public func sendMousePosition(normalizedX: Float, normalizedY: Float) {
+        guard !hardwareMouseActive else { return }
         backend.sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
         stateLock.withLock { counters.mouseEvents += 1 }
+    }
+
+    /// The window's gaze and pinch layer is the pointer path for hand control.
+    /// While an external mouse drives the host, that layer must not also move
+    /// the pointer or click, or every mouse click would arrive twice.
+    public func sendGestureClick(normalizedX: Float, normalizedY: Float) {
+        guard !hardwareMouseActive else { return }
+        sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
+        sendMouseButton(code: StreamMouseInput.leftButtonCode, down: true)
+        sendMouseButton(code: StreamMouseInput.leftButtonCode, down: false)
+    }
+
+    private func handleMousePresence(_ attached: Bool) {
+        let released: Set<Int32> = stateLock.withLock {
+            hardwareMouseActive = attached
+            snapshotStorage.input.hardwareMouse = attached
+            guard !attached else { return [] }
+            let pressed = pressedButtons
+            pressedButtons.removeAll()
+            return pressed
+        }
+        for code in released where !attached {
+            backend.sendMouseButton(code: code, down: false)
+        }
+        StreamSessionProbes.record(
+            "mouse \(attached ? "attached" : "detached")",
+            retention: .evidence
+        )
     }
 
     public func sendMouseMove(dx: Int32, dy: Int32) {
@@ -958,6 +1159,44 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         stateLock.withLock { counters.scrollEvents += 1 }
     }
 
+    @discardableResult
+    public func sendGamepad(_ state: StreamGamepadState) -> Int32 {
+        let flags = StreamGamepadMapping.buttonFlags(
+            state.buttons,
+            swapABXYButtons: options.swapABXYButtons
+        )
+        backend.sendControllerState(
+            buttonFlags: flags,
+            leftTrigger: state.leftTrigger,
+            rightTrigger: state.rightTrigger,
+            leftStickX: state.sticks.leftX,
+            leftStickY: state.sticks.leftY,
+            rightStickX: state.sticks.rightX,
+            rightStickY: state.sticks.rightY
+        )
+        let changed = stateLock.withLock { () -> Bool in
+            counters.gamepadEvents += 1
+            let value = flags != controllerFlags
+            controllerFlags = flags
+            return value
+        }
+        if changed {
+            StreamSessionProbes.record(
+                "controller flags=\(flags) lt=\(state.leftTrigger) rt=\(state.rightTrigger)",
+                retention: .evidence
+            )
+        }
+        return flags
+    }
+
+    public func handleControllerPresence(_ connected: Bool) {
+        backend.sendControllerPresence(connected: connected)
+        StreamSessionProbes.record(
+            "controller \(connected ? "arrived" : "removed")",
+            retention: .evidence
+        )
+    }
+
     public func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32) {
         backend.sendKey(hidUsage: hidUsage, down: down, modifierFlags: modifierFlags)
         stateLock.withLock {
@@ -971,6 +1210,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     public func releaseAllInput(cause: String) {
+        if controllerFlags != 0 {
+            sendGamepad(.neutral)
+        }
         backend.releaseAllInput()
         clearPressed()
         StreamSessionProbes.record(

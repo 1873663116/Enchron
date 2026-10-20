@@ -12,6 +12,9 @@ let package = Package(
         .executable(name: "MoonlightControlProbe", targets: ["MoonlightControlProbe"]),
         .executable(name: "MoonlightSessionProbe", targets: ["MoonlightSessionProbe"]),
     ],
+    dependencies: [
+        .package(path: "../PlaybackCore"),
+    ],
     targets: [
         .binaryTarget(
             name: "OpenSSL",
@@ -60,7 +63,12 @@ let package = Package(
         ),
         .target(
             name: "MoonlightBridge",
-            dependencies: ["CMoonlightCore", "COpenSSL", "COpus"],
+            dependencies: [
+                "CMoonlightCore",
+                "COpenSSL",
+                "COpus",
+                .product(name: "PlaybackFFmpeg", package: "PlaybackCore"),
+            ],
             path: "Sources/MoonlightBridge",
             publicHeadersPath: "include",
             cSettings: [

@@ -117,6 +117,30 @@ public final class MoonlightStreamSession: NSObject, @unchecked Sendable {
         )
     }
 
+    public func sendControllerState(
+        buttonFlags: Int32,
+        leftTrigger: UInt8,
+        rightTrigger: UInt8,
+        leftStickX: Int16,
+        leftStickY: Int16,
+        rightStickX: Int16,
+        rightStickY: Int16
+    ) {
+        MLCInputSender.sendControllerState(
+            withButtonFlags: Int32(buttonFlags),
+            leftTrigger: leftTrigger,
+            rightTrigger: rightTrigger,
+            leftStickX: leftStickX,
+            leftStickY: leftStickY,
+            rightStickX: rightStickX,
+            rightStickY: rightStickY
+        )
+    }
+
+    public func sendControllerPresence(connected: Bool) {
+        MLCInputSender.sendControllerPresenceArrived(connected)
+    }
+
     public func releaseAllInput() {
         MLCInputSender.releaseAllPressedKeysAndButtons()
     }
