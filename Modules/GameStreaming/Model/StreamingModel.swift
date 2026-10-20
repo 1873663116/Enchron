@@ -686,6 +686,11 @@ public final class StreamingModel {
         coordinator?.sendKey(hidUsage: hidUsage, down: down, modifierFlags: modifierFlags)
     }
 
+    @discardableResult
+    public func sendGamepad(_ state: StreamGamepadState) -> Int32? {
+        coordinator?.sendGamepad(state)
+    }
+
     public func releaseInputs(cause: String) {
         coordinator?.releaseAllInput(cause: cause)
     }

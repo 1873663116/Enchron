@@ -1149,8 +1149,41 @@ final class TestCommandChannel {
                 if let height = request.args["customHeight"].flatMap(Int.init) {
                     options.customHeight = height
                 }
+                if let swap = flagValue(request.args["swapABXY"]) {
+                    options.swapABXYButtons = swap
+                }
+                if let audio = flagValue(request.args["audioOnPC"]) {
+                    options.playAudioOnPC = audio
+                }
+                if let mouse = flagValue(request.args["bluetoothMouse"]) {
+                    options.bluetoothMouseEnabled = mouse
+                }
+                if let optimize = flagValue(request.args["optimizeGameSettings"]) {
+                    options.optimizeGameSettings = optimize
+                }
             }
             return Response(id: request.id, ok: true, detail: nil, payload: [streaming.settings.readableValue])
+        case "streamSendController":
+            let buttons = Set(
+                (request.args["buttons"] ?? "")
+                    .split(separator: ",")
+                    .compactMap { StreamGamepadButton(rawValue: $0.trimmingCharacters(in: .whitespaces)) }
+            )
+            let state = StreamGamepadState(
+                buttons: buttons,
+                leftTrigger: UInt8(clamping: Int(request.args["lt"] ?? "") ?? 0),
+                rightTrigger: UInt8(clamping: Int(request.args["rt"] ?? "") ?? 0),
+                sticks: StreamGamepadSticks(
+                    leftX: Int16(clamping: Int(request.args["lx"] ?? "") ?? 0),
+                    leftY: Int16(clamping: Int(request.args["ly"] ?? "") ?? 0),
+                    rightX: Int16(clamping: Int(request.args["rx"] ?? "") ?? 0),
+                    rightY: Int16(clamping: Int(request.args["ry"] ?? "") ?? 0)
+                )
+            )
+            guard let flags = streaming.sendGamepad(state) else {
+                return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: ["flags=\(flags)"])
         case "probeStatus":
             let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit

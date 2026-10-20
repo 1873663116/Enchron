@@ -141,6 +141,8 @@
 				GameStreaming/Domain/StreamSessionState.swift,
 				GameStreaming/Domain/StreamSettings.swift,
 				GameStreaming/Model/StreamingModel.swift,
+				GameStreaming/Session/StreamGamepadInput.swift,
+				GameStreaming/Session/StreamMouseInput.swift,
 				GameStreaming/Session/StreamRenderBinding.swift,
 				GameStreaming/Session/StreamSessionCoordinator.swift,
 				GameStreaming/Session/StreamSessionProbes.swift,

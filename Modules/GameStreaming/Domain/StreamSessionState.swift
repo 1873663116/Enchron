@@ -139,13 +139,14 @@ public struct StreamInputDiagnostics: Sendable, Equatable {
     public var mouseEventsSent: Int64 = 0
     public var scrollEventsSent: Int64 = 0
     public var keyboardEventsSent: Int64 = 0
+    public var gamepadEventsSent: Int64 = 0
     public var pressedKeyCount: Int = 0
     public var pressedButtonCount: Int = 0
 
     public init() {}
 
     public var readableValue: String {
-        "mouse=\(mouseEventsSent);scroll=\(scrollEventsSent);keyboard=\(keyboardEventsSent);pressedKeys=\(pressedKeyCount);pressedButtons=\(pressedButtonCount)"
+        "mouse=\(mouseEventsSent);scroll=\(scrollEventsSent);keyboard=\(keyboardEventsSent);gamepad=\(gamepadEventsSent);pressedKeys=\(pressedKeyCount);pressedButtons=\(pressedButtonCount)"
     }
 }
 

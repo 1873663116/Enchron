@@ -57,6 +57,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var terminatedFallback: DispatchWorkItem?
 
     private var counters = Counters()
+    private let gamepadInput = StreamGamepadInput()
+    private let mouseInput = StreamMouseInput()
+    private var controllerFlags: Int32 = 0
 
     private struct Counters {
         var presented: Int64 = 0
@@ -75,6 +78,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var mouseEvents: Int64 = 0
         var scrollEvents: Int64 = 0
         var keyboardEvents: Int64 = 0
+        var gamepadEvents: Int64 = 0
     }
 
     private var pressedKeys: Set<UInt32> = []
@@ -156,7 +160,20 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
         )
 
+        stateLock.withLock {
+            snapshotStorage.diagnostics.hostAudioPlaying = options.playAudioOnPC
+        }
         activateAudioSession()
+        gamepadInput.start(
+            onState: { [weak self] state in self?.sendGamepad(state) },
+            onPresence: { [weak self] connected in self?.handleControllerPresence(connected) }
+        )
+        if options.bluetoothMouseEnabled {
+            mouseInput.start(
+                onScrollClicks: { [weak self] clicks in self?.sendScroll(amount: clicks) },
+                onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) }
+            )
+        }
         backend.start()
     }
 
@@ -175,6 +192,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             retention: .evidence
         )
         recordSessionEnd(reason: reason)
+        gamepadInput.stop()
+        mouseInput.stop()
         backend.releaseAllInput()
         clearPressed()
 
@@ -1049,6 +1068,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             snapshotStorage.input.mouseEventsSent = counters.mouseEvents
             snapshotStorage.input.scrollEventsSent = counters.scrollEvents
             snapshotStorage.input.keyboardEventsSent = counters.keyboardEvents
+            snapshotStorage.input.gamepadEventsSent = counters.gamepadEvents
             snapshotStorage.input.pressedKeyCount = pressedKeys.count
             snapshotStorage.input.pressedButtonCount = pressedButtons.count
         }
@@ -1087,6 +1107,44 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         stateLock.withLock { counters.scrollEvents += 1 }
     }
 
+    @discardableResult
+    public func sendGamepad(_ state: StreamGamepadState) -> Int32 {
+        let flags = StreamGamepadMapping.buttonFlags(
+            state.buttons,
+            swapABXYButtons: options.swapABXYButtons
+        )
+        backend.sendControllerState(
+            buttonFlags: flags,
+            leftTrigger: state.leftTrigger,
+            rightTrigger: state.rightTrigger,
+            leftStickX: state.sticks.leftX,
+            leftStickY: state.sticks.leftY,
+            rightStickX: state.sticks.rightX,
+            rightStickY: state.sticks.rightY
+        )
+        let changed = stateLock.withLock { () -> Bool in
+            counters.gamepadEvents += 1
+            let value = flags != controllerFlags
+            controllerFlags = flags
+            return value
+        }
+        if changed {
+            StreamSessionProbes.record(
+                "controller flags=\(flags) lt=\(state.leftTrigger) rt=\(state.rightTrigger)",
+                retention: .evidence
+            )
+        }
+        return flags
+    }
+
+    public func handleControllerPresence(_ connected: Bool) {
+        backend.sendControllerPresence(connected: connected)
+        StreamSessionProbes.record(
+            "controller \(connected ? "arrived" : "removed")",
+            retention: .evidence
+        )
+    }
+
     public func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32) {
         backend.sendKey(hidUsage: hidUsage, down: down, modifierFlags: modifierFlags)
         stateLock.withLock {
@@ -1100,6 +1158,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     public func releaseAllInput(cause: String) {
+        if controllerFlags != 0 {
+            sendGamepad(.neutral)
+        }
         backend.releaseAllInput()
         clearPressed()
         StreamSessionProbes.record(
