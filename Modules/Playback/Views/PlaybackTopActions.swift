@@ -842,6 +842,18 @@ struct PlaybackDockMenuContent: View {
 /// environment menu it opens. It is the window's route into the immersive
 /// presentations for file playback and streaming alike.
 public struct PlaybackWindowDockAction: View {
+    public init() {}
+
+    public var body: some View {
+        WindowPlaybackSpatialActions {
+            PlaybackWindowDockChip()
+        } formatControl: {
+            EmptyView()
+        }
+    }
+}
+
+public struct PlaybackWindowDockChip: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackDock")
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -852,14 +864,6 @@ public struct PlaybackWindowDockAction: View {
     public init() {}
 
     public var body: some View {
-        WindowPlaybackSpatialActions {
-            dockChip
-        } formatControl: {
-            EmptyView()
-        }
-    }
-
-    private var dockChip: some View {
         PlaybackChromeGlassButton(
             systemName: "mountain.2.fill",
             accessibilityLabel: String(localized: "Dock"),

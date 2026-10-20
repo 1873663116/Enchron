@@ -546,9 +546,9 @@ public struct PlayerView: View {
                 accessibilityIdentifier: "Stream-Session-back"
             )
         } spatialActions: {
-            PlaybackWindowDockAction()
+            Spacer()
         } moreControl: {
-            EmptyView()
+            PlaybackWindowDockChip()
         }
     }
 

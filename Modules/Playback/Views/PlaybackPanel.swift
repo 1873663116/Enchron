@@ -938,8 +938,8 @@ public struct FusedPlayerPanel: View {
                             accessibilityIdentifier: "PlayerPanel-button-settings"
                         )
                     }
-                    returnToWindowButton(live)
                     Spacer(minLength: 0)
+                    returnToWindowButton(live)
                 }
                 .frame(width: clusterWidth, height: DesignTokens.Interactive.large)
             }
