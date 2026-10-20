@@ -401,6 +401,7 @@
 				D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */,
 				D00000350000000000D0A1A1 /* DesignSystem in Frameworks */,
 				D00000360000000000D0A1A1 /* (null) in Frameworks */,
+				E70000032FA7000100E1C001 /* GameStreaming in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -546,6 +547,7 @@
 				D00000230000000000D0A1A1 /* Playback */,
 				D00000240000000000D0A1A1 /* PlaybackCore */,
 				D00000250000000000D0A1A1 /* DesignSystem */,
+				E70000012FA7000100E1C001 /* GameStreaming */,
 			);
 			productName = EnchronDomainTests;
 			productReference = D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */;
