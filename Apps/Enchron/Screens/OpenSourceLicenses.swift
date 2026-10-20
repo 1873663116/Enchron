@@ -146,6 +146,20 @@ private struct OpenSourceSection: Identifiable {
                     document: .lesserGeneralPublicLicense21
                 ),
                 OpenSourceComponent(
+                    id: "moonlight",
+                    name: "Moonlight",
+                    version: "9.0.2",
+                    license: "GNU General Public License, version 3",
+                    usage: "The GameStream client protocol: host discovery, pairing,"
+                        + " application listing, application artwork, session"
+                        + " negotiation, video and audio sample handling, and input"
+                        + " encoding. Adapted into Swift and Objective-C sources under"
+                        + " Packages/MoonlightClient from moonlight-ios."
+                        + " Enchron links no prebuilt Moonlight binary.",
+                    origin: "https://github.com/moonlight-stream/moonlight-ios",
+                    document: .generalPublicLicense3
+                ),
+                OpenSourceComponent(
                     id: "libbluray",
                     name: "libbluray",
                     version: "1.4.1",

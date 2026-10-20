@@ -1,6 +1,7 @@
 #if DEBUG
 import DesignSystem
 import CryptoKit
+import GameStreaming
 import MediaServer
 import Foundation
 import MediaLibrary
@@ -610,6 +611,7 @@ final class TestCommandChannel {
         private var playbackSwitchStateRing = PlaybackSwitchStateRing(capacity: 2_048)
     #endif
     private let embySession: MediaServerSessionViewModel
+    private let streaming: StreamingModel
     private let fileManager: FileManager
     private let defaults: UserDefaults
     private let commandURL: URL
@@ -631,6 +633,7 @@ final class TestCommandChannel {
         playbackLauncher: PlaybackLaunchCoordinator,
         settings: SettingsViewModel,
         embySession: MediaServerSessionViewModel,
+        streaming: StreamingModel,
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
     ) throws {
@@ -642,6 +645,7 @@ final class TestCommandChannel {
         self.playbackLauncher = playbackLauncher
         self.settings = settings
         self.embySession = embySession
+        self.streaming = streaming
         self.fileManager = fileManager
         self.defaults = defaults
 
@@ -733,13 +737,41 @@ final class TestCommandChannel {
         }
     #endif
 
+    private func resolveStreamHost(_ token: String) -> HostID? {
+        if let exact = streaming.hosts.first(where: { $0.id.rawValue == token }) {
+            return exact.id
+        }
+        return streaming.hosts
+            .first {
+                $0.name == token || $0.name.localizedCaseInsensitiveContains(token)
+            }?
+            .id
+    }
+
+    private func resolveStreamApplication(_ token: String) -> HostApplication? {
+        let applications = streaming.applications
+        if let exact = applications.first(where: { $0.id.rawValue == token }) {
+            return exact
+        }
+        return applications.first {
+            $0.name.localizedCaseInsensitiveContains(token)
+                || token.localizedCaseInsensitiveContains($0.name)
+        }
+    }
+
     private func processRequestIfPresent() async {
         do {
             guard let requestURL = try nextRequestURL() else { return }
-            let request = try JSONDecoder().decode(
-                Request.self,
-                from: Data(contentsOf: requestURL)
-            )
+            let request: Request
+            do {
+                request = try JSONDecoder().decode(
+                    Request.self,
+                    from: Data(contentsOf: requestURL)
+                )
+            } catch {
+                try? fileManager.removeItem(at: requestURL)
+                throw error
+            }
 #if DEBUG
             try prepareEvidenceSession(for: request, requestURL: requestURL)
 #endif
@@ -896,11 +928,173 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [MediaByteStreamServer.debugSourceReadDelayMilliseconds().map(String.init) ?? "none"]
             )
+        case "streamAddHost":
+            guard let address = request.args["address"] else {
+                throw CommandError(message: "streamAddHost requires address")
+            }
+            let hostID = try await streaming.addHost(addressString: address, name: request.args["name"])
+            streaming.selectHost(hostID)
+            return Response(id: request.id, ok: true, detail: nil, payload: [hostID.rawValue])
+        case "streamPair":
+            guard let host = request.args["host"] else {
+                throw CommandError(message: "streamPair requires host")
+            }
+            guard let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamPair could not resolve host \(host); hosts: \(streaming.hosts.map(\.name).joined(separator: ", "))",
+                    payload: nil
+                )
+            }
+            if let current = streaming.pairing(for: hostID), current.state == .unpaired {
+                return Response(id: request.id, ok: true, detail: "existing pairing", payload: [current.id.rawValue, current.pin])
+            }
+            let challenge = try await streaming.beginPairing(hostID: hostID)
+            return Response(id: request.id, ok: true, detail: nil, payload: [challenge.id.rawValue, challenge.pin])
+        case "streamLaunch":
+            guard let host = request.args["host"], let app = request.args["app"] else {
+                throw CommandError(message: "streamLaunch requires host and app")
+            }
+            guard let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamLaunch could not resolve host \(host); hosts: \(streaming.hosts.map(\.name).joined(separator: ", "))",
+                    payload: nil
+                )
+            }
+            streaming.selectHost(hostID)
+            for _ in 0..<6 where streaming.applications.isEmpty {
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            guard let resolved = resolveStreamApplication(app) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamLaunch could not resolve \(app); available apps: \(streaming.applications.map(\.name).joined(separator: ", "))",
+                    payload: nil
+                )
+            }
+            try await streaming.launch(
+                hostID: hostID,
+                appID: resolved.id,
+                appName: request.args["name"] ?? resolved.name
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: [streaming.session?.readableValue ?? "unavailable"])
+        case "streamResume":
+            guard let host = request.args["host"] else {
+                throw CommandError(message: "streamResume requires host")
+            }
+            guard let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamResume could not resolve host \(host); hosts: \(streaming.hosts.map(\.name).joined(separator: ", "))",
+                    payload: nil
+                )
+            }
+            let resolved = request.args["app"].flatMap(resolveStreamApplication)
+            try await streaming.resume(
+                hostID: hostID,
+                appID: resolved?.id,
+                appName: request.args["name"] ?? resolved?.name
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: [streaming.session?.readableValue ?? "unavailable"])
+        case "streamDisconnect":
+            streaming.disconnect()
+            return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamReleaseInput":
+            streaming.releaseInputs(cause: "control-hit")
+            return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamSnapshot":
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [streaming.session?.readableValue ?? "unavailable"]
+            )
+        case "streamSendPointer":
+            guard let x = request.args["x"].flatMap(Float.init),
+                  let y = request.args["y"].flatMap(Float.init) else {
+                throw CommandError(message: "streamSendPointer requires x and y")
+            }
+            streaming.sendPointerMove(normalizedX: x, normalizedY: y)
+            return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamSendKey":
+            guard let hid = request.args["hid"].flatMap(UInt32.init) else {
+                throw CommandError(message: "streamSendKey requires hid")
+            }
+            let flags = request.args["flags"].flatMap(UInt32.init) ?? 0
+            let pulsed = request.args["pulse"] == "1" || request.args["pulse"]?.lowercased() == "true"
+            if pulsed {
+                streaming.sendKey(hidUsage: hid, down: true, modifierFlags: flags)
+                try? await Task.sleep(for: .milliseconds(40))
+                streaming.sendKey(hidUsage: hid, down: false, modifierFlags: flags)
+                return Response(id: request.id, ok: true, detail: "pulsed", payload: nil)
+            }
+            guard let downRaw = request.args["down"] else {
+                throw CommandError(message: "streamSendKey requires down or pulse")
+            }
+            let down = downRaw == "1" || downRaw.lowercased() == "true"
+            streaming.sendKey(hidUsage: hid, down: down, modifierFlags: flags)
+            return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamQuitApp":
+            guard let host = request.args["host"], let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamQuitApp requires a resolvable host",
+                    payload: nil
+                )
+            }
+            do {
+                try await streaming.quitApplication(hostID: hostID)
+            } catch {
+                return Response(id: request.id, ok: false, detail: "\(error)", payload: nil)
+            }
+            streaming.refreshReachability(hostID: hostID)
+            return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamSetOptions":
+            streaming.updateSettings { options in
+                if let raw = request.args["resolution"], let resolution = StreamResolution.parsed(raw) {
+                    options.resolution = resolution
+                }
+                if let fps = request.args["fps"].flatMap(Int.init) {
+                    options.frameRate = fps
+                }
+                if let bitrate = request.args["bitrate"].flatMap(Int.init) {
+                    options.bitrateKbps = bitrate
+                }
+                if let raw = request.args["codec"], let codec = StreamCodecPreference(rawValue: raw) {
+                    options.codec = codec
+                }
+                if let hdr = flagValue(request.args["hdr"]) {
+                    options.hdrEnabled = hdr
+                }
+                if let pacing = flagValue(request.args["framePacing"]) {
+                    options.framePacing = pacing
+                }
+                if let custom = flagValue(request.args["customBitrate"]) {
+                    options.customBitrateEnabled = custom
+                }
+                if let width = request.args["customWidth"].flatMap(Int.init) {
+                    options.customWidth = width
+                }
+                if let height = request.args["customHeight"].flatMap(Int.init) {
+                    options.customHeight = height
+                }
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: [streaming.settings.readableValue])
         case "probeStatus":
             let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit
                 && status.evidenceOverflowed == false
                 && status.writeFailed == false
+            let streamStatus = StreamSessionProbes.status
+            let streamHealthy = streamStatus.fileBytes <= streamStatus.byteLimit
+                && streamStatus.evidenceOverflowed == false
+                && streamStatus.writeFailed == false
             return Response(
                 id: request.id,
                 ok: healthy,
@@ -911,7 +1105,14 @@ final class TestCommandChannel {
                     "peakFileBytes=\(status.peakFileBytes)",
                     "compactionCount=\(status.compactionCount)",
                     "evidenceOverflowed=\(status.evidenceOverflowed)",
-                    "writeFailed=\(status.writeFailed)"
+                    "writeFailed=\(status.writeFailed)",
+                    "streamHealthy=\(streamHealthy)",
+                    "streamByteLimit=\(streamStatus.byteLimit)",
+                    "streamFileBytes=\(streamStatus.fileBytes)",
+                    "streamPeakFileBytes=\(streamStatus.peakFileBytes)",
+                    "streamCompactionCount=\(streamStatus.compactionCount)",
+                    "streamEvidenceOverflowed=\(streamStatus.evidenceOverflowed)",
+                    "streamWriteFailed=\(streamStatus.writeFailed)"
                 ]
             )
         case "armTransitionTrace":
@@ -2045,9 +2246,7 @@ final class TestCommandChannel {
             throw CommandError(
                 message: "setWindowSize must stay within playback window bounds "
                     + "\(bounds.minimumSize.width)x"
-                    + "\(bounds.minimumSize.height)..."
-                    + "\(bounds.maximumSize.width)x"
-                    + "\(bounds.maximumSize.height)."
+                    + "\(bounds.minimumSize.height) and above."
             )
         }
         guard let windowScene = UIApplication.shared.connectedScenes
@@ -2063,7 +2262,7 @@ final class TestCommandChannel {
             UIWindowScene.GeometryPreferences.Vision(
                 size: size,
                 minimumSize: bounds.minimumSize,
-                maximumSize: bounds.maximumSize,
+                maximumSize: nil,
                 resizingRestrictions: .freeform
             )
         ) { [weak playbackSession] error in
@@ -2131,7 +2330,8 @@ private enum TestCommandChannelBootstrap {
                 playbackRuntime: application.playbackRuntime,
                 playbackLauncher: application.playbackLauncher,
                 settings: application.settingsViewModel,
-                embySession: application.embySessionViewModel
+                embySession: application.embySessionViewModel,
+                streaming: application.streamingModel
             )
             #if DEBUG
                 channel.usePlaybackSwitchStateRing(application.playbackSwitchStateRing)
@@ -2153,6 +2353,19 @@ extension EnchronApplication {
             environment: environment,
             application: self
         )
+    }
+}
+
+/// Reads a setting the harness sends as a flag: `1`/`0`, `true`/`false`.
+private func flagValue(_ raw: String?) -> Bool? {
+    guard let raw, !raw.isEmpty else { return nil }
+    if let value = Int(raw) {
+        return value != 0
+    }
+    switch raw.lowercased() {
+    case "true", "yes", "on": return true
+    case "false", "no", "off": return false
+    default: return nil
     }
 }
 

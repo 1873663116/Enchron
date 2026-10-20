@@ -35,6 +35,7 @@ SOURCE_ROOTS = (
     REPOSITORY_ROOT / "Modules/MediaServer",
     REPOSITORY_ROOT / "Modules/MediaLibrary",
     REPOSITORY_ROOT / "Modules/Playback",
+    REPOSITORY_ROOT / "Modules/GameStreaming",
 )
 DERIVATION_SOURCE_PATHS = (
     "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift",
@@ -52,6 +53,7 @@ IDENTIFIER_FAMILIES = (
     "PlayerUI-",
     "SampleBufferAcousticCalibration-",
     "Settings-",
+    "Stream-",
     "WindowPlayback-",
 )
 
@@ -872,6 +874,10 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "-save",
             "-toggle",
             "-surface",
+            "-session-dock",
+            "-degrade",
+            "-retry",
+            "-entry",
         )
     ):
         return "operation", "activate"
@@ -890,6 +896,7 @@ CHAIN_CONTINUATION = re.compile(r"^[.}\)\],]")
 
 REVIEWED_OBSERVATIONS: dict[str, str] = {
     "EnvironmentHome-compact": "Container for three independently identified buttons; the container has no action.",
+    "Stream-EmptyState": "The empty-state container holds the add-host button as its own identified child; the container itself has no action.",
     "Emby-Search-NoResults": "The empty search view has no actions. Retry belongs "
     "to the separate search-error branch.",
     "Emby-Connection-Error": "Error text. The retry button beside it has its own "
@@ -1063,6 +1070,26 @@ def presentation_derivation(
         "Settings": ("SettingsScreen()", "Apps/Enchron/MainView.swift"),
     }
     operation_family = family(template)
+    if operation_family == "Stream":
+        if template.startswith("Stream-Session"):
+            source = required_source_location(
+                documents,
+                "Modules/GameStreaming/Views/StreamWindowView.swift",
+                "Stream-Session-controls",
+            )
+            return ["window"], {
+                "host": "streamWindowSurface",
+                "sources": [serialized(source)],
+            }
+        source = required_source_location(
+            documents,
+            "Apps/Enchron/MainView.swift",
+            "StreamingHomeView()",
+        )
+        return ["window"], {
+            "host": "browserWindowSurface",
+            "sources": [serialized(source)],
+        }
     if operation_family in browser_hosts:
         token, path = browser_hosts[operation_family]
         source = required_source_location(documents, path, token)

@@ -37,6 +37,7 @@ CANVAS_ASPECT = 16 / 9
 ASPECT_TOLERANCE = 0.01
 CANVAS_WIDTH_FLOOR = 1200
 MODE_GLYPH_DARKNESS = 100
+MODE_GLYPH_CONTRAST = 0.4
 MODE_GLYPH_GAP = 20
 MODE_GLYPH_EDGE_MARGIN = 0.02
 MODE_BUTTON_COUNTS = frozenset({10, 11})
@@ -224,11 +225,23 @@ def canvas_rect(rect: dict[str, float] | None = None) -> dict[str, int]:
 
 
 def _glyph_spans(band) -> tuple[list[list[int]], object]:
-    dark = band < MODE_GLYPH_DARKNESS
-    columns = dark.sum(axis=0) > 2
+    """Glyph columns in the toolbar band, whichever way the chrome is lit.
+
+    The threshold is relative to the band's own median rather than a fixed level.
+    The toolbar has shipped light-on-dark and dark-on-light across Xcode
+    releases, and an absolute cut either collapses the whole band into one span
+    or splits every icon when the chrome's brightness moves.
+    """
+    import numpy
+
+    median = float(numpy.median(band))
+    light_on_dark = median < MODE_GLYPH_DARKNESS
+    level = median + (255 - median) * MODE_GLYPH_CONTRAST if light_on_dark else median * (1 - MODE_GLYPH_CONTRAST)
+    glyphs = band > level if light_on_dark else band < level
+    columns = glyphs.sum(axis=0) > 2
     spans: list[list[int]] = []
-    for index, lit in enumerate(columns):
-        if not lit:
+    for index, column in enumerate(columns):
+        if not column:
             continue
         if spans and index - spans[-1][1] <= MODE_GLYPH_GAP:
             spans[-1][1] = index
@@ -242,7 +255,7 @@ def _glyph_spans(band) -> tuple[list[list[int]], object]:
         if span[1] - span[0] >= 2
         and lower <= (span[0] + span[1]) / 2 <= upper
     ]
-    return spans, dark
+    return spans, glyphs
 
 
 def mode_buttons(rect: dict[str, float], canvas: dict[str, int]) -> list[tuple[float, float]]:
@@ -261,14 +274,14 @@ def mode_buttons(rect: dict[str, float], canvas: dict[str, int]) -> list[tuple[f
     finally:
         shot.unlink(missing_ok=True)
     scale = band.shape[1] / rect["width"]
-    spans, dark = _glyph_spans(band)
+    spans, lit = _glyph_spans(band)
     spans = [
         span for span in spans
         if canvas["x"] <= rect["x"] + (span[0] + span[1]) / 2 / scale <= canvas["x"] + canvas["width"]
     ]
-    glyph_mask = numpy.zeros_like(dark)
+    glyph_mask = numpy.zeros_like(lit)
     for lower, upper in spans:
-        glyph_mask[:, lower : upper + 1] = dark[:, lower : upper + 1]
+        glyph_mask[:, lower : upper + 1] = lit[:, lower : upper + 1]
     rows = numpy.where(glyph_mask)[0]
     if rows.size == 0:
         raise CanvasError("toolbar band has no glyphs")
@@ -361,6 +374,20 @@ def bind_booted_vision_target(device: str) -> dict[str, str]:
     return binding
 
 
+def native_shot_size(device: str, width: float, height: float) -> tuple[int, int]:
+    """The screenshot size the caller's coordinates were measured in.
+
+    Chrome that repeats the preview's pixel coordinates under the original
+    capture's dimensions lands every pointer action at the wrong physical
+    place while the command still reports success. When the caller omits the
+    size, read it from the device itself so the two can never disagree.
+    """
+    if width > 0 and height > 0:
+        return (int(width), int(height))
+    _, size = simulator_screenshot(device)
+    return size
+
+
 def map_point(canvas: dict[str, int], shot_size: tuple[int, int], x: float, y: float) -> tuple[int, int]:
     shot_width, shot_height = shot_size
     return (
@@ -430,8 +457,8 @@ def main(argv: list[str] | None = None) -> int:
         action = sub.add_parser(name)
         action.add_argument("--shot-x", type=float, required=True)
         action.add_argument("--shot-y", type=float, required=True)
-        action.add_argument("--shot-width", type=float, required=True)
-        action.add_argument("--shot-height", type=float, required=True)
+        action.add_argument("--shot-width", type=float, default=0.0)
+        action.add_argument("--shot-height", type=float, default=0.0)
         action.add_argument("--allow-small", action="store_true")
         if name == "pinch":
             action.add_argument("--count", type=int, choices=(1, 2), default=1)
@@ -497,7 +524,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         select_pointer_mode(rect, canvas)
-        point = map_point(canvas, (args.shot_width, args.shot_height), args.shot_x, args.shot_y)
+        shot_size = native_shot_size(args.device, args.shot_width, args.shot_height)
+        point = map_point(canvas, shot_size, args.shot_x, args.shot_y)
         if args.command == "gaze":
             gaze(point)
         elif args.command in ("hold", "pinch-drag"):
@@ -508,7 +536,7 @@ def main(argv: list[str] | None = None) -> int:
                 raise CanvasError("--drag-seconds must be finite and nonnegative")
             endpoint = (
                 map_point(
-                    canvas, (args.shot_width, args.shot_height),
+                    canvas, shot_size,
                     args.to_shot_x, args.to_shot_y,
                 )
                 if args.command == "pinch-drag" else point

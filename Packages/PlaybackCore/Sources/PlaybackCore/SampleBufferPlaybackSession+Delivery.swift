@@ -2,6 +2,7 @@
 import Foundation
 import OSLog
 import PlaybackFFmpegBridge
+import SampleBufferRendering
 
 extension SampleBufferPlaybackSession {
     func close() {

@@ -68,6 +68,7 @@ public enum DesignTokens {
         public static let toggleKnobInset: CGFloat = 2
         public static let detentEmphasis: CGFloat = 3
         public static let selectionIndicatorSize: CGFloat = 22
+        public static let statusDotSize: CGFloat = 8
         public static let menuRowVisualHeight: CGFloat = regular
     }
 
@@ -387,6 +388,7 @@ public enum DesignTokens {
         public static let paddingV: CGFloat = 14
         public static let gridMin: CGFloat = 224
         public static let posterWidth: CGFloat = 180
+        public static let posterHeight: CGFloat = posterWidth * 3 / 2
         public static let stillWidth: CGFloat = 304
         public static let stillHeight: CGFloat = 205
         public static let thumbnailHeight: CGFloat = 140

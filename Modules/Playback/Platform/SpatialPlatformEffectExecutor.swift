@@ -1945,6 +1945,11 @@ public final class SpatialPlatformEffectCoordinator {
                 guard let openingContext = self.immersiveSpaceOpeningContext(
                     for: execution.request.effect
                 ) else {
+                    self.appModel.recordSurfaceInputProbe(
+                        "immersiveOpen unavailable reason=noOpeningContext"
+                            + " effect=\(execution.request.effect)",
+                        retention: .evidence
+                    )
                     return .unavailable
                 }
                 self.appModel.prepareImmersiveSpaceOpening(
@@ -1958,6 +1963,12 @@ public final class SpatialPlatformEffectCoordinator {
                     return .unavailable
                 }
                 guard let actions = self.leaseRegistry.currentCapability else {
+                    self.appModel.recordSurfaceInputProbe(
+                        "immersiveOpen unavailable reason=noCapability"
+                            + " residency=\(residency)"
+                            + " registered=\(self.leaseRegistry.registeredCapabilityCount)",
+                        retention: .evidence
+                    )
                     return .unavailable
                 }
                 var outcome = await self.openAndConfirmImmersiveSpace(
@@ -1979,6 +1990,10 @@ public final class SpatialPlatformEffectCoordinator {
                     )
                 }
                 guard outcome == .confirmed else {
+                    self.appModel.recordSurfaceInputProbe(
+                        "immersiveOpen unavailable reason=unconfirmed outcome=\(outcome)",
+                        retention: .evidence
+                    )
                     return .unavailable
                 }
                 if self.appModel.pendingSpatialPlatformEffect?.id

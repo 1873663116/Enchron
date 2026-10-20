@@ -1,4 +1,5 @@
 import DesignSystem
+import GameStreaming
 import MediaServer
 import Foundation
 import MediaSource
@@ -10,6 +11,7 @@ import SwiftUI
 public struct MainView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "MainView")
     @Environment(AppModel.self) private var appModel
+    @Environment(StreamingModel.self) private var streamingModel
     @Environment(PlaybackSessionModel.self) private var playbackSession
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
@@ -26,6 +28,7 @@ public struct MainView: View {
 
     @State private var environmentTabBarHidden = false
     @State private var environmentHomeTransitioning = false
+    @State private var streamSurfaceBindingRevision: Int?
     @State private var expandedSize = BrowserWindowLayout.defaultSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -33,6 +36,20 @@ public struct MainView: View {
 
     public var body: some View {
         ZStack {
+            Color.clear
+                .alert(
+                    "串流已退出",
+                    isPresented: Binding(
+                        get: { streamingModel.hostQuitFailureMessage != nil },
+                        set: { presented in
+                            if presented == false { streamingModel.hostQuitFailureMessage = nil }
+                        }
+                    )
+                ) {
+                    Button("确认") { streamingModel.hostQuitFailureMessage = nil }
+                } message: {
+                    Text(streamingModel.hostQuitFailureMessage ?? "")
+                }
             browserPrimaryContent
                 .frame(
                     width: appModel.isEnvironmentHomeCompact || environmentHomeTransitioning ? expandedSize.width : nil,
@@ -292,6 +309,15 @@ public struct MainView: View {
                 .accessibilityIdentifier("Jellyfin-Navigation-Tab")
             }
 
+            if settingsViewModel.preferences.moonlightEnabled {
+                Tab("Moonlight", image: "MoonlightTabIcon", value: AppModel.NavigationTab.streaming) {
+                    StreamingHomeView()
+                        .enchronScreenAppearance()
+                        .browserTabBarVisibility(browserVisibility)
+                }
+                .accessibilityIdentifier("Navigation-Ornament-tab-streaming")
+            }
+
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()
                     .enchronScreenAppearance()
@@ -332,7 +358,88 @@ public struct MainView: View {
             case .plex: .plex
             }
         }
+        .task {
+            guard ProcessInfo.processInfo.environment["ENCHRON_STREAMING_TAB"] == "1" else { return }
+            appModel.selectedTab = .streaming
+        }
 #endif
+        .onChange(of: streamingModel.session?.id, initial: true) { _, _ in
+            syncExternallyDrivenSession()
+        }
+        .onChange(of: streamingModel.session?.state, initial: true) { _, state in
+            guard let state, let session = streamingModel.session else { return }
+            switch state {
+            case .streaming, .interrupted, .stopping, .ended:
+                playbackRuntime.finishExternalVideoLoading(
+                    sessionID: session.id.rawValue
+                )
+            case .connecting:
+                break
+            }
+        }
+        .onChange(of: streamingModel.renderBinding?.version, initial: true) { _, _ in
+            syncExternallyDrivenSession()
+        }
+        .onChange(of: playbackRuntime.boundVideoComponentRevision, initial: true) { _, revision in
+            syncStreamSurfaceBinding(revision)
+        }
+    }
+
+    /// Keeps the player window's session in step with the streaming session. The
+    /// runtime holds the renderer, the presentation and the window while a
+    /// stream runs; the stream's own model keeps decoding, pacing and input.
+    private func syncExternallyDrivenSession() {
+        guard let session = streamingModel.session else {
+            guard playbackRuntime.externalVideoSessionID != nil else { return }
+            let presentationLeftTheWindow =
+                playbackSession.playbackPresentation.usesImmersiveSpace
+                || playbackSession.pendingSpatialPlatformEffect != nil
+            playbackRuntime.endExternalVideoSession()
+            if presentationLeftTheWindow {
+                playbackSession.requestStoppedPlaybackCleanup()
+            }
+            return
+        }
+        guard let binding = streamingModel.renderBinding else {
+            playbackRuntime.beginExternalVideoLoading(
+                sessionID: session.id.rawValue
+            )
+            return
+        }
+        do {
+            try playbackRuntime.beginExternalVideoSession(
+                sessionID: binding.sessionID.rawValue,
+                renderer: binding.videoRenderer
+            )
+        } catch {
+            logger.error(
+                "stream session refused by the playback runtime session=\(session.id.rawValue, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+            streamingModel.disconnect()
+        }
+    }
+
+    /// The stream's coordinator waits for a bound surface before it accepts
+    /// decoded frames, and asks the host for a key frame when one binds. The
+    /// player window's surface is the stream's surface, so its binding record is
+    /// the signal the coordinator reads.
+    private func syncStreamSurfaceBinding(_ revision: UInt64?) {
+        guard streamingModel.session != nil else {
+            streamSurfaceBindingRevision = nil
+            return
+        }
+        guard let revision else {
+            guard let boundRevision = streamSurfaceBindingRevision else { return }
+            streamSurfaceBindingRevision = nil
+            streamingModel.recordVideoSurfaceBinding(
+                revision: boundRevision,
+                bound: false
+            )
+            return
+        }
+        let boundRevision = Int(revision)
+        streamSurfaceBindingRevision = boundRevision
+        streamingModel.recordVideoSurfaceBinding(revision: boundRevision, bound: true)
     }
 
     private var browserVisibility: BrowserWindowVisibility {

@@ -22,7 +22,25 @@ public struct WindowPlayerDeckView: View {
     @ViewBuilder
     public var body: some View {
         Group {
-            if usesWindowPlaybackControls {
+            if let information = streamingInformation {
+                if usesWindowPlaybackControls {
+                    StreamingWindowPlaybackControls(
+                        live: live,
+                        information: information,
+                        onInteraction: register,
+                        controlsVisible: appModel.showControls
+                    )
+                    .onHover { appModel.setControlsFocused($0) }
+                } else {
+                    StreamingDockPlaybackControls(
+                        live: live,
+                        information: information,
+                        onInteraction: register,
+                        controlsVisible: appModel.showControls
+                    )
+                    .onHover { appModel.setControlsFocused($0) }
+                }
+            } else if usesWindowPlaybackControls {
                 WindowPlaybackControls(
                     live: live,
                     onInteraction: register,
@@ -38,6 +56,11 @@ public struct WindowPlayerDeckView: View {
                 .onHover { appModel.setControlsFocused($0) }
             }
         }
+    }
+
+    private var streamingInformation: StreamingPlaybackInformation? {
+        guard playbackRuntime.isStreamingPlayback else { return nil }
+        return playbackRuntime.externalVideoInformation
     }
 
     private func register() {

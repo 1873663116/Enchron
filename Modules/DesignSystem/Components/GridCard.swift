@@ -350,7 +350,7 @@ public struct GridCard: View {
     private var thumbnailHeight: CGFloat {
         switch variant {
         case .poster:
-            DesignTokens.Card.posterWidth * 3 / 2
+            DesignTokens.Card.posterHeight
         case .episode:
             DesignTokens.Card.stillHeight
         case .video, .folder:

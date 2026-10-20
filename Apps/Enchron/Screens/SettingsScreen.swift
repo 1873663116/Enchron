@@ -1,4 +1,5 @@
 import DesignSystem
+import GameStreaming
 import MediaLibrary
 import MediaSource
 import Playback
@@ -22,7 +23,7 @@ struct SettingsScreen: View {
     @State private var showsSupport = false
 
     private enum Category: String, CaseIterable {
-        case general, playback, storagePrivacy
+        case general, playback, streaming, storagePrivacy
 #if DEBUG
         case developer
 #endif
@@ -32,6 +33,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: String(localized: "General")
             case .playback: String(localized: "Playback Behavior")
+            case .streaming: String(localized: "Moonlight")
             case .storagePrivacy: String(localized: "Storage & Privacy")
 #if DEBUG
             case .developer: String(localized: "Developer")
@@ -45,6 +47,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: String(localized: "Language and app-wide preferences")
             case .playback: nil
+            case .streaming: String(localized: "主机连接与串流画面配置")
             case .storagePrivacy: String(localized: "Rebuildable cache, playback history, and data handling")
 #if DEBUG
             case .developer: String(localized: "Performance readout in every window and space")
@@ -57,6 +60,7 @@ struct SettingsScreen: View {
             switch self {
             case .general: "gearshape.fill"
             case .playback: "play.circle.fill"
+            case .streaming: "MoonlightTabIcon"
             case .storagePrivacy: "internaldrive.fill"
 #if DEBUG
             case .developer: "wrench.and.screwdriver.fill"
@@ -68,6 +72,12 @@ struct SettingsScreen: View {
 
     private var selectedCategory: Category {
         Category(rawValue: selectedCategoryID) ?? .playback
+    }
+
+    private var visibleCategories: [Category] {
+        Category.allCases.filter { category in
+            category != .streaming || viewModel.preferences.moonlightEnabled
+        }
     }
 
     /// Apple's supported way to switch an app's language is the system's
@@ -91,6 +101,26 @@ struct SettingsScreen: View {
         ]
     }
 
+    private var moonlightItems: [SettingListGroup.Item] {
+        [
+            SettingListGroup.Item(
+                id: "moonlight-enabled",
+                title: String(localized: "Moonlight"),
+                imageName: "MoonlightTabIcon",
+                supportingText: String(localized: "实验性功能。需要 Sunshine 或兼容的 GameStream 服务端。"),
+                supportingTextLineLimit: nil,
+                accessory: .boundToggle(
+                    isOn: Binding(
+                        get: { viewModel.preferences.moonlightEnabled },
+                        set: { value in viewModel.update { $0.moonlightEnabled = value } }
+                    ),
+                    isEnabled: true,
+                    marker: nil
+                )
+            )
+        ]
+    }
+
     private func openLanguageSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
@@ -99,7 +129,7 @@ struct SettingsScreen: View {
     var body: some View {
         HStack(spacing: 0) {
             CategorySidebar(
-                items: Category.allCases.map { CategorySidebarItem(id: $0.rawValue, icon: $0.icon, title: $0.title) },
+                items: visibleCategories.map { CategorySidebarItem(id: $0.rawValue, icon: $0.icon, title: $0.title) },
                 selection: $selectedCategoryID,
                 title: String(localized: "Settings"),
                 containerIdentifier: "Settings-MainWindow-sidebar",
@@ -112,6 +142,11 @@ struct SettingsScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-SettingsScreen")
         .task { await refreshCacheUsage() }
+        .onChange(of: viewModel.preferences.moonlightEnabled) { _, isEnabled in
+            if isEnabled == false, selectedCategoryID == Category.streaming.rawValue {
+                selectedCategoryID = Category.general.rawValue
+            }
+        }
         .onChange(of: selectedCategoryID) { _, category in
 #if DEBUG
             playbackSession.recordSurfaceInputProbe(
@@ -167,6 +202,10 @@ struct SettingsScreen: View {
                 plex: mediaLibraryTabBinding(\.plex),
                 jellyfin: mediaLibraryTabBinding(\.jellyfin)
             )
+            SettingListGroup(
+                accessibilityIdentifier: "Settings-Moonlight-group",
+                items: moonlightItems
+            )
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
             SettingListGroup(
@@ -175,6 +214,8 @@ struct SettingsScreen: View {
                 keyValueDetail: viewModel.preferences.playbackShortcutsEnabled ? playbackShortcutDescriptions : []
             )
                 .animation(DesignTokens.AnimationToken.selection, value: viewModel.preferences.playbackShortcutsEnabled)
+        case .streaming:
+            StreamSettingsSection()
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
 #if DEBUG

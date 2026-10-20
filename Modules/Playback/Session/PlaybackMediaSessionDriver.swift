@@ -51,7 +51,10 @@ class PlaybackMediaSessionDriver {
     }
 
     struct SessionResource {
-        let driver: PlaybackMediaSessionDriver
+        /// The PlaybackCore session's driver. Nil when the samples are produced
+        /// outside PlaybackCore: the runtime then owns only the renderer and the
+        /// presentation, and a session of another feature owns decoding and pacing.
+        let driver: PlaybackMediaSessionDriver?
         let sessionID: String
         let renderer: AVSampleBufferVideoRenderer
 
@@ -62,6 +65,19 @@ class PlaybackMediaSessionDriver {
             self.driver = driver
             self.sessionID = session.traceID
             self.renderer = session.renderer
+        }
+
+        init(externallyDrivenSessionID sessionID: String, renderer: AVSampleBufferVideoRenderer) {
+            self.driver = nil
+            self.sessionID = sessionID
+            self.renderer = renderer
+        }
+
+        /// Whether whoever produced this resource still holds it. A driver holds
+        /// the session it opened; an externally driven resource is held by its
+        /// caller, which the runtime does not check.
+        var isHeldByItsSource: Bool {
+            driver?.owns(self) ?? true
         }
     }
 

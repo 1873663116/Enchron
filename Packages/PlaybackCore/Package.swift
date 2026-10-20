@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "PlaybackCore", targets: ["PlaybackCore"]),
+        .library(name: "SampleBufferRendering", targets: ["SampleBufferRendering"]),
         .library(name: "BluRayDisc", targets: ["BluRayDisc"]),
         .library(name: "BluRayDiscBridge", targets: ["BluRayDiscBridge"]),
         .executable(name: "BluRayDiscProbe", targets: ["BluRayDiscProbe"]),
@@ -72,8 +73,12 @@ let package = Package(
             ]
         ),
         .target(
+            name: "SampleBufferRendering",
+            path: "Sources/SampleBufferRendering"
+        ),
+        .target(
             name: "PlaybackCore",
-            dependencies: ["PlaybackFFmpegBridge", "BluRayDisc"],
+            dependencies: ["PlaybackFFmpegBridge", "BluRayDisc", "SampleBufferRendering"],
             path: "Sources/PlaybackCore"
         ),
         .executableTarget(
@@ -83,7 +88,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PlaybackCoreTests",
-            dependencies: ["PlaybackCore", "PlaybackFFmpegBridge"],
+            dependencies: ["PlaybackCore", "PlaybackFFmpegBridge", "SampleBufferRendering"],
             resources: [.copy("Fixtures")]
         ),
         .testTarget(

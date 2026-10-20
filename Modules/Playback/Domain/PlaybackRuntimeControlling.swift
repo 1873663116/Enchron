@@ -310,6 +310,7 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var productLifecycle: ProductPlaybackLifecycle { get }
     var playbackPosition: PlaybackModel.PlaybackPosition { get }
     var currentLaunchRequest: PlaybackLaunchRequest? { get }
+    var externalVideoSessionID: String? { get }
     var prefetchedMetadata: PlaybackMediaMetadata? { get }
     var displayMediaProfile: PlaybackModel.MediaProfile? { get }
     var displayFileSizeInBytes: Int64? { get }
@@ -328,6 +329,8 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)? { get set }
 
     func prepareForPlayback(_ request: PlaybackLaunchRequest)
+    /// Ends the externally driven session the player window presents, if any.
+    func endExternalVideoSession()
     func applyPrefetchedMetadata(_ metadata: PlaybackMediaMetadata)
     func open(
         _ request: PlaybackLaunchRequest,

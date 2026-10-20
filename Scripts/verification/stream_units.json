@@ -1,0 +1,753 @@
+{
+  "note": "见 .scratch/2026-10-16-串流端到端/UNITS.md（剧本与规矩）。本文件只声明，不判决。driver=pending 表示该单元的驱动器尚未实现。",
+  "scenarios": [
+    {
+      "id": "00",
+      "title": "状态前置"
+    },
+    {
+      "id": "01",
+      "title": "添加主机"
+    },
+    {
+      "id": "02",
+      "title": "配对"
+    },
+    {
+      "id": "03",
+      "title": "应用列表"
+    },
+    {
+      "id": "04",
+      "title": "启动与首帧"
+    },
+    {
+      "id": "05",
+      "title": "画面来源"
+    },
+    {
+      "id": "06",
+      "title": "音频"
+    },
+    {
+      "id": "07",
+      "title": "键鼠回传"
+    },
+    {
+      "id": "08",
+      "title": "捕获期间控件可达"
+    },
+    {
+      "id": "09",
+      "title": "网络中断恢复"
+    },
+    {
+      "id": "10",
+      "title": "远端会话"
+    },
+    {
+      "id": "11",
+      "title": "断连不等于退出"
+    },
+    {
+      "id": "12",
+      "title": "设置持久化"
+    },
+    {
+      "id": "13",
+      "title": "编码协商"
+    },
+    {
+      "id": "14",
+      "title": "码率"
+    },
+    {
+      "id": "15",
+      "title": "帧调度与帧率"
+    },
+    {
+      "id": "16",
+      "title": "HDR"
+    },
+    {
+      "id": "17",
+      "title": "分辨率"
+    },
+    {
+      "id": "18",
+      "title": "资源释放"
+    }
+  ],
+  "units": [
+    {
+      "id": "P0.1",
+      "s": "00",
+      "t": "主机登记并配对",
+      "pre": "",
+      "needs": [],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "host.state",
+      "x": false
+    },
+    {
+      "id": "01.1",
+      "s": "01",
+      "t": "打开添加表单",
+      "pre": "",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "add.form",
+      "x": false
+    },
+    {
+      "id": "01.2",
+      "s": "01",
+      "t": "提交并读行",
+      "pre": "form=add-host-open",
+      "needs": [
+        "01.1"
+      ],
+      "cls": [
+        "app",
+        "pixel"
+      ],
+      "driver": "add.submit",
+      "x": false
+    },
+    {
+      "id": "01.3",
+      "s": "01",
+      "t": "发现行地址即可添加地址",
+      "pre": "form=add-host-open",
+      "needs": [
+        "01.1"
+      ],
+      "cls": [
+        "app"
+      ],
+      "driver": "discover.address",
+      "x": false
+    },
+    {
+      "id": "02.1",
+      "s": "02",
+      "t": "取 PIN",
+      "pre": "host=unpaired",
+      "needs": [
+        "01.2"
+      ],
+      "cls": [
+        "app"
+      ],
+      "driver": "pair.pin",
+      "x": false
+    },
+    {
+      "id": "02.2",
+      "s": "02",
+      "t": "主机确认",
+      "pre": "pair=pending",
+      "needs": [
+        "02.1"
+      ],
+      "cls": [
+        "host-sunshine"
+      ],
+      "driver": "pair.submit",
+      "x": false
+    },
+    {
+      "id": "02.3",
+      "s": "02",
+      "t": "配对存活",
+      "pre": "pair=paired",
+      "needs": [
+        "02.2"
+      ],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "pair.survive",
+      "x": true
+    },
+    {
+      "id": "03.1",
+      "s": "03",
+      "t": "打开主机详情",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "host.details",
+      "x": false
+    },
+    {
+      "id": "03.2",
+      "s": "03",
+      "t": "条目一致",
+      "pre": "app-list=cards",
+      "needs": [
+        "03.1"
+      ],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "host.apps",
+      "x": false
+    },
+    {
+      "id": "04.1",
+      "s": "04",
+      "t": "启动会话",
+      "pre": "app-list=cards",
+      "needs": [],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "stream.launch",
+      "x": false
+    },
+    {
+      "id": "04.2",
+      "s": "04",
+      "t": "启动校验",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "launch.validate",
+      "x": false
+    },
+    {
+      "id": "04.3",
+      "s": "04",
+      "t": "首帧来源",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "pixel",
+        "host-forensic"
+      ],
+      "driver": "first.frame",
+      "x": false
+    },
+    {
+      "id": "05.1",
+      "s": "05",
+      "t": "画面在推进",
+      "pre": "session=streaming",
+      "needs": [],
+      "cls": [
+        "host-forensic",
+        "app"
+      ],
+      "driver": "frame.advance",
+      "x": false
+    },
+    {
+      "id": "05.2",
+      "s": "05",
+      "t": "来源可信",
+      "pre": "session=streaming",
+      "needs": [
+        "05.1"
+      ],
+      "cls": [
+        "pixel",
+        "host-forensic"
+      ],
+      "driver": "picture.source",
+      "x": false
+    },
+    {
+      "id": "06.1",
+      "s": "06",
+      "t": "主机发声",
+      "pre": "host=free",
+      "needs": [],
+      "cls": [
+        "host-forensic"
+      ],
+      "driver": "audio.tone",
+      "x": false
+    },
+    {
+      "id": "06.2",
+      "s": "06",
+      "t": "客户端链路",
+      "pre": "session=streaming",
+      "needs": [],
+      "cls": [
+        "probe"
+      ],
+      "driver": "audio.chain",
+      "x": false
+    },
+    {
+      "id": "06.3",
+      "s": "06",
+      "t": "断连对照",
+      "pre": "session=streaming",
+      "needs": [
+        "06.2"
+      ],
+      "cls": [
+        "host-audio"
+      ],
+      "driver": "audio.contrast",
+      "x": true
+    },
+    {
+      "id": "07.1",
+      "s": "07",
+      "t": "键入并确认主机收到",
+      "pre": "session=streaming",
+      "needs": [],
+      "cls": [
+        "app",
+        "host-forensic"
+      ],
+      "driver": "input.type-string",
+      "x": false
+    },
+    {
+      "id": "07.3",
+      "s": "07",
+      "t": "鼠标坐标送达",
+      "pre": "session=streaming",
+      "needs": [
+        "07.1"
+      ],
+      "cls": [
+        "host-forensic",
+        "app"
+      ],
+      "driver": "input.pointer",
+      "x": false
+    },
+    {
+      "id": "08.1",
+      "s": "08",
+      "t": "进入捕获",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "probe",
+        "host-forensic"
+      ],
+      "driver": "capture.enter",
+      "x": false
+    },
+    {
+      "id": "08.2",
+      "s": "08",
+      "t": "点 Dock",
+      "pre": "host=paired",
+      "needs": [
+        "08.1"
+      ],
+      "cls": [
+        "pixel"
+      ],
+      "driver": "capture.dock",
+      "x": false
+    },
+    {
+      "id": "08.3",
+      "s": "08",
+      "t": "点返回",
+      "pre": "host=paired",
+      "needs": [
+        "08.2"
+      ],
+      "cls": [
+        "probe",
+        "app"
+      ],
+      "driver": "capture.back",
+      "x": false
+    },
+    {
+      "id": "09.1",
+      "s": "09",
+      "t": "注入中断",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app",
+        "proxy"
+      ],
+      "driver": "interrupt.inject",
+      "x": true
+    },
+    {
+      "id": "09.2",
+      "s": "09",
+      "t": "恢复",
+      "pre": "host=paired",
+      "needs": [
+        "09.1"
+      ],
+      "cls": [
+        "app",
+        "pixel"
+      ],
+      "driver": "interrupt.recover",
+      "x": false
+    },
+    {
+      "id": "10.1",
+      "s": "10",
+      "t": "制造占用",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "host-sunshine"
+      ],
+      "driver": "remote.hold",
+      "x": true
+    },
+    {
+      "id": "10.2",
+      "s": "10",
+      "t": "尝试启动",
+      "pre": "host=paired",
+      "needs": [
+        "10.1"
+      ],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "remote.start",
+      "x": false
+    },
+    {
+      "id": "10.3",
+      "s": "10",
+      "t": "释放",
+      "pre": "host=paired",
+      "needs": [
+        "10.2"
+      ],
+      "cls": [
+        "host-sunshine"
+      ],
+      "driver": "remote.release",
+      "x": false
+    },
+    {
+      "id": "11.1",
+      "s": "11",
+      "t": "结束会话",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "quit.end",
+      "x": false
+    },
+    {
+      "id": "11.2",
+      "s": "11",
+      "t": "主机进程仍在",
+      "pre": "host=paired",
+      "needs": [
+        "11.1"
+      ],
+      "cls": [
+        "host-process"
+      ],
+      "driver": "quit.survive",
+      "x": false
+    },
+    {
+      "id": "12.1",
+      "s": "12",
+      "t": "改设置",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "settings.apply",
+      "x": false,
+      "args": {
+        "resolution": "2560x1440",
+        "frameRate": 60,
+        "bitrate": 40000,
+        "codec": "hevc",
+        "framePacing": true
+      }
+    },
+    {
+      "id": "12.2",
+      "s": "12",
+      "t": "重启存活",
+      "pre": "host=paired",
+      "needs": [
+        "12.1"
+      ],
+      "cls": [
+        "app"
+      ],
+      "driver": "settings.restart",
+      "x": true
+    },
+    {
+      "id": "12.3",
+      "s": "12",
+      "t": "重连生效",
+      "pre": "host=paired",
+      "needs": [
+        "12.2"
+      ],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {}
+    },
+    {
+      "id": "13.1",
+      "s": "13",
+      "t": "请求 H.264",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "codec": "h264"
+      }
+    },
+    {
+      "id": "13.2",
+      "s": "13",
+      "t": "请求 HEVC",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "codec": "hevc"
+      }
+    },
+    {
+      "id": "13.3",
+      "s": "13",
+      "t": "自动",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "codec": "auto"
+      }
+    },
+    {
+      "id": "14.1",
+      "s": "14",
+      "t": "请求 40 Mbps",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "bitrate": 40000
+      }
+    },
+    {
+      "id": "14.2",
+      "s": "14",
+      "t": "主机采纳",
+      "pre": "host=paired",
+      "needs": [
+        "14.1"
+      ],
+      "cls": [
+        "host-sunshine"
+      ],
+      "driver": "bitrate.host",
+      "x": false
+    },
+    {
+      "id": "15.1",
+      "s": "15",
+      "t": "帧调度开",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app",
+        "probe"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "framePacing": true,
+        "frameRate": 60
+      }
+    },
+    {
+      "id": "15.2",
+      "s": "15",
+      "t": "帧调度关",
+      "pre": "session=streaming",
+      "needs": [
+        "15.1"
+      ],
+      "cls": [
+        "app",
+        "probe"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "framePacing": false,
+        "frameRate": 60
+      }
+    },
+    {
+      "id": "15.3",
+      "s": "15",
+      "t": "请求 120",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app",
+        "probe"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "frameRate": 120
+      }
+    },
+    {
+      "id": "16.1",
+      "s": "16",
+      "t": "请求 HDR",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "settings.apply",
+      "x": true,
+      "args": {
+        "hdr": true
+      }
+    },
+    {
+      "id": "16.2",
+      "s": "16",
+      "t": "主机 SDR 降级",
+      "pre": "host=paired",
+      "needs": [
+        "16.1"
+      ],
+      "cls": [
+        "app",
+        "host-sunshine"
+      ],
+      "driver": "negotiate.check",
+      "x": false,
+      "args": {}
+    },
+    {
+      "id": "16.3",
+      "s": "16",
+      "t": "说明可读",
+      "pre": "session=streaming",
+      "needs": [
+        "16.2"
+      ],
+      "cls": [
+        "app"
+      ],
+      "driver": "notice.degrade",
+      "x": true
+    },
+    {
+      "id": "17.1",
+      "s": "17",
+      "t": "请求 2560x1440",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "app"
+      ],
+      "driver": "negotiate.check",
+      "x": true,
+      "args": {
+        "resolution": "2560x1440"
+      }
+    },
+    {
+      "id": "17.2",
+      "s": "17",
+      "t": "主机显示模式不变",
+      "pre": "host=paired",
+      "needs": [
+        "17.1"
+      ],
+      "cls": [
+        "host-sunshine"
+      ],
+      "driver": "display.mode",
+      "x": false
+    },
+    {
+      "id": "18.1",
+      "s": "18",
+      "t": "结束会话",
+      "pre": "session!=ended",
+      "needs": [],
+      "cls": [
+        "app",
+        "probe"
+      ],
+      "driver": "session.disconnect",
+      "x": false
+    },
+    {
+      "id": "18.2",
+      "s": "18",
+      "t": "释放核对",
+      "pre": "host=paired",
+      "needs": [],
+      "cls": [
+        "probe"
+      ],
+      "driver": "release.check",
+      "x": false
+    }
+  ]
+}

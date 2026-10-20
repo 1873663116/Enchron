@@ -1,5 +1,6 @@
 import DesignSystem
 import Foundation
+import GameStreaming
 import MediaSource
 import PlaybackCore
 import Playback
@@ -86,6 +87,7 @@ public struct PlayerView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(StreamingModel.self) private var streamingModel
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
 #if DEBUG
@@ -130,7 +132,14 @@ public struct PlayerView: View {
     }
 
     public var body: some View {
-        platformContent
+        Group {
+            if streamingModel.session != nil {
+                streamWindow
+            } else {
+                platformContent
+            }
+        }
+        .anchoredMenuHost(presentation: windowMenu)
 #if DEBUG
             .developerStatsOverlay(
                 isEnabled: settingsViewModel.preferences.developerModeEnabled
@@ -139,6 +148,7 @@ public struct PlayerView: View {
             )
 #endif
             .onChange(of: playbackRuntime.residency) { _, residency in
+                guard streamingModel.session == nil else { return }
                 spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
             }
             .overlay {
@@ -192,7 +202,6 @@ public struct PlayerView: View {
 
     private var platformContent: some View {
         primaryContent
-            .anchoredMenuHost(presentation: windowMenu)
             .ornament(
                 visibility: .visible,
                 attachmentAnchor: .scene(.bottom)
@@ -323,13 +332,7 @@ public struct PlayerView: View {
     }
 
     private var windowPlaybackCanvas: some View {
-        let showsLoadingChrome = WindowPlaybackLoadingVisibility.shouldShow(
-            hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
-            loadingVisibility: playbackRuntime.loadingState.visibility,
-            isPresentationTransitionActive: playbackSession.presentationTransition != nil
-        )
-
-        return ZStack {
+        ZStack {
             if playbackRuntime.mediaKind == .audioOnly {
                 AudioSpectrumSurface(frame: playbackRuntime.audioSpectrumFrame)
                     .contentShape(.interaction, Rectangle())
@@ -366,6 +369,26 @@ public struct PlayerView: View {
             }
             #endif
 
+            playbackLoadingChrome
+
+        }
+        .playbackIssueAlert(
+            at: .mainWindow,
+            onRetry: playbackLauncher.retryPlayback,
+            onClose: { playbackLauncher.stopPlayback(reason: .failure) }
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
+        .accessibilityValue(playbackRuntime.lifecycle.label)
+    }
+
+    private var playbackLoadingChrome: some View {
+        let showsLoadingChrome = WindowPlaybackLoadingVisibility.shouldShow(
+            hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
+            loadingVisibility: playbackRuntime.loadingState.visibility,
+            isPresentationTransitionActive: playbackSession.presentationTransition != nil
+        )
+        return Group {
             if showsLoadingChrome, playbackLauncher.pendingResumeDecision == nil {
                 LoadingSpinner(
                     sourceReadBytesPerSecond: {
@@ -377,24 +400,15 @@ public struct PlayerView: View {
                             .sourceReadPendingSeconds
                     }
                 )
-                    .enchronSpatialFrame(depth: 0)
-                    .enchronSpatialOffset(
-                        z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
-                    )
-                    .accessibilityIdentifier("PlayerUI-loading-spinner")
-                    .accessibilityLabel("Loading")
-                    .allowsHitTesting(false)
+                .enchronSpatialFrame(depth: 0)
+                .enchronSpatialOffset(
+                    z: WindowPlaybackSurfaceGeometry.coincidentChromeDepth
+                )
+                .accessibilityIdentifier("PlayerUI-loading-spinner")
+                .accessibilityLabel("Loading")
+                .allowsHitTesting(false)
             }
-
         }
-        .playbackIssueAlert(
-            at: .mainWindow,
-            onRetry: playbackLauncher.retryPlayback,
-            onClose: { playbackLauncher.stopPlayback(reason: .failure) }
-        )
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
-        .accessibilityValue(playbackRuntime.lifecycle.label)
     }
 
     private var reapplyVerificationIsEnabled: Bool {
@@ -451,6 +465,95 @@ public struct PlayerView: View {
             settledPresentation: playbackSession.playbackPresentation,
             transition: playbackSession.presentationTransition
         )
+    }
+
+    private var streamWindow: some View {
+        WindowPlaybackRootView(
+            geometryPolicy: streamWindowGeometryPolicy,
+            geometryRefreshRevision: spatialPlatformEffectCoordinator
+                .mainWindowPlaybackSurfaceRefreshRevision,
+            showsWindowChrome: true,
+            onWindowSceneChange: { windowScene in
+                spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .player)
+            },
+            onTopChromeOcclusionChange: {
+                playbackSession.setWindowTopChromeFraction($0)
+            },
+            onSurfaceHeightChange: {
+                playbackSession.setWindowSurfaceHeight($0)
+            }
+        ) {
+            streamCanvas
+                .onAppear { playbackSession.registerControlsInteraction() }
+        } topChrome: {
+            if playbackSession.showControls {
+                streamTopChrome
+            }
+        }
+        .enchronWindowGlassBackground(.always)
+        .persistentSystemOverlays(.visible)
+        .ornament(
+            visibility: .visible,
+            attachmentAnchor: .scene(.bottom)
+        ) {
+            WindowPlayerDeckView(presentationOverride: .window)
+                .anchoredMenuDismissRegion(presentation: windowMenu)
+                .opacity(playbackSession.showControls ? 1 : 0)
+                .allowsHitTesting(playbackSession.showControls)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                    playbackSession.setWindowControlsOrnamentHeight($0)
+                }
+        }
+        .modifier(
+            windowControlPlaneState(geometryPolicy: streamWindowGeometryPolicy)
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-window-control-plane")
+    }
+
+    private var streamWindowGeometryPolicy: WindowPlaybackGeometryPolicy {
+        .aspectLocked(
+            WindowPlaybackLayout(aspectRatio: streamingModel.videoAspectRatio)
+        )
+    }
+
+    private var streamCanvas: some View {
+        ZStack {
+            PlaybackVideoSurface(
+                presentation: hostedPlaybackPresentation,
+                isActive: playbackRuntime.activeSessionID != nil,
+                viewportRefreshRevision: spatialPlatformEffectCoordinator
+                    .mainWindowPlaybackSurfaceRefreshRevision,
+                onViewportRefreshApplied: {
+                    spatialPlatformEffectCoordinator
+                        .recordMainWindowPlaybackSurfaceRefreshApplied($0)
+                }
+            )
+            StreamSessionContentView()
+            playbackLoadingChrome
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
+        .accessibilityValue(playbackRuntime.lifecycle.label)
+    }
+
+    private var streamTopChrome: some View {
+        WindowPlaybackTopChrome {
+            PlaybackChromeGlassButton(
+                systemName: "chevron.left",
+                accessibilityLabel: "返回",
+                action: { stopStream() },
+                accessibilityIdentifier: "Stream-Session-back"
+            )
+        } spatialActions: {
+            Spacer()
+        } moreControl: {
+            PlaybackWindowDockChip()
+        }
+    }
+
+    private func stopStream() {
+        streamingModel.endStream()
     }
 
     private var windowPlaybackLayout: WindowPlaybackLayout {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 public extension View {
     func enchronSidebarSurface() -> some View {
@@ -17,6 +18,7 @@ struct SourceSidebarRow: View {
     var isSelected = false
     var isEnabled = true
     var isActiveSource = false
+    var statusColor: Color?
     var showsSelectionBackground = true
 
     init(
@@ -25,6 +27,7 @@ struct SourceSidebarRow: View {
         isSelected: Bool = false,
         isEnabled: Bool = true,
         isActiveSource: Bool = false,
+        statusColor: Color? = nil,
         showsSelectionBackground: Bool = true
     ) {
         self.icon = icon
@@ -32,15 +35,16 @@ struct SourceSidebarRow: View {
         self.isSelected = isSelected
         self.isEnabled = isEnabled
         self.isActiveSource = isActiveSource
+        self.statusColor = statusColor
         self.showsSelectionBackground = showsSelectionBackground
     }
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: icon)
-                .font(DesignTokens.Typography.headline)
-                .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
-                .frame(width: DesignTokens.Interactive.mini)
+            SidebarRowIcon(
+                icon: icon,
+                isSelected: isSelected
+            )
 
             Text(title)
                 .font(DesignTokens.Typography.metadata)
@@ -49,7 +53,14 @@ struct SourceSidebarRow: View {
 
             Spacer(minLength: 0)
 
-            if isActiveSource {
+            if let statusColor {
+                Circle()
+                    .fill(statusColor)
+                    .frame(
+                        width: DesignTokens.Interactive.statusDotSize,
+                        height: DesignTokens.Interactive.statusDotSize
+                    )
+            } else if isActiveSource {
                 Circle()
                     .fill(DesignTokens.Theme.accent)
                     .frame(width: DesignTokens.Spacing.xs, height: DesignTokens.Spacing.xs)
@@ -81,6 +92,7 @@ public struct EditableSourceSidebarRow: View {
     let rowOffset: CGFloat
     var allowsReordering = true
     var allowsSwipe = true
+    var statusColor: Color?
     var onTap: (() -> Void)?
     let onToggleSelection: () -> Void
     let onSwipeBegan: () -> Void
@@ -121,6 +133,7 @@ public struct EditableSourceSidebarRow: View {
         rowOffset: CGFloat,
         allowsReordering: Bool = true,
         allowsSwipe: Bool = true,
+        statusColor: Color? = nil,
         onTap: (() -> Void)? = nil,
         onToggleSelection: @escaping () -> Void = {},
         onSwipeBegan: @escaping () -> Void = {},
@@ -145,6 +158,7 @@ public struct EditableSourceSidebarRow: View {
         self.rowOffset = rowOffset
         self.allowsReordering = allowsReordering
         self.allowsSwipe = allowsSwipe
+        self.statusColor = statusColor
         self.onTap = onTap
         self.onToggleSelection = onToggleSelection
         self.onSwipeBegan = onSwipeBegan
@@ -242,6 +256,7 @@ public struct EditableSourceSidebarRow: View {
                 isSelected: isSelected || isChecked,
                 isEnabled: isEnabled,
                 isActiveSource: isActiveSource,
+                statusColor: statusColor,
                 showsSelectionBackground: false
             )
             .frame(maxWidth: .infinity)
@@ -500,5 +515,34 @@ public struct EditableSourceSidebarRow: View {
                 hoverRestoreTask = nil
             }
         }
+    }
+}
+
+private struct SidebarRowIcon: View {
+    let icon: String
+    let isSelected: Bool
+
+    var body: some View {
+        Group {
+            if let uiImage = UIImage(named: icon) {
+                Image(uiImage: uiImage)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(
+                        width: DesignTokens.Interactive.mini * 0.72,
+                        height: DesignTokens.Interactive.mini * 0.72
+                    )
+            } else {
+                Image(systemName: icon)
+                    .font(DesignTokens.Typography.headline)
+                    .frame(
+                        width: DesignTokens.Interactive.mini * 0.72,
+                        height: DesignTokens.Interactive.mini * 0.72
+                    )
+            }
+        }
+        .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
+        .frame(width: DesignTokens.Interactive.mini)
     }
 }

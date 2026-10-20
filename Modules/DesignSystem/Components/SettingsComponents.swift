@@ -627,6 +627,43 @@ public struct SettingListGroup: View {
             unit: String? = nil,
             accessibilityLabel: String
         )
+        case detentedSlider(
+            selectedIndex: Binding<Int>,
+            detentCount: Int,
+            valueText: String,
+            accessibilityLabel: String,
+            isEnabled: Bool = true
+        )
+        case dimensionSteppers(
+            width: Binding<Int>,
+            height: Binding<Int>,
+            widthRange: ClosedRange<Int>,
+            heightRange: ClosedRange<Int>,
+            step: Int
+        )
+        case numberFields(fields: [NumberField])
+    }
+
+    public struct NumberField: Identifiable {
+        public let id: String
+        public let title: String
+        public let text: Binding<String>
+        public let suffix: String?
+        public let message: String?
+
+        public init(
+            id: String,
+            title: String,
+            text: Binding<String>,
+            suffix: String? = nil,
+            message: String? = nil
+        ) {
+            self.id = id
+            self.title = title
+            self.text = text
+            self.suffix = suffix
+            self.message = message
+        }
     }
 
     public struct KeyValue: Identifiable {
@@ -651,12 +688,14 @@ public struct SettingListGroup: View {
         public var expansion: ExpansionOrigin = .top
         public var accessory: Accessory = .automatic
         public var embeddedControl: EmbeddedControl?
+        public var imageName: String?
         public var action: () -> Void = {}
 
         public init(
             id: String? = nil,
             title: String,
             systemName: String? = nil,
+            imageName: String? = nil,
             supportingText: String? = nil,
             supportingTextLineLimit: Int? = 1,
             detail: String? = nil,
@@ -676,6 +715,7 @@ public struct SettingListGroup: View {
             self.expansion = expansion
             self.accessory = accessory
             self.embeddedControl = embeddedControl
+            self.imageName = imageName
             self.action = action
         }
     }
@@ -711,6 +751,7 @@ public struct SettingListGroup: View {
                     id: item.id,
                     title: item.title,
                     systemName: item.systemName,
+                    imageName: item.imageName,
                     supportingText: item.supportingText,
                     supportingTextLineLimit: item.supportingTextLineLimit,
                     detail: item.detail,
@@ -800,10 +841,15 @@ public struct ListGroupRowShell<Content: View>: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(accessibilityLabel)
                 .accessibilityValue(accessibilityValue)
+        } else if accessibilityValue.isEmpty {
+            surface
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(accessibilityLabel)
         } else {
             surface
                 .accessibilityElement(children: .contain)
                 .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(accessibilityValue)
         }
     }
 
@@ -847,6 +893,7 @@ struct SettingListGroupRow: View {
     let id: String
     let title: String
     let systemName: String?
+    var imageName: String?
     var supportingText: String?
     var supportingTextLineLimit: Int? = 1
     var detail: String?
@@ -992,7 +1039,15 @@ struct SettingListGroupRow: View {
 
     private var rowContent: some View {
         HStack(spacing: DesignTokens.Spacing.md) {
-            if let systemName {
+            if let imageName {
+                Image(imageName)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(DesignTokens.Surface.accessoryText)
+                    .frame(width: DesignTokens.Interactive.mini, height: DesignTokens.Interactive.mini)
+                    .frame(width: DesignTokens.Interactive.compact)
+            } else if let systemName {
                 Image(systemName: systemName)
                     .font(DesignTokens.SymbolSize.selectionHeaderIcon)
                     .foregroundStyle(DesignTokens.Surface.accessoryText)
@@ -1174,6 +1229,25 @@ struct SettingListGroupRow: View {
                 title: title,
                 accessibilityLabel: accessibilityLabel
             )
+        case .detentedSlider(let selectedIndex, let detentCount, let valueText, let accessibilityLabel, let isEnabled):
+            SettingListDetentedSliderRow(
+                selectedIndex: selectedIndex,
+                detentCount: detentCount,
+                valueText: valueText,
+                title: title,
+                accessibilityLabel: accessibilityLabel,
+                isEnabled: isEnabled
+            )
+        case .dimensionSteppers(let width, let height, let widthRange, let heightRange, let step):
+            SettingListDimensionStepperRow(
+                width: width,
+                height: height,
+                widthRange: widthRange,
+                heightRange: heightRange,
+                step: step
+            )
+        case .numberFields(let fields):
+            SettingListNumberFieldsRow(fields: fields)
         }
     }
 
@@ -1458,6 +1532,151 @@ private struct SettingListRangeSliderRow: View {
 
     private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
         EnchronHoverGroup(id: "settingListRangeSliderLabel", in: hoverNamespace, behavior: behavior)
+    }
+}
+
+private struct SettingListDetentedSliderRow: View {
+    @Binding var selectedIndex: Int
+    let detentCount: Int
+    let valueText: String
+    let title: String
+    let accessibilityLabel: String
+    var isEnabled: Bool = true
+
+    @Namespace private var hoverNamespace
+    @State private var rowWidth: CGFloat = 0
+
+    private var resolvedTrackWidth: CGFloat {
+        let sidePadding = DesignTokens.Spacing.lg * 2
+        return max(rowWidth - sidePadding, 200)
+    }
+
+    private var resolvedIndex: Binding<Double> {
+        Binding(
+            get: { Double(selectedIndex) },
+            set: { selectedIndex = Int($0.rounded()) }
+        )
+    }
+
+    var body: some View {
+        RangeSlider(
+            value: resolvedIndex,
+            range: 0...Double(max(detentCount - 1, 1)),
+            accessibilityLabel: accessibilityLabel,
+            accessibilityValue: valueText,
+            trackWidth: resolvedTrackWidth
+        )
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
+        .frame(maxWidth: .infinity)
+        .opacity(isEnabled ? 1 : DesignTokens.Surface.disabledControlOpacity)
+        .allowsHitTesting(isEnabled)
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { rowWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
+            }
+        }
+        .enchronHoverContentShape(DesignTokens.ShapeToken.element)
+        .enchronHoverActivation(in: hoverGroup(.activatesGroup))
+    }
+
+    private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
+        EnchronHoverGroup(id: "settingListDetentedSliderLabel", in: hoverNamespace, behavior: behavior)
+    }
+}
+
+private struct SettingListNumberFieldsRow: View {
+    let fields: [SettingListGroup.NumberField]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            ForEach(fields) { field in
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Text(field.title)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                    TextField("", text: field.text)
+                        .textFieldStyle(.plain)
+                        .keyboardType(.numberPad)
+                        .multilineTextAlignment(.trailing)
+                        .font(DesignTokens.Typography.selectionHeader)
+                        .monospacedDigit()
+                        .frame(width: DesignTokens.Layout.settingsValueColumnWidth)
+                        .accessibilityLabel(field.title)
+                        .accessibilityIdentifier("DesignSystem-numberField-\(field.id)")
+                    if let suffix = field.suffix {
+                        Text(suffix)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(DesignTokens.Surface.supportingText)
+                    }
+                    Spacer(minLength: 0)
+                }
+                if let message = field.message {
+                    Text(message)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.destructiveAction)
+                        .accessibilityIdentifier("DesignSystem-numberField-\(field.id)-message")
+                }
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
+    }
+}
+
+private struct SettingListDimensionStepperRow: View {
+    @Binding var width: Int
+    @Binding var height: Int
+    let widthRange: ClosedRange<Int>
+    let heightRange: ClosedRange<Int>
+    let step: Int
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.lg) {
+            stepper(title: "宽度", value: $width, range: widthRange, id: "width")
+            stepper(title: "高度", value: $height, range: heightRange, id: "height")
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .padding(.bottom, DesignTokens.Spacing.md)
+    }
+
+    private func stepper(
+        title: String,
+        value: Binding<Int>,
+        range: ClosedRange<Int>,
+        id: String
+    ) -> some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+            Spacer(minLength: DesignTokens.Spacing.xs)
+            Text("\(value.wrappedValue)")
+                .font(DesignTokens.Typography.selectionHeader)
+                .monospacedDigit()
+                .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+                .frame(minWidth: DesignTokens.Interactive.compact, alignment: .trailing)
+            Button {
+                value.wrappedValue = max(range.lowerBound, value.wrappedValue - step)
+            } label: {
+                Image(systemName: "minus")
+            }
+            .buttonStyle(.borderless)
+            .disabled(value.wrappedValue <= range.lowerBound)
+            .accessibilityLabel("\(title)减小")
+            .accessibilityIdentifier("DesignSystem-dimension-\(id)-decrease")
+            Button {
+                value.wrappedValue = min(range.upperBound, value.wrappedValue + step)
+            } label: {
+                Image(systemName: "plus")
+            }
+            .buttonStyle(.borderless)
+            .disabled(value.wrappedValue >= range.upperBound)
+            .accessibilityLabel("\(title)增大")
+            .accessibilityIdentifier("DesignSystem-dimension-\(id)-increase")
+        }
     }
 }
 

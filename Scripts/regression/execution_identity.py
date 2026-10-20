@@ -1432,8 +1432,8 @@ def _parse_xctestrun(source: bytes, products_root: Path) -> _ParsedXCTestRun:
         )
         for index, value in enumerate(dependencies_value)
     )
-    if ui_target.name != "EnchronDebug.app":
-        raise ExecutionIdentityError("UITargetAppPath must identify EnchronDebug.app")
+    if ui_target.name != "Enchron.app":
+        raise ExecutionIdentityError("UITargetAppPath must identify Enchron.app")
     if test_host.name != "EnchronAppUITests-Runner.app":
         raise ExecutionIdentityError(
             "TestHostPath must identify EnchronAppUITests-Runner.app"
@@ -1577,19 +1577,19 @@ def _application_code(
 ) -> tuple[str, bytes, Path]:
     info_path = app_path / "Info.plist"
     info_source, _ = _read_regular_at(
-        products_descriptor, info_path, "EnchronDebug.app Info.plist"
+        products_descriptor, info_path, "Enchron.app Info.plist"
     )
-    info = _decode_plist(info_source, "EnchronDebug.app Info.plist")
+    info = _decode_plist(info_source, "Enchron.app Info.plist")
     bundle_identifier = _text(
-        info.get("CFBundleIdentifier"), "EnchronDebug.app CFBundleIdentifier"
+        info.get("CFBundleIdentifier"), "Enchron.app CFBundleIdentifier"
     )
     if bundle_identifier != "com.xiongzhipeng.Enchron.debug":
-        raise ExecutionIdentityError("UI test app bundle identifier must identify EnchronDebug")
-    executable = _text(info.get("CFBundleExecutable"), "EnchronDebug.app CFBundleExecutable")
-    if executable != "EnchronDebug":
-        raise ExecutionIdentityError("EnchronDebug.app CFBundleExecutable must identify EnchronDebug")
+        raise ExecutionIdentityError("UI test app bundle identifier must identify the debug app")
+    executable = _text(info.get("CFBundleExecutable"), "Enchron.app CFBundleExecutable")
+    if executable != "Enchron":
+        raise ExecutionIdentityError("Enchron.app CFBundleExecutable must identify Enchron")
     code_path = app_path / f"{executable}.debug.dylib"
-    code, _ = _read_regular_at(products_descriptor, code_path, "EnchronDebug.debug.dylib")
+    code, _ = _read_regular_at(products_descriptor, code_path, "Enchron.debug.dylib")
     return bundle_identifier, code, code_path
 
 

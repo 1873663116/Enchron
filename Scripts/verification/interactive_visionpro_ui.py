@@ -20,7 +20,7 @@ from typing import Callable
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 APP_BUNDLE_ID = "com.xiongzhipeng.Enchron.debug"
-DEVICE_PROCESS_MARKER = "EnchronDebug"
+DEVICE_PROCESS_MARKER = "Enchron.app/Enchron"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"
 DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
@@ -878,6 +878,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "normalizedY",
         "count",
         "intervalMilliseconds",
+        "screenshotIdentifier",
     ):
         value = getattr(arguments, key, None)
         if value is not None:
@@ -1081,7 +1082,7 @@ def _bound_app_bundle_id(arguments: argparse.Namespace) -> str:
     bundle_id = execution.build_identity.bundle_identifier
     if bundle_id != APP_BUNDLE_ID:
         raise RuntimeError(
-            "The frozen UI test app is not the isolated EnchronDebug bundle."
+            "The frozen UI test app is not the isolated debug bundle."
         )
     return bundle_id
 
@@ -1625,6 +1626,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--normalized-x", dest="normalizedX", type=float)
     parser.add_argument("--normalized-y", dest="normalizedY", type=float)
     parser.add_argument("--no-screenshot", action="store_true")
+    parser.add_argument("--screenshot-identifier", dest="screenshotIdentifier")
     parser.add_argument("--verb")
     parser.add_argument("--arg", dest="app_arguments", action="append", default=[])
     parser.add_argument("--defer-response", action="store_true")

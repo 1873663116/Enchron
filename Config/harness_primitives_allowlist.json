@@ -16,6 +16,8 @@
   "Scripts/verification/journey_audio_probe.py",
   "Scripts/verification/journey_preflight.py",
   "Scripts/verification/measure-remote-media-open.py",
+  "Scripts/verification/moonlight_acceptance.py",
+  "Scripts/verification/moonlight_loopback_proxy.py",
   "Scripts/verification/playback_open_sweep.py",
   "Scripts/verification/playback_source_sweep.py",
   "Scripts/verification/playback_transition_stress.py",

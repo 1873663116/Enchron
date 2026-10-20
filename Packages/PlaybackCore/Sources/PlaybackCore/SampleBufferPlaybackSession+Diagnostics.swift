@@ -3,6 +3,7 @@ import CoreVideo
 import Foundation
 import IOSurface
 import OSLog
+import SampleBufferRendering
 import VideoToolbox
 
 extension SampleBufferPlaybackSession {

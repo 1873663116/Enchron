@@ -1294,6 +1294,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var productLifecycle: ProductPlaybackLifecycle = .idle
     var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 600)
     var currentLaunchRequest: PlaybackLaunchRequest?
+    var externalVideoSessionID: String? { nil }
     var prefetchedMetadata: PlaybackMediaMetadata?
     var displayMediaProfile: PlaybackModel.MediaProfile?
     var displayFileSizeInBytes: Int64?
@@ -1343,6 +1344,8 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         self.availableSubtitleTracks = subtitleTracks
         self.currentSubtitleTrackID = subtitleTracks.first(where: \.isDefault)?.id
     }
+
+    func endExternalVideoSession() {}
 
     func prepareForPlayback(_ request: PlaybackLaunchRequest) {
         if currentLaunchRequest == nil || currentLaunchRequest != request {

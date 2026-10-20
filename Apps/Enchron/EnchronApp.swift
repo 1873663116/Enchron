@@ -1,5 +1,6 @@
 import DesignSystem
 import EnvironmentSceneContract
+import GameStreaming
 import RealityKitScripting
 import Playback
 import SwiftUI

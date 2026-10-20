@@ -24,6 +24,7 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
     public var developerModeEnabled: Bool
     public var surroundingsDimmingEnabled: Bool
     public var mediaLibraryTabs: MediaLibraryTabVisibility
+    public var moonlightEnabled: Bool
 
     public init(
         resumePolicy: ResumePolicy = .askEveryTime,
@@ -34,7 +35,8 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         controlsAutoHideSeconds: Int = 8,
         developerModeEnabled: Bool = false,
         surroundingsDimmingEnabled: Bool = true,
-        mediaLibraryTabs: MediaLibraryTabVisibility = .init()
+        mediaLibraryTabs: MediaLibraryTabVisibility = .init(),
+        moonlightEnabled: Bool = false
     ) {
         self.resumePolicy = resumePolicy
         self.playbackEndBehavior = playbackEndBehavior
@@ -45,6 +47,7 @@ public nonisolated struct UserPreferences: Sendable, Equatable {
         self.developerModeEnabled = developerModeEnabled
         self.surroundingsDimmingEnabled = surroundingsDimmingEnabled
         self.mediaLibraryTabs = mediaLibraryTabs
+        self.moonlightEnabled = moonlightEnabled
     }
 
     static func normalizedHoldPlaybackSpeed(_ value: Double) -> Double {

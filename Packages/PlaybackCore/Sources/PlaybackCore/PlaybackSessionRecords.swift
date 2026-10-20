@@ -1,4 +1,5 @@
 import Foundation
+import SampleBufferRendering
 
 public enum PlaybackOperationKind: String, Codable, Sendable {
     case open

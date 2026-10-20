@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
+import SampleBufferRendering
 import Testing
 @testable import PlaybackCore
 

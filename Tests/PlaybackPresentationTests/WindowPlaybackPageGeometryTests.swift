@@ -19,10 +19,9 @@ struct WindowPlaybackPageGeometryTests {
         #expect(abs(portrait.aspectRatio - 0.5625) < 0.001)
         #expect(portrait.hasPlaybackAspectRatio(portrait.minimumSize))
         #expect(portrait.hasPlaybackAspectRatio(portrait.defaultSize))
-        #expect(portrait.hasPlaybackAspectRatio(portrait.maximumSize))
         #expect(portrait.contains(portrait.minimumSize))
         #expect(portrait.contains(portrait.defaultSize))
-        #expect(portrait.contains(portrait.maximumSize))
+        #expect(portrait.contains(CGSize(width: 4_500, height: 4_500 / 0.5625)))
     }
 
     @Test("stereo packing resolves the displayed video dimensions")
@@ -57,7 +56,6 @@ struct WindowPlaybackPageGeometryTests {
 
         #expect(layout.minimumSize == CGSize(width: 912, height: 513))
         #expect(layout.defaultSize == CGSize(width: 1_280, height: 720))
-        #expect(layout.maximumSize == CGSize(width: 1_808, height: 1_017))
     }
 
     @Test("every tier carries the video's shape across the ratio range")
@@ -67,26 +65,21 @@ struct WindowPlaybackPageGeometryTests {
 
             #expect(layout.hasPlaybackAspectRatio(layout.minimumSize))
             #expect(layout.hasPlaybackAspectRatio(layout.defaultSize))
-            #expect(layout.hasPlaybackAspectRatio(layout.maximumSize))
         }
     }
 
-    @Test("tiers never invert and never leave the ceiling")
-    func tiersStayOrderedAndBounded() {
-        let ceiling = WindowPlaybackLayout.maximumExtent
-
+    @Test("tiers never invert and the window grows without a ceiling")
+    func tiersStayOrderedAndUnbounded() {
         for ratio in stride(from: 0.3, through: 4.0, by: 0.05) {
             let layout = WindowPlaybackLayout(aspectRatio: CGFloat(ratio))
-            let tiers = [layout.minimumSize, layout.defaultSize, layout.maximumSize]
+            let tiers = [layout.minimumSize, layout.defaultSize]
 
             for (smaller, larger) in zip(tiers, tiers.dropFirst()) {
                 #expect(smaller.width <= larger.width + 0.001)
                 #expect(smaller.height <= larger.height + 0.001)
             }
-            for tier in tiers {
-                #expect(tier.width <= ceiling + 0.001)
-                #expect(tier.height <= ceiling + 0.001)
-            }
+            let huge = CGSize(width: 9_000, height: 9_000 / CGFloat(ratio))
+            #expect(layout.contains(huge))
         }
     }
 
@@ -100,7 +93,6 @@ struct WindowPlaybackPageGeometryTests {
         #expect(abs(forced.aspectRatio - 8.0 / 9.0) < 0.001)
         #expect(forced.defaultSize.width == 905)
         #expect(abs(forced.defaultSize.height - 1_018.125) < 0.01)
-        #expect(forced.maximumSize.height <= WindowPlaybackLayout.maximumExtent)
         #expect(forced.hasPlaybackAspectRatio(forced.defaultSize))
     }
 
@@ -114,19 +106,18 @@ struct WindowPlaybackPageGeometryTests {
         #expect(portrait.defaultSize.width == WindowPlaybackLayout.minimumWidth)
         #expect(abs(portrait.defaultSize.height - 1_333.3333) < 0.01)
         #expect(portrait.hasPlaybackAspectRatio(portrait.defaultSize))
-        #expect(abs(portrait.maximumSize.height - WindowPlaybackLayout.maximumExtent) < 0.001)
     }
 
-    @Test("a top-bottom override lands on the ceiling instead of overshooting")
-    func topBottomOverrideLandsOnTheCeiling() {
+    @Test("a top-bottom override grows past the old ceiling instead of clamping")
+    func topBottomOverrideGrowsPastTheOldCeiling() {
         let flat = WindowPlaybackLayout(
             resolution: .init(width: 1_920, height: 1_080),
             stereoLayout: .topBottom
         )
 
         #expect(abs(flat.aspectRatio - 32.0 / 9.0) < 0.001)
-        #expect(abs(flat.maximumSize.width - WindowPlaybackLayout.maximumExtent) < 0.001)
-        #expect(flat.hasPlaybackAspectRatio(flat.maximumSize))
+        #expect(flat.defaultSize.width > 1_808)
+        #expect(flat.hasPlaybackAspectRatio(flat.defaultSize))
     }
 
     @Test("the browser window is a fixed 16:9 that owes nothing to playback")
@@ -208,8 +199,8 @@ struct WindowPlaybackPageGeometryTests {
         #expect(snapshot.requestedIdealHeight == layout.defaultSize.height)
         #expect(snapshot.minimumWidth == layout.minimumSize.width)
         #expect(snapshot.minimumHeight == layout.minimumSize.height)
-        #expect(snapshot.maximumWidth == layout.maximumSize.width)
-        #expect(snapshot.maximumHeight == layout.maximumSize.height)
+        #expect(snapshot.maximumWidth == nil)
+        #expect(snapshot.maximumHeight == nil)
         #expect(snapshot.resizingRestriction == .uniform)
     }
 
@@ -237,11 +228,9 @@ struct WindowPlaybackPageGeometryTests {
 
         #expect(layout.minimumSize.width == 790)
         #expect(layout.defaultSize.width == 1_109)
-        #expect(layout.maximumSize.width == 1_566)
         #expect(layout.hasPlaybackAspectRatio(layout.minimumSize))
         #expect(layout.hasPlaybackAspectRatio(layout.defaultSize))
-        #expect(layout.hasPlaybackAspectRatio(layout.maximumSize))
-        #expect(layout.maximumSize.height < WindowPlaybackLayout.maximumExtent)
+        #expect(layout.contains(CGSize(width: 1_566, height: 1_174.5)))
     }
 
     @Test("immersive playback visibility includes an active Docked handoff")

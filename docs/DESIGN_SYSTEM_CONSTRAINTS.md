@@ -86,7 +86,7 @@ tab bar 的隐藏与形状变形同一刻发出、不加动画包装；它是 `T
 
 菜单展开的整条轨迹避开触发按钮，包括弹簧过冲。三级菜单保留二级菜单，沿可用的一侧展开，重叠只发生在边缘。出现和消失由同一个 `menuPopup` token 驱动位置、缩放和透明度。背景、二级菜单、三级菜单按 `Menu.layerDepth` 等距排列，空间附件不叠加额外前移。菜单状态控制输入独占和自动隐藏，不能改写 hover 状态。 两级菜单同时存在时，二级区域的点击只关闭三级并消耗该次点击；三级关闭动画结束前的点击不排队打开其他三级。点击两级菜单并集之外关闭两级，三级内部留白保持菜单打开。
 
-菜单行、数字单元和分段胶囊内的各按钮通过 `enchronHoverTarget(visual:interaction:insets:)` 分开声明可见轮廓和命中轮廓。`EnchronHoverRegion` 在扩大后的目标中按静默边距生成可见路径。hover 检查器覆盖 Button、Menu 与 ButtonStyle，拒绝扩大 hover 标签的样式、多个直接子按钮共享父容器 hover，以及共享实现中混用可见与命中形状。Enchron 和 EnchronDebug 的设计源码构建阶段复用该检查；检查失败会终止 Build。CI 使用相同检查，单元测试验证路径和检查器的拒绝行为。真机注视高亮的合成结果仍需佩戴者验收。
+菜单行、数字单元和分段胶囊内的各按钮通过 `enchronHoverTarget(visual:interaction:insets:)` 分开声明可见轮廓和命中轮廓。`EnchronHoverRegion` 在扩大后的目标中按静默边距生成可见路径。hover 检查器覆盖 Button、Menu 与 ButtonStyle，拒绝扩大 hover 标签的样式、多个直接子按钮共享父容器 hover，以及共享实现中混用可见与命中形状。Enchron 的 Debug 与 Release 两个配置的设计源码构建阶段复用该检查；检查失败会终止 Build。CI 使用相同检查，单元测试验证路径和检查器的拒绝行为。真机注视高亮的合成结果仍需佩戴者验收。
 
 visionOS 的菜单外部输入面使用 `Surface.menuDismissInput`，并禁用 hover。完全透明的 `Color.clear` 即使声明 interaction shape 和 Button，也不能可靠接收真机间接输入；输入面的微量不透明度用于建立命中区域。
 

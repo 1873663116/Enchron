@@ -1,5 +1,6 @@
 import Foundation
 import DesignSystem
+import GameStreaming
 import MediaServer
 import MediaLibrary
 import MediaSource
@@ -116,10 +117,13 @@ final class EnchronApplication {
     let mediaLibraryUIState: MediaLibraryUIState
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
+    let streamingModel: StreamingModel
     let modalPresentationCoordinator: AppModalPresentationCoordinator
     let connectionSecurityPrompt: ConnectionSecurityPrompt
     let developerMetrics = DeveloperMetricsModel()
     private let suspensionWatchdog = ApplicationSuspensionWatchdog()
+    @ObservationIgnored
+    private var backgroundNotificationObserver: NSObjectProtocol?
     private var applicationBackgroundedAt: Date?
     private var suspendedPlaybackPresentation: PlaybackPresentation?
     private var suspendedPlaybackPositionSeconds: Double?
@@ -549,14 +553,6 @@ final class EnchronApplication {
                 launcher?.savePlaybackMode(mode)
             }
         )
-        spatialPlatformEffectCoordinator.onPlayerWindowClosedByWearer = {
-            [weak launcher] in
-            SurfaceInputProbes.record(
-                "playerWindowScene closedByWearer stoppingPlayback",
-                retention: .evidence
-            )
-            launcher?.stopPlayback(reason: .windowClosedByWearer)
-        }
         self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in
             spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)
@@ -591,6 +587,12 @@ final class EnchronApplication {
         self.connectionSecurityPrompt = connectionSecurityPrompt
         self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator
+        self.streamingModel = StreamingModel(backend: MoonlightStreamingBackend.shared)
+        self.streamingModel.onSessionChanged = { [weak playbackRuntime] session in
+            playbackRuntime?.setExternalVideoInformation(
+                session?.streamingPlaybackInformation
+            )
+        }
         #if DEBUG
             playbackSessionModel.playbackSwitchPresentationRequestHandler = { [weak playbackSwitchStateRing, weak playbackRuntime] _, target in
                 playbackRuntime?.debugCapturePlaybackSwitchRendererState()
@@ -625,7 +627,48 @@ final class EnchronApplication {
         suspensionWatchdog.onResumeFromSuspension = { [weak self] gap in
             self?.handleResumeFromSuspension(gap: gap)
         }
+        spatialPlatformEffectCoordinator.onPlayerWindowClosedByWearer = {
+            [weak self, weak launcher] in
+            guard let self else { return }
+            if self.playbackRuntime.externalVideoSessionID != nil {
+                SurfaceInputProbes.record(
+                    "playerWindowScene closedByWearer endingExternalSession",
+                    retention: .evidence
+                )
+                self.streamingModel.endStream()
+                self.playbackRuntime.endExternalVideoSession()
+                return
+            }
+            SurfaceInputProbes.record(
+                "playerWindowScene closedByWearer stoppingPlayback",
+                retention: .evidence
+            )
+            launcher?.stopPlayback(reason: .windowClosedByWearer)
+        }
+        playbackRuntime.externalVideoSessionDidEnd = { [weak self] in
+            guard let self, self.streamingModel.session != nil else { return }
+            self.streamingModel.releaseInputs(cause: "session-ended")
+            self.streamingModel.disconnect()
+        }
+        playbackRuntime.externalVideoRendererRebuild = { [weak self] in
+            self?.streamingModel.rebuildRendererGraphForPresentation()
+        }
         suspensionWatchdog.start()
+        backgroundNotificationObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didEnterBackgroundNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.streamingModel.session != nil else { return }
+                SurfaceInputProbes.record(
+                    "applicationBackgrounded endingStream",
+                    retention: .evidence
+                )
+                self.streamingModel.endStreamInBackground()
+                self.playbackRuntime.endExternalVideoSession()
+            }
+        }
     }
 
     /// Whether a playback session is holding the source stream. A suspended
@@ -1062,6 +1105,7 @@ extension View {
             .environment(application.mediaLibraryUIState)
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
+            .environment(application.streamingModel)
             .environment(application.modalPresentationCoordinator)
             .environment(application.connectionSecurityPrompt)
             .environment(application.developerMetrics)
