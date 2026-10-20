@@ -682,6 +682,10 @@ public final class StreamingModel {
         coordinator?.sendScroll(amount: amount)
     }
 
+    public func sendGestureClick(normalizedX: Float, normalizedY: Float) {
+        coordinator?.sendGestureClick(normalizedX: normalizedX, normalizedY: normalizedY)
+    }
+
     public func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32) {
         coordinator?.sendKey(hidUsage: hidUsage, down: down, modifierFlags: modifierFlags)
     }

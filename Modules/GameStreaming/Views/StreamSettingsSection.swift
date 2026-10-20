@@ -177,7 +177,7 @@ public struct StreamSettingsSection: View {
                 id: "Streaming-bluetoothMouse",
                 title: "蓝牙鼠标",
                 systemName: "computermouse",
-                supportingText: "转发外接鼠标的滚轮与右键、中键到主机。",
+                supportingText: "外接鼠标直接控制主机指针：转发移动、按键与滚轮。",
                 accessory: .boundToggle(isOn: bluetoothMouseBinding, isEnabled: true, marker: nil)
             )
         ]

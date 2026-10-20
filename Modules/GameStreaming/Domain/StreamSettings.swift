@@ -134,7 +134,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         customBitrateEnabled: Bool = false,
         swapABXYButtons: Bool = false,
         playAudioOnPC: Bool = false,
-        bluetoothMouseEnabled: Bool = false,
+        bluetoothMouseEnabled: Bool = true,
         optimizeGameSettings: Bool = false
     ) {
         self.resolution = resolution
@@ -181,7 +181,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         customBitrateEnabled = try container.decodeIfPresent(Bool.self, forKey: .customBitrateEnabled) ?? false
         swapABXYButtons = try container.decodeIfPresent(Bool.self, forKey: .swapABXYButtons) ?? false
         playAudioOnPC = try container.decodeIfPresent(Bool.self, forKey: .playAudioOnPC) ?? false
-        bluetoothMouseEnabled = try container.decodeIfPresent(Bool.self, forKey: .bluetoothMouseEnabled) ?? false
+        bluetoothMouseEnabled = try container.decodeIfPresent(Bool.self, forKey: .bluetoothMouseEnabled) ?? true
         optimizeGameSettings = try container.decodeIfPresent(Bool.self, forKey: .optimizeGameSettings) ?? false
     }
 

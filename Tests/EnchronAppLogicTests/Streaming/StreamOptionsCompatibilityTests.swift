@@ -2,7 +2,7 @@ import GameStreaming
 import XCTest
 
 nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
-    func testStoredSettingsWithoutTheNewPreferencesDecodeWithThemOff() throws {
+    func testStoredSettingsWithoutTheNewPreferencesDecodeWithTheirDefaults() throws {
         let stored = Data("""
         {"resolution":"r1920x1080","frameRate":60,"bitrateKbps":20000,"codec":"hevc",\
         "hdrEnabled":true,"framePacing":false,"customBitrateEnabled":true}
@@ -19,7 +19,15 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         XCTAssertTrue(options.customBitrateEnabled)
         XCTAssertFalse(options.swapABXYButtons)
         XCTAssertFalse(options.playAudioOnPC)
-        XCTAssertFalse(options.bluetoothMouseEnabled)
+        XCTAssertTrue(options.bluetoothMouseEnabled)
+        XCTAssertFalse(options.optimizeGameSettings)
+    }
+
+    func testExternalMouseForwardingDefaultsOn() {
+        let options = StreamOptions()
+        XCTAssertTrue(options.bluetoothMouseEnabled)
+        XCTAssertFalse(options.swapABXYButtons)
+        XCTAssertFalse(options.playAudioOnPC)
         XCTAssertFalse(options.optimizeGameSettings)
     }
 

@@ -1184,6 +1184,21 @@ final class TestCommandChannel {
                 return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)
             }
             return Response(id: request.id, ok: true, detail: nil, payload: ["flags=\(flags)"])
+        case "streamSendMouse":
+            guard streaming.session != nil else {
+                return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)
+            }
+            if let dx = request.args["dx"].flatMap(Int32.init), let dy = request.args["dy"].flatMap(Int32.init) {
+                streaming.sendPointerDelta(dx: dx, dy: dy)
+            }
+            if let code = request.args["button"].flatMap(Int32.init) {
+                let down = flagValue(request.args["down"]) ?? true
+                streaming.sendMouseButton(code: code, down: down)
+            }
+            if let scroll = request.args["scroll"].flatMap(Int32.init) {
+                streaming.sendScroll(amount: scroll)
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: [streaming.session?.readableValue ?? "unavailable"])
         case "probeStatus":
             let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit

@@ -15,12 +15,10 @@ public struct StreamSessionContentView: View {
                 onMove: { x, y in model.sendPointerMove(normalizedX: x, normalizedY: y) },
                 onClick: { position in
                     model.releaseInputs(cause: "pointer-control")
-                    model.sendPointerMove(
+                    model.sendGestureClick(
                         normalizedX: Float(position.x),
                         normalizedY: Float(position.y)
                     )
-                    model.sendMouseButton(code: 1, down: true)
-                    model.sendMouseButton(code: 1, down: false)
                 }
             )
             StreamKeyboardCapture(
