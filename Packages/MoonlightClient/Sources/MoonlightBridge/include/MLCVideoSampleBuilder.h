@@ -40,4 +40,15 @@
 // frame rebuilds them. Call after a decoder failure.
 - (void)invalidateFormatDescription;
 
+// Pull-renderer path. Builds a sample buffer whose block buffer references the
+// decode unit's own memory, so the decode unit must stay alive until the sample
+// buffer is released. Returns a retained sample buffer or NULL when the format
+// description is not available yet.
+- (CMSampleBufferRef)createZeroCopySampleBufferForPulledUnit:(PDECODE_UNIT)du CF_RETURNS_RETAINED;
+
+// Keeps the decode unit alive until the sample buffer is released, then hands it
+// back to Moonlight. Returns NO when the completion could not be attached, in
+// which case the caller must complete the frame itself.
+- (BOOL)attachFrameCompletion:(void*)handle toSampleBuffer:(CMSampleBufferRef)sampleBuffer;
+
 @end

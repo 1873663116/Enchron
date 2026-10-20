@@ -430,7 +430,11 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
             totalFrames: stats.totalFrames,
             framesWithHostProcessingLatency: stats.framesWithHostProcessingLatency,
             averageHostProcessingLatencyMs: stats.averageHostProcessingLatencyMs,
-            measuredIntervalSeconds: stats.measuredIntervalSeconds
+            measuredIntervalSeconds: stats.measuredIntervalSeconds,
+            submitGapCount: stats.submitGapCount,
+            submitGapMaxMs: stats.submitGapMaxMs,
+            zeroCopyFrames: stats.zeroCopyFrames,
+            zeroCopyFallbacks: stats.zeroCopyFallbacks
         )
     }
 

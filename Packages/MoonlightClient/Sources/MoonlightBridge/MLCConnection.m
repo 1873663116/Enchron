@@ -15,6 +15,8 @@
 
 #import <opus/opus_multistream.h>
 
+#include <pthread/qos.h>
+
 void ArCleanup(void);
 
 
@@ -32,6 +34,7 @@ void ArCleanup(void);
     char _gfeVersionString[32];
     char _rtspSessionUrl[128];
     BOOL _videoContentShown;
+    NSThread* _pullThread;
 }
 
 static NSLock* initLock;
@@ -40,8 +43,10 @@ static id<MLCConnectionDelegate> _callbacks;
 static int lastFrameNumber;
 static int activeVideoFormat;
 static video_stats_t currentVideoStats;
+static CFTimeInterval lastDecodeSubmitTime;
 static video_stats_t lastVideoStats;
 static NSLock* videoStatsLock;
+static volatile BOOL pullThreadRunning = NO;
 
 static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
 static void* audioBuffer;
@@ -56,6 +61,7 @@ int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void*
     activeVideoFormat = videoFormat;
     memset(&currentVideoStats, 0, sizeof(currentVideoStats));
     memset(&lastVideoStats, 0, sizeof(lastVideoStats));
+    lastDecodeSubmitTime = 0;
     return 0;
 }
 
@@ -70,6 +76,16 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     }
 
     CFTimeInterval now = CACurrentMediaTime();
+    if (lastDecodeSubmitTime != 0) {
+        double submitGapMs = (now - lastDecodeSubmitTime) * 1000.0;
+        if (submitGapMs > 40.0) {
+            currentVideoStats.submitGapCount++;
+            if ((int)submitGapMs > currentVideoStats.submitGapMaxMs) {
+                currentVideoStats.submitGapMaxMs = (int)submitGapMs;
+            }
+        }
+    }
+    lastDecodeSubmitTime = now;
     if (!lastFrameNumber) {
         currentVideoStats.startTime = now;
         lastFrameNumber = decodeUnit->frameNumber;
@@ -285,6 +301,9 @@ void ClSetHdrMode(bool enabled)
     // progress.
     LiInterruptConnection();
 
+    pullThreadRunning = NO;
+    LiWakeWaitForVideoFrame();
+
     // We dispatch this async to get out because this can be invoked
     // on a thread inside common and we don't want to deadlock. It also avoids
     // blocking on the caller's thread waiting to acquire initLock.
@@ -366,9 +385,10 @@ void ClSetHdrMode(bool enabled)
 
     LiInitializeVideoCallbacks(&_drCallbacks);
     _drCallbacks.setup = DrDecoderSetup;
-    _drCallbacks.submitDecodeUnit = DrSubmitDecodeUnit;
+    _drCallbacks.submitDecodeUnit = NULL;
     _drCallbacks.capabilities = CAPABILITY_REFERENCE_FRAME_INVALIDATION_HEVC |
-                                CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1;
+                                CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 |
+                                CAPABILITY_PULL_RENDERER;
 
     LiInitializeAudioCallbacks(&_arCallbacks);
     _arCallbacks.init = ArInit;
@@ -456,14 +476,106 @@ void ClSetHdrMode(bool enabled)
 - (void)main
 {
     [initLock lock];
-    LiStartConnection(&_serverInfo,
-                      &_streamConfig,
-                      &_clCallbacks,
-                      &_drCallbacks,
-                      &_arCallbacks,
-                      NULL, 0,
-                      NULL, 0);
+    int err = LiStartConnection(&_serverInfo,
+                                &_streamConfig,
+                                &_clCallbacks,
+                                &_drCallbacks,
+                                &_arCallbacks,
+                                NULL, 0,
+                                NULL, 0);
     [initLock unlock];
+
+    if (err == 0) {
+        pullThreadRunning = YES;
+        _pullThread = [[NSThread alloc] initWithTarget:self selector:@selector(videoPullLoop) object:nil];
+        _pullThread.name = @"VideoPull";
+        [_pullThread start];
+    }
+}
+
+- (void)recordPulledUnitStats:(PDECODE_UNIT)decodeUnit
+{
+    CFTimeInterval now = CACurrentMediaTime();
+    if (lastDecodeSubmitTime != 0) {
+        double submitGapMs = (now - lastDecodeSubmitTime) * 1000.0;
+        if (submitGapMs > 40.0) {
+            currentVideoStats.submitGapCount++;
+            if ((int)submitGapMs > currentVideoStats.submitGapMaxMs) {
+                currentVideoStats.submitGapMaxMs = (int)submitGapMs;
+            }
+        }
+    }
+    lastDecodeSubmitTime = now;
+
+    if (!lastFrameNumber) {
+        currentVideoStats.startTime = now;
+        lastFrameNumber = decodeUnit->frameNumber;
+    }
+    else {
+        if (now - currentVideoStats.startTime >= 1.0f) {
+            currentVideoStats.endTime = now;
+            [videoStatsLock lock];
+            lastVideoStats = currentVideoStats;
+            [videoStatsLock unlock];
+            memset(&currentVideoStats, 0, sizeof(currentVideoStats));
+            currentVideoStats.startTime = now;
+        }
+        currentVideoStats.networkDroppedFrames += decodeUnit->frameNumber - (lastFrameNumber + 1);
+        currentVideoStats.totalFrames += decodeUnit->frameNumber - (lastFrameNumber + 1);
+        lastFrameNumber = decodeUnit->frameNumber;
+    }
+
+    if (decodeUnit->frameHostProcessingLatency != 0) {
+        if (currentVideoStats.minHostProcessingLatency == 0 ||
+            decodeUnit->frameHostProcessingLatency < currentVideoStats.minHostProcessingLatency) {
+            currentVideoStats.minHostProcessingLatency = decodeUnit->frameHostProcessingLatency;
+        }
+        if (decodeUnit->frameHostProcessingLatency > currentVideoStats.maxHostProcessingLatency) {
+            currentVideoStats.maxHostProcessingLatency = decodeUnit->frameHostProcessingLatency;
+        }
+        currentVideoStats.framesWithHostProcessingLatency++;
+        currentVideoStats.totalHostProcessingLatency += decodeUnit->frameHostProcessingLatency;
+    }
+
+    currentVideoStats.receivedFrames++;
+    currentVideoStats.totalFrames++;
+}
+
+- (void)videoPullLoop
+{
+    [[NSThread currentThread] setThreadPriority:0.95];
+    pthread_set_qos_class_self_np(QOS_CLASS_USER_INTERACTIVE, 0);
+
+    while (pullThreadRunning) {
+        VIDEO_FRAME_HANDLE handle = NULL;
+        PDECODE_UNIT decodeUnit = NULL;
+
+        if (!LiWaitForNextVideoFrame(&handle, &decodeUnit)) {
+            break;
+        }
+
+        @autoreleasepool {
+            CMSampleBufferRef sampleBuffer = [sampleBuilder createZeroCopySampleBufferForPulledUnit:decodeUnit];
+            if (sampleBuffer == NULL) {
+                currentVideoStats.zeroCopyFallbacks++;
+                int status = DrSubmitDecodeUnit(decodeUnit);
+                LiCompleteVideoFrame(handle, status);
+                continue;
+            }
+
+            currentVideoStats.zeroCopyFrames++;
+            [self recordPulledUnitStats:decodeUnit];
+            BOOL attached = [sampleBuilder attachFrameCompletion:handle toSampleBuffer:sampleBuffer];
+            [self videoSampleBuilder:sampleBuilder
+                    didProduceSample:sampleBuffer
+                           frameType:decodeUnit->frameType
+                   presentationTimeUs:decodeUnit->presentationTimeUs];
+            CFRelease(sampleBuffer);
+            if (!attached) {
+                LiCompleteVideoFrame(handle, DR_OK);
+            }
+        }
+    }
 }
 
 @end

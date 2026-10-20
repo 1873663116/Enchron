@@ -173,7 +173,11 @@ public final class MoonlightStreamSession: NSObject, @unchecked Sendable {
             totalFrames: Int(stats.totalFrames),
             framesWithHostProcessingLatency: Int(stats.framesWithHostProcessingLatency),
             averageHostProcessingLatencyMs: averageLatency,
-            measuredIntervalSeconds: interval
+            measuredIntervalSeconds: interval,
+            submitGapCount: Int(stats.submitGapCount),
+            submitGapMaxMs: Int(stats.submitGapMaxMs),
+            zeroCopyFrames: Int(stats.zeroCopyFrames),
+            zeroCopyFallbacks: Int(stats.zeroCopyFallbacks)
         )
     }
 }

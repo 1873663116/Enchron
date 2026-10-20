@@ -19,6 +19,10 @@ typedef struct {
     int framesWithHostProcessingLatency;
     int maxHostProcessingLatency;
     int minHostProcessingLatency;
+    int submitGapCount;
+    int submitGapMaxMs;
+    int zeroCopyFrames;
+    int zeroCopyFallbacks;
 } video_stats_t;
 
 @interface MLCConnection : NSOperation
