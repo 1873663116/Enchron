@@ -176,9 +176,9 @@ public final class MoonlightService: @unchecked Sendable {
             )
             config.riKey = MLCUtils.randomBytes(16)
             config.riKeyId = Int32(bitPattern: arc4random())
-            config.gamepadMask = 0
-            config.optimizeGameSettings = false
-            config.playAudioOnPC = false
+            config.gamepadMask = Int32(request.gamepadMask)
+            config.optimizeGameSettings = request.optimizeGameSettings
+            config.playAudioOnPC = request.playAudioOnPC
             config.swapABXYButtons = false
             config.multiController = false
             config.useFramePacing = false

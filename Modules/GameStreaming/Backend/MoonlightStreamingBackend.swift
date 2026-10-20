@@ -167,7 +167,10 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                     frameRate: request.options.frameRate,
                     bitrateKbps: request.options.bitrateKbps,
                     codec: Self.codec(request.options.codec),
-                    hdrEnabled: request.options.hdrEnabled && request.options.codec != .h264
+                    hdrEnabled: request.options.hdrEnabled && request.options.codec != .h264,
+                    playAudioOnPC: request.options.playAudioOnPC,
+                    optimizeGameSettings: request.options.optimizeGameSettings,
+                    gamepadMask: StreamGamepadInput.connectedMask()
                 ),
                 preference: preference
             )
@@ -381,6 +384,30 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
 
     func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32) {
         session.sendKey(hidUsage: hidUsage, down: down, modifierFlags: modifierFlags)
+    }
+
+    func sendControllerState(
+        buttonFlags: Int32,
+        leftTrigger: UInt8,
+        rightTrigger: UInt8,
+        leftStickX: Int16,
+        leftStickY: Int16,
+        rightStickX: Int16,
+        rightStickY: Int16
+    ) {
+        session.sendControllerState(
+            buttonFlags: buttonFlags,
+            leftTrigger: leftTrigger,
+            rightTrigger: rightTrigger,
+            leftStickX: leftStickX,
+            leftStickY: leftStickY,
+            rightStickX: rightStickX,
+            rightStickY: rightStickY
+        )
+    }
+
+    func sendControllerPresence(connected: Bool) {
+        session.sendControllerPresence(connected: connected)
     }
 
     func releaseAllInput() {
