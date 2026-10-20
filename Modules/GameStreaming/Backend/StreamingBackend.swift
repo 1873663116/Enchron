@@ -118,6 +118,10 @@ public struct BackendVideoStats: Sendable {
     public var receivedFrames: Int
     public var networkDroppedFrames: Int
     public var totalFrames: Int
+    public var submitGapCount: Int
+    public var submitGapMaxMs: Int
+    public var zeroCopyFrames: Int
+    public var zeroCopyFallbacks: Int
     public var framesWithHostProcessingLatency: Int
     public var averageHostProcessingLatencyMs: Double?
     public var measuredIntervalSeconds: Double
@@ -128,11 +132,19 @@ public struct BackendVideoStats: Sendable {
         totalFrames: Int,
         framesWithHostProcessingLatency: Int,
         averageHostProcessingLatencyMs: Double?,
-        measuredIntervalSeconds: Double
+        measuredIntervalSeconds: Double,
+        submitGapCount: Int = 0,
+        submitGapMaxMs: Int = 0,
+        zeroCopyFrames: Int = 0,
+        zeroCopyFallbacks: Int = 0
     ) {
         self.receivedFrames = receivedFrames
         self.networkDroppedFrames = networkDroppedFrames
         self.totalFrames = totalFrames
+        self.submitGapCount = submitGapCount
+        self.submitGapMaxMs = submitGapMaxMs
+        self.zeroCopyFrames = zeroCopyFrames
+        self.zeroCopyFallbacks = zeroCopyFallbacks
         self.framesWithHostProcessingLatency = framesWithHostProcessingLatency
         self.averageHostProcessingLatencyMs = averageHostProcessingLatencyMs
         self.measuredIntervalSeconds = measuredIntervalSeconds

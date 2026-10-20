@@ -23,6 +23,19 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 #define NALU_START_PREFIX_SIZE 3
 #define NAL_LENGTH_PREFIX_SIZE 4
 
+// Marks the pulled decode unit complete on the frame's behalf. The sample buffer
+// retains this object, so the decode unit stays alive until the renderer drops
+// the sample buffer that references it.
+@interface MLCFrameCompletion : NSObject
+@property (nonatomic, assign) void* frameHandle;
+@end
+
+@implementation MLCFrameCompletion
+- (void)dealloc {
+    LiCompleteVideoFrame(_frameHandle, DR_OK);
+}
+@end
+
 @implementation MLCVideoSampleBuilder {
     int videoFormat;
 
@@ -603,6 +616,217 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     if (metadataChanged) {
         LiRequestIdrFrame();
     }
+}
+
+
+- (void)appendZeroCopyNAL:(const uint8_t*)nal length:(int)length to:(CMBlockBufferRef)frameBlockBuffer {
+    OSStatus status;
+    const int prefixLength = NAL_LENGTH_PREFIX_SIZE;
+
+    size_t oldOffset = CMBlockBufferGetDataLength(frameBlockBuffer);
+    status = CMBlockBufferAppendMemoryBlock(frameBlockBuffer, NULL, prefixLength,
+                                            kCFAllocatorDefault, NULL, 0, prefixLength, 0);
+    if (status != noErr) {
+        return;
+    }
+
+    const uint8_t prefix[] = {(uint8_t)(length >> 24), (uint8_t)(length >> 16),
+                              (uint8_t)(length >> 8), (uint8_t)length};
+    CMBlockBufferReplaceDataBytes(prefix, frameBlockBuffer, oldOffset, prefixLength);
+
+    CMBlockBufferRef block = NULL;
+    status = CMBlockBufferCreateWithMemoryBlock(kCFAllocatorNull, (void*)nal, length,
+                                                kCFAllocatorNull, NULL, 0, length, 0, &block);
+    if (status != noErr) {
+        return;
+    }
+    CMBlockBufferAppendBufferReference(frameBlockBuffer, block, 0, length, 0);
+    CFRelease(block);
+}
+
+- (void)appendZeroCopyBlock:(const uint8_t*)bytes length:(int)length to:(CMBlockBufferRef)frameBlockBuffer {
+    CMBlockBufferRef block = NULL;
+    OSStatus status = CMBlockBufferCreateWithMemoryBlock(kCFAllocatorNull, (void*)bytes, length,
+                                                         kCFAllocatorNull, NULL, 0, length, 0, &block);
+    if (status != noErr) {
+        return;
+    }
+    CMBlockBufferAppendBufferReference(frameBlockBuffer, block, 0, length, 0);
+    CFRelease(block);
+}
+
+- (CMSampleBufferRef)createZeroCopySampleBufferForPulledUnit:(PDECODE_UNIT)du CF_RETURNS_RETAINED {
+    OSStatus status = noErr;
+
+    if (du->frameType == FRAME_TYPE_IDR) {
+        for (PLENTRY entry = du->bufferList; entry != NULL; entry = entry->next) {
+            if (entry->bufferType == BUFFER_TYPE_PICDATA) {
+                continue;
+            }
+            if (entry->bufferType == BUFFER_TYPE_VPS || entry->bufferType == BUFFER_TYPE_SPS ||
+                entry->bufferType == BUFFER_TYPE_PPS) {
+                unsigned char* bytes = (unsigned char*)entry->data;
+                int startLen = bytes[2] == 0x01 ? 3 : 4;
+                if (entry->length > startLen) {
+                    [parameterSetBuffers addObject:[NSData dataWithBytes:&bytes[startLen]
+                                                                  length:entry->length - startLen]];
+                }
+            }
+        }
+
+        if (formatDesc != NULL) {
+            CFRelease(formatDesc);
+            formatDesc = NULL;
+        }
+
+        if (videoFormat & VIDEO_FORMAT_MASK_H264) {
+            size_t count = [parameterSetBuffers count];
+            const uint8_t* pointers[count];
+            size_t sizes[count];
+            for (size_t i = 0; i < count; i++) {
+                NSData* set = parameterSetBuffers[i];
+                pointers[i] = set.bytes;
+                sizes[i] = set.length;
+            }
+            status = CMVideoFormatDescriptionCreateFromH264ParameterSets(kCFAllocatorDefault, count,
+                                                                        pointers, sizes,
+                                                                        NAL_LENGTH_PREFIX_SIZE, &formatDesc);
+            if (status != noErr) {
+                formatDesc = NULL;
+            }
+            [parameterSetBuffers removeAllObjects];
+        }
+        else if (videoFormat & VIDEO_FORMAT_MASK_H265) {
+            size_t count = [parameterSetBuffers count];
+            const uint8_t* pointers[count];
+            size_t sizes[count];
+            for (size_t i = 0; i < count; i++) {
+                NSData* set = parameterSetBuffers[i];
+                pointers[i] = set.bytes;
+                sizes[i] = set.length;
+            }
+
+            NSMutableDictionary* videoFormatParams = [[NSMutableDictionary alloc] init];
+            if (hdrModeEnabled) {
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionColorPrimaries_ITU_R_2020
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_ColorPrimaries];
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_TransferFunction];
+                [videoFormatParams setObject:(__bridge NSString*)kCMFormatDescriptionYCbCrMatrix_ITU_R_2020
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_YCbCrMatrix];
+                [videoFormatParams setObject:@NO
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_FullRangeVideo];
+                [videoFormatParams setObject:@(1)
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_FieldCount];
+                [videoFormatParams setObject:@(10) forKey:@"BitsPerComponent"];
+            }
+            if (contentLightLevelInfo) {
+                [videoFormatParams setObject:contentLightLevelInfo
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_ContentLightLevelInfo];
+            }
+            if (masteringDisplayColorVolume) {
+                [videoFormatParams setObject:masteringDisplayColorVolume
+                                      forKey:(__bridge NSString*)kCMFormatDescriptionExtension_MasteringDisplayColorVolume];
+            }
+            status = CMVideoFormatDescriptionCreateFromHEVCParameterSets(kCFAllocatorDefault, count,
+                                                                         pointers, sizes,
+                                                                         NAL_LENGTH_PREFIX_SIZE,
+                                                                         (__bridge CFDictionaryRef)videoFormatParams,
+                                                                         &formatDesc);
+            if (status != noErr) {
+                formatDesc = NULL;
+            }
+            [parameterSetBuffers removeAllObjects];
+        }
+        else if (videoFormat & VIDEO_FORMAT_MASK_AV1) {
+#if MLC_ENABLE_AV1
+            // The AV1 configuration box needs the sequence header, which can be
+            // split across entries, so gather the IDR frame once.
+            NSMutableData* frameData = [[NSMutableData alloc] initWithCapacity:du->fullLength];
+            for (PLENTRY entry = du->bufferList; entry != NULL; entry = entry->next) {
+                if (entry->bufferType == BUFFER_TYPE_PICDATA) {
+                    [frameData appendBytes:entry->data length:entry->length];
+                }
+            }
+            formatDesc = [self createAV1FormatDescriptionForIDRFrame:frameData];
+#endif
+            [parameterSetBuffers removeAllObjects];
+        }
+    }
+
+    if (formatDesc == NULL) {
+        return NULL;
+    }
+
+    CMBlockBufferRef frameBlockBuffer = NULL;
+    status = CMBlockBufferCreateEmpty(kCFAllocatorDefault, 16, 0, &frameBlockBuffer);
+    if (status != noErr) {
+        return NULL;
+    }
+
+    for (PLENTRY entry = du->bufferList; entry != NULL; entry = entry->next) {
+        if (entry->bufferType != BUFFER_TYPE_PICDATA) {
+            continue;
+        }
+
+        if (videoFormat & (VIDEO_FORMAT_MASK_H264 | VIDEO_FORMAT_MASK_H265)) {
+            const uint8_t* bytes = (const uint8_t*)entry->data;
+            int length = entry->length;
+            int offset = 0;
+            while (offset + 3 < length) {
+                int startLength = 0;
+                if (bytes[offset] == 0 && bytes[offset + 1] == 0 && bytes[offset + 2] == 1) {
+                    startLength = 3;
+                }
+                else if (offset + 4 < length && bytes[offset] == 0 && bytes[offset + 1] == 0 &&
+                         bytes[offset + 2] == 0 && bytes[offset + 3] == 1) {
+                    startLength = 4;
+                }
+                if (startLength == 0) {
+                    offset++;
+                    continue;
+                }
+
+                int nalStart = offset + startLength;
+                int next = nalStart;
+                while (next + 2 < length) {
+                    if (bytes[next] == 0 && bytes[next + 1] == 0 && bytes[next + 2] == 1) {
+                        break;
+                    }
+                    next++;
+                }
+                int nalEnd = (next + 2 < length) ? next : length;
+                if (nalEnd > nalStart) {
+                    [self appendZeroCopyNAL:&bytes[nalStart] length:nalEnd - nalStart to:frameBlockBuffer];
+                }
+                offset = nalEnd;
+            }
+        }
+        else {
+            [self appendZeroCopyBlock:(const uint8_t*)entry->data
+                               length:entry->length
+                                   to:frameBlockBuffer];
+        }
+    }
+
+    CMSampleTimingInfo sampleTiming = {kCMTimeInvalid, CMTimeMake(du->presentationTimeUs, 1000000), kCMTimeInvalid};
+    CMSampleBufferRef sampleBuffer = NULL;
+    status = CMSampleBufferCreateReady(kCFAllocatorDefault, frameBlockBuffer, formatDesc, 1, 1,
+                                       &sampleTiming, 0, NULL, &sampleBuffer);
+    CFRelease(frameBlockBuffer);
+    if (status != noErr) {
+        return NULL;
+    }
+    return sampleBuffer;
+}
+
+- (BOOL)attachFrameCompletion:(void*)handle toSampleBuffer:(CMSampleBufferRef)sampleBuffer {
+    MLCFrameCompletion* completion = [[MLCFrameCompletion alloc] init];
+    completion.frameHandle = handle;
+    CMSetAttachment(sampleBuffer, CFSTR("MLCFrameCompletion"),
+                    (__bridge CFTypeRef)completion,
+                    kCMAttachmentMode_ShouldNotPropagate);
+    return YES;
 }
 
 @end

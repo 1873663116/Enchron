@@ -46,6 +46,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var lastSampledPresentedCount: Int64 = 0
     private var lastSampledVideoOutcomes: (warnings: Int64, flush: Int64, requiresFlush: Int64, failed: Int64, decodeWarnings: Int64) = (0, 0, 0, 0, 0)
     private var lastSampledAudioOutcomes: (warnings: Int64, flushDrops: Int64, failed: Int64, autoFlush: Int64, config: Int64, short: Int64, long: Int64, other: Int64) = (0, 0, 0, 0, 0, 0, 0, 0)
+    private var lastVideoSampleNanoseconds: UInt64 = 0
+    private var lastVideoPresentationSeconds: Double = 0
+    private var lastAudioFrameNanoseconds: UInt64 = 0
+    private var lastSampledGaps: (decoded: Int64, videoGap: Int64, audioGap: Int64, late: Int64, ptsGap: Int64) = (0, 0, 0, 0, 0)
     private var flushingRenderer = false
     private var lastCancelledByFlushIdrAt = Date.distantPast
     private var videoDeliveryStartedAt: Date?
@@ -99,6 +103,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var audioFramesShort: Int64 = 0
         var audioFramesLong: Int64 = 0
         var audioFramesOther: Int64 = 0
+        var videoFramesDecoded: Int64 = 0
+        var videoGapCount: Int64 = 0
+        var videoGapMaxMilliseconds: Double = 0
+        var videoLateFrames: Int64 = 0
+        var videoLateMaxMilliseconds: Double = 0
+        var videoPTSGapCount: Int64 = 0
+        var videoPTSGapMaxMilliseconds: Double = 0
+        var audioGapCount: Int64 = 0
+        var audioGapMaxMilliseconds: Double = 0
         var mouseEvents: Int64 = 0
         var scrollEvents: Int64 = 0
         var keyboardEvents: Int64 = 0
@@ -331,13 +344,39 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         videoQueueLock.withLock {
             pendingVideo.append((sample, ptsUs))
         }
+        let sampleTime = DispatchTime.now().uptimeNanoseconds
         stateLock.withLock {
             if !firstVideoPTS.isValid {
                 firstVideoPTS = pts
             }
+            counters.videoFramesDecoded += 1
+            let ptsSeconds = pts.seconds
+            if lastVideoPresentationSeconds > 0 {
+                let ptsGapMs = (ptsSeconds - lastVideoPresentationSeconds) * 1000
+                let nominalMs = 1000.0 / Double(max(options.frameRate, 1))
+                if ptsGapMs > nominalMs * 1.5 {
+                    counters.videoPTSGapCount += 1
+                    if ptsGapMs > counters.videoPTSGapMaxMilliseconds {
+                        counters.videoPTSGapMaxMilliseconds = ptsGapMs
+                    }
+                }
+            }
+            lastVideoPresentationSeconds = ptsSeconds
+            if lastVideoSampleNanoseconds != 0 {
+                let gapMs = Double(sampleTime - lastVideoSampleNanoseconds) / 1_000_000
+                if gapMs > 50 {
+                    counters.videoGapCount += 1
+                    if gapMs > counters.videoGapMaxMilliseconds {
+                        counters.videoGapMaxMilliseconds = gapMs
+                    }
+                }
+            }
+            lastVideoSampleNanoseconds = sampleTime
         }
         reportQueueDepthIfNeeded()
-        pumpVideoQueue()
+        deliverQueue.async { [weak self] in
+            self?.pumpVideoQueue()
+        }
     }
 
     private func observeReadiness() {
@@ -537,6 +576,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 return
             }
 
+            let lateMilliseconds = (synchronizer.currentTime().seconds * 1_000_000 - Double(head.presentationTimeUs)) / 1000
+            if lateMilliseconds > 4 {
+                stateLock.withLock {
+                    counters.videoLateFrames += 1
+                    if lateMilliseconds > counters.videoLateMaxMilliseconds {
+                        counters.videoLateMaxMilliseconds = lateMilliseconds
+                    }
+                }
+            }
             let outcome: RendererEnqueueOutcome
             do {
                 outcome = try videoSink.enqueueImmediately(
@@ -719,6 +767,17 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         rearmSynchronizerIfStalled()
         let received: Int64 = stateLock.withLock {
             counters.audioFramesReceived += 1
+            let frameTime = DispatchTime.now().uptimeNanoseconds
+            if lastAudioFrameNanoseconds != 0 {
+                let gapMs = Double(frameTime - lastAudioFrameNanoseconds) / 1_000_000
+                if gapMs > 50 {
+                    counters.audioGapCount += 1
+                    if gapMs > counters.audioGapMaxMilliseconds {
+                        counters.audioGapMaxMilliseconds = gapMs
+                    }
+                }
+            }
+            lastAudioFrameNanoseconds = frameTime
             switch frame.frameCount {
             case 240: counters.audioFramesShort += 1
             case 480: counters.audioFramesLong += 1
@@ -1241,6 +1300,29 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             } else {
                 statsText = "packets=none"
             }
+            let gapTotals = (
+                decoded: counters.videoFramesDecoded,
+                videoGap: counters.videoGapCount,
+                audioGap: counters.audioGapCount,
+                late: counters.videoLateFrames,
+                ptsGap: counters.videoPTSGapCount
+            )
+            let gapDelta = (
+                decoded: gapTotals.decoded - lastSampledGaps.decoded,
+                videoGap: gapTotals.videoGap - lastSampledGaps.videoGap,
+                audioGap: gapTotals.audioGap - lastSampledGaps.audioGap,
+                late: gapTotals.late - lastSampledGaps.late,
+                ptsGap: gapTotals.ptsGap - lastSampledGaps.ptsGap
+            )
+            lastSampledGaps = gapTotals
+            let videoGapMax = counters.videoGapMaxMilliseconds
+            let videoLateMax = counters.videoLateMaxMilliseconds
+            counters.videoLateMaxMilliseconds = 0
+            let videoPTSGapMax = counters.videoPTSGapMaxMilliseconds
+            counters.videoPTSGapMaxMilliseconds = 0
+            let audioGapMax = counters.audioGapMaxMilliseconds
+            counters.videoGapMaxMilliseconds = 0
+            counters.audioGapMaxMilliseconds = 0
             let videoText = "video detail \(statsText)"
                 + " enqWarn=\(videoDelta.0)"
                 + " flushDrop=\(videoDelta.1)"
@@ -1250,6 +1332,17 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " rebuilds=\(counters.decodeRecoveries)"
                 + " awaitingSurface=\(counters.framesAwaitingSurface)"
                 + " pumpGapMaxMs=\(String(format: "%.1f", maxPumpGapMilliseconds))"
+                + " decoded=\(gapDelta.decoded)"
+                + " vgap=\(gapDelta.videoGap)"
+                + " vgapMaxMs=\(String(format: "%.0f", videoGapMax))"
+                + " late=\(gapDelta.late)"
+                + " lateMaxMs=\(String(format: "%.0f", videoLateMax))"
+                + " submitGap=\(stats?.submitGapCount ?? 0)"
+                + " submitGapMax=\(stats?.submitGapMaxMs ?? 0)"
+                + " zcFail=\(stats?.zeroCopyFallbacks ?? 0)"
+                + " zcFrames=\(stats?.zeroCopyFrames ?? 0)"
+                + " ptsGap=\(gapDelta.ptsGap)"
+                + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
             maxPumpGapMilliseconds = 0
             let audioText = "audio detail"
                 + " enqWarn=\(audioDelta.0)"
@@ -1261,6 +1354,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " f240=\(audioDelta.5)"
                 + " f480=\(audioDelta.6)"
                 + " fOther=\(audioDelta.7)"
+                + " agap=\(gapDelta.audioGap)"
+                + " agapMaxMs=\(String(format: "%.0f", audioGapMax))"
             return (videoText, audioText)
         }
         StreamSessionProbes.record(details.video, retention: .evidence)

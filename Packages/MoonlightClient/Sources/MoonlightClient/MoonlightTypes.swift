@@ -135,6 +135,10 @@ public struct MoonlightVideoStats: Sendable {
     public var framesWithHostProcessingLatency: Int
     public var averageHostProcessingLatencyMs: Double?
     public var measuredIntervalSeconds: Double
+    public var submitGapCount: Int
+    public var submitGapMaxMs: Int
+    public var zeroCopyFrames: Int
+    public var zeroCopyFallbacks: Int
 }
 
 public enum MoonlightClientError: Error, Sendable {
