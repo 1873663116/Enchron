@@ -11,6 +11,15 @@ public final class MoonlightService: @unchecked Sendable {
         MLCCryptoManager.generateKeyPairUsingSSL()
     }
 
+    /// Whether this build turns AV1 decode units into sample buffers.
+    ///
+    /// A build without the AV1 format description path still connects when the
+    /// host offers AV1, then never presents a frame. Callers ask this before
+    /// they offer AV1 so a codec choice cannot produce that session.
+    public static var isAV1PlaybackSupported: Bool {
+        MLCVideoSampleBuilder.isAV1PlaybackSupported
+    }
+
     public init() {}
 
     public func fetchServerInfo(
@@ -234,7 +243,9 @@ public final class MoonlightService: @unchecked Sendable {
         case .hevc:
             return hdrEnabled ? (h265 | h265Main10) : h265
         case .av1:
-            return Int32(VIDEO_FORMAT_AV1_MAIN8)
+            let av1Main8 = Int32(VIDEO_FORMAT_AV1_MAIN8)
+            let av1Main10 = Int32(VIDEO_FORMAT_AV1_MAIN10)
+            return hdrEnabled ? (av1Main8 | av1Main10) : av1Main8
         case .auto:
             let base = h265 | h264
             return hdrEnabled ? (base | h265Main10) : base
