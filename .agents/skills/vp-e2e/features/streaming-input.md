@@ -9,6 +9,10 @@
 - 按住不放的按键与按钮在会话结束时全部释放，不残留。
 - Dock 控件释放所有按住的输入，原因为 `control-hit`。
 - 键盘捕获控件对画面不可见：它覆盖在视频之上，但不得遮挡视频。
+- 外接手柄的按键、扳机与摇杆按 Moonlight 的报文字段转发；A/B/X/Y 各占一个位，方向键、肩键、摇杆按键、菜单键同样有位。
+- 「交换 ABXY」打开时会话把 A 报成 `0x2000`、B 报成 `0x1000`，X 与 Y 同理；这个交换只发生在客户端。
+- 手柄连接与断开各发一次到达/离开报文；会话结束时手柄状态归零。
+- 「蓝牙鼠标」打开时外接鼠标的滚轮与右键、中键转发到主机；左键与指针移动仍由窗口的手势路径负责，不重复转发。
 
 ## How to get to it (user POV)
 
@@ -32,7 +36,15 @@ osascript -e 'tell application "System Events" to keystroke "hello"'
 ```sh
 D="$(xcrun simctl get_app_container <UDID> com.xiongzhipeng.Enchron data)/Documents"
 grep "input release" "$D/stream-session-probe.log" | tail
-./.scratch/stream-cmd.sh streamSnapshot '{}'   # input:keyboard=… input:mouse=…
+./.scratch/stream-cmd.sh streamSnapshot '{}'   # input:keyboard=… input:mouse=… input:gamepad=…
+```
+
+手柄不依赖系统合成输入，直接走命令通道注入报文，回报同一条映射算出的位：
+
+```sh
+./.scratch/stream-cmd.sh streamSendController '{"buttons":"a"}'
+./.scratch/stream-cmd.sh streamSendController '{"buttons":"a,leftShoulder","lt":"200","lx":"-32767"}'
+./.scratch/stream-cmd.sh streamSendController '{"buttons":""}'   # 全零报文
 ```
 
 ## 证据
@@ -43,7 +55,11 @@ grep "input release" "$D/stream-session-probe.log" | tail
 | 物理 | 键入后控制面 `input:keyboard` 增长，主机侧读到对应文字 | 控制面读数 + 主机取证 |
 | 物理 | 指针移动后控制面 `input:mouse` 增长 | 控制面读数 |
 | 物理 | 会话结束后 `input release cause=user` 出现，按住的键全部释放 | 探针 |
-| 感知 | 输入延迟 | **待做** |
+| 结构 | 手柄位映射逐键等于 Moonlight 字段：A `0x1000`、B `0x2000`、X `0x4000`、Y `0x8000`、方向键 `0x1…0x8`、肩键 `0x100/0x200` | 命令通道 + 会话探针 |
+| 物理 | 交换 ABXY 关闭时报 A 为 `0x1000`，打开时为 `0x2000` | 命令通道 + 探针 `controller flags=` |
+| 物理 | 松开全部按键后报文 flags 回到 `0` | 命令通道 |
+| 物理 | 滚轮按累计整格转发，半格输入不产生报文 | **待做**：模拟器无法注入 GCMouse 滚轮 |
+| 感知 | 输入延迟、手柄震动的到达 | **待做** |
 
 ## 证明的终态
 
@@ -53,3 +69,6 @@ grep "input release" "$D/stream-session-probe.log" | tail
 
 - **合成键盘事件可能被系统吞掉。** 先点一下窗口让它拿到焦点，再发按键；没有焦点时事件不进会话，探针一动不动。
 - **输入计数增长不等于主机收到。** 计数在转发入口就会增加。
+- **手柄的交换设置属于会话快照。** 会话进行中改设置不会改这一次的映射，要等下一次启动。
+- **左键不转发给 GCMouse 通路。** 会话窗口以手势作为主点击，重复转发会变成双击。
+- **滚轮的轴值没有固定量纲。** 转发按累计截断成整格，半格输入留着与后续输入合并。

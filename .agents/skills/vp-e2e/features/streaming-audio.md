@@ -8,6 +8,7 @@
 - 主机发声时客户端收到音频包并全部入队。
 - 会话结束时音频停止。
 - 音频链路断开后不残留播放。
+- 设置页的「PC 端播放音频」打开后声音留在主机，本机不接收主机音频；控制面 `hostAudio=1`。
 
 ## How to get to it (user POV)
 
@@ -33,6 +34,7 @@ grep -E "audio (start|stop)" "$D/stream-session-probe.log" | tail
 | 物理 | 控制面 `audio:received` 与 `audio:enqueued` 同时增长，`audio:dropped=0` | 控制面读数 |
 | 物理 | 探针出现 `audio start rate=… channels=…` 与 `audio stop` | 探针 |
 | 物理 | 断连对照：断开会话后不再有 `audio:received` 增长 | 控制面读数 |
+| 物理 | 「PC 端播放音频」打开时启动 URL 带 `localAudioPlayMode=1`，控制面 `hostAudio=1` | 模拟器日志 + 命令通道 |
 | 感知 | 音画同步、是否有爆音 | **待做** |
 
 ## 证明的终态
@@ -43,3 +45,4 @@ grep -E "audio (start|stop)" "$D/stream-session-probe.log" | tail
 
 - **模拟器的音频输出不等于真机。** 模拟器上听到的声音经由宿主 Mac 播放，不能作为真机音频链路的证据。
 - **`audio:received` 增长而 `enqueued` 不增长，是链路断开而不是没声音。**
+- **PC 端播放时本机收不到音频帧，`audio:received` 保持 0 是预期。** 判据改为启动 URL 的 `localAudioPlayMode`。
