@@ -12,6 +12,7 @@ class Verb:
     parameter: tuple[str, ...]
     evidence: str | None
     budget_ms: int
+    schema: str | None = None
 
 
 VERBS: dict[str, Verb] = {
@@ -24,6 +25,7 @@ VERBS: dict[str, Verb] = {
             lane=None,
             parameter=("checker",),
             evidence="static-check.json",
+            schema="enchron.console.static-check@1",
             budget_ms=600_000,
         ),
         Verb(
@@ -42,6 +44,7 @@ VERBS: dict[str, Verb] = {
             lane="device",
             parameter=("action", "identifier", "text"),
             evidence="command.json",
+            schema="enchron.console.command@1",
             budget_ms=30_000,
         ),
         Verb(
@@ -51,6 +54,7 @@ VERBS: dict[str, Verb] = {
             lane="device",
             parameter=(),
             evidence="hierarchy.json",
+            schema="enchron.console.hierarchy@1",
             budget_ms=30_000,
         ),
         Verb(
@@ -60,6 +64,7 @@ VERBS: dict[str, Verb] = {
             lane="device",
             parameter=("count", "intervalMs", "identifier"),
             evidence="frames.json",
+            schema="enchron.console.frames@1",
             budget_ms=120_000,
         ),
         Verb(
@@ -69,6 +74,7 @@ VERBS: dict[str, Verb] = {
             lane="device",
             parameter=("probe", "field", "equals", "mode", "timeoutMs", "intervalMs"),
             evidence="await.json",
+            schema="enchron.console.await@1",
             budget_ms=120_000,
         ),
         Verb(
@@ -78,6 +84,7 @@ VERBS: dict[str, Verb] = {
             lane="device",
             parameter=("verb", "arguments"),
             evidence="app-command.json",
+            schema="enchron.console.app-command@1",
             budget_ms=60_000,
         ),
         Verb(
@@ -87,6 +94,7 @@ VERBS: dict[str, Verb] = {
             lane="device",
             parameter=("probe",),
             evidence="probe.json",
+            schema="enchron.console.probe@1",
             budget_ms=30_000,
         ),
         Verb(

@@ -77,6 +77,26 @@ class Compiler:
         steps = self._steps(unit, tier, errors)
         if unit.layer == 3 and unit.terminal.kind == "exit":
             errors.append(("C009", "a layer 3 unit cannot terminate on exit"))
+        declared_schema = unit.terminal.schema
+        if declared_schema:
+            producer = next(
+                (
+                    verb
+                    for verb in self._verbs(unit)
+                    if verb and verb.evidence == unit.terminal.path
+                ),
+                None,
+            )
+            if producer is not None and (
+                producer.schema is None or producer.schema != declared_schema
+            ):
+                errors.append(
+                    (
+                        "C014",
+                        f"terminal claims {declared_schema}, but {producer.name} "
+                        f"produces {producer.schema or 'no documented schema'}",
+                    )
+                )
         lane_verbs = [verb for verb in self._verbs(unit) if verb and verb.lane]
         if unit.layer == 3 and not lane_verbs:
             errors.append(
@@ -174,6 +194,10 @@ class Compiler:
                         path=declared_expect["path"],
                         equals=declared_expect.get("equals"),
                     )
+            if expect is not None and verb.evidence is None:
+                errors.append(
+                    ("C010", f"verb {verb_name!r} produces no evidence to expect on")
+                )
             steps.append(
                 Step(
                     index=index,
