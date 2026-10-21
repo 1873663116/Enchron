@@ -237,6 +237,55 @@ def _dispatch_daemon(
             },
             target,
         )
+    elif step.verb == "device.await":
+        probe = str(step.args.get("probe") or "")
+        field = str(step.args.get("field") or "")
+        expected = step.args.get("equals")
+        deadline = float(step.args.get("timeoutMs", 30_000)) / 1000.0
+        interval = float(step.args.get("intervalMs", 250)) / 1000.0
+        started = time.monotonic()
+        attempts = 0
+        observed: dict[str, str] = {}
+        reached = False
+        while True:
+            attempts += 1
+            answer = daemon_module.request(
+                root,
+                {"op": "invoke", "action": "snapshot", "identifier": probe},
+                target,
+            )
+            if answer.get("kind") == "result":
+                value = answer.get("value", {})
+                payload = value.get("payload") or {}
+                element = payload.get("matchedElement") or {}
+                raw = element.get("value") if isinstance(element, dict) else None
+                if isinstance(raw, str):
+                    observed = dict(
+                        part.split("=", 1) for part in raw.split(";") if "=" in part
+                    )
+                if observed.get(field) == expected:
+                    reached = True
+                    break
+            if time.monotonic() - started >= deadline:
+                break
+            time.sleep(max(interval, 0.01))
+        detail = f"{field}={observed.get(field)!r} after {attempts} probe(s)"
+        answer = (
+            {
+                "kind": "result",
+                "value": {
+                    "ok": True,
+                    "detail": detail,
+                    "payload": {
+                        "attempts": attempts,
+                        "elapsedMs": int((time.monotonic() - started) * 1000),
+                        "fields": observed,
+                    },
+                },
+            }
+            if reached
+            else {"kind": "error", "message": f"never reached {expected!r}; saw {detail}"}
+        )
     elif step.verb == "device.app-command":
         answer = daemon_module.request(
             root,
