@@ -218,6 +218,8 @@ def _dispatch_daemon(
 ) -> tuple[dict[str, Any] | None, bool, str]:
     import daemon as daemon_module
 
+    if daemon_module.request(root, {"op": "ping"}, target, timeout=2).get("kind") != "result":
+        daemon_module.ensure_running(root, target)
     if step.verb == "device.session.ensure":
         answer = daemon_module.request(
             root, {"op": "ensure", "lane": step.args.get("lane", "simulator")}, target

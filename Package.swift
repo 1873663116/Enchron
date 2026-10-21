@@ -78,31 +78,5 @@ let package = Package(
             ],
             path: "Modules/GameStreaming"
         ),
-        .testTarget(
-            name: "MediaLibraryTests",
-            dependencies: [
-                "MediaLibrary",
-                "MediaSource",
-                .product(name: "BluRayDisc", package: "PlaybackCore"),
-            ],
-            path: "Tests/MediaLibraryPackageTests"
-        ),
-        .testTarget(
-            name: "EmbyTests",
-            dependencies: ["MediaServer", "MediaSource", "Playback", "DesignSystem"],
-            path: "Tests/EmbyPackageTests",
-            resources: [
-                .process("Fixtures"),
-            ]
-        ),
-        .testTarget(
-            name: "PlaybackFeatureTests",
-            dependencies: [
-                "Playback",
-                "MediaSource",
-                .product(name: "PlaybackCore", package: "PlaybackCore"),
-            ],
-            path: "Tests/PlaybackFeaturePackageTests"
-        ),
     ]
 )

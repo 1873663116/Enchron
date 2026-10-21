@@ -95,8 +95,14 @@ class BudgetProvider:
         recorded = self.samples(lane, verb)
         if len(recorded) < MINIMUM_SAMPLE_COUNT:
             return self.provisional_budget(lane, verb, len(recorded))
-        seconds_values = [float(sample["seconds"]) for sample in recorded]
-        censored_count = sum(1 for sample in recorded if sample.get("censored"))
+        seconds_values = [
+            float(sample["seconds"])
+            for sample in recorded
+            if not sample.get("censored")
+        ]
+        censored_count = len(recorded) - len(seconds_values)
+        if len(seconds_values) < MINIMUM_SAMPLE_COUNT:
+            return self.provisional_budget(lane, verb, len(recorded))
         p95 = percentile_95(seconds_values)
         derived = min(
             max(p95 * BUDGET_MULTIPLIER, BUDGET_FLOOR_SECONDS),

@@ -77,7 +77,7 @@ from harness import (
 from regression.tools.pixel_heuristics import region_rgb, region_rgb_matches
 from regression.tools.raster import RasterError, decode_png
 
-RUNNER_PATH = VERIFICATION_ROOT / "transport.py"
+RUNNER_PATH = VERIFICATION_ROOT.parent / "console" / "transport.py"
 PROXY_PATH = VERIFICATION_ROOT / "moonlight_loopback_proxy.py"
 AUDIO_CAPTURE_SOURCE = VERIFICATION_ROOT / "audio_capture.swift"
 APP_BUNDLE_ID = transport.APP_BUNDLE_ID

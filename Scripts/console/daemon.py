@@ -17,12 +17,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from model import TIER_ORDER
 import transport
 
-CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
-BUILD_PRODUCTS = ".scratch/build/Build/Products"
 SESSION_RECORD = ".console/session-{target}.json"
-RUNNER_SPEC = "InteractiveDeviceSession"
-READY_TIMEOUT = 300.0
 from vocab import VERBS
 
 
@@ -166,7 +162,7 @@ class Channel:
         if spec is None:
             return {"lane": lane, "reused": False}, False, "no test bundle; build for testing first"
         self.runner = self._launch(spec)
-        deadline = time.monotonic() + READY_TIMEOUT
+        deadline = time.monotonic() + READY_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
             found = self._ready()
             if found is not None:
@@ -178,7 +174,7 @@ class Channel:
             if self.runner.poll() is not None:
                 return {"lane": lane, "reused": False}, False, "the runner exited before publishing a session"
             time.sleep(0.25)
-        return {"lane": lane, "reused": False}, False, f"the runner published no session within {READY_TIMEOUT:.0f} s"
+        return {"lane": lane, "reused": False}, False, f"the runner published no session within {READY_TIMEOUT_SECONDS:.0f} s"
 
     def _runner_spec(self) -> Path | None:
         products = self.root / BUILD_PRODUCTS
