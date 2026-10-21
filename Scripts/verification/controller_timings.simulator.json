@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T17:53:23+00:00",
+  "updatedAt": "2026-10-21T18:09:16+00:00",
   "verbs": {
     "any-identifier-appearance": {
       "samples": [
@@ -2110,26 +2110,6 @@
     "tap": {
       "samples": [
         {
-          "at": "2026-09-06T16:12:35.562338+00:00",
-          "censored": false,
-          "seconds": 3.196
-        },
-        {
-          "at": "2026-09-06T16:12:41.668538+00:00",
-          "censored": false,
-          "seconds": 1.894
-        },
-        {
-          "at": "2026-09-06T16:12:44.093913+00:00",
-          "censored": false,
-          "seconds": 1.425
-        },
-        {
-          "at": "2026-09-06T16:12:59.270899+00:00",
-          "censored": false,
-          "seconds": 3.684
-        },
-        {
           "at": "2026-09-06T16:13:02.608410+00:00",
           "censored": false,
           "seconds": 1.801
@@ -2308,6 +2288,26 @@
           "at": "2026-10-21T17:53:23+00:00",
           "censored": false,
           "seconds": 2.88
+        },
+        {
+          "at": "2026-10-21T18:09:10+00:00",
+          "censored": false,
+          "seconds": 2.95
+        },
+        {
+          "at": "2026-10-21T18:09:12+00:00",
+          "censored": false,
+          "seconds": 1.67
+        },
+        {
+          "at": "2026-10-21T18:09:14+00:00",
+          "censored": false,
+          "seconds": 2.75
+        },
+        {
+          "at": "2026-10-21T18:09:16+00:00",
+          "censored": false,
+          "seconds": 1.69
         }
       ]
     },

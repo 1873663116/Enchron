@@ -1671,6 +1671,27 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     }
 
 
+SCREENSHOT_FREE_ACTIONS = frozenset(
+    {
+        "snapshot",
+        "tap",
+        "tapSequence",
+        "tapFirstMatch",
+        "doubleTap",
+        "press",
+        "adjust",
+        "typeText",
+        "replaceText",
+        "swipeUp",
+        "swipeDown",
+        "swipeLeft",
+        "swipeRight",
+        "coordinateTap",
+        "activate",
+    }
+)
+
+
 def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
