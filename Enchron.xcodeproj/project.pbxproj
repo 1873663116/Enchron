@@ -715,7 +715,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --working-directory \"$SRCROOT\" --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed, run 'brew install swiftlint'\"\nfi\n";
+			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\nif command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --working-directory \"$SRCROOT\" --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed, run 'brew install swiftlint'\"\nfi\n";
 		};
 		E30000022FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -745,7 +745,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/rules/verify_design_source_architecture.py\" --xcode-inputs\n";
+			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\npython3 \"$SRCROOT/Scripts/rules/verify_design_source_architecture.py\" --xcode-inputs\n";
 		};
 		E30000C42FA4000100E1C001 /* Console Static Gate */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -760,7 +760,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/console/cli.py\" tier static --code-only\n";
+			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\npython3 \"$SRCROOT/Scripts/console/cli.py\" tier static --code-only\n";
 		};
 		E30000032FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;

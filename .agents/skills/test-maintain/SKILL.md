@@ -169,6 +169,32 @@ The tier is the axis worth taking next: 193 checks run one after another for
 checks may sit beside another, because a check that boots a simulator or binds a
 port serialises with its peers.
 
+## Environment preparation
+
+`Scripts/ci/prepare.sh` is the only place that prepares a machine to run a
+check. Both workflows source it with `ci`, the push hook and the three Xcode
+build phases take `shell --emit`, which prints the export lines they eval.
+
+`ci` puts Homebrew on the path, creates the empty virtual environment under the
+workspace, fetches and checks out the revision under test, cleans the tree while
+keeping `.build`, `.scratch/DerivedData` and `.scratch/SourcePackages`, links the
+vendored binaries, and copies `.env` when the full tier needs the test services.
+
+Four details are load-bearing and look removable:
+
+- The virtual environment is created with `--without-pip` and an empty
+  `site-packages`. A stray `.pth` from an unrelated editable install points into
+  `~/Documents`, and every interpreter start blocked there for the whole job
+  budget. `PYTHONPATH` still reaches numpy and Pillow without making that
+  directory a site directory, which is what would execute the `.pth` again.
+- The three build directories survive the clean because deleting the 3.3 GB
+  tree costs more than the job's time budget on this volume.
+- `.env` is copied only for the full tier, with traps for `EXIT`, `INT` and
+  `TERM`, so a cancelled job still removes it. Only a `SIGKILL` escapes, and the
+  next run's clean is the backstop.
+- The workflows source the copy under the main checkout, so a change to
+  `prepare.sh` reaches CI only after it lands on `main`.
+
 ## Reading a failure
 
 Every check carries three tags: the environment it needs, what its failure
