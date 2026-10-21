@@ -141,6 +141,9 @@ def _daemon(root: Path, arguments, profile) -> int:
     return EXIT_OK if started else EXIT_ENGINE
 
 
+STARTS_ON_DEMAND = frozenset({"daemon"})
+
+
 def _tier(root: Path, arguments, profile) -> int:
     import static_tier
 
@@ -160,7 +163,7 @@ def _tier(root: Path, arguments, profile) -> int:
             print(static_tier.summarize(payload))
         return static_tier.static_exit(payload)
     required = compiler_module.TIER_CAPABILITIES[arguments.name]
-    absent = sorted(required - profile.capabilities)
+    absent = sorted(required - profile.capabilities - STARTS_ON_DEMAND)
     if absent:
         message = f"tier {arguments.name} needs {', '.join(absent)}"
         if arguments.as_json:
