@@ -32,6 +32,7 @@ prepare_tree() {
     -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
   "$repo/Scripts/provision_vendored_ffmpeg.sh" "$main"
   "$repo/Scripts/provision_vendored_bluray.sh" "$main"
+  "$repo/Scripts/provision_vendored_moonlight.sh" "$main"
   if [ "${ENCHRON_TEST_SERVICES:-0}" = "1" ]; then
     trap 'rm -f "$repo/.env"' EXIT
     trap 'exit 130' INT
