@@ -59,6 +59,8 @@ The self-test suite runs in 0.43 s.
 
 `static` tier with `--quick` took 371 870 ms. The checkers themselves account for roughly 318 s: 194 checks, of which the six slowest take 63 percent. `test-generate-reachability-inventory` alone is 88 s.
 
+The branch carries the console plus every `main` commit it was built against, and it merges into `main` with no conflicts. Re-check after a merge that both baselines still pass, because code arriving from `main` can bring findings the console has never seen.
+
 Two rules hold a baseline so a build can pass on a tree that already broke them. `Config/product_source_comments_baseline.json` records the standing comment findings; a new one fails and one that disappears also fails until the baseline shrinks. `Config/swiftlint_baseline.json` works the same way and refuses to widen.
 
 Neither baseline hides debt. Widening one is refused, so the only way to clear an entry is to fix the code.
