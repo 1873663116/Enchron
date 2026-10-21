@@ -10,6 +10,7 @@ CONSOLE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CONSOLE_ROOT))
 
 import daemon as daemon_module
+import engine as engine_module
 
 
 class DaemonProtocolTests(unittest.TestCase):
@@ -91,3 +92,34 @@ class DaemonSocketTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AwaitComparisonTests(unittest.TestCase):
+    def test_equality_matches_only_the_same_value(self) -> None:
+        self.assertTrue(
+            engine_module._await_matches({"mode": "playing"}, "mode", "playing", "equals")
+        )
+        self.assertFalse(
+            engine_module._await_matches({"mode": "playing"}, "mode", "paused", "equals")
+        )
+
+    def test_a_threshold_compares_numbers(self) -> None:
+        self.assertTrue(
+            engine_module._await_matches({"position": "12.5"}, "position", 10, "atLeast")
+        )
+        self.assertFalse(
+            engine_module._await_matches({"position": "9.5"}, "position", 10, "atLeast")
+        )
+
+    def test_a_threshold_rejects_an_unparsable_value(self) -> None:
+        self.assertFalse(
+            engine_module._await_matches({"position": "unknown"}, "position", 10, "atLeast")
+        )
+
+    def test_a_dotted_path_walks_into_nested_payloads(self) -> None:
+        payload = {"matchedElement": {"value": "alpha=1;beta=2"}}
+        self.assertEqual(
+            engine_module._resolve_field(payload, "matchedElement.value"),
+            "alpha=1;beta=2",
+        )
+        self.assertIsNone(engine_module._resolve_field(payload, "matchedElement.absent"))

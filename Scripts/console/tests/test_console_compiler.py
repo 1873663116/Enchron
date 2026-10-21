@@ -183,3 +183,96 @@ class ConsoleCompilerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ExpectationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+
+    def tearDown(self) -> None:
+        self.directory.cleanup()
+
+    def plan(self, actions: list[dict]) -> subprocess.CompletedProcess:
+        write_unit(
+            self.root,
+            "guarded",
+            {
+                "id": "unit:guarded@1",
+                "layer": 3,
+                "requires": ["mac", "device", "daemon"],
+                "actions": actions,
+                "terminal": {
+                    "kind": "artifact",
+                    "path": "hierarchy.json",
+                    "schema": "enchron.console.hierarchy@1",
+                },
+            },
+        )
+        write_feature(self.root, "cover", ["unit:guarded@1"])
+        return run_console(
+            "--root", str(self.root), "--json", "plan", "show", "unit:guarded@1",
+            "--tier", "e2e",
+        )
+
+    def test_an_expectation_needs_a_comparison(self) -> None:
+        result = self.plan(
+            [
+                {
+                    "verb": "device.snapshot",
+                    "args": {},
+                    "expect": {"path": "hierarchy"},
+                }
+            ]
+        )
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["findings"][0]["code"], "C005")
+
+    def test_a_containment_expectation_compiles(self) -> None:
+        result = self.plan(
+            [
+                {
+                    "verb": "device.snapshot",
+                    "args": {},
+                    "expect": {"path": "hierarchy", "contains": "Library"},
+                }
+            ]
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_a_terminal_schema_must_match_its_producer(self) -> None:
+        write_unit(
+            self.root,
+            "wrong-schema",
+            {
+                "id": "unit:wrong-schema@1",
+                "layer": 3,
+                "requires": ["mac", "device", "daemon"],
+                "actions": [{"verb": "device.snapshot", "args": {}}],
+                "terminal": {
+                    "kind": "artifact",
+                    "path": "hierarchy.json",
+                    "schema": "enchron.console.hierarch@1",
+                },
+            },
+        )
+        write_feature(self.root, "cover", ["unit:wrong-schema@1"])
+        result = run_console(
+            "--root", str(self.root), "--json", "plan", "show", "unit:wrong-schema@1",
+            "--tier", "e2e",
+        )
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["findings"][0]["code"], "C014")
+
+    def test_a_command_action_outside_the_table_is_refused(self) -> None:
+        result = self.plan(
+            [
+                {
+                    "verb": "device.command",
+                    "args": {"action": "activate", "identifier": "Library-Root"},
+                },
+                {"verb": "device.snapshot", "args": {}},
+            ]
+        )
+        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["findings"][0]["code"], "C005")
