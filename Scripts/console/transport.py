@@ -166,6 +166,7 @@ def is_simulator(
 
 
 _CONTAINERS: dict[tuple[str, str], tuple[Path, float]] = {}
+CONTAINER_REVALIDATE_SECONDS = 5.0
 
 
 def simulator_container(device: str, bundle_id: str) -> Path | None:
@@ -448,7 +449,6 @@ def working_directory(pid: int) -> str | None:
 
 _PROCESS_SCOPE_CACHE: tuple[float, list[tuple[int, str]]] | None = None
 PROCESS_SCOPE_TTL_SECONDS = 1.0
-CONTAINER_REVALIDATE_SECONDS = 5.0
 
 
 def scoped_processes() -> list[tuple[int, str]]:
@@ -459,7 +459,7 @@ def scoped_processes() -> list[tuple[int, str]]:
     global _PROCESS_SCOPE_CACHE
     cached = _PROCESS_SCOPE_CACHE
     if cached is not None and time.monotonic() - cached[0] < PROCESS_SCOPE_TTL_SECONDS:
-        return cached[1]
+        return list(cached[1])
     rows = process_table()
     lineage = own_lineage(rows)
     root = str(REPOSITORY_ROOT)
