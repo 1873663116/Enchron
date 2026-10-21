@@ -54,6 +54,8 @@ class Channel:
 
     def _arguments(self, action: str, extra: list[str] | None = None):
         argv = [action, "--device", self.target]
+        if action == "snapshot":
+            argv.append("--no-screenshot")
         if extra:
             argv.extend(extra)
         return transport.parse_arguments(argv)
