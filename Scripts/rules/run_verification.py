@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import selectors
 import shlex
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
 import signal
 import subprocess
@@ -525,6 +526,39 @@ def discovered_test_checks() -> tuple[StructureCheck, ...]:
     return tuple(discovered)
 
 
+def structure_worker_count(total: int) -> int:
+    configured = os.environ.get("ENCHRON_STRUCTURE_WORKERS", "").strip()
+    if configured.isdigit():
+        return max(1, min(int(configured), total))
+    return max(1, min(8, total))
+
+
+def services_available() -> bool:
+    return os.environ.get("ENCHRON_TEST_SERVICES", "").strip() == "1"
+
+
+def run_one_check(
+    check: StructureCheck,
+    run_directory: Path,
+    environment: dict[str, str],
+) -> tuple[StructureCheck, int, float, Path]:
+    log = run_directory / "structure" / f"{check.identifier}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    command = structure_check_command(check.filename)
+    started = time.monotonic()
+    with log.open("w", encoding="utf-8") as sink:
+        sink.write("$ " + shlex.join(command) + "\n")
+        sink.flush()
+        code = subprocess.run(
+            command,
+            cwd=REPOSITORY_ROOT,
+            env=environment,
+            stdout=sink,
+            stderr=subprocess.STDOUT,
+        ).returncode
+    return check, code, time.monotonic() - started, log
+
+
 def run_structure_checks(
     run_directory: Path,
     environment: dict[str, str],
@@ -533,21 +567,31 @@ def run_structure_checks(
     failures: list[str] = []
     logs: list[str] = []
     everything = STRUCTURE_CHECKS + discovered_test_checks()
-    checks = tuple(check for check in everything if not quick or check.runs_in_quick_mode)
+    reachable = tuple(
+        check for check in everything if not quick or check.runs_in_quick_mode
+    )
+    portable = services_available()
+    checks = tuple(
+        check
+        for check in reachable
+        if portable or check.environment != "services"
+    )
     unevaluated = tuple(check for check in everything if check not in checks)
-    for check in checks:
-        log = run_directory / "structure" / f"{check.identifier}.log"
-        code, _ = run_logged(
-            f"structure: {check.identifier}",
-            structure_check_command(check.filename),
-            log,
-            environment,
-        )
-        logs.append(relative_log(log, run_directory))
-        if code != 0:
-            failures.append(
-                f"{check.attribution}/{check.environment}: {check.identifier} exited {code}"
-            )
+    workers = structure_worker_count(len(checks))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [
+            pool.submit(run_one_check, check, run_directory, environment)
+            for check in checks
+        ]
+        for future in as_completed(futures):
+            check, code, seconds, log = future.result()
+            logs.append(relative_log(log, run_directory))
+            mark = "ok  " if code == 0 else "FAIL"
+            print(f"  {mark} {check.identifier} {seconds:.1f}s", flush=True)
+            if code != 0:
+                failures.append(
+                    f"{check.attribution}/{check.environment}: {check.identifier} exited {code}"
+                )
     order = {name: index for index, name in enumerate(sorted(ATTRIBUTIONS))}
     failures.sort(key=lambda item: order.get(item.split("/", 1)[0], len(order)))
     if unevaluated:
