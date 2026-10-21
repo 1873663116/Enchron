@@ -172,13 +172,16 @@ port serialises with its peers.
 ## Environment preparation
 
 `Scripts/ci/prepare.sh` is the only place that prepares a machine to run a
-check. Both workflows source it with `ci`, the push hook and the three Xcode
-build phases take `shell --emit`, which prints the export lines they eval.
+check. Both workflows source it with `ci` from the tree they just checked out,
+the push hook and the three Xcode build phases take `shell --emit`, which prints
+the export lines they eval.
 
-`ci` puts Homebrew on the path, creates the empty virtual environment under the
-workspace, fetches and checks out the revision under test, cleans the tree while
-keeping `.build`, `.scratch/DerivedData` and `.scratch/SourcePackages`, links the
-vendored binaries, and copies `.env` when the full tier needs the test services.
+The workflows own the four git commands that produce the tree — worktree, fetch,
+checkout — because the script cannot exist before the tree does. Everything
+after that comes from the script at the revision under test: the empty virtual
+environment under the workspace, the clean that keeps `.build`,
+`.scratch/DerivedData` and `.scratch/SourcePackages`, the vendored binary links,
+and the `.env` copy the full tier needs.
 
 Four details are load-bearing and look removable:
 
@@ -192,8 +195,9 @@ Four details are load-bearing and look removable:
 - `.env` is copied only for the full tier, with traps for `EXIT`, `INT` and
   `TERM`, so a cancelled job still removes it. Only a `SIGKILL` escapes, and the
   next run's clean is the backstop.
-- The workflows source the copy under the main checkout, so a change to
-  `prepare.sh` reaches CI only after it lands on `main`.
+- The main checkout is the git database the CI worktree hangs off, and the
+  source of the two vendored binaries. A cloud runner has neither, so it clones
+  and provisions them by a different path.
 
 ## Reading a failure
 

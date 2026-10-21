@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -1490,7 +1491,25 @@ def unacknowledged_retired_reachable(
     ]
 
 
+_INVENTORY: dict[str, object] | None = None
+_INVENTORY_ERROR: Exception | None = None
+
+
 def build_inventory() -> dict[str, object]:
+    global _INVENTORY, _INVENTORY_ERROR
+    if _INVENTORY is not None:
+        return _INVENTORY
+    if _INVENTORY_ERROR is not None:
+        raise _INVENTORY_ERROR
+    try:
+        _INVENTORY = _compute_inventory()
+    except Exception as error:
+        _INVENTORY_ERROR = error
+        raise
+    return _INVENTORY
+
+
+def _compute_inventory() -> dict[str, object]:
     identifiers: dict[str, list[SourceLocation]] = {}
     documents: dict[str, str] = {}
     for root in SOURCE_ROOTS:

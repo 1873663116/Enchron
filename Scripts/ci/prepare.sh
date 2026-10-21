@@ -25,29 +25,9 @@ prepare_venv() {
   fi
 }
 
-prepare_checkout() {
-  local workspace="$1"
-  local main="$workspace/Enchron"
-  local repo="$workspace/wt-ci"
-  if [ ! -d "$repo" ]; then
-    git -C "$main" worktree add --detach "$repo" HEAD
-  fi
-  if [ -n "${GITHUB_TOKEN:-}" ]; then
-    local auth
-    auth=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64)
-    if [ "${ENCHRON_FETCH_TAGS:-0}" = "1" ]; then
-      git -C "$repo" -c credential.helper= \
-        -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
-        fetch --no-tags --force origin \
-          '+refs/heads/*:refs/remotes/origin/*' \
-          '+refs/tags/*:refs/tags/*'
-    else
-      git -C "$repo" -c credential.helper= \
-        -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
-        fetch --no-tags --force origin '+refs/heads/*:refs/remotes/origin/*'
-    fi
-  fi
-  git -C "$repo" checkout --force --detach "${ENCHRON_REVISION:-refs/remotes/origin/main}"
+prepare_tree() {
+  local repo="$1"
+  local main="$2"
   git -C "$repo" clean -ffdx \
     -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
   "$repo/Scripts/provision_vendored_ffmpeg.sh" "$main"
@@ -72,6 +52,9 @@ main() {
     emit_only=1
   fi
   export ENCHRON_WORKSPACE="${ENCHRON_WORKSPACE:-$ENCHRON_WORKSPACE_DEFAULT}"
+  local repo
+  repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  local main="${ENCHRON_MAIN:-$(dirname "$repo")/Enchron}"
   toolchain
   if [ "$emit_only" = "1" ]; then
     emit
@@ -80,10 +63,9 @@ main() {
   if [ "$mode" = "ci" ]; then
     prepare_venv "$ENCHRON_WORKSPACE/wt-ci-venv"
     toolchain
-    prepare_checkout "$ENCHRON_WORKSPACE"
-    export ENCHRON_WORKSPACE
-    export ENCHRON_MAIN="$ENCHRON_WORKSPACE/Enchron"
-    export ENCHRON_REPO="$ENCHRON_WORKSPACE/wt-ci"
+    prepare_tree "$repo" "$main"
+    export ENCHRON_MAIN="$main"
+    export ENCHRON_REPO="$repo"
   fi
 }
 
