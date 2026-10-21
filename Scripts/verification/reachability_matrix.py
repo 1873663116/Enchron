@@ -9203,6 +9203,8 @@ class ReachabilityRun:
             return 1
         if self.arguments.require_complete and summary["known-defect"]:
             return 1
+        if status not in {"complete", "incomplete"}:
+            return 2
         return 0
 
 
