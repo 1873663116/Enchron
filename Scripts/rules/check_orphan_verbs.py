@@ -18,6 +18,16 @@ EXEMPT_VERBS = {
         "it by hand. Nothing automates an assertion against the setting, so no "
         "operation declares the verb."
     ),
+    "audioSelfTest": (
+        "Plays a tone through the session and reports the route, sample rate "
+        "and output volume. A reading taken by hand while probing audio "
+        "output; no operation asserts against it."
+    ),
+    "streamQuitApp": (
+        "Quits an application on a reachable stream host and refreshes that "
+        "host's reachability. Driven by hand when preparing a streaming "
+        "probe; no operation asserts against it."
+    ),
     "sceneSessions": (
         "Lists the app's live UIScene sessions with their activation and "
         "destruction state. A reading taken by hand while probing wearer-close "
