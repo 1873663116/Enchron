@@ -377,6 +377,15 @@ public final class StreamingModel {
         try await startSession(hostID: hostID, appID: appID, appName: appName, preferResume: true)
     }
 
+    private func relaunchForDisplayMode() async throws {
+        guard let current = session else { return }
+        let hostID = current.hostID
+        let appID = current.appID
+        let appName = current.appName
+        stopSessionInternal(reason: "displayModeMismatch")
+        try await startSession(hostID: hostID, appID: appID, appName: appName, preferResume: false)
+    }
+
     public func reconnect() async throws {
         guard let current = session else { return }
         let hostID = current.hostID
@@ -494,7 +503,7 @@ public final class StreamingModel {
                     guard let self, !self.hostFrameRateRecoveryInFlight else { return }
                     self.hostFrameRateRecoveryInFlight = true
                     defer { self.hostFrameRateRecoveryInFlight = false }
-                    try? await self.reconnect()
+                    try? await self.relaunchForDisplayMode()
                 }
             }
             coordinator.start()

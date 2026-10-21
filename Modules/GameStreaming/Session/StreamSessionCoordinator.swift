@@ -49,6 +49,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var lastSampledReceivedFrames: Int64 = 0
     private var requestedFrameRate = 0
     private var lowDeliverySeconds = 0
+    private var streamingStableSeconds = 0
     private var didSignalHostFrameRateMismatch = false
     public var onHostFrameRateMismatch: (@Sendable () -> Void)?
     private var lastSampledAudioOutcomes: (warnings: Int64, flushDrops: Int64, failed: Int64, autoFlush: Int64, config: Int64, short: Int64, long: Int64, other: Int64) = (0, 0, 0, 0, 0, 0, 0, 0)
@@ -1665,10 +1666,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " gotFps=\(String(format: "%.1f", deliveredFps))"
             maxPumpGapMilliseconds = 0
             lastSampledReceivedFrames = receivedNow
+            if case .streaming = snapshotStorage.state {
+                streamingStableSeconds += 1
+            } else {
+                streamingStableSeconds = 0
+            }
             if requestedFrameRate >= 100,
                sampledInterval > 0,
-               deliveredFps < Double(requestedFrameRate) * 0.85,
-               case .streaming = snapshotStorage.state {
+               streamingStableSeconds >= 4,
+               deliveredFps < Double(requestedFrameRate) * 0.85 {
                 lowDeliverySeconds += 1
             } else {
                 lowDeliverySeconds = 0
