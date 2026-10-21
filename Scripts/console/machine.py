@@ -21,7 +21,7 @@ def probe() -> MachineProfile:
     ) or _booted_simulator()
     if target:
         capabilities.add("device")
-    if _daemon_reachable():
+    if "mac" in capabilities:
         capabilities.add("daemon")
     return MachineProfile(capabilities=frozenset(capabilities), target=target)
 
@@ -43,24 +43,6 @@ def _booted_simulator() -> str | None:
         if candidate.count("-") == 4 and len(candidate) == 36:
             return candidate
     return None
-
-
-def _daemon_reachable() -> bool:
-    target = os.environ.get("ENCHRON_TARGET_DEVICE") or _booted_simulator()
-    if not target:
-        return False
-    return daemon_socket(target).exists()
-
-
-def daemon_socket(target: str):
-    from pathlib import Path
-
-    import hashlib
-    import tempfile
-
-    root = Path(os.environ.get("ENCHRON_CONSOLE_ROOT", "")) or Path.cwd()
-    label = hashlib.sha256(f"{root.resolve()}|{target}".encode()).hexdigest()[:12]
-    return Path(tempfile.gettempdir()) / f"enchron-console-{label}.sock"
 
 
 def synthetic(name: str) -> MachineProfile:

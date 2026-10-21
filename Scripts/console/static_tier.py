@@ -91,6 +91,20 @@ def run_code_only(root: Path, evidence_root: Path) -> dict[str, Any]:
                 "stderr": completed.stderr[-4000:],
             }
         )
+    model = subprocess.run(
+        [sys.executable, str(root / "Scripts" / "console" / "cli.py"),
+         "--root", str(root), "plan", "check"],
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+    )
+    results.append(
+        {
+            "checker": "plan-check",
+            "exitCode": model.returncode,
+            "stderr": (model.stderr or model.stdout)[-4000:],
+        }
+    )
     duration_ms = int((time.monotonic() - started) * 1000)
     failed = [item for item in results if item["exitCode"] not in (0, None)]
     payload = {
