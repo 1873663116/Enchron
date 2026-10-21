@@ -44,6 +44,12 @@
 - **`The runner did not answer tap within 30 seconds.` 不等于 tap 没落**。2026-09-12 真机上 AX 传输在播放中反复卡住，超时的 tap 有时延迟落到了目标上（`snapshot` 超时同理）。判动作是否生效要看控制面——探针里的 `lifecycle`、PTS 推进、`testcmd` 行——不能只凭 runner 回的错误文本。
 - **探针日志的写入不经过 AX**。`Documents/surface-tap-probe.log` 的控制面行由 app 自己写，AX 卡死期间照常推进，经 `devicectl` 拷容器即可读——2026-09-12 的整轮内存采样就是在 AX 不通的窗口里由它完成的。
 
+## 命令通道的唤醒
+
+- **runner 在自己的 ready 状态里声明轮询粒度，控制端据此决定要不要发 Darwin 通知**。`commandPollMillis` 由 `Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift` 的 `publishReadyState` 写出，取 `commandPollInterval` 的毫秒值（20）。`Scripts/console/transport.py` 读到该字段就不调 `wake_runner`，把命令文件写进去后直接等应答；读不到才发通知。旧 runner 不声明这个字段，因此仍然走通知，两端不会失配。
+- **跳过通知的代价是每次动作多等最多一个轮询周期**。模拟器上实测快照从 923 至 951 毫秒降到 652 至 685 毫秒，省下的正是 `xcrun simctl spawn <udid> notifyutil -p` 那一次进程创建（约 240 毫秒）。轮询本身每 20 毫秒一次 `fileExists`，开销低于一次通知。
+- **轮询在两条 lane 上都成立，因为轮询发生在 runner 自己的容器里**。`simctl` 与 `devicectl` 的分支只影响命令文件的搬运气道，不影响 runner 看自己目录的开销。通知因此保留给不声明 `commandPollMillis` 的 runner，不是给真机留的例外。
+
 ## XCUITest 与 visionOS 的场景
 
 - **Application element 不属于任何一个 visionOS Scene**。对它合成事件会在 Scene 查找上失败，而这个失败会结束这个长驻测试方法并把 app 一起拆掉。正确做法是让那条命令失败，而不是把整个会话拖走。
