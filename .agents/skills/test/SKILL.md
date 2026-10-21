@@ -25,7 +25,9 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 ## Where the gate fires
 
-Every build runs `console tier static --code-only` as the first build phase, before Sources. A forbidden comment or a SwiftLint violation fails the build, not the review.
+Every build runs `console tier static --code-only` as the first build phase, before Sources. A new forbidden comment or a SwiftLint violation outside the baseline fails the build, not the review.
+
+Both rules carry a baseline of what already exists. Editing product code without adding a comment keeps passing. Adding one fails immediately, which is the whole point.
 
 Every push runs `console plan check` and then `console tier static --quick`, unless the diff touches no code, configuration or rule.
 

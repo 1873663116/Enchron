@@ -59,7 +59,9 @@ The self-test suite runs in 0.43 s.
 
 `static` tier with `--quick` took 371 870 ms. The checkers themselves account for roughly 318 s: 194 checks, of which the six slowest take 63 percent. `test-generate-reachability-inventory` alone is 88 s.
 
-Fifteen checks fail on a clean `main`. `product-source-comments`, `swiftlint` and `glass-usage` are among them, and all three are hard rules the repository sets for itself. Comment violations exist at `Modules/Playback/PlaybackRuntime.swift:1416`.
+Two rules hold a baseline so a build can pass on a tree that already broke them. `Config/product_source_comments_baseline.json` records the standing comment findings; a new one fails and one that disappears also fails until the baseline shrinks. `Config/swiftlint_baseline.json` works the same way and refuses to widen.
+
+Neither baseline hides debt. Widening one is refused, so the only way to clear an entry is to fix the code.
 
 Runner channel latency, for the e2e tier. A command round trip is 0.65 s. A snapshot is 1.23 s, a tap 2.04 s, typing 2.55 s. Bringing a session up is 59 s at the median and 263 s at the worst.
 
