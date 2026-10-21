@@ -46,6 +46,11 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var lastSampledPresentedCount: Int64 = 0
     private var lastSampledVideoBytes: Int64 = 0
     private var lastSampledVideoOutcomes: (warnings: Int64, flush: Int64, requiresFlush: Int64, failed: Int64, decodeWarnings: Int64) = (0, 0, 0, 0, 0)
+    private var lastSampledReceivedFrames: Int64 = 0
+    private var requestedFrameRate = 0
+    private var lowDeliverySeconds = 0
+    private var didSignalHostFrameRateMismatch = false
+    public var onHostFrameRateMismatch: (@Sendable () -> Void)?
     private var lastSampledAudioOutcomes: (warnings: Int64, flushDrops: Int64, failed: Int64, autoFlush: Int64, config: Int64, short: Int64, long: Int64, other: Int64) = (0, 0, 0, 0, 0, 0, 0, 0)
     private var lastVideoSampleNanoseconds: UInt64 = 0
     private var lastVideoPresentationSeconds: Double = 0
@@ -71,7 +76,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     private var governorState: TimelineGovernorState = .measuring
-    private let streamingDisplaysImmediately = true
+    private let streamingDisplaysImmediately = false
     private var governorTargetLeadSeconds = 0.016
     private var governorLeadEmaSeconds: Double = .nan
     private var governorSecondLeads: [Double] = []
@@ -374,17 +379,23 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
         let ptsUs = max(0, Int64((pts.seconds * 1_000_000).rounded()))
 
-        let droppedForQueue = videoQueueLock.withLock { () -> Int in
-            var dropped = 0
-            while pendingVideo.count >= 2 {
-                pendingVideo.removeFirst()
-                dropped += 1
+        if streamingDisplaysImmediately {
+            let droppedForQueue = videoQueueLock.withLock { () -> Int in
+                var dropped = 0
+                while pendingVideo.count >= 2 {
+                    pendingVideo.removeFirst()
+                    dropped += 1
+                }
+                pendingVideo.append((sample, ptsUs))
+                return dropped
             }
-            pendingVideo.append((sample, ptsUs))
-            return dropped
-        }
-        if droppedForQueue > 0 {
-            stateLock.withLock { counters.videoDroppedStale += Int64(droppedForQueue) }
+            if droppedForQueue > 0 {
+                stateLock.withLock { counters.videoDroppedStale += Int64(droppedForQueue) }
+            }
+        } else {
+            videoQueueLock.withLock {
+                pendingVideo.append((sample, ptsUs))
+            }
         }
         let sampleTime = DispatchTime.now().uptimeNanoseconds
         stateLock.withLock {
@@ -1348,6 +1359,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         case .decoderConfigured(let width, let height, let frameRate, let codec):
             stateLock.withLock {
                 let codecValue = StreamVideoCodec(rawValue: codec) ?? .h264
+                self.requestedFrameRate = frameRate
                 snapshotStorage.negotiated = NegotiatedStreamConfiguration(
                     width: width,
                     height: height,
@@ -1613,6 +1625,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             let audioGapMax = counters.audioGapMaxMilliseconds
             counters.videoGapMaxMilliseconds = 0
             counters.audioGapMaxMilliseconds = 0
+            let receivedNow = Int64(stats?.receivedFrames ?? 0)
+            let receivedDelta = receivedNow - lastSampledReceivedFrames
+            let sampledInterval = stats?.measuredIntervalSeconds ?? 1
+            let deliveredFps = sampledInterval > 0 ? Double(receivedDelta) / sampledInterval : 0
             let videoText = "video detail \(statsText)"
                 + " enqWarn=\(videoDelta.0)"
                 + " flushDrop=\(videoDelta.1)"
@@ -1645,7 +1661,29 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " rttMs=\(backend.estimatedRTT()?.milliseconds ?? 0)"
                 + " rttVar=\(backend.estimatedRTT()?.variance ?? 0)"
                 + " staleDrop=\(counters.videoDroppedStale)"
+                + " reqFps=\(requestedFrameRate)"
+                + " gotFps=\(String(format: "%.1f", deliveredFps))"
             maxPumpGapMilliseconds = 0
+            lastSampledReceivedFrames = receivedNow
+            if requestedFrameRate >= 100,
+               sampledInterval > 0,
+               deliveredFps < Double(requestedFrameRate) * 0.85,
+               case .streaming = snapshotStorage.state {
+                lowDeliverySeconds += 1
+            } else {
+                lowDeliverySeconds = 0
+            }
+            if lowDeliverySeconds >= 3, !didSignalHostFrameRateMismatch {
+                didSignalHostFrameRateMismatch = true
+                StreamSessionProbes.record(
+                    "video host frame rate mismatch session=\(sessionID.rawValue)"
+                        + " requested=\(requestedFrameRate)"
+                        + " received=\(receivedDelta)"
+                        + " interval=\(sampledInterval)",
+                    retention: .evidence
+                )
+                onHostFrameRateMismatch?()
+            }
             let governorLateRate = governorSecondTotal == 0
                 ? 0
                 : Double(governorSecondLate) / Double(governorSecondTotal)
