@@ -1,0 +1,33 @@
+{
+ "schema": "enchron.verification.test-service-identities@1",
+ "variables": {
+  "EMBY_USER": {
+   "service": "emby",
+   "class": "identity"
+  },
+  "EMBY_PASSWORD": {
+   "service": "emby",
+   "class": "credential"
+  },
+  "SMB_USER": {
+   "service": "smb",
+   "class": "identity"
+  },
+  "SMB_PASSWORD": {
+   "service": "smb",
+   "class": "credential"
+  },
+  "WEBDAV_USER": {
+   "service": "webdav",
+   "class": "identity"
+  },
+  "WEBDAV_PASSWORD": {
+   "service": "webdav",
+   "class": "credential"
+  },
+  "ENCHRON_HOST": {
+   "service": "enchron",
+   "class": "harness"
+  }
+ }
+}

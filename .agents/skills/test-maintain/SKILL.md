@@ -169,6 +169,26 @@ The tier is the axis worth taking next: 193 checks run one after another for
 checks may sit beside another, because a check that boots a simulator or binds a
 port serialises with its peers.
 
+## Identity and credentials
+
+`Config/test_service_identities.json` names every variable that carries an
+identity and the service it belongs to. The registry holds names, never values.
+Values live in the environment or in `.env`, which is ignored.
+
+`Scripts/rules/verify_test_service_identities.py` reads the registry and reports
+three things: a variable that appears in the tree but not in the registry, a
+value from the environment found anywhere in the tree, and four credential
+shapes that need no registry at all — a private key block, a credential inside a
+URL, a literal authorization header, a certificate fingerprint.
+
+A new supplier is one registry entry. A supplier that is never registered fails
+on its first commit, which is the point: forgetting to maintain the registry is
+an error, not a silent gap.
+
+The identity classes in `check_no_literal_rfc1918.py` read the account name from
+`EMBY_USER`, `SMB_USER` and `WEBDAV_USER` instead of carrying the literal. When
+none is set, that scan reports nothing and the shape rules still run.
+
 ## The correctness argument
 
 Three properties carry the design.

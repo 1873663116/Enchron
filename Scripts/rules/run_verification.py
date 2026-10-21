@@ -115,6 +115,10 @@ STRUCTURE_CHECKS = (
         "verify_product_source_comments.py",
     ),
     StructureCheck(
+        "test-service-identities",
+        "verify_test_service_identities.py",
+    ),
+    StructureCheck(
         "release-test-channel-absent",
         "verify_release_test_channel_absent.py",
     ),

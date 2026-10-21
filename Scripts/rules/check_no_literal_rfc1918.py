@@ -128,25 +128,23 @@ already spells these keys out in full: `serverIdentityDigest` in
 `Scripts/verification/reachability_matrix.py`, `server_identity_digest` on the
 signature that carries it.
 """
-ACCOUNT_NAME = "Corti" + "sol"
-"""The Emby account name, assembled so this file does not carry the literal.
+ACCOUNT_NAMES = ("EMBY_USER", "SMB_USER", "WEBDAV_USER")
 
-A denylist entry written out in full makes the guard report itself on every
-run, and the file that names the thing to look for is the one place an
-exemption would be indistinguishable from the leak.
-"""
-BARE_ACCOUNT_NAME = re.compile(r"\b(" + re.escape(ACCOUNT_NAME) + r")\b")
-"""The account name at a word boundary, in whatever punctuation surrounds it.
 
-Requiring a quote around it was a rule shaped to the leak that had already
-been cleaned up. The name in backticks, in a shell word, in prose or bare in a
-path is the same name, and the quoting says nothing about whether it is being
-used as a login. What separates a login from the volume and share of the same
-name is the credential-word window, together with the positions
-`stands_in_a_credential_position` reads: of the occurrences of the name across
-the scanned tree, the guard reports the ones a credential word introduces or a
-credential position holds, and passes the rest.
-"""
+def account_names() -> tuple[str, ...]:
+    return tuple(
+        value
+        for value in (os.environ.get(name, "").strip() for name in ACCOUNT_NAMES)
+        if len(value) >= 4
+    )
+
+
+def bare_account_patterns() -> tuple[re.Pattern[str], ...]:
+    return tuple(
+        re.compile(r"\b(" + re.escape(name) + r")\b") for name in account_names()
+    )
+
+
 ACCOUNT_NAME_CONTEXT = re.compile(
     r"(?:user|name|account|login|\bPw\b|password|credential)", re.IGNORECASE
 )
@@ -403,6 +401,7 @@ def is_introduced_by(context: re.Pattern[str], line: str, start: int, end: int) 
 
 def identity_failures() -> list[str]:
     found: list[str] = []
+    account_patterns = bare_account_patterns()
     for path in identity_scan_paths():
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
@@ -441,12 +440,15 @@ def identity_failures() -> list[str]:
                 if reads_as_a_fixture_identifier(match.group(1)):
                     continue
                 found.append(f"{relative}:{index}: contains an Emby server or user identifier")
-            for match in BARE_ACCOUNT_NAME.finditer(line):
-                start, stop = match.start(1), match.end(1)
-                window = line[max(start - CONTEXT_WINDOW, 0): stop + CONTEXT_WINDOW]
-                if not ACCOUNT_NAME_CONTEXT.search(window) and not stands_in_a_credential_position(line, start, stop):
-                    continue
-                found.append(f"{relative}:{index}: contains the Emby account name")
+            for pattern in account_patterns:
+                for match in pattern.finditer(line):
+                    start, stop = match.start(1), match.end(1)
+                    window = line[max(start - CONTEXT_WINDOW, 0): stop + CONTEXT_WINDOW]
+                    if not ACCOUNT_NAME_CONTEXT.search(window) and not stands_in_a_credential_position(line, start, stop):
+                        continue
+                    found.append(
+                        f"{relative}:{index}: contains a test service account name"
+                    )
     return found
 
 def failures() -> list[str]:
