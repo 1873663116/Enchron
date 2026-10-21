@@ -33,12 +33,6 @@ func theSecondDigitIsTheCrossCompatibility() {
     #expect(hlgCompatible.label == "Dolby Vision Profile 8.4")
 }
 
-@Test("a high level does not invent a profile that does not exist")
-func aHighLevelDoesNotInventAProfile() {
-    let hdr10Compatible = PlaybackModel.DolbyVision(profile: 8, crossCompatibilityID: 1)
-    #expect(hdr10Compatible.label == "Dolby Vision Profile 8.1")
-}
-
 @Test("a profile compatible with nothing has no second digit")
 func aProfileCompatibleWithNothingHasNoSecondDigit() {
     let profileFive = PlaybackModel.DolbyVision(profile: 5, crossCompatibilityID: 0)

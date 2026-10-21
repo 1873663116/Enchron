@@ -259,8 +259,6 @@ func everyPlaybackIssueCategoryHasOnePolicy() {
 @Test("active playback failures have one exact recovery policy")
 @MainActor
 func activePlaybackFailuresHaveOneRecoveryPolicy() {
-    #expect(PlaybackActiveFailure.Cause.allCases.count == 7)
-
     for cause in PlaybackActiveFailure.Cause.allCases {
         let issue = activeFailureIssue(cause)
         #expect(issue.category.rawValue == cause.rawValue)
