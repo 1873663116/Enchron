@@ -1674,7 +1674,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             if requestedFrameRate >= 100,
                sampledInterval > 0,
                streamingStableSeconds >= 4,
-               deliveredFps < Double(requestedFrameRate) * 0.85 {
+               videoGapMax < 40,
+               deliveredFps >= Double(requestedFrameRate) * 0.6,
+               deliveredFps < Double(requestedFrameRate) * 0.95 {
                 lowDeliverySeconds += 1
             } else {
                 lowDeliverySeconds = 0

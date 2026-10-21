@@ -73,6 +73,7 @@ public final class StreamingModel {
     private var activePairingSessions: [HostID: any BackendPairingSession] = [:]
     private var coordinator: StreamSessionCoordinator?
     private var hostFrameRateRecoveryInFlight = false
+    private var hostFrameRateRecoveryAttempts: [HostID: Date] = [:]
     private var teardownRequested = false
     private var teardownFallbackTask: Task<Void, Never>?
     private var hostQuitRetryTasks: [HostID: Task<Void, Never>] = [:]
@@ -501,6 +502,12 @@ public final class StreamingModel {
             coordinator.onHostFrameRateMismatch = { [weak self] in
                 Task { @MainActor in
                     guard let self, !self.hostFrameRateRecoveryInFlight else { return }
+                    guard let hostID = self.session?.hostID else { return }
+                    if let last = self.hostFrameRateRecoveryAttempts[hostID],
+                       Date().timeIntervalSince(last) < 300 {
+                        return
+                    }
+                    self.hostFrameRateRecoveryAttempts[hostID] = Date()
                     self.hostFrameRateRecoveryInFlight = true
                     defer { self.hostFrameRateRecoveryInFlight = false }
                     try? await self.relaunchForDisplayMode()
