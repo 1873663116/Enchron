@@ -150,6 +150,16 @@ def _append_index(evidence_root: Path, report: Report) -> None:
         handle.write(line + "\n")
 
 
+def _resolve_field(payload: Any, path: str) -> Any:
+    current = payload
+    for name in path.split("."):
+        if isinstance(current, dict):
+            current = current.get(name)
+        else:
+            return None
+    return current
+
+
 def _run_step(
     step: Step,
     plan: Plan,
@@ -167,6 +177,13 @@ def _run_step(
     try:
         supervisor.before(step.verb, evidence)
         evidence, ok, detail = _dispatch(step, root, plan, steps_directory)
+        if ok and step.expect is not None:
+            actual = _resolve_field(evidence, step.expect.path)
+            if actual != step.expect.equals:
+                ok = False
+                detail = (
+                    f"{step.expect.path} is {actual!r}, expected {step.expect.equals!r}"
+                )
         elapsed = int((time.monotonic() - started) * 1000)
         supervisor.after(step.verb, verb.budget_ms, elapsed, evidence)
     except GuardrailHit as caught:

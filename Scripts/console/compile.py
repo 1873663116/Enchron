@@ -8,6 +8,7 @@ from typing import Any
 from loader import load_feature_references, load_units
 from model import (
     CAPABILITIES,
+    Expectation,
     Guardrail,
     MachineProfile,
     Plan,
@@ -157,12 +158,28 @@ class Compiler:
                 errors.append(
                     ("C005", f"verb {verb_name!r} does not take {', '.join(unknown)}")
                 )
+            expect = None
+            declared_expect = action.get("expect")
+            if declared_expect is not None:
+                if (
+                    not isinstance(declared_expect, dict)
+                    or not isinstance(declared_expect.get("path"), str)
+                    or not declared_expect.get("path")
+                ):
+                    errors.append(
+                        ("C005", f"expect on {verb_name!r} needs a path")
+                    )
+                else:
+                    expect = Expectation(
+                        path=declared_expect["path"],
+                        equals=declared_expect.get("equals"),
+                    )
             steps.append(
                 Step(
                     index=index,
                     verb=verb_name,
                     args=args,
-                    expect=None,
+                    expect=expect,
                     evidence=verb.evidence,
                 )
             )
