@@ -563,6 +563,7 @@ def run_structure_checks(
     run_directory: Path,
     environment: dict[str, str],
     quick: bool,
+    text_only: bool = False,
 ) -> LayerResult:
     failures: list[str] = []
     logs: list[str] = []
@@ -574,7 +575,8 @@ def run_structure_checks(
     checks = tuple(
         check
         for check in reachable
-        if portable or check.environment != "services"
+        if (portable or check.environment != "services")
+        and (not text_only or check.environment == "text")
     )
     unevaluated = tuple(check for check in everything if check not in checks)
     workers = structure_worker_count(len(checks))
@@ -1241,6 +1243,11 @@ def parse_arguments() -> argparse.Namespace:
             "the media-corpus format identity check runs only in full mode"
         ),
     )
+    parser.add_argument(
+        "--text-only",
+        action="store_true",
+        help="run only the checks that need nothing but the repository text",
+    )
     parser.add_argument("--log-root", type=Path, default=DEFAULT_LOG_ROOT)
     parser.add_argument("--retain-runs", type=int, default=14)
     arguments = parser.parse_args()
@@ -1339,8 +1346,20 @@ def main() -> int:
         tree_before = tracked_tree_fingerprint(environment)
         results = [install_git_hooks(environment)]
         results.append(
-            run_structure_checks(run_directory, environment, arguments.quick)
+            run_structure_checks(
+                run_directory, environment, arguments.quick, arguments.text_only
+            )
         )
+        if arguments.text_only:
+            write_summary(
+                run_directory,
+                started.isoformat(),
+                arguments.quick,
+                {"DEVELOPER_DIR": environment.get("DEVELOPER_DIR", "unknown")},
+                results,
+            )
+            print_summary(results, run_directory)
+            return 0 if all(result.state != "FAIL" for result in results) else 1
         try:
             results.append(
                 run_playback_core_tests(run_directory, environment, baseline)
