@@ -165,14 +165,14 @@ def is_simulator(
     return device in simulator_udids
 
 
-_CONTAINERS: dict[tuple[str, str], Path] = {}
+_CONTAINERS: dict[tuple[str, str], tuple[Path, float]] = {}
 
 
 def simulator_container(device: str, bundle_id: str) -> Path | None:
     key = (device, bundle_id)
     cached = _CONTAINERS.get(key)
-    if cached is not None and cached.is_dir():
-        return cached
+    if cached is not None and time.monotonic() - cached[1] < CONTAINER_REVALIDATE_SECONDS:
+        return cached[0]
     result = subprocess.run(
         ["xcrun", "simctl", "get_app_container", device, bundle_id, "data"],
         check=False, text=True, capture_output=True,
@@ -180,7 +180,7 @@ def simulator_container(device: str, bundle_id: str) -> Path | None:
     if result.returncode != 0:
         return None
     found = Path(result.stdout.strip())
-    _CONTAINERS[key] = found
+    _CONTAINERS[key] = (found, time.monotonic())
     return found
 
 
@@ -446,11 +446,20 @@ def working_directory(pid: int) -> str | None:
     return None
 
 
+_PROCESS_SCOPE_CACHE: tuple[float, list[tuple[int, str]]] | None = None
+PROCESS_SCOPE_TTL_SECONDS = 1.0
+CONTAINER_REVALIDATE_SECONDS = 5.0
+
+
 def scoped_processes() -> list[tuple[int, str]]:
     """A runner works in the worktree that launched it, so its working
     directory is the scope. The frozen xctestrun path is not: it may live under
     another worktree's artifact root, or name no repository at all, so it only
     counts when the working directory cannot be read."""
+    global _PROCESS_SCOPE_CACHE
+    cached = _PROCESS_SCOPE_CACHE
+    if cached is not None and time.monotonic() - cached[0] < PROCESS_SCOPE_TTL_SECONDS:
+        return cached[1]
     rows = process_table()
     lineage = own_lineage(rows)
     root = str(REPOSITORY_ROOT)
@@ -470,6 +479,7 @@ def scoped_processes() -> list[tuple[int, str]]:
                 scoped.append((pid, command))
         elif directory == root:
             scoped.append((pid, command))
+    _PROCESS_SCOPE_CACHE = (time.monotonic(), scoped)
     return scoped
 
 
