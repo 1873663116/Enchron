@@ -432,7 +432,7 @@ public struct PlayerView: View {
             ? { @MainActor in streamingStatusLines }
             : nil
         return Group {
-            if (showsLoadingChrome || streamingLoading),
+            if showsLoadingChrome || streamingLoading,
                playbackLauncher.pendingResumeDecision == nil {
                 LoadingSpinner(
                     sourceReadBytesPerSecond: rateProvider,

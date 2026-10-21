@@ -80,6 +80,13 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var governorTargetLeadSeconds = 0.016
     private var governorLeadEmaSeconds: Double = .nan
     private var governorSecondLeads: [Double] = []
+
+    private func governorSecondLeadP95() -> Double {
+        guard governorSecondLeads.isEmpty == false else { return 0 }
+        let ordered = governorSecondLeads.sorted()
+        let index = min(ordered.count - 1, Int(Double(ordered.count) * 0.95))
+        return ordered[index]
+    }
     private var governorSecondLate = 0
     private var governorSecondTotal = 0
     private var governorResyncCount: Int64 = 0
@@ -1651,7 +1658,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " ptsGap=\(gapDelta.ptsGap)"
                 + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
                 + " leadAvgMs=\(String(format: "%.1f", governorSecondLeads.isEmpty ? 0 : governorSecondLeads.reduce(0, +) / Double(governorSecondLeads.count)))"
-                + " leadP95Ms=\(String(format: "%.1f", governorSecondLeads.isEmpty ? 0 : governorSecondLeads.sorted()[min(governorSecondLeads.count - 1, Int(Double(governorSecondLeads.count) * 0.95))]))"
+                + " leadP95Ms=\(String(format: "%.1f", governorSecondLeadP95()))"
                 + " latePct=\(String(format: "%.0f", governorSecondTotal == 0 ? 0 : Double(governorSecondLate) / Double(governorSecondTotal) * 100))"
                 + " targetMs=\(String(format: "%.0f", governorTargetLeadSeconds * 1000))"
                 + " resync=\(governorResyncCount)"
