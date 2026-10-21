@@ -53,6 +53,8 @@
 
 - **容器路径与进程表按时间窗复用，不能每次命令都查**。`simulator_container` 的结果按设备与包标识符缓存，命中前校验目录仍在，重装后自动重新解析；`scoped_processes` 按 1 秒窗口缓存，容器路径按 5 秒窗口复核。这两次查询分别是约 111 毫秒与约 46 毫秒，而它们决定的状态在秒级尺度上不会变。
 
+- **`activate` 动作把应用拉到前台，不动元素**。`InteractiveDeviceUITests.swift` 的 `.activate` 分支只调 `app.activate()`，标识符参数被忽略，应答是「Application activated.」。它的 1.23 到 1.43 秒是前台化成本，不能当作元素激活使用；要操作元素只能用 `tap` 一类动作。
+
 ## XCUITest 与 visionOS 的场景
 
 - **Application element 不属于任何一个 visionOS Scene**。对它合成事件会在 Scene 查找上失败，而这个失败会结束这个长驻测试方法并把 app 一起拆掉。正确做法是让那条命令失败，而不是把整个会话拖走。

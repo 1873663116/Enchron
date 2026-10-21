@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -13,6 +13,7 @@ class Verb:
     evidence: str | None
     budget_ms: int
     schema: str | None = None
+    choices: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 VERBS: dict[str, Verb] = {
@@ -43,6 +44,21 @@ VERBS: dict[str, Verb] = {
             capabilities=frozenset({"mac", "device", "daemon"}),
             lane="device",
             parameter=("action", "identifier", "text"),
+            choices={
+                "action": (
+                    "tap",
+                    "doubleTap",
+                    "press",
+                    "adjust",
+                    "typeText",
+                    "replaceText",
+                    "swipeUp",
+                    "swipeDown",
+                    "swipeLeft",
+                    "swipeRight",
+                    "coordinateTap",
+                )
+            },
             evidence="command.json",
             schema="enchron.console.command@1",
             budget_ms=30_000,

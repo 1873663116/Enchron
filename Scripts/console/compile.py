@@ -178,6 +178,14 @@ class Compiler:
                 errors.append(
                     ("C005", f"verb {verb_name!r} does not take {', '.join(unknown)}")
                 )
+            for name, allowed in verb.choices.items():
+                if name in args and args[name] not in allowed:
+                    errors.append(
+                        (
+                            "C005",
+                            f"{verb_name} takes {', '.join(allowed)} for {name}",
+                        )
+                    )
             expect = None
             declared_expect = action.get("expect")
             if declared_expect is not None:
