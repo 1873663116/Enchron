@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import json
 import subprocess
 import sys
@@ -119,6 +120,16 @@ def run_code_only(root: Path, evidence_root: Path) -> dict[str, Any]:
     return payload
 
 
+CHECK_LINE = re.compile(r"^\s+(PASS|FAIL|SKIP)\s+(\S+)\s+([0-9.]+)s\s*$", re.MULTILINE)
+
+
+def _check_breakdown(output: str) -> list[dict[str, Any]]:
+    return [
+        {"checker": name, "state": state, "durationMs": int(float(seconds) * 1000)}
+        for state, name, seconds in CHECK_LINE.findall(output)
+    ]
+
+
 def run_static_tier(
     root: Path,
     evidence_root: Path,
@@ -150,6 +161,7 @@ def run_static_tier(
         "exitCode": completed.returncode,
         "durationMs": duration_ms,
         "logRoot": str(log_root),
+        "checks": _check_breakdown(completed.stdout),
         "stdout": completed.stdout[-8000:],
         "stderr": completed.stderr[-8000:],
     }

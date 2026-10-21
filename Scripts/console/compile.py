@@ -279,11 +279,14 @@ def check_all(
         shape_machine = MachineProfile(
             capabilities=frozenset(CAPABILITIES), target=machine.target
         )
-        plan, errors = compiler.compile(
-            unit, tier or natural_tier(unit), shape_machine
-        )
+        run_tier = natural_tier(unit)
+        plan, errors = compiler.compile(unit, run_tier, shape_machine)
         for code, message in errors:
             findings.append((identifier, code, message))
+        if tier is not None and TIER_ORDER[run_tier] <= TIER_ORDER[tier]:
+            _, reachable = compiler.compile(unit, run_tier, machine)
+            for code, message in reachable:
+                findings.append((identifier, code, message))
         if identifier not in references:
             findings.append(
                 (

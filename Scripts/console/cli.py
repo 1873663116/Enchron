@@ -222,6 +222,11 @@ def _tier(root: Path, arguments, profile) -> int:
 
 
 def _doctor(profile, as_json: bool) -> int:
+    missing = {
+        tier: sorted(compiler_module.TIER_CAPABILITIES[tier] - profile.capabilities)
+        for tier in TIER_ORDER
+        if not compiler_module.TIER_CAPABILITIES[tier] <= profile.capabilities
+    }
     payload = {
         "capabilities": sorted(profile.capabilities),
         "target": profile.target,
@@ -230,6 +235,7 @@ def _doctor(profile, as_json: bool) -> int:
             for tier in TIER_ORDER
             if compiler_module.TIER_CAPABILITIES[tier] <= profile.capabilities
         ],
+        "missing": {tier: capabilities for tier, capabilities in missing.items()},
     }
     if as_json:
         print(json.dumps(payload, indent=1))
@@ -237,6 +243,8 @@ def _doctor(profile, as_json: bool) -> int:
         print(f"capabilities {', '.join(payload['capabilities'])}")
         print(f"target {payload['target'] or 'none'}")
         print(f"tiers {', '.join(payload['tiers']) or 'none'}")
+        for tier, capabilities in missing.items():
+            print(f"missing {tier}: {', '.join(capabilities)}")
     return EXIT_OK
 
 

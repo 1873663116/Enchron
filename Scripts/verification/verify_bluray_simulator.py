@@ -23,7 +23,8 @@ from Scripts.regression.core.contracts import BoundLane
 from Scripts.regression.core.plan import ScenarioAttemptNode
 from Scripts.regression.core.runtime import open_run
 from Scripts.regression.execution_plan import compile_execution_plan
-from Scripts.regression.tools import server as regression_server
+from Scripts.regression.core.ids import CallID, NodeID, SidekickID
+from Scripts.regression.tools import op_tool
 from Scripts.regression.tools.pixel_heuristics import all_black
 from Scripts.regression.tools.raster import decode_png
 from Scripts.verification.prepare_bluray_supplement import CASES, BluRayCase
@@ -280,23 +281,26 @@ def _run(arguments: argparse.Namespace) -> dict:
     transcript = {"schema": "enchron.bluray.simulator-e2e/v1", "scenario": scenario, "outcomes": []}
     arguments.transcript.parent.mkdir(parents=True, exist_ok=True)
     try:
+        plan, _ = compile_execution_plan(
+            ROOT,
+            Path(arguments.execution_input),
+            Path(arguments.catalog_root),
+            Path(arguments.policy),
+            Path(arguments.reviews_root),
+            Path(arguments.blueprint),
+            requested_lane=BoundLane.SIMULATOR,
+        )
         for call in calls:
-            tool_result = regression_server.call_tool("op", {
-                "repositoryRoot": str(ROOT),
-                "executionInput": str(arguments.execution_input),
-                "catalogRoot": str(arguments.catalog_root),
-                "policy": str(arguments.policy),
-                "reviewsRoot": str(arguments.reviews_root),
-                "blueprint": str(arguments.blueprint),
-                "runDirectory": str(arguments.run_directory),
-                "node": str(node.id),
-                "call": str(call.call_id),
-                "lane": "simulator",
-                "requestedLane": "simulator",
-                "target": arguments.target,
-                "sidekick": "sidekick:bluray-simulator",
-            })
-            result = dict(tool_result.json)
+            result = op_tool.run(
+                plan,
+                Path(arguments.run_directory),
+                NodeID(node.id),
+                CallID(str(call.call_id)),
+                BoundLane.SIMULATOR,
+                arguments.target,
+                SidekickID("sidekick:bluray-simulator"),
+                execution_input_path=Path(arguments.execution_input).resolve(),
+            ).payload()
             if result.get("refused") or result.get("succeeded") is not True:
                 raise BluRayE2EError(f"Operation failed or was refused: {result}")
             transcript["outcomes"].append({
