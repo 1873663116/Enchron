@@ -165,7 +165,7 @@ def _run_step(
     hit: GuardrailHit | None = None
     try:
         supervisor.before(step.verb, evidence)
-        evidence, ok, detail = _dispatch(step, root)
+        evidence, ok, detail = _dispatch(step, root, plan.transport)
         elapsed = int((time.monotonic() - started) * 1000)
         supervisor.after(step.verb, verb.budget_ms, elapsed, evidence)
     except GuardrailHit as caught:
@@ -191,10 +191,12 @@ def _run_step(
 
 
 def _dispatch(
-    step: Step, root: Path
+    step: Step, root: Path, transport: str
 ) -> tuple[dict[str, Any] | None, bool, str]:
     if step.verb == "static.check":
         return _run_static_check(step, root)
+    if transport == "daemon":
+        return _dispatch_daemon(step, root)
     if step.verb == "device.snapshot":
         return _invoke_channel(root, ("snapshot",))
     if step.verb == "device.command":
@@ -206,6 +208,41 @@ def _dispatch(
             arguments.extend(["--text", str(step.args["text"])])
         return _invoke_channel(root, tuple(arguments))
     return None, True, f"{step.verb} has no dispatch in this build"
+
+
+def _dispatch_daemon(
+    step: Step, root: Path
+) -> tuple[dict[str, Any] | None, bool, str]:
+    import daemon as daemon_module
+
+    if step.verb == "device.session.ensure":
+        answer = daemon_module.request(
+            root, {"op": "ensure", "lane": step.args.get("lane", "simulator")}
+        )
+    elif step.verb == "device.snapshot":
+        answer = daemon_module.request(root, {"op": "invoke", "action": "snapshot"})
+    elif step.verb == "device.command":
+        answer = daemon_module.request(
+            root,
+            {
+                "op": "invoke",
+                "action": step.args.get("action", "tap"),
+                "identifier": step.args.get("identifier"),
+                "text": step.args.get("text"),
+            },
+        )
+    elif step.verb == "device.probe":
+        answer = daemon_module.request(
+            root, {"op": "invoke", "action": "snapshot", "identifier": step.args.get("probe")}
+        )
+    elif step.verb == "app.relaunch":
+        answer = daemon_module.request(root, {"op": "invoke", "action": "relaunch"})
+    else:
+        return None, True, f"{step.verb} has no daemon dispatch"
+    if answer.get("kind") != "result":
+        return None, False, answer.get("message", "daemon refused")
+    value = answer.get("value", {})
+    return value.get("payload"), bool(value.get("ok")), str(value.get("detail", ""))
 
 
 def _run_static_check(

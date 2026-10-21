@@ -18,12 +18,31 @@ def probe() -> MachineProfile:
             capabilities.add("simulator")
     target = os.environ.get("ENCHRON_TARGET_DEVICE") or os.environ.get(
         "ENCHRON_CORE_DEVICE"
-    )
+    ) or _booted_simulator()
     if target:
         capabilities.add("device")
     if _daemon_reachable():
         capabilities.add("daemon")
     return MachineProfile(capabilities=frozenset(capabilities), target=target)
+
+
+def _booted_simulator() -> str | None:
+    if not shutil.which("xcrun"):
+        return None
+    completed = subprocess.run(
+        ["xcrun", "simctl", "list", "devices", "booted"],
+        capture_output=True,
+        text=True,
+    )
+    for line in completed.stdout.splitlines():
+        marker = line.find("(")
+        closing = line.find(")", marker)
+        if marker == -1 or closing == -1:
+            continue
+        candidate = line[marker + 1 : closing]
+        if candidate.count("-") == 4 and len(candidate) == 36:
+            return candidate
+    return None
 
 
 def _daemon_reachable() -> bool:

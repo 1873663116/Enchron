@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-09T10:17:20.684020+00:00",
+  "updatedAt": "2026-10-21T04:42:05+00:00",
   "verbs": {
     "any-identifier-appearance": {
       "samples": [
@@ -1694,11 +1694,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-05T20:16:20.508240+00:00",
-          "censored": false,
-          "seconds": 0.976
-        },
-        {
           "at": "2026-09-05T22:27:25.461098+00:00",
           "censored": false,
           "seconds": 6.121
@@ -1892,6 +1887,11 @@
           "at": "2026-09-06T16:17:13.006479+00:00",
           "censored": false,
           "seconds": 1.098
+        },
+        {
+          "at": "2026-10-21T04:42:05+00:00",
+          "censored": false,
+          "seconds": 2.64
         }
       ]
     },

@@ -62,6 +62,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("doctor")
 
+    daemon = commands.add_parser("daemon")
+    daemon.add_argument("action", choices=("start", "stop", "status"))
+
     tier = commands.add_parser("tier")
     tier.add_argument("name", choices=("static", "build", "unit", "e2e"))
     tier.add_argument("--quick", action="store_true")
@@ -88,9 +91,43 @@ def _dispatch(arguments, root, profile) -> int:
         return _plan(root, arguments, profile)
     if arguments.command == "run":
         return _run(root, arguments, profile)
+    if arguments.command == "daemon":
+        return _daemon(root, arguments, profile)
     if arguments.command == "tier":
         return _tier(root, arguments, profile)
     return EXIT_USAGE
+
+
+def _daemon(root: Path, arguments, profile) -> int:
+    import daemon as daemon_module
+
+    if arguments.action == "status":
+        answer = daemon_module.request(root, {"op": "ping"}, timeout=2)
+        alive = answer.get("kind") == "result"
+        payload = {"alive": alive, "socket": str(daemon_module.socket_path(root))}
+        if arguments.as_json:
+            print(json.dumps(payload, indent=1))
+        else:
+            print(f"daemon {'alive' if alive else 'not running'}")
+        return EXIT_OK if alive else EXIT_ENGINE
+    if arguments.action == "stop":
+        daemon_module.request(root, {"op": "stop"}, timeout=5)
+        if not arguments.as_json:
+            print("daemon stopped")
+        return EXIT_OK
+    if not profile.target:
+        message = "no target device; set ENCHRON_TARGET_DEVICE or boot a simulator"
+        if arguments.as_json:
+            print(json.dumps({"ok": False, "message": message}, indent=1))
+        else:
+            print(message, file=sys.stderr)
+        return EXIT_CAPABILITY
+    started = daemon_module.ensure_running(root, profile.target)
+    if arguments.as_json:
+        print(json.dumps({"ok": started, "target": profile.target}, indent=1))
+    else:
+        print(f"daemon {'running' if started else 'failed to start'} on {profile.target}")
+    return EXIT_OK if started else EXIT_ENGINE
 
 
 def _tier(root: Path, arguments, profile) -> int:

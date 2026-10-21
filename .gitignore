@@ -57,3 +57,5 @@ TestEvidence/
 **/.claude/state/
 **/.claude/hooks-off
 **/.claude/loop-off
+
+.console/
