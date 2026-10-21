@@ -882,6 +882,7 @@ def wait_for_relaunch_ready(arguments: argparse.Namespace) -> bool:
     probe = argparse.Namespace(**vars(arguments))
     probe.action = "snapshot"
     probe.no_screenshot = True
+    probe.suppress_timing = True
     probe.identifier = None
     probe.index = 0
     probe.timeout_seconds = min(float(getattr(arguments, "timeout_seconds", 5.0) or 5.0), 5.0)
@@ -1913,7 +1914,10 @@ def main() -> int:
                 seconds = 30.0
     else:
         seconds = time.monotonic() - started_at
-    record_timing(arguments.action, seconds, device=arguments.device, frozen=getattr(arguments, "execution_input", None) is not None, censored=censored)
+    frozen = getattr(arguments, "execution_input", None) is not None or bool(
+        getattr(arguments, "suppress_timing", False)
+    )
+    record_timing(arguments.action, seconds, device=arguments.device, frozen=frozen, censored=censored)
     response["devicectlCallCount"] = DEVICECTL_CALL_COUNT
     response["transportCallCount"] = DEVICECTL_CALL_COUNT
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))

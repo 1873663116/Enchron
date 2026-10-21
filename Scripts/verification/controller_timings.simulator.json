@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T18:23:28+00:00",
+  "updatedAt": "2026-10-21T18:28:51+00:00",
   "verbs": {
     "activate": {
       "samples": [
@@ -1192,11 +1192,6 @@
     "relaunch": {
       "samples": [
         {
-          "at": "2026-09-05T23:23:29.287895+00:00",
-          "censored": false,
-          "seconds": 7.627
-        },
-        {
           "at": "2026-09-05T23:24:41.993664+00:00",
           "censored": false,
           "seconds": 7.606
@@ -1390,6 +1385,11 @@
           "at": "2026-10-21T18:23:28+00:00",
           "censored": false,
           "seconds": 4.47
+        },
+        {
+          "at": "2026-10-21T18:28:51+00:00",
+          "censored": false,
+          "seconds": 4.75
         }
       ]
     },
