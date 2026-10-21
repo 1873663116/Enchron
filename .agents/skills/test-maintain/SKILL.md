@@ -25,7 +25,11 @@ The console is the only test entry in this repository. This skill covers changin
 
 `Scripts/console/guard.py` holds the single guardrail mechanism. The three guardrail kinds are data, not code paths.
 
-`Scripts/console/static_tier.py` wraps the existing checkers for the static tier.
+`Scripts/console/static_tier.py` wraps the existing checkers. The full quick set and the eight-checker code-only lane both live here.
+
+`Scripts/console/build_tier.py` runs the build and unit tiers.
+
+`Scripts/console/daemon.py` holds the session, speaks the socket protocol, and recovers a dead runner.
 
 `Scripts/console/report.py` renders human and JSON output and owns the exit codes.
 
@@ -88,6 +92,10 @@ The refactor is done when every line holds.
 - `python3 -m unittest discover -s Scripts/console/tests` passes.
 - `python3 Scripts/rules/harness_primitives_gate.py` passes, with `Scripts/console` inside its scan roots.
 - `static` tier duration and its per-check breakdown are available from a real run.
+- A build runs `console tier static --code-only` before Sources, and a forbidden comment fails that build.
+- A push runs `console plan check` and `console tier static --quick`, and skips both when the diff touches no code.
+- `console tier build` and `console tier unit` name the missing capability on a machine that cannot run them.
+- `console daemon start`, `status` and `stop` all answer, and a run adopts an already-live session in about 100 ms.
 
 ## Traps
 

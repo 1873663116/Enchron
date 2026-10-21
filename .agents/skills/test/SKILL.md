@@ -17,7 +17,27 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 `e2e` drives the interface. Mac with a simulator or a device.
 
-`console tier static` runs the existing checkers. `console tier build --machine mac` reports the missing capability instead of pretending to work.
+`console tier static` runs every existing checker. `console tier static --code-only` runs the eight text-only ones in about five seconds.
+
+`console tier build` compiles for testing. `console tier unit` runs the unit tests. Both name the missing capability on a machine that cannot run them, instead of pretending to work.
+
+`console tier e2e` is not a batch: run one unit at a time with `console run`.
+
+## Where the gate fires
+
+Every build runs `console tier static --code-only` as the first build phase, before Sources. A forbidden comment or a SwiftLint violation fails the build, not the review.
+
+Every push runs `console plan check` and then `console tier static --quick`, unless the diff touches no code, configuration or rule.
+
+The code-only phase covers text rules. The push covers the full quick set. A build therefore cannot ship a comment violation, and a push cannot ship a broken plan.
+
+## The daemon
+
+`console daemon start` brings the resident process up and adopts a live runner if one exists. `console daemon status` answers. `console daemon stop` halts the session and removes the socket.
+
+The daemon holds the session, serialises the command channel, and recovers a dead runner. It does not make session bring-up faster: that 59 seconds is spent in `halt`, `xcodebuild` and waiting for the runner to publish, none of which the process model touches. Keeping the daemon up means paying it once.
+
+The command channel has no cross-process lock. Two concurrent writers corrupt each other. That is why serialisation lives in the daemon and why units run one at a time.
 
 ## Three concepts
 
