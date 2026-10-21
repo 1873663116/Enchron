@@ -213,6 +213,7 @@ class Channel:
         text: str | None,
         app_verb: str | None = None,
         app_arguments: dict[str, str] | None = None,
+        flags: list[str] | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if not self.alive():
             return {}, False, "the session is gone; ensure it again"
@@ -225,6 +226,7 @@ class Channel:
             extra.extend(["--verb", app_verb, "--app-bundle-id", transport.APP_BUNDLE_ID])
         for key, value in sorted((app_arguments or {}).items()):
             extra.extend(["--arg", f"{key}={value}"])
+        extra.extend(flags or [])
         arguments = self._arguments(action, extra)
         answer = (
             transport.app_command(arguments)
@@ -319,6 +321,7 @@ class Server:
                 request.get("text"),
                 request.get("verb"),
                 request.get("arguments"),
+                request.get("flags"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}

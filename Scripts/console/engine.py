@@ -166,7 +166,7 @@ def _run_step(
     hit: GuardrailHit | None = None
     try:
         supervisor.before(step.verb, evidence)
-        evidence, ok, detail = _dispatch(step, root, plan)
+        evidence, ok, detail = _dispatch(step, root, plan, steps_directory)
         elapsed = int((time.monotonic() - started) * 1000)
         supervisor.after(step.verb, verb.budget_ms, elapsed, evidence)
     except GuardrailHit as caught:
@@ -192,12 +192,14 @@ def _run_step(
 
 
 def _dispatch(
-    step: Step, root: Path, plan: Plan
+    step: Step, root: Path, plan: Plan, steps_directory: Path
 ) -> tuple[dict[str, Any] | None, bool, str]:
     if step.verb == "static.check":
         return _run_static_check(step, root)
     if plan.transport == "daemon":
-        return _dispatch_daemon(step, root, plan.target or _probe_target())
+        return _dispatch_daemon(
+            step, root, plan.target or _probe_target(), steps_directory
+        )
     if step.verb == "device.snapshot":
         return _invoke_channel(root, "snapshot", None, None)
     if step.verb == "device.command":
@@ -214,7 +216,7 @@ def _dispatch(
 
 
 def _dispatch_daemon(
-    step: Step, root: Path, target: str
+    step: Step, root: Path, target: str, steps_directory: Path
 ) -> tuple[dict[str, Any] | None, bool, str]:
     import daemon as daemon_module
 
@@ -234,6 +236,22 @@ def _dispatch_daemon(
                 "action": step.args.get("action", "tap"),
                 "identifier": step.args.get("identifier"),
                 "text": step.args.get("text"),
+            },
+            target,
+        )
+    elif step.verb == "device.capture-frames":
+        flags: list[str] = ["--output-directory", str(steps_directory)]
+        if step.args.get("count") is not None:
+            flags.extend(["--count", str(step.args["count"])])
+        if step.args.get("intervalMs") is not None:
+            flags.extend(["--interval-milliseconds", str(step.args["intervalMs"])])
+        answer = daemon_module.request(
+            root,
+            {
+                "op": "invoke",
+                "action": "screenshotBurst",
+                "identifier": step.args.get("identifier"),
+                "flags": flags,
             },
             target,
         )
