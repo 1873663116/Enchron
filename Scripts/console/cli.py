@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -186,11 +187,29 @@ def _tier(root: Path, arguments, profile) -> int:
                 as_json=False,
                 timeout_scale=1.0,
             )
-            codes.append((identifier, _run(root, per_unit, profile)))
+            if arguments.as_json:
+                with contextlib.redirect_stdout(sys.stderr):
+                    codes.append((identifier, _run(root, per_unit, profile)))
+            else:
+                codes.append((identifier, _run(root, per_unit, profile)))
         failed = [name for name, code in codes if code != 0]
-        print(f"e2e {len(codes) - len(failed)}/{len(codes)} unit(s) passed")
-        for name in failed:
-            print(f"  failed {name}", file=sys.stderr)
+        if arguments.as_json:
+            print(
+                json.dumps(
+                    {
+                        "ok": bool(codes) and not failed,
+                        "tier": "e2e",
+                        "units": [
+                            {"unit": name, "exitCode": code} for name, code in codes
+                        ],
+                    },
+                    indent=1,
+                )
+            )
+        else:
+            print(f"e2e {len(codes) - len(failed)}/{len(codes)} unit(s) passed")
+            for name in failed:
+                print(f"  failed {name}", file=sys.stderr)
         return EXIT_OK if codes and not failed else EXIT_TERMINAL
     if arguments.as_json:
         print(json.dumps(payload, indent=1))
