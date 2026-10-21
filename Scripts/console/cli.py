@@ -15,6 +15,7 @@ from report import (
     EXIT_ENGINE,
     EXIT_OK,
     EXIT_REFUSED,
+    EXIT_TERMINAL,
     EXIT_USAGE,
     diagnostics_payload,
     plan_payload,

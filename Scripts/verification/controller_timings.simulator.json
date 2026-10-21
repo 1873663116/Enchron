@@ -1,6 +1,30 @@
 {
-  "updatedAt": "2026-10-21T18:13:33+00:00",
+  "updatedAt": "2026-10-21T18:15:18+00:00",
   "verbs": {
+    "activate": {
+      "samples": [
+        {
+          "at": "2026-10-21T18:15:06+00:00",
+          "censored": false,
+          "seconds": 1.14
+        },
+        {
+          "at": "2026-10-21T18:15:07+00:00",
+          "censored": false,
+          "seconds": 1.1
+        },
+        {
+          "at": "2026-10-21T18:15:16+00:00",
+          "censored": false,
+          "seconds": 1.14
+        },
+        {
+          "at": "2026-10-21T18:15:17+00:00",
+          "censored": false,
+          "seconds": 1.26
+        }
+      ]
+    },
     "any-identifier-appearance": {
       "samples": [
         {
@@ -1714,11 +1738,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-05T22:29:30.724379+00:00",
-          "censored": false,
-          "seconds": 1.282
-        },
-        {
           "at": "2026-09-05T22:29:50.342740+00:00",
           "censored": false,
           "seconds": 1.303
@@ -1912,6 +1931,11 @@
           "at": "2026-10-21T05:03:00+00:00",
           "censored": false,
           "seconds": 2.35
+        },
+        {
+          "at": "2026-10-21T18:15:18+00:00",
+          "censored": false,
+          "seconds": 0.59
         }
       ]
     },
@@ -2110,16 +2134,6 @@
     "tap": {
       "samples": [
         {
-          "at": "2026-09-06T16:13:02.608410+00:00",
-          "censored": false,
-          "seconds": 1.801
-        },
-        {
-          "at": "2026-09-06T16:13:13.983964+00:00",
-          "censored": false,
-          "seconds": 1.648
-        },
-        {
           "at": "2026-09-06T16:13:16.948203+00:00",
           "censored": false,
           "seconds": 1.937
@@ -2308,6 +2322,16 @@
           "at": "2026-10-21T18:09:16+00:00",
           "censored": false,
           "seconds": 1.69
+        },
+        {
+          "at": "2026-10-21T18:15:03+00:00",
+          "censored": false,
+          "seconds": 1.98
+        },
+        {
+          "at": "2026-10-21T18:15:05+00:00",
+          "censored": false,
+          "seconds": 1.77
         }
       ]
     },
