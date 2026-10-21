@@ -215,7 +215,12 @@ def check_all(
     compiler = Compiler(root)
     findings: list[tuple[str, str, str]] = []
     for identifier, unit in sorted(units.items()):
-        plan, errors = compiler.compile(unit, tier or natural_tier(unit), machine)
+        shape_machine = MachineProfile(
+            capabilities=frozenset(CAPABILITIES), target=machine.target
+        )
+        plan, errors = compiler.compile(
+            unit, tier or natural_tier(unit), shape_machine
+        )
         for code, message in errors:
             findings.append((identifier, code, message))
         if identifier not in references:

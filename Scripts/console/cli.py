@@ -110,7 +110,7 @@ def _daemon(root: Path, arguments, profile) -> int:
             print(json.dumps(payload, indent=1))
         else:
             print(f"daemon {'alive' if alive else 'not running'}")
-        return EXIT_OK if alive else EXIT_ENGINE
+        return EXIT_OK
     if arguments.action == "stop":
         daemon_module.request(root, {"op": "stop"}, timeout=5)
         if not arguments.as_json:

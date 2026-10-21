@@ -62,6 +62,25 @@ class ConsoleCompilerTests(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["findings"][0]["code"], "C001")
 
+    def test_a_device_unit_compiles_on_a_linux_profile_shape(self) -> None:
+        write_unit(
+            self.root,
+            "device-unit",
+            {
+                "id": "unit:device@1",
+                "layer": 3,
+                "requires": ["mac", "device", "daemon"],
+                "actions": [{"verb": "device.snapshot", "args": {}}],
+                "terminal": {"kind": "artifact", "path": "hierarchy.json"},
+            },
+        )
+        write_feature(self.root, "cover", ["unit:device@1"])
+        result = run_console(
+            "--root", str(self.root), "--machine", "linux", "--json",
+            "plan", "check",
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_a_unit_needing_a_device_fails_a_linux_profile(self) -> None:
         write_unit(
             self.root,
@@ -77,9 +96,9 @@ class ConsoleCompilerTests(unittest.TestCase):
         write_feature(self.root, "cover", ["unit:device@1"])
         result = run_console(
             "--root", str(self.root), "--machine", "linux", "--json",
-            "plan", "check", "--tier", "static",
+            "plan", "show", "unit:device@1", "--tier", "static",
         )
-        self.assertEqual(result.returncode, 3, result.stderr)
+        self.assertEqual(result.returncode, 4, result.stderr)
         codes = {finding["code"] for finding in json.loads(result.stdout)["findings"]}
         self.assertIn("C004", codes)
 

@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T04:57:09+00:00",
+  "updatedAt": "2026-10-21T05:03:00+00:00",
   "verbs": {
     "any-identifier-appearance": {
       "samples": [
@@ -581,6 +581,16 @@
           "at": "2026-10-21T04:57:09+00:00",
           "censored": false,
           "seconds": 3.52
+        },
+        {
+          "at": "2026-10-21T05:01:04+00:00",
+          "censored": false,
+          "seconds": 33.13
+        },
+        {
+          "at": "2026-10-21T05:01:49+00:00",
+          "censored": false,
+          "seconds": 33.06
         }
       ]
     },
@@ -1699,41 +1709,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-05T22:27:25.461098+00:00",
-          "censored": false,
-          "seconds": 6.121
-        },
-        {
-          "at": "2026-09-05T22:27:39.528303+00:00",
-          "censored": false,
-          "seconds": 6.554
-        },
-        {
-          "at": "2026-09-05T22:27:54.959322+00:00",
-          "censored": false,
-          "seconds": 5.95
-        },
-        {
-          "at": "2026-09-05T22:27:57.829507+00:00",
-          "censored": false,
-          "seconds": 0.991
-        },
-        {
-          "at": "2026-09-05T22:28:22.562171+00:00",
-          "censored": false,
-          "seconds": 1.025
-        },
-        {
-          "at": "2026-09-05T22:28:40.897345+00:00",
-          "censored": false,
-          "seconds": 6.247
-        },
-        {
-          "at": "2026-09-05T22:29:10.838491+00:00",
-          "censored": false,
-          "seconds": 5.824
-        },
-        {
           "at": "2026-09-05T22:29:30.724379+00:00",
           "censored": false,
           "seconds": 1.282
@@ -1897,6 +1872,41 @@
           "at": "2026-10-21T04:42:05+00:00",
           "censored": false,
           "seconds": 2.64
+        },
+        {
+          "at": "2026-10-21T04:59:43+00:00",
+          "censored": false,
+          "seconds": 1.07
+        },
+        {
+          "at": "2026-10-21T04:59:53+00:00",
+          "censored": false,
+          "seconds": 0.96
+        },
+        {
+          "at": "2026-10-21T04:59:59+00:00",
+          "censored": false,
+          "seconds": 0.96
+        },
+        {
+          "at": "2026-10-21T05:01:03+00:00",
+          "censored": true,
+          "seconds": 30.0
+        },
+        {
+          "at": "2026-10-21T05:01:48+00:00",
+          "censored": true,
+          "seconds": 30.0
+        },
+        {
+          "at": "2026-10-21T05:02:50+00:00",
+          "censored": false,
+          "seconds": 2.93
+        },
+        {
+          "at": "2026-10-21T05:03:00+00:00",
+          "censored": false,
+          "seconds": 2.35
         }
       ]
     },

@@ -45,9 +45,9 @@ class Channel:
         self.ready: dict[str, Any] | None = None
 
     def ensure_session(self, lane: str) -> tuple[dict[str, Any], bool, str]:
-        if self.session_ready and self.ready is not None:
+        if self.alive():
             return {"lane": lane, "reused": True, "ready": self.ready}, True, "session already held"
-        found = self._read_ready()
+        found = self._read_ready() if self.runner_processes() > 0 else None
         if found is not None:
             self.ready = found
             self.session_ready = True
@@ -69,10 +69,34 @@ class Channel:
         matches = sorted(products.glob(f"*{RUNNER_SPEC}*.xctestrun"))
         return matches[0] if matches else None
 
+    def _clear_stale(self) -> None:
+        container = self._container()
+        if container is not None:
+            stale = container / CHANNEL_ROOT / "ready.json"
+            if stale.exists():
+                stale.unlink()
+        mine = self.runner.pid if self.runner is not None else None
+        for process in self._runner_pids():
+            if process != mine:
+                subprocess.run(["kill", "-TERM", str(process)], capture_output=True)
+
+    def _runner_pids(self) -> list[int]:
+        completed = subprocess.run(
+            ["pgrep", "-f", "xcodebuild test-without-building"],
+            capture_output=True,
+            text=True,
+        )
+        return [
+            int(line)
+            for line in completed.stdout.split()
+            if line.strip().isdigit()
+        ]
+
     def _launch_runner(self) -> bool:
         spec = self._runner_spec()
         if spec is None:
             return False
+        self._clear_stale()
         log = self.root / ".console" / "runner.log"
         log.parent.mkdir(parents=True, exist_ok=True)
         handle = log.open("a", encoding="utf-8")
@@ -111,6 +135,40 @@ class Channel:
             return None
         return Path(completed.stdout.strip())
 
+    def runner_processes(self) -> int:
+        completed = subprocess.run(
+            ["ps", "-ax", "-o", "command"],
+            capture_output=True,
+            text=True,
+        )
+        return sum(
+            1
+            for line in completed.stdout.splitlines()
+            if "xcodebuild test-without-building" in line
+        )
+
+    def alive(self) -> bool:
+        if not self.session_ready:
+            return False
+        if self.runner is not None and self.runner.poll() is not None:
+            self.session_ready = False
+            self.ready = None
+            return False
+        if self.runner is None and self.runner_processes() == 0:
+            self.session_ready = False
+            self.ready = None
+            return False
+        found = self._read_ready()
+        if found is None:
+            self.session_ready = False
+            self.ready = None
+            return False
+        if self.ready is not None and found.get("sessionID") != self.ready.get("sessionID"):
+            self.session_ready = False
+            self.ready = None
+            return False
+        return True
+
     def _read_ready(self) -> dict[str, Any] | None:
         container = self._container()
         if container is None:
@@ -137,8 +195,8 @@ class Channel:
     def invoke(
         self, action: str, identifier: str | None, text: str | None
     ) -> tuple[dict[str, Any], bool, str]:
-        if not self.session_ready or self.ready is None:
-            return {}, False, "no session is held; ensure it first"
+        if not self.alive():
+            return {}, False, "the session is gone; ensure it again"
         arguments = ["--device", self.target, action]
         if identifier:
             arguments.extend(["--identifier", identifier])
