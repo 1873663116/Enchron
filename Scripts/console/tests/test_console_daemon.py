@@ -16,13 +16,14 @@ class DaemonProtocolTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.root = Path(self.directory.name)
+        self.target = "SIM-TEST-UDID"
         (self.root / ".console").mkdir(parents=True, exist_ok=True)
 
     def tearDown(self) -> None:
         self.directory.cleanup()
 
     def test_a_missing_socket_reports_an_error_instead_of_raising(self) -> None:
-        answer = daemon_module.request(self.root, {"op": "ping"}, timeout=1)
+        answer = daemon_module.request(self.root, {"op": "ping"}, self.target, timeout=1)
         self.assertEqual(answer["kind"], "error")
 
     def test_an_unknown_op_is_refused(self) -> None:
@@ -37,29 +38,37 @@ class DaemonProtocolTests(unittest.TestCase):
         self.assertEqual(answer["kind"], "result")
         self.assertIn("pid", answer["value"])
 
-    def test_the_socket_path_lives_under_the_console_state(self) -> None:
-        path = daemon_module.socket_path(self.root)
-        self.assertEqual(path.parent.name, ".console")
-        self.assertEqual(path.name, "daemon.sock")
+    def test_each_target_gets_its_own_short_socket_path(self) -> None:
+        first = daemon_module.socket_path(self.root, "SIM-ONE")
+        second = daemon_module.socket_path(self.root, "SIM-TWO")
+        self.assertNotEqual(first, second)
+        self.assertLess(len(str(first)), 100)
+        self.assertEqual(first.suffix, ".sock")
+
+    def test_the_same_target_resolves_to_the_same_socket(self) -> None:
+        first = daemon_module.socket_path(self.root, self.target)
+        second = daemon_module.socket_path(self.root, self.target)
+        self.assertEqual(first, second)
 
 
 class DaemonSocketTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.root = Path(self.directory.name)
+        self.target = "SIM-TEST-UDID"
         (self.root / ".console").mkdir(parents=True, exist_ok=True)
-        self.server = daemon_module.Server(self.root, "target")
+        self.server = daemon_module.Server(self.root, self.target)
         self.thread = threading.Thread(target=self.server.serve, daemon=True)
 
     def tearDown(self) -> None:
-        daemon_module.request(self.root, {"op": "stop"}, timeout=2)
+        daemon_module.request(self.root, {"op": "stop"}, self.target, timeout=2)
         self.thread.join(timeout=5)
         self.directory.cleanup()
 
     def test_a_ping_travels_over_the_socket(self) -> None:
         self.thread.start()
         self._await_socket()
-        answer = daemon_module.request(self.root, {"op": "ping"}, timeout=5)
+        answer = daemon_module.request(self.root, {"op": "ping"}, self.target, timeout=5)
         self.assertEqual(answer["kind"], "result")
 
     def test_the_socket_is_private_to_the_owner(self) -> None:
@@ -71,7 +80,7 @@ class DaemonSocketTests(unittest.TestCase):
     def _await_socket(self) -> Path:
         import time
 
-        path = daemon_module.socket_path(self.root)
+        path = daemon_module.socket_path(self.root, self.target)
         deadline = time.time() + 10
         while time.time() < deadline:
             if path.exists():

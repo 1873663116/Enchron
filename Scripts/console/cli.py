@@ -103,16 +103,21 @@ def _daemon(root: Path, arguments, profile) -> int:
     import daemon as daemon_module
 
     if arguments.action == "status":
-        answer = daemon_module.request(root, {"op": "ping"}, timeout=2)
+        target = profile.target or ""
+        answer = daemon_module.request(root, {"op": "ping"}, target, timeout=2)
         alive = answer.get("kind") == "result"
-        payload = {"alive": alive, "socket": str(daemon_module.socket_path(root))}
+        payload = {
+            "alive": alive,
+            "target": target,
+            "socket": str(daemon_module.socket_path(root, target)),
+        }
         if arguments.as_json:
             print(json.dumps(payload, indent=1))
         else:
             print(f"daemon {'alive' if alive else 'not running'}")
         return EXIT_OK
     if arguments.action == "stop":
-        daemon_module.request(root, {"op": "stop"}, timeout=5)
+        daemon_module.request(root, {"op": "stop"}, profile.target or "", timeout=5)
         if not arguments.as_json:
             print("daemon stopped")
         return EXIT_OK

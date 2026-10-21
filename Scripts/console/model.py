@@ -72,6 +72,7 @@ class Plan:
     unit: str
     tier: str
     transport: str
+    target: str
     layer: int
     requires: frozenset[str]
     steps: tuple[Step, ...]

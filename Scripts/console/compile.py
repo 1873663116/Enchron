@@ -107,6 +107,7 @@ class Compiler:
             unit=unit.identifier,
             tier=tier,
             transport=transport,
+            target=machine.target or "",
             layer=unit.layer,
             requires=unit.requires,
             steps=steps,

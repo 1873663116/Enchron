@@ -100,7 +100,14 @@ does not exit.
 two runners never drive one device. The cost is that a second daemon claiming
 the same worktree kills the first one's session.
 
-Ownership lives in `.console/session.json`: the daemon records the pid it
+A lane is one target device. Each target gets its own socket at
+`$TMPDIR/enchron-console-<digest>.sock`, derived from the worktree and the
+target, and its own `.console/session-<target>.json`. Two targets therefore run
+side by side from one worktree without touching each other. The socket lives
+outside the worktree because a Unix socket path stops working at about 100
+characters, and this repository's worktree paths are already long.
+
+Ownership lives in `.console/session-<target>.json`: the daemon records the pid it
 launched and the sessionID that runner published. A session counts as held only
 while that pid is alive, `ready.json` still names that session, and the two
 agree. Without the record, a stale `ready.json` plus any live runner reads as a
@@ -125,6 +132,42 @@ python3 Scripts/console/formal/run.sh
 
 The last command checks the session machine against three promises. It needs a
 Java runtime, and it fetches `tla2tools.jar` on first use.
+
+## Where the seconds go
+
+Cold session bring-up measured 23 s. The split, from the runner log:
+
+| Phase | Cost |
+| --- | --- |
+| `halt` with nothing running | 0.2 s |
+| `xcodebuild` start to the runner process | 3.5 s |
+| XCUITest setting up the automation session | 4.0 s |
+| waiting for the app to go idle | 4.8 s |
+| finding the target application | 5.6 s |
+| first accessibility snapshot | 1.7 s |
+
+The app itself launches from `simctl` in 0.4 to 1.0 s. Everything after the
+runner process starts is XCUITest attaching to a large visionOS app, so no
+change to this repository makes that cheaper. The cost is paid once per session
+and then sits at 0.16 s per reuse, which is why the resident daemon exists.
+
+## Running lanes in parallel
+
+Three things are serial and stay serial: the steps inside one unit, the units
+inside one run, and the commands inside one daemon. Everything else can overlap.
+
+| Axis | State | Limit |
+| --- | --- | --- |
+| Checkers inside the static tier | serial, measurably 4x available | the longest single check sets the floor |
+| Device lane beside simulator lane | works now, one daemon per target | none observed |
+| Several simulators on one Mac | works now | needs an M-series Mac with 32 GB or more; this machine has 16 GB and must not |
+| Several Macs | works, each Mac is its own worktree and lane | none |
+| Several physical devices on one Mac | unverified | each needs its own daemon and its own provisioning |
+
+The tier is the axis worth taking next: 193 checks run one after another for
+364 s while the longest single check is 82 s. A fan-out needs to know which
+checks may sit beside another, because a check that boots a simulator or binds a
+port serialises with its peers.
 
 ## The correctness argument
 

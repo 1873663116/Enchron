@@ -166,7 +166,7 @@ def _run_step(
     hit: GuardrailHit | None = None
     try:
         supervisor.before(step.verb, evidence)
-        evidence, ok, detail = _dispatch(step, root, plan.transport)
+        evidence, ok, detail = _dispatch(step, root, plan)
         elapsed = int((time.monotonic() - started) * 1000)
         supervisor.after(step.verb, verb.budget_ms, elapsed, evidence)
     except GuardrailHit as caught:
@@ -192,12 +192,12 @@ def _run_step(
 
 
 def _dispatch(
-    step: Step, root: Path, transport: str
+    step: Step, root: Path, plan: Plan
 ) -> tuple[dict[str, Any] | None, bool, str]:
     if step.verb == "static.check":
         return _run_static_check(step, root)
-    if transport == "daemon":
-        return _dispatch_daemon(step, root)
+    if plan.transport == "daemon":
+        return _dispatch_daemon(step, root, plan.target or _probe_target())
     if step.verb == "device.snapshot":
         return _invoke_channel(root, "snapshot", None, None)
     if step.verb == "device.command":
@@ -214,16 +214,16 @@ def _dispatch(
 
 
 def _dispatch_daemon(
-    step: Step, root: Path
+    step: Step, root: Path, target: str
 ) -> tuple[dict[str, Any] | None, bool, str]:
     import daemon as daemon_module
 
     if step.verb == "device.session.ensure":
         answer = daemon_module.request(
-            root, {"op": "ensure", "lane": step.args.get("lane", "simulator")}
+            root, {"op": "ensure", "lane": step.args.get("lane", "simulator")}, target
         )
     elif step.verb == "device.snapshot":
-        answer = daemon_module.request(root, {"op": "invoke", "action": "snapshot"})
+        answer = daemon_module.request(root, {"op": "invoke", "action": "snapshot"}, target)
     elif step.verb == "device.command":
         answer = daemon_module.request(
             root,
@@ -233,13 +233,16 @@ def _dispatch_daemon(
                 "identifier": step.args.get("identifier"),
                 "text": step.args.get("text"),
             },
+            target,
         )
     elif step.verb == "device.probe":
         answer = daemon_module.request(
-            root, {"op": "invoke", "action": "snapshot", "identifier": step.args.get("probe")}
+            root,
+            {"op": "invoke", "action": "snapshot", "identifier": step.args.get("probe")},
+            target,
         )
     elif step.verb == "app.relaunch":
-        answer = daemon_module.request(root, {"op": "invoke", "action": "relaunch"})
+        answer = daemon_module.request(root, {"op": "invoke", "action": "relaunch"}, target)
     else:
         return None, True, f"{step.verb} has no daemon dispatch"
     if answer.get("kind") != "result":
@@ -286,6 +289,12 @@ def _invoke_channel(
     ok = bool(answer.get("success", False))
     detail = str(answer.get("message") or answer.get("error") or f"{action} answered")
     return answer, ok, detail
+
+
+def _probe_target() -> str:
+    import machine
+
+    return machine.probe().target or ""
 
 
 def _device_target() -> str | None:

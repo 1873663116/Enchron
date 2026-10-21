@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import tempfile
 import os
 import socket
 import subprocess
@@ -18,7 +20,7 @@ import transport
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 BUILD_PRODUCTS = ".scratch/build/Build/Products"
-SESSION_RECORD = ".console/session.json"
+SESSION_RECORD = ".console/session-{target}.json"
 RUNNER_SPEC = "InteractiveDeviceSession"
 READY_TIMEOUT = 300.0
 from vocab import VERBS
@@ -33,12 +35,13 @@ CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 READY_TIMEOUT_SECONDS = 300.0
 
 
-def socket_path(root: Path) -> Path:
-    return root / ".console" / "daemon.sock"
+def socket_path(root: Path, target: str) -> Path:
+    label = hashlib.sha256(f"{root}|{target}".encode()).hexdigest()[:12]
+    return Path(tempfile.gettempdir()) / f"enchron-console-{label}.sock"
 
 
-def state_path(root: Path) -> Path:
-    return root / ".console" / "daemon.json"
+def state_path(root: Path, target: str) -> Path:
+    return root / ".console" / f"daemon-{target}.json"
 
 
 def log_path(root: Path) -> Path:
@@ -69,8 +72,11 @@ class Channel:
     def scoped(self) -> list[int]:
         return [pid for pid, _ in transport.scoped_processes()]
 
+    def _record_path(self) -> Path:
+        return self.root / SESSION_RECORD.format(target=self.target)
+
     def _record(self) -> dict[str, Any] | None:
-        path = self.root / SESSION_RECORD
+        path = self._record_path()
         if not path.is_file():
             return None
         try:
@@ -80,14 +86,14 @@ class Channel:
         return record if isinstance(record, dict) else None
 
     def _remember(self, pid: int, session: str) -> None:
-        path = self.root / SESSION_RECORD
+        path = self._record_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
             json.dumps({"pid": pid, "sessionID": session}), encoding="utf-8"
         )
 
     def _forget_record(self) -> None:
-        path = self.root / SESSION_RECORD
+        path = self._record_path()
         if path.is_file():
             path.unlink()
 
@@ -226,9 +232,9 @@ class Server:
         self.last_request = self.started
 
     def serve(self) -> None:
-        path = socket_path(self.root)
+        path = socket_path(self.root, self.channel.target)
         path.parent.mkdir(parents=True, exist_ok=True)
-        if request(self.root, {"op": "ping"}, timeout=2).get("kind") == "result":
+        if request(self.root, {"op": "ping"}, self.channel.target, timeout=2).get("kind") == "result":
             return
         if path.exists():
             path.unlink()
@@ -236,7 +242,7 @@ class Server:
         server.bind(str(path))
         server.listen(8)
         path.chmod(0o600)
-        state_path(self.root).write_text(
+        state_path(self.root, self.channel.target).write_text(
             json.dumps({"pid": os.getpid(), "started": self.started, "target": self.channel.target}),
             encoding="utf-8",
         )
@@ -246,7 +252,7 @@ class Server:
         finally:
             self.channel.halt()
             server.close()
-            for leftover in (path, state_path(self.root)):
+            for leftover in (path, state_path(self.root, self.channel.target)):
                 if leftover.exists():
                     leftover.unlink()
 
@@ -295,8 +301,10 @@ class Server:
         return {"kind": "error", "message": f"unknown op {operation!r}"}
 
 
-def request(root: Path, payload: dict[str, Any], timeout: float = 1200) -> dict[str, Any]:
-    path = socket_path(root)
+def request(
+    root: Path, payload: dict[str, Any], target: str, timeout: float = 1200
+) -> dict[str, Any]:
+    path = socket_path(root, target)
     if not path.exists():
         return {"kind": "error", "message": "no daemon socket"}
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -317,7 +325,7 @@ def request(root: Path, payload: dict[str, Any], timeout: float = 1200) -> dict[
         client.close()
 
 
-def spawn(root: Path, targets: str) -> None:
+def spawn(root: Path, target: str) -> None:
     directory = root / ".console"
     directory.mkdir(parents=True, exist_ok=True)
     lock = directory / "launch.lock"
@@ -329,7 +337,7 @@ def spawn(root: Path, targets: str) -> None:
     try:
         with (directory / "daemon.log").open("a", encoding="utf-8") as log:
             subprocess.Popen(
-                [sys.executable, str(Path(__file__).resolve()), "--serve", "--root", str(root), "--target", targets],
+                [sys.executable, str(Path(__file__).resolve()), "--serve", "--root", str(root), "--target", target],
                 stdout=log,
                 stderr=log,
                 start_new_session=True,
@@ -337,7 +345,7 @@ def spawn(root: Path, targets: str) -> None:
             )
         deadline = time.time() + 30
         while time.time() < deadline:
-            if socket_path(root).exists():
+            if socket_path(root, target).exists():
                 return
             time.sleep(0.05)
     finally:
@@ -346,12 +354,12 @@ def spawn(root: Path, targets: str) -> None:
 
 
 def ensure_running(root: Path, target: str) -> bool:
-    if request(root, {"op": "ping"}, timeout=2).get("kind") == "result":
+    if request(root, {"op": "ping"}, target, timeout=2).get("kind") == "result":
         return True
     spawn(root, target)
     deadline = time.time() + START_DEADLINE_SECONDS
     while time.time() < deadline:
-        if request(root, {"op": "ping"}, timeout=2).get("kind") == "result":
+        if request(root, {"op": "ping"}, target, timeout=2).get("kind") == "result":
             return True
         time.sleep(0.2)
     return False

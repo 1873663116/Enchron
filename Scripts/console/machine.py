@@ -46,15 +46,21 @@ def _booted_simulator() -> str | None:
 
 
 def _daemon_reachable() -> bool:
-    socket_path = daemon_socket()
-    return socket_path.exists()
+    target = os.environ.get("ENCHRON_TARGET_DEVICE") or _booted_simulator()
+    if not target:
+        return False
+    return daemon_socket(target).exists()
 
 
-def daemon_socket():
+def daemon_socket(target: str):
     from pathlib import Path
 
+    import hashlib
+    import tempfile
+
     root = Path(os.environ.get("ENCHRON_CONSOLE_ROOT", "")) or Path.cwd()
-    return root / ".console" / "daemon.sock"
+    label = hashlib.sha256(f"{root.resolve()}|{target}".encode()).hexdigest()[:12]
+    return Path(tempfile.gettempdir()) / f"enchron-console-{label}.sock"
 
 
 def synthetic(name: str) -> MachineProfile:
