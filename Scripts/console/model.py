@@ -30,7 +30,8 @@ class MachineProfile:
 @dataclass(frozen=True)
 class Expectation:
     path: str
-    equals: Any
+    equals: Any = None
+    contains: str | None = None
 
 
 @dataclass(frozen=True)

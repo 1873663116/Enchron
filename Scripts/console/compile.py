@@ -189,10 +189,21 @@ class Compiler:
                     errors.append(
                         ("C005", f"expect on {verb_name!r} needs a path")
                     )
+                elif (
+                    "equals" not in declared_expect
+                    and not isinstance(declared_expect.get("contains"), str)
+                ):
+                    errors.append(
+                        (
+                            "C005",
+                            f"expect on {verb_name!r} needs equals or contains",
+                        )
+                    )
                 else:
                     expect = Expectation(
                         path=declared_expect["path"],
                         equals=declared_expect.get("equals"),
+                        contains=declared_expect.get("contains"),
                     )
             if expect is not None and verb.evidence is None:
                 errors.append(

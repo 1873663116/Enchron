@@ -178,11 +178,19 @@ def _run_step(
         supervisor.before(step.verb, evidence)
         evidence, ok, detail = _dispatch(step, root, plan, steps_directory)
         if ok and step.expect is not None:
-            actual = _resolve_field(evidence, step.expect.path)
-            if actual != step.expect.equals:
+            expectation = step.expect
+            actual = _resolve_field(evidence, expectation.path)
+            if expectation.contains is not None:
+                if expectation.contains not in str(actual):
+                    ok = False
+                    detail = (
+                        f"{expectation.path} does not contain "
+                        f"{expectation.contains!r}"
+                    )
+            elif actual != expectation.equals:
                 ok = False
                 detail = (
-                    f"{step.expect.path} is {actual!r}, expected {step.expect.equals!r}"
+                    f"{expectation.path} is {actual!r}, expected {expectation.equals!r}"
                 )
         elapsed = int((time.monotonic() - started) * 1000)
         supervisor.after(step.verb, verb.budget_ms, elapsed, evidence)
