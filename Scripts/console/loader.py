@@ -6,7 +6,13 @@ from typing import Any
 
 DEFINITION_ROOT = "Config/console"
 
-from model import Expectation, LoadRefusal, Terminal, Unit
+from model import (
+    PRECONDITION_KINDS,
+    Expectation,
+    LoadRefusal,
+    Terminal,
+    Unit,
+)
 
 
 FRONT_MATTER_FENCE = "---"
@@ -86,7 +92,35 @@ def parse_unit(metadata: dict[str, Any], source: str) -> Unit:
         requires=frozenset(requires),
         role=role,
         source=source,
+        preconditions=tuple(parse_preconditions(metadata.get("preconditions"), identifier, source)),
     )
+
+
+def parse_preconditions(
+    payload: object, identifier: str, source: str
+) -> list[dict[str, object]]:
+    if payload is None:
+        return []
+    if not isinstance(payload, list):
+        raise LoadRefusal(
+            "C016", f"unit {identifier} has a malformed preconditions", source
+        )
+    parsed: list[dict[str, object]] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            raise LoadRefusal(
+                "C016", f"unit {identifier} has a non-object precondition", source
+            )
+        kind = item.get("kind")
+        if kind not in PRECONDITION_KINDS:
+            raise LoadRefusal(
+                "C016",
+                f"unit {identifier} names precondition kind {kind!r}; the closed set is "
+                + ", ".join(sorted(PRECONDITION_KINDS)),
+                source,
+            )
+        parsed.append(dict(item))
+    return parsed
 
 
 def load_unit(path: Path) -> Unit:

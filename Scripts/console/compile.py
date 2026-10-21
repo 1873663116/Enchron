@@ -19,6 +19,8 @@ from model import (
 from vocab import VERBS, verb_or_none
 
 
+MEDIA_PROVIDERS = frozenset({"emby"})
+
 GUARDRAIL_SET = (
     Guardrail(kind="unexpected-dialog", response="abort"),
     Guardrail(kind="step-budget", response="abort"),
@@ -66,6 +68,16 @@ class Compiler:
         errors: list[tuple[str, str]] = []
         if tier not in TIER_ORDER:
             return None, [("C002", f"tier {tier!r} is outside {', '.join(TIER_ORDER)}")]
+        for index, precondition in enumerate(unit.preconditions):
+            provider = precondition.get("provider")
+            if precondition["kind"] == "media-server" and provider not in MEDIA_PROVIDERS:
+                errors.append(
+                    (
+                        "C016",
+                        f"precondition {index} names provider {provider!r}; the closed set is "
+                        + ", ".join(sorted(MEDIA_PROVIDERS)),
+                    )
+                )
         missing = sorted(unit.requires - set(CAPABILITIES))
         if missing:
             errors.append(("C004", f"requires names unknown capabilities {missing}"))
@@ -136,6 +148,7 @@ class Compiler:
             guardrails=GUARDRAIL_SET,
             evidence=tuple(sorted(produced)),
             digest=plan_digest(unit, tier, transport, steps),
+            preconditions=unit.preconditions,
         )
         return plan, []
 
@@ -276,6 +289,16 @@ def check_all(
     compiler = Compiler(root)
     findings: list[tuple[str, str, str]] = []
     for identifier, unit in sorted(units.items()):
+        for index, precondition in enumerate(unit.preconditions):
+            provider = precondition.get("provider")
+            if precondition["kind"] == "media-server" and provider not in MEDIA_PROVIDERS:
+                errors.append(
+                    (
+                        "C016",
+                        f"precondition {index} names provider {provider!r}; the closed set is "
+                        + ", ".join(sorted(MEDIA_PROVIDERS)),
+                    )
+                )
         shape_machine = MachineProfile(
             capabilities=frozenset(CAPABILITIES), target=machine.target
         )

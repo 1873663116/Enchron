@@ -56,6 +56,9 @@ class Guardrail:
     response: str
 
 
+PRECONDITION_KINDS = frozenset({"media-server"})
+
+
 @dataclass(frozen=True)
 class Unit:
     identifier: str
@@ -65,6 +68,7 @@ class Unit:
     requires: frozenset[str]
     role: str
     source: str
+    preconditions: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -80,6 +84,7 @@ class Plan:
     guardrails: tuple[Guardrail, ...]
     evidence: tuple[str, ...]
     digest: str
+    preconditions: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -118,3 +123,4 @@ class Report:
     terminal: TerminalOutcome
     evidence_dir: str
     exit_code: int
+    preconditions: tuple[dict[str, Any], ...] = ()

@@ -8,6 +8,11 @@ from pathlib import Path
 
 CONSOLE_ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY_ROOT = CONSOLE_ROOT.parents[1]
+sys.path.insert(0, str(CONSOLE_ROOT))
+
+import compile as compile_module
+import loader
+import machine
 
 
 def run_console(*arguments: str) -> subprocess.CompletedProcess:
@@ -31,6 +36,63 @@ def write_feature(root: Path, name: str, units: list[str]) -> None:
     features.mkdir(parents=True, exist_ok=True)
     body = json.dumps({"id": f"feature:{name}", "units": units}, indent=1)
     (features / f"{name}.md").write_text(f"---\n{body}\n---\n", encoding="utf-8")
+
+
+class PreconditionTests(unittest.TestCase):
+    def test_a_media_server_precondition_compiles(self) -> None:
+        unit = loader.parse_unit(
+            {
+                "schema": "enchron.console.unit",
+                "schemaVersion": 1,
+                "id": "unit:precondition.ok@1",
+                "layer": 3,
+                "actions": [{"verb": "device.probe", "args": {"probe": "X"}}],
+                "requires": ["mac", "device", "daemon"],
+                "preconditions": [{"kind": "media-server", "provider": "emby"}],
+                "terminal": {"kind": "artifact", "path": "probe.json", "schema": "enchron.console.probe@1"},
+            },
+            "test",
+        )
+        compiler = compile_module.Compiler(Path.cwd())
+        plan, errors = compiler.compile(unit, "e2e", machine.synthetic("mac-daemon"))
+        self.assertEqual(errors, [])
+        self.assertIsNotNone(plan)
+        self.assertEqual(plan.preconditions[0]["provider"], "emby")
+
+    def test_an_unknown_provider_is_refused(self) -> None:
+        unit = loader.parse_unit(
+            {
+                "schema": "enchron.console.unit",
+                "schemaVersion": 1,
+                "id": "unit:precondition.bad@1",
+                "layer": 3,
+                "actions": [{"verb": "device.probe", "args": {"probe": "X"}}],
+                "requires": ["mac", "device", "daemon"],
+                "preconditions": [{"kind": "media-server", "provider": "plex"}],
+                "terminal": {"kind": "artifact", "path": "probe.json", "schema": "enchron.console.probe@1"},
+            },
+            "test",
+        )
+        compiler = compile_module.Compiler(Path.cwd())
+        plan, errors = compiler.compile(unit, "e2e", machine.synthetic("mac-daemon"))
+        self.assertIsNone(plan)
+        self.assertIn("C016", [code for code, _ in errors])
+
+    def test_an_unknown_kind_is_refused_at_load(self) -> None:
+        with self.assertRaises(loader.LoadRefusal):
+            loader.parse_unit(
+                {
+                    "schema": "enchron.console.unit",
+                    "schemaVersion": 1,
+                    "id": "unit:precondition.kind@1",
+                    "layer": 3,
+                    "actions": [{"verb": "device.probe", "args": {"probe": "X"}}],
+                    "requires": ["mac"],
+                    "preconditions": [{"kind": "moon-phase"}],
+                    "terminal": {"kind": "artifact", "path": "probe.json", "schema": "enchron.console.probe@1"},
+                },
+                "test",
+            )
 
 
 class ConsoleCompilerTests(unittest.TestCase):

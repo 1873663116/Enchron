@@ -37,6 +37,8 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+A unit may carry `preconditions`, the closed set of environment checks that must hold before the first step. `media-server` resolves one provider through `Scripts/verification/ensure_test_services.py`; the run records the receipt in `preconditions.json` and stops with verdict `precondition` when one is unmet.
+
 ## The state machine
 
 Three machines run at once: the operator's process, the resident daemon, and the

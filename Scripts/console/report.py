@@ -64,6 +64,10 @@ def report_payload(report: Report) -> dict[str, Any]:
             }
             for step in report.steps
         ],
+        "preconditions": [
+            {key: value for key, value in item.items() if key != "receipt"}
+            for item in report.preconditions
+        ],
         "terminal": {
             "kind": report.terminal.kind,
             "ok": report.terminal.ok,
@@ -98,6 +102,9 @@ def render_report(report: Report) -> str:
     lines = [
         f"{report.verdict}  {report.unit}  tier={report.tier}  {report.duration_ms} ms",
     ]
+    for precondition in report.preconditions:
+        mark = "ok  " if precondition.get("ok") else "FAIL"
+        lines.append(f"  {mark} pre {precondition.get('kind')}  {precondition.get('detail')}")
     for step in report.steps:
         mark = "ok  " if step.ok else "FAIL"
         lines.append(f"  {mark} {step.index:02d} {step.verb}  {step.duration_ms} ms  {step.detail}")

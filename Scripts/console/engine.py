@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -32,7 +33,16 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
     outcomes: list[StepOutcome] = []
     verdict = "passed"
     exit_code = EXIT_OK
-    for step in plan.steps:
+    precondition_outcomes = _run_preconditions(plan, root, run_directory)
+    write_json(
+        run_directory / "preconditions.json",
+        {"unit": plan.unit, "preconditions": precondition_outcomes},
+    )
+    unmet = [item for item in precondition_outcomes if not item["ok"]]
+    if unmet:
+        verdict = "precondition"
+        exit_code = EXIT_TERMINAL
+    for step in plan.steps if not unmet else ():
         outcome, hit = _run_step(step, plan, root, supervisor, steps_directory, budget_scale)
         outcomes.append(outcome)
         if hit is not None:
@@ -58,10 +68,69 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
         terminal=terminal,
         evidence_dir=str(run_directory),
         exit_code=exit_code,
+        preconditions=tuple(precondition_outcomes),
     )
     write_json(run_directory / "report.json", report_payload(report))
     _append_index(evidence_root, report)
     return report
+
+
+def _run_preconditions(
+    plan: Plan, root: Path, run_directory: Path
+) -> list[dict[str, Any]]:
+    outcomes: list[dict[str, Any]] = []
+    for index, precondition in enumerate(plan.preconditions):
+        kind = str(precondition.get("kind"))
+        if kind == "media-server":
+            provider = str(precondition.get("provider", ""))
+            outcome = _ensure_media_server(provider, root)
+        else:
+            outcome = {
+                "index": index,
+                "kind": kind,
+                "ok": False,
+                "detail": f"{kind} has no implementation in this build",
+            }
+        outcome["index"] = index
+        outcome["kind"] = kind
+        outcomes.append(outcome)
+    return outcomes
+
+
+def _ensure_media_server(provider: str, root: Path) -> dict[str, Any]:
+    script = root / "Scripts" / "verification" / "ensure_test_services.py"
+    completed = subprocess.run(
+        [sys.executable, str(script), "--service", provider],
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+        timeout=900,
+    )
+    receipt: dict[str, Any] = {}
+    try:
+        receipt = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        receipt = {"stdout": completed.stdout[-2000:]}
+    actions = [
+        str(item.get("action"))
+        for item in receipt.get("receipts", [])
+        if isinstance(item, dict)
+    ]
+    ok = completed.returncode == 0 and any(
+        action in {"found", "started", "configured"} for action in actions
+    )
+    return {
+        "kind": "media-server",
+        "provider": provider,
+        "ok": ok,
+        "action": actions[0] if actions else "none",
+        "detail": (
+            f"{provider} is {actions[0]}"
+            if ok
+            else f"{provider} did not resolve: {completed.stderr[-300:] or completed.stdout[-300:]}"
+        ),
+        "receipt": receipt,
+    }
 
 
 def _safe_name(value: Any) -> str:
