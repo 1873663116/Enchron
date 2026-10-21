@@ -1010,9 +1010,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             blockBufferOut: &blockBuffer
         ) == noErr, let blockBuffer else { return nil }
 
-        let copied = frame.pcm.withUnsafeBytes { raw in
-            CMBlockBufferReplaceDataBytes(
-                with: raw.baseAddress!,
+        let copied = frame.pcm.withUnsafeBytes { raw -> OSStatus in
+            guard let base = raw.baseAddress else { return kCVReturnError }
+            return CMBlockBufferReplaceDataBytes(
+                with: base,
                 blockBuffer: blockBuffer,
                 offsetIntoDestination: 0,
                 dataLength: byteCount

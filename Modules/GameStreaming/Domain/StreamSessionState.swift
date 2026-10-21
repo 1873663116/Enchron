@@ -161,18 +161,18 @@ public struct StreamInputDiagnostics: Sendable, Equatable {
 
 public struct StreamDiagnostics: Sendable, Equatable {
     public var packetsReceived: Int64 = 0
-    public var framesDecoded: Int64? = nil
+    public var framesDecoded: Int64?
     public var framesPresented: Int64 = 0
-    public var lastPresentedTimestampMs: Int64? = nil
+    public var lastPresentedTimestampMs: Int64?
     public var networkDroppedFrames: Int64 = 0
     public var duplicatedFrames: Int64 = 0
     public var decodeRecoveries: Int64 = 0
     public var idrRequests: Int64 = 0
     public var queueDepth: Int = 0
-    public var measuredBitrateKbps: Int? = nil
-    public var presentedFramesPerSecond: Int? = nil
-    public var estimatedRttMs: Int? = nil
-    public var estimatedRttVarianceMs: Int? = nil
+    public var measuredBitrateKbps: Int?
+    public var presentedFramesPerSecond: Int?
+    public var estimatedRttMs: Int?
+    public var estimatedRttVarianceMs: Int?
     public var hostAudioPlaying: Bool = false
     public var clientAudioOutput: Bool = true
     public var audioFramesReceived: Int64 = 0

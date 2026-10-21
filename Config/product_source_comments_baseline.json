@@ -1,0 +1,6 @@
+[
+  "Modules/Playback/PlaybackRuntime.swift:1325:9: source comment // is forbidden",
+  "Modules/Playback/PlaybackRuntime.swift:1326:9: source comment // is forbidden",
+  "Modules/Playback/PlaybackRuntime.swift:1415:9: source comment // is forbidden",
+  "Modules/Playback/PlaybackRuntime.swift:1416:9: source comment // is forbidden"
+]

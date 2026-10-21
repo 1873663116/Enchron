@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import argparse
 import io
+import json
 import sys
 import tokenize
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+BASELINE = REPOSITORY_ROOT / "Config/product_source_comments_baseline.json"
 SWIFT_ROOTS = (
     REPOSITORY_ROOT / "Apps/Enchron",
     REPOSITORY_ROOT / "Modules",
@@ -274,13 +277,47 @@ def violations(paths: tuple[Path, ...]) -> list[str]:
     return found
 
 
+def baseline_entries() -> list[str]:
+    if not BASELINE.is_file():
+        return []
+    return sorted(json.loads(BASELINE.read_text(encoding="utf-8")))
+
+
+def write_baseline(entries: list[str]) -> None:
+    BASELINE.write_text(
+        json.dumps(sorted(entries), indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Reject prose comments in product sources.")
+    parser.add_argument(
+        "--write-baseline",
+        action="store_true",
+        help="record the findings that already exist so only new ones fail",
+    )
+    arguments = parser.parse_args()
     swift = product_sources()
     bridge = bridge_sources()
     python = script_sources()
     found = violations(swift + bridge + python)
-    if found:
-        for violation in found:
+    recorded = baseline_entries()
+    if arguments.write_baseline:
+        grown = sorted(set(found)) if len(found) > len(recorded) else recorded
+        write_baseline(grown)
+        print(f"recorded {len(grown)} standing comment finding(s) as the baseline")
+        return 0
+    fresh = [item for item in found if item not in recorded]
+    resolved = [item for item in recorded if item not in found]
+    if resolved:
+        for violation in resolved:
+            print(
+                f"error: {violation} no longer occurs; shrink the baseline",
+                file=sys.stderr,
+            )
+        return 1
+    if fresh:
+        for violation in fresh:
             print(f"error: {violation}", file=sys.stderr)
         print(
             "Move external constraints to the owning constraints document, "
@@ -293,6 +330,7 @@ def main() -> int:
     print(
         f"{len(swift)} Swift files, {len(bridge)} C bridge and probe files and "
         f"{len(python)} Python files carry no prose comments"
+        + (f" beyond {len(recorded)} recorded finding(s)" if recorded else "")
     )
     return 0
 

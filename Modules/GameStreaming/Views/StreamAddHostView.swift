@@ -119,28 +119,29 @@ struct StreamAddHostView: View {
             cornerRadius: DesignTokens.Radius.element,
             accessibilityLabel: host.instanceName,
             accessibilityValue: discoveryRowValue(host),
-            action: { add(host) }
-        ) { _ in
-            HStack(spacing: DesignTokens.Spacing.md) {
-                Image(systemName: "desktopcomputer")
-                    .foregroundStyle(DesignTokens.Surface.accessoryText)
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                    Text(host.instanceName)
-                        .font(DesignTokens.Typography.selectionHeader)
-                    Text(host.address.displayString)
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
+            action: { add(host) },
+            content: { _ in
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Image(systemName: "desktopcomputer")
+                        .foregroundStyle(DesignTokens.Surface.accessoryText)
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                        Text(host.instanceName)
+                            .font(DesignTokens.Typography.selectionHeader)
+                        Text(host.address.displayString)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(DesignTokens.Surface.supportingText)
+                    }
+                    Spacer(minLength: 0)
+                    if existingHostID(for: host) != nil {
+                        Text("已添加")
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(DesignTokens.Surface.supportingText)
+                    }
                 }
-                Spacer(minLength: 0)
-                if existingHostID(for: host) != nil {
-                    Text("已添加")
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
-                }
+                .padding(.horizontal, DesignTokens.Spacing.lg)
+                .frame(minHeight: DesignTokens.Interactive.rowHeight)
             }
-            .padding(.horizontal, DesignTokens.Spacing.lg)
-            .frame(minHeight: DesignTokens.Interactive.rowHeight)
-        }
+        )
         .accessibilityIdentifier("Stream-Discovery-row-\(host.instanceName)")
     }
 

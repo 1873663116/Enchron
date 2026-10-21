@@ -291,25 +291,27 @@ public struct PlayerView: View {
             },
             onSurfaceHeightChange: {
                 playbackSession.setWindowSurfaceHeight($0)
-            }
-        ) {
-            windowPlaybackCanvas
-        } topChrome: {
-            PlayerInfoBarView(
-                controlsVisible: showsPlaybackChrome,
-                onSecondaryMenuVisibilityChange: {
-                    playbackSession.setWindowSecondaryMenuPresented($0)
+            },
+            videoContent: {
+                windowPlaybackCanvas
+            },
+            topChrome: {
+                PlayerInfoBarView(
+                    controlsVisible: showsPlaybackChrome,
+                    onSecondaryMenuVisibilityChange: {
+                        playbackSession.setWindowSecondaryMenuPresented($0)
 #if DEBUG
-                    playbackSession.recordSurfaceInputProbe(
-                        "reachability top secondary menu visible=\($0)"
-                    )
+                        playbackSession.recordSurfaceInputProbe(
+                            "reachability top secondary menu visible=\($0)"
+                        )
 #endif
-                }
-            )
+                    }
+                )
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("PlayerUI-window-top-overlay")
-        }
+            }
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
         .modifier(windowControlPlaneState(geometryPolicy: geometryPolicy))
@@ -481,15 +483,17 @@ public struct PlayerView: View {
             },
             onSurfaceHeightChange: {
                 playbackSession.setWindowSurfaceHeight($0)
+            },
+            videoContent: {
+                streamCanvas
+                    .onAppear { playbackSession.registerControlsInteraction() }
+            },
+            topChrome: {
+                if playbackSession.showControls {
+                    streamTopChrome
+                }
             }
-        ) {
-            streamCanvas
-                .onAppear { playbackSession.registerControlsInteraction() }
-        } topChrome: {
-            if playbackSession.showControls {
-                streamTopChrome
-            }
-        }
+        )
         .enchronWindowGlassBackground(.always)
         .persistentSystemOverlays(.visible)
         .ornament(
