@@ -385,10 +385,9 @@ void ClSetHdrMode(bool enabled)
 
     LiInitializeVideoCallbacks(&_drCallbacks);
     _drCallbacks.setup = DrDecoderSetup;
-    _drCallbacks.submitDecodeUnit = NULL;
+    _drCallbacks.submitDecodeUnit = DrSubmitDecodeUnit;
     _drCallbacks.capabilities = CAPABILITY_REFERENCE_FRAME_INVALIDATION_HEVC |
-                                CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1 |
-                                CAPABILITY_PULL_RENDERER;
+                                CAPABILITY_REFERENCE_FRAME_INVALIDATION_AV1;
 
     LiInitializeAudioCallbacks(&_arCallbacks);
     _arCallbacks.init = ArInit;
@@ -485,7 +484,7 @@ void ClSetHdrMode(bool enabled)
                                 NULL, 0);
     [initLock unlock];
 
-    if (err == 0) {
+    if (err == 0 && NO) {
         pullThreadRunning = YES;
         _pullThread = [[NSThread alloc] initWithTarget:self selector:@selector(videoPullLoop) object:nil];
         _pullThread.name = @"VideoPull";

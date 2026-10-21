@@ -18,6 +18,32 @@ public enum StreamSessionState: Sendable, Equatable {
     }
 }
 
+public enum StreamSessionActivity: String, Sendable, Equatable {
+    case connecting
+    case launching
+    case waitingForVideo
+    case requestingKeyframe
+    case aligningClock
+    case buffering
+    case streaming
+
+    public var title: String {
+        switch self {
+        case .connecting: "Connecting"
+        case .launching: "Launching app"
+        case .waitingForVideo: "Waiting for video"
+        case .requestingKeyframe: "Requesting keyframe"
+        case .aligningClock: "Aligning clock"
+        case .buffering: "Buffering"
+        case .streaming: "Streaming"
+        }
+    }
+
+    public var showsLoading: Bool {
+        self != .streaming
+    }
+}
+
 public enum StreamVideoCodec: String, Sendable, Equatable {
     case h264
     case hevc
@@ -226,6 +252,7 @@ public struct SessionSnapshot: Sendable, Identifiable {
     public var hostName: String
     public var appName: String
     public var state: StreamSessionState
+    public var activity: StreamSessionActivity
     public var requested: StreamOptions
     public var negotiated: NegotiatedStreamConfiguration?
     public var input: StreamInputDiagnostics
@@ -241,6 +268,7 @@ public struct SessionSnapshot: Sendable, Identifiable {
         hostName: String,
         appName: String,
         state: StreamSessionState,
+        activity: StreamSessionActivity = .connecting,
         requested: StreamOptions,
         negotiated: NegotiatedStreamConfiguration? = nil,
         input: StreamInputDiagnostics = StreamInputDiagnostics(),
@@ -255,6 +283,7 @@ public struct SessionSnapshot: Sendable, Identifiable {
         self.hostName = hostName
         self.appName = appName
         self.state = state
+        self.activity = activity
         self.requested = requested
         self.negotiated = negotiated
         self.input = input
@@ -267,6 +296,7 @@ public struct SessionSnapshot: Sendable, Identifiable {
     public var readableValue: String {
         var parts: [String] = []
         parts.append("session=\(state.readableValue)")
+        parts.append("activity=\(activity.rawValue)")
         parts.append("host=\(hostName)")
         parts.append("app=\(appName)")
         parts.append("requested=\(requested.readableValue)")

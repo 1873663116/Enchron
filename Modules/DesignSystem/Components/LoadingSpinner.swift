@@ -102,6 +102,7 @@ public struct LoadingSpinner: View {
     var showBorder = true
     var sourceReadBytesPerSecond: (@MainActor () -> UInt64)?
     var sourceReadPendingSeconds: (@MainActor () -> Double)?
+    var statusProvider: (@MainActor () -> [String])?
 
     @State private var cycleAnchor = Date()
 
@@ -109,12 +110,14 @@ public struct LoadingSpinner: View {
         size: CGFloat = 56,
         showBorder: Bool = true,
         sourceReadBytesPerSecond: (@MainActor () -> UInt64)? = nil,
-        sourceReadPendingSeconds: (@MainActor () -> Double)? = nil
+        sourceReadPendingSeconds: (@MainActor () -> Double)? = nil,
+        statusProvider: (@MainActor () -> [String])? = nil
     ) {
         self.size = size
         self.showBorder = showBorder
         self.sourceReadBytesPerSecond = sourceReadBytesPerSecond
         self.sourceReadPendingSeconds = sourceReadPendingSeconds
+        self.statusProvider = statusProvider
     }
 
     public var body: some View {
@@ -196,6 +199,24 @@ public struct LoadingSpinner: View {
                     .font(Self.scaledMonospacedFont(size: size))
                     .foregroundStyle(.secondary)
                     .fixedSize()
+                }
+            }
+
+            if let statusProvider {
+                TimelineView(.periodic(from: cycleAnchor, by: 1.5)) { context in
+                    let lines = statusProvider()
+                    if !lines.isEmpty {
+                        let index = Int(
+                            context.date.timeIntervalSince(cycleAnchor) / 1.5
+                        ) % lines.count
+                        Text(lines[index])
+                            .font(Self.scaledMonospacedFont(size: size))
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                            .accessibilityIdentifier(
+                                "LoadingSpinner-status"
+                            )
+                    }
                 }
             }
         }

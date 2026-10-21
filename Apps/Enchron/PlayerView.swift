@@ -382,23 +382,60 @@ public struct PlayerView: View {
         .accessibilityValue(playbackRuntime.lifecycle.label)
     }
 
+    private var streamingLoadingVisible: Bool {
+        guard windowPlaybackIssue?.interruptsPlayback != true else { return false }
+        guard let session = streamingModel.session else { return false }
+        return session.activity.showsLoading
+    }
+
+    private var streamingStatusLines: [String] {
+        guard let session = streamingModel.session else { return [] }
+        var lines: [String] = [session.activity.title]
+        if case .connecting(let stage) = session.state, !stage.isEmpty {
+            lines.append("stage \(stage)")
+        }
+        let configured = session.requested.bitrateKbps / 1000
+        if let measured = session.diagnostics.measuredBitrateKbps {
+            lines.append("\(measured) / \(configured) Mbps")
+        } else {
+            lines.append("\(configured) Mbps")
+        }
+        if let rtt = session.diagnostics.estimatedRttMs {
+            lines.append("RTT \(rtt) ms")
+        }
+        if let presented = session.diagnostics.presentedFramesPerSecond {
+            lines.append("\(presented) fps")
+        }
+        return lines
+    }
+
     private var playbackLoadingChrome: some View {
         let showsLoadingChrome = WindowPlaybackLoadingVisibility.shouldShow(
             hasPlaybackError: windowPlaybackIssue?.interruptsPlayback == true,
             loadingVisibility: playbackRuntime.loadingState.visibility,
             isPresentationTransitionActive: playbackSession.presentationTransition != nil
         )
+        let streamingLoading = streamingLoadingVisible
+        let rateProvider: (@MainActor @Sendable () -> UInt64)? = streamingLoading
+            ? nil
+            : { @MainActor in
+                playbackRuntime.outputObservation().sourceReadBytesPerSecond
+            }
+        let pendingProvider: (@MainActor @Sendable () -> Double)? = streamingLoading
+            ? nil
+            : { @MainActor in
+                playbackRuntime.outputObservation().sourceReadPendingSeconds
+            }
+        let statusProvider: (@MainActor @Sendable () -> [String])? = streamingLoading
+            ? { @MainActor in streamingStatusLines }
+            : nil
         return Group {
-            if showsLoadingChrome, playbackLauncher.pendingResumeDecision == nil {
+            if (showsLoadingChrome || streamingLoading),
+               playbackLauncher.pendingResumeDecision == nil {
                 LoadingSpinner(
-                    sourceReadBytesPerSecond: {
-                        playbackRuntime.outputObservation()
-                            .sourceReadBytesPerSecond
-                    },
-                    sourceReadPendingSeconds: {
-                        playbackRuntime.outputObservation()
-                            .sourceReadPendingSeconds
-                    }
+                    sourceReadBytesPerSecond: rateProvider,
+                    sourceReadPendingSeconds: pendingProvider,
+                    statusProvider: statusProvider
                 )
                 .enchronSpatialFrame(depth: 0)
                 .enchronSpatialOffset(
