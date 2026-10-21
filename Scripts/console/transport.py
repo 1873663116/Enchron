@@ -1670,6 +1670,24 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
     }
 
 
+INTERACTION_ACTIONS = frozenset(
+    {
+        "tap",
+        "tapSequence",
+        "tapFirstMatch",
+        "doubleTap",
+        "press",
+        "adjust",
+        "typeText",
+        "replaceText",
+        "swipeUp",
+        "swipeDown",
+        "swipeLeft",
+        "swipeRight",
+        "coordinateTap",
+    }
+)
+
 SCREENSHOT_FREE_ACTIONS = frozenset(
     {
         "snapshot",
@@ -1763,6 +1781,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--normalized-x", dest="normalizedX", type=float)
     parser.add_argument("--normalized-y", dest="normalizedY", type=float)
     parser.add_argument("--no-screenshot", action="store_true")
+    parser.add_argument("--screenshot", action="store_true")
     parser.add_argument("--screenshot-identifier", dest="screenshotIdentifier")
     parser.add_argument("--app-bundle-id", dest="app_bundle_id")
     parser.add_argument("--verb")
@@ -1775,6 +1794,11 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
         default=30.0,
     )
     arguments = parser.parse_args(argv)
+    if (
+        arguments.action in INTERACTION_ACTIONS
+        and not arguments.screenshot
+    ):
+        arguments.no_screenshot = True
     if arguments.text_json_key is not None and arguments.text_file is None:
         parser.error("--text-json-key requires --text-file")
     return arguments
