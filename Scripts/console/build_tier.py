@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -85,6 +86,28 @@ def prune_duplicate_payload(product: Path) -> int:
     return removed
 
 
+UNIT_BUILD_STAMP = Path(".scratch/console/unit-build.json")
+UNIT_SOURCE_SUFFIXES = (".swift",".plist",".xctestplan",".pbxproj",".resolved")
+
+
+def unit_build_fingerprint(root: Path) -> str:
+    listing = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=str(root),
+        capture_output=True,
+    )
+    digest = hashlib.sha256()
+    for name in sorted(entry for entry in listing.stdout.decode().split("\0") if entry):
+        if not name.endswith(UNIT_SOURCE_SUFFIXES):
+            continue
+        try:
+            info = (root / name).stat()
+        except OSError:
+            continue
+        digest.update(f"{name}\0{info.st_mtime_ns}\0{info.st_size}\n".encode())
+    return digest.hexdigest()
+
+
 def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
     common = [
         "-project",
@@ -99,15 +122,37 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
         str(DERIVED_DATA / "DomainTests"),
         "-disableAutomaticPackageResolution",
     ]
-    built = _run(
-        ["xcodebuild", *common, "build-for-testing"],
-        root,
-        evidence_root,
-        "unit-build",
+    products = (
+        root
+        / DERIVED_DATA
+        / "DomainTests"
+        / "Build"
+        / "Products"
+        / "Debug-xrsimulator"
+        / "Enchron.app"
     )
-    removed = prune_duplicate_payload(
-        root / DERIVED_DATA / "DomainTests" / "Build" / "Products" / "Debug-xrsimulator" / "Enchron.app"
-    )
+    fingerprint = unit_build_fingerprint(root)
+    stamp = root / UNIT_BUILD_STAMP
+    reused = False
+    if stamp.exists() and products.exists():
+        try:
+            reused = json.loads(stamp.read_text(encoding="utf-8")).get("fingerprint") == fingerprint
+        except (OSError, json.JSONDecodeError):
+            reused = False
+    if reused:
+        built = {"exitCode": EXIT_OK, "durationMs": 0, "log": None}
+        removed = 0
+    else:
+        built = _run(
+            ["xcodebuild", *common, "build-for-testing"],
+            root,
+            evidence_root,
+            "unit-build",
+        )
+        removed = prune_duplicate_payload(products)
+        if built["exitCode"] == EXIT_OK:
+            stamp.parent.mkdir(parents=True, exist_ok=True)
+            stamp.write_text(json.dumps({"fingerprint": fingerprint}), encoding="utf-8")
     tested = _run(
         [
             "xcodebuild",
@@ -121,6 +166,7 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
         "unit",
     )
     tested["buildDurationMs"] = built["durationMs"]
+    tested["buildReused"] = reused
     tested["prunedBytes"] = removed
     tested["exitCode"] = tested["exitCode"] or built["exitCode"]
     tested["passed"] = (
