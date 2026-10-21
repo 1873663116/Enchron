@@ -112,6 +112,10 @@ def prune_duplicate_payload(product: Path) -> int:
 
 UNIT_BUILD_STAMP = Path(".scratch/console/unit-build.json")
 UNIT_SOURCE_SUFFIXES = (".swift",".plist",".xctestplan",".pbxproj",".resolved")
+FINGERPRINT_EXTRA_INPUTS = (
+    "Packages/PlaybackCore/Vendor/FFmpeg/PlaybackFFmpeg.xcframework",
+    "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework",
+)
 
 
 def unit_build_fingerprint(root: Path) -> str:
@@ -127,6 +131,13 @@ def unit_build_fingerprint(root: Path) -> str:
         try:
             info = (root / name).stat()
         except OSError:
+            continue
+        digest.update(f"{name}\0{info.st_mtime_ns}\0{info.st_size}\n".encode())
+    for name in FINGERPRINT_EXTRA_INPUTS:
+        try:
+            info = (root / name).lstat()
+        except OSError:
+            digest.update(f"{name}\0absent\n".encode())
             continue
         digest.update(f"{name}\0{info.st_mtime_ns}\0{info.st_size}\n".encode())
     return digest.hexdigest()
