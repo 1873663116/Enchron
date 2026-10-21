@@ -42,9 +42,11 @@ APP_CHANNEL = {
     "transition-trace.arm",
     "transition-trace.disarm",
     "transition-trace.fetch",
+    "format.apply",
+    "media.import-staged",
 }
 
-HOST_SIDE = {"format.apply", "host.preflight", "media.import-staged"}
+HOST_SIDE = {"host.preflight"}
 
 
 def operations(path: Path) -> list[str]:

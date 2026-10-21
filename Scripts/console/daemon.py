@@ -213,12 +213,16 @@ class Channel:
         app_verb: str | None = None,
         app_arguments: dict[str, str] | None = None,
         flags: list[str] | None = None,
+        identifiers: list[str] | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if not self.alive():
             return {}, False, "the session is gone; ensure it again"
         extra: list[str] = []
         if identifier is not None:
             extra.extend(["--identifier", identifier])
+        if identifiers:
+            extra.append("--identifiers")
+            extra.extend(identifiers)
         if text is not None:
             extra.extend(["--text", text])
         if app_verb is not None:
@@ -321,6 +325,7 @@ class Server:
                 request.get("verb"),
                 request.get("arguments"),
                 request.get("flags"),
+                request.get("identifiers"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}

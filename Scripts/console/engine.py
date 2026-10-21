@@ -340,6 +340,7 @@ def _dispatch_daemon(
                 "op": "invoke",
                 "action": step.args.get("action", "tap"),
                 "identifier": step.args.get("identifier"),
+                "identifiers": step.args.get("identifiers"),
                 "text": step.args.get("text"),
             },
             target,

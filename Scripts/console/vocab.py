@@ -43,7 +43,7 @@ VERBS: dict[str, Verb] = {
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),
             lane="device",
-            parameter=("action", "identifier", "text"),
+            parameter=("action", "identifier", "identifiers", "text"),
             choices={
                 "action": (
                     "tap",
@@ -57,6 +57,7 @@ VERBS: dict[str, Verb] = {
                     "swipeLeft",
                     "swipeRight",
                     "coordinateTap",
+                    "tapSequence",
                 )
             },
             evidence="command.json",
