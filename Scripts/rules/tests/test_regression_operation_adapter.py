@@ -822,6 +822,7 @@ class OperationAllowlistTests(unittest.TestCase):
             "PlayerUI-spatial-state",
             "--index",
             "0",
+            "--no-screenshot",
         )
 
     def test_ensure_session_uses_the_lease_context_as_its_only_target_authority(self) -> None:
