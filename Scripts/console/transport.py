@@ -194,11 +194,13 @@ def stage_media(
         return None
     inbox = container / "Documents" / "TestMediaInbox" / target
     inbox.mkdir(parents=True, exist_ok=True)
-    files = [path for path in sorted(source.rglob("*")) if path.is_file()]
+    files = [source] if source.is_file() else [
+        path for path in sorted(source.rglob("*")) if path.is_file()
+    ]
     copied = 0
     total = 0
     for path in files:
-        destination = inbox / path.relative_to(source)
+        destination = inbox / (path.name if source.is_file() else path.relative_to(source))
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, destination)
         copied += 1

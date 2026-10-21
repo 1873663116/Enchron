@@ -1779,6 +1779,38 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: allReferenceNames
             )
+        case "deleteLibraryFolder":
+            guard let name = request.args["name"], name.isEmpty == false else {
+                throw CommandError(
+                    message: "deleteLibraryFolder requires a folder name."
+                )
+            }
+            guard let folder = mediaLibrary.allFolders.first(where: {
+                $0.name == name
+            }) else {
+                return Response(
+                    id: request.id,
+                    ok: true,
+                    detail: nil,
+                    payload: mediaLibrary.allFolders.map(\.name)
+                )
+            }
+            mediaLibrary.remove(folder)
+            if let detail = mediaLibrary.lastErrorMessage {
+                throw CommandError(message: detail)
+            }
+            guard mediaLibrary.allFolders.contains(where: { $0.id == folder.id })
+                == false else {
+                throw CommandError(
+                    message: "The production folder deletion left \(name) in the library."
+                )
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: mediaLibrary.allFolders.map(\.name)
+            )
         case "importStagedFolder":
             guard let directory = request.args["directory"],
                   let entry = StagedMediaFolder.Entry(rawValue: request.args["entry"] ?? "root") else {
