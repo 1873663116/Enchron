@@ -105,7 +105,8 @@ Covered files:
 - `Scripts/console/daemon.py`: `ensure_running`, `Server.serve`, `Channel.alive`,
   `Channel.ensure_session`, `Channel.halt`, `Channel.invoke`
 - `Scripts/console/transport.py`: `scoped_processes`, `send_command`
-- `Scripts/console/channel` record file `.console/session.json`
+- the record file `.console/session-<target>.json`, written by `Channel._remember`
+- the socket path rule in `daemon.socket_path`, which keeps each target on its own lane
 
 Last confirmed to describe the code at commit `6dae9759`.
 
