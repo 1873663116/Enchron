@@ -48,9 +48,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 
 from enchron_artifact_paths import scratch_directory
 
-CONTROLLER = (
-    Path(__file__).resolve().parents[1] / "verification/transport.py"
-)
+CONTROLLER = Path(__file__).resolve().parents[1] / "console/transport.py"
 RUNNER = (
     Path(__file__).resolve().parents[2]
     / "Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift"
