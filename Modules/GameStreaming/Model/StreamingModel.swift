@@ -72,6 +72,7 @@ public final class StreamingModel {
     private var pairingTasks: [HostID: Task<Void, Never>] = [:]
     private var activePairingSessions: [HostID: any BackendPairingSession] = [:]
     private var coordinator: StreamSessionCoordinator?
+    private var hostFrameRateRecoveryInFlight = false
     private var teardownRequested = false
     private var teardownFallbackTask: Task<Void, Never>?
     private var hostQuitRetryTasks: [HostID: Task<Void, Never>] = [:]
@@ -488,6 +489,14 @@ public final class StreamingModel {
             coordinator.onBindingChange = { [weak self] binding in
                 Task { @MainActor in
                     self?.renderBinding = binding
+                }
+            }
+            coordinator.onHostFrameRateMismatch = { [weak self] in
+                Task { @MainActor in
+                    guard let self, !self.hostFrameRateRecoveryInFlight else { return }
+                    self.hostFrameRateRecoveryInFlight = true
+                    defer { self.hostFrameRateRecoveryInFlight = false }
+                    try? await self.reconnect()
                 }
             }
             coordinator.start()

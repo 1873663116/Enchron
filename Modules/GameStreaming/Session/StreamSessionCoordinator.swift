@@ -46,6 +46,11 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var lastSampledPresentedCount: Int64 = 0
     private var lastSampledVideoBytes: Int64 = 0
     private var lastSampledVideoOutcomes: (warnings: Int64, flush: Int64, requiresFlush: Int64, failed: Int64, decodeWarnings: Int64) = (0, 0, 0, 0, 0)
+    private var lastSampledReceivedFrames: Int64 = 0
+    private var requestedFrameRate = 0
+    private var lowDeliverySeconds = 0
+    private var didSignalHostFrameRateMismatch = false
+    public var onHostFrameRateMismatch: (@Sendable () -> Void)?
     private var lastSampledAudioOutcomes: (warnings: Int64, flushDrops: Int64, failed: Int64, autoFlush: Int64, config: Int64, short: Int64, long: Int64, other: Int64) = (0, 0, 0, 0, 0, 0, 0, 0)
     private var lastVideoSampleNanoseconds: UInt64 = 0
     private var lastVideoPresentationSeconds: Double = 0
@@ -63,6 +68,29 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var audioPTSProbeLogged = false
     private var audioSampleProbeLogged = false
     private var audioPTSReanchorCount = 0
+
+    private enum TimelineGovernorState {
+        case measuring
+        case running
+        case recovering
+    }
+
+    private var governorState: TimelineGovernorState = .measuring
+    private let streamingDisplaysImmediately = false
+    private var governorTargetLeadSeconds = 0.016
+    private var governorLeadEmaSeconds: Double = .nan
+    private var governorSecondLeads: [Double] = []
+    private var governorSecondLate = 0
+    private var governorSecondTotal = 0
+    private var governorResyncCount: Int64 = 0
+    private var governorResyncMaxPauseMilliseconds: Double = 0
+    private var governorPauseStartedAt: Date?
+    private var governorLastAdjustAt = Date.distantPast
+    private var governorLastRecoveryAt = Date.distantPast
+    private var governorSettleUntil = Date.distantPast
+    private var governorSevereLateSince: Date?
+    private var governorCleanSeconds = 0
+    private var governorDriftFixes: Int64 = 0
     private var audioFormatDescription: CMAudioFormatDescription?
     private var audioFormatKey: String?
     private var audioFrameDurationSeconds: Double = 0
@@ -106,6 +134,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var audioFramesLong: Int64 = 0
         var audioFramesOther: Int64 = 0
         var videoFramesDecoded: Int64 = 0
+        var videoDroppedStale: Int64 = 0
         var videoGapCount: Int64 = 0
         var videoGapMaxMilliseconds: Double = 0
         var videoLateFrames: Int64 = 0
@@ -181,6 +210,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         observeRenderingEvents()
         startDiagnosticsTimer()
 
+        publishActivity(.launching)
         StreamSessionProbes.record(
             "session start session=\(sessionID.rawValue) host=\(hostName) app=\(appName)",
             retention: .evidence
@@ -349,8 +379,23 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
         let ptsUs = max(0, Int64((pts.seconds * 1_000_000).rounded()))
 
-        videoQueueLock.withLock {
-            pendingVideo.append((sample, ptsUs))
+        if streamingDisplaysImmediately {
+            let droppedForQueue = videoQueueLock.withLock { () -> Int in
+                var dropped = 0
+                while pendingVideo.count >= 2 {
+                    pendingVideo.removeFirst()
+                    dropped += 1
+                }
+                pendingVideo.append((sample, ptsUs))
+                return dropped
+            }
+            if droppedForQueue > 0 {
+                stateLock.withLock { counters.videoDroppedStale += Int64(droppedForQueue) }
+            }
+        } else {
+            videoQueueLock.withLock {
+                pendingVideo.append((sample, ptsUs))
+            }
         }
         let sampleTime = DispatchTime.now().uptimeNanoseconds
         stateLock.withLock {
@@ -547,6 +592,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " framesEnqueuedWithoutSurface=\(counts.enqueuedWithoutSurface)",
             retention: .evidence
         )
+        publishActivity(.requestingKeyframe)
         requestIdrFrame(reason: "surfaceBound")
     }
 
@@ -584,6 +630,17 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 return
             }
 
+            let clockSeconds = synchronizer.currentTime().seconds
+            let ptsSeconds = Double(head.presentationTimeUs) / 1_000_000
+            if !governorRecord(ptsSeconds: ptsSeconds, clockSeconds: clockSeconds) {
+                videoQueueLock.withLock {
+                    if !pendingVideo.isEmpty {
+                        pendingVideo.removeFirst()
+                    }
+                }
+                continue
+            }
+
             let lateMilliseconds = (synchronizer.currentTime().seconds * 1_000_000 - Double(head.presentationTimeUs)) / 1000
             if lateMilliseconds > 4 {
                 stateLock.withLock {
@@ -593,10 +650,18 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                     }
                 }
             }
+            var sampleToEnqueue = head.sample
+            if streamingDisplaysImmediately,
+               let immediate = Self.immediateTimingSample(
+                   head.sample,
+                   presentationTime: synchronizer.currentTime()
+               ) {
+                sampleToEnqueue = immediate
+            }
             let outcome: RendererEnqueueOutcome
             do {
                 outcome = try videoSink.enqueueImmediately(
-                    RendererInputSample(sampleBuffer: head.sample)
+                    RendererInputSample(sampleBuffer: sampleToEnqueue)
                 )
             } catch {
                 recoverFromRendererFailure(reason: "enqueue threw")
@@ -610,6 +675,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                         pendingVideo.removeFirst()
                     }
                 }
+                governorFinishRecovery()
+                publishActivity(.streaming)
                 stateLock.withLock {
                     counters.presented += 1
                     counters.lastPresentedTimestampMs = head.presentationTimeUs / 1000
@@ -627,6 +694,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                         pendingVideo.removeFirst()
                     }
                 }
+                governorFinishRecovery()
                 stateLock.withLock {
                     counters.presented += 1
                     counters.videoEnqueueWarnings += 1
@@ -672,6 +740,227 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
     private func videoSinkAcceptsHold(pendingCount: Int) -> Bool {
         pendingCount <= 1
+    }
+
+    private static func immediateTimingSample(
+        _ sample: CMSampleBuffer,
+        presentationTime: CMTime
+    ) -> CMSampleBuffer? {
+        var timing = CMSampleTimingInfo(
+            duration: .invalid,
+            presentationTimeStamp: presentationTime,
+            decodeTimeStamp: .invalid
+        )
+        var copy: CMSampleBuffer?
+        let status = CMSampleBufferCreateCopyWithNewTiming(
+            allocator: kCFAllocatorDefault,
+            sampleBuffer: sample,
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing,
+            sampleBufferOut: &copy
+        )
+        guard status == noErr else { return nil }
+        return copy
+    }
+
+    private var governorFloorLeadSeconds: Double {
+        max(0.012, 1.5 / Double(max(options.frameRate, 1)))
+    }
+
+    private var governorSettling: Bool {
+        Date() < governorSettleUntil
+    }
+
+    private func governorSetClock(leadSeconds: Double, ptsSeconds: Double) {
+        synchronizer.setRate(
+            1.0,
+            time: CMTime(seconds: max(0, ptsSeconds - leadSeconds), preferredTimescale: 600),
+            atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
+        )
+        stateLock.withLock { nextAudioPTS = .invalid }
+    }
+
+    private func governorShiftClock(bySeconds seconds: Double) {
+        let time = CMTimeAdd(
+            synchronizer.currentTime(),
+            CMTime(seconds: seconds, preferredTimescale: 600)
+        )
+        synchronizer.setRate(
+            1.0,
+            time: time,
+            atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
+        )
+        stateLock.withLock { nextAudioPTS = .invalid }
+    }
+
+    private func governorRecord(ptsSeconds: Double, clockSeconds: Double) -> Bool {
+        let lead = ptsSeconds - clockSeconds
+        if streamingDisplaysImmediately {
+            governorState = .running
+            governorSecondLeads.append(lead * 1000)
+            if governorSecondLeads.count > 400 {
+                governorSecondLeads.removeFirst(governorSecondLeads.count - 400)
+            }
+            governorSecondTotal += 1
+            if lead < 0 {
+                governorSecondLate += 1
+            }
+            return true
+        }
+
+        if governorState == .measuring {
+            governorSetClock(leadSeconds: governorTargetLeadSeconds, ptsSeconds: ptsSeconds)
+            governorState = .running
+            governorSettleUntil = Date().addingTimeInterval(0.6)
+            governorLeadEmaSeconds = .nan
+            publishActivity(.aligningClock)
+            return true
+        }
+
+        if governorState == .recovering {
+            governorSetClock(leadSeconds: governorTargetLeadSeconds, ptsSeconds: ptsSeconds)
+            return true
+        }
+
+        guard !governorSettling else { return true }
+
+        governorLeadEmaSeconds = governorLeadEmaSeconds.isNaN
+            ? lead
+            : governorLeadEmaSeconds * 0.9 + lead * 0.1
+        governorSecondLeads.append(lead * 1000)
+        if governorSecondLeads.count > 400 {
+            governorSecondLeads.removeFirst(governorSecondLeads.count - 400)
+        }
+        governorSecondTotal += 1
+        if lead < 0 {
+            governorSecondLate += 1
+        }
+
+        governorTrackSevereLateness(leadSeconds: lead)
+        governorMaybeAdjustClock()
+        return true
+    }
+
+    private func governorTrackSevereLateness(leadSeconds: Double) {
+        guard leadSeconds < -0.150 else {
+            governorSevereLateSince = nil
+            return
+        }
+        let now = Date()
+        if let since = governorSevereLateSince {
+            if now.timeIntervalSince(since) > 1.0,
+               now.timeIntervalSince(governorLastRecoveryAt) > 5.0 {
+                governorBeginRecovery(reason: "severeLate")
+            }
+        } else {
+            governorSevereLateSince = now
+        }
+    }
+
+    private func governorMaybeAdjustClock() {
+        let now = Date()
+        guard now.timeIntervalSince(governorLastAdjustAt) >= 0.5 else { return }
+        let ema = governorLeadEmaSeconds
+        guard !ema.isNaN else { return }
+        let target = governorTargetLeadSeconds
+        let shortfall = target - ema
+        let excess = ema - target
+
+        if shortfall > target * 0.5 {
+            let shift = min(shortfall, 0.040)
+            governorShiftClock(bySeconds: -shift)
+            governorLeadEmaSeconds = ema + shift
+            governorLastAdjustAt = now
+            governorSettleUntil = now.addingTimeInterval(0.25)
+            governorDriftFixes += 1
+        } else if excess > target * 2.0 {
+            let shift = min(excess, 0.040)
+            governorShiftClock(bySeconds: shift)
+            governorLeadEmaSeconds = ema - shift
+            governorLastAdjustAt = now
+            governorSettleUntil = now.addingTimeInterval(0.25)
+            governorDriftFixes += 1
+        }
+    }
+
+    private func governorAdaptTargetLead(lateRate: Double) {
+        let now = Date()
+        guard now.timeIntervalSince(governorLastAdjustAt) >= 2.0 else { return }
+        if lateRate > 0.05 {
+            governorCleanSeconds = 0
+            governorTargetLeadSeconds = min(
+                governorTargetLeadSeconds + 0.008,
+                governorResyncLeadCapSeconds
+            )
+            governorLastAdjustAt = now
+        } else if lateRate == 0 {
+            governorCleanSeconds += 1
+            guard governorCleanSeconds >= 3 else { return }
+            governorTargetLeadSeconds = max(
+                governorFloorLeadSeconds,
+                governorTargetLeadSeconds - 0.004
+            )
+            governorLastAdjustAt = now
+        } else {
+            governorCleanSeconds = 0
+        }
+    }
+
+    private var governorResyncLeadCapSeconds: Double {
+        0.120
+    }
+
+    private func governorFinishRecovery() {
+        guard governorState != .measuring || governorPauseStartedAt != nil else { return }
+        guard governorPauseStartedAt != nil else { return }
+        governorState = .running
+        let pauseMilliseconds = governorPauseStartedAt.map {
+            Date().timeIntervalSince($0) * 1000
+        } ?? 0
+        governorPauseStartedAt = nil
+        governorResyncMaxPauseMilliseconds = max(
+            governorResyncMaxPauseMilliseconds,
+            pauseMilliseconds
+        )
+        governorSettleUntil = Date().addingTimeInterval(0.6)
+        governorLeadEmaSeconds = .nan
+        governorSevereLateSince = nil
+        governorSecondLeads.removeAll()
+        governorSecondLate = 0
+        governorSecondTotal = 0
+        publishActivity(.streaming)
+        StreamSessionProbes.record(
+            "video timeline resync end session=\(sessionID.rawValue)"
+                + " pauseMs=\(String(format: "%.0f", pauseMilliseconds))"
+                + " targetMs=\(String(format: "%.0f", governorTargetLeadSeconds * 1000))"
+                + " count=\(governorResyncCount)",
+            retention: .evidence
+        )
+    }
+
+    private func governorBeginRecovery(reason: String) {
+        let now = Date()
+        guard now.timeIntervalSince(governorLastRecoveryAt) > 5.0 else { return }
+        governorLastRecoveryAt = now
+        governorState = .recovering
+        publishActivity(.buffering)
+        governorPauseStartedAt = now
+        governorResyncCount += 1
+        synchronizer.setRate(0, time: synchronizer.currentTime())
+        videoQueueLock.lock()
+        pendingVideo.removeAll()
+        videoQueueLock.unlock()
+        requestIdrFrame(reason: "timelineResync")
+        Task { [weak self] in
+            await self?.videoSink.flush(removingDisplayedImage: false)
+        }
+        StreamSessionProbes.record(
+            "video timeline resync begin session=\(sessionID.rawValue)"
+                + " reason=\(reason)"
+                + " targetMs=\(String(format: "%.0f", governorTargetLeadSeconds * 1000))"
+                + " count=\(governorResyncCount)",
+            retention: .evidence
+        )
     }
 
     private func reportQueueDepthIfNeeded() {
@@ -848,10 +1137,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             let lead = nextAudioPTS.isValid
                 ? CMTimeSubtract(nextAudioPTS, current).seconds
                 : Double.nan
-            if !nextAudioPTS.isValid || lead < -0.10 || lead > 0.60 {
+            if !nextAudioPTS.isValid || lead < -0.05 || lead > 0.35 {
                 nextAudioPTS = CMTimeAdd(
                     current,
-                    CMTimeMakeWithSeconds(0.15, preferredTimescale: 1_000_000)
+                    CMTimeMakeWithSeconds(0.030, preferredTimescale: 1_000_000)
                 )
                 if !lead.isNaN {
                     audioPTSReanchorCount += 1
@@ -1071,6 +1360,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         case .decoderConfigured(let width, let height, let frameRate, let codec):
             stateLock.withLock {
                 let codecValue = StreamVideoCodec(rawValue: codec) ?? .h264
+                self.requestedFrameRate = frameRate
                 snapshotStorage.negotiated = NegotiatedStreamConfiguration(
                     width: width,
                     height: height,
@@ -1336,6 +1626,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             let audioGapMax = counters.audioGapMaxMilliseconds
             counters.videoGapMaxMilliseconds = 0
             counters.audioGapMaxMilliseconds = 0
+            let receivedNow = Int64(stats?.receivedFrames ?? 0)
+            let receivedDelta = receivedNow - lastSampledReceivedFrames
+            let sampledInterval = stats?.measuredIntervalSeconds ?? 1
+            let deliveredFps = sampledInterval > 0 ? Double(receivedDelta) / sampledInterval : 0
             let videoText = "video detail \(statsText)"
                 + " enqWarn=\(videoDelta.0)"
                 + " flushDrop=\(videoDelta.1)"
@@ -1356,7 +1650,48 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " zcFrames=\(stats?.zeroCopyFrames ?? 0)"
                 + " ptsGap=\(gapDelta.ptsGap)"
                 + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
+                + " leadAvgMs=\(String(format: "%.1f", governorSecondLeads.isEmpty ? 0 : governorSecondLeads.reduce(0, +) / Double(governorSecondLeads.count)))"
+                + " leadP95Ms=\(String(format: "%.1f", governorSecondLeads.isEmpty ? 0 : governorSecondLeads.sorted()[min(governorSecondLeads.count - 1, Int(Double(governorSecondLeads.count) * 0.95))]))"
+                + " latePct=\(String(format: "%.0f", governorSecondTotal == 0 ? 0 : Double(governorSecondLate) / Double(governorSecondTotal) * 100))"
+                + " targetMs=\(String(format: "%.0f", governorTargetLeadSeconds * 1000))"
+                + " resync=\(governorResyncCount)"
+                + " resyncMaxMs=\(String(format: "%.0f", governorResyncMaxPauseMilliseconds))"
+                + " driftFix=\(governorDriftFixes)"
+                + " hostLatMs=\(String(format: "%.1f", stats?.averageHostProcessingLatencyMs ?? 0))"
+                + " hostLatFrames=\(stats?.framesWithHostProcessingLatency ?? 0)"
+                + " rttMs=\(backend.estimatedRTT()?.milliseconds ?? 0)"
+                + " rttVar=\(backend.estimatedRTT()?.variance ?? 0)"
+                + " staleDrop=\(counters.videoDroppedStale)"
+                + " reqFps=\(requestedFrameRate)"
+                + " gotFps=\(String(format: "%.1f", deliveredFps))"
             maxPumpGapMilliseconds = 0
+            lastSampledReceivedFrames = receivedNow
+            if requestedFrameRate >= 100,
+               sampledInterval > 0,
+               deliveredFps < Double(requestedFrameRate) * 0.85,
+               case .streaming = snapshotStorage.state {
+                lowDeliverySeconds += 1
+            } else {
+                lowDeliverySeconds = 0
+            }
+            if lowDeliverySeconds >= 3, !didSignalHostFrameRateMismatch {
+                didSignalHostFrameRateMismatch = true
+                StreamSessionProbes.record(
+                    "video host frame rate mismatch session=\(sessionID.rawValue)"
+                        + " requested=\(requestedFrameRate)"
+                        + " received=\(receivedDelta)"
+                        + " interval=\(sampledInterval)",
+                    retention: .evidence
+                )
+                onHostFrameRateMismatch?()
+            }
+            let governorLateRate = governorSecondTotal == 0
+                ? 0
+                : Double(governorSecondLate) / Double(governorSecondTotal)
+            governorAdaptTargetLead(lateRate: governorLateRate)
+            governorSecondLeads.removeAll()
+            governorSecondLate = 0
+            governorSecondTotal = 0
             let audioText = "audio detail"
                 + " enqWarn=\(audioDelta.0)"
                 + " flushDrop=\(audioDelta.1)"
@@ -1411,6 +1746,20 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             snapshotStorage.input.pressedKeyCount = pressedKeys.count
             snapshotStorage.input.pressedButtonCount = pressedButtons.count
         }
+        publishSnapshot()
+    }
+
+    private func publishActivity(_ activity: StreamSessionActivity) {
+        let changed = stateLock.withLock { () -> Bool in
+            guard snapshotStorage.activity != activity else { return false }
+            snapshotStorage.activity = activity
+            return true
+        }
+        guard changed else { return }
+        StreamSessionProbes.record(
+            "activity session=\(sessionID.rawValue) value=\(activity.rawValue)",
+            retention: .evidence
+        )
         publishSnapshot()
     }
 
