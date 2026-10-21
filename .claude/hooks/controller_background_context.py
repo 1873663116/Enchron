@@ -11,7 +11,7 @@ import statistics
 import sys
 from pathlib import Path
 
-CONTROLLER_NAME = "interactive_visionpro_ui.py"
+CONTROLLER_NAME = "transport.py"
 DEFAULT_TIMINGS_DEVICE_PATH = Path(__file__).resolve().parents[2] / "Scripts/verification/controller_timings.device.json"
 DEFAULT_TIMINGS_SIMULATOR_PATH = Path(__file__).resolve().parents[2] / "Scripts/verification/controller_timings.simulator.json"
 MINIMUM_SAMPLES = 3
