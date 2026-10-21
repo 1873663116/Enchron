@@ -605,6 +605,48 @@ def unchanged_self_tests(
     return frozenset(selected)
 
 
+def bundled(check: StructureCheck) -> bool:
+    return not check.filename.startswith(("tests/", "../verification/tests/"))
+
+
+def run_batch(
+    checks: tuple[StructureCheck, ...],
+    run_directory: Path,
+    environment: dict[str, str],
+) -> dict[str, tuple[int, float, Path]]:
+    if not checks:
+        return {}
+    log_root = run_directory / "structure"
+    log_root.mkdir(parents=True, exist_ok=True)
+    report = log_root / f"batch-{checks[0].identifier}.json"
+    scripts = [str(REPOSITORY_ROOT / "Scripts/rules" / check.filename) for check in checks]
+    command = [
+        sys.executable,
+        str(REPOSITORY_ROOT / "Scripts/rules/batch_runner.py"),
+        str(log_root),
+        str(report),
+        *scripts,
+    ]
+    started = time.monotonic()
+    subprocess.run(
+        command,
+        cwd=REPOSITORY_ROOT,
+        env=environment,
+        capture_output=True,
+    )
+    elapsed = time.monotonic() - started
+    try:
+        outcomes = json.loads(report.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        outcomes = {}
+    found: dict[str, tuple[int, float, Path]] = {}
+    for check in checks:
+        name = Path(check.filename).name
+        code = outcomes.get(name, 1)
+        found[check.identifier] = (code, elapsed, log_root / f"{Path(name).stem}.log")
+    return found
+
+
 def run_structure_checks(
     run_directory: Path,
     environment: dict[str, str],
@@ -630,13 +672,28 @@ def run_structure_checks(
         checks = tuple(check for check in checks if check.identifier not in settled)
     unevaluated = tuple(check for check in everything if check not in checks)
     workers = structure_worker_count(len(checks))
+    batched = tuple(check for check in checks if bundled(check))
+    separate = tuple(check for check in checks if not bundled(check))
+    groups: list[tuple[StructureCheck, ...]] = [
+        tuple(batched[index::workers]) for index in range(workers) if batched[index::workers]
+    ]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [
+        futures = [pool.submit(run_batch, group, run_directory, environment) for group in groups]
+        futures.extend(
             pool.submit(run_one_check, check, run_directory, environment)
-            for check in checks
-        ]
+            for check in separate
+        )
+        outcomes: list[tuple[StructureCheck, int, float, Path]] = []
         for future in as_completed(futures):
-            check, code, seconds, log = future.result()
+            result = future.result()
+            if isinstance(result, dict):
+                for check in checks:
+                    if check.identifier in result:
+                        code, seconds, log = result[check.identifier]
+                        outcomes.append((check, code, seconds, log))
+            else:
+                outcomes.append(result)
+        for check, code, seconds, log in outcomes:
             logs.append(relative_log(log, run_directory))
             mark = "ok  " if code == 0 else "FAIL"
             print(f"  {mark} {check.identifier} {seconds:.1f}s", flush=True)

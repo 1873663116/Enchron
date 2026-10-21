@@ -399,9 +399,20 @@ def is_introduced_by(context: re.Pattern[str], line: str, start: int, end: int) 
     trailing = context.search(after)
     return trailing is not None and INTERVENING_WORD.search(after[:trailing.start()]) is None
 
+IDENTITY_HINT = re.compile(
+    r"\d{1,3}\.\d{1,3}|ts\.net|[0-9a-fA-F]{16}|[0-9A-Fa-f]{8}-"
+)
+
+
 def identity_failures() -> list[str]:
     found: list[str] = []
     account_patterns = bare_account_patterns()
+    names = account_names()
+    hint = IDENTITY_HINT
+    if names:
+        hint = re.compile(
+            IDENTITY_HINT.pattern + "|" + "|".join(re.escape(name) for name in names)
+        )
     for path in identity_scan_paths():
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
@@ -409,6 +420,8 @@ def identity_failures() -> list[str]:
             continue
         relative = path.relative_to(REPOSITORY_ROOT).as_posix()
         for index, line in enumerate(text.splitlines(), start=1):
+            if not hint.search(line):
+                continue
             for match in IPV4_LITERAL.finditer(line):
                 literal = match.group(1)
                 try:
