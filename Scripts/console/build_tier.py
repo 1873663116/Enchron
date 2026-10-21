@@ -56,6 +56,7 @@ def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
             f"platform=visionOS Simulator,id={target}",
             "-derivedDataPath",
             str(DERIVED_DATA),
+            "-disableAutomaticPackageResolution",
             "build-for-testing",
         ],
         root,
@@ -69,20 +70,30 @@ def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
 
 
 def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
-    payload = _run(
+    common = [
+        "-project",
+        "Enchron.xcodeproj",
+        "-scheme",
+        "EnchronDomainTests",
+        "-testPlan",
+        "EnchronDomain",
+        "-destination",
+        f"id={target}",
+        "-derivedDataPath",
+        str(DERIVED_DATA / "DomainTests"),
+        "-disableAutomaticPackageResolution",
+    ]
+    built = _run(
+        ["xcodebuild", *common, "build-for-testing"],
+        root,
+        evidence_root,
+        "unit-build",
+    )
+    tested = _run(
         [
             "xcodebuild",
-            "test",
-            "-project",
-            "Enchron.xcodeproj",
-            "-scheme",
-            "EnchronDomainTests",
-            "-testPlan",
-            "EnchronDomain",
-            "-destination",
-            f"id={target}",
-            "-derivedDataPath",
-            str(DERIVED_DATA / "DomainTests"),
+            *common,
+            "test-without-building",
             "-collect-test-diagnostics",
             "never",
         ],
@@ -90,10 +101,16 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
         evidence_root,
         "unit",
     )
-    text = Path(payload["log"]).read_text(encoding="utf-8", errors="replace")
-    payload["passed"] = "Test run with" in text and "failed" not in text.split("Test run with")[-1][:200]
-    write_json(evidence_root / "unit.json", payload)
-    return payload
+    tested["buildDurationMs"] = built["durationMs"]
+    tested["exitCode"] = tested["exitCode"] or built["exitCode"]
+    tested["passed"] = (
+        built["exitCode"] == 0
+        and "Test run with" in Path(tested["log"]).read_text(encoding="utf-8", errors="replace")
+    )
+    tested["durationMs"] = built["durationMs"] + tested["durationMs"]
+    _ = tested.pop("buildDurationMs", None)
+    write_json(evidence_root / "unit.json", tested)
+    return tested
 
 
 def summarize(name: str, payload: dict[str, Any]) -> str:
