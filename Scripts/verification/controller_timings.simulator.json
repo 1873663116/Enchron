@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T19:20:32+00:00",
+  "updatedAt": "2026-10-21T19:22:52+00:00",
   "verbs": {
     "activate": {
       "samples": [
@@ -1738,11 +1738,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-05T23:27:08.895492+00:00",
-          "censored": false,
-          "seconds": 1.02
-        },
-        {
           "at": "2026-09-06T16:12:26.575452+00:00",
           "censored": false,
           "seconds": 1.993
@@ -1936,6 +1931,11 @@
           "at": "2026-10-21T19:20:32+00:00",
           "censored": false,
           "seconds": 1.01
+        },
+        {
+          "at": "2026-10-21T19:22:52+00:00",
+          "censored": false,
+          "seconds": 1.26
         }
       ]
     },

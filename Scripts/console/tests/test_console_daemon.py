@@ -116,6 +116,12 @@ class AwaitComparisonTests(unittest.TestCase):
             engine_module._await_matches({"position": "unknown"}, "position", 10, "atLeast")
         )
 
+    def test_an_empty_field_compares_the_whole_value(self) -> None:
+        self.assertTrue(engine_module._await_matches({"": "grid"}, "", "grid", "equals"))
+        self.assertFalse(
+            engine_module._await_matches({"": "grid"}, "", "list", "equals")
+        )
+
     def test_a_dotted_path_walks_into_nested_payloads(self) -> None:
         payload = {"matchedElement": {"value": "alpha=1;beta=2"}}
         self.assertEqual(

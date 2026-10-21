@@ -299,6 +299,7 @@ def _dispatch_daemon(
         started = time.monotonic()
         attempts = 0
         observed: dict[str, str] = {}
+        last_value: str | None = None
         reached = False
         while True:
             attempts += 1
@@ -313,16 +314,22 @@ def _dispatch_daemon(
                 element = payload.get("matchedElement") or {}
                 raw = element.get("value") if isinstance(element, dict) else None
                 if isinstance(raw, str):
+                    last_value = raw
                     observed = dict(
                         part.split("=", 1) for part in raw.split(";") if "=" in part
                     )
-                if _await_matches(observed, field, expected, mode):
+                if not field and isinstance(raw, str):
+                    if _await_matches({"": raw}, "", expected, mode):
+                        reached = True
+                        break
+                elif _await_matches(observed, field, expected, mode):
                     reached = True
                     break
             if time.monotonic() - started >= deadline:
                 break
             time.sleep(max(interval, 0.01))
-        detail = f"{field}={observed.get(field)!r} after {attempts} probe(s)"
+        seen = last_value if not field else observed.get(field)
+        detail = f"{seen!r} after {attempts} probe(s)"
         answer = (
             {
                 "kind": "result",
