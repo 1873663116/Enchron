@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -69,6 +70,21 @@ def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
     return payload
 
 
+def prune_duplicate_payload(product: Path) -> int:
+    removed = 0
+    for bundle in (product / "PlugIns").glob("*.xctest"):
+        frameworks = bundle / "Frameworks"
+        if frameworks.is_dir():
+            removed += sum(item.stat().st_size for item in frameworks.rglob("*") if item.is_file())
+            shutil.rmtree(frameworks)
+        for child in bundle.iterdir():
+            if not child.is_dir() or not (product / child.name).exists():
+                continue
+            removed += sum(item.stat().st_size for item in child.rglob("*") if item.is_file())
+            shutil.rmtree(child)
+    return removed
+
+
 def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
     common = [
         "-project",
@@ -89,6 +105,9 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
         evidence_root,
         "unit-build",
     )
+    removed = prune_duplicate_payload(
+        root / DERIVED_DATA / "DomainTests" / "Build" / "Products" / "Debug-xrsimulator" / "Enchron.app"
+    )
     tested = _run(
         [
             "xcodebuild",
@@ -102,6 +121,7 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
         "unit",
     )
     tested["buildDurationMs"] = built["durationMs"]
+    tested["prunedBytes"] = removed
     tested["exitCode"] = tested["exitCode"] or built["exitCode"]
     tested["passed"] = (
         built["exitCode"] == 0
