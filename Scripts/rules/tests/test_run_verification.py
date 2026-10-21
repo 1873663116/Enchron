@@ -238,12 +238,15 @@ class PrePushHookTests(unittest.TestCase):
             check=True,
             capture_output=True,
         )
-        rules = root / "Scripts" / "rules"
-        rules.mkdir(parents=True)
+        console = root / "Scripts" / "console"
+        console.mkdir(parents=True)
         marker = root / "verification-ran"
-        script = rules / "run_verification.py"
-        script.write_text(f"#!/bin/sh\ntouch {marker}\n", encoding="utf-8")
-        script.chmod(0o755)
+        script = console / "cli.py"
+        script.write_text(
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).touch()\n",
+            encoding="utf-8",
+        )
         binaries = root / "bin"
         binaries.mkdir()
         lfs = binaries / "git-lfs"

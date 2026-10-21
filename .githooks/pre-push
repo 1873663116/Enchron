@@ -19,18 +19,22 @@ done <<< "$push_updates"
 [[ -n "$remote_oid" ]] || exit 0
 
 if [[ "$remote_oid" == 0000000000000000000000000000000000000000 ]]; then
-    base=$(git rev-list --max-parents=0 HEAD | tail -1)
+    base=$(git rev-list --max-parents=0 HEAD 2>/dev/null | tail -1 || true)
 else
     base="$remote_oid"
 fi
 
-changed=$(git diff --name-only "$base" HEAD 2>/dev/null || true)
-[[ -n "$changed" ]] || exit 0
-
 needs_check=0
-while read -r path; do
-    [[ -n "$path" ]] || continue
-    case "$path" in
+if [[ -z "$base" ]]; then
+    needs_check=1
+else
+    changed=$(git diff --name-only "$base" HEAD 2>/dev/null || true)
+    [[ -n "$changed" ]] || exit 0
+fi
+
+while read -r changed_path; do
+    [[ -n "$changed_path" ]] || continue
+    case "$changed_path" in
         Scripts/rules/*|Scripts/console/*|Config/*|Regression/*|.githooks/*|.swiftlint.yml)
             needs_check=1
             ;;
@@ -39,7 +43,7 @@ while read -r path; do
             ;;
     esac
     (( needs_check )) && break
-done <<< "$changed"
+done <<< "${changed:-}"
 
 (( needs_check )) || exit 0
 

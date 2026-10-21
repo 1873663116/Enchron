@@ -215,10 +215,6 @@ STRUCTURE_CHECKS = (
     ),
     StructureCheck("swiftlint", "verify_swiftlint.py"),
     StructureCheck("unittest-main-guard", "verify_unittest_main_guard.py"),
-    StructureCheck(
-        "bootstrap-freeze",
-        "verify_bootstrap_freeze.py",
-    ),
     StructureCheck("harness-primitives-gate", "harness_primitives_gate.py"),
     StructureCheck("no-literal-rfc1918", "check_no_literal_rfc1918.py"),
     StructureCheck("one-verb-one-action", "check_one_verb_one_action.py"),

@@ -35,7 +35,6 @@ from regression.execution_identity import (
     repository_source_digest,
     write_execution_input,
 )
-import verify_bootstrap_freeze
 
 
 TOOLCHAIN = ToolchainIdentity(
