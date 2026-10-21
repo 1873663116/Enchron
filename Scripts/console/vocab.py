@@ -67,7 +67,7 @@ VERBS: dict[str, Verb] = {
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),
             lane="device",
-            parameter=("probe", "field", "equals", "timeoutMs", "intervalMs"),
+            parameter=("probe", "field", "equals", "mode", "timeoutMs", "intervalMs"),
             evidence="await.json",
             budget_ms=120_000,
         ),

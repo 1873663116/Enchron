@@ -215,6 +215,16 @@ def _dispatch(
     return None, True, f"{step.verb} has no dispatch in this build"
 
 
+def _await_matches(observed: dict[str, str], field: str, expected: Any, mode: str) -> bool:
+    value = observed.get(field)
+    if mode == "atLeast":
+        try:
+            return float(value) >= float(expected)
+        except (TypeError, ValueError):
+            return False
+    return value == expected
+
+
 def _dispatch_daemon(
     step: Step, root: Path, target: str, steps_directory: Path
 ) -> tuple[dict[str, Any] | None, bool, str]:
@@ -259,6 +269,7 @@ def _dispatch_daemon(
         probe = str(step.args.get("probe") or "")
         field = str(step.args.get("field") or "")
         expected = step.args.get("equals")
+        mode = str(step.args.get("mode") or "equals")
         deadline = float(step.args.get("timeoutMs", 30_000)) / 1000.0
         interval = float(step.args.get("intervalMs", 250)) / 1000.0
         started = time.monotonic()
@@ -281,7 +292,7 @@ def _dispatch_daemon(
                     observed = dict(
                         part.split("=", 1) for part in raw.split(";") if "=" in part
                     )
-                if observed.get(field) == expected:
+                if _await_matches(observed, field, expected, mode):
                     reached = True
                     break
             if time.monotonic() - started >= deadline:
