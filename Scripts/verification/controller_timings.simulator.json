@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T18:09:16+00:00",
+  "updatedAt": "2026-10-21T18:13:33+00:00",
   "verbs": {
     "any-identifier-appearance": {
       "samples": [
@@ -17,26 +17,6 @@
     },
     "app-command": {
       "samples": [
-        {
-          "at": "2026-09-05T23:28:56.307223+00:00",
-          "censored": false,
-          "seconds": 1.567
-        },
-        {
-          "at": "2026-09-06T16:11:37.543113+00:00",
-          "censored": false,
-          "seconds": 1.12
-        },
-        {
-          "at": "2026-09-06T16:11:38.626513+00:00",
-          "censored": false,
-          "seconds": 1.083
-        },
-        {
-          "at": "2026-09-06T16:12:15.378764+00:00",
-          "censored": false,
-          "seconds": 0.583
-        },
         {
           "at": "2026-09-06T16:12:17.301562+00:00",
           "censored": false,
@@ -216,6 +196,26 @@
           "at": "2026-10-21T17:36:07+00:00",
           "censored": false,
           "seconds": 1.21
+        },
+        {
+          "at": "2026-10-21T18:13:28+00:00",
+          "censored": false,
+          "seconds": 1.46
+        },
+        {
+          "at": "2026-10-21T18:13:30+00:00",
+          "censored": false,
+          "seconds": 1.31
+        },
+        {
+          "at": "2026-10-21T18:13:31+00:00",
+          "censored": false,
+          "seconds": 1.31
+        },
+        {
+          "at": "2026-10-21T18:13:33+00:00",
+          "censored": false,
+          "seconds": 1.31
         }
       ]
     },
