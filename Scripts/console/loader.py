@@ -61,17 +61,6 @@ def parse_terminal(payload: Any, source: str) -> Terminal:
     return Terminal(kind=kind, path=path, equals=equals, schema=schema)
 
 
-def parse_expectation(payload: Any, source: str) -> Expectation | None:
-    if payload is None:
-        return None
-    if not isinstance(payload, dict):
-        raise LoadRefusal("C005", "expect must be an object", source)
-    path = payload.get("path")
-    if not isinstance(path, str):
-        raise LoadRefusal("C005", "expect needs a path", source)
-    return Expectation(path=path, equals=payload.get("equals"))
-
-
 def parse_unit(metadata: dict[str, Any], source: str) -> Unit:
     identifier = metadata.get("id")
     if not isinstance(identifier, str):

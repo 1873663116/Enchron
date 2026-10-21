@@ -7,7 +7,6 @@ from typing import Any
 CAPABILITIES = frozenset({"python", "mac", "xcode", "simulator", "device", "daemon"})
 TIERS = ("static", "build", "unit", "e2e")
 TIER_ORDER = {name: index for index, name in enumerate(TIERS)}
-LAYERS = (2, 3)
 
 
 class LoadRefusal(Exception):

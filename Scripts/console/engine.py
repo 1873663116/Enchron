@@ -20,7 +20,6 @@ from report import (
 from vocab import VERBS
 
 
-TARGET_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 
 
 def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -> Report:

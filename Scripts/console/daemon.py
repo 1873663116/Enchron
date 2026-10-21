@@ -22,7 +22,6 @@ SESSION_RECORD = ".console/session-{target}.json"
 from vocab import VERBS
 
 
-CHANNEL_SCRIPT = Path("Scripts/console/transport.py")
 IDLE_EXIT_SECONDS = 900.0
 START_DEADLINE_SECONDS = 15.0
 BUILD_PRODUCTS = Path(".scratch/build/Build/Products")
