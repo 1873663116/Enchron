@@ -217,8 +217,11 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
 def summarize(name: str, payload: dict[str, Any]) -> str:
     state = "passed" if payload["exitCode"] == 0 else "failed"
     line = f"{name} {state} in {payload['durationMs']} ms"
+    verb = "reused" if payload.get("reused") else "written"
     if payload.get("xctestrun"):
-        line += f", {len(payload['xctestrun'])} spec(s) written"
+        line += f", {len(payload['xctestrun'])} spec(s) {verb}"
+    elif payload.get("buildReused"):
+        line += ", build reused"
     return line
 
 
