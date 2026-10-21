@@ -15,6 +15,7 @@ import argparse
 import ast
 from dataclasses import dataclass
 from pathlib import Path
+import os
 import re
 import sys
 
@@ -155,21 +156,25 @@ def mentioners() -> dict[str, set[Path]]:
     if _MENTIONERS is not None:
         return _MENTIONERS
     found: dict[str, set[Path]] = {}
-    for candidate in REPOSITORY_ROOT.rglob("*"):
-        if not candidate.is_file():
-            continue
-        if candidate.suffix not in (".py", ".sh", ".zsh", ".md", ".yml", ".json"):
-            continue
-        parts = candidate.relative_to(REPOSITORY_ROOT).parts
-        if any(part.startswith(".") for part in parts):
-            if ".agents" not in parts and ".github" not in parts:
+    skip = {".git", ".build", ".swiftpm", "DerivedData", "node_modules", ".scratch", "TestEvidence"}
+    for directory, subdirectories, names in os.walk(REPOSITORY_ROOT):
+        subdirectories[:] = [name for name in subdirectories if name not in skip]
+        for name in names:
+            candidate = Path(directory) / name
+            if not candidate.is_file():
                 continue
-        try:
-            text = candidate.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        for token in MENTION.findall(text):
-            found.setdefault(token.rsplit("/", 1)[-1], set()).add(candidate)
+            if candidate.suffix not in (".py", ".sh", ".zsh", ".md", ".yml", ".json"):
+                continue
+            parts = candidate.relative_to(REPOSITORY_ROOT).parts
+            if any(part.startswith(".") for part in parts):
+                if ".agents" not in parts and ".github" not in parts:
+                    continue
+            try:
+                text = candidate.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            for token in MENTION.findall(text):
+                found.setdefault(token.rsplit("/", 1)[-1], set()).add(candidate)
     _MENTIONERS = found
     return found
 
