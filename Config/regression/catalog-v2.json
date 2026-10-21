@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:3b317e60fa411af62720646e3300e5b638b0e7a545a4e3e28cb30a911b24787c",
+  "contentDigest": "sha256:6801b2821d59c8801f1c681b363eb87ea51e2dd0c904366ed6d0f247579cfea7",
   "copyDocuments": [
     {
       "digest": "sha256:26774c4d658658d5141afd7cfcdaed01ce2244a2b5462bd2b3c860254b01917e",
@@ -1025,64 +1025,7 @@
       "title": "Prepare webdav test source"
     }
   ],
-  "promises": [
-    {
-      "feature": "format-support",
-      "featureTitle": "Format support",
-      "id": "promise:format-support:c01",
-      "statement": "Unsupported codecs and unavailable decoders are identified before playback and produce typed, codec-specific guidance.",
-      "title": "Unsupported codec guidance"
-    },
-    {
-      "feature": "issue-surface",
-      "featureTitle": "Issue surface",
-      "id": "promise:issue-surface:c01",
-      "statement": "Every issue category has fixed title, actions, placement, and interruption policy; one visible slot is replaced by the newest issue.",
-      "title": "Typed single-slot issues"
-    },
-    {
-      "feature": "library-management",
-      "featureTitle": "Library management",
-      "id": "promise:library-management:c01",
-      "statement": "Library folders use the reviewed naming and uniqueness rules.",
-      "title": "Folder naming"
-    },
-    {
-      "feature": "library-management",
-      "featureTitle": "Library management",
-      "id": "promise:library-management:c02",
-      "statement": "Deleting a folder removes its hierarchy, rehomes contained media references to its parent, and leaves source files untouched.",
-      "title": "Folder deletion rehomes references"
-    },
-    {
-      "feature": "library-management",
-      "featureTitle": "Library management",
-      "id": "promise:library-management:c03",
-      "statement": "Media references can move between library folders without modifying source files.",
-      "title": "Move references"
-    },
-    {
-      "feature": "library-management",
-      "featureTitle": "Library management",
-      "id": "promise:library-management:c04",
-      "statement": "Batch deletion requires confirmation and removes only the selected library references.",
-      "title": "Confirmed batch deletion"
-    },
-    {
-      "feature": "library-management",
-      "featureTitle": "Library management",
-      "id": "promise:library-management:c05",
-      "statement": "Search results and counts are scoped to the current library folder.",
-      "title": "Current-folder search and counts"
-    },
-    {
-      "feature": "playback-queue",
-      "featureTitle": "Playback queue",
-      "id": "promise:playback-queue:c01",
-      "statement": "The ended-state Play Next affordance continues from the stored position according to the queue action without an Ask Every Time resume prompt; reaching end of media never launches the next item by itself.",
-      "title": "Ended Play Next resume policy"
-    }
-  ],
+  "promises": [],
   "rubrics": [
     {
       "criteria": [
