@@ -901,7 +901,8 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
             local_path=command_path,
             remote_path=f"{CHANNEL_ROOT}/command.json",
         )
-        wake_runner(arguments)
+        if not ready.get("commandPollMillis"):
+            wake_runner(arguments)
         arrived = wait_for_response(
             arguments=arguments,
             command_id=command_id,

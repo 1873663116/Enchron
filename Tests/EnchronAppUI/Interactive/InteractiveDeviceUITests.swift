@@ -47,6 +47,7 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
 
 @MainActor
 private final class InteractiveDeviceUIChannel {
+    private static let commandPollInterval: TimeInterval = 0.02
     private static let commandNotification =
         "com.enchron.interactive-device-ui.command"
     private static let responseNotificationPrefix =
@@ -95,6 +96,7 @@ private final class InteractiveDeviceUIChannel {
     func publishReadyState() throws {
         let ready = InteractiveDeviceUIReadyState(
             sessionID: sessionID,
+            commandPollMillis: Int(Self.commandPollInterval * 1000),
             commandNotification: Self.commandNotification,
             responseNotificationPrefix: Self.responseNotificationPrefix,
             appState: appStateDescription
@@ -103,8 +105,13 @@ private final class InteractiveDeviceUIChannel {
     }
 
     func waitForCommand(within maximumIdleInterval: TimeInterval) async -> Bool {
-        if fileManager.fileExists(atPath: commandURL.path) { return true }
-        return await signal.wait(within: maximumIdleInterval)
+        let deadline = Date().addingTimeInterval(maximumIdleInterval)
+        while Date() < deadline {
+            if fileManager.fileExists(atPath: commandURL.path) { return true }
+            let slice = min(Self.commandPollInterval, deadline.timeIntervalSinceNow)
+            if slice > 0, await signal.wait(within: slice) { return true }
+        }
+        return fileManager.fileExists(atPath: commandURL.path)
     }
 
     func consumeCommandIfPresent() throws -> InteractiveDeviceUICommand? {
@@ -809,6 +816,7 @@ private final class InteractiveDeviceUIChannel {
 
 private struct InteractiveDeviceUIReadyState: Codable {
     let sessionID: String
+    let commandPollMillis: Int?
     let commandNotification: String
     let responseNotificationPrefix: String
     let appState: String
