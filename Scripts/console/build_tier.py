@@ -83,6 +83,8 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
             f"id={target}",
             "-derivedDataPath",
             str(DERIVED_DATA / "DomainTests"),
+            "-collect-test-diagnostics",
+            "never",
         ],
         root,
         evidence_root,
