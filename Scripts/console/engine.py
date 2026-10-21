@@ -314,22 +314,3 @@ def _device_target() -> str | None:
             if device.get("state") == "Booted":
                 return str(device.get("udid"))
     return None
-
-
-def _device_target(root: Path) -> str | None:
-    booted = subprocess.run(
-        ["xcrun", "simctl", "list", "devices", "booted", "-j"],
-        capture_output=True,
-        text=True,
-    )
-    if booted.returncode != 0:
-        return None
-    try:
-        listing = json.loads(booted.stdout)
-    except json.JSONDecodeError:
-        return None
-    for runtime in listing.get("devices", {}).values():
-        for device in runtime:
-            if device.get("state") == "Booted":
-                return str(device.get("udid"))
-    return None
