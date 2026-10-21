@@ -174,32 +174,28 @@ def _tier(root: Path, arguments, profile) -> int:
     elif arguments.name == "unit":
         payload = build_tier.run_unit(root, profile.target, tier_evidence)
     else:
-        message = f"tier {arguments.name} runs one unit at a time through console run"
-        if arguments.as_json:
-            print(json.dumps({"ok": False, "tier": arguments.name, "message": message}, indent=1))
-        else:
-            print(message, file=sys.stderr)
-        return EXIT_USAGE
+        import types
+        import loader as loader_module
+
+        codes: list[tuple[str, int]] = []
+        for identifier in sorted(loader_module.load_units(root)):
+            per_unit = types.SimpleNamespace(
+                unit=identifier,
+                tier="e2e",
+                as_json=False,
+                timeout_scale=1.0,
+            )
+            codes.append((identifier, _run(root, per_unit, profile)))
+        failed = [name for name, code in codes if code != 0]
+        print(f"e2e {len(codes) - len(failed)}/{len(codes)} unit(s) passed")
+        for name in failed:
+            print(f"  failed {name}", file=sys.stderr)
+        return EXIT_OK if codes and not failed else EXIT_TERMINAL
     if arguments.as_json:
         print(json.dumps(payload, indent=1))
     else:
         print(build_tier.summarize(arguments.name, payload))
     return build_tier.exit_of(payload)
-    required = compiler_module.TIER_CAPABILITIES[arguments.name]
-    absent = sorted(required - profile.capabilities)
-    if absent:
-        message = f"tier {arguments.name} needs {', '.join(absent)}"
-        if arguments.as_json:
-            print(json.dumps({"ok": False, "tier": arguments.name, "missing": absent}, indent=1))
-        else:
-            print(message, file=sys.stderr)
-        return EXIT_CAPABILITY
-    message = f"tier {arguments.name} has no runner in this build"
-    if arguments.as_json:
-        print(json.dumps({"ok": False, "tier": arguments.name, "message": message}, indent=1))
-    else:
-        print(message, file=sys.stderr)
-    return EXIT_ENGINE
 
 
 def _doctor(profile, as_json: bool) -> int:
