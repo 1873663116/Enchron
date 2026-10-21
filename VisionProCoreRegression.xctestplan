@@ -12,6 +12,14 @@
   "defaultOptions" : {
     "environmentVariableEntries" : [
       {
+        "key" : "OS_ACTIVITY_MODE",
+        "value" : "disable"
+      },
+      {
+        "key" : "BD_DEBUG_MASK",
+        "value" : "0"
+      },
+      {
         "key" : "ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS",
         "value" : "$(ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS)"
       }
