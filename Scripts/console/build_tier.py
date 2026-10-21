@@ -46,7 +46,28 @@ def _run(command: list[str], root: Path, evidence_root: Path, name: str) -> dict
     return payload
 
 
+BUILD_GATE_STAMP = Path(".scratch/console/build-gate.json")
+
+
 def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
+    products = root / DERIVED_DATA / "Build" / "Products"
+    fingerprint = unit_build_fingerprint(root)
+    stamp = root / BUILD_GATE_STAMP
+    specs_present = bool(sorted(products.glob("*.xctestrun")))
+    if specs_present and stamp.exists():
+        try:
+            if json.loads(stamp.read_text(encoding="utf-8")).get("fingerprint") == fingerprint:
+                payload = {
+                    "exitCode": EXIT_OK,
+                    "durationMs": 0,
+                    "log": None,
+                    "reused": True,
+                }
+                payload["xctestrun"] = [path.name for path in sorted(products.glob("*.xctestrun"))]
+                write_json(evidence_root / "build.json", payload)
+                return payload
+        except (OSError, json.JSONDecodeError):
+            pass
     payload = _run(
         [
             "xcodebuild",
@@ -65,8 +86,11 @@ def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
         evidence_root,
         "build",
     )
-    specs = sorted((root / DERIVED_DATA / "Build" / "Products").glob("*.xctestrun"))
+    specs = sorted(products.glob("*.xctestrun"))
     payload["xctestrun"] = [path.name for path in specs]
+    if payload["exitCode"] == EXIT_OK:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(json.dumps({"fingerprint": fingerprint}), encoding="utf-8")
     write_json(evidence_root / "build.json", payload)
     return payload
 
