@@ -4489,7 +4489,13 @@ class ResidentOperationBackend:
         return result
 
     def _accessibility_inspect_2(self, arguments, context):
-        command = ["--identifier", str(arguments["identifier"]), "--index", str(arguments.get("index", 0))]
+        command = [
+            "--identifier",
+            str(arguments["identifier"]),
+            "--index",
+            str(arguments.get("index", 0)),
+            "--no-screenshot",
+        ]
         summon: dict[str, object] | None = None
         if arguments.get("summonControls") is True:
             summon = self._app_command(context, "toggleControls", "visible=true")
