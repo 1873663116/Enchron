@@ -47,8 +47,11 @@
 ## 命令通道的唤醒
 
 - **runner 在自己的 ready 状态里声明轮询粒度，控制端据此决定要不要发 Darwin 通知**。`commandPollMillis` 由 `Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift` 的 `publishReadyState` 写出，取 `commandPollInterval` 的毫秒值（20）。`Scripts/console/transport.py` 读到该字段就不调 `wake_runner`，把命令文件写进去后直接等应答；读不到才发通知。旧 runner 不声明这个字段，因此仍然走通知，两端不会失配。
-- **跳过通知的代价是每次动作多等最多一个轮询周期**。模拟器上实测快照从 923 至 951 毫秒降到 652 至 685 毫秒，省下的正是 `xcrun simctl spawn <udid> notifyutil -p` 那一次进程创建（约 240 毫秒）。轮询本身每 20 毫秒一次 `fileExists`，开销低于一次通知。
+- **跳过通知的代价是每次动作多等最多一个轮询周期**。省下的正是 `xcrun simctl spawn <udid> notifyutil -p` 那一次进程创建，约 240 毫秒。轮询本身每 20 毫秒一次 `fileExists`，开销低于一次通知。
+- **通道的一次快照在模拟器上约 330 毫秒，其中可及性工作本身约 260 毫秒**。其余是进程表、容器路径与应答轮询，三者都已压到很小：曾占大头的是 `xcrun simctl get_app_container`（每次约 111 毫秒）与整张进程表（每次约 46 毫秒），两者每条命令各要花一到两次。
 - **轮询在两条 lane 上都成立，因为轮询发生在 runner 自己的容器里**。`simctl` 与 `devicectl` 的分支只影响命令文件的搬运气道，不影响 runner 看自己目录的开销。通知因此保留给不声明 `commandPollMillis` 的 runner，不是给真机留的例外。
+
+- **容器路径与进程表按时间窗复用，不能每次命令都查**。`simulator_container` 的结果按设备与包标识符缓存，命中前校验目录仍在，重装后自动重新解析；`scoped_processes` 按 1 秒窗口缓存，容器路径按 5 秒窗口复核。这两次查询分别是约 111 毫秒与约 46 毫秒，而它们决定的状态在秒级尺度上不会变。
 
 ## XCUITest 与 visionOS 的场景
 
