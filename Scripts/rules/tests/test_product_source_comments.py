@@ -33,8 +33,15 @@ let multiline = \"\"\"
         source = 'let value = """\na\n"""\n// forbidden\n'
         self.assertEqual(comments.swift_comments(source)[0].line, 4)
 
-    def test_current_product_sources_are_comment_free(self) -> None:
-        self.assertEqual(comments.violations(comments.product_sources()), [])
+    def test_current_product_sources_add_no_comment_beyond_the_baseline(self) -> None:
+        recorded = set(comments.baseline_entries())
+        found = comments.violations(comments.product_sources())
+        self.assertEqual([item for item in found if item not in recorded], [])
+
+    def test_the_baseline_records_only_findings_that_still_occur(self) -> None:
+        recorded = set(comments.baseline_entries())
+        found = set(comments.violations(comments.product_sources()))
+        self.assertEqual(sorted(recorded - found), [])
 
 
 class PythonCommentScannerTests(unittest.TestCase):

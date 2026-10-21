@@ -5,7 +5,9 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 # Test infrastructure
 
-`Scripts/console/cli.py` is the single entry for verification.
+`Scripts/console/cli.py` is the single entry for verification. Nothing else starts a session, drives a device, or runs a checker.
+
+`Scripts/console/transport.py` speaks the runner protocol: it writes the command, posts the Darwin notification, and reads the response. `Scripts/console/daemon.py` owns session launch and holds the session between calls.
 
 ## Four tiers
 
@@ -43,9 +45,9 @@ The command channel has no cross-process lock. Two concurrent writers corrupt ea
 
 ## Three concepts
 
-A **feature map** is one complete verification, made of units in order. It lives in `Regression/features/`.
+A **feature map** is one complete verification, made of units in order. It lives in `Config/console/features/`.
 
-A **unit** is an ordered group of actions and the smallest thing you run. It lives in `Regression/units/`.
+A **unit** is an ordered group of actions and the smallest thing you run. It lives in `Config/console/units/`.
 
 An **operation** is one interface interaction. Atomic actions only.
 

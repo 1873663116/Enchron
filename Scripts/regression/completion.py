@@ -43,7 +43,7 @@ from regression.execution_identity import (
 )
 from regression.materialize_catalog_v2 import materialize
 from regression.review_stage import _semantic_authority
-from regression.runctl import (
+from regression.execution_plan import (
     _view_payload,
     compile_execution_plan,
     load_current_reviewed_catalog,

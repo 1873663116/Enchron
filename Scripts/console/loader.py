@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+DEFINITION_ROOT = "Config/console"
+
 from model import Expectation, LoadRefusal, Terminal, Unit
 
 
@@ -105,7 +107,7 @@ def load_unit(path: Path) -> Unit:
 
 
 def unit_paths(root: Path) -> tuple[Path, ...]:
-    directory = root / "Regression" / "units"
+    directory = root / DEFINITION_ROOT / "units"
     if not directory.is_dir():
         return ()
     return tuple(sorted(directory.glob("*.md")))
@@ -126,7 +128,7 @@ def load_units(root: Path) -> dict[str, Unit]:
 
 
 def load_feature_references(root: Path) -> dict[str, set[str]]:
-    directory = root / "Regression" / "features"
+    directory = root / DEFINITION_ROOT / "features"
     references: dict[str, set[str]] = {}
     if not directory.is_dir():
         return references

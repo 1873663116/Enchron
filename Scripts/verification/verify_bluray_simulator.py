@@ -22,7 +22,7 @@ if str(ROOT / "Scripts") not in sys.path:
 from Scripts.regression.core.contracts import BoundLane
 from Scripts.regression.core.plan import ScenarioAttemptNode
 from Scripts.regression.core.runtime import open_run
-from Scripts.regression.runctl import compile_execution_plan
+from Scripts.regression.execution_plan import compile_execution_plan
 from Scripts.regression.tools import server as regression_server
 from Scripts.regression.tools.pixel_heuristics import all_black
 from Scripts.regression.tools.raster import decode_png

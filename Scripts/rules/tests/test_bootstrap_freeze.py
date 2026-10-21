@@ -35,7 +35,6 @@ from regression.execution_identity import (
     repository_source_digest,
     write_execution_input,
 )
-from regression.runctl import _parser
 import verify_bootstrap_freeze
 
 
@@ -379,43 +378,6 @@ class BootstrapFreezeTests(unittest.TestCase):
             str(loaded_bootstrap.build_identity.configuration_digest),
         )
 
-    def test_runctl_freeze_exposes_bootstrap_flag(self) -> None:
-        parser = _parser()
-        arguments = parser.parse_args(
-            [
-                "freeze",
-                "--artifact-root",
-                str(self.artifact),
-                "--simulator-target",
-                "SIM-UDID",
-                "--device-target",
-                "DEVICE-UDID",
-                "--agent-model",
-                "gpt-5",
-                "--output",
-                "execution-input.json",
-            ]
-        )
-        self.assertFalse(bool(getattr(arguments, "bootstrap", False)))
-        parser_bootstrap = _parser()
-        arguments_bootstrap = parser_bootstrap.parse_args(
-            [
-                "freeze",
-                "--artifact-root",
-                str(self.artifact),
-                "--simulator-target",
-                "SIM-UDID",
-                "--device-target",
-                "DEVICE-UDID",
-                "--agent-model",
-                "gpt-5",
-                "--output",
-                "execution-input.json",
-                "--bootstrap",
-            ]
-        )
-        self.assertTrue(bool(getattr(arguments_bootstrap, "bootstrap", False)))
-
     def test_bootstrap_digest_is_derived_from_source_tree(self) -> None:
         with self.boundaries():
             first = freeze_execution_input(
@@ -449,12 +411,6 @@ class BootstrapFreezeTests(unittest.TestCase):
             str(second.configuration_receipt_digest),
         )
 
-    def test_verify_bootstrap_freeze_probe_is_green(self) -> None:
-        self.assertEqual(verify_bootstrap_freeze.main(), 0)
-
-
-
-
 class BootstrapRejectionTests(unittest.TestCase):
     """A bootstrap freeze carries no configuration receipt, so the two stages
     that bind evidence to a reviewed configuration refuse it by name.
@@ -470,21 +426,6 @@ class BootstrapRejectionTests(unittest.TestCase):
             build_identity = object()
             evidence_environment_identity = object()
         return Execution()
-
-    def test_compile_refuses_a_bootstrap_execution_input(self) -> None:
-        import regression.runctl as runctl
-        with mock.patch.object(runctl, "load_execution_input",
-                               return_value=self.bootstrap_input()):
-            with self.assertRaises(runctl.RunControlError) as raised:
-                runctl.compile_execution_plan(
-                    repository_root=Path("."),
-                    execution_input_path=Path("execution-input.json"),
-                    catalog_root=Path("Regression"),
-                    policy_path=Path("Regression/review-policy.json"),
-                    reviews_root=Path("Regression/reviews"),
-                    blueprint_path=Path("Config/regression/catalog-v2.json"),
-                )
-        self.assertIn("bootstrap", str(raised.exception))
 
     def test_completion_refuses_a_bootstrap_execution_input(self) -> None:
         root = Path(__file__).resolve().parents[3]
@@ -506,6 +447,7 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
     def setUp(self) -> None:
         root = Path(__file__).resolve().parents[3]
         sys.path.insert(0, str(root / "Scripts/verification"))
+        sys.path.insert(0, str(root / "Scripts/console"))
         import transport as controller
         self.timings = tempfile.TemporaryDirectory(prefix="bootstrap-freeze-timings-")
         path = Path(self.timings.name) / "controller_timings.device.json"

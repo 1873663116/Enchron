@@ -20,14 +20,14 @@ def run_console(*arguments: str) -> subprocess.CompletedProcess:
 
 
 def write_unit(root: Path, name: str, metadata: dict) -> None:
-    units = root / "Regression" / "units"
+    units = root / "Config" / "console" / "units"
     units.mkdir(parents=True, exist_ok=True)
     body = json.dumps(metadata, indent=1)
     (units / f"{name}.md").write_text(f"---\n{body}\n---\n", encoding="utf-8")
 
 
 def write_feature(root: Path, name: str, units: list[str]) -> None:
-    features = root / "Regression" / "features"
+    features = root / "Config" / "console" / "features"
     features.mkdir(parents=True, exist_ok=True)
     body = json.dumps({"id": f"feature:{name}", "units": units}, indent=1)
     (features / f"{name}.md").write_text(f"---\n{body}\n---\n", encoding="utf-8")
