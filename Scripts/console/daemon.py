@@ -191,6 +191,7 @@ class Server:
         self.lock = threading.Lock()
         self.channel = Channel(root, target)
         self.started = time.time()
+        self.last_request = self.started
 
     def serve(self) -> None:
         path = socket_path(self.root)
@@ -217,14 +218,16 @@ class Server:
 
     def _accept(self, server: socket.socket) -> None:
         while True:
-            if time.time() - self.started > IDLE_EXIT_SECONDS:
+            if time.time() - self.last_request > IDLE_EXIT_SECONDS:
                 return
             try:
                 connection, _ = server.accept()
             except TimeoutError:
                 continue
+            self.last_request = time.time()
             with connection:
                 self._serve_one(connection)
+            self.last_request = time.time()
 
     def _serve_one(self, connection: socket.socket) -> None:
         buffer = b""
