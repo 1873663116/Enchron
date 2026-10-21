@@ -2,14 +2,6 @@ import CryptoKit
 import Foundation
 import MoonlightBridge
 
-// Control-plane experiments against a real host. Every verb drives the
-// MoonlightBridge control stack that MoonlightClient ships.
-//
-// verbs:
-//   serverinfo --host <addr:port> [--work-dir DIR] [--no-tls]
-//   applist    --host <addr:port> [--work-dir DIR]
-//   pair       --host <addr:port> --pin <4digits> [--work-dir DIR] [--webui-user U --webui-password P]
-//   quitapp    --host <addr:port> --app <appid> [--work-dir DIR]
 
 let defaultWorkDir = "/tmp/mlc-control-probe"
 let defaultWebUIPort = 47990

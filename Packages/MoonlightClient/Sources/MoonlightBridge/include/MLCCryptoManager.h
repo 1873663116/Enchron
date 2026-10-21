@@ -1,7 +1,3 @@
-//
-//  MLCCryptoManager.h
-//  Adapted from moonlight-ios Limelight/Crypto/CryptoManager.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 
@@ -10,8 +6,6 @@
 
 @interface MLCCryptoManager : NSObject
 
-// Directory holding client.crt, client.key and client.p12.
-// Defaults to MoonlightClient under NSDocumentDirectory.
 + (void)setStorageDirectory:(NSString*)dir;
 + (NSString*)storageDirectory;
 

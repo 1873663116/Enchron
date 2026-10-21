@@ -93,16 +93,6 @@ generateDerivative() {
     "ffmpegVersion=$actualFFmpegVersion"
 }
 
-# The audio-only regression set is built from upstream FATE clips, and the
-# longest of them runs 11.9 s. secondary-menu-pins-audio-controls has to open a
-# secondary menu, wait out an 8 s controls auto-hide window and then read the
-# control plane, which is three controller round trips away from the tap, so no
-# FATE clip can still be Playing when the reading is taken. This derivative is
-# the audio-only asset that outlasts that window. It carries no video stream at
-# all -- not even an attached picture -- because PlaybackFFmpegBridge assigns a
-# stream's category from codec_type alone and never reads its disposition, so a
-# cover-art picture is admitted as video and MediaSourceInformation reports
-# mediaKind video for the file that carries one.
 generateAudioDerivative() {
   local relativeOutput="$1"
   local sourceFilter="$2"

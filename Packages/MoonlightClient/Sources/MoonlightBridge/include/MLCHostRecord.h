@@ -1,8 +1,3 @@
-//
-//  MLCHostRecord.h
-//  Adapted from moonlight-ios Limelight/Database/TemporaryHost.h at 02dc9780.
-//  CoreData is replaced by a plain in-memory record.
-//
 
 #import <Foundation/Foundation.h>
 #import "MLCAppRecord.h"

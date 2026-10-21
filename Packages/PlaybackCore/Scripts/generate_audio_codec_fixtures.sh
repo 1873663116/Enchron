@@ -12,8 +12,6 @@ fixture_tmp=$(mktemp -d /tmp/enchron-audio-fixtures.XXXXXX)
 trap 'rm -r "$fixture_tmp"' EXIT
 mkdir -p "$output_dir"
 
-# Four HE-AAC output packets are enough to cover encoder priming and expose
-# stable packet duration without turning structural fixtures into listening tests.
 "$ffmpeg_bin" -v error \
   -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
   -filter_complex '[0:a]pan=stereo|c0=c0|c1=c0[a]' \

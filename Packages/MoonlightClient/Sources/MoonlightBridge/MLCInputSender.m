@@ -1,7 +1,3 @@
-//
-//  MLCInputSender.m
-//  Thin wrappers over the moonlight-common-c input API.
-//
 
 #import "MLCInputSender.h"
 #import "MLCKeyboardMap.h"
@@ -9,8 +5,6 @@
 
 #include <Limelight.h>
 
-// moonlight-ios marks every key it sends with the extended-key bit; Sunshine
-// reads bit 15 of the key code as the extended-scancode selector.
 #define MLC_INPUT_EXTENDED_KEY_BIT 0x8000
 
 static NSLock* pressedStateLock;

@@ -4,53 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-import argparse
 import io
 import json
+import os
+import re
 import sys
 import tokenize
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-BASELINE = REPOSITORY_ROOT / "Config/product_source_comments_baseline.json"
-SWIFT_ROOTS = (
-    REPOSITORY_ROOT / "Apps/Enchron",
-    REPOSITORY_ROOT / "Modules",
-    REPOSITORY_ROOT / "Packages/PlaybackCore/Sources",
-    REPOSITORY_ROOT / "Packages/PlaybackCore/Tests",
-    REPOSITORY_ROOT / "Packages/EnvironmentSceneContract/Sources",
-    REPOSITORY_ROOT / "Packages/OceanEnvironment/Sources",
-    REPOSITORY_ROOT / "Packages/QuietRoomEnvironment/Sources",
-    REPOSITORY_ROOT / "Tests",
-)
-SWIFT_MANIFESTS = (
-    REPOSITORY_ROOT / "Package.swift",
-    REPOSITORY_ROOT / "Packages/PlaybackCore/Package.swift",
-    REPOSITORY_ROOT / "Packages/EnvironmentSceneContract/Package.swift",
-    REPOSITORY_ROOT / "Packages/OceanEnvironment/Package.swift",
-    REPOSITORY_ROOT / "Packages/QuietRoomEnvironment/Package.swift",
-    REPOSITORY_ROOT / "Tests/MediaByteStreamConformance/Package.swift",
-)
-C_ROOTS = (
-    REPOSITORY_ROOT / "Packages/PlaybackCore/Sources",
-    REPOSITORY_ROOT / "Scripts/verification",
-)
-PYTHON_ROOTS = (
-    REPOSITORY_ROOT / "Scripts",
-    REPOSITORY_ROOT / ".claude/hooks",
-)
-EXCLUDED_SEGMENTS = frozenset(
-    {
-        "Vendor",
-        "ffmpeg-headers",
-        ".build",
-        ".scratch",
-        ".git",
-        "DerivedData",
-        "SourcePackages",
-        "checkouts",
-    }
-)
 TOOLS_VERSION = "// swift-tools-version"
 
 
@@ -169,44 +131,69 @@ def python_comments(source: str) -> tuple[Comment, ...]:
     return tuple(comments)
 
 
-def owned(path: Path) -> bool:
-    if not path.is_file():
-        return False
-    return not EXCLUDED_SEGMENTS.intersection(path.relative_to(REPOSITORY_ROOT).parts)
+GENERATED_PREFIXES = (
+    ".scratch/",
+    "TestEvidence/",
+    "Config/regression/catalog-root/",
+)
+GENERATED_FILES = frozenset({"Config/regression/catalog-v2.json"})
+GENERATED_SEGMENTS = frozenset({".build", ".swiftpm", "DerivedData"})
+MACHINE_MANAGED_SUFFIXES = frozenset({".pbxproj"})
+SCANNED_SUFFIXES = frozenset(
+    {".swift", ".py", ".c", ".h", ".m", ".mm", ".sh", ".yml", ".yaml", ".plist", ".json"}
+)
+THIRD_PARTY_REGISTRY = REPOSITORY_ROOT / "Config/third_party_sources.json"
 
 
-def product_sources() -> tuple[Path, ...]:
-    found = {
-        path
-        for root in SWIFT_ROOTS
-        for path in root.rglob("*.swift")
-        if owned(path)
+def third_party_prefixes() -> tuple[str, ...]:
+    if not THIRD_PARTY_REGISTRY.is_file():
+        return ()
+    recorded = json.loads(THIRD_PARTY_REGISTRY.read_text(encoding="utf-8"))
+    return tuple(recorded.get("paths", ()))
+
+
+PRUNED_DIRECTORIES = frozenset(
+    {
+        ".git",
+        ".build",
+        ".swiftpm",
+        "DerivedData",
+        "node_modules",
+        ".scratch",
+        "TestEvidence",
+        "SourcePackages",
+        "checkouts",
     }
-    found.update(path for path in SWIFT_MANIFESTS if owned(path))
-    return tuple(sorted(found))
+)
 
 
-def bridge_sources() -> tuple[Path, ...]:
-    return tuple(
-        sorted(
-            path
-            for root in C_ROOTS
-            for suffix in ("*.c", "*.h", "*.m", "*.mm")
-            for path in root.rglob(suffix)
-            if owned(path)
-        )
-    )
-
-
-def script_sources() -> tuple[Path, ...]:
-    return tuple(
-        sorted(
-            path
-            for root in PYTHON_ROOTS
-            for path in root.rglob("*.py")
-            if owned(path)
-        )
-    )
+def first_party_files() -> tuple[Path, ...]:
+    prefixes = third_party_prefixes()
+    selected: list[Path] = []
+    for directory, subdirectories, names in os.walk(REPOSITORY_ROOT):
+        subdirectories[:] = [
+            name for name in subdirectories if name not in PRUNED_DIRECTORIES
+        ]
+        for name in names:
+            path = Path(directory) / name
+            relative = path.relative_to(REPOSITORY_ROOT).as_posix()
+            if relative in GENERATED_FILES:
+                continue
+            if any(relative.startswith(prefix) for prefix in prefixes):
+                continue
+            if any(relative.startswith(prefix) for prefix in GENERATED_PREFIXES):
+                continue
+            parts = Path(relative).parts
+            if parts and parts[0] == "Packages" and "build" in parts:
+                continue
+            if path.suffix in MACHINE_MANAGED_SUFFIXES or path.suffix not in SCANNED_SUFFIXES:
+                continue
+            try:
+                path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, OSError):
+                continue
+            selected.append(path)
+    return tuple(sorted(selected))
 
 
 def c_comments(source: str) -> tuple[Comment, ...]:
@@ -256,12 +243,132 @@ def c_comments(source: str) -> tuple[Comment, ...]:
     return tuple(comments)
 
 
+def shell_comments(source: str) -> tuple[Comment, ...]:
+    comments: list[Comment] = []
+    quote = ""
+    escaped = False
+    depth = 0
+    for number, line in enumerate(source.splitlines(), start=1):
+        index = 0
+        while index < len(line):
+            character = line[index]
+            following = line[index + 1 : index + 2]
+            if escaped:
+                escaped = False
+            elif character == "\\" and quote != "'":
+                escaped = True
+            elif quote:
+                if character == quote:
+                    quote = ""
+            elif character in ("'", '"'):
+                quote = character
+            elif character == "$" and following == "{":
+                depth += 1
+                index += 1
+            elif character == "}" and depth:
+                depth -= 1
+            elif character == "#" and depth == 0:
+                if number == 1 and index == 0:
+                    break
+                if line[index - 1 : index] == "$":
+                    index += 1
+                    continue
+                comments.append(Comment(number, index + 1, "#"))
+                break
+            index += 1
+        quote = ""
+        escaped = False
+    return tuple(comments)
+
+
+def yaml_comments(source: str) -> tuple[Comment, ...]:
+    comments: list[Comment] = []
+    block_indent = -1
+    for number, line in enumerate(source.splitlines(), start=1):
+        stripped = line.lstrip()
+        indent = len(line) - len(stripped)
+        if block_indent >= 0:
+            if stripped and indent <= block_indent:
+                block_indent = -1
+            else:
+                continue
+        quote = ""
+        index = 0
+        while index < len(line):
+            character = line[index]
+            if quote:
+                if character == quote:
+                    quote = ""
+            elif character in ("'", '"'):
+                quote = character
+            elif character == "#" and (index == 0 or line[index - 1].isspace()):
+                comments.append(Comment(number, index + 1, "#"))
+                break
+            index += 1
+        if quote == "" and stripped.endswith(("|", ">", "|-", ">-", "|+", ">+")):
+            block_indent = indent
+    return tuple(comments)
+
+
+def xml_comments(source: str) -> tuple[Comment, ...]:
+    comments: list[Comment] = []
+    index = 0
+    while True:
+        start = source.find("<!--", index)
+        if start < 0:
+            break
+        line = source.count("\n", 0, start) + 1
+        column = start - source.rfind("\n", 0, start)
+        comments.append(Comment(line, column, "<!--"))
+        index = start + 4
+    return tuple(comments)
+
+
+def json_comments(source: str) -> tuple[Comment, ...]:
+    comments: list[Comment] = []
+    in_string = False
+    escaped = False
+    index = 0
+    line = 1
+    column = 1
+    while index < len(source):
+        character = source[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                in_string = False
+        elif character == '"':
+            in_string = True
+        elif character == "/" and source[index : index + 2] in ("//", "/*"):
+            comments.append(Comment(line, column, source[index : index + 2]))
+            break
+        if character == "\n":
+            line += 1
+            column = 1
+        else:
+            column += 1
+        index += 1
+    return tuple(comments)
+
+
 def comments_in(path: Path) -> tuple[Comment, ...]:
     source = path.read_text(encoding="utf-8")
-    if path.suffix == ".py":
+    suffix = path.suffix
+    if suffix == ".py":
         return python_comments(source)
-    if path.suffix in (".c", ".h", ".m", ".mm"):
+    if suffix in (".c", ".h", ".m", ".mm"):
         return c_comments(source)
+    if suffix == ".sh":
+        return shell_comments(source)
+    if suffix in (".yml", ".yaml"):
+        return yaml_comments(source)
+    if suffix == ".plist":
+        return xml_comments(source)
+    if suffix == ".json":
+        return json_comments(source)
     return swift_comments(source)
 
 
@@ -277,47 +384,26 @@ def violations(paths: tuple[Path, ...]) -> list[str]:
     return found
 
 
-def baseline_entries() -> list[str]:
-    if not BASELINE.is_file():
-        return []
-    return sorted(json.loads(BASELINE.read_text(encoding="utf-8")))
+LICENSE_HEADER = re.compile(
+    r"copyright\s*(\(c\)|©|\d{4})|SPDX-License-Identifier|Licensed under", re.IGNORECASE
+)
 
 
-def write_baseline(entries: list[str]) -> None:
-    BASELINE.write_text(
-        json.dumps(sorted(entries), indent=2) + "\n", encoding="utf-8"
-    )
+def unregistered_license_headers(paths: tuple[Path, ...]) -> list[str]:
+    found: list[str] = []
+    for path in paths:
+        head = "\n".join(path.read_text(encoding="utf-8").splitlines()[:15])
+        if LICENSE_HEADER.search(head):
+            relative = path.relative_to(REPOSITORY_ROOT)
+            found.append(f"{relative}: carries a license header outside the registry")
+    return found
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Reject prose comments in product sources.")
-    parser.add_argument(
-        "--write-baseline",
-        action="store_true",
-        help="record the findings that already exist so only new ones fail",
-    )
-    arguments = parser.parse_args()
-    swift = product_sources()
-    bridge = bridge_sources()
-    python = script_sources()
-    found = violations(swift + bridge + python)
-    recorded = baseline_entries()
-    if arguments.write_baseline:
-        grown = sorted(set(found)) if len(found) > len(recorded) else recorded
-        write_baseline(grown)
-        print(f"recorded {len(grown)} standing comment finding(s) as the baseline")
-        return 0
-    fresh = [item for item in found if item not in recorded]
-    resolved = [item for item in recorded if item not in found]
-    if resolved:
-        for violation in resolved:
-            print(
-                f"error: {violation} no longer occurs; shrink the baseline",
-                file=sys.stderr,
-            )
-        return 1
-    if fresh:
-        for violation in fresh:
+    paths = first_party_files()
+    found = violations(paths) + unregistered_license_headers(paths)
+    if found:
+        for violation in found:
             print(f"error: {violation}", file=sys.stderr)
         print(
             "Move external constraints to the owning constraints document, "
@@ -327,11 +413,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print(
-        f"{len(swift)} Swift files, {len(bridge)} C bridge and probe files and "
-        f"{len(python)} Python files carry no prose comments"
-        + (f" beyond {len(recorded)} recorded finding(s)" if recorded else "")
-    )
+    print(f"{len(paths)} first-party text files carry no prose comments")
     return 0
 
 

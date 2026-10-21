@@ -1,9 +1,5 @@
 name: verification-nightly
 
-# Both triggers are owner-controlled: a schedule runs only from the default
-# branch of this repository, and `workflow_dispatch` requires write access.
-# No pull request event reaches this workflow, which is what makes it safe to
-# put real credentials inside the checkout below.
 
 on:
   schedule:
@@ -14,8 +10,6 @@ concurrency:
   group: verification
   cancel-in-progress: false
 
-# The job reads the repository over HTTPS with the run's own token and calls no
-# other GitHub API, so read access to contents is the whole requirement.
 permissions:
   contents: read
 

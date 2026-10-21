@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Installs Enchron.app to a visionOS simulator and launches it.
-#
-# Refuses to install a bundle that carries no code signature. Simulator
-# builds are ad-hoc signed; a bundle built with CODE_SIGNING_ALLOWED=NO
-# (e.g. test artifacts) has no signature at all, loses its keychain
-# identity, and hits OSStatus -34018 on credential access.
-#
-# usage: install_to_simulator.sh [--check] [SIMULATOR_UDID] [APP_BUNDLE]
-#   --check   validate the signature only, do not install or launch.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODE="install"

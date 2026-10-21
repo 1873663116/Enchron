@@ -1,7 +1,3 @@
-//
-//  MLCConnection.m
-//  Adapted from moonlight-ios Limelight/Stream/Connection.{h,m} at 02dc9780.
-//
 
 #import "MLCConnection.h"
 #import "MLCLogger.h"
@@ -71,7 +67,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
     int ret;
     unsigned char* data = (unsigned char*) malloc(decodeUnit->fullLength);
     if (data == NULL) {
-        // A frame was lost due to OOM condition
         return DR_NEED_IDR;
     }
 
@@ -91,7 +86,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
         lastFrameNumber = decodeUnit->frameNumber;
     }
     else {
-        // Flip stats roughly every second
         if (now - currentVideoStats.startTime >= 1.0f) {
             currentVideoStats.endTime = now;
 
@@ -103,7 +97,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
             currentVideoStats.startTime = now;
         }
 
-        // Any frame number greater than m_LastFrameNumber + 1 represents a dropped frame
         currentVideoStats.networkDroppedFrames += decodeUnit->frameNumber - (lastFrameNumber + 1);
         currentVideoStats.totalFrames += decodeUnit->frameNumber - (lastFrameNumber + 1);
         lastFrameNumber = decodeUnit->frameNumber;
@@ -127,7 +120,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 
     PLENTRY entry = decodeUnit->bufferList;
     while (entry != NULL) {
-        // Submit parameter set NALUs directly since no copy is required by the decoder
         if (entry->bufferType != BUFFER_TYPE_PICDATA) {
             ret = [sampleBuilder submitDecodeBuffer:(unsigned char*)entry->data
                                              length:entry->length
@@ -146,7 +138,6 @@ int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
         entry = entry->next;
     }
 
-    // This function will take our picture data buffer
     return [sampleBuilder submitDecodeBuffer:data
                                       length:offset
                                   bufferType:BUFFER_TYPE_PICDATA
@@ -206,8 +197,6 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
 {
     int decodeLen;
 
-    // Don't decode if there's already more than 30 ms of audio data waiting
-    // in Moonlight's audio queue.
     if (LiGetPendingAudioDuration() > 30) {
         return;
     }
@@ -295,18 +284,11 @@ void ClSetHdrMode(bool enabled)
 
 - (void)terminate
 {
-    // Interrupt any action blocking LiStartConnection(). This is
-    // thread-safe and done outside initLock on purpose, since we
-    // won't be able to acquire it if LiStartConnection is in
-    // progress.
     LiInterruptConnection();
 
     pullThreadRunning = NO;
     LiWakeWaitForVideoFrame();
 
-    // We dispatch this async to get out because this can be invoked
-    // on a thread inside common and we don't want to deadlock. It also avoids
-    // blocking on the caller's thread waiting to acquire initLock.
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
         [initLock lock];
         LiStopConnection();
@@ -318,8 +300,6 @@ void ClSetHdrMode(bool enabled)
 {
     self = [super init];
 
-    // Use a lock to ensure that only one thread is initializing
-    // or deinitializing a connection at a time.
     if (initLock == nil) {
         initLock = [[NSLock alloc] init];
     }
@@ -374,7 +354,6 @@ void ClSetHdrMode(bool enabled)
 
     _streamConfig.encryptionFlags = ENCFLG_ALL;
 
-    // Detect remote streaming automatically based on the IP address of the target
     _streamConfig.streamingRemotely = STREAM_CFG_AUTO;
     _streamConfig.packetSize = 1392;
 
@@ -410,7 +389,6 @@ void ClSetHdrMode(bool enabled)
 
 - (BOOL)getVideoStats:(video_stats_t*)stats
 {
-    // We return lastVideoStats because it is a complete 1 second window
     [videoStatsLock lock];
     if (lastVideoStats.endTime != 0) {
         memcpy(stats, &lastVideoStats, sizeof(*stats));
@@ -418,7 +396,6 @@ void ClSetHdrMode(bool enabled)
         return YES;
     }
 
-    // No stats yet
     [videoStatsLock unlock];
     return NO;
 }

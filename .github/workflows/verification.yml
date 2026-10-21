@@ -1,21 +1,5 @@
 name: verification
 
-# The runner is self-hosted on the maintainer's Mac, so the trigger list is the
-# security boundary: `push` and `workflow_dispatch` can be fired only by an
-# account with write access to this repository. `pull_request` is deliberately
-# absent. A job-level `if:` comparing the head repository cannot substitute for
-# its absence, because for `pull_request` events GitHub Actions reads the
-# workflow definition from the pull request's own merge commit - a fork pull
-# request that deletes the condition runs on this machine anyway. The cost of
-# leaving `pull_request` out is that a pull request from a fork gets no CI; on
-# a solo-owner repository that is the cheaper side of the trade, and the owner
-# runs verification on any branch from the Actions tab on demand.
-#
-# Requiring approval before an outside contributor's workflow runs is a
-# repository setting, not part of this file, and nothing here can assert it.
-# The owner should confirm it under Settings > Actions > General > Fork pull
-# request workflows from outside collaborators, and treat it as a second layer
-# rather than as this boundary.
 
 on:
   push:
@@ -26,8 +10,6 @@ concurrency:
   group: verification
   cancel-in-progress: false
 
-# The job reads the repository over HTTPS with the run's own token and calls no
-# other GitHub API, so read access to contents is the whole requirement.
 permissions:
   contents: read
 

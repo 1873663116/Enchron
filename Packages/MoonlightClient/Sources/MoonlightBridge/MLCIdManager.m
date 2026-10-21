@@ -1,7 +1,3 @@
-//
-//  MLCIdManager.m
-//  Adapted from moonlight-ios Limelight/Crypto/IdManager.m at 02dc9780.
-//
 
 #import "MLCIdManager.h"
 #import "MLCLogger.h"

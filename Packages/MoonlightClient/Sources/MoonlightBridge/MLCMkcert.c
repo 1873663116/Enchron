@@ -1,7 +1,3 @@
-//
-//  MLCMkcert.c
-//  Adapted from moonlight-ios Limelight/Crypto/mkcert.c at 02dc9780.
-//
 
 #include "MLCMkcert.h"
 
@@ -27,7 +23,6 @@ void MLCMkcert(X509** x509p, EVP_PKEY** pkeyp, int bits, int serial, int years) 
     EVP_PKEY_keygen_init(ctx);
     EVP_PKEY_CTX_set_rsa_keygen_bits(ctx, bits);
 
-    // pk must be initialized on input
     EVP_PKEY* pk = NULL;
     EVP_PKEY_keygen(ctx, &pk);
 
@@ -80,11 +75,10 @@ struct MLCCertKeyPair MLCGenerateCertKeyPair(void) {
                         x509,
                         NULL,
                         NID_pbe_WithSHA1And3_Key_TripleDES_CBC,
-                        -1, // disable certificate encryption
+                        -1,
                         2048,
-                        -1, // disable the automatic MAC
+                        -1,
                         0);
-    // MAC it ourselves with SHA1 since iOS refuses to load anything else.
     PKCS12_set_mac(p12, pass, -1, NULL, 0, 1, EVP_sha1());
 
     if (p12 == NULL) {

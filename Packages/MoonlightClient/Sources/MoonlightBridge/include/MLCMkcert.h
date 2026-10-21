@@ -1,7 +1,3 @@
-//
-//  MLCMkcert.h
-//  Adapted from moonlight-ios Limelight/Crypto/mkcert.h at 02dc9780.
-//
 
 #ifndef MLC_MKCERT_H
 #define MLC_MKCERT_H

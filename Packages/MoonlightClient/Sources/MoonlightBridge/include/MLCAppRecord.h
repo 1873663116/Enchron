@@ -1,7 +1,3 @@
-//
-//  MLCAppRecord.h
-//  Adapted from moonlight-ios Limelight/Database/TemporaryApp.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 

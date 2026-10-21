@@ -1322,8 +1322,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func performSpatialPlaybackTransport(
         _ intent: SpatialPlaybackTransportIntent
     ) async throws {
-        // An externally driven session has no driver in the runtime: its own
-        // owner owns the transport, so intents reach it as a no-op.
         let holdsExternallyDrivenSession = externalVideoSessionID != nil
         guard activeSessionID == intent.mediaSessionID,
               rendererTransferCoordinator.hasActiveDriver
@@ -1412,8 +1410,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 || rendererTransferCoordinator.hasActiveDriver else {
             throw RuntimeError.mediaSessionChanged
         }
-        // An externally driven session paces its own samples, so there is nothing
-        // to resume here: its owner already plays it.
         if holdsExternallyDrivenSession || productLifecycle == .playing { return }
         guard productLifecycle == .paused || productLifecycle == .ready else {
             throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)

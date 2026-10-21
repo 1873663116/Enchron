@@ -195,7 +195,9 @@ The self-test suite runs in 0.43 s.
 
 The branch carries the console plus every `main` commit it was built against, and it merges into `main` with no conflicts. Re-check after a merge that both baselines still pass, because code arriving from `main` can bring findings the console has never seen.
 
-Two rules hold a baseline so a build can pass on a tree that already broke them. `Config/product_source_comments_baseline.json` records the standing comment findings; a new one fails and one that disappears also fails until the baseline shrinks. `Config/swiftlint_baseline.json` works the same way and refuses to widen.
+`Config/swiftlint_baseline.json` holds a baseline so a build can pass on a tree that already broke a rule; a new finding fails, and one that disappears also fails until the baseline shrinks.
+
+The prose comment rule holds no baseline. Every first-party text file is scanned: Swift, C, Python, shell, YAML, plist and JSON. Exemptions come only from `Config/third_party_sources.json`, which lists the vendored paths and the provenance of adapted files; a license header outside that registry fails.
 
 Neither baseline hides debt. Widening one is refused, so the only way to clear an entry is to fix the code.
 

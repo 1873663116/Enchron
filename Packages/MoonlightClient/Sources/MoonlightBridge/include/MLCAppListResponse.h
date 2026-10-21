@@ -1,7 +1,3 @@
-//
-//  MLCAppListResponse.h
-//  Adapted from moonlight-ios Limelight/Network/AppListResponse.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 #import "MLCHttpResponse.h"

@@ -1,7 +1,3 @@
-//
-//  MLCConnectionDelegate.h
-//  Adapted from moonlight-ios Limelight/Stream/ConnectionCallbacks.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 

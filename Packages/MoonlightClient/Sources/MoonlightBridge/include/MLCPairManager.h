@@ -1,7 +1,3 @@
-//
-//  MLCPairManager.h
-//  Adapted from moonlight-ios Limelight/Network/PairManager.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 #import "MLCHttpManager.h"

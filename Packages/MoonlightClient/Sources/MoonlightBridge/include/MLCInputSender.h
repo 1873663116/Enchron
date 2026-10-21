@@ -1,7 +1,3 @@
-//
-//  MLCInputSender.h
-//  Thin wrappers over the moonlight-common-c input API.
-//
 
 #import <Foundation/Foundation.h>
 
@@ -14,13 +10,10 @@ typedef NS_ENUM(int, MLCInputMouseButton) {
 @interface MLCInputSender : NSObject
 
 + (int)sendMouseMoveDeltaX:(short)deltaX deltaY:(short)deltaY;
-// x and y are fractions of referenceWidth/referenceHeight, which must be the
-// dimensions of the streaming surface the fraction was measured in.
 + (int)sendMousePositionNormalizedX:(float)x y:(float)y referenceWidth:(short)referenceWidth referenceHeight:(short)referenceHeight;
 + (int)sendMouseButton:(MLCInputMouseButton)button pressed:(BOOL)pressed;
 + (int)sendScrollVerticalClicks:(signed char)clicks;
 
-// modifierFlags are UIKeyModifierFlags raw values.
 + (int)sendKeyWithHIDUsage:(NSInteger)usage down:(BOOL)down modifierFlags:(NSInteger)modifierFlags;
 + (int)sendVirtualKey:(int)keyCode down:(BOOL)down modifiers:(char)modifiers;
 

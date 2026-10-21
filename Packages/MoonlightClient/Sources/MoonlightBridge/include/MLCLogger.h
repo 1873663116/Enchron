@@ -1,7 +1,3 @@
-//
-//  MLCLogger.h
-//  Adapted from moonlight-ios Limelight/Utility/Logger.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 

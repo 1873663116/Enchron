@@ -50,7 +50,6 @@ public final class MoonlightDiscovery: @unchecked Sendable {
             }
             browser.stateUpdateHandler = { state in
                 if case .failed = state {
-                    // The browser stays stopped; a later start() restarts it.
                 }
             }
             lock.withLock { self.browser = browser }

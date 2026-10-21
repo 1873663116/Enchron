@@ -1,7 +1,3 @@
-//
-//  MLCAppListResponse.m
-//  Adapted from moonlight-ios Limelight/Network/AppListResponse.m at 02dc9780.
-//
 
 #import "MLCAppListResponse.h"
 #import "MLCAppRecord.h"

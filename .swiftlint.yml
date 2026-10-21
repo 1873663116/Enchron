@@ -1,7 +1,4 @@
-# .swiftlint.yml — Enchron 架构守卫
-# 审计修正版：仅保留高确信度规则，避免误杀
 
-# ── 基础配置 ──────────────────────────────────
 included:
   - Apps
   - Modules
@@ -12,7 +9,6 @@ excluded:
   - Packages/PlaybackCore/.build
   - Tests/MediaByteStreamConformance/.build
 
-# ── 内置规则 ──────────────────────────────────
 opt_in_rules:
   - force_unwrapping
 
@@ -23,49 +19,38 @@ disabled_rules:
   - file_length
   - function_body_length
   - cyclomatic_complexity
-  # 以下四条是关于「多大算大」的意见，跟已被证伪的净行数指标同类：
-  # 它们无法给出「改成多少才对」的判据，只会长出豁免表。
   - type_name
   - function_parameter_count
   - nesting
   - large_tuple
-  # 闭包参数换行位置，纯排版且 --fix 修不掉，不值得让 CI 变红。
   - closure_parameter_position
 
-# 放宽内置规则，避免误报
 identifier_name:
-  min_length: 1             # 允许 h/m/s 等业界惯用单字母（时间格式化）
+  min_length: 1
   max_length: 80
-  allowed_symbols: ["_"]   # 允许下划线（如 speed0_5 枚举值）
-line_length: 200            # 可读性信号，不作为构建阻断条件
+  allowed_symbols: ["_"]
+line_length: 200
 
-# ── 自定义架构守卫 ────────────────────────────
 custom_rules:
 
-  # 所有模块的 Domain 层不得依赖 UI/渲染/网络框架
-  # 允许例外：Foundation, CoreVideo, Observation
   domain_no_ui_framework:
     regex: 'import\s+(UIKit|SwiftUI|RealityKit|Metal|MetalKit|AMSMB2|ARKit|RealityKitContent)'
     included: ".*/Domain/.*\\.swift"
     message: "Domain 层禁止直接 import UI/渲染/网络框架，请通过 protocol 隔离"
     severity: error
 
-  # Domain 层禁止 try!（隐藏崩溃风险）
   no_force_try_in_domain:
     regex: 'try!'
     included: ".*/Domain/.*\\.swift"
     message: "Domain 层禁止使用 try!，请用 do-catch 显式处理错误"
     severity: error
 
-  # 稳定组件库的动效必须走 DesignTokens.AnimationToken（挡裸动画曲线，
-  # 防止确认组件回归到一次性参数）。仅限组件库文件，不波及页面层约定。
   components_use_animation_tokens:
     regex: '\.(easeOut|easeIn|spring)\(|\.animation\(\.default'
     included: ".*/Components/.*\\.swift"
     message: "稳定组件动效须走 DesignTokens.AnimationToken，不要用裸 .easeOut/.spring/.default"
     severity: error
 
-  # 稳定组件库禁止硬编码颜色字面量，颜色须走 design tokens。
   components_no_hardcoded_color:
     regex: 'Color\(red:|Color\(hex:'
     included: ".*/Components/.*\\.swift"
