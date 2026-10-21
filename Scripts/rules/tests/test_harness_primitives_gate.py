@@ -77,8 +77,8 @@ class HarnessPrimitivesGateTests(unittest.TestCase):
         self.write("Scripts/verification/harness/internal.py", "import subprocess\n")
         self.assertEqual(checker.failures(), [])
 
-    def test_interactive_visionpro_ui_is_exempt(self) -> None:
-        self.write("Scripts/verification/interactive_visionpro_ui.py", "import subprocess\n")
+    def test_transport_is_exempt(self) -> None:
+        self.write("Scripts/console/transport.py", "import subprocess\n")
         self.assertEqual(checker.failures(), [])
 
     def test_enchron_target_is_exempt(self) -> None:

@@ -327,7 +327,7 @@ EMBY_IMPLEMENTATION_IDENTITIES = MappingProxyType(
         ),
         "interactive-command-controller": MappingProxyType(
             _implementation_binding(
-                REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
+                REPOSITORY_ROOT / "Scripts/console/transport.py"
             )
         ),
     }

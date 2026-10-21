@@ -2,7 +2,7 @@
 
 """Checks that every caller of the Vision Pro controller passes options it has.
 
-`interactive_visionpro_ui.py` is driven by building an argv list in another
+`transport.py` is driven by building an argv list in another
 script. argparse rejects an unknown option at parse time, so a caller left
 behind by a rename fails on its very first call and every call after it, with
 no signal that anything is structurally wrong. The run simply measures nothing.
@@ -25,7 +25,7 @@ import sys
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
-CONTROLLER = "Scripts/verification/interactive_visionpro_ui.py"
+CONTROLLER = "Scripts/console/transport.py"
 CALLER_ROOTS = ("Scripts",)
 
 
@@ -66,7 +66,7 @@ def _mentions_controller(node: ast.AST) -> bool:
         if isinstance(child, ast.Name) and child.id == "CONTROLLER":
             return True
         if isinstance(child, ast.Constant) and isinstance(child.value, str):
-            if child.value.endswith("interactive_visionpro_ui.py"):
+            if child.value.endswith("transport.py"):
                 return True
     return False
 
@@ -104,7 +104,7 @@ def failures() -> list[str]:
             except OSError as error:
                 found.append(f"{path}: {error}")
                 continue
-            if "interactive_visionpro_ui" not in caller:
+            if "transport" not in caller:
                 continue
             relative = path.relative_to(REPOSITORY_ROOT)
             for line, option in invocation_options(caller):

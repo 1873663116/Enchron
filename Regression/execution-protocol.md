@@ -16,8 +16,8 @@ Read [the vp-e2e skill](../.agents/skills/vp-e2e/SKILL.md) before execution. Use
 - [Simulator lane](../.agents/skills/vp-e2e/references/simulator.md) defines Simulator transport and Device Hub spatial input.
 - [Device lane](../.agents/skills/vp-e2e/references/device.md) defines device transport, capture limits, and authorization failures.
 - [Feature map](../.agents/skills/vp-e2e/features/README.md) routes product actions to the feature-specific drive and evidence sequence.
-- `Scripts/verification/interactive_visionpro_ui.py` owns the shared session, accessibility actions, application commands, snapshots, and capture output.
-- `Scripts/regression/tools/server.py` exposes the harness as MCP tools and runs one of them at a time under `--once`: `session` brings a device session up or takes it down, `op` runs one authorized Operation call, `bundle` assembles the anomaly bundle, `ledger` writes a verdict and reads the run, and `receipt` closes the run.
+- `Scripts/console/transport.py` owns the shared session, accessibility actions, application commands, snapshots, and capture output.
+- `Scripts/console/cli.py` is the single entry. `run`, `tier`, `plan` and `daemon` cover what the retired MCP surface and its CLI wrapper used to expose.
 - `Scripts/verification/device_hub_canvas.py` owns Simulator gaze-and-pinch delivery.
 - `Scripts/verification/journey_preflight.py` and the source-specific probes under `Scripts/verification/` own read-only fixture and remote-source checks.
 

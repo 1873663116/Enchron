@@ -9,6 +9,7 @@ from typing import Any
 from guard import GuardrailHit, Supervisor
 from model import Plan, Report, Step, StepOutcome, TerminalOutcome
 import report as report_module
+import transport
 from report import (
     EXIT_GUARDRAIL,
     EXIT_OK,
@@ -19,7 +20,7 @@ from report import (
 from vocab import VERBS
 
 
-CHANNEL_SCRIPT = "Scripts/verification/interactive_visionpro_ui.py"
+TARGET_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 
 
 def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -> Report:
@@ -198,15 +199,17 @@ def _dispatch(
     if transport == "daemon":
         return _dispatch_daemon(step, root)
     if step.verb == "device.snapshot":
-        return _invoke_channel(root, ("snapshot",))
+        return _invoke_channel(root, "snapshot", None, None)
     if step.verb == "device.command":
         action = str(step.args.get("action", "tap"))
-        arguments: list[str] = [action]
-        if step.args.get("identifier"):
-            arguments.extend(["--identifier", str(step.args["identifier"])])
-        if step.args.get("text"):
-            arguments.extend(["--text", str(step.args["text"])])
-        return _invoke_channel(root, tuple(arguments))
+        identifier = step.args.get("identifier")
+        text = step.args.get("text")
+        return _invoke_channel(
+            root,
+            action,
+            str(identifier) if identifier else None,
+            str(text) if text else None,
+        )
     return None, True, f"{step.verb} has no dispatch in this build"
 
 
@@ -265,18 +268,59 @@ def _run_static_check(
 
 
 def _invoke_channel(
-    root: Path, arguments: tuple[str, ...]
+    root: Path,
+    action: str,
+    identifier: str | None,
+    text: str | None,
 ) -> tuple[dict[str, Any] | None, bool, str]:
-    completed = subprocess.run(
-        ["python3", str(root / CHANNEL_SCRIPT), *arguments],
+    target = _device_target()
+    if target is None:
+        return None, False, "no booted simulator answers this machine"
+    argv = [action, "--device", target]
+    if identifier is not None:
+        argv.extend(["--identifier", identifier])
+    if text is not None:
+        argv.extend(["--text", text])
+    arguments = transport.parse_arguments(argv)
+    answer = transport.send_command(arguments)
+    ok = bool(answer.get("success", False))
+    detail = str(answer.get("message") or answer.get("error") or f"{action} answered")
+    return answer, ok, detail
+
+
+def _device_target() -> str | None:
+    booted = subprocess.run(
+        ["xcrun", "simctl", "list", "devices", "booted", "-j"],
         capture_output=True,
         text=True,
-        timeout=1200,
     )
+    if booted.returncode != 0:
+        return None
     try:
-        payload = json.loads(completed.stdout) if completed.stdout.strip() else None
+        listing = json.loads(booted.stdout)
     except json.JSONDecodeError:
-        payload = {"raw": completed.stdout[-4000:]}
-    ok = completed.returncode == 0 and bool(payload and payload.get("success", True))
-    detail = f"{' '.join(arguments)} exited {completed.returncode}"
-    return payload, ok, detail
+        return None
+    for runtime in listing.get("devices", {}).values():
+        for device in runtime:
+            if device.get("state") == "Booted":
+                return str(device.get("udid"))
+    return None
+
+
+def _device_target(root: Path) -> str | None:
+    booted = subprocess.run(
+        ["xcrun", "simctl", "list", "devices", "booted", "-j"],
+        capture_output=True,
+        text=True,
+    )
+    if booted.returncode != 0:
+        return None
+    try:
+        listing = json.loads(booted.stdout)
+    except json.JSONDecodeError:
+        return None
+    for runtime in listing.get("devices", {}).values():
+        for device in runtime:
+            if device.get("state") == "Booted":
+                return str(device.get("udid"))
+    return None

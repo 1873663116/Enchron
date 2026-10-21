@@ -5,7 +5,7 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 # Test infrastructure
 
-`Scripts/console/cli.py` is the single entry for verification. It replaces `runctl`, `tools/server.py` and `interactive_visionpro_ui.py`.
+`Scripts/console/cli.py` is the single entry for verification.
 
 ## Four tiers
 

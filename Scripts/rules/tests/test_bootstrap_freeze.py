@@ -506,7 +506,7 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
     def setUp(self) -> None:
         root = Path(__file__).resolve().parents[3]
         sys.path.insert(0, str(root / "Scripts/verification"))
-        import interactive_visionpro_ui as controller
+        import transport as controller
         self.timings = tempfile.TemporaryDirectory(prefix="bootstrap-freeze-timings-")
         path = Path(self.timings.name) / "controller_timings.device.json"
         path.write_text('{"verbs": {}}\n', encoding="utf-8")
@@ -520,7 +520,7 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
     def record(self, **environment):
         root = Path(__file__).resolve().parents[3]
         sys.path.insert(0, str(root / "Scripts/verification"))
-        import interactive_visionpro_ui as controller
+        import transport as controller
         before = controller.TIMINGS_DEVICE_PATH.read_bytes()
         with mock.patch.dict(os.environ, environment, clear=False):
             controller.record_timing("probe-action", 1.25, device="00008142-0001")
@@ -530,7 +530,7 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
     def test_a_frozen_run_writes_no_sample(self) -> None:
         root = Path(__file__).resolve().parents[3]
         sys.path.insert(0, str(root / "Scripts/verification"))
-        import interactive_visionpro_ui as controller
+        import transport as controller
         before = controller.TIMINGS_DEVICE_PATH.read_bytes()
         controller.record_timing(
             "probe-action", 1.25, device="00008142-0001", frozen=True
@@ -542,7 +542,7 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
         that reads the environment let a hundred and thirty commands through."""
         root = Path(__file__).resolve().parents[3]
         sys.path.insert(0, str(root / "Scripts/verification"))
-        import interactive_visionpro_ui as controller
+        import transport as controller
         original = controller.TIMINGS_DEVICE_PATH.read_bytes()
         try:
             with mock.patch.dict(
@@ -558,7 +558,7 @@ class FrozenRunLeavesSourceTreeAloneTests(unittest.TestCase):
     def test_an_unfrozen_run_still_records(self) -> None:
         root = Path(__file__).resolve().parents[3]
         sys.path.insert(0, str(root / "Scripts/verification"))
-        import interactive_visionpro_ui as controller
+        import transport as controller
         original = controller.TIMINGS_DEVICE_PATH.read_bytes()
         try:
             environment = {k: v for k, v in os.environ.items()

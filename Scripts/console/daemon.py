@@ -13,10 +13,17 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from model import TIER_ORDER
+import transport
+
+CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
+RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
+BUILD_PRODUCTS = ".scratch/build/Build/Products"
+RUNNER_SPEC = "InteractiveDeviceSession"
+READY_TIMEOUT = 300.0
 from vocab import VERBS
 
 
-CHANNEL_SCRIPT = Path("Scripts/verification/interactive_visionpro_ui.py")
+CHANNEL_SCRIPT = Path("Scripts/console/transport.py")
 IDLE_EXIT_SECONDS = 900.0
 BUILD_PRODUCTS = Path(".scratch/build/Build/Products")
 RUNNER_SPEC = "InteractiveDeviceSession"
@@ -41,26 +48,99 @@ class Channel:
         self.root = root
         self.target = target
         self.session_ready = False
-        self.runner: subprocess.Popen | None = None
         self.ready: dict[str, Any] | None = None
+        self.runner: subprocess.Popen | None = None
+
+    def _arguments(self, action: str, extra: list[str] | None = None):
+        argv = [action, "--device", self.target]
+        if extra:
+            argv.extend(extra)
+        return transport.parse_arguments(argv)
+
+    def _ready(self) -> dict[str, Any] | None:
+        try:
+            found = transport.read_ready_state(self._arguments("snapshot"), fresh=True)
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError):
+            return None
+        return found if isinstance(found, dict) else None
+
+    def scoped(self) -> list[int]:
+        return [pid for pid, _ in transport.scoped_processes()]
+
+    def alive(self) -> bool:
+        if not self.session_ready or self.ready is None:
+            return False
+        if self.runner is not None and self.runner.poll() is not None:
+            self._forget()
+            return False
+        if len(self.scoped()) == 0:
+            self._forget()
+            return False
+        found = self._ready()
+        if found is None or found.get("sessionID") != self.ready.get("sessionID"):
+            self._forget()
+            return False
+        return True
+
+    def _forget(self) -> None:
+        self.session_ready = False
+        self.ready = None
+
+    def halt(self) -> int:
+        terminated = 0
+        for pid in self.scoped():
+            subprocess.run(["kill", "-TERM", str(pid)], capture_output=True)
+            terminated += 1
+        container = self._container()
+        if container is not None:
+            stale = container / CHANNEL_ROOT / "ready.json"
+            if stale.exists():
+                stale.unlink()
+        self._forget()
+        return terminated
+
+    def _container(self) -> Path | None:
+        completed = subprocess.run(
+            [
+                "xcrun",
+                "simctl",
+                "get_app_container",
+                self.target,
+                RUNNER_BUNDLE,
+                "data",
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if completed.returncode != 0:
+            return None
+        return Path(completed.stdout.strip())
 
     def ensure_session(self, lane: str) -> tuple[dict[str, Any], bool, str]:
         if self.alive():
             return {"lane": lane, "reused": True, "ready": self.ready}, True, "session already held"
-        found = self._read_ready() if self.runner_processes() > 0 else None
-        if found is not None:
-            self.ready = found
-            self.session_ready = True
-            return {"lane": lane, "reused": True, "ready": found}, True, "session adopted"
-        started = self._launch_runner()
-        if not started:
-            return {"lane": lane}, False, "the runner could not be launched; build for testing first"
-        ready = self._await_ready()
-        if ready is None:
-            return {"lane": lane}, False, f"the runner did not publish a session within {READY_TIMEOUT_SECONDS:.0f} s"
-        self.ready = ready
-        self.session_ready = True
-        return {"lane": lane, "reused": False, "ready": ready}, True, "session started"
+        if len(self.scoped()) > 0:
+            found = self._ready()
+            if found is not None:
+                self.ready = found
+                self.session_ready = True
+                return {"lane": lane, "reused": True, "ready": found}, True, "session adopted"
+        self.halt()
+        spec = self._runner_spec()
+        if spec is None:
+            return {"lane": lane, "reused": False}, False, "no test bundle; build for testing first"
+        self.runner = self._launch(spec)
+        deadline = time.monotonic() + READY_TIMEOUT
+        while time.monotonic() < deadline:
+            found = self._ready()
+            if found is not None:
+                self.ready = found
+                self.session_ready = True
+                return {"lane": lane, "reused": False, "ready": found}, True, "session started"
+            if self.runner.poll() is not None:
+                return {"lane": lane, "reused": False}, False, "the runner exited before publishing a session"
+            time.sleep(0.25)
+        return {"lane": lane, "reused": False}, False, f"the runner published no session within {READY_TIMEOUT:.0f} s"
 
     def _runner_spec(self) -> Path | None:
         products = self.root / BUILD_PRODUCTS
@@ -69,38 +149,11 @@ class Channel:
         matches = sorted(products.glob(f"*{RUNNER_SPEC}*.xctestrun"))
         return matches[0] if matches else None
 
-    def _clear_stale(self) -> None:
-        container = self._container()
-        if container is not None:
-            stale = container / CHANNEL_ROOT / "ready.json"
-            if stale.exists():
-                stale.unlink()
-        mine = self.runner.pid if self.runner is not None else None
-        for process in self._runner_pids():
-            if process != mine:
-                subprocess.run(["kill", "-TERM", str(process)], capture_output=True)
-
-    def _runner_pids(self) -> list[int]:
-        completed = subprocess.run(
-            ["pgrep", "-f", "xcodebuild test-without-building"],
-            capture_output=True,
-            text=True,
-        )
-        return [
-            int(line)
-            for line in completed.stdout.split()
-            if line.strip().isdigit()
-        ]
-
-    def _launch_runner(self) -> bool:
-        spec = self._runner_spec()
-        if spec is None:
-            return False
-        self._clear_stale()
+    def _launch(self, spec: Path) -> subprocess.Popen:
         log = self.root / ".console" / "runner.log"
         log.parent.mkdir(parents=True, exist_ok=True)
         handle = log.open("a", encoding="utf-8")
-        self.runner = subprocess.Popen(
+        return subprocess.Popen(
             [
                 "xcodebuild",
                 "test-without-building",
@@ -116,121 +169,21 @@ class Channel:
             stderr=handle,
             start_new_session=True,
         )
-        return True
-
-    def _container(self) -> Path | None:
-        completed = subprocess.run(
-            [
-                "xcrun",
-                "simctl",
-                "get_app_container",
-                self.target,
-                "com.xiongzhipeng.EnchronAppUITests.xctrunner",
-                "data",
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if completed.returncode != 0:
-            return None
-        return Path(completed.stdout.strip())
-
-    def runner_processes(self) -> int:
-        completed = subprocess.run(
-            ["ps", "-ax", "-o", "command"],
-            capture_output=True,
-            text=True,
-        )
-        return sum(
-            1
-            for line in completed.stdout.splitlines()
-            if "xcodebuild test-without-building" in line
-        )
-
-    def alive(self) -> bool:
-        if not self.session_ready:
-            return False
-        if self.runner is not None and self.runner.poll() is not None:
-            self.session_ready = False
-            self.ready = None
-            return False
-        if self.runner is None and self.runner_processes() == 0:
-            self.session_ready = False
-            self.ready = None
-            return False
-        found = self._read_ready()
-        if found is None:
-            self.session_ready = False
-            self.ready = None
-            return False
-        if self.ready is not None and found.get("sessionID") != self.ready.get("sessionID"):
-            self.session_ready = False
-            self.ready = None
-            return False
-        return True
-
-    def _read_ready(self) -> dict[str, Any] | None:
-        container = self._container()
-        if container is None:
-            return None
-        candidate = container / CHANNEL_ROOT / "ready.json"
-        if not candidate.exists():
-            return None
-        try:
-            return json.loads(candidate.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return None
-
-    def _await_ready(self) -> dict[str, Any] | None:
-        deadline = time.time() + READY_TIMEOUT_SECONDS
-        while time.time() < deadline:
-            found = self._read_ready()
-            if found is not None:
-                return found
-            if self.runner is not None and self.runner.poll() is not None:
-                return None
-            time.sleep(0.25)
-        return None
 
     def invoke(
         self, action: str, identifier: str | None, text: str | None
     ) -> tuple[dict[str, Any], bool, str]:
         if not self.alive():
             return {}, False, "the session is gone; ensure it again"
-        arguments = ["--device", self.target, action]
-        if identifier:
-            arguments.extend(["--identifier", identifier])
-        if text:
-            arguments.extend(["--text", text])
-        return self._invoke(arguments)
-
-    def _invoke(self, arguments: list[str]) -> tuple[dict[str, Any], bool, str]:
-        completed = subprocess.run(
-            [sys.executable, str(self.root / CHANNEL_SCRIPT), *arguments],
-            capture_output=True,
-            text=True,
-            timeout=1200,
-            cwd=str(self.root),
-        )
-        try:
-            payload = json.loads(completed.stdout) if completed.stdout.strip() else {}
-        except json.JSONDecodeError:
-            payload = {"raw": completed.stdout[-4000:]}
-        ok = completed.returncode == 0 and bool(payload.get("success", True))
-        return payload, ok, f"{' '.join(arguments[:2])} exited {completed.returncode}"
-
-    def halt(self) -> None:
-        if not self.session_ready:
-            return
-        subprocess.run(
-            [sys.executable, str(self.root / CHANNEL_SCRIPT), "halt", "--device", self.target],
-            capture_output=True,
-            text=True,
-            timeout=120,
-            cwd=str(self.root),
-        )
-        self.session_ready = False
-
+        extra: list[str] = []
+        if identifier is not None:
+            extra.extend(["--identifier", identifier])
+        if text is not None:
+            extra.extend(["--text", text])
+        answer = transport.send_command(self._arguments(action, extra))
+        ok = bool(answer.get("success", False))
+        detail = str(answer.get("message") or answer.get("error") or f"{action} answered")
+        return answer, ok, detail
 
 class Server:
     def __init__(self, root: Path, target: str) -> None:

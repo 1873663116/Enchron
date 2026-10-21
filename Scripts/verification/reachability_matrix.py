@@ -20,7 +20,9 @@ if str(Path(__file__).parent) not in sys.path:
     sys.path.insert(0, str(Path(__file__).parent))
 from enchron_artifact_paths import evidence_root
 import enchron_target
-import interactive_visionpro_ui
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "console"))
+import transport
 import regression_emby_source as emby_source
 from harness import (
     TIMING_SAMPLES_FILENAME,
@@ -42,7 +44,7 @@ from harness.controller import run_runner
 from harness.replay import redact_secret_marker, select_run
 
 ROOT = Path(__file__).resolve().parents[2]
-CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
+CONTROLLER = ROOT / "Scripts/console/transport.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
 BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
 DEFAULT_EVIDENCE = evidence_root() / f"reachability-{date.today():%Y%m%d}"
@@ -50,7 +52,7 @@ DEFAULT_EVIDENCE = evidence_root() / f"reachability-{date.today():%Y%m%d}"
 DEVICE = enchron_target.target_device()
 CORE_DEVICE = enchron_target.core_device()
 DEVELOPER_DIR = enchron_target.developer_directory()
-APP_BUNDLE = interactive_visionpro_ui.APP_BUNDLE_ID
+APP_BUNDLE = transport.APP_BUNDLE_ID
 PRESENTATIONS = ("window", "portal", "panorama", "docked")
 MAIN_WINDOW_BROWSER_CONTEXT = "main-window-browser"
 MEDIA_LIBRARY_TAB_IDENTIFIERS = {

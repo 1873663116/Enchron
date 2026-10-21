@@ -59,7 +59,7 @@ jobs:
           # removed however this step exits, so the credentials never outlive
           # the job and never wait in the checkout for the next run's clean.
           # No Emby credential is copied: the live Emby suite is a SwiftPM test
-          # target that no tier of run_verification.py executes.
+          # target that the console runs no tier that reaches it.
           # A cancelled or timed-out job is signalled rather than returned
           # from, so the two signal traps turn that into an exit and let the
           # EXIT trap run. Only a SIGKILL escapes both, and the next run's
@@ -82,4 +82,4 @@ jobs:
           fi
           export PYTHONPATH="$(python3 -S -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
           export PATH="$VENV/bin:$PATH"
-          python3 "$REPO/Scripts/rules/run_verification.py"
+          python3 "$REPO/Scripts/console/cli.py" --root "$REPO" tier static

@@ -21,10 +21,10 @@ SIMCTL_CHILD_ENCHRON_TEST_CHANNEL=1 \
 
 ### 合成输入：常驻 XCUITest runner
 
-XCUITest 是 visionOS 上合成输入的标准通路，两条 lane 共用同一套机制。`interactive_visionpro_ui.py` 的 `--device` 参数收到模拟器 UDID 时会自行切换传输方式，命令形态与真机完全一致：
+XCUITest 是 visionOS 上合成输入的标准通路，两条 lane 共用同一套机制。`transport.py` 的 `--device` 参数收到模拟器 UDID 时会自行切换传输方式，命令形态与真机完全一致：
 
 ```sh
-python3 Scripts/verification/interactive_visionpro_ui.py \
+python3 Scripts/console/transport.py \
   --device <模拟器 UDID> --developer-dir "$(xcode-select -p)" \
   --execution-input <证据目录>/execution-input.json \
   --output-directory <证据目录> \
@@ -137,7 +137,7 @@ ARKit 会话在模拟器上无法建立，运行日志给出 `Hand Tracking is e
 | panorama | `rkContentType=equirectangular`，`wantImmersive` 与 `gotImmersive` 同为 `progressive`，`componentBound=true`，`surfaceOpacity=1.0` | 整个视野被视频填满，模拟房间消失 |
 | docked | `rkContentType=mono`，`gotImmersive=none`，`componentBound=true` | 房间按所选明暗效果变暗或提亮，视频作为影院屏幕悬停于房间中 |
 
-录屏通道同样成立，且覆盖面大于真机：`interactive_visionpro_ui.py` 不接受 `--test-plan` 参数，需先以 `Enchron` 测试计划（`preferredScreenCaptureFormat: screenRecording`）`build-for-testing` 出 xctestrun 并冻结出指向它的执行输入，用这份执行输入建立会话，`halt` 使 XCTest 落盘，再由 `extract_visionpro_ui_recording.py` 提取。所得帧是佩戴者的整个视野而非仅 App 元素，转场、菜单开合与播放画面都在其中。真机上「录屏暂存写在头显侧、必须短会话」的约束在此不成立，但结果包仍然庞大（几十秒的会话约 65 MB），执行完毕照常清理。
+录屏通道同样成立，且覆盖面大于真机：`transport.py` 不接受 `--test-plan` 参数，需先以 `Enchron` 测试计划（`preferredScreenCaptureFormat: screenRecording`）`build-for-testing` 出 xctestrun 并冻结出指向它的执行输入，用这份执行输入建立会话，`halt` 使 XCTest 落盘，再由 `extract_visionpro_ui_recording.py` 提取。所得帧是佩戴者的整个视野而非仅 App 元素，转场、菜单开合与播放画面都在其中。真机上「录屏暂存写在头显侧、必须短会话」的约束在此不成立，但结果包仍然庞大（几十秒的会话约 65 MB），执行完毕照常清理。
 
 ## 尚未定性
 

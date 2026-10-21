@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "verification"))
 
-import interactive_visionpro_ui as controller
+import transport as controller
 
 DEVICE = "00008142-000000000000000A"
 FILE_NODE_ERROR = (

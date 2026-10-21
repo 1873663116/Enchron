@@ -49,7 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
 from enchron_artifact_paths import scratch_directory
 
 CONTROLLER = (
-    Path(__file__).resolve().parents[1] / "verification/interactive_visionpro_ui.py"
+    Path(__file__).resolve().parents[1] / "verification/transport.py"
 )
 RUNNER = (
     Path(__file__).resolve().parents[2]

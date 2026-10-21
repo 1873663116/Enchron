@@ -59,7 +59,7 @@ Regression/
 Scripts/regression/
   core/                      # 合同、编译、计划与运行时状态机
   tools/                     # MCP 工具：session、op、bundle、ledger、receipt
-  runctl.py                  # prepare-build、freeze、compile、status
+  (retired)                  # 执行入口已移至 Scripts/console/cli.py
   reviewctl.py               # 审查阶段与派生收据
   writectl.py                # 写入集
   rubric_compiler.py         # 由 rubric criteria 编出 L0 字段谓词
@@ -239,9 +239,9 @@ AgentOperability 审查逐 packet 遵循 `Regression/agent-operability-review-pr
 - **`failed` 与 `failed(known)` 在收据层等价。** 两者同在 `Scripts/regression/tools/receipt_tool.py:21` 的 `CLOSED_WITHOUT_A_HUMAN` 内，差别只落在 `RunOutcome` 与 finalize 的结局阶梯上，不在收据能否发出。
 - **`field_value` 是无锚点的深度优先首命中查找。** `Scripts/regression/core/fields.py:18` 让一条判据无从表达它问的是哪一次调用、哪个元素，而 L0 读数与已知缺陷豁免共用它，因此豁免的作用范围由同一次首命中决定。
 - **`negativeControls` 不进编译器。** `Scripts/regression/rubric_compiler.py:72` 的 `compile_rubric` 只编 `criteria`，`Scripts/rules/check_rubric_predicate_coverage.py:46` 的覆盖分母也只数 criteria。
-- **人类会话的轮询回路没有接线。** `Scripts/regression/tools/session_tool.py:131` 起的 `mark`、`poll_timeline`、`read_timeline` 只有测试调用；`Scripts/regression/tools/server.py:301` 的 `SESSION_SCHEMA` 只有 ensure 与 halt 两个 stage，没有 mark 动作。
+- **人类会话的轮询回路没有接线。** `Scripts/regression/tools/session_tool.py:131` 起的 `mark`、`poll_timeline`、`read_timeline` 只有测试调用；会话工具只有 ensure 与 halt 两个 stage，没有 mark 动作。
 - **仪器故障的整个 evidence 字典进账本。** `Scripts/regression/tools/op_tool.py:116` 把 `InstrumentFault.evidence` 原样合成进一次完成调用的 outputs，它随后可被 `field_value` 检索；需要落账的是故障 kind。
-- **`--catalog-root` 与算 digest 的 Catalog 不是同一个。** `Scripts/regression/tools/server.py:146` 接受任意 `catalogRoot`，`Scripts/regression/execution_identity.py:1961` 与 `:2473` 写死 `repository / CATALOG_DIRECTORY`。两者不一致时操作者读到的是「冻结环境里没有某个 Operation 的 digest」。
+- **`--catalog-root` 与算 digest 的 Catalog 不是同一个。** 已退役的 MCP 入口接受任意 `catalogRoot`，`Scripts/regression/execution_identity.py:1961` 与 `:2473` 写死 `repository / CATALOG_DIRECTORY`。两者不一致时操作者读到的是「冻结环境里没有某个 Operation 的 digest」。
 - **异常包的 before 帧可能来自另一个 Operation。** `Scripts/regression/tools/bundle_tool.py:174` 取上一次完成调用的截图，标题已写明那张图真正的来源，跨 Operation 这一事实本身仍在。
 - **人类收据的三个字段没有可比对的一侧。** `Scripts/regression/tools/human_receipt.py:71` 的 `buildDigest`、`deviceId`、`recordingDigest` 只做形状校验，`seal` 也没有工具入口，操作者实际走手写 JSON。
 - **`plan.json` 只写不读。** `Scripts/regression/core/plan.py:1396` 只有 `compiled_plan_payload` 与 `compiled_plan_bytes`，没有反向 loader；`Scripts/regression/core/runtime.py:1939` 的 `_write_plan_once` 只做字节比对。

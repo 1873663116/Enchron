@@ -17,7 +17,7 @@ xcrun devicectl device info details --device "$ENCHRON_CORE_DEVICE" --timeout 30
 ## 建立会话
 
 ```sh
-python3 Scripts/verification/interactive_visionpro_ui.py \
+python3 Scripts/console/transport.py \
   --device "$ENCHRON_TARGET_DEVICE" \
   --developer-dir "$(xcode-select -p)" \
   --execution-input <证据目录>/execution-input.json \
@@ -60,7 +60,7 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 ## 录屏
 
-常驻会话默认只截图不录屏，因为常规执行输入指向的是以 `InteractiveDeviceSession` 测试计划构建的 xctestrun（`preferredScreenCaptureFormat: screenshots`），空闲 30 分钟后自行结束。`interactive_visionpro_ui.py` 不接受 `--test-plan` 参数：录屏与否完全由 `--execution-input`／`ENCHRON_EXECUTION_INPUT` 指向的 xctestrun 决定。需要判断过渡、闪现、短暂遮挡、焦点变化或动画时，先以 `Enchron` 测试计划（`preferredScreenCaptureFormat: screenRecording`）`build-for-testing` 出对应 xctestrun 并冻结出指向它的执行输入，再用这份执行输入启动会话，完成后立即 `halt` 促使 XCTest 落盘 `.xcresult`，再由 `Scripts/verification/extract_visionpro_ui_recording.py` 提取视频。录屏暂存写在头显本地存储，且只在测试结束时回收，因此录屏会话必须短小且有明确终点。
+常驻会话默认只截图不录屏，因为常规执行输入指向的是以 `InteractiveDeviceSession` 测试计划构建的 xctestrun（`preferredScreenCaptureFormat: screenshots`），空闲 30 分钟后自行结束。`transport.py` 不接受 `--test-plan` 参数：录屏与否完全由 `--execution-input`／`ENCHRON_EXECUTION_INPUT` 指向的 xctestrun 决定。需要判断过渡、闪现、短暂遮挡、焦点变化或动画时，先以 `Enchron` 测试计划（`preferredScreenCaptureFormat: screenRecording`）`build-for-testing` 出对应 xctestrun 并冻结出指向它的执行输入，再用这份执行输入启动会话，完成后立即 `halt` 促使 XCTest 落盘 `.xcresult`，再由 `Scripts/verification/extract_visionpro_ui_recording.py` 提取视频。录屏暂存写在头显本地存储，且只在测试结束时回收，因此录屏会话必须短小且有明确终点。
 
 ## 已证伪路径
 

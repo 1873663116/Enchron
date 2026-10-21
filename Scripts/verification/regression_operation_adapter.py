@@ -3417,7 +3417,7 @@ class ResidentOperationBackend:
         core_device = enchron_target.core_device()
         prefix = [
             sys.executable,
-            str(REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"),
+            str(REPOSITORY_ROOT / "Scripts/console/transport.py"),
             "--device",
             target,
             "--output-directory",

@@ -31,7 +31,7 @@ Files 页左侧来源侧栏顶部的 More 按钮打开菜单，Add 展开来源�
 SMB 与 WebDAV 表单可全程合成驱动，字段标识齐全：
 
 ```sh
-C() { python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
+C() { python3 Scripts/console/transport.py --device <id> \
       --output-directory <dir> "$@"; }
 C tap --identifier FileBrowsing-SourcesSidebar-sourceMore
 C tap --identifier plus

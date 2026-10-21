@@ -20,7 +20,7 @@ from enchron_artifact_paths import artifact_root, evidence_root
 from presentation_model import FLAT, PANORAMIC, lands_in_immersive_space, lands_in_main_window
 from harness import Budget, BudgetProvider, ControllerClient, FaultRecord, Halt, InstrumentFault, LocalToolRunner, ProductFailure, RecoveryPolicy, wait_for
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
+CONTROLLER = REPOSITORY_ROOT / "Scripts/console/transport.py"
 DEFAULT_EVIDENCE_ROOT = evidence_root() / "playback-mode-coverage"
 CONTROL_PLANE_IDENTIFIER = "PlayerUI-window-control-plane"
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"

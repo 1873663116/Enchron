@@ -20,7 +20,7 @@ Preconditions: 会话已经建立，且正处于播放中。要驱动沉浸态�
 真机 lane 只在调查产品状态时使用以下等价动作；该动作不证明真机物理输入。
 
 ```sh
-python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
+python3 Scripts/console/transport.py --device <id> \
   --output-directory <dir> app-command --verb toggleControls
 ```
 

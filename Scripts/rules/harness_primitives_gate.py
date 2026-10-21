@@ -8,7 +8,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 FORBIDDEN_TOKENS = ("subprocess", "timeout=", "time.sleep", "time.monotonic", "devicectl")
 FORBIDDEN_TIME_NAMES = frozenset({"sleep", "monotonic"})
-EXEMPT_BASENAMES = ("interactive_visionpro_ui.py", "enchron_target.py")
+EXEMPT_BASENAMES = ("transport.py", "enchron_target.py")
 EXEMPT_PREFIX = "Scripts/verification/harness"
 
 

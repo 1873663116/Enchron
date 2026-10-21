@@ -32,7 +32,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-CONTROLLER = Path("Scripts/verification/interactive_visionpro_ui.py")
+CONTROLLER = Path("Scripts/console/transport.py")
 
 def drive(action):
     command = [
@@ -83,7 +83,7 @@ class ControllerInvocationTests(unittest.TestCase):
 
     def test_a_literal_controller_path_is_also_checked(self) -> None:
         literal = CALLER_SOURCE.replace(
-            'str(CONTROLLER),', '"Scripts/verification/interactive_visionpro_ui.py",'
+            'str(CONTROLLER),', '"Scripts/console/transport.py",'
         ).replace("--execution-input", "--gone")
 
         self.caller(literal)
