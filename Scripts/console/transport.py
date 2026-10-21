@@ -995,12 +995,42 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         return response
 
 
+APP_CHANNEL_ENVIRONMENT = {"ENCHRON_TEST_CHANNEL": "1"}
+
+
+def ensure_app_awake(device: str, bundle_id: str) -> None:
+    if is_simulator(device):
+        environment = dict(os.environ)
+        for name, value in APP_CHANNEL_ENVIRONMENT.items():
+            environment[f"SIMCTL_CHILD_{name}"] = value
+        subprocess.run(
+            ["xcrun", "simctl", "launch", device, bundle_id],
+            check=False,
+            text=True,
+            capture_output=True,
+            env=environment,
+        )
+        return
+    run_devicectl(
+        [
+            "device",
+            "process",
+            "launch",
+            "--device",
+            device,
+            bundle_id,
+            "--terminate-existing",
+        ]
+    )
+
+
 def app_command(arguments: argparse.Namespace) -> dict[str, object]:
     if not arguments.verb:
         raise ValueError("app-command requires --verb.")
     if arguments.timeout_seconds <= 0:
         raise ValueError("--timeout-seconds must be greater than zero.")
     app_bundle_id = _bound_app_bundle_id(arguments)
+    ensure_app_awake(arguments.device, app_bundle_id)
 
     command_arguments: dict[str, str] = {}
     for item in arguments.app_arguments:
@@ -1098,6 +1128,12 @@ def _execution_input_path(arguments: argparse.Namespace) -> Path:
 
 
 def _bound_app_bundle_id(arguments: argparse.Namespace) -> str:
+    declared = getattr(arguments, "app_bundle_id", None)
+    frozen = getattr(arguments, "execution_input", None)
+    if not (isinstance(frozen, (str, os.PathLike)) and str(frozen).strip()) and declared:
+        if declared != APP_BUNDLE_ID:
+            raise RuntimeError("The requested app is not the isolated debug bundle.")
+        return declared
     execution = load_execution_input(_execution_input_path(arguments))
     bundle_id = execution.build_identity.bundle_identifier
     if bundle_id != APP_BUNDLE_ID:
@@ -1647,6 +1683,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--normalized-y", dest="normalizedY", type=float)
     parser.add_argument("--no-screenshot", action="store_true")
     parser.add_argument("--screenshot-identifier", dest="screenshotIdentifier")
+    parser.add_argument("--app-bundle-id", dest="app_bundle_id")
     parser.add_argument("--verb")
     parser.add_argument("--arg", dest="app_arguments", action="append", default=[])
     parser.add_argument("--defer-response", action="store_true")

@@ -207,7 +207,12 @@ class Channel:
         )
 
     def invoke(
-        self, action: str, identifier: str | None, text: str | None
+        self,
+        action: str,
+        identifier: str | None,
+        text: str | None,
+        app_verb: str | None = None,
+        app_arguments: dict[str, str] | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if not self.alive():
             return {}, False, "the session is gone; ensure it again"
@@ -216,7 +221,16 @@ class Channel:
             extra.extend(["--identifier", identifier])
         if text is not None:
             extra.extend(["--text", text])
-        answer = transport.send_command(self._arguments(action, extra))
+        if app_verb is not None:
+            extra.extend(["--verb", app_verb, "--app-bundle-id", transport.APP_BUNDLE_ID])
+        for key, value in sorted((app_arguments or {}).items()):
+            extra.extend(["--arg", f"{key}={value}"])
+        arguments = self._arguments(action, extra)
+        answer = (
+            transport.app_command(arguments)
+            if action == "app-command"
+            else transport.send_command(arguments)
+        )
         ok = bool(answer.get("success", False))
         detail = str(answer.get("message") or answer.get("error") or f"{action} answered")
         return answer, ok, detail
@@ -303,6 +317,8 @@ class Server:
                 request.get("action", "snapshot"),
                 request.get("identifier"),
                 request.get("text"),
+                request.get("verb"),
+                request.get("arguments"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}

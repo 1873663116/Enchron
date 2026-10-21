@@ -237,6 +237,17 @@ def _dispatch_daemon(
             },
             target,
         )
+    elif step.verb == "device.app-command":
+        answer = daemon_module.request(
+            root,
+            {
+                "op": "invoke",
+                "action": "app-command",
+                "verb": step.args.get("verb"),
+                "arguments": step.args.get("arguments") or {},
+            },
+            target,
+        )
     elif step.verb == "device.probe":
         answer = daemon_module.request(
             root,

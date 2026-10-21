@@ -54,6 +54,15 @@ VERBS: dict[str, Verb] = {
             budget_ms=30_000,
         ),
         Verb(
+            name="device.app-command",
+            tier="e2e",
+            capabilities=frozenset({"mac", "device", "daemon"}),
+            lane="device",
+            parameter=("verb", "arguments"),
+            evidence="app-command.json",
+            budget_ms=60_000,
+        ),
+        Verb(
             name="device.probe",
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),
