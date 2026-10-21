@@ -303,6 +303,16 @@ def _run(root: Path, arguments, profile) -> int:
     plan, errors, unit = compiler_module.compile_unit(
         root, arguments.unit, arguments.tier, profile
     )
+    if plan is None and any(error[0] in ("C004", "C015") for error in errors):
+        import daemon as daemon_module
+        import machine as machine_module
+
+        target = profile.target or machine_module.probe().target
+        if target and daemon_module.ensure_running(root, target):
+            profile = machine_module.probe()
+            plan, errors, unit = compiler_module.compile_unit(
+                root, arguments.unit, arguments.tier, profile
+            )
     if plan is None:
         return _refuse_many(arguments.unit, errors, arguments.as_json)
     report = engine.run_plan(
