@@ -68,6 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
     tier = commands.add_parser("tier")
     tier.add_argument("name", choices=("static", "build", "unit", "e2e"))
     tier.add_argument("--quick", action="store_true")
+    tier.add_argument("--code-only", action="store_true", dest="code_only")
     return parser
 
 
@@ -135,13 +136,41 @@ def _tier(root: Path, arguments, profile) -> int:
 
     if arguments.name == "static":
         payload = static_tier.run_static_tier(
-            root, evidence_root(root), arguments.quick
+            root, evidence_root(root), arguments.quick, arguments.code_only
         )
         if arguments.as_json:
             print(json.dumps(payload, indent=1))
         else:
             print(static_tier.summarize(payload))
         return static_tier.static_exit(payload)
+    required = compiler_module.TIER_CAPABILITIES[arguments.name]
+    absent = sorted(required - profile.capabilities)
+    if absent:
+        message = f"tier {arguments.name} needs {', '.join(absent)}"
+        if arguments.as_json:
+            print(json.dumps({"ok": False, "tier": arguments.name, "missing": absent}, indent=1))
+        else:
+            print(message, file=sys.stderr)
+        return EXIT_CAPABILITY
+    import build_tier
+
+    tier_evidence = evidence_root(root) / "tiers"
+    if arguments.name == "build":
+        payload = build_tier.run_build(root, profile.target, tier_evidence)
+    elif arguments.name == "unit":
+        payload = build_tier.run_unit(root, profile.target, tier_evidence)
+    else:
+        message = f"tier {arguments.name} runs one unit at a time through console run"
+        if arguments.as_json:
+            print(json.dumps({"ok": False, "tier": arguments.name, "message": message}, indent=1))
+        else:
+            print(message, file=sys.stderr)
+        return EXIT_USAGE
+    if arguments.as_json:
+        print(json.dumps(payload, indent=1))
+    else:
+        print(build_tier.summarize(arguments.name, payload))
+    return build_tier.exit_of(payload)
     required = compiler_module.TIER_CAPABILITIES[arguments.name]
     absent = sorted(required - profile.capabilities)
     if absent:

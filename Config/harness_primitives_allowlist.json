@@ -1,4 +1,5 @@
 [
+  "Scripts/console/build_tier.py",
   "Scripts/console/cli.py",
   "Scripts/console/daemon.py",
   "Scripts/console/engine.py",

@@ -486,6 +486,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = C3B0F9992F5726B40064596E /* Build configuration list for PBXNativeTarget "Enchron" */;
 			buildPhases = (
+				E30000C42FA4000100E1C001 /* Console Static Gate */,
 				E30000022FA3000100E1C001 /* Design Source Architecture */,
 				C3B0F97C2F5726B30064596E /* Sources */,
 				C3B0F97D2F5726B30064596E /* Frameworks */,
@@ -745,6 +746,21 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "python3 \"$SRCROOT/Scripts/rules/verify_design_source_architecture.py\" --xcode-inputs\n";
+		};
+		E30000C42FA4000100E1C001 /* Console Static Gate */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Console Static Gate";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/Scripts/console/cli.py\" tier static --code-only\n";
 		};
 		E30000032FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;
