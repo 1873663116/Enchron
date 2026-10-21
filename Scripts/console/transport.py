@@ -882,7 +882,6 @@ def wait_for_relaunch_ready(arguments: argparse.Namespace) -> bool:
     probe = argparse.Namespace(**vars(arguments))
     probe.action = "snapshot"
     probe.no_screenshot = True
-    probe.include_screenshot = False
     probe.identifier = None
     probe.index = 0
     probe.timeout_seconds = min(float(getattr(arguments, "timeout_seconds", 5.0) or 5.0), 5.0)
