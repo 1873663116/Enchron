@@ -6,6 +6,8 @@ import argparse
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+
+import swift_masking
 import re
 import sys
 
@@ -70,70 +72,6 @@ READ_ONLY_PROPERTY_PATTERN = re.compile(
 )
 
 
-def mask_swift_noncode(source: str) -> str:
-    """Mask Swift comments and strings while preserving offsets and newlines."""
-    characters = list(source)
-    index = 0
-
-    while index < len(source):
-        if source.startswith("//", index):
-            while index < len(source) and source[index] != "\n":
-                characters[index] = " "
-                index += 1
-            continue
-
-        if source.startswith("/*", index):
-            depth = 1
-            characters[index] = characters[index + 1] = " "
-            index += 2
-            while index < len(source) and depth:
-                if source.startswith("/*", index):
-                    characters[index] = characters[index + 1] = " "
-                    depth += 1
-                    index += 2
-                elif source.startswith("*/", index):
-                    characters[index] = characters[index + 1] = " "
-                    depth -= 1
-                    index += 2
-                else:
-                    if source[index] != "\n":
-                        characters[index] = " "
-                    index += 1
-            continue
-
-        string_start = STRING_START_PATTERN.match(source, index)
-        if string_start is not None:
-            hashes = string_start.group("hashes") or ""
-            quotes = string_start.group("quotes")
-            closing_delimiter = quotes + hashes
-            start_length = len(hashes) + len(quotes)
-            for masked_index in range(index, index + start_length):
-                characters[masked_index] = " "
-            index += start_length
-            while index < len(source):
-                if source.startswith(closing_delimiter, index):
-                    for masked_index in range(index, index + len(closing_delimiter)):
-                        characters[masked_index] = " "
-                    index += len(closing_delimiter)
-                    break
-                if not hashes and source[index] == "\\":
-                    characters[index] = " "
-                    index += 1
-                    if index < len(source):
-                        if source[index] != "\n":
-                            characters[index] = " "
-                        index += 1
-                    continue
-                if source[index] != "\n":
-                    characters[index] = " "
-                index += 1
-            continue
-
-        index += 1
-
-    return "".join(characters)
-
-
 def matching_brace(masked_source: str, opening_brace: int) -> int | None:
     depth = 0
     for index in range(opening_brace, len(masked_source)):
@@ -195,7 +133,7 @@ def audit_repository(root: Path) -> list[Violation]:
     for source_path in swift_sources(root):
         relative_path = source_path.relative_to(root)
         source = source_path.read_text(encoding="utf-8")
-        masked = mask_swift_noncode(source)
+        masked = swift_masking.mask_noncode(source)
         regions = function_regions(masked)
         for match in ISSUE_WRITE_PATTERN.finditer(masked):
             line = masked.count("\n", 0, match.start()) + 1
@@ -239,7 +177,7 @@ def audit_repository(root: Path) -> list[Violation]:
             Violation(OWNER, 1, "playback-issue-owner-missing", "owner file is missing")
         )
     else:
-        owner_source = mask_swift_noncode(owner_path.read_text(encoding="utf-8"))
+        owner_source = swift_masking.mask_noncode(owner_path.read_text(encoding="utf-8"))
         if READ_ONLY_PROPERTY_PATTERN.search(owner_source) is None:
             violations.append(
                 Violation(
@@ -252,7 +190,7 @@ def audit_repository(root: Path) -> list[Violation]:
 
     for source_path in legacy_sources(root):
         relative_path = source_path.relative_to(root)
-        masked = mask_swift_noncode(source_path.read_text(encoding="utf-8"))
+        masked = swift_masking.mask_noncode(source_path.read_text(encoding="utf-8"))
         for identifier in LEGACY_IDENTIFIERS:
             for match in re.finditer(rf"\b{re.escape(identifier)}\b", masked):
                 violations.append(

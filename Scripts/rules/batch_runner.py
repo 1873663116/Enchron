@@ -67,14 +67,57 @@ def run_one(path: Path, log_path: Path) -> int:
     return code
 
 
+_READS: dict[tuple[str, str | None, str | None], str] = {}
+_ORIGINAL_READ_TEXT = Path.read_text
+
+
+def cached_read_text(self, encoding=None, errors=None):
+    key = (str(self), encoding, errors)
+    hit = _READS.get(key)
+    if hit is None:
+        hit = _ORIGINAL_READ_TEXT(self, encoding=encoding, errors=errors)
+        _READS[key] = hit
+    return hit
+
+
+def install_read_cache() -> None:
+    Path.read_text = cached_read_text
+
+
+def run_test_module(path: Path, log_path: Path) -> int:
+    import unittest
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    buffer = io.StringIO()
+    saved_argv = sys.argv
+    code = 0
+    try:
+        sys.argv = [str(path)]
+        module = load(path)
+        suite = unittest.TestLoader().loadTestsFromModule(module)
+        result = unittest.TextTestRunner(stream=buffer, verbosity=1).run(suite)
+        code = 0 if result.wasSuccessful() else 1
+    except SystemExit as exit_requested:
+        code = int(exit_requested.code or 0)
+    except BaseException:
+        buffer.write(traceback.format_exc())
+        code = 1
+    finally:
+        sys.argv = saved_argv
+    log_path.write_text(buffer.getvalue(), encoding="utf-8")
+    return code
+
+
 def main() -> int:
+    install_read_cache()
     log_root = Path(sys.argv[1])
     report = Path(sys.argv[2])
     outcomes = {}
     for name in sys.argv[3:]:
         path = Path(name)
         log = log_root / f"{path.stem}.log"
-        outcomes[path.name] = run_one(path, log)
+        runner = run_test_module if path.name.startswith("test_") else run_one
+        outcomes[path.name] = runner(path, log)
     report.write_text(json.dumps(outcomes), encoding="utf-8")
     return 0
 

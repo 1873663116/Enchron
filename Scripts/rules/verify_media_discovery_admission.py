@@ -6,6 +6,8 @@ import argparse
 from dataclasses import dataclass
 import json
 from pathlib import Path
+
+import swift_masking
 import re
 import sys
 
@@ -72,67 +74,9 @@ ARRAY_LABEL_PATTERN = re.compile(
 )
 
 
-def mask_swift_noncode(source: str) -> str:
-    characters = list(source)
-    index = 0
-    while index < len(source):
-        if source.startswith("//", index):
-            while index < len(source) and source[index] != "\n":
-                characters[index] = " "
-                index += 1
-            continue
-        if source.startswith("/*", index):
-            depth = 1
-            characters[index] = characters[index + 1] = " "
-            index += 2
-            while index < len(source) and depth:
-                if source.startswith("/*", index):
-                    characters[index] = characters[index + 1] = " "
-                    depth += 1
-                    index += 2
-                elif source.startswith("*/", index):
-                    characters[index] = characters[index + 1] = " "
-                    depth -= 1
-                    index += 2
-                else:
-                    if source[index] != "\n":
-                        characters[index] = " "
-                    index += 1
-            continue
-        string_start = STRING_START_PATTERN.match(source, index)
-        if string_start is not None:
-            hashes = string_start.group("hashes") or ""
-            quotes = string_start.group("quotes")
-            closing = quotes + hashes
-            opening_length = len(hashes) + len(quotes)
-            for masked_index in range(index, index + opening_length):
-                characters[masked_index] = " "
-            index += opening_length
-            while index < len(source):
-                if source.startswith(closing, index):
-                    for masked_index in range(index, index + len(closing)):
-                        characters[masked_index] = " "
-                    index += len(closing)
-                    break
-                if not hashes and source[index] == "\\":
-                    characters[index] = " "
-                    index += 1
-                    if index < len(source):
-                        if source[index] != "\n":
-                            characters[index] = " "
-                        index += 1
-                    continue
-                if source[index] != "\n":
-                    characters[index] = " "
-                index += 1
-            continue
-        index += 1
-    return "".join(characters)
-
-
 def source_without_comments(source: str) -> str:
     masked = list(source)
-    noncode = mask_swift_noncode(source)
+    noncode = swift_masking.mask_noncode(source)
     for index, character in enumerate(noncode):
         if character == " " and source[index] not in " \t\r\n":
             masked[index] = " "
@@ -172,7 +116,7 @@ def enclosing_type(offset: int, regions: tuple[TypeRegion, ...]) -> str | None:
 
 def string_arrays(path: Path, source: str) -> tuple[StringArray, ...]:
     searchable = source_without_comments(source)
-    regions = type_regions(mask_swift_noncode(source))
+    regions = type_regions(swift_masking.mask_noncode(source))
     arrays: list[StringArray] = []
     for match in STRING_ARRAY_PATTERN.finditer(searchable):
         values: tuple[str, ...] = tuple(

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,13 @@ import merge_authority as authority
 import merge_evidence_tier as tiers
 
 TOOL = Path(__file__).resolve().parents[1] / "merge_authority.py"
+
+
+class Completed:
+    def __init__(self, returncode: int, stdout: str, stderr: str) -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
 
 
 def fixture_environment(directory: Path) -> dict[str, str]:
@@ -153,13 +161,26 @@ class MergeAuthorityTests(unittest.TestCase):
         path.write_bytes(authority.canonical_json(payload))
         return path
 
-    def run_tool(self, *arguments: str) -> subprocess.CompletedProcess[str]:
-        return subprocess.run(
-            [sys.executable, str(TOOL), *arguments],
-            capture_output=True,
-            text=True,
-            env=self.environment,
-        )
+    def run_tool(self, *arguments: str) -> "Completed":
+        saved_argv = sys.argv
+        saved_stdout = sys.stdout
+        saved_stderr = sys.stderr
+        out = io.StringIO()
+        err = io.StringIO()
+        code = 0
+        try:
+            sys.argv = [str(TOOL), *arguments]
+            sys.stdout = out
+            sys.stderr = err
+            try:
+                code = authority.main() or 0
+            except SystemExit as exit_requested:
+                code = int(exit_requested.code or 0)
+        finally:
+            sys.argv = saved_argv
+            sys.stdout = saved_stdout
+            sys.stderr = saved_stderr
+        return Completed(code, out.getvalue(), err.getvalue())
 
     def test_change_kind_by_tier_cross_product(self) -> None:
         self.assertEqual(len(authority.ChangeKind), 8)

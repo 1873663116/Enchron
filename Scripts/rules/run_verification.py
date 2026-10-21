@@ -605,6 +605,11 @@ def unchanged_self_tests(
     return frozenset(selected)
 
 
+SHARED_LEXER_GROUPS = (
+    ("media-discovery-admission", "playback-issue-ownership"),
+)
+
+
 def bundled(check: StructureCheck) -> bool:
     return not check.filename.startswith(("tests/", "../verification/tests/"))
 
@@ -677,6 +682,14 @@ def run_structure_checks(
     groups: list[tuple[StructureCheck, ...]] = [
         tuple(batched[index::workers]) for index in range(workers) if batched[index::workers]
     ]
+    for partners in SHARED_LEXER_GROUPS:
+        holders = [group for group in groups if any(c.identifier in partners for c in group)]
+        if len(holders) < 2:
+            continue
+        gathered = tuple(check for group in holders for check in group if check.identifier in partners)
+        keep = tuple(check for check in holders[0] if check.identifier not in partners)
+        groups = [group for group in groups if group not in holders]
+        groups.append(gathered + keep)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(run_batch, group, run_directory, environment) for group in groups]
         futures.extend(
