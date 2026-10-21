@@ -874,7 +874,40 @@ def redact_command_text(value: object, text: str) -> object:
     return value
 
 
+RELAUNCH_READY_SECONDS = 15.0
+RELAUNCH_HIERARCHY_MINIMUM = 200
+
+
+def wait_for_relaunch_ready(arguments: argparse.Namespace) -> bool:
+    probe = argparse.Namespace(**vars(arguments))
+    probe.action = "snapshot"
+    probe.no_screenshot = True
+    probe.include_screenshot = False
+    probe.identifier = None
+    probe.index = 0
+    probe.timeout_seconds = min(float(getattr(arguments, "timeout_seconds", 5.0) or 5.0), 5.0)
+    deadline = time.monotonic() + RELAUNCH_READY_SECONDS
+    while time.monotonic() < deadline:
+        try:
+            answer = send_command(probe)
+        except (OSError, RuntimeError, ValueError, json.JSONDecodeError):
+            answer = {}
+        hierarchy = answer.get("hierarchy")
+        if isinstance(hierarchy, str) and len(hierarchy) > RELAUNCH_HIERARCHY_MINIMUM:
+            return True
+        time.sleep(0.25)
+    return False
+
+
 def send_command(arguments: argparse.Namespace) -> dict[str, object]:
+    if arguments.action == "relaunch" and is_simulator(arguments.device):
+        answer = relaunch_by_simctl(arguments.device)
+        if answer["success"] and not wait_for_relaunch_ready(arguments):
+            return {
+                "success": False,
+                "message": "The app relaunched but never published its hierarchy.",
+            }
+        return answer
     ready = read_ready_state(arguments)
     command_id = str(uuid.uuid4())
     command = {
@@ -996,6 +1029,34 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
 
 
 APP_CHANNEL_ENVIRONMENT = {"ENCHRON_TEST_CHANNEL": "1"}
+
+
+def relaunch_by_simctl(device: str) -> dict[str, object]:
+    environment = dict(os.environ)
+    for name, value in APP_CHANNEL_ENVIRONMENT.items():
+        environment[f"SIMCTL_CHILD_{name}"] = value
+    subprocess.run(
+        ["xcrun", "simctl", "terminate", device, APP_BUNDLE_ID],
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    launched = subprocess.run(
+        ["xcrun", "simctl", "launch", device, APP_BUNDLE_ID],
+        check=False,
+        text=True,
+        capture_output=True,
+        env=environment,
+    )
+    if launched.returncode != 0:
+        return {
+            "success": False,
+            "message": launched.stderr or launched.stdout or "The app could not be relaunched.",
+        }
+    return {
+        "success": True,
+        "message": "Target app relaunched through simctl.",
+    }
 
 
 def ensure_app_awake(device: str, bundle_id: str) -> None:
