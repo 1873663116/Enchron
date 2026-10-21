@@ -387,6 +387,9 @@ def source_without_preview_blocks(text: str) -> str:
     return "".join(characters)
 
 
+CONSTRUCTION = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(|\{)")
+
+
 def uninstantiated_view_identifier_owners(
     documents: dict[str, str],
     identifiers: dict[str, list[SourceLocation]],
@@ -406,14 +409,10 @@ def uninstantiated_view_identifier_owners(
         path: source_without_preview_blocks(text)
         for path, text in documents.items()
     }
-    constructed = {
-        component.name
-        for component in structs
-        if any(
-            re.search(rf"\b{re.escape(component.name)}\s*(?:\(|\{{)", text)
-            for text in production_documents.values()
-        )
-    }
+    constructed_names: set[str] = set()
+    for text in production_documents.values():
+        constructed_names.update(CONSTRUCTION.findall(text))
+    constructed = {component.name for component in structs if component.name in constructed_names}
 
     archived: dict[str, SwiftStruct] = {}
     for template, locations in identifiers.items():

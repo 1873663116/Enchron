@@ -146,9 +146,17 @@ def registered_filenames() -> set[str]:
     return set(re.findall(r"([A-Za-z0-9_]+\.(?:py|swift|sh|zsh))", source))
 
 
-def cited(path: Path) -> bool:
+MENTION = re.compile(r"[A-Za-z0-9_./-]+\.(?:py|swift|sh|zsh)")
+_MENTIONERS: dict[str, set[Path]] | None = None
+
+
+def mentioners() -> dict[str, set[Path]]:
+    global _MENTIONERS
+    if _MENTIONERS is not None:
+        return _MENTIONERS
+    found: dict[str, set[Path]] = {}
     for candidate in REPOSITORY_ROOT.rglob("*"):
-        if candidate == path or not candidate.is_file():
+        if not candidate.is_file():
             continue
         if candidate.suffix not in (".py", ".sh", ".zsh", ".md", ".yml", ".json"):
             continue
@@ -157,11 +165,17 @@ def cited(path: Path) -> bool:
             if ".agents" not in parts and ".github" not in parts:
                 continue
         try:
-            if path.name in candidate.read_text(encoding="utf-8", errors="replace"):
-                return True
+            text = candidate.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-    return False
+        for token in MENTION.findall(text):
+            found.setdefault(token.rsplit("/", 1)[-1], set()).add(candidate)
+    _MENTIONERS = found
+    return found
+
+
+def cited(path: Path) -> bool:
+    return any(other != path for other in mentioners().get(path.name, ()))
 
 
 def discover() -> list[Script]:

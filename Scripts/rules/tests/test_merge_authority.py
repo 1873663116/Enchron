@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -18,75 +19,111 @@ import merge_evidence_tier as tiers
 TOOL = Path(__file__).resolve().parents[1] / "merge_authority.py"
 
 
+def fixture_environment(directory: Path) -> dict[str, str]:
+    return {
+        "PATH": os.environ["PATH"],
+        "HOME": str(directory),
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.com",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.com",
+    }
+
+
+def run_git(repository: Path, environment: dict[str, str], *arguments: str) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(repository), *arguments],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=environment,
+    )
+    return completed.stdout.strip()
+
+
+def write_commit(
+    repository: Path,
+    environment: dict[str, str],
+    name: str,
+    content: str,
+) -> str:
+    path = repository / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    run_git(repository, environment, "add", name)
+    run_git(repository, environment, "commit", "-q", "-m", name)
+    return run_git(repository, environment, "rev-parse", "HEAD")
+
+
+def build_repository(root: Path, environment: dict[str, str]) -> dict[str, str]:
+    run_git(root, environment, "init", "-q")
+    seed = write_commit(root, environment, "README.md", "seed")
+    w0 = write_commit(root, environment, "docs/note.md", "docs")
+    w1 = write_commit(root, environment, "Scripts/example.py", "print('test')")
+    w2 = write_commit(root, environment, "Modules/MediaServer/Shelf.swift", "feature")
+    w3 = write_commit(root, environment, "Modules/Playback/Runtime.swift", "playback")
+    evidence = root / ".evidence"
+    evidence.mkdir()
+    (evidence / "summary.json").write_text(
+        json.dumps({"verdict": "passed", "mode": "quick"}), encoding="utf-8"
+    )
+    simulator = evidence / "simulator"
+    simulator.mkdir()
+    (simulator / "result.json").write_text(
+        json.dumps({"unit": "playback.controls-window", "passed": True}),
+        encoding="utf-8",
+    )
+    device_hub = evidence / "device-hub"
+    device_hub.mkdir()
+    (device_hub / "probe.log").write_text(
+        "spatialTap entity=EnchronWindowInput.surface accepted=true\n",
+        encoding="utf-8",
+    )
+    (device_hub / "diagnostics.json").write_text(
+        json.dumps({"mode": "windowed"}), encoding="utf-8"
+    )
+    (evidence / "real-device.json").write_text(
+        json.dumps({"capability": "hardware-decode", "passed": True}),
+        encoding="utf-8",
+    )
+    return {
+        tiers.W0: f"{seed}..{w0}",
+        tiers.W1: f"{w0}..{w1}",
+        tiers.W2: f"{w1}..{w2}",
+        tiers.W3: f"{w2}..{w3}",
+    }
+
+
 class MergeAuthorityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template_scratch = tempfile.TemporaryDirectory(prefix="merge-authority-template-")
+        cls.template = Path(cls.template_scratch.name)
+        cls.template_environment = fixture_environment(cls.template)
+        cls.ranges = build_repository(cls.template, cls.template_environment)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.template_scratch.cleanup()
+
     def setUp(self) -> None:
         self.scratch = tempfile.TemporaryDirectory(prefix="merge-authority-")
         self.addCleanup(self.scratch.cleanup)
         self.repository = Path(self.scratch.name)
-        self.environment = {
-            "PATH": os.environ["PATH"],
-            "HOME": self.scratch.name,
-            "GIT_AUTHOR_NAME": "t",
-            "GIT_AUTHOR_EMAIL": "t@example.com",
-            "GIT_COMMITTER_NAME": "t",
-            "GIT_COMMITTER_EMAIL": "t@example.com",
-        }
-        self.git("init", "-q")
-        seed = self.commit("README.md", "seed")
-        w0 = self.commit("docs/note.md", "docs")
-        w1 = self.commit("Scripts/example.py", "print('test')")
-        w2 = self.commit("Modules/MediaServer/Shelf.swift", "feature")
-        w3 = self.commit("Modules/Playback/Runtime.swift", "playback")
-        self.ranges = {
-            tiers.W0: f"{seed}..{w0}",
-            tiers.W1: f"{w0}..{w1}",
-            tiers.W2: f"{w1}..{w2}",
-            tiers.W3: f"{w2}..{w3}",
-        }
+        shutil.copytree(self.template, self.repository, dirs_exist_ok=True)
+        self.environment = fixture_environment(self.repository)
+        self.ranges = self.__class__.ranges
         evidence = self.repository / ".evidence"
-        evidence.mkdir()
         self.summary = evidence / "summary.json"
-        self.summary.write_text(
-            json.dumps({"verdict": "passed", "mode": "quick"}), encoding="utf-8"
-        )
         self.simulator = evidence / "simulator"
-        self.simulator.mkdir()
-        (self.simulator / "result.json").write_text(
-            json.dumps({"unit": "playback.controls-window", "passed": True}),
-            encoding="utf-8",
-        )
         self.device_hub = evidence / "device-hub"
-        self.device_hub.mkdir()
-        (self.device_hub / "probe.log").write_text(
-            "spatialTap entity=EnchronWindowInput.surface accepted=true\n",
-            encoding="utf-8",
-        )
-        (self.device_hub / "diagnostics.json").write_text(
-            json.dumps({"mode": "windowed"}), encoding="utf-8"
-        )
         self.real_device = evidence / "real-device.json"
-        self.real_device.write_text(
-            json.dumps({"capability": "hardware-decode", "passed": True}),
-            encoding="utf-8",
-        )
 
     def git(self, *arguments: str) -> str:
-        completed = subprocess.run(
-            ["git", "-C", str(self.repository), *arguments],
-            capture_output=True,
-            text=True,
-            check=True,
-            env=self.environment,
-        )
-        return completed.stdout.strip()
+        return run_git(self.repository, self.environment, *arguments)
 
     def commit(self, name: str, content: str) -> str:
-        path = self.repository / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
-        self.git("add", name)
-        self.git("commit", "-q", "-m", name)
-        return self.git("rev-parse", "HEAD")
+        return write_commit(self.repository, self.environment, name, content)
 
     def evidence_for(self, tier: str) -> list[authority.EvidenceInput]:
         inputs = [

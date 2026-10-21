@@ -559,11 +559,58 @@ def run_one_check(
     return check, code, time.monotonic() - started, log
 
 
+def changed_paths(since: str, environment: dict[str, str]) -> frozenset[str] | None:
+    if not since:
+        return None
+    completed = subprocess.run(
+        ["git", "diff", "--name-only", f"{since}...HEAD"],
+        cwd=REPOSITORY_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return None
+    return frozenset(line for line in completed.stdout.splitlines() if line)
+
+
+def self_test_target(check: StructureCheck) -> str | None:
+    if not check.identifier.startswith("test-"):
+        return None
+    name = Path(check.filename).name
+    if not name.startswith("test_"):
+        return None
+    stem = name[len("test_") : -len(".py")]
+    if check.filename.startswith("tests/"):
+        return f"Scripts/rules/{stem}.py"
+    if check.filename.startswith("../verification/tests/"):
+        return f"Scripts/verification/{stem}.py"
+    return None
+
+
+def unchanged_self_tests(
+    checks: tuple[StructureCheck, ...], changed: frozenset[str]
+) -> frozenset[str]:
+    selected: set[str] = set()
+    for check in checks:
+        target = self_test_target(check)
+        if target is None:
+            continue
+        own = f"Scripts/rules/tests/{Path(check.filename).name}"
+        if check.filename.startswith("../verification/tests/"):
+            own = f"Scripts/verification/tests/{Path(check.filename).name}"
+        if target in changed or own in changed:
+            continue
+        selected.add(check.identifier)
+    return frozenset(selected)
+
+
 def run_structure_checks(
     run_directory: Path,
     environment: dict[str, str],
     quick: bool,
     text_only: bool = False,
+    changed: frozenset[str] | None = None,
 ) -> LayerResult:
     failures: list[str] = []
     logs: list[str] = []
@@ -578,6 +625,9 @@ def run_structure_checks(
         if (portable or check.environment != "services")
         and (not text_only or check.environment == "text")
     )
+    settled = unchanged_self_tests(checks, changed) if changed is not None else frozenset()
+    if settled:
+        checks = tuple(check for check in checks if check.identifier not in settled)
     unevaluated = tuple(check for check in everything if check not in checks)
     workers = structure_worker_count(len(checks))
     with ThreadPoolExecutor(max_workers=workers) as pool:
@@ -596,6 +646,11 @@ def run_structure_checks(
                 )
     order = {name: index for index, name in enumerate(sorted(ATTRIBUTIONS))}
     failures.sort(key=lambda item: order.get(item.split("/", 1)[0], len(order)))
+    if settled:
+        failures.append(
+            f"not selected, tooling unchanged ({len(settled)}): "
+            + ", ".join(sorted(settled))
+        )
     if unevaluated:
         deferred = ", ".join(check.identifier for check in unevaluated)
         failures.append(f"unevaluated: {deferred}")
@@ -1248,6 +1303,11 @@ def parse_arguments() -> argparse.Namespace:
         action="store_true",
         help="run only the checks that need nothing but the repository text",
     )
+    parser.add_argument(
+        "--changed-since",
+        default="",
+        help="a revision to diff against; self-tests of unchanged tooling are skipped",
+    )
     parser.add_argument("--log-root", type=Path, default=DEFAULT_LOG_ROOT)
     parser.add_argument("--retain-runs", type=int, default=14)
     arguments = parser.parse_args()
@@ -1347,7 +1407,11 @@ def main() -> int:
         results = [install_git_hooks(environment)]
         results.append(
             run_structure_checks(
-                run_directory, environment, arguments.quick, arguments.text_only
+                run_directory,
+                environment,
+                arguments.quick,
+                arguments.text_only,
+                changed_paths(arguments.changed_since, environment),
             )
         )
         if arguments.text_only:

@@ -64,6 +64,7 @@ def run_static_tier(
     quick: bool,
     code_only: bool = False,
     full: bool = False,
+    changed_since: str = "",
 ) -> dict[str, Any]:
     if code_only:
         return run_code_only(root, evidence_root)
@@ -71,6 +72,8 @@ def run_static_tier(
     command = [sys.executable, str(root / RUN_VERIFICATION)]
     if not full:
         command.append("--text-only")
+    if changed_since:
+        command.extend(["--changed-since", changed_since])
     if quick:
         command.append("--quick")
     log_root = evidence_root / "static" / time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
