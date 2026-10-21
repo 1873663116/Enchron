@@ -34,4 +34,4 @@ jobs:
             fetch --no-tags --force origin '+refs/heads/*:refs/remotes/origin/*'
           git -C "$REPO" checkout --force --detach "${GITHUB_SHA:-refs/remotes/origin/main}"
           source "$REPO/Scripts/ci/prepare.sh" ci
-          python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" tier static
+          python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" tier static --full

@@ -59,12 +59,18 @@ def run_code_only(root: Path, evidence_root: Path) -> dict[str, Any]:
 
 
 def run_static_tier(
-    root: Path, evidence_root: Path, quick: bool, code_only: bool = False
+    root: Path,
+    evidence_root: Path,
+    quick: bool,
+    code_only: bool = False,
+    full: bool = False,
 ) -> dict[str, Any]:
     if code_only:
         return run_code_only(root, evidence_root)
     started = time.monotonic()
-    command = [sys.executable, str(root / RUN_VERIFICATION), "--text-only"]
+    command = [sys.executable, str(root / RUN_VERIFICATION)]
+    if not full:
+        command.append("--text-only")
     if quick:
         command.append("--quick")
     log_root = evidence_root / "static" / time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
