@@ -264,7 +264,10 @@ class Server:
                 continue
             self.last_request = time.time()
             with connection:
-                self._serve_one(connection)
+                try:
+                    self._serve_one(connection)
+                except (OSError, ValueError, json.JSONDecodeError):
+                    pass
             self.last_request = time.time()
 
     def _serve_one(self, connection: socket.socket) -> None:
@@ -276,8 +279,14 @@ class Server:
             buffer += chunk
         request = json.loads(buffer.split(b"\n", 1)[0])
         with self.lock:
-            response = self._handle(request)
-        connection.sendall(json.dumps(response).encode() + b"\n")
+            try:
+                response = self._handle(request)
+            except Exception as error:
+                response = {"kind": "error", "message": str(error)}
+        try:
+            connection.sendall(json.dumps(response).encode() + b"\n")
+        except OSError:
+            return
 
     def _handle(self, request: dict[str, Any]) -> dict[str, Any]:
         operation = request.get("op")
