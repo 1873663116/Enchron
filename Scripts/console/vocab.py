@@ -114,6 +114,16 @@ VERBS: dict[str, Verb] = {
             budget_ms=30_000,
         ),
         Verb(
+            name="device.stage-media",
+            tier="e2e",
+            capabilities=frozenset({"mac", "device", "daemon"}),
+            lane="device",
+            parameter=("source", "target"),
+            evidence="staged-media.json",
+            schema="enchron.console.staged-media@1",
+            budget_ms=120_000,
+        ),
+        Verb(
             name="app.relaunch",
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),

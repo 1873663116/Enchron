@@ -31,7 +31,7 @@ The console is the only test entry in this repository. This skill covers changin
 
 `Scripts/console/daemon.py` holds the session, speaks the socket protocol, launches the runner, and recovers a dead runner.
 
-`Scripts/console/transport.py` speaks the runner protocol: command file, Darwin notification, response file. It also scopes runner processes to this worktree, so a run in another worktree is never touched.
+`Scripts/console/transport.py` speaks the runner protocol: command file, Darwin notification, response file. It also scopes runner processes to this worktree, so a run in another worktree is never touched. It stages host media into the app's `Documents/TestMediaInbox` for the import command.
 
 `Scripts/console/report.py` renders human and JSON output and owns the exit codes.
 

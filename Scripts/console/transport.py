@@ -8,6 +8,7 @@ import json
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -183,6 +184,32 @@ def simulator_container(device: str, bundle_id: str) -> Path | None:
     found = Path(result.stdout.strip())
     _CONTAINERS[key] = (found, time.monotonic())
     return found
+
+
+def stage_media(
+    device: str, bundle_id: str, source: Path, target: str
+) -> dict[str, Any] | None:
+    container = simulator_container(device, bundle_id)
+    if container is None:
+        return None
+    inbox = container / "Documents" / "TestMediaInbox" / target
+    inbox.mkdir(parents=True, exist_ok=True)
+    files = [path for path in sorted(source.rglob("*")) if path.is_file()]
+    copied = 0
+    total = 0
+    for path in files:
+        destination = inbox / path.relative_to(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+        copied += 1
+        total += path.stat().st_size
+    return {
+        "source": str(source),
+        "target": target,
+        "inbox": str(inbox),
+        "fileCount": copied,
+        "bytes": total,
+    }
 
 
 def copy_from_device(

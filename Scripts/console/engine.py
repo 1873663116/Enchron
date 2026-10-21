@@ -220,6 +220,8 @@ def _dispatch(
 ) -> tuple[dict[str, Any] | None, bool, str]:
     if step.verb == "static.check":
         return _run_static_check(step, root)
+    if step.verb == "device.stage-media":
+        return _run_stage_media(step, root, plan)
     if plan.transport == "daemon":
         return _dispatch_daemon(
             step, root, plan.target or _probe_target(), steps_directory
@@ -371,6 +373,25 @@ def _dispatch_daemon(
         return None, False, answer.get("message", "daemon refused")
     value = answer.get("value", {})
     return value.get("payload"), bool(value.get("ok")), str(value.get("detail", ""))
+
+
+def _run_stage_media(
+    step: Step, root: Path, plan: Plan
+) -> tuple[dict[str, Any] | None, bool, str]:
+    source = _media_source(root, str(step.args["source"]))
+    target = str(step.args["target"])
+    device = plan.target or _probe_target()
+    payload = transport.stage_media(device, transport.APP_BUNDLE_ID, source, target)
+    if payload is None:
+        return None, False, f"could not reach the container on {device}"
+    return payload, True, f"staged {payload['fileCount']} file(s) into {target}"
+
+
+def _media_source(root: Path, declared: str) -> Path:
+    if declared.startswith("test-media:"):
+        remainder = declared.split(":", 1)[1]
+        return root.parent / "TestMedia" / remainder
+    return Path(declared)
 
 
 def _run_static_check(

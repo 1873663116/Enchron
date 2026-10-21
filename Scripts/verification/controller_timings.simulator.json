@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T19:31:12+00:00",
+  "updatedAt": "2026-10-21T23:18:56+00:00",
   "verbs": {
     "activate": {
       "samples": [
@@ -1738,46 +1738,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-06T16:12:32.364325+00:00",
-          "censored": false,
-          "seconds": 2.483
-        },
-        {
-          "at": "2026-09-06T16:12:39.772879+00:00",
-          "censored": false,
-          "seconds": 2.007
-        },
-        {
-          "at": "2026-09-06T16:12:42.667329+00:00",
-          "censored": false,
-          "seconds": 0.998
-        },
-        {
-          "at": "2026-09-06T16:13:03.605285+00:00",
-          "censored": false,
-          "seconds": 0.995
-        },
-        {
-          "at": "2026-09-06T16:13:15.009689+00:00",
-          "censored": false,
-          "seconds": 1.024
-        },
-        {
-          "at": "2026-09-06T16:13:21.290602+00:00",
-          "censored": false,
-          "seconds": 1.001
-        },
-        {
-          "at": "2026-09-06T16:13:25.235605+00:00",
-          "censored": false,
-          "seconds": 1.033
-        },
-        {
-          "at": "2026-09-06T16:13:43.412389+00:00",
-          "censored": false,
-          "seconds": 2.488
-        },
-        {
           "at": "2026-09-06T16:14:03.779448+00:00",
           "censored": false,
           "seconds": 1.852
@@ -1936,6 +1896,46 @@
           "at": "2026-10-21T19:31:12+00:00",
           "censored": false,
           "seconds": 1.78
+        },
+        {
+          "at": "2026-10-21T23:14:36+00:00",
+          "censored": false,
+          "seconds": 0.48
+        },
+        {
+          "at": "2026-10-21T23:14:44+00:00",
+          "censored": false,
+          "seconds": 0.49
+        },
+        {
+          "at": "2026-10-21T23:15:05+00:00",
+          "censored": false,
+          "seconds": 0.53
+        },
+        {
+          "at": "2026-10-21T23:15:14+00:00",
+          "censored": false,
+          "seconds": 0.49
+        },
+        {
+          "at": "2026-10-21T23:15:23+00:00",
+          "censored": false,
+          "seconds": 0.48
+        },
+        {
+          "at": "2026-10-21T23:15:41+00:00",
+          "censored": false,
+          "seconds": 1.36
+        },
+        {
+          "at": "2026-10-21T23:15:51+00:00",
+          "censored": false,
+          "seconds": 1.35
+        },
+        {
+          "at": "2026-10-21T23:18:56+00:00",
+          "censored": false,
+          "seconds": 0.51
         }
       ]
     },
@@ -2134,31 +2134,6 @@
     "tap": {
       "samples": [
         {
-          "at": "2026-09-06T16:13:20.288097+00:00",
-          "censored": false,
-          "seconds": 2.327
-        },
-        {
-          "at": "2026-09-06T16:13:23.188955+00:00",
-          "censored": false,
-          "seconds": 1.897
-        },
-        {
-          "at": "2026-09-06T16:13:35.750049+00:00",
-          "censored": false,
-          "seconds": 2.824
-        },
-        {
-          "at": "2026-09-06T16:13:38.339150+00:00",
-          "censored": false,
-          "seconds": 2.588
-        },
-        {
-          "at": "2026-09-06T16:13:40.923288+00:00",
-          "censored": false,
-          "seconds": 2.583
-        },
-        {
           "at": "2026-09-06T16:13:58.604535+00:00",
           "censored": false,
           "seconds": 3.389
@@ -2332,6 +2307,31 @@
           "at": "2026-10-21T19:31:10+00:00",
           "censored": false,
           "seconds": 2.17
+        },
+        {
+          "at": "2026-10-21T23:14:35+00:00",
+          "censored": false,
+          "seconds": 1.96
+        },
+        {
+          "at": "2026-10-21T23:14:44+00:00",
+          "censored": false,
+          "seconds": 0.53
+        },
+        {
+          "at": "2026-10-21T23:15:13+00:00",
+          "censored": false,
+          "seconds": 1.73
+        },
+        {
+          "at": "2026-10-21T23:15:37+00:00",
+          "censored": false,
+          "seconds": 3.87
+        },
+        {
+          "at": "2026-10-21T23:18:54+00:00",
+          "censored": false,
+          "seconds": 4.1
         }
       ]
     },
