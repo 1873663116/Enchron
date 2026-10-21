@@ -18,6 +18,7 @@ import transport
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 RUNNER_BUNDLE = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 BUILD_PRODUCTS = ".scratch/build/Build/Products"
+SESSION_RECORD = ".console/session.json"
 RUNNER_SPEC = "InteractiveDeviceSession"
 READY_TIMEOUT = 300.0
 from vocab import VERBS
@@ -25,6 +26,7 @@ from vocab import VERBS
 
 CHANNEL_SCRIPT = Path("Scripts/console/transport.py")
 IDLE_EXIT_SECONDS = 900.0
+START_DEADLINE_SECONDS = 15.0
 BUILD_PRODUCTS = Path(".scratch/build/Build/Products")
 RUNNER_SPEC = "InteractiveDeviceSession"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
@@ -67,13 +69,39 @@ class Channel:
     def scoped(self) -> list[int]:
         return [pid for pid, _ in transport.scoped_processes()]
 
+    def _record(self) -> dict[str, Any] | None:
+        path = self.root / SESSION_RECORD
+        if not path.is_file():
+            return None
+        try:
+            record = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        return record if isinstance(record, dict) else None
+
+    def _remember(self, pid: int, session: str) -> None:
+        path = self.root / SESSION_RECORD
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"pid": pid, "sessionID": session}), encoding="utf-8"
+        )
+
+    def _forget_record(self) -> None:
+        path = self.root / SESSION_RECORD
+        if path.is_file():
+            path.unlink()
+
     def alive(self) -> bool:
         if not self.session_ready or self.ready is None:
             return False
-        if self.runner is not None and self.runner.poll() is not None:
+        record = self._record()
+        if record is None:
             self._forget()
             return False
-        if len(self.scoped()) == 0:
+        if record.get("sessionID") != self.ready.get("sessionID"):
+            self._forget()
+            return False
+        if int(record.get("pid", -1)) not in self.scoped():
             self._forget()
             return False
         found = self._ready()
@@ -97,6 +125,7 @@ class Channel:
             if stale.exists():
                 stale.unlink()
         self._forget()
+        self._forget_record()
         return terminated
 
     def _container(self) -> Path | None:
@@ -119,9 +148,10 @@ class Channel:
     def ensure_session(self, lane: str) -> tuple[dict[str, Any], bool, str]:
         if self.alive():
             return {"lane": lane, "reused": True, "ready": self.ready}, True, "session already held"
-        if len(self.scoped()) > 0:
+        record = self._record()
+        if record is not None and int(record.get("pid", -1)) in self.scoped():
             found = self._ready()
-            if found is not None:
+            if found is not None and found.get("sessionID") == record.get("sessionID"):
                 self.ready = found
                 self.session_ready = True
                 return {"lane": lane, "reused": True, "ready": found}, True, "session adopted"
@@ -136,6 +166,8 @@ class Channel:
             if found is not None:
                 self.ready = found
                 self.session_ready = True
+                if self.runner is not None:
+                    self._remember(self.runner.pid, str(found.get("sessionID")))
                 return {"lane": lane, "reused": False, "ready": found}, True, "session started"
             if self.runner.poll() is not None:
                 return {"lane": lane, "reused": False}, False, "the runner exited before publishing a session"
@@ -196,6 +228,8 @@ class Server:
     def serve(self) -> None:
         path = socket_path(self.root)
         path.parent.mkdir(parents=True, exist_ok=True)
+        if request(self.root, {"op": "ping"}, timeout=2).get("kind") == "result":
+            return
         if path.exists():
             path.unlink()
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -312,11 +346,15 @@ def spawn(root: Path, targets: str) -> None:
 
 
 def ensure_running(root: Path, target: str) -> bool:
-    answer = request(root, {"op": "ping"}, timeout=2)
-    if answer.get("kind") == "result":
+    if request(root, {"op": "ping"}, timeout=2).get("kind") == "result":
         return True
     spawn(root, target)
-    return request(root, {"op": "ping"}, timeout=5).get("kind") == "result"
+    deadline = time.time() + START_DEADLINE_SECONDS
+    while time.time() < deadline:
+        if request(root, {"op": "ping"}, timeout=2).get("kind") == "result":
+            return True
+        time.sleep(0.2)
+    return False
 
 
 def main(argv: list[str]) -> int:

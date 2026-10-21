@@ -37,6 +37,95 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+## The state machine
+
+Three machines run at once: the operator's process, the resident daemon, and the
+runner. Only the daemon outlives one command. Read this before debugging anything
+that behaves differently on the second run.
+
+### One `console run`
+
+```
+  argv
+   │
+   ├─ LoadRefusal (C001–C015) ──> exit 3 or 4, nothing started
+   ▼
+  compiled plan ────────────────> plan.json written
+   │
+   ▼
+  step loop, one step at a time, never in parallel
+   │        │
+   │        ├─ static.check ──> checker subprocess ──> exit code
+   │        └─ device.*     ──> daemon ──> transport ──> runner
+   │
+   ├─ guardrail trips ──> verdict blocked, remaining steps skipped
+   ▼
+  terminal check, evaluated even when a step failed
+   │
+   ▼
+  verdict passed | failed | blocked ──> report.json, index.jsonl, exit code
+```
+
+The terminal check decides the verdict on its own. A failed step does not skip
+it, and a written artifact does not rescue a failed step. Both are recorded.
+
+### The daemon
+
+```
+  absent ──ensure_running──> starting ──ping answers──> listening
+     ▲                          │                          │
+     │                          └── no ping in 15 s ──────┘
+     │                                                     │
+     └──── no request for 900 s, halts the session ────────┘
+                                                           │
+     ┌─────────────────────────────────────────────────────┘
+     ▼
+  listening ──op=ensure──> holds a session ──op=invoke──> command in flight
+```
+
+The exit is measured from the last request, not from startup. A daemon in use
+does not exit.
+
+### The session
+
+```
+  none ──ensure──> launching ──ready.json published──> ready
+    ▲                  │                                  │
+    │                  └── 300 s without ready ───────────┤
+    │                                                     │
+    └────────── runner exited, or halt ───────────────────┘
+```
+
+`halt` kills every runner this worktree started before it launches another, so
+two runners never drive one device. The cost is that a second daemon claiming
+the same worktree kills the first one's session.
+
+Ownership lives in `.console/session.json`: the daemon records the pid it
+launched and the sessionID that runner published. A session counts as held only
+while that pid is alive, `ready.json` still names that session, and the two
+agree. Without the record, a stale `ready.json` plus any live runner reads as a
+held session and the next command fails.
+
+### What the states tell you
+
+| Symptom | State | Move |
+| --- | --- | --- |
+| `no daemon socket` | absent | `console daemon start` |
+| `the session is gone; ensure it again` | runner died while held | rerun; the next ensure relaunches |
+| Runs take 24 s every time | launching, never ready | check `.console/runner.log` |
+| Runs take 24 s after a good one | second daemon halted the first | run one daemon per worktree |
+| `blocked` with a guardrail name | guardrail tripped | raise the budget in the unit |
+| Passing step, failed terminal | artifact missing or empty | read the evidence directory |
+
+```bash
+python3 Scripts/console/cli.py daemon status
+python3 Scripts/console/cli.py daemon stop
+python3 Scripts/console/formal/run.sh
+```
+
+The last command checks the session machine against three promises. It needs a
+Java runtime, and it fetches `tla2tools.jar` on first use.
+
 ## The correctness argument
 
 Three properties carry the design.
@@ -75,9 +164,13 @@ A cold build for testing is about 13 minutes. Unit test execution is 7.4 s for 7
 
 Measure before changing. The tier reports its own duration in every run and writes `last-run.json`, so take the number from a run rather than from a wrapper that re-times it.
 
-Attack in this order. First the largest single contributor. A check that takes 88 s while the median check takes 0.1 s is a defect in that check, not a cost of the tier.
+The measured shape of the static tier: 193 checks, 364 s wall, run one after another. The longest single check is 82 s (`test-generate-reachability-inventory`), the next is 59 s (`playback-core-tests`), and the median is well under a second. Running the independent ones concurrently bounds the tier at the longest single check, so the ceiling is roughly four times faster. Anything beyond that needs the two slow checks to be split or cached.
 
-Parallelism is available: the checks are independent processes. Any change here must keep one unit per call, so parallel fan-out belongs inside a tier, never across units.
+Attack in this order. First the two checks that set the floor. A check that takes 82 s while the median check takes 0.1 s is a defect in that check, not a cost of the tier. Then the fan-out, which is the second fourfold.
+
+Parallelism is available: the checks are independent processes. Any change here must keep one unit per call, so parallel fan-out belongs inside a tier, never across units. Not every check is safe to run beside another: one that boots a simulator or binds a port serialises with its peers, and the fan-out has to know which is which.
+
+The session is not the bottleneck it looks like. Bring-up costs 23 s cold and 0.16 s when the daemon already holds a session, so the fix for a slow e2e loop is a warm daemon, not a faster bring-up.
 
 Do not trade coverage for a headline number. The tier may be slower than its target and still be honest; a tier that skips checks to hit a number is worse than no tier.
 
