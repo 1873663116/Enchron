@@ -760,7 +760,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\npython3 \"$SRCROOT/Scripts/console/cli.py\" tier static --code-only\n";
+			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\npython3 \"$SRCROOT/Scripts/console/cli.py\" tier static --code-only --gate\n";
 		};
 		E30000032FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;

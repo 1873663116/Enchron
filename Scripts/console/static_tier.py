@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -24,6 +25,52 @@ CODE_ONLY_CHECKERS = (
     "check_no_literal_rfc1918.py",
     "check_ats_cleartext_policy.py",
 )
+
+
+GATE_STAMP = Path(".scratch/console/static-gate.json")
+
+
+def tree_fingerprint(root: Path) -> str:
+    listing = subprocess.run(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+        cwd=str(root),
+        capture_output=True,
+    )
+    digest = hashlib.sha256()
+    for name in sorted(entry for entry in listing.stdout.decode().split("\0") if entry):
+        try:
+            info = (root / name).stat()
+        except OSError:
+            continue
+        digest.update(f"{name}\0{info.st_mtime_ns}\0{info.st_size}\n".encode())
+    return digest.hexdigest()
+
+
+def run_gate(root: Path, evidence_root: Path) -> dict[str, Any]:
+    stamp = root / GATE_STAMP
+    fingerprint = tree_fingerprint(root)
+    recorded = ""
+    try:
+        recorded = str(json.loads(stamp.read_text(encoding="utf-8"))["fingerprint"])
+    except (OSError, ValueError, KeyError, TypeError):
+        recorded = ""
+    if recorded == fingerprint:
+        return {
+            "passed": True,
+            "codeOnly": True,
+            "skipped": True,
+            "fingerprint": fingerprint,
+            "durationMs": 0,
+            "checkers": [],
+            "exitCode": EXIT_OK,
+        }
+    payload = run_code_only(root, evidence_root)
+    payload["skipped"] = False
+    payload["fingerprint"] = fingerprint
+    if payload["exitCode"] == EXIT_OK:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.write_text(json.dumps({"fingerprint": fingerprint}), encoding="utf-8")
+    return payload
 
 
 def run_code_only(root: Path, evidence_root: Path) -> dict[str, Any]:
@@ -65,8 +112,11 @@ def run_static_tier(
     code_only: bool = False,
     full: bool = False,
     changed_since: str = "",
+    gate: bool = False,
 ) -> dict[str, Any]:
     if code_only:
+        if gate:
+            return run_gate(root, evidence_root)
         return run_code_only(root, evidence_root)
     started = time.monotonic()
     command = [sys.executable, str(root / RUN_VERIFICATION)]
@@ -106,6 +156,8 @@ def summarize(payload: dict[str, Any]) -> str:
             for item in payload["checkers"]
             if item["exitCode"] not in (0, None)
         ]
+        if payload.get("skipped"):
+            return "static code-only up to date, nothing changed since the last gate"
         detail = f"failing {', '.join(failed)}" if failed else "every code checker passed"
         return f"static code-only {state} in {payload['durationMs']} ms ({detail})"
     return (

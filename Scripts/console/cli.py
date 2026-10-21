@@ -69,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     tier.add_argument("name", choices=("static", "build", "unit", "e2e"))
     tier.add_argument("--quick", action="store_true")
     tier.add_argument("--code-only", action="store_true", dest="code_only")
+    tier.add_argument("--gate", action="store_true", dest="gate")
     tier.add_argument("--full", action="store_true", dest="full")
     tier.add_argument("--changed-since", default="", dest="changed_since")
     return parser
@@ -149,6 +150,7 @@ def _tier(root: Path, arguments, profile) -> int:
             arguments.code_only,
             getattr(arguments, "full", False),
             getattr(arguments, "changed_since", ""),
+            getattr(arguments, "gate", False),
         )
         if arguments.as_json:
             print(json.dumps(payload, indent=1))
