@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 import errno
 import fcntl
@@ -63,7 +63,15 @@ class StructureCheck:
     identifier: str
     filename: str
     runs_in_quick_mode: bool = True
+    environment: str = ""
+    authority: str = ""
+    attribution: str = ""
 
+
+ENVIRONMENTS = frozenset({"text", "toolchain", "simulator", "services"})
+AUTHORITIES = frozenset({"blocking", "reporting", "precondition"})
+ATTRIBUTIONS = frozenset({"product", "infrastructure", "release"})
+DISCOVERED_TAGS = ("text", "blocking", "infrastructure")
 
 SCRIPT_DIRECTORIES = ("Scripts/rules", "Scripts/verification")
 MINIMUM_PYTHON = (3, 10)
@@ -230,6 +238,103 @@ STRUCTURE_CHECKS = (
 )
 
 
+CHECK_TAGS: dict[str, tuple[str, str, str]] = {
+    "rubric-predicate-coverage": ("text", "blocking", "infrastructure"),
+    "design-source-architecture": ("text", "blocking", "product"),
+    "package-membership": ("toolchain", "blocking", "product"),
+    "playback-surface-structure": ("text", "blocking", "product"),
+    "browser-surface-structure": ("text", "blocking", "product"),
+    "browser-window-visibility": ("text", "blocking", "product"),
+    "format-description-ownership": ("simulator", "blocking", "product"),
+    "format-description-identity": ("simulator", "blocking", "product"),
+    "media-byte-stream": ("simulator", "blocking", "product"),
+    "demux-buffer-policy": ("simulator", "blocking", "product"),
+    "subtitle-reads-interruptible": ("simulator", "blocking", "product"),
+    "media-byte-stream-conformance": ("toolchain", "blocking", "product"),
+    "media-discovery-admission": ("text", "blocking", "product"),
+    "glass-usage": ("text", "blocking", "product"),
+    "documentation-references": ("text", "blocking", "infrastructure"),
+    "regression-core-layering": ("text", "blocking", "infrastructure"),
+    "recording-extractor": ("simulator", "blocking", "product"),
+    "memory-region-walk": ("toolchain", "blocking", "product"),
+    "playback-issue-ownership": ("text", "blocking", "product"),
+    "product-source-comments": ("text", "blocking", "infrastructure"),
+    "test-service-identities": ("text", "blocking", "release"),
+    "release-test-channel-absent": ("text", "blocking", "release"),
+    "release-surface": ("toolchain", "blocking", "release"),
+    "debug-boundary": ("text", "blocking", "product"),
+    "test-target-membership": ("toolchain", "blocking", "infrastructure"),
+    "regression-fact-provenance": ("text", "blocking", "infrastructure"),
+    "playback-runtime-ownership": ("text", "blocking", "product"),
+    "regression-oracle-producers": ("text", "blocking", "infrastructure"),
+    "controller-invocations": ("toolchain", "blocking", "infrastructure"),
+    "regression-element-targeting": ("text", "blocking", "infrastructure"),
+    "regression-related-results-arity": ("text", "blocking", "infrastructure"),
+    "operation-evidence-payloads": ("text", "blocking", "infrastructure"),
+    "hover-region-clipping": ("text", "blocking", "product"),
+    "ats-cleartext-policy": ("text", "blocking", "product"),
+    "reachability-inventory": ("text", "blocking", "infrastructure"),
+    "reachability-cell-access": ("text", "blocking", "infrastructure"),
+    "visionpro-core-regression-plan": ("toolchain", "blocking", "infrastructure"),
+    "xcodebuild-test-selection": ("toolchain", "blocking", "infrastructure"),
+    "vision-test-suite-coverage": ("text", "blocking", "infrastructure"),
+    "merge-evidence-tier": ("text", "blocking", "infrastructure"),
+    "scripts-inventory": ("text", "blocking", "infrastructure"),
+    "ensure-test-services": ("services", "precondition", "infrastructure"),
+    "disc-image-format": ("toolchain", "blocking", "product"),
+    "bluray-corpus": ("toolchain", "reporting", "product"),
+    "dolby-vision-premises": ("toolchain", "blocking", "product"),
+    "interactive-halt-wake": ("text", "blocking", "infrastructure"),
+    "media-byte-stream-foundation": ("toolchain", "blocking", "product"),
+    "organic-architecture-xcode": ("toolchain", "blocking", "product"),
+    "swiftlint": ("toolchain", "blocking", "product"),
+    "unittest-main-guard": ("text", "blocking", "infrastructure"),
+    "harness-primitives-gate": ("text", "blocking", "infrastructure"),
+    "no-literal-rfc1918": ("text", "blocking", "release"),
+    "one-verb-one-action": ("text", "blocking", "product"),
+    "precondition-contract-alignment": ("text", "blocking", "infrastructure"),
+    "orphan-verbs": ("text", "blocking", "product"),
+    "episode-switch-captures-frames": ("simulator", "blocking", "product"),
+    "preparation-no-judgement": ("text", "blocking", "infrastructure"),
+    "readiness-gate-hidden-coverage": ("text", "blocking", "infrastructure"),
+}
+
+DISCOVERED_TAGS_OVERRIDES: dict[str, tuple[str, str, str]] = {
+    "test-regression-environment-preflight": ("services", "precondition", "infrastructure"),
+    "test-regression-human-session": ("services", "blocking", "infrastructure"),
+    "test-regression-remote-faults": ("services", "blocking", "infrastructure"),
+    "test-webdav-regression": ("services", "blocking", "infrastructure"),
+    "test-regression-smb-source": ("services", "blocking", "infrastructure"),
+}
+
+
+def tagged(check: StructureCheck) -> StructureCheck:
+    triple = CHECK_TAGS.get(check.identifier)
+    if check.environment:
+        return check
+    if triple is None:
+        return check
+    return replace(
+        check,
+        environment=triple[0],
+        authority=triple[1],
+        attribution=triple[2],
+    )
+
+
+def untagged(checks: tuple[StructureCheck, ...]) -> list[str]:
+    return [
+        check.identifier
+        for check in checks
+        if check.environment not in ENVIRONMENTS
+        or check.authority not in AUTHORITIES
+        or check.attribution not in ATTRIBUTIONS
+    ]
+
+
+STRUCTURE_CHECKS = tuple(tagged(check) for check in STRUCTURE_CHECKS)
+
+
 def load_baseline(path: Path = BASELINE_PATH) -> dict[str, object]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     expected = payload.get("playbackCoreExpectedFailures")
@@ -393,18 +498,26 @@ def structure_check_command(filename: str) -> list[str]:
     return [sys.executable, str(path)]
 
 
+def discovered_check(identifier: str, filename: str) -> StructureCheck:
+    triple = DISCOVERED_TAGS_OVERRIDES.get(identifier, DISCOVERED_TAGS)
+    return StructureCheck(
+        identifier,
+        filename,
+        environment=triple[0],
+        authority=triple[1],
+        attribution=triple[2],
+    )
+
+
 def discovered_test_checks() -> tuple[StructureCheck, ...]:
     tests_root = REPOSITORY_ROOT / "Scripts/rules/tests"
     verification_tests = REPOSITORY_ROOT / "Scripts/verification/tests"
     discovered = [
-        StructureCheck(
-            path.stem.replace("_", "-"),
-            f"tests/{path.name}",
-        )
+        discovered_check(path.stem.replace("_", "-"), f"tests/{path.name}")
         for path in sorted(tests_root.glob("test_*.py"))
     ]
     discovered.extend(
-        StructureCheck(path.stem.replace("_", "-"), f"../verification/tests/{path.name}")
+        discovered_check(path.stem.replace("_", "-"), f"../verification/tests/{path.name}")
         for path in sorted(verification_tests.glob("test_*.py"))
     )
     if not discovered:
@@ -419,11 +532,9 @@ def run_structure_checks(
 ) -> LayerResult:
     failures: list[str] = []
     logs: list[str] = []
-    checks = tuple(
-        check
-        for check in STRUCTURE_CHECKS + discovered_test_checks()
-        if not quick or check.runs_in_quick_mode
-    )
+    everything = STRUCTURE_CHECKS + discovered_test_checks()
+    checks = tuple(check for check in everything if not quick or check.runs_in_quick_mode)
+    unevaluated = tuple(check for check in everything if check not in checks)
     for check in checks:
         log = run_directory / "structure" / f"{check.identifier}.log"
         code, _ = run_logged(
@@ -434,7 +545,14 @@ def run_structure_checks(
         )
         logs.append(relative_log(log, run_directory))
         if code != 0:
-            failures.append(f"{check.identifier} exited {code}")
+            failures.append(
+                f"{check.attribution}/{check.environment}: {check.identifier} exited {code}"
+            )
+    order = {name: index for index, name in enumerate(sorted(ATTRIBUTIONS))}
+    failures.sort(key=lambda item: order.get(item.split("/", 1)[0], len(order)))
+    if unevaluated:
+        deferred = ", ".join(check.identifier for check in unevaluated)
+        failures.append(f"unevaluated: {deferred}")
     if failures:
         return LayerResult(
             "Structure checks",

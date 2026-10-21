@@ -169,6 +169,27 @@ The tier is the axis worth taking next: 193 checks run one after another for
 checks may sit beside another, because a check that boots a simulator or binds a
 port serialises with its peers.
 
+## Reading a failure
+
+Every check carries three tags: the environment it needs, what its failure
+means, and who has to act. A failure line prints the last two, so the first
+token of a failure names the owner.
+
+| Axis | Values |
+| --- | --- |
+| environment | text, toolchain, simulator, services |
+| authority | blocking, reporting, precondition |
+| attribution | product, infrastructure, release |
+
+Registered checks take their tags from `CHECK_TAGS` in
+`Scripts/rules/run_verification.py`. A registered check without an entry is
+reported by `untagged` and fails its self-test. Discovered test checks inherit
+`DISCOVERED_TAGS`, and the few that need a live service override the environment
+through `DISCOVERED_TAGS_OVERRIDES`.
+
+Checks a quick run does not reach are listed under `unevaluated` rather than
+counted as passing.
+
 ## Identity and credentials
 
 `Config/test_service_identities.json` names every variable that carries an

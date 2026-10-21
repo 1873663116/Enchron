@@ -30,6 +30,36 @@ def captured():
         yield stream
 
 
+class CheckTagTests(unittest.TestCase):
+    def test_every_check_carries_three_known_tags(self) -> None:
+        checks = verification.STRUCTURE_CHECKS + verification.discovered_test_checks()
+        self.assertGreater(len(checks), 100)
+        self.assertEqual(verification.untagged(checks), [])
+
+    def test_a_new_registered_check_without_a_tag_is_reported(self) -> None:
+        untagged = verification.StructureCheck("a-new-check", "verify_a_new_check.py")
+        self.assertEqual(verification.untagged((untagged,)), ["a-new-check"])
+
+    def test_a_discovered_check_carries_the_default_tags(self) -> None:
+        check = verification.discovered_check("test-something", "tests/test_something.py")
+        self.assertEqual(
+            (check.environment, check.authority, check.attribution),
+            verification.DISCOVERED_TAGS,
+        )
+
+    def test_a_discovered_check_can_override_its_environment(self) -> None:
+        check = verification.discovered_check(
+            "test-regression-environment-preflight",
+            "../verification/tests/test_regression_environment_preflight.py",
+        )
+        self.assertEqual(check.environment, "services")
+        self.assertEqual(check.authority, "precondition")
+
+    def test_failures_name_the_attribution_and_the_environment(self) -> None:
+        self.assertIn("product", verification.ATTRIBUTIONS)
+        self.assertIn("services", verification.ENVIRONMENTS)
+
+
 class StepSilenceGuardTests(unittest.TestCase):
     """The gate holds one lock for every worktree while a step runs.
 
