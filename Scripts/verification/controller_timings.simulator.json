@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T23:37:28+00:00",
+  "updatedAt": "2026-10-21T23:53:47+00:00",
   "verbs": {
     "activate": {
       "samples": [
@@ -41,11 +41,6 @@
     },
     "app-command": {
       "samples": [
-        {
-          "at": "2026-09-06T16:12:17.301562+00:00",
-          "censored": false,
-          "seconds": 1.617
-        },
         {
           "at": "2026-09-06T16:12:18.822860+00:00",
           "censored": false,
@@ -240,6 +235,11 @@
           "at": "2026-10-21T18:13:33+00:00",
           "censored": false,
           "seconds": 1.31
+        },
+        {
+          "at": "2026-10-21T23:40:31+00:00",
+          "censored": false,
+          "seconds": 1.3
         }
       ]
     },
@@ -1738,41 +1738,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-06T16:15:08.583677+00:00",
-          "censored": false,
-          "seconds": 1.004
-        },
-        {
-          "at": "2026-09-06T16:15:12.510873+00:00",
-          "censored": false,
-          "seconds": 0.991
-        },
-        {
-          "at": "2026-09-06T16:17:13.006479+00:00",
-          "censored": false,
-          "seconds": 1.098
-        },
-        {
-          "at": "2026-10-21T04:42:05+00:00",
-          "censored": false,
-          "seconds": 2.64
-        },
-        {
-          "at": "2026-10-21T04:59:43+00:00",
-          "censored": false,
-          "seconds": 1.07
-        },
-        {
-          "at": "2026-10-21T04:59:53+00:00",
-          "censored": false,
-          "seconds": 0.96
-        },
-        {
-          "at": "2026-10-21T04:59:59+00:00",
-          "censored": false,
-          "seconds": 0.96
-        },
-        {
           "at": "2026-10-21T05:01:03+00:00",
           "censored": true,
           "seconds": 30.0
@@ -1936,6 +1901,41 @@
           "at": "2026-10-21T23:37:28+00:00",
           "censored": false,
           "seconds": 0.74
+        },
+        {
+          "at": "2026-10-21T23:40:33+00:00",
+          "censored": false,
+          "seconds": 1.04
+        },
+        {
+          "at": "2026-10-21T23:40:47+00:00",
+          "censored": false,
+          "seconds": 0.97
+        },
+        {
+          "at": "2026-10-21T23:41:07+00:00",
+          "censored": false,
+          "seconds": 1.7
+        },
+        {
+          "at": "2026-10-21T23:49:03+00:00",
+          "censored": true,
+          "seconds": 30.0
+        },
+        {
+          "at": "2026-10-21T23:49:50+00:00",
+          "censored": true,
+          "seconds": 30.0
+        },
+        {
+          "at": "2026-10-21T23:53:36+00:00",
+          "censored": false,
+          "seconds": 1.03
+        },
+        {
+          "at": "2026-10-21T23:53:47+00:00",
+          "censored": false,
+          "seconds": 1.05
         }
       ]
     },
@@ -2134,11 +2134,6 @@
     "tap": {
       "samples": [
         {
-          "at": "2026-09-06T16:13:58.604535+00:00",
-          "censored": false,
-          "seconds": 3.389
-        },
-        {
           "at": "2026-09-06T16:14:01.926566+00:00",
           "censored": false,
           "seconds": 3.321
@@ -2332,6 +2327,11 @@
           "at": "2026-10-21T23:18:54+00:00",
           "censored": false,
           "seconds": 4.1
+        },
+        {
+          "at": "2026-10-21T23:40:45+00:00",
+          "censored": false,
+          "seconds": 3.56
         }
       ]
     },
@@ -2445,6 +2445,11 @@
           "at": "2026-08-23T12:58:14+00:00",
           "censored": false,
           "seconds": 4.09
+        },
+        {
+          "at": "2026-10-21T23:41:03+00:00",
+          "censored": false,
+          "seconds": 7.28
         }
       ]
     },

@@ -24,6 +24,10 @@
       }
     },
     {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
       "verb": "device.stage-media",
       "args": {
         "source": "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv",
@@ -50,8 +54,13 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "setViewMode",
+        "arguments": {
+          "mode": "grid"
+        }
+      }
     },
     {
       "verb": "device.command",
@@ -100,6 +109,15 @@
       "expect": {
         "path": "hierarchy",
         "contains": "PlayerUI-window-playback-surface"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "player-open"
+        }
       }
     }
   ],

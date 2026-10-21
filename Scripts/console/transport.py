@@ -193,6 +193,8 @@ def stage_media(
     if container is None:
         return None
     inbox = container / "Documents" / "TestMediaInbox" / target
+    if inbox.exists():
+        shutil.rmtree(inbox)
     inbox.mkdir(parents=True, exist_ok=True)
     files = [source] if source.is_file() else [
         path for path in sorted(source.rglob("*")) if path.is_file()

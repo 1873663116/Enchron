@@ -18,6 +18,19 @@
       }
     },
     {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "setViewMode",
+        "arguments": {
+          "mode": "grid"
+        }
+      }
+    },
+    {
       "verb": "device.stage-media",
       "args": {
         "source": "test-media:TestVectors/Enchron/PlaybackBehavior/audio-only-aac-stereo-181s.m4a",
@@ -60,6 +73,15 @@
       "expect": {
         "path": "hierarchy",
         "contains": "MediaLibrary-grid-folder-import-gate"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "import-gate"
+        }
       }
     }
   ],
