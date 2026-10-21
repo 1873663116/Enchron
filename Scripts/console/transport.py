@@ -165,14 +165,23 @@ def is_simulator(
     return device in simulator_udids
 
 
+_CONTAINERS: dict[tuple[str, str], Path] = {}
+
+
 def simulator_container(device: str, bundle_id: str) -> Path | None:
+    key = (device, bundle_id)
+    cached = _CONTAINERS.get(key)
+    if cached is not None and cached.is_dir():
+        return cached
     result = subprocess.run(
         ["xcrun", "simctl", "get_app_container", device, bundle_id, "data"],
         check=False, text=True, capture_output=True,
     )
     if result.returncode != 0:
         return None
-    return Path(result.stdout.strip())
+    found = Path(result.stdout.strip())
+    _CONTAINERS[key] = found
+    return found
 
 
 def copy_from_device(
