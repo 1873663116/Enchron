@@ -49,10 +49,24 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetMediaNavigation",
+        "arguments": {}
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
         "identifier": "Emby-Navigation-Tab"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "label": "Enchron Regression Emby"
       }
     },
     {
@@ -99,6 +113,13 @@
       "args": {
         "action": "tap",
         "identifier": "Emby-Navigation-Tab"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "label": "Enchron Regression Emby"
       }
     },
     {

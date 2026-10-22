@@ -1624,6 +1624,14 @@ final class TestCommandChannel {
             return try setDockedPlacement(request)
         case "listMenuItems":
             return try performMenuSelection(request, operation: .list)
+        case "resetMediaNavigation":
+            embySession.debugResetNavigation()
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["destination=home", "pathDepth=0"]
+            )
         case "selectMenuItem":
             guard let target = request.args["target"], target.isEmpty == false else {
                 throw CommandError(

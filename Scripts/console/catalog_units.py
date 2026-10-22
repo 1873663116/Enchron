@@ -122,6 +122,26 @@ def slug(identifier: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", identifier.lower()).strip("-")
 
 
+LIBRARY_LABEL = "Enchron Regression Emby"
+
+
+def first_emby_label(payload: dict[str, Any]) -> str | None:
+    seen_emby = False
+    for action in payload.get("operations", []):
+        name = str(action.get("operation", "")).split(":")[1].split("@")[0]
+        arguments = action.get("arguments", {})
+        if name == "navigation.select-tab" and str(arguments.get("tab")) == "emby":
+            seen_emby = True
+            continue
+        if seen_emby and name == "accessibility.activate":
+            labels = arguments.get("labels") or []
+            if labels:
+                return str(labels[0])
+            if arguments.get("identifier"):
+                return str(arguments["identifier"])
+    return None
+
+
 def navigation(folder: str | None) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = [
         {"verb": "device.app-command", "args": {"verb": "setViewMode", "arguments": {"mode": "grid"}}},
@@ -147,6 +167,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     steps: list[dict[str, Any]] = []
     fixtures: list[Path] = []
     rewound = False
+    reset_emitted = False
     for action in payload["operations"]:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
@@ -155,12 +176,29 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             steps.extend(navigation(folder))
             rewound = True
         elif name == "navigation.select-tab":
+            if str(arguments["tab"]) == "emby" and not reset_emitted:
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {"verb": "resetMediaNavigation", "arguments": {}},
+                    }
+                )
+                reset_emitted = True
             steps.append(
                 {
                     "verb": "device.command",
                     "args": {"action": "tap", "identifier": TAB_IDENTIFIERS.get(str(arguments["tab"]), f"Navigation-Ornament-tab-{arguments['tab']}")},
                 }
             )
+            if str(arguments["tab"]) == "emby":
+                target = first_emby_label(payload)
+                if target is not None and target != LIBRARY_LABEL:
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {"action": "tap", "label": LIBRARY_LABEL},
+                        }
+                    )
         elif name == "media.open":
             identifier = str(arguments["identifier"])
             found = fixture(identifier.split("MediaLibrary-grid-video-")[-1])
@@ -443,12 +481,19 @@ def expressible(path: Path) -> bool:
 def write_feature(journey: str, identifiers: list[str]) -> None:
     slugged = re.sub(r"[^a-z0-9]+", "-", journey.lower()).strip("-")
     target = REPOSITORY_ROOT / "Config/console/features" / f"journey-{slugged}.md"
+    existing_units: list[str] = []
+    if target.exists():
+        head = target.read_text(encoding="utf-8").split("---")[1]
+        try:
+            existing_units = [str(unit) for unit in json.loads(head).get("units", [])]
+        except (json.JSONDecodeError, IndexError):
+            existing_units = []
     payload = {
         "schema": "enchron.console.feature",
         "schemaVersion": 1,
         "id": f"feature:journey.{slugged}",
         "title": journey.replace("-", " ").title(),
-        "units": sorted(identifiers),
+        "units": sorted(set(identifiers) | set(existing_units)),
         "promises": [],
     }
     body = json.dumps(payload, indent=2, ensure_ascii=False)

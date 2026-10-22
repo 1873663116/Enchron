@@ -41,6 +41,8 @@ Data lives in `Config/console/units/` and `Config/console/features/`.
 
 A tap that misses because the element is not yet hittable is retried three times. A drain of the DEBUG probe journal is answered by one relaunch and one retry.
 
+Installing a new app build retires the runner session. Stop the daemon, delete `.console/session-*.json`, start it again, and run one unit before trusting any other.
+
 The daemon keeps the code it started with. After editing anything it runs, stop it and start it again; `daemon stop` kills the process and waits for it to go.
 
 A step may carry `capture`, a map from payload field to name. A later step reads that name as `"$name"` in any argument string. The compiler refuses a reference that no earlier step captures (`C018`) and a name captured twice.

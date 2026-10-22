@@ -49,6 +49,13 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetMediaNavigation",
+        "arguments": {}
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",

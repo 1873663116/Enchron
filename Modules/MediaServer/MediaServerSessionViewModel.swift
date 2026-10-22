@@ -144,6 +144,12 @@ public final class MediaServerSessionViewModel {
         await playbackBridge.configure(server: nil)
     }
 
+#if DEBUG
+    public func debugResetNavigation() {
+        navigation.reset()
+    }
+#endif
+
     public func handleRequestError(_ error: Error) async -> Bool {
         guard case MediaServerError.httpStatus(401) = error else { return false }
         await signOut()
