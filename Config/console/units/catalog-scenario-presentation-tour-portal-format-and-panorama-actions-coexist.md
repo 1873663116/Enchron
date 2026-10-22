@@ -99,13 +99,6 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "PlayerUI-TopAction-videoFormat"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
         "identifier": "PlayerUI-window-playback-surface"
       }
     },

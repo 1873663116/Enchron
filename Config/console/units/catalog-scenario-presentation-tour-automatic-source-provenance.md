@@ -109,15 +109,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-window-playback-surface",
-          "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-automatic",
-          "PlayerUI-VideoFormat-apply"
-        ]
+        "verb": "reapplyFormat",
+        "arguments": {}
       }
     },
     {

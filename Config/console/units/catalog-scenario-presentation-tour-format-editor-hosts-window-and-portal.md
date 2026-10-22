@@ -100,190 +100,18 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-commands",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-window-playback-surface",
-          "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-cancel"
+        "calls": [
+          {
+            "verb": "reapplyFormat",
+            "arguments": {}
+          },
+          {
+            "verb": "leavePlayback",
+            "arguments": {}
+          }
         ]
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-format-editor-hosts-window-and-portal"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-window-playback-surface",
-          "PlayerUI-TopAction-videoFormat"
-        ]
-      }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-format-editor-hosts-window-and-portal"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-cancel"
-        ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
       }
     },
     {
@@ -368,6 +196,155 @@
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-TopAction-videoFormat"
+      }
+    },
+    {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
+      "verb": "device.home",
+      "args": {}
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-format-editor-hosts-window-and-portal"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-window-playback-surface"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-window-playback-surface"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.home",
+      "args": {}
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-format-editor-hosts-window-and-portal"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {

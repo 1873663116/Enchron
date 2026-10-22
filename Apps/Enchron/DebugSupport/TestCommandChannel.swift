@@ -1802,6 +1802,23 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: ["action=\(requested)", "pending=\(pending)"]
             )
+        case "reapplyFormat":
+            guard playbackRuntime.activeSessionID != nil else {
+                throw CommandError(message: "reapplyFormat requires an open playback session.")
+            }
+            try await playbackLauncher.applyFormat(
+                projection: playbackRuntime.effectiveProjectionType,
+                stereo: playbackRuntime.effectiveStereoLayout
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "projection=\(playbackRuntime.effectiveProjectionType.rawValue)",
+                    "stereo=\(playbackRuntime.effectiveStereoLayout.rawValue)"
+                ]
+            )
         case "applyFormat":
             guard let rawProjection = request.args["projection"],
                   let projection = PlaybackModel.ProjectionType(rawValue: rawProjection) else {

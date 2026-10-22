@@ -104,11 +104,19 @@
       "args": {}
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tapEach",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio"
         ]
@@ -174,11 +182,19 @@
       "args": {}
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tapEach",
         "identifiers": [
-          "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-speed"
         ]

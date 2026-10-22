@@ -100,12 +100,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          }
+        ]
       }
     },
     {
@@ -212,12 +222,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          }
+        ]
       }
     },
     {
@@ -324,12 +344,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          }
+        ]
       }
     },
     {
@@ -436,12 +466,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          }
+        ]
       }
     },
     {

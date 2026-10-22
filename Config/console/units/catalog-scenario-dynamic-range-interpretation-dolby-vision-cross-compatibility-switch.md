@@ -102,14 +102,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-window-playback-surface",
-          "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-apply"
-        ]
+        "verb": "reapplyFormat",
+        "arguments": {}
       }
     },
     {
@@ -171,14 +167,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-window-playback-surface",
-          "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-apply"
-        ]
+        "verb": "reapplyFormat",
+        "arguments": {}
       }
     },
     {
@@ -240,14 +232,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-window-playback-surface",
-          "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-cancel"
-        ]
+        "verb": "reapplyFormat",
+        "arguments": {}
       }
     },
     {

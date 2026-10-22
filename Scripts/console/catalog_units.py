@@ -681,13 +681,44 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 if player_targets:
                     player_interactions += 1
                     menu_opened = True
+                if targets and all(
+                    item.startswith("PlayerUI-TopAction-")
+                    or item == "PlayerUI-VideoFormat-cancel"
+                    for item in targets
+                ):
+                    continue
+                if len(targets) > 1 and any(
+                    item.startswith("PlayerUI-VideoFormat-") for item in targets
+                ):
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {"verb": "reapplyFormat", "arguments": {}},
+                        }
+                    )
+                    continue
                 if len(targets) > 1:
+                    targets = [
+                        item
+                        for item in targets
+                        if item != "PlayerUI-window-playback-surface"
+                    ] or targets
                     if episode_card_opened and "Emby-Detail-Play" in targets:
                         targets = [item for item in targets if item != "Emby-Detail-Play"]
                     if len(targets) > 1:
                         alternatives = any(
                             item.startswith("PlayerUI-resumeDecision") for item in targets
                         )
+                        if any(item.startswith("PlayerUI-TopAction-") for item in targets):
+                            steps.append(
+                                {
+                                    "verb": "device.app-command",
+                                    "args": {
+                                        "verb": "toggleControls",
+                                        "arguments": {"visible": "true"},
+                                    },
+                                }
+                            )
                         steps.append(
                             {
                                 "verb": "device.command",
