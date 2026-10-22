@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -184,6 +185,23 @@ def simulator_container(device: str, bundle_id: str) -> Path | None:
     found = Path(result.stdout.strip())
     _CONTAINERS[key] = (found, time.monotonic())
     return found
+
+
+def stage_identity(device: str, bundle_id: str, source: Path) -> dict[str, Any] | None:
+    container = simulator_container(device, bundle_id)
+    if container is None or not source.is_file():
+        return None
+    data = source.read_bytes()
+    target = container / "Documents" / "Regression" / "emby-runtime-identity.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(data)
+    target.chmod(0o600)
+    return {
+        "source": str(source),
+        "target": str(target),
+        "digest": "sha256:" + hashlib.sha256(data).hexdigest(),
+        "bytes": len(data),
+    }
 
 
 def stage_media(

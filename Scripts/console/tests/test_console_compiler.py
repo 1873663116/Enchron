@@ -38,6 +38,52 @@ def write_feature(root: Path, name: str, units: list[str]) -> None:
     (features / f"{name}.md").write_text(f"---\n{body}\n---\n", encoding="utf-8")
 
 
+class ReferenceTests(unittest.TestCase):
+    def compile(self, actions: list[dict]) -> list[str]:
+        unit = loader.parse_unit(
+            {
+                "schema": "enchron.console.unit",
+                "schemaVersion": 1,
+                "id": "unit:reference@1",
+                "layer": 3,
+                "actions": actions,
+                "requires": ["mac", "device", "daemon"],
+                "terminal": {"kind": "artifact", "path": "app-command.json", "schema": "enchron.console.app-command@1"},
+            },
+            "test",
+        )
+        compiler = compile_module.Compiler(Path.cwd())
+        _, errors = compiler.compile(unit, "e2e", machine.synthetic("mac-daemon"))
+        return [code for code, _ in errors]
+
+    def test_a_reference_after_its_capture_compiles(self) -> None:
+        codes = self.compile(
+            [
+                {"verb": "device.stage-identity", "args": {"source": "x.json"}, "capture": {"digest": "sig"}},
+                {"verb": "device.app-command", "args": {"verb": "embySignIn", "arguments": {"identityDigest": "$sig"}}},
+            ]
+        )
+        self.assertEqual(codes, [])
+
+    def test_a_reference_before_any_capture_is_refused(self) -> None:
+        codes = self.compile(
+            [
+                {"verb": "device.app-command", "args": {"verb": "ping", "arguments": {"x": "$sig"}}},
+                {"verb": "device.stage-identity", "args": {"source": "x.json"}, "capture": {"digest": "sig"}},
+            ]
+        )
+        self.assertIn("C018", codes)
+
+    def test_a_capture_written_twice_is_refused(self) -> None:
+        codes = self.compile(
+            [
+                {"verb": "device.stage-identity", "args": {"source": "a.json"}, "capture": {"digest": "sig"}},
+                {"verb": "device.stage-identity", "args": {"source": "b.json"}, "capture": {"digest": "sig"}},
+            ]
+        )
+        self.assertIn("C018", codes)
+
+
 class PreconditionTests(unittest.TestCase):
     def test_a_media_server_precondition_compiles(self) -> None:
         unit = loader.parse_unit(

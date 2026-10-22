@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import subprocess
 import sys
@@ -42,8 +43,17 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
     if unmet:
         verdict = "precondition"
         exit_code = EXIT_TERMINAL
+    facts: dict[str, str] = {}
     for step in plan.steps if not unmet else ():
-        outcome, hit = _run_step(step, plan, root, supervisor, steps_directory, budget_scale)
+        resolved = dataclasses.replace(step, args=_fill(step.args, facts))
+        outcome, hit = _run_step(resolved, plan, root, supervisor, steps_directory, budget_scale)
+        if outcome.ok and step.capture:
+            payload = getattr(outcome, "payload", None)
+            if isinstance(payload, dict):
+                for field, name in step.capture.items():
+                    value = payload.get(field)
+                    if isinstance(value, (str, int, float)):
+                        facts[name] = str(value)
         outcomes.append(outcome)
         if hit is not None:
             verdict = "blocked"
@@ -73,6 +83,18 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
     write_json(run_directory / "report.json", report_payload(report))
     _append_index(evidence_root, report)
     return report
+
+
+def _fill(value: Any, facts: dict[str, str]) -> Any:
+    if isinstance(value, str):
+        if value.startswith("$") and len(value) > 1 and value[1:] in facts:
+            return facts[value[1:]]
+        return value
+    if isinstance(value, dict):
+        return {key: _fill(item, facts) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_fill(item, facts) for item in value]
+    return value
 
 
 def _run_preconditions(
@@ -279,6 +301,7 @@ def _run_step(
             duration_ms=duration_ms,
             detail=detail,
             guardrails=supervisor.drain(),
+            payload=evidence if isinstance(evidence, dict) else None,
         ),
         hit,
     )
@@ -291,6 +314,8 @@ def _dispatch(
         return _run_static_check(step, root)
     if step.verb == "device.stage-media":
         return _run_stage_media(step, root, plan)
+    if step.verb == "device.stage-identity":
+        return _run_stage_identity(step, root, plan)
     if plan.transport == "daemon":
         return _dispatch_daemon(
             step, root, plan.target or _probe_target(), steps_directory
@@ -460,6 +485,17 @@ def _run_stage_media(
     if payload is None:
         return None, False, f"could not reach the container on {device}"
     return payload, True, f"staged {payload['fileCount']} file(s) into {target}"
+
+
+def _run_stage_identity(
+    step: Step, root: Path, plan: Plan
+) -> tuple[dict[str, Any] | None, bool, str]:
+    source = _media_source(root, str(step.args["source"]))
+    device = plan.target or _probe_target()
+    payload = transport.stage_identity(device, transport.APP_BUNDLE_ID, source)
+    if payload is None:
+        return None, False, f"could not stage {source} on {device}"
+    return payload, True, f"staged the identity with digest {payload['digest'][:19]}"
 
 
 def _media_source(root: Path, declared: str) -> Path:

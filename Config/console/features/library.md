@@ -5,6 +5,7 @@
   "id": "feature:library",
   "title": "Library Surface",
   "units": [
+    "unit:app.emby-sign-in@1",
     "unit:library.open-folder@1",
     "unit:media.import-staged@1"
   ],

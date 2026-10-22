@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-22T00:16:02+00:00",
+  "updatedAt": "2026-10-22T00:19:01+00:00",
   "verbs": {
     "activate": {
       "samples": [
@@ -41,11 +41,6 @@
     },
     "app-command": {
       "samples": [
-        {
-          "at": "2026-09-06T16:12:18.822860+00:00",
-          "censored": false,
-          "seconds": 1.52
-        },
         {
           "at": "2026-09-06T16:12:24.581226+00:00",
           "censored": false,
@@ -240,6 +235,11 @@
           "at": "2026-10-21T23:40:31+00:00",
           "censored": false,
           "seconds": 1.3
+        },
+        {
+          "at": "2026-10-22T00:18:41+00:00",
+          "censored": false,
+          "seconds": 1.29
         }
       ]
     },
@@ -1738,11 +1738,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-10-21T05:01:48+00:00",
-          "censored": true,
-          "seconds": 30.0
-        },
-        {
           "at": "2026-10-21T05:02:50+00:00",
           "censored": false,
           "seconds": 2.93
@@ -1936,6 +1931,11 @@
           "at": "2026-10-22T00:16:02+00:00",
           "censored": false,
           "seconds": 0.43
+        },
+        {
+          "at": "2026-10-22T00:19:01+00:00",
+          "censored": false,
+          "seconds": 1.41
         }
       ]
     },
@@ -2134,11 +2134,6 @@
     "tap": {
       "samples": [
         {
-          "at": "2026-09-06T16:14:15.973584+00:00",
-          "censored": false,
-          "seconds": 3.483
-        },
-        {
           "at": "2026-09-06T16:14:18.538472+00:00",
           "censored": false,
           "seconds": 2.564
@@ -2332,6 +2327,11 @@
           "at": "2026-10-22T00:16:00+00:00",
           "censored": false,
           "seconds": 2.24
+        },
+        {
+          "at": "2026-10-22T00:18:56+00:00",
+          "censored": false,
+          "seconds": 3.28
         }
       ]
     },

@@ -40,6 +40,7 @@ class Step:
     args: dict[str, Any]
     expect: Expectation | None
     evidence: str | None
+    capture: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,7 @@ class StepOutcome:
     duration_ms: int
     detail: str
     guardrails: tuple[str, ...]
+    payload: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)

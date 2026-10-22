@@ -230,6 +230,21 @@ class Compiler:
                 errors.append(
                     ("C010", f"verb {verb_name!r} produces no evidence to expect on")
                 )
+            capture = action.get("capture")
+            if capture is not None:
+                if not isinstance(capture, dict) or not capture or not all(
+                    isinstance(key, str) and isinstance(value, str) and value
+                    for key, value in capture.items()
+                ):
+                    errors.append(
+                        ("C018", f"capture on {verb_name!r} must map payload fields to names")
+                    )
+                    capture = None
+                elif verb.evidence is None:
+                    errors.append(
+                        ("C018", f"verb {verb_name!r} produces no payload to capture")
+                    )
+                    capture = None
             steps.append(
                 Step(
                     index=index,
@@ -237,8 +252,23 @@ class Compiler:
                     args=args,
                     expect=expect,
                     evidence=verb.evidence,
+                    capture=dict(capture) if capture else None,
                 )
             )
+        captured: dict[str, int] = {}
+        for step in steps:
+            for reference in argument_references(step.args):
+                if reference not in captured:
+                    errors.append(
+                        (
+                            "C018",
+                            f"{step.verb} reads {reference!r} before any earlier step captures it",
+                        )
+                    )
+            for name in (step.capture or {}).values():
+                if name in captured:
+                    errors.append(("C018", f"capture name {name!r} is written twice"))
+                captured[name] = step.index
         return tuple(steps)
 
     def _transport(
@@ -250,6 +280,20 @@ class Compiler:
         if needs_daemon:
             return "daemon"
         return "direct"
+
+
+def argument_references(value: Any) -> list[str]:
+    found: list[str] = []
+    if isinstance(value, str):
+        if value.startswith("$") and len(value) > 1:
+            found.append(value[1:])
+    elif isinstance(value, dict):
+        for item in value.values():
+            found.extend(argument_references(item))
+    elif isinstance(value, list):
+        for item in value:
+            found.extend(argument_references(item))
+    return found
 
 
 def step_verb_name(action: Any) -> str:
