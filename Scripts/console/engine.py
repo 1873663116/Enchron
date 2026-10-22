@@ -3,6 +3,8 @@ from __future__ import annotations
 import dataclasses
 import json
 import re
+import getpass
+import os
 import subprocess
 import sys
 import time
@@ -235,7 +237,7 @@ def _ensure_media_source(provider: str, root: Path) -> dict[str, Any]:
         if isinstance(item, dict)
     ]
     ok = completed.returncode == 0 and any(
-        action in {"found", "started", "configured"} for action in actions
+        action in {"found", "started", "configured", "moved"} for action in actions
     )
     return {
         "kind": "media-source",
@@ -443,6 +445,8 @@ def _dispatch(
         return _run_stage_media(step, root, plan)
     if step.verb == "device.stage-identity":
         return _run_stage_identity(step, root, plan)
+    if step.verb == "device.connect-source":
+        return _run_connect_source(step, root, plan)
     if plan.transport == "daemon":
         return _dispatch_daemon(
             step, root, plan.target or _probe_target(), steps_directory
@@ -777,6 +781,147 @@ def _run_stage_identity(
     if payload is None:
         return None, False, f"could not stage {source} on {device}"
     return payload, True, f"staged the identity with digest {payload['digest'][:19]}"
+
+
+def _environment_credentials(root: Path, provider: str) -> dict[str, str]:
+    path = root / ".env"
+    if not path.is_file():
+        return {}
+    prefix = {"webdav": "WEBDAV", "smb": "SMB", "emby": "EMBY"}.get(provider, provider.upper())
+    values: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if "=" not in line or line.strip().startswith("#"):
+            continue
+        key, _, value = line.partition("=")
+        values[key.strip()] = value.strip()
+    user = values.get(f"{prefix}_USER")
+    secret = values.get(f"{prefix}_PASSWORD")
+    if user and secret:
+        return {"username": user, "password": secret}
+    return {}
+
+
+def _address_hosts(address: str) -> list[str]:
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(address)
+    host = (parts.hostname or "").lower()
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    hosts = [f"{host}:{port}"] if host else []
+    resolved = _lan_address(host)
+    if resolved:
+        hosts.append(f"{resolved}:{port}")
+    return hosts
+
+
+def _lan_address(host: str) -> str | None:
+    try:
+        completed = subprocess.run(
+            ["/usr/bin/dscacheutil", "-q", "host", "-a", "name", f"{host}."],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return None
+    for line in completed.stdout.splitlines():
+        if line.startswith("ip_address:"):
+            candidate = line.split(":", 1)[1].strip()
+            if candidate.count(".") == 3:
+                return candidate
+    return None
+
+
+def _display_fingerprint(fingerprint: str) -> str:
+    hex_digits = fingerprint.split(":", 1)[1] if fingerprint.startswith("sha256:") else fingerprint
+    hex_digits = "".join(character for character in hex_digits if character in "0123456789abcdefABCDEF")
+    pairs = [hex_digits[index : index + 2].upper() for index in range(0, len(hex_digits), 2)]
+    return ":".join(pairs)
+
+
+def _trust_certificate(device: str, address: str, fingerprint: str) -> None:
+    import plistlib
+
+    fingerprint = _display_fingerprint(fingerprint)
+    preferences = Path(
+        f"/Users/{getpass.getuser()}/Library/Developer/CoreSimulator/Devices/{device}"
+        f"/data/Library/Preferences/{transport.APP_BUNDLE_ID}.plist"
+    )
+    preferences.parent.mkdir(parents=True, exist_ok=True)
+    if preferences.is_file():
+        try:
+            values = plistlib.loads(preferences.read_bytes())
+        except (OSError, plistlib.InvalidFileException):
+            values = {}
+    else:
+        values = {}
+    for key in [key for key in values if key.startswith("server-certificate-fingerprint.")]:
+        del values[key]
+    for host in _address_hosts(address):
+        values[f"server-certificate-fingerprint.{host}"] = fingerprint
+    preferences.write_bytes(plistlib.dumps(values))
+    transport.send_command(
+        transport.parse_arguments(
+            [
+                "relaunch",
+                "--device",
+                device,
+                "--no-screenshot",
+                "--output-directory",
+                "/tmp/enchron-connect",
+            ]
+        )
+    )
+    time.sleep(3.0)
+
+
+def _run_connect_source(
+    step: Step, root: Path, plan: Plan
+) -> tuple[dict[str, Any] | None, bool, str]:
+    provider = str(step.args.get("provider", "webdav"))
+    name = str(step.args.get("name", "Enchron Regression WebDAV"))
+    receipt = _ensure_media_source(provider, root)
+    address = ""
+    for item in (receipt.get("receipt") or {}).get("receipts", []):
+        address = str(item.get("address") or "")
+        if address:
+            break
+    if not address:
+        return None, False, f"the {provider} source has no reachable address"
+    fingerprint = ""
+    runtime_file = root.parent / "test-services" / provider / "runtime.json"
+    if runtime_file.is_file():
+        try:
+            runtime_payload = json.loads(runtime_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            runtime_payload = {}
+        fingerprint = str(runtime_payload.get("certificateFingerprint") or "")
+    if not fingerprint:
+        for item in (receipt.get("receipt") or {}).get("receipts", []):
+            for candidate in (item.get("evidence") or {}).get("candidates", []):
+                observed = str(candidate.get("observedIdentity") or "")
+                if observed.startswith("sha256:"):
+                    fingerprint = observed
+                    break
+            if fingerprint:
+                break
+    device = plan.target or _probe_target()
+    if fingerprint:
+        _trust_certificate(device, address, fingerprint)
+    credentials = _environment_credentials(root, provider)
+    answer = _daemon_request(
+        root,
+        {
+            "op": "invoke",
+            "action": "app-command",
+            "verb": "connectWebDAV",
+            "arguments": {"url": address, "name": name, **credentials},
+        },
+        device,
+    )
+    payload = (answer.get("value") or {}).get("payload") or {}
+    if not (answer.get("value") or {}).get("ok"):
+        return payload, False, f"the app could not connect {address}"
+    return payload, True, f"connected {name} at {address}"
 
 
 def _media_source(root: Path, declared: str) -> Path:

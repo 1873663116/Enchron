@@ -44,13 +44,6 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
         "action": "tapEach",
         "identifiers": [
           "FileBrowsing-SourcesSidebar-sourceMore",
@@ -107,13 +100,6 @@
     {
       "verb": "device.home",
       "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
     },
     {
       "verb": "device.command",
@@ -175,13 +161,6 @@
     {
       "verb": "device.home",
       "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
     },
     {
       "verb": "device.command",

@@ -1593,7 +1593,21 @@ final class TestCommandChannel {
                 connectionInfo: connectionInfo
             )
             fileBrowser.addDataSource(dataSource)
-            let result = await fileBrowser.connectToDataSource(dataSource)
+            let credential: StorageCredential?
+            if let user = request.args["username"], let secret = request.args["password"],
+               user.isEmpty == false, secret.isEmpty == false {
+                credential = StorageCredential(username: user, password: secret)
+            } else {
+                credential = nil
+            }
+            if let credential {
+                try? fileBrowser.saveCredential(
+                    for: dataSource,
+                    username: credential.username,
+                    password: credential.password
+                )
+            }
+            let result = await fileBrowser.connectToDataSource(dataSource, credential: credential)
             SurfaceInputProbes.record(
                 "testcmd connectWebDAV url=\(address) result=\(String(describing: result))",
                 retention: .evidence
@@ -1763,6 +1777,34 @@ final class TestCommandChannel {
                 ok: true,
                 detail: nil,
                 payload: ["stereoLayout=\(layout.rawValue)"]
+            )
+        case "applyFormat":
+            guard let rawProjection = request.args["projection"],
+                  let projection = PlaybackModel.ProjectionType(rawValue: rawProjection) else {
+                throw CommandError(
+                    message: "applyFormat requires projection of flat, equirectangular180, equirectangular360, or customAngle."
+                )
+            }
+            guard let rawStereo = request.args["stereo"],
+                  let stereo = PlaybackModel.StereoLayout(rawValue: rawStereo) else {
+                throw CommandError(
+                    message: "applyFormat requires stereo of mono, sideBySide, or topBottom."
+                )
+            }
+            guard playbackRuntime.activeSessionID != nil else {
+                throw CommandError(message: "applyFormat requires an open playback session.")
+            }
+            let fieldOfView = request.args["horizontalFieldOfViewDegrees"].flatMap { Int($0) }
+            try await playbackLauncher.applyFormat(
+                projection: projection,
+                horizontalFieldOfViewDegrees: fieldOfView,
+                stereo: stereo
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["projection=\(projection.rawValue)", "stereo=\(stereo.rawValue)"]
             )
         case "batch":
             guard let raw = request.args["calls"],

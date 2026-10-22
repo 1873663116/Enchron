@@ -34,35 +34,10 @@
       "args": {}
     },
     {
-      "verb": "device.stage-media",
-      "args": {
-        "source": [
-          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
-        ],
-        "target": "scenario-network-resilience-certificate-change-stops-without-trust"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFiles",
-        "arguments": {
-          "directory": "scenario-network-resilience-certificate-change-stops-without-trust"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
@@ -122,15 +97,6 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-network-resilience-certificate-change-stops-without-trust"
-        }
       }
     }
   ],

@@ -34,21 +34,10 @@
       "args": {}
     },
     {
-      "verb": "device.stage-media",
+      "verb": "device.connect-source",
       "args": {
-        "source": [
-          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
-        ],
-        "target": "scenario-network-resilience-playback-failure-category-matrix"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFiles",
-        "arguments": {
-          "directory": "scenario-network-resilience-playback-failure-category-matrix"
-        }
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
       }
     },
     {
@@ -63,13 +52,6 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
         "label": "Enchron Regression WebDAV"
       }
     },
@@ -77,7 +59,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
@@ -159,13 +141,6 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
         "label": "Enchron Regression WebDAV"
       }
     },
@@ -173,7 +148,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
@@ -250,15 +225,6 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-network-resilience-playback-failure-category-matrix"
-        }
       }
     }
   ],

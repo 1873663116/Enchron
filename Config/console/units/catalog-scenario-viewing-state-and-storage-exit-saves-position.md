@@ -30,35 +30,8 @@
       "args": {}
     },
     {
-      "verb": "device.stage-media",
-      "args": {
-        "source": [
-          "test-media:TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s.mp4",
-          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
-        ],
-        "target": "scenario-viewing-state-and-storage-exit-saves-position"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "scenario-viewing-state-and-storage-exit-saves-position",
-          "entry": "root"
-        }
-      }
-    },
-    {
       "verb": "device.snapshot",
       "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
     },
     {
       "verb": "device.command",
@@ -146,15 +119,6 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-viewing-state-and-storage-exit-saves-position"
-        }
       }
     }
   ],

@@ -27,7 +27,6 @@ BLOCKERS = {
     "presentation.enter-panorama": "the route taps a panorama sequence and settles",
     "presentation.exit-spatial": "the route reads the spatial state before it exits",
     "storage.clear": "the route taps a settings action and compares storage observations",
-    "format.apply": "the custom angle route needs the menu picker",
     RESET_PRODUCT_STATE: "the reset signs out the source and clears the library the later steps need",
 }
 
@@ -52,7 +51,6 @@ UNSUPPORTED = {
     "presentation.enter-panorama",
     "presentation.exit-spatial",
     "storage.clear",
-    "format.apply",
 }
 
 DIRECT = {
@@ -64,6 +62,7 @@ DIRECT = {
     "diagnostics.playback-state",
     "diagnostics.surface-probe",
     "evidence.capture-frames",
+    "format.apply",
     "harness.assert-channels",
     "input.device-hub-pinch",
     "library.snapshot",
@@ -172,6 +171,16 @@ def navigation(folder: str | None, clear: bool = False) -> list[dict[str, Any]]:
 
 
 def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]], list[Path]]:
+    operation_text = json.dumps(payload.get("operations") or [], ensure_ascii=False).lower()
+    remote_flow = any(
+        marker in operation_text for marker in ("webdav", "smb", "filebrowsing-grid-video-")
+    )
+
+    def open_identifier(identifier: str) -> str:
+        if remote_flow and identifier.startswith("FileBrowsing-"):
+            return identifier
+        return library_identifier(identifier)
+
     folder = None if imports_at_root(payload) else folder
     staged = any(
         str(action.get("operation", "")).startswith("operation:media.import-staged")
@@ -201,6 +210,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             folder_opened = folder is not None
             rewound = True
         elif name == "navigation.select-tab":
+            if remote_flow:
+                continue
             if str(arguments["tab"]) == "emby" and not reset_emitted:
                 steps.append(
                     {
@@ -241,13 +252,15 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
                 folder_opened = True
+            if identifier.startswith("FileBrowsing-"):
+                fixtures.clear()
             found = fixture(media_name(identifier))
-            if found is not None and found not in fixtures:
+            if found is not None and found not in fixtures and not identifier.startswith("FileBrowsing-"):
                 fixtures.append(found)
             steps.append(
                 {
                     "verb": "device.command",
-                    "args": {"action": "tap", "identifier": library_identifier(identifier)},
+                    "args": {"action": "tap", "identifier": open_identifier(identifier)},
                 }
             )
             expects_failure = "loadFailure" in json.dumps(payload, ensure_ascii=False)
@@ -570,7 +583,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             steps.append(
                 {
                     "verb": "device.probe",
-                    "args": {"probe": library_identifier(raw)},
+                    "args": {"probe": open_identifier(raw)},
                 }
             )
         elif name in {"diagnostics.surface-probe", "diagnostics.browse-hierarchy", "harness.assert-channels"}:
@@ -578,7 +591,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 steps.append(
                     {
                         "verb": "device.probe",
-                        "args": {"probe": library_identifier(str(arguments["identifier"]))},
+                        "args": {"probe": open_identifier(str(arguments["identifier"]))},
                     }
                 )
             else:
@@ -591,39 +604,17 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             steps.append({"verb": "device.snapshot", "args": {}})
         elif name == "format.apply":
             projection = str(arguments["projection"])
-            projection_identifier = {
-                "flat": "PlayerUI-VideoFormat-Projection-Flat",
-                "equirectangular180": "PlayerUI-VideoFormat-Projection-180°",
-                "equirectangular360": "PlayerUI-VideoFormat-Projection-360°",
-            }[projection]
-            stereo = {
-                "mono": "Mono",
-                "sideBySide": "Side-by-Side",
-                "topBottom": "Top-Bottom",
-            }[str(arguments["stereoLayout"])]
+            arguments_out = {
+                "projection": projection,
+                "stereo": str(arguments["stereoLayout"]),
+            }
+            field_of_view = arguments.get("horizontalFieldOfViewDegrees")
+            if field_of_view is not None:
+                arguments_out["horizontalFieldOfViewDegrees"] = str(field_of_view)
             steps.append(
                 {
                     "verb": "device.app-command",
-                    "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
-                }
-            )
-            steps.append(
-                {
-                    "verb": "device.command",
-                    "args": {"action": "tap", "identifier": "PlayerUI-TopAction-videoFormat"},
-                }
-            )
-            steps.append(
-                {
-                    "verb": "device.command",
-                    "args": {
-                        "action": "tapSequence",
-                        "identifiers": [
-                            projection_identifier,
-                            f"PlayerUI-VideoFormat-Stereo Layout-{stereo}",
-                            "PlayerUI-VideoFormat-apply",
-                        ],
-                    },
+                    "args": {"verb": "applyFormat", "arguments": arguments_out},
                 }
             )
             steps.append(
@@ -674,6 +665,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
         else:
             raise SystemExit(f"{name} is outside the direct vocabulary")
+    if any(
+        str((action.get("arguments") or {}).get("identifier", "")).startswith("FileBrowsing-")
+        for action in payload.get("operations", [])
+    ):
+        fixtures = []
     return steps, fixtures
 
 
@@ -870,6 +866,23 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                     },
                 }
             )
+    source_labels = {
+        str(label)
+        for action in payload.get("operations", [])
+        for label in ((action.get("arguments") or {}).get("labels") or [])
+        if "webdav" in str(label).lower()
+    }
+    if source_labels:
+        actions.append(
+            {
+                "verb": "device.connect-source",
+                "args": {
+                    "provider": "webdav",
+                    "name": sorted(source_labels)[0],
+                },
+            }
+        )
+        actions.insert(2, actions.pop())
     teardown = [
         {
             "verb": "device.app-command",
@@ -966,8 +979,7 @@ def blocked(payload: dict[str, Any]) -> list[str]:
         arguments = action.get("arguments", {})
         if name in UNSUPPORTED:
             found.append(name)
-        elif name == "format.apply" and str(arguments.get("projection")) == "customAngle":
-            found.append("format.apply")
+
         elif name not in DIRECT and name not in HANDLED_ELSEWHERE:
             found.append(name)
     return found

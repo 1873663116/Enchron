@@ -181,6 +181,16 @@ VERBS: dict[str, Verb] = {
             budget_ms=30_000,
         ),
         Verb(
+            name="device.connect-source",
+            tier="e2e",
+            capabilities=frozenset({"mac", "device", "daemon"}),
+            lane="device",
+            parameter=("provider", "name"),
+            evidence="connected-source.json",
+            schema="enchron.console.connected-source@1",
+            budget_ms=120_000,
+        ),
+        Verb(
             name="app.relaunch",
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),

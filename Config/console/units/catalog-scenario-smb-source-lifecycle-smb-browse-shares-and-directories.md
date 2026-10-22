@@ -34,38 +34,12 @@
       "args": {}
     },
     {
-      "verb": "device.stage-media",
-      "args": {
-        "source": [
-          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
-        ],
-        "target": "scenario-smb-source-lifecycle-smb-browse-shares-and-directories"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "scenario-smb-source-lifecycle-smb-browse-shares-and-directories",
-          "entry": "root"
-        }
-      }
-    },
-    {
       "verb": "app.relaunch",
       "args": {}
     },
     {
       "verb": "device.home",
       "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
     },
     {
       "verb": "device.snapshot",
@@ -78,15 +52,6 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-smb-source-lifecycle-smb-browse-shares-and-directories"
-        }
       }
     }
   ],

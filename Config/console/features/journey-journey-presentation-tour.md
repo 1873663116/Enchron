@@ -5,8 +5,15 @@
   "id": "feature:journey.journey-presentation-tour",
   "title": "Journey:Presentation Tour",
   "units": [
+    "unit:catalog.scenario-presentation-tour-automatic-source-provenance@1",
+    "unit:catalog.scenario-presentation-tour-format-application-route@1",
+    "unit:catalog.scenario-presentation-tour-format-editor-hosts-window-and-portal@1",
+    "unit:catalog.scenario-presentation-tour-initial-presentation-routing.part2@1",
+    "unit:catalog.scenario-presentation-tour-initial-presentation-routing@1",
     "unit:catalog.scenario-presentation-tour-portal-episode-switch-lands-in-window@1",
-    "unit:catalog.scenario-presentation-tour-window-episode-switch-lands-in-portal@1"
+    "unit:catalog.scenario-presentation-tour-portal-format-and-panorama-actions-coexist@1",
+    "unit:catalog.scenario-presentation-tour-window-episode-switch-lands-in-portal@1",
+    "unit:catalog.scenario-presentation-tour-window-to-portal-format-route@1"
   ],
   "promises": []
 }
