@@ -1873,7 +1873,9 @@ final class TestCommandChannel {
             }
             return Response(id: request.id, ok: true, detail: nil, payload: summary)
         case "resetState":
-            await embySession.signOut()
+            if request.args["keepSession"] != "true" {
+                await embySession.signOut()
+            }
             let references = allReferences
             for reference in references {
                 mediaLibrary.remove(reference)

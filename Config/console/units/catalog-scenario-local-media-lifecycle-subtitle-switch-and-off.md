@@ -26,6 +26,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
       "verb": "app.relaunch",
       "args": {}
     },
@@ -204,34 +213,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.app-commands",
       "args": {
         "calls": [
@@ -326,34 +307,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.app-commands",
       "args": {
         "calls": [
@@ -426,34 +379,6 @@
         "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv",
         "timeoutMs": 20000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
       }
     },
     {

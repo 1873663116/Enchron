@@ -664,48 +664,6 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 )
                 if player_targets and menu_opened and current_media:
                     steps.extend(reopen_steps(folder, current_media))
-                    steps.append(
-                        {
-                            "verb": "device.command",
-                            "args": {
-                                "action": "tap",
-                                "identifier": f"MediaLibrary-grid-video-{current_media}",
-                            },
-                        }
-                    )
-                    steps.append(
-                        {
-                            "verb": "device.await",
-                            "args": {
-                                "probe": "PlayerUI-window-control-plane",
-                                "field": "presentation",
-                                "equals": "window",
-                                "timeoutMs": 45000,
-                                "intervalMs": 400,
-                            },
-                        }
-                    )
-                    steps.append(
-                        {
-                            "verb": "device.await",
-                            "args": {
-                                "probe": "PlayerUI-window-control-plane",
-                                "field": "mediaName",
-                                "equals": current_media,
-                                "timeoutMs": 15000,
-                                "intervalMs": 300,
-                            },
-                        }
-                    )
-                    steps.append(
-                        {
-                            "verb": "device.app-command",
-                            "args": {
-                                "verb": "toggleControls",
-                                "arguments": {"visible": "true"},
-                            },
-                        }
-                    )
                     menu_opened = False
                 if player_targets:
                     player_interactions += 1
@@ -1116,7 +1074,16 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
     identifier = str(payload["id"])
     folder = slug(identifier)
     steps, fixtures = translate(payload, folder)
-    actions = [{"verb": "device.session.ensure", "args": {"lane": "simulator"}}]
+    actions = [
+        {"verb": "device.session.ensure", "args": {"lane": "simulator"}},
+        {
+            "verb": "device.app-command",
+            "args": {
+                "verb": "resetState",
+                "arguments": {"keepSession": "true"},
+            },
+        },
+    ]
     actions.append({"verb": "app.relaunch", "args": {}})
     if fixtures:
         actions.append(

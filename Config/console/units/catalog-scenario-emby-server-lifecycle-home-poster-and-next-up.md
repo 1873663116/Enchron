@@ -29,6 +29,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
       "verb": "app.relaunch",
       "args": {}
     },
