@@ -119,6 +119,7 @@
 - **`.alert` 的 `message` 里的 `Text` 丢掉 `.accessibilityIdentifier` 与 `accessibilityValue`**（模拟器 2026-09-06 实测：`PlayerUI-presentation-conversion-diagnostic` 读回空标识符、无 value），按钮保留。弹窗正文只能按 alert 标题与 label 匹配，诊断值要从探针 journal 的 `conversionFailed` 行读。
 - **SwiftUI `Menu` 在真机 visionOS 上可能报 `isHittable == false`，却仍然接受语义 tap**。可观察的契约是"菜单可用 → 公共选项可用 → 设置标题变了"，`isHittable` 单独不足以否决这个系统控件。
 - 系统 `Menu` 里只有 `Button` 行保留标识符、`Section` 会吞掉内部每一行的标识符——两条见 `docs/DESIGN_SYSTEM_CONSTRAINTS.md`。
+- **播放器菜单展开时，窗口层的元素整体从可及性树里消失**（模拟器 2026-10-22 实测：`PlayerUI-TopAction-more` 展开后，屏上只剩 `PlayerUI-menu-*` 四行，`PlayerUI-window-control-plane` 读不到）。因此控制面状态只能在菜单展开前读，或在菜单收起后读；菜单展开期间只能截屏，不能断言窗口元素。
 
 ## 时序容差的来由
 
