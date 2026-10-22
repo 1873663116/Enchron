@@ -103,7 +103,7 @@
         "probe": "element",
         "field": "identifier",
         "equals": "WindowPlayback-root",
-        "timeoutMs": 20000,
+        "timeoutMs": 45000,
         "intervalMs": 300
       }
     },

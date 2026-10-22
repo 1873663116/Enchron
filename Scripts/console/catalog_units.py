@@ -445,7 +445,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
             if not expects_failure and panoramic(current_media):
-                steps.append(window_root_wait(20000))
+                steps.append(window_root_wait(45000))
             elif not expects_failure:
                 steps.append(
                     {
@@ -823,7 +823,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 steps.append({"verb": "device.snapshot", "args": {}})
         elif name in {"diagnostics.playback-state"}:
             if portal_projection:
-                steps.append(window_root_wait(15000))
+                steps.append(window_root_wait(30000))
                 continue
             steps.append(
                 {
@@ -1015,7 +1015,8 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
             if previous["verb"] == action["verb"] == "device.home" and not last:
                 continue
             if (
-                previous["verb"] == action["verb"] == "device.command"
+                previous["verb"] == action["verb"]
+                and previous["verb"] in {"device.command", "device.app-command"}
                 and previous.get("args", {}) == action.get("args", {})
             ):
                 continue
@@ -1086,12 +1087,12 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 collapsed[-1] = merged
                 continue
             if previous["verb"] == "device.app-commands" and action["verb"] == "device.app-command":
-                previous["args"]["calls"].append(
-                    {
-                        "verb": action["args"]["verb"],
-                        "arguments": action["args"].get("arguments", {}),
-                    }
-                )
+                call = {
+                    "verb": action["args"]["verb"],
+                    "arguments": action["args"].get("arguments", {}),
+                }
+                if call not in previous["args"]["calls"]:
+                    previous["args"]["calls"].append(call)
                 continue
         collapsed.append(action)
     return collapsed

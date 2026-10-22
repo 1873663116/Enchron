@@ -196,22 +196,12 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "resolveResumePrompt",
-            "arguments": {
-              "action": "resume"
-            }
-          },
-          {
-            "verb": "resolveResumePrompt",
-            "arguments": {
-              "action": "resume"
-            }
-          }
-        ]
+        "verb": "resolveResumePrompt",
+        "arguments": {
+          "action": "resume"
+        }
       }
     },
     {
