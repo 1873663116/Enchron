@@ -248,30 +248,28 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "applyFormat",
-            "arguments": {
-              "projection": "flat",
-              "stereo": "mono"
-            }
-          },
-          {
-            "verb": "toggleControls",
-            "arguments": {
-              "visible": "true"
-            }
-          }
-        ]
+        "verb": "applyFormat",
+        "arguments": {
+          "projection": "flat",
+          "stereo": "mono"
+        }
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane"
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
     }
   ],
   "teardown": [
@@ -294,8 +292,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "probe.json",
-    "schema": "enchron.console.probe@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---

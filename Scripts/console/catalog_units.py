@@ -285,6 +285,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     current_media: str | None = None
     player_interactions = 0
     menu_opened = False
+    portal_projection = False
     operations = payload["operations"]
     manual_source_flow = "FileBrowsing-SourceConnection-webDAV-name" in json.dumps(
         operations, ensure_ascii=False
@@ -821,6 +822,9 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             else:
                 steps.append({"verb": "device.snapshot", "args": {}})
         elif name in {"diagnostics.playback-state"}:
+            if portal_projection:
+                steps.append(window_root_wait(15000))
+                continue
             steps.append(
                 {
                     "verb": "device.app-command",
@@ -876,7 +880,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"verb": "applyFormat", "arguments": arguments_out},
                 }
             )
-            if not panoramic(current_media):
+            leaves_window = projection.startswith("equirectangular") or panoramic(
+                current_media
+            )
+            portal_projection = leaves_window
+            if not leaves_window:
                 steps.append(
                     {
                         "verb": "device.await",

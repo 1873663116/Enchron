@@ -181,26 +181,11 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "equirectangular180",
-        "timeoutMs": 30000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 15000,
         "intervalMs": 300
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
       }
     },
     {

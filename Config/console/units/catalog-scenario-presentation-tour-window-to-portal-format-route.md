@@ -133,24 +133,7 @@
               "projection": "equirectangular180",
               "stereo": "mono"
             }
-          }
-        ]
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "equirectangular180",
-        "timeoutMs": 30000,
-        "intervalMs": 300
-      }
-    },
-    {
-      "verb": "device.app-commands",
-      "args": {
-        "calls": [
+          },
           {
             "verb": "fetchTransitionTraceSnapshot",
             "arguments": {}
