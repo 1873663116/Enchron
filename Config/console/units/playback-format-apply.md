@@ -37,15 +37,6 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "format-media"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
         "verb": "importStagedFolder",
         "arguments": {
           "directory": "format-media",
@@ -130,16 +121,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 30000,
-        "intervalMs": 300
-      }
-    },
-    {
       "verb": "device.app-command",
       "args": {
         "verb": "toggleControls",
@@ -194,7 +175,18 @@
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
   },
-  "pace": "slow"
+  "pace": "slow",
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "format-media"
+        }
+      }
+    }
+  ]
 }
 ---
 

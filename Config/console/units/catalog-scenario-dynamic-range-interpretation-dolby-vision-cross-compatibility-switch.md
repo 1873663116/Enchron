@@ -42,15 +42,6 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
         "verb": "importStagedFolder",
         "arguments": {
           "directory": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch",

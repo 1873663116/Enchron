@@ -41,15 +41,6 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-dynamic-range-interpretation-hdr10-hlg-interpretation"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
         "verb": "importStagedFolder",
         "arguments": {
           "directory": "scenario-dynamic-range-interpretation-hdr10-hlg-interpretation",

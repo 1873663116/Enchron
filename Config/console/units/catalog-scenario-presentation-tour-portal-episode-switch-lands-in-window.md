@@ -40,15 +40,6 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-presentation-tour-portal-episode-switch-lands-in-window"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
         "verb": "importStagedFolder",
         "arguments": {
           "directory": "scenario-presentation-tour-portal-episode-switch-lands-in-window",

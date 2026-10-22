@@ -1845,6 +1845,9 @@ final class TestCommandChannel {
                 throw CommandError(message: "importStagedFolder requires directory and a root or bdmv entry.")
             }
             let folder = try StagedMediaFolder(inbox: inboxURL, directory: directory, entry: entry)
+            if let existing = mediaLibrary.allFolders.first(where: { $0.name == directory }) {
+                mediaLibrary.remove(existing)
+            }
             let before = Set(allReferences.map(\.id))
             await mediaLibrary.addFolder(folder.url)
             if let detail = mediaLibrary.lastErrorMessage {

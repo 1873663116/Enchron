@@ -40,15 +40,6 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "scenario-audio-only-playback-secondary-menu-pins-audio-controls"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
         "verb": "importStagedFolder",
         "arguments": {
           "directory": "scenario-audio-only-playback-secondary-menu-pins-audio-controls",

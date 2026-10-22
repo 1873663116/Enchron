@@ -462,7 +462,8 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            if let observation = matchedElementObservation(for: element) {
+            if command.includeHierarchy == true,
+               let observation = matchedElementObservation(for: element) {
                 routeElements.append(observation)
             }
             element.tap()
@@ -490,7 +491,8 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            if let observation = matchedElementObservation(for: element) {
+            if command.includeHierarchy == true,
+               let observation = matchedElementObservation(for: element) {
                 routeElements.append(observation)
             }
             element.tap()

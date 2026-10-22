@@ -425,9 +425,6 @@ def unit_for(path: Path) -> dict[str, Any]:
             }
         )
         actions.append(
-            {"verb": "device.app-command", "args": {"verb": "deleteLibraryFolder", "arguments": {"name": folder}}}
-        )
-        actions.append(
             {
                 "verb": "device.app-command",
                 "args": {"verb": "importStagedFolder", "arguments": {"directory": folder, "entry": "root"}},

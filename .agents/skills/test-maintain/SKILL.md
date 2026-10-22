@@ -37,6 +37,8 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+A unit may declare `teardown`, steps that run whether the earlier steps passed or failed; put library cleanup there so a failed run cannot leave a big library that slows every later command.
+
 `device.home` leaves playback and brings the library home to the front, so a unit never depends on the screen the previous unit left behind.
 
 A unit may declare `preconditions: [{kind: media-progress}]` to give the seeded episodes the viewing progress a home journey needs.
