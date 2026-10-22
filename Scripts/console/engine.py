@@ -510,6 +510,8 @@ def _dispatch_daemon(
             "index",
             "trailingLabel",
             "duration",
+            "normalizedX",
+            "normalizedY",
         ):
             request[key] = step.args.get(key)
         request["action"] = step.args.get("action", "tap")

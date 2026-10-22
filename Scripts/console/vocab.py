@@ -53,6 +53,10 @@ VERBS: dict[str, Verb] = {
                 "labelPrefix",
                 "waitMilliseconds",
                 "duration",
+                "normalizedX",
+                "normalizedY",
+                "index",
+                "trailingLabel",
             ),
             choices={
                 "action": (
