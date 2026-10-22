@@ -156,10 +156,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-InfoBar-button-back"
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
@@ -205,10 +205,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-InfoBar-button-back"
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {

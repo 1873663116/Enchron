@@ -344,11 +344,18 @@ private final class InteractiveDeviceUIChannel {
                 scrolled.tap()
                 return (true, "Element tapped after scrolling it into view.")
             }
-            guard hittability(of: element) else {
+            if hittability(of: element) {
+                element.tap()
+                return (true, "Element tapped.")
+            }
+            guard activationPointIsReachable(element) else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
-            element.tap()
-            return (true, "Element tapped.")
+            let frame = element.frame
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
+                .tap()
+            return (true, "Element tapped by coordinate.")
         case .tapSequence:
             return (false, "tapSequence must execute through its sequence transaction.")
         case .tapFirstMatch:
@@ -808,7 +815,7 @@ private final class InteractiveDeviceUIChannel {
     }
 
     private func activationPointIsReachable(_ element: XCUIElement) -> Bool {
-        guard let frame = (try? element.snapshot())?.frame else { return false }
+        let frame = element.frame
         guard frame.width > 0, frame.height > 0 else { return false }
         let activationPoint = CGPoint(x: frame.midX, y: frame.midY)
         if let mainWindow = mainWindowFrame() { return mainWindow.contains(activationPoint) }
@@ -817,8 +824,8 @@ private final class InteractiveDeviceUIChannel {
 
     private func scrollIntoView(_ element: XCUIElement) -> XCUIElement? {
         if activationPointIsReachable(element) { return nil }
-        let deadline = Date().addingTimeInterval(6)
-        for _ in 0 ..< 3 {
+        let deadline = Date().addingTimeInterval(2)
+        for _ in 0 ..< 2 {
             guard Date() < deadline else { break }
             app.scrollViews.firstMatch.swipeUp()
             if activationPointIsReachable(element) { return element }

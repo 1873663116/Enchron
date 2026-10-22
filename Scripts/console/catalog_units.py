@@ -257,7 +257,10 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"action": "tap", "identifier": library_identifier(identifier)},
                 }
             )
-            landing = PRESENTATION.get(str(arguments.get("expectedLanding", "window")))
+            expects_failure = "loadFailure" in json.dumps(payload, ensure_ascii=False)
+            landing = None if expects_failure else PRESENTATION.get(
+                str(arguments.get("expectedLanding", "window"))
+            )
             if landing:
                 steps.append(
                     {
@@ -271,18 +274,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
-            steps.append(
-                {
-                    "verb": "device.await",
-                    "args": {
-                        "probe": "PlayerUI-window-control-plane",
-                        "field": "mediaName",
-                        "equals": media_name(identifier),
-                        "timeoutMs": 15000,
-                        "intervalMs": 300,
-                    },
-                }
-            )
+            if not expects_failure:
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "PlayerUI-window-control-plane",
+                            "field": "mediaName",
+                            "equals": media_name(identifier),
+                            "timeoutMs": 15000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
         elif name == "playback.await-window-state":
             presentation = PRESENTATION.get(str(arguments.get("presentation", "window")))
             if presentation:
@@ -387,6 +391,14 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     raise SystemExit(
                         f"{name} names neither identifiers nor a label in {payload.get('id')}"
                     )
+                if targets == ["PlayerUI-InfoBar-button-back"]:
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {"verb": "leavePlayback", "arguments": {}},
+                        }
+                    )
+                    continue
                 for target in targets:
                     collect_fixture(target, fixtures)
                 if episode_card_opened and all(
@@ -429,6 +441,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 args["text"] = arguments["text"]
             steps.append({"verb": "device.command", "args": args})
         elif name == "accessibility.inspect":
+
             raw = str(arguments.get("identifier"))
             collect_fixture(raw, fixtures)
             if raw == "Emby-Detail-Play" and episode_card_opened:

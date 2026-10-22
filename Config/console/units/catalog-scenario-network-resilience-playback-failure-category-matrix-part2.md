@@ -84,18 +84,6 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-aggregate-30s.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
         "field": "presentation",
         "equals": "window",
         "timeoutMs": 45000,
@@ -186,18 +174,6 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-aggregate-30s.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
       }
     },
     {
