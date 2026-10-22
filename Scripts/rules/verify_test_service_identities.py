@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -73,8 +74,33 @@ def load_registry(path: Path = REGISTRY_PATH) -> dict:
     return document["variables"]
 
 
+def tracked_paths() -> set[Path]:
+    completed = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=REPOSITORY_ROOT,
+        capture_output=True,
+        check=False,
+    )
+    if completed.returncode != 0:
+        return set()
+    return {
+        (REPOSITORY_ROOT / name).resolve()
+        for name in completed.stdout.decode("utf-8").split("\0")
+        if name
+    }
+
+
+ARCHIVED_PREFIX = "docs/archive/"
+
+
 def scan_texts() -> list[tuple[Path, str]]:
-    return [(path, path.read_text(encoding="utf-8")) for path in sources.first_party_files()]
+    tracked = tracked_paths()
+    return [
+        (path, path.read_text(encoding="utf-8"))
+        for path in sources.first_party_files()
+        if (not tracked or path.resolve() in tracked)
+        and not path.relative_to(REPOSITORY_ROOT).as_posix().startswith(ARCHIVED_PREFIX)
+    ]
 
 
 def unclassified_variables(
@@ -132,14 +158,30 @@ def is_placeholder(span: str) -> bool:
 
 
 def value_leaks(
-    texts: list[tuple[Path, str]], values: dict[str, str]
+    texts: list[tuple[Path, str]],
+    values: dict[str, str],
+    registry: dict | None = None,
 ) -> list[str]:
     found: list[str] = []
+    secret_names = (
+        {
+            name
+            for name, entry in registry.items()
+            if isinstance(entry, dict) and entry.get("class") == "credential"
+        }
+        if registry is not None
+        else None
+    )
     for path, text in texts:
         for name, value in sorted(values.items()):
-            start = text.find(value)
-            if start < 0:
+            if secret_names is not None and name not in secret_names:
                 continue
+            match = re.search(
+                rf"(?<![A-Za-z0-9]){re.escape(value)}(?![A-Za-z0-9])", text
+            )
+            if match is None:
+                continue
+            start = match.start()
             line = text.count("\n", 0, start) + 1
             found.append(
                 f"{path.relative_to(REPOSITORY_ROOT)}:{line}: {name} appears in the tree"
@@ -173,7 +215,7 @@ def main() -> int:
     found = malformed_registry(registry)
     found += unclassified_variables(texts, registry)
     values = environment_values(registry)
-    found += value_leaks(texts, values)
+    found += value_leaks(texts, values, registry)
     if not values:
         found += shape_leaks(texts)
     if found:

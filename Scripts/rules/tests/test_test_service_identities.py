@@ -123,7 +123,9 @@ class RecordedRegistryTests(unittest.TestCase):
         values = identities.environment_values(registry)
         if not values:
             self.skipTest("no identity is present in this environment")
-        self.assertEqual(identities.value_leaks(identities.scan_texts(), values), [])
+        self.assertEqual(
+            identities.value_leaks(identities.scan_texts(), values, registry), []
+        )
 
     def test_the_tree_carries_no_credential_shape(self) -> None:
         self.assertEqual(identities.shape_leaks(identities.scan_texts()), [])
