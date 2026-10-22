@@ -726,8 +726,16 @@ def run_structure_checks(
             f"not selected, tooling unchanged ({len(settled)}): "
             + ", ".join(sorted(settled))
         )
-    if unevaluated:
-        deferred = ", ".join(check.identifier for check in unevaluated)
+    mode_filtered = frozenset(
+        check
+        for check in unevaluated
+        if (quick and not check.runs_in_quick_mode)
+        or (text_only and check.environment != "text")
+    )
+    skipped_by_request = tuple(check for check in unevaluated if check in mode_filtered)
+    deferred_checks = tuple(check for check in unevaluated if check not in mode_filtered)
+    if deferred_checks:
+        deferred = ", ".join(check.identifier for check in deferred_checks)
         failures.append(f"unevaluated: {deferred}")
     if failures:
         return LayerResult(
@@ -736,10 +744,18 @@ def run_structure_checks(
             "; ".join(failures),
             tuple(logs),
         )
+    note = (
+        ", ".join(check.identifier for check in skipped_by_request)
+        if skipped_by_request
+        else ""
+    )
+    detail = f"all {len(checks)} {'quick ' if quick else ''}checks passed"
+    if note:
+        detail = f"{detail}; outside this mode ({len(skipped_by_request)}): {note}"
     return LayerResult(
         "Structure checks",
         "PASS",
-        f"all {len(checks)} {'quick ' if quick else ''}checks passed",
+        detail,
         tuple(logs),
     )
 

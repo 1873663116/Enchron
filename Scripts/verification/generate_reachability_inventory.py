@@ -1754,6 +1754,32 @@ def encoded_inventory() -> str:
     return json.dumps(inventory, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
 
 
+def retire_vanished_cells(
+    baseline: dict[str, object],
+    inventory: dict[str, object],
+) -> tuple[dict[str, object], list[tuple[str, str]]]:
+    """Drops decisions whose operation the inventory no longer carries.
+
+    A device run retires them the same way: the matrix merges over the cells it
+    derives, so an operation that left the product leaves no cell behind.
+    """
+    carried = {str(operation["id"]) for operation in inventory["operations"]}
+    cells = baseline.get("cells", [])
+    if not isinstance(cells, list):
+        raise ValueError("reachability matrix baseline cells must be a list")
+    retired: list[tuple[str, str]] = []
+    kept: list[dict[str, object]] = []
+    for cell in cells:
+        if not isinstance(cell, dict):
+            raise ValueError("reachability matrix baseline cells must be objects")
+        key = (str(cell.get("context")), str(cell.get("operation")))
+        if key[1] in carried:
+            kept.append(dict(cell))
+        else:
+            retired.append(key)
+    return {**baseline, "cells": kept}, retired
+
+
 def extend_matrix_baseline(
     baseline: dict[str, object],
     inventory: dict[str, object],
@@ -2050,6 +2076,14 @@ def main() -> int:
         help="Replace the version-controlled inventory with the current source result.",
     )
     parser.add_argument(
+        "--retire-vanished-cells",
+        action="store_true",
+        help=(
+            "Drop matrix decisions whose operation the inventory no longer carries. "
+            "A device run retires them the same way."
+        ),
+    )
+    parser.add_argument(
         "--extend-baseline-known-defects",
         action="store_true",
         help=(
@@ -2071,6 +2105,21 @@ def main() -> int:
     if arguments.write:
         OUTPUT.write_text(generated, encoding="utf-8")
         print(f"wrote {OUTPUT.relative_to(REPOSITORY_ROOT)}")
+    if arguments.retire_vanished_cells:
+        if not MATRIX_BASELINE.is_file():
+            print(
+                f"missing {MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)}",
+                file=sys.stderr,
+            )
+            return 1
+        baseline = json.loads(MATRIX_BASELINE.read_text(encoding="utf-8"))
+        retired_baseline, retired = retire_vanished_cells(baseline, inventory)
+        MATRIX_BASELINE.write_text(
+            json.dumps(retired_baseline, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        for context, operation in retired:
+            print(f"retired {context} {operation}")
     if arguments.extend_baseline_known_defects:
         if not MATRIX_BASELINE.is_file():
             print(
