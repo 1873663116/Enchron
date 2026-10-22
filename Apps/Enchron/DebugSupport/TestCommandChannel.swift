@@ -601,6 +601,7 @@ final class TestCommandChannel {
         var errorDescription: String? { message }
     }
 
+    private let appModel: AppModel
     private let mediaLibrary: MediaLibraryViewModel
     private let mediaLibraryUIState: MediaLibraryUIState
     private let fileBrowser: FileBrowsingViewModel
@@ -626,6 +627,7 @@ final class TestCommandChannel {
     private var pollingTask: Task<Void, Never>?
 
     init(
+        appModel: AppModel,
         mediaLibrary: MediaLibraryViewModel,
         mediaLibraryUIState: MediaLibraryUIState,
         fileBrowser: FileBrowsingViewModel,
@@ -638,6 +640,7 @@ final class TestCommandChannel {
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
     ) throws {
+        self.appModel = appModel
         self.mediaLibrary = mediaLibrary
         self.mediaLibraryUIState = mediaLibraryUIState
         self.fileBrowser = fileBrowser
@@ -1714,6 +1717,33 @@ final class TestCommandChannel {
                     "remainingReferences=\(allReferences.count)"
                 ]
             )
+        case "returnHome":
+            if playbackRuntime.activeSessionID != nil {
+                await playbackLauncher.stopPlaybackAndWait(reason: .backButton)
+            }
+            appModel.selectedTab = .files
+            mediaLibrary.navigateToRoot()
+            mediaLibraryUIState.viewMode = .grid
+            var summary = ["tab=files", "viewMode=grid"]
+            if request.args["clear"] == "true" {
+                let removedReferences = allReferences
+                for reference in removedReferences {
+                    mediaLibrary.remove(reference)
+                }
+                mediaLibrary.navigateToRoot()
+                let removedFolders = mediaLibrary.allFolders
+                for folder in removedFolders.reversed() {
+                    mediaLibrary.remove(folder)
+                }
+                summary.append("removedReferences=\(removedReferences.count)")
+                summary.append("removedFolders=\(removedFolders.count)")
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: "Returned to the library home without a product gesture.",
+                payload: summary
+            )
         case "setStereoLayout":
             guard let raw = request.args["layout"],
                   let layout = PlaybackModel.StereoLayout(rawValue: raw) else {
@@ -2575,6 +2605,7 @@ private enum TestCommandChannelBootstrap {
         UIView.setAnimationsEnabled(false)
         do {
             let channel = try TestCommandChannel(
+                appModel: application.appModel,
                 mediaLibrary: application.mediaLibraryViewModel,
                 mediaLibraryUIState: application.mediaLibraryUIState,
                 fileBrowser: application.fileBrowsingViewModel,

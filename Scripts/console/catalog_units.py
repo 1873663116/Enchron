@@ -153,10 +153,9 @@ def first_emby_label(payload: dict[str, Any]) -> str | None:
     return None
 
 
-def navigation(folder: str | None) -> list[dict[str, Any]]:
+def navigation(folder: str | None, clear: bool = False) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = [
-        {"verb": "device.home", "args": {}},
-        {"verb": "device.app-command", "args": {"verb": "setViewMode", "arguments": {"mode": "grid"}}},
+        {"verb": "device.home", "args": {"clear": True} if clear else {}},
     ]
     if folder:
         steps.append(
@@ -183,6 +182,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     library_opened = False
     series_opened = False
     folder_opened = False
+    home_emitted = False
     for action in payload["operations"]:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
@@ -537,6 +537,84 @@ def collect_fixture(identifier: str, fixtures: list[Path]) -> None:
         fixtures.append(found)
 
 
+def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    collapsed: list[dict[str, Any]] = []
+    for position, action in enumerate(actions):
+        last = position == len(actions) - 1
+        if last:
+            collapsed.append(action)
+            continue
+        if collapsed:
+            previous = collapsed[-1]
+            if previous["verb"] == action["verb"] == "app.relaunch":
+                continue
+            if previous["verb"] == action["verb"] == "device.home":
+                continue
+            if previous["verb"] == "device.probe" and action["verb"] == "device.command":
+                if previous.get("args", {}).get("probe") == action.get("args", {}).get("identifier"):
+                    collapsed[-1] = action
+                    continue
+            if previous["verb"] == "device.snapshot" and action["verb"] == "device.probe":
+                continue
+            if (
+                previous["verb"] == "device.home"
+                and action["verb"] == "device.app-command"
+                and action.get("args", {}).get("verb") == "setViewMode"
+            ):
+                continue
+            if previous["verb"] == action["verb"] == "device.await":
+                same_probe = previous["args"].get("probe") == action["args"].get("probe")
+                simple = (
+                    previous["args"].get("mode", "equals") == "equals"
+                    and action["args"].get("mode", "equals") == "equals"
+                    and previous["args"].get("field")
+                    and action["args"].get("field")
+                    and previous["args"]["field"] != action["args"]["field"]
+                )
+                if same_probe and simple:
+                    merged = dict(previous)
+                    merged["args"] = dict(previous["args"])
+                    merged["args"]["equals"] = {
+                        str(previous["args"]["field"]): previous["args"].get("equals"),
+                        str(action["args"]["field"]): action["args"].get("equals"),
+                    }
+                    merged["args"].pop("field", None)
+                    merged["args"]["timeoutMs"] = max(
+                        int(previous["args"].get("timeoutMs", 30_000)),
+                        int(action["args"].get("timeoutMs", 30_000)),
+                    )
+                    collapsed[-1] = merged
+                    continue
+            if previous["verb"] == action["verb"] == "device.app-command":
+                merged = {
+                    "verb": "device.app-commands",
+                    "args": {
+                        "calls": [
+                            {
+                                "verb": previous["args"]["verb"],
+                                "arguments": previous["args"].get("arguments", {}),
+                            },
+                            {
+                                "verb": action["args"]["verb"],
+                                "arguments": action["args"].get("arguments", {}),
+                            },
+                        ]
+                    },
+                }
+                collapsed[-1] = merged
+                continue
+            if previous["verb"] == "device.app-commands" and action["verb"] == "device.app-command":
+                previous["args"]["calls"].append(
+                    {
+                        "verb": action["args"]["verb"],
+                        "arguments": action["args"].get("arguments", {}),
+                    }
+                )
+                continue
+        collapsed.append(action)
+    return collapsed
+
+
 def unit_for(path: Path) -> dict[str, Any]:
     payload = scenario(path)
     assert payload is not None
@@ -572,7 +650,7 @@ def unit_for(path: Path) -> dict[str, Any]:
                     },
                 }
             )
-    actions.extend(steps)
+    actions.extend(simplify(steps))
     teardown = (
         [
             {

@@ -54,15 +54,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -87,20 +78,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -134,15 +117,6 @@
     {
       "verb": "device.home",
       "args": {}
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
     },
     {
       "verb": "device.command",
@@ -169,20 +143,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -218,15 +184,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -251,20 +208,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {

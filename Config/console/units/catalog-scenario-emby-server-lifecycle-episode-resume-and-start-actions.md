@@ -35,15 +35,6 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
         "verb": "resetMediaNavigation",
         "arguments": {}
       }
@@ -83,12 +74,6 @@
         "action": "tap",
         "label": "Enchron Regression Episode, episode",
         "labelPrefix": "Enchron Regression Episode"
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "Emby-Detail-Play"
       }
     },
     {

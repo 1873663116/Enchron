@@ -80,20 +80,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "viewing-storage-16m01s.mp4"
+        },
         "timeoutMs": 90000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "viewing-storage-16m01s.mp4",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -146,12 +138,6 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-resumeDecision-primary"
       }
     },
     {

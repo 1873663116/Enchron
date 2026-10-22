@@ -521,28 +521,53 @@ def _dispatch_daemon(
             target,
         )
     elif step.verb == "device.home":
-        _daemon_request(
-            root,
-            {"op": "invoke", "action": "app-command", "verb": "leavePlayback", "arguments": {}},
-            target,
-        )
-        _daemon_request(
+        answer = _daemon_request(
             root,
             {
                 "op": "invoke",
-                "action": "tap",
-                "identifier": "Navigation-Ornament-tab-files",
+                "action": "app-command",
+                "verb": "returnHome",
+                "arguments": {"clear": "true"} if step.args.get("clear") else {},
             },
             target,
         )
-        answer = {
-            "kind": "result",
-            "value": {
-                "ok": True,
-                "detail": "the library home is in front",
-                "payload": {"outcome": "home"},
-            },
-        }
+        if answer.get("kind") == "result" and answer.get("value", {}).get("ok"):
+            answer = {
+                "kind": "result",
+                "value": {
+                    "ok": True,
+                    "detail": "the library home is in front",
+                    "payload": {"outcome": "home"},
+                },
+            }
+        else:
+            _daemon_request(
+                root,
+                {
+                    "op": "invoke",
+                    "action": "app-command",
+                    "verb": "leavePlayback",
+                    "arguments": {},
+                },
+                target,
+            )
+            answer = _daemon_request(
+                root,
+                {
+                    "op": "invoke",
+                    "action": "tap",
+                    "identifier": "Navigation-Ornament-tab-files",
+                },
+                target,
+            )
+            answer = {
+                "kind": "result",
+                "value": {
+                    "ok": True,
+                    "detail": "the library home is in front",
+                    "payload": {"outcome": "home"},
+                },
+            }
     elif step.verb == "device.capture-frames":
         flags: list[str] = ["--output-directory", str(steps_directory)]
         if step.args.get("count") is not None:

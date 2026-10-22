@@ -53,15 +53,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -121,20 +112,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "viewing-storage-16m01s.mp4"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "viewing-storage-16m01s.mp4",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -177,12 +160,6 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-resumeDecision-primary"
       }
     },
     {
@@ -238,20 +215,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-multiaudio-avsync-30s.mp4"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "sdr-bframe-multiaudio-avsync-30s.mp4",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {

@@ -33,15 +33,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -104,15 +95,6 @@
     {
       "verb": "device.home",
       "args": {}
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
     },
     {
       "verb": "device.command",
@@ -180,15 +162,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -252,15 +225,6 @@
     {
       "verb": "device.home",
       "args": {}
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
     },
     {
       "verb": "device.command",

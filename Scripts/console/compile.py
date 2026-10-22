@@ -277,6 +277,9 @@ class Compiler:
     def _isolation_steps(self, unit: Unit, steps: list[Step]) -> list[Step]:
         if unit.isolation != "clean-library":
             return steps
+        for step in steps:
+            if step.verb == "device.home" and step.args.get("clear"):
+                return steps
         preamble = Step(
             index=0,
             verb="device.app-command",

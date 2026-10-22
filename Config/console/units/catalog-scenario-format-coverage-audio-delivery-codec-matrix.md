@@ -55,15 +55,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -88,20 +79,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "sdr-bframe-audio-codec-matrix-15s.mkv",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -156,15 +139,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -189,20 +163,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "sdr-bframe-audio-codec-matrix-15s.mkv",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -255,15 +221,6 @@
     {
       "verb": "device.home",
       "args": {}
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
     },
     {
       "verb": "device.command",
@@ -290,20 +247,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "dts_es.mkv"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "dts_es.mkv",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -342,15 +291,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -375,20 +315,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "atmos.mkv"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "atmos.mkv",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -416,15 +348,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -449,20 +372,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "1.0-test_small.ogg"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "1.0-test_small.ogg",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -501,15 +416,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -534,20 +440,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "sdr-bframe-audio-codec-matrix-15s.mkv",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {
@@ -602,15 +500,6 @@
       "args": {}
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -635,20 +524,12 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
+        },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "sdr-bframe-audio-codec-matrix-15s.mkv",
-        "timeoutMs": 15000,
-        "intervalMs": 300
       }
     },
     {

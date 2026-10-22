@@ -35,15 +35,6 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
         "verb": "resetMediaNavigation",
         "arguments": {}
       }
@@ -156,12 +147,6 @@
     {
       "verb": "device.snapshot",
       "args": {}
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "Emby-Evidence"
-      }
     },
     {
       "verb": "device.probe",
