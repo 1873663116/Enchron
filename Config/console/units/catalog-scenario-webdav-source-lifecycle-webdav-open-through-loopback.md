@@ -58,6 +58,13 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "label": "Enchron Regression Emby"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "label": "Enchron Regression WebDAV"
       }
     },

@@ -131,6 +131,8 @@ def slug(identifier: str) -> str:
 
 
 LIBRARY_LABEL = "Enchron Regression Emby"
+LIBRARY_ITEM_PREFIX = "Enchron Regression"
+EPISODE_PREFIX = "Enchron Regression Episode"
 SERIES_PREFIX = "Enchron Regression Series"
 
 
@@ -178,6 +180,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     fixtures: list[Path] = []
     rewound = False
     reset_emitted = False
+    library_opened = False
+    series_opened = False
     for action in payload["operations"]:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
@@ -292,6 +296,25 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 }
             )
         elif name == "accessibility.activate":
+            targets = [str(item) for item in (arguments.get("labels") or [])]
+            if targets and targets[0].startswith(LIBRARY_ITEM_PREFIX):
+                if not library_opened:
+                    steps.append(
+                        {"verb": "device.command", "args": {"action": "tap", "label": LIBRARY_LABEL}}
+                    )
+                    library_opened = True
+                if targets[0].startswith(EPISODE_PREFIX) and not series_opened:
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {
+                                "action": "tap",
+                                "label": f"{SERIES_PREFIX}, poster",
+                                "labelPrefix": SERIES_PREFIX,
+                            },
+                        }
+                    )
+                    series_opened = True
             summed = str(arguments.get("summonControls", ""))
             if summed and summed not in {"false", "none"}:
                 steps.append(
@@ -309,6 +332,10 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 steps.append({"verb": "device.command", "args": arguments_out})
             else:
                 target = arguments.get("identifier") or (arguments.get("identifiers") or [None])[0]
+                if target is None:
+                    raise SystemExit(
+                        f"{name} names neither identifiers nor a label in {payload.get('id')}"
+                    )
                 steps.append(
                     {
                         "verb": "device.command",
@@ -437,7 +464,13 @@ RECORDED_VIDEO_PREFIX = "FileBrowsing-grid-video-"
 LIBRARY_VIDEO_PREFIX = "MediaLibrary-grid-video-"
 
 
+IDENTIFIER_ALIASES = {
+    "Emby-Home": "Emby-Root",
+}
+
+
 def library_identifier(identifier: str) -> str:
+    identifier = IDENTIFIER_ALIASES.get(identifier, identifier)
     if identifier.startswith(RECORDED_VIDEO_PREFIX):
         return LIBRARY_VIDEO_PREFIX + identifier[len(RECORDED_VIDEO_PREFIX):]
     return identifier

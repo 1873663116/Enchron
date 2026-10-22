@@ -88,6 +88,21 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "label": "Enchron Regression Emby"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "label": "Enchron Regression Series, poster",
+        "labelPrefix": "Enchron Regression Series"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "label": "Enchron Regression Series, poster",
         "labelPrefix": "Enchron Regression Series"
       }
@@ -156,7 +171,7 @@
     {
       "verb": "device.probe",
       "args": {
-        "probe": "Emby-Home"
+        "probe": "Emby-Root"
       }
     }
   ],
