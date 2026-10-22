@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-21T23:53:47+00:00",
+  "updatedAt": "2026-10-22T00:16:02+00:00",
   "verbs": {
     "activate": {
       "samples": [
@@ -1738,11 +1738,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-10-21T05:01:03+00:00",
-          "censored": true,
-          "seconds": 30.0
-        },
-        {
           "at": "2026-10-21T05:01:48+00:00",
           "censored": true,
           "seconds": 30.0
@@ -1936,6 +1931,11 @@
           "at": "2026-10-21T23:53:47+00:00",
           "censored": false,
           "seconds": 1.05
+        },
+        {
+          "at": "2026-10-22T00:16:02+00:00",
+          "censored": false,
+          "seconds": 0.43
         }
       ]
     },
@@ -2134,11 +2134,6 @@
     "tap": {
       "samples": [
         {
-          "at": "2026-09-06T16:14:01.926566+00:00",
-          "censored": false,
-          "seconds": 3.321
-        },
-        {
           "at": "2026-09-06T16:14:15.973584+00:00",
           "censored": false,
           "seconds": 3.483
@@ -2332,6 +2327,11 @@
           "at": "2026-10-21T23:40:45+00:00",
           "censored": false,
           "seconds": 3.56
+        },
+        {
+          "at": "2026-10-22T00:16:00+00:00",
+          "censored": false,
+          "seconds": 2.24
         }
       ]
     },

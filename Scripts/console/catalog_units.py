@@ -13,7 +13,45 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS = REPOSITORY_ROOT / "Config/regression/catalog-root/journeys"
 MEDIA_ROOT = REPOSITORY_ROOT.parent / "TestMedia"
 
-UNSUPPORTED = {"input.device-hub-pinch"}
+RESET_PRODUCT_STATE = "harness.reset-product-state"
+
+BLOCKERS = {
+    "input.device-hub-pinch": "no verb carries the device hub pinch gesture",
+    "input.device-hub-prepare": "no verb prepares the device hub",
+    "evidence.capture-audio": "no verb captures audio",
+    "evidence.structural-test": "no verb runs a structural check",
+    "issue.present": "the induce route reads the issue control plane first",
+    "playback.seek": "the seek reads the session, media name and duration before it acts",
+    "playback.select-subtitle": "the route reads the subtitle listing before it selects",
+    "presentation.enter-docked-default": "the route taps a dock placement sequence",
+    "presentation.enter-panorama": "the route taps a panorama sequence and settles",
+    "presentation.exit-spatial": "the route reads the spatial state before it exits",
+    "storage.clear": "the route taps a settings action and compares storage observations",
+    "transition-trace.arm": "the arm reads the prior snapshot before it arms",
+    "transition-trace.disarm": "the disarm needs the generation token an earlier call returned",
+    "transition-trace.fetch": "the fetch needs the generation token an earlier call returned",
+    "format.apply": "the route taps a menu sequence and settles the presentation",
+    RESET_PRODUCT_STATE: "the reset signs out the source and clears the library the later steps need",
+}
+
+UNSUPPORTED = {
+    RESET_PRODUCT_STATE,
+    "input.device-hub-pinch",
+    "evidence.capture-audio",
+    "evidence.structural-test",
+    "input.device-hub-prepare",
+    "issue.present",
+    "playback.seek",
+    "playback.select-subtitle",
+    "presentation.enter-docked-default",
+    "presentation.enter-panorama",
+    "presentation.exit-spatial",
+    "storage.clear",
+    "transition-trace.arm",
+    "transition-trace.disarm",
+    "transition-trace.fetch",
+    "format.apply",
+}
 
 DIRECT = {
     "accessibility.activate",
@@ -178,6 +216,62 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             steps.append({"verb": "device.probe", "args": {"probe": "PlayerUI-window-control-plane"}})
         elif name == "library.snapshot":
             steps.append({"verb": "device.snapshot", "args": {}})
+        elif name == "format.apply":
+            projection = str(arguments["projection"])
+            if projection != "flat":
+                raise SystemExit("format.apply outside the flat route")
+            stereo = {
+                "mono": "Mono",
+                "sideBySide": "Side-by-Side",
+                "topBottom": "Top-Bottom",
+            }[str(arguments["stereoLayout"])]
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {"action": "tap", "identifier": "PlayerUI-TopAction-videoFormat"},
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tapSequence",
+                        "identifiers": [
+                            "PlayerUI-VideoFormat-Projection-Flat",
+                            f"PlayerUI-VideoFormat-Stereo Layout-{stereo}",
+                            "PlayerUI-VideoFormat-apply",
+                        ],
+                    },
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "PlayerUI-window-control-plane",
+                        "field": "projection",
+                        "equals": "flat",
+                        "timeoutMs": int(arguments.get("deadlineSeconds", 30)) * 1000,
+                        "intervalMs": 300,
+                    },
+                }
+            )
+        elif name == RESET_PRODUCT_STATE:
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {
+                        "verb": "resetState",
+                        "arguments": {"libraryFolder": arguments.get("rootFolderName", "")},
+                    },
+                }
+            )
         else:
             raise SystemExit(f"{name} is outside the direct vocabulary")
     return steps, fixtures
@@ -247,16 +341,25 @@ def terminal_of(actions: list[dict[str, Any]]) -> dict[str, Any]:
     return {"kind": "exit", "equals": 0}
 
 
+def blocked(payload: dict[str, Any]) -> list[str]:
+    found: list[str] = []
+    for action in payload.get("operations", []):
+        name = str(action.get("operation", "")).split(":")[1].split("@")[0]
+        arguments = action.get("arguments", {})
+        if name in UNSUPPORTED:
+            found.append(name)
+        elif name == "format.apply" and str(arguments.get("projection")) != "flat":
+            found.append("format.apply")
+        elif name not in DIRECT:
+            found.append(name)
+    return found
+
+
 def expressible(path: Path) -> bool:
     payload = scenario(path)
     if payload is None:
         return False
-    names = operation_names(payload)
-    return (
-        bool(names)
-        and all(name in DIRECT for name in names)
-        and not any(name in UNSUPPORTED for name in names)
-    )
+    return bool(operation_names(payload)) and not blocked(payload)
 
 
 def write_feature(journey: str, identifiers: list[str]) -> None:
@@ -277,7 +380,27 @@ def write_feature(journey: str, identifiers: list[str]) -> None:
     )
 
 
+def report_gaps() -> int:
+    blocking: dict[str, list[str]] = {}
+    for path in sorted(SCENARIOS.rglob("*.md")):
+        payload = scenario(path)
+        if payload is None:
+            continue
+        names = operation_names(payload)
+        if not names:
+            continue
+        blocked = [name for name in names if name in BLOCKERS]
+        if blocked:
+            for name in set(blocked):
+                blocking.setdefault(name, []).append(str(payload["id"]))
+    for name in sorted(blocking, key=lambda item: -len(blocking[item])):
+        print(f"{len(blocking[name]):3d} scenario(s)  {name}: {BLOCKERS[name]}")
+    return 0
+
+
 def main(argv: list[str]) -> int:
+    if "--gaps" in argv:
+        return report_gaps()
     written = 0
     journeys: dict[str, list[str]] = {}
     for path in sorted(SCENARIOS.rglob("*.md")):
