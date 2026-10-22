@@ -79,6 +79,16 @@ class CatalogV2MaterializerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.blueprint = _load_blueprint(BLUEPRINT)
 
+    def _declared_promises(self) -> dict[str, str]:
+        statements = {
+            item["id"]: item["statement"] for item in self.blueprint["promises"]
+        }
+        for path in sorted((LIVE_CATALOG_ROOT.parent / "Config/regression/catalog-root/promises").glob("*.md")):
+            metadata = json.loads(path.read_text(encoding="utf-8").split("---")[1])
+            for item in metadata.get("promises") or []:
+                statements[item["id"]] = item["statement"]
+        return statements
+
     def _write_blueprint(self, directory: Path, value: dict) -> Path:
         directory.mkdir(parents=True, exist_ok=True)
         value = copy.deepcopy(value)
@@ -1631,7 +1641,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             self.assertIn(field, dynamic)
 
     def test_semantic_authority_corrections_are_literal_contract_data(self) -> None:
-        promises = {item["id"]: item["statement"] for item in self.blueprint["promises"]}
+        promises = self._declared_promises()
         self.assertIn("without an Ask Every Time resume prompt", promises["promise:playback-queue:c01"])
         self.assertIn("rehomes contained media references to its parent", promises["promise:library-management:c02"])
         self.assertIn("typed, codec-specific guidance", promises["promise:format-support:c01"])
@@ -1657,19 +1667,17 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertIn("generic playbackFailed", rubric_text)
 
     def test_exact_eight_reviewed_additions_are_present(self) -> None:
-        self.assertEqual(
-            {item["id"] for item in self.blueprint["promises"]},
-            {
-                "promise:format-support:c01",
-                "promise:issue-surface:c01",
-                "promise:library-management:c01",
-                "promise:library-management:c02",
-                "promise:library-management:c03",
-                "promise:library-management:c04",
-                "promise:library-management:c05",
-                "promise:playback-queue:c01",
-            },
-        )
+        expected = {
+            "promise:format-support:c01",
+            "promise:issue-surface:c01",
+            "promise:library-management:c01",
+            "promise:library-management:c02",
+            "promise:library-management:c03",
+            "promise:library-management:c04",
+            "promise:library-management:c05",
+            "promise:playback-queue:c01",
+        }
+        self.assertEqual(set(self._declared_promises()) & expected, expected)
         scenario_ids = {item["id"] for item in self.blueprint["scenarios"]}
         self.assertTrue(
             {

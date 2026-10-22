@@ -73,6 +73,9 @@ class FakeBoundary:
         if self.seed_failure is not None:
             raise self.seed_failure
 
+    def seeded_item_ids(self, session, library_id):
+        return []
+
     def catalog(self, session, library_name, *, deadline_seconds):
         self.last_catalog_deadline = deadline_seconds
         return emby.CatalogBinding(

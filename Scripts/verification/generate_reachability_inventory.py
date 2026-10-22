@@ -1074,8 +1074,8 @@ def presentation_derivation(
         if template.startswith("Stream-Session"):
             source = required_source_location(
                 documents,
-                "Modules/GameStreaming/Views/StreamWindowView.swift",
-                "Stream-Session-controls",
+                "Apps/Enchron/PlayerView.swift",
+                "StreamSessionContentView()",
             )
             return ["window"], {
                 "host": "streamWindowSurface",

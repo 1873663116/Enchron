@@ -624,7 +624,7 @@ def run_batch(
     log_root = run_directory / "structure"
     log_root.mkdir(parents=True, exist_ok=True)
     report = log_root / f"batch-{checks[0].identifier}.json"
-    scripts = [str(REPOSITORY_ROOT / "Scripts/rules" / check.filename) for check in checks]
+    scripts = [str(structure_check_path(check.filename)) for check in checks]
     command = [
         sys.executable,
         str(REPOSITORY_ROOT / "Scripts/rules/batch_runner.py"),
