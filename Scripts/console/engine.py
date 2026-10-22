@@ -480,17 +480,21 @@ def _dispatch_daemon(
             root, {"op": "invoke", "action": "snapshot", "hierarchy": True}, target
         )
     elif step.verb == "device.command":
-        request = {
-            "op": "invoke",
-            "action": step.args.get("action", "tap"),
-            "identifier": step.args.get("identifier"),
-            "identifiers": step.args.get("identifiers"),
-            "label": step.args.get("label"),
-            "labelPrefix": step.args.get("labelPrefix"),
-            "hierarchy": bool(step.args.get("hierarchy")),
-            "waitMilliseconds": step.args.get("waitMilliseconds"),
-            "text": step.args.get("text"),
-        }
+        request: dict[str, Any] = {"op": "invoke"}
+        for key in (
+            "identifier",
+            "identifiers",
+            "identifierPrefix",
+            "label",
+            "labelPrefix",
+            "waitMilliseconds",
+            "text",
+            "index",
+            "trailingLabel",
+        ):
+            request[key] = step.args.get(key)
+        request["action"] = step.args.get("action", "tap")
+        request["hierarchy"] = bool(step.args.get("hierarchy"))
         answer = _daemon_request(root, request, target)
         for _ in range(3):
             if _settled(answer):

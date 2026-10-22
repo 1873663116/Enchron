@@ -16,6 +16,10 @@
     {
       "kind": "media-server",
       "provider": "emby"
+    },
+    {
+      "kind": "media-source",
+      "provider": "webdav"
     }
   ],
   "actions": [
@@ -49,6 +53,13 @@
       "args": {
         "action": "tap",
         "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-addWebDAV"
       }
     },
     {
@@ -118,6 +129,13 @@
     {
       "verb": "device.command",
       "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-addWebDAV"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
         "action": "typeText",
         "identifier": "FileBrowsing-SourceConnection-webDAV-name",
         "text": "Failure Matrix server-unreachable"
@@ -178,6 +196,13 @@
       "args": {
         "action": "tap",
         "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-addWebDAV"
       }
     },
     {

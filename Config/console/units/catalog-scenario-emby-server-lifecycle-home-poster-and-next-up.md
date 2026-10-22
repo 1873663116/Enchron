@@ -136,8 +136,8 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Episode, poster",
-        "labelPrefix": "Enchron Regression Episode"
+        "identifier": "Emby-Episode-",
+        "identifierPrefix": "Emby-Episode-"
       }
     },
     {

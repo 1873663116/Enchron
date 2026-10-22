@@ -224,6 +224,9 @@ class Channel:
         label_prefix: str | None = None,
         hierarchy: bool = False,
         wait_milliseconds: int | None = None,
+        identifier_prefix: str | None = None,
+        index: int | None = None,
+        trailing_label: str | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if action == "relaunch":
             answer = transport.relaunch_by_simctl(self.target)
@@ -241,6 +244,12 @@ class Channel:
         if identifiers:
             extra.append("--identifiers")
             extra.extend(identifiers)
+        if identifier_prefix is not None:
+            extra.extend(["--identifier-prefix", identifier_prefix])
+        if index is not None:
+            extra.extend(["--index", str(index)])
+        if trailing_label is not None:
+            extra.extend(["--trailing-label", trailing_label])
         if label is not None:
             extra.extend(["--label", label])
         if label_prefix is not None:
@@ -392,6 +401,9 @@ class Server:
                 request.get("labelPrefix"),
                 bool(request.get("hierarchy")),
                 request.get("waitMilliseconds"),
+                request.get("identifierPrefix"),
+                request.get("index"),
+                request.get("trailingLabel"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}

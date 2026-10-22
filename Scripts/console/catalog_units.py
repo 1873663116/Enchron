@@ -341,26 +341,41 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
             labels = arguments.get("labels") or []
-            if labels:
+            if labels and str(labels[0]).startswith(EPISODE_PREFIX) and reaches_emby():
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": "Emby-Episode-",
+                            "identifierPrefix": "Emby-Episode-",
+                        },
+                    }
+                )
+            elif labels:
                 label = str(labels[0])
                 arguments_out: dict[str, Any] = {"action": "tap", "label": label}
                 if "," in label:
                     arguments_out["labelPrefix"] = label.split(",")[0].strip()
                 steps.append({"verb": "device.command", "args": arguments_out})
             else:
-                target = arguments.get("identifier") or (arguments.get("identifiers") or [None])[0]
-                if target is not None:
-                    collect_fixture(str(target), fixtures)
-                if target is None:
+                targets = [
+                    str(item)
+                    for item in (arguments.get("identifiers") or [arguments.get("identifier")])
+                    if item
+                ]
+                if not targets:
                     raise SystemExit(
                         f"{name} names neither identifiers nor a label in {payload.get('id')}"
                     )
-                steps.append(
-                    {
-                        "verb": "device.command",
-                        "args": {"action": "tap", "identifier": target},
-                    }
-                )
+                for target in targets:
+                    collect_fixture(target, fixtures)
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {"action": "tap", "identifier": target},
+                        }
+                    )
         elif name in {"accessibility.activate", "accessibility.type"}:
             args: dict[str, Any] = {"action": "tap", "identifier": arguments.get("identifier")}
             if name == "accessibility.type" and "text" in arguments:
@@ -526,6 +541,15 @@ def source_preconditions(payload: dict[str, Any]) -> list[dict[str, Any]]:
         entry = SOURCE_PRECONDITIONS.get(str(prerequisite.get("key")))
         if entry is not None and entry not in declared:
             declared.append(entry)
+    for operation in payload.get("operations") or []:
+        arguments = operation.get("arguments") or {}
+        check = str(arguments.get("check", ""))
+        if operation.get("operation") != "operation:host.preflight@1":
+            continue
+        for provider in ("webdav", "smb"):
+            entry = {"kind": "media-source", "provider": provider}
+            if provider in check and entry not in declared:
+                declared.append(entry)
     return declared
 
 

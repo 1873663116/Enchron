@@ -576,13 +576,20 @@ private final class InteractiveDeviceUIChannel {
         for command: InteractiveDeviceUICommand
     ) -> XCUIElement? {
         let descendants = app.descendants(matching: .any)
-        let matches: XCUIElementQuery
+        var matches: XCUIElementQuery
         if let identifier = command.identifier,
            identifier.isEmpty == false {
             matches = descendants.matching(identifier: identifier)
             if let wait = command.waitMilliseconds, wait > 0 {
                 _ = matches.element(boundBy: command.index ?? 0)
                     .waitForExistence(timeout: Double(wait) / 1_000)
+            }
+            if matches.count == 0,
+               let prefix = command.identifierPrefix,
+               prefix.isEmpty == false {
+                matches = descendants.matching(
+                    NSPredicate(format: "identifier BEGINSWITH %@", prefix)
+                )
             }
         } else if let label = command.label,
                   label.isEmpty == false {

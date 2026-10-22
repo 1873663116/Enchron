@@ -16,6 +16,10 @@
     {
       "kind": "media-server",
       "provider": "emby"
+    },
+    {
+      "kind": "media-source",
+      "provider": "webdav"
     }
   ],
   "actions": [
@@ -49,6 +53,13 @@
       "args": {
         "action": "tap",
         "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-addWebDAV"
       }
     },
     {

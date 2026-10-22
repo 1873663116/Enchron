@@ -109,6 +109,20 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-TopAction-videoFormat"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-VideoFormat-apply"
+      }
+    },
+    {
       "verb": "device.capture-frames",
       "args": {
         "count": 3,
@@ -174,6 +188,20 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-TopAction-videoFormat"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-VideoFormat-apply"
+      }
+    },
+    {
       "verb": "device.capture-frames",
       "args": {
         "count": 3,
@@ -236,6 +264,20 @@
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-window-playback-surface"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-TopAction-videoFormat"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-VideoFormat-cancel"
       }
     },
     {

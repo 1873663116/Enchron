@@ -116,6 +116,20 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
+      }
+    },
+    {
       "verb": "device.capture-frames",
       "args": {
         "count": 3,
@@ -139,6 +153,20 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
+      }
+    },
+    {
       "verb": "device.capture-frames",
       "args": {
         "count": 3,
@@ -162,6 +190,20 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles-off"
+      }
+    },
+    {
       "verb": "device.capture-frames",
       "args": {
         "count": 3,
@@ -182,6 +224,20 @@
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-TopAction-more"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
       }
     },
     {

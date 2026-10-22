@@ -89,6 +89,13 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "identifier": "Settings-menuOption-resume-strategy-askEveryTime"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "identifier": "Settings-menu-end-behavior"
       }
     },
@@ -96,7 +103,21 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "identifier": "Settings-menuOption-end-behavior-playNext"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "identifier": "Settings-menu-controls-auto-hide"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Settings-menuOption-controls-auto-hide-never"
       }
     },
     {

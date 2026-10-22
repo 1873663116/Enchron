@@ -77,8 +77,8 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Episode, episode",
-        "labelPrefix": "Enchron Regression Episode"
+        "identifier": "Emby-Episode-",
+        "identifierPrefix": "Emby-Episode-"
       }
     },
     {
@@ -86,6 +86,13 @@
       "args": {
         "action": "tap",
         "identifier": "Emby-Detail-Play"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-resumeDecision-primary"
       }
     },
     {
@@ -115,7 +122,21 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "identifier": "PlayerUI-InfoBar-button-back"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "identifier": "Emby-Detail-Play"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-resumeDecision-secondary"
       }
     },
     {
@@ -139,6 +160,13 @@
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-window-playback-surface"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-InfoBar-button-back"
       }
     },
     {

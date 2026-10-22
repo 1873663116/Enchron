@@ -111,6 +111,20 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-TopAction-more"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-audio"
+      }
+    },
+    {
       "verb": "device.snapshot",
       "args": {}
     },
@@ -174,6 +188,20 @@
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-window-playback-surface"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-TopAction-more"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerUI-menu-speed"
       }
     },
     {
