@@ -25,10 +25,6 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
       "verb": "app.relaunch",
       "args": {}
     },

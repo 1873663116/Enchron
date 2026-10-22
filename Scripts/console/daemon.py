@@ -223,8 +223,16 @@ class Channel:
         label: str | None = None,
         label_prefix: str | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
+        if action == "relaunch":
+            answer = transport.relaunch_by_simctl(self.target)
+            if not answer.get("success"):
+                return {}, False, str(answer.get("message", "the app did not relaunch"))
+            payload, ok, detail = self.ensure_session("simulator")
+            return payload, ok, detail
         if not self.alive():
-            return {}, False, "the session is gone; ensure it again"
+            self.ensure_session("simulator")
+            if not self.alive():
+                return {}, False, "the session is gone; ensure it again"
         extra: list[str] = []
         if identifier is not None:
             extra.extend(["--identifier", identifier])

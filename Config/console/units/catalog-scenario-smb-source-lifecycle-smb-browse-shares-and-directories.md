@@ -25,15 +25,15 @@
       }
     },
     {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
       "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "app.relaunch",
       "args": {}
     },
     {
@@ -43,13 +43,6 @@
         "arguments": {
           "mode": "grid"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {

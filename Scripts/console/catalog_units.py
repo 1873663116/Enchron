@@ -153,8 +153,8 @@ def first_emby_label(payload: dict[str, Any]) -> str | None:
 
 def navigation(folder: str | None) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = [
+        {"verb": "device.home", "args": {}},
         {"verb": "device.app-command", "args": {"verb": "setViewMode", "arguments": {"mode": "grid"}}},
-        {"verb": "device.command", "args": {"action": "tap", "identifier": "Navigation-Ornament-tab-files"}},
     ]
     if folder:
         steps.append(
@@ -412,10 +412,7 @@ def unit_for(path: Path) -> dict[str, Any]:
     identifier = str(payload["id"])
     folder = slug(identifier)
     steps, fixtures = translate(payload, folder)
-    actions = [
-        {"verb": "device.session.ensure", "args": {"lane": "simulator"}},
-        {"verb": "device.home", "args": {}},
-    ]
+    actions = [{"verb": "device.session.ensure", "args": {"lane": "simulator"}}]
     actions.append({"verb": "app.relaunch", "args": {}})
     if fixtures:
         actions.append(

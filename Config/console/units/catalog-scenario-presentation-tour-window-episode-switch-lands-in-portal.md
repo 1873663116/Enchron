@@ -25,10 +25,6 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
       "verb": "app.relaunch",
       "args": {}
     },
@@ -65,19 +61,16 @@
       "args": {}
     },
     {
+      "verb": "device.home",
+      "args": {}
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "setViewMode",
         "arguments": {
           "mode": "grid"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
