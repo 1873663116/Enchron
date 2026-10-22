@@ -54,9 +54,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -119,23 +117,19 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "app.relaunch",
@@ -143,9 +137,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -208,23 +200,19 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     }
   ],
   "teardown": [
@@ -247,8 +235,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "probe.json",
-    "schema": "enchron.console.probe@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---

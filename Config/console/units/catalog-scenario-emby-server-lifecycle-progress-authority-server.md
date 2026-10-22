@@ -35,9 +35,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -76,10 +74,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.command",
@@ -132,17 +128,24 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": null
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.command",
       "args": {
-        "probe": "PlayerUI-window-control-plane"
+        "action": "tap",
+        "identifier": "PlayerUI-InfoBar-button-back"
       }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.probe",

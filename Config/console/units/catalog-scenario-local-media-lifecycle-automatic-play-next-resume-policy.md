@@ -55,9 +55,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -86,28 +84,28 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "Settings-category-playback"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "Settings-menu-resume-strategy"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "Settings-menu-end-behavior"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "Settings-menu-controls-auto-hide"
       }
     },
     {
@@ -169,7 +167,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-InfoBar-button-back"
       }
     },
     {
@@ -183,7 +181,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
       }
     },
     {
@@ -196,7 +194,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-resumeDecision-primary"
       }
     },
     {
@@ -224,7 +222,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-InfoBar-button-back"
       }
     },
     {
@@ -288,10 +286,19 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerPanel-button-play"
       }
     },
     {

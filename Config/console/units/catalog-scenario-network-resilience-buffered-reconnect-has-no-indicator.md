@@ -30,14 +30,30 @@
       "args": {}
     },
     {
+      "verb": "device.stage-media",
+      "args": {
+        "source": [
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
+        ],
+        "target": "scenario-network-resilience-buffered-reconnect-has-no-indicator"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-network-resilience-buffered-reconnect-has-no-indicator"
+        }
+      }
+    },
+    {
       "verb": "app.relaunch",
       "args": {}
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -46,13 +62,6 @@
         "arguments": {
           "mode": "grid"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-network-resilience-buffered-reconnect-has-no-indicator"
       }
     },
     {
@@ -72,14 +81,14 @@
     {
       "verb": "device.probe",
       "args": {
-        "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
@@ -97,7 +106,7 @@
       "args": {
         "probe": "PlayerUI-window-control-plane",
         "field": "mediaName",
-        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "equals": "sdr-bframe-aggregate-30s.mkv",
         "timeoutMs": 15000,
         "intervalMs": 300
       }
@@ -153,9 +162,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -164,13 +171,6 @@
         "arguments": {
           "mode": "grid"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-network-resilience-buffered-reconnect-has-no-indicator"
       }
     },
     {
@@ -190,14 +190,14 @@
     {
       "verb": "device.probe",
       "args": {
-        "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
@@ -215,7 +215,7 @@
       "args": {
         "probe": "PlayerUI-window-control-plane",
         "field": "mediaName",
-        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "equals": "sdr-bframe-aggregate-30s.mkv",
         "timeoutMs": 15000,
         "intervalMs": 300
       }
@@ -266,7 +266,24 @@
       }
     }
   ],
-  "teardown": [],
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-network-resilience-buffered-reconnect-has-no-indicator"
+        }
+      }
+    }
+  ],
   "terminal": {
     "kind": "artifact",
     "path": "frames.json",

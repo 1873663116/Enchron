@@ -30,6 +30,24 @@
       "args": {}
     },
     {
+      "verb": "device.stage-media",
+      "args": {
+        "source": [
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
+        ],
+        "target": "scenario-network-resilience-recoverable-read-resumes-from-checkpoint"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-network-resilience-recoverable-read-resumes-from-checkpoint"
+        }
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -39,14 +57,14 @@
     {
       "verb": "device.probe",
       "args": {
-        "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {
@@ -64,7 +82,7 @@
       "args": {
         "probe": "PlayerUI-window-control-plane",
         "field": "mediaName",
-        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "equals": "sdr-bframe-aggregate-30s.mkv",
         "timeoutMs": 15000,
         "intervalMs": 300
       }
@@ -114,26 +132,41 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-InfoBar-button-back"
       }
     },
     {
       "verb": "device.probe",
       "args": {
-        "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     }
   ],
-  "teardown": [],
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-network-resilience-recoverable-read-resumes-from-checkpoint"
+        }
+      }
+    }
+  ],
   "terminal": {
     "kind": "artifact",
     "path": "probe.json",

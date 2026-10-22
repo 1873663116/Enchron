@@ -620,11 +620,28 @@ def _dispatch_daemon(
             )
             answer = _daemon_request(root, request, target)
     elif step.verb == "device.probe":
+        probe = step.args.get("probe")
         answer = _daemon_request(
             root,
-            {"op": "invoke", "action": "snapshot", "identifier": step.args.get("probe"), "hierarchy": True},
+            {"op": "invoke", "action": "snapshot", "identifier": probe, "hierarchy": True},
             target,
         )
+        if (
+            answer.get("kind") == "result"
+            and answer.get("value", {}).get("ok")
+            and probe
+            and step.expect is None
+        ):
+            payload = answer["value"].get("payload") or {}
+            if not isinstance(payload.get("matchedElement"), dict):
+                answer = {
+                    "kind": "result",
+                    "value": {
+                        "ok": False,
+                        "detail": f"no element carries the identifier {probe}",
+                        "payload": payload,
+                    },
+                }
     elif step.verb == "app.relaunch":
         answer = _daemon_request(root, {"op": "invoke", "action": "relaunch"}, target)
     else:

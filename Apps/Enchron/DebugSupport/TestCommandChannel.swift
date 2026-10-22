@@ -1902,6 +1902,36 @@ final class TestCommandChannel {
                 throw CommandError(message: "The production folder import pipeline added no media.")
             }
             return Response(id: request.id, ok: true, detail: nil, payload: allReferenceNames)
+        case "importStagedFiles":
+            guard let directory = request.args["directory"], directory.isEmpty == false else {
+                throw CommandError(message: "importStagedFiles requires a directory.")
+            }
+            let root = inboxURL.appending(path: directory, directoryHint: .isDirectory)
+            let candidates = (try? FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            let files = candidates.filter { url in
+                let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?
+                    .isDirectory ?? false
+                return isDirectory == false
+                    && FileBrowsingDomain.FileFilter.playable.matches(fileURL: url)
+            }
+            guard files.isEmpty == false else {
+                throw CommandError(
+                    message: "importStagedFiles found no playable file in \(directory)."
+                )
+            }
+            let before = Set(allReferences.map(\.id))
+            mediaLibrary.addFiles(files.sorted { $0.lastPathComponent < $1.lastPathComponent })
+            if let detail = mediaLibrary.lastErrorMessage {
+                throw CommandError(message: detail)
+            }
+            guard allReferences.contains(where: { before.contains($0.id) == false }) else {
+                throw CommandError(message: "The production file import added no media.")
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: allReferenceNames)
         case "importMediaDirectory":
             guard let directoryName = request.args["directory"],
                   let mediaFileName = request.args["media"],

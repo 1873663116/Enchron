@@ -35,9 +35,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -81,7 +79,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "Emby-Detail-Play"
       }
     },
     {
@@ -104,14 +102,14 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "Emby-Detail-Play"
       }
     },
     {
@@ -134,7 +132,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {

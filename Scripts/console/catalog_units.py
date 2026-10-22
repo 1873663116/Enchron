@@ -153,7 +153,7 @@ def first_emby_label(payload: dict[str, Any]) -> str | None:
 
 def navigation(folder: str | None) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = [
-        {"verb": "device.home", "args": {"clean": True}},
+        {"verb": "device.home", "args": {}},
         {"verb": "device.app-command", "args": {"verb": "setViewMode", "arguments": {"mode": "grid"}}},
     ]
     if folder:
@@ -167,6 +167,7 @@ def navigation(folder: str | None) -> list[dict[str, Any]]:
 
 
 def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]], list[Path]]:
+    folder = None if imports_at_root(payload) else folder
     staged = any(
         str(action.get("operation", "")).startswith("operation:media.import-staged")
         or str(action.get("operation", "")).startswith("operation:media.open")
@@ -216,10 +217,15 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     )
         elif name == "media.open":
             identifier = str(arguments["identifier"])
-            found = fixture(identifier.split("MediaLibrary-grid-video-")[-1])
+            found = fixture(media_name(identifier))
             if found is not None and found not in fixtures:
                 fixtures.append(found)
-            steps.append({"verb": "device.command", "args": {"action": "tap", "identifier": identifier}})
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {"action": "tap", "identifier": library_identifier(identifier)},
+                }
+            )
             landing = PRESENTATION.get(str(arguments.get("expectedLanding", "window")))
             if landing:
                 steps.append(
@@ -240,7 +246,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {
                         "probe": "PlayerUI-window-control-plane",
                         "field": "mediaName",
-                        "equals": identifier.split("MediaLibrary-grid-video-")[-1],
+                        "equals": media_name(identifier),
                         "timeoutMs": 15000,
                         "intervalMs": 300,
                     },
@@ -286,6 +292,14 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 }
             )
         elif name == "accessibility.activate":
+            summed = str(arguments.get("summonControls", ""))
+            if summed and summed not in {"false", "none"}:
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
+                    }
+                )
             labels = arguments.get("labels") or []
             if labels:
                 label = str(labels[0])
@@ -294,10 +308,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     arguments_out["labelPrefix"] = label.split(",")[0].strip()
                 steps.append({"verb": "device.command", "args": arguments_out})
             else:
+                target = arguments.get("identifier") or (arguments.get("identifiers") or [None])[0]
                 steps.append(
                     {
                         "verb": "device.command",
-                        "args": {"action": "tap", "identifier": arguments.get("identifier")},
+                        "args": {"action": "tap", "identifier": target},
                     }
                 )
         elif name in {"accessibility.activate", "accessibility.type"}:
@@ -307,11 +322,22 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 args["text"] = arguments["text"]
             steps.append({"verb": "device.command", "args": args})
         elif name == "accessibility.inspect":
-            steps.append({"verb": "device.probe", "args": {"probe": arguments.get("identifier")}})
-        elif name in {"diagnostics.surface-probe", "diagnostics.browse-hierarchy", "harness.assert-channels"}:
             steps.append(
-                {"verb": "device.probe", "args": {"probe": arguments.get("identifier", "PlayerUI-window-control-plane")}}
+                {
+                    "verb": "device.probe",
+                    "args": {"probe": library_identifier(str(arguments.get("identifier")))},
+                }
             )
+        elif name in {"diagnostics.surface-probe", "diagnostics.browse-hierarchy", "harness.assert-channels"}:
+            if arguments.get("identifier"):
+                steps.append(
+                    {
+                        "verb": "device.probe",
+                        "args": {"probe": library_identifier(str(arguments["identifier"]))},
+                    }
+                )
+            else:
+                steps.append({"verb": "device.snapshot", "args": {}})
         elif name in {"diagnostics.playback-state"}:
             steps.append({"verb": "device.probe", "args": {"probe": "PlayerUI-window-control-plane"}})
         elif name in {"host.preflight", "media.import-staged"}:
@@ -406,6 +432,34 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     return steps, fixtures
 
 
+VIDEO_PREFIXES = ("MediaLibrary-grid-video-", "FileBrowsing-grid-video-")
+RECORDED_VIDEO_PREFIX = "FileBrowsing-grid-video-"
+LIBRARY_VIDEO_PREFIX = "MediaLibrary-grid-video-"
+
+
+def library_identifier(identifier: str) -> str:
+    if identifier.startswith(RECORDED_VIDEO_PREFIX):
+        return LIBRARY_VIDEO_PREFIX + identifier[len(RECORDED_VIDEO_PREFIX):]
+    return identifier
+
+
+def media_name(identifier: str) -> str:
+    for prefix in VIDEO_PREFIXES:
+        if prefix in identifier:
+            return identifier.split(prefix)[-1]
+    return identifier.split("-video-")[-1]
+
+
+def imports_at_root(payload: dict[str, Any]) -> bool:
+    for action in payload.get("operations", []):
+        if str(action.get("operation", "")).endswith("media.open@2") is False:
+            continue
+        identifier = str(action.get("arguments", {}).get("identifier", ""))
+        if identifier.startswith("FileBrowsing-grid-video-"):
+            return True
+    return False
+
+
 def unit_for(path: Path) -> dict[str, Any]:
     payload = scenario(path)
     assert payload is not None
@@ -424,12 +478,23 @@ def unit_for(path: Path) -> dict[str, Any]:
                 },
             }
         )
-        actions.append(
-            {
-                "verb": "device.app-command",
-                "args": {"verb": "importStagedFolder", "arguments": {"directory": folder, "entry": "root"}},
-            }
-        )
+        if imports_at_root(payload):
+            actions.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "importStagedFiles", "arguments": {"directory": folder}},
+                }
+            )
+        else:
+            actions.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {
+                        "verb": "importStagedFolder",
+                        "arguments": {"directory": folder, "entry": "root"},
+                    },
+                }
+            )
     actions.extend(steps)
     teardown = (
         [

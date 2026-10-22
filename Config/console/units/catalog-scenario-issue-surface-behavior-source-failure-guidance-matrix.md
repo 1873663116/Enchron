@@ -35,9 +35,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -59,7 +57,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
       }
     },
     {
@@ -95,7 +93,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
       }
     },
     {
@@ -110,9 +108,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -134,7 +130,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
       }
     },
     {
@@ -171,7 +167,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
       }
     },
     {
@@ -186,9 +182,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -210,7 +204,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
       }
     },
     {
@@ -247,7 +241,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
       }
     },
     {
@@ -262,9 +256,7 @@
     },
     {
       "verb": "device.home",
-      "args": {
-        "clean": true
-      }
+      "args": {}
     },
     {
       "verb": "device.app-command",
@@ -286,7 +278,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
       }
     },
     {
@@ -323,7 +315,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
       }
     },
     {
