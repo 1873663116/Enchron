@@ -146,6 +146,10 @@ def first_emby_label(payload: dict[str, Any]) -> str | None:
             continue
         if seen_emby and name == "accessibility.activate":
             labels = arguments.get("labels") or []
+            for label in labels:
+                found_fixture = fixture(str(label))
+                if found_fixture is not None and found_fixture not in fixtures:
+                    fixtures.append(found_fixture)
             if labels:
                 return str(labels[0])
             if arguments.get("identifier"):
@@ -184,6 +188,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     folder_opened = False
     home_emitted = False
     episode_card_opened = False
+    episode_played = False
     current_media: str | None = None
     player_interactions = 0
     menu_opened = False
@@ -276,6 +281,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
         elif name == "playback.await-window-state":
+            episode_card_opened = False
             presentation = PRESENTATION.get(str(arguments.get("presentation", "window")))
             if presentation:
                 steps.append(
@@ -350,8 +356,13 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
             labels = arguments.get("labels") or []
+            for label in labels:
+                found_fixture = fixture(str(label))
+                if found_fixture is not None and found_fixture not in fixtures:
+                    fixtures.append(found_fixture)
             if labels and str(labels[0]).startswith(EPISODE_PREFIX) and reaches_emby():
                 episode_card_opened = True
+                episode_played = True
                 steps.append(
                     {
                         "verb": "device.command",
@@ -368,6 +379,16 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 arguments_out: dict[str, Any] = {"action": "tap", "label": label}
                 if "," in label:
                     arguments_out["labelPrefix"] = label.split(",")[0].strip()
+                menu_targets = [
+                    str(item) for item in (arguments.get("identifiers") or []) if item
+                ]
+                if menu_targets:
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {"action": "tapEach", "identifiers": menu_targets},
+                        }
+                    )
                 steps.append({"verb": "device.command", "args": arguments_out})
             else:
                 targets = [
@@ -386,6 +407,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "args": {"verb": "leavePlayback", "arguments": {}},
                         }
                     )
+                    continue
+                if targets == ["PlayerUI-resumeDecision-secondary"]:
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "seekNormalized",
+                                "arguments": {"position": "0"},
+                            },
+                        }
+                    )
+                    continue
+                if targets == ["PlayerUI-resumeDecision-primary"]:
                     continue
                 if targets == ["PlayerPanel-button-play"]:
                     steps.append(
@@ -408,6 +442,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     for target in targets
                 ):
                     continue
+                if "Emby-Detail-Play" in targets and episode_played:
+                    targets = [item for item in targets if item != "Emby-Detail-Play"]
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {
+                                "action": "tap",
+                                "identifier": "Emby-Episode-",
+                                "identifierPrefix": "Emby-Episode-",
+                                "waitMilliseconds": 1200,
+                            },
+                        }
+                    )
+                    if not targets:
+                        continue
                 player_targets = any(
                     str(target).startswith(("PlayerUI-TopAction-", "PlayerUI-menu-"))
                     for target in targets
@@ -476,8 +525,30 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                                 },
                             }
                         )
+                        if labels:
+                            label = str(labels[0])
+                            arguments_out: dict[str, Any] = {
+                                "action": "tap",
+                                "label": label,
+                            }
+                            if "," in label:
+                                arguments_out["labelPrefix"] = label.split(",")[0].strip()
+                            steps.append({"verb": "device.command", "args": arguments_out})
                         continue
                 for target in targets:
+                    if target == "PlayerUI-resumeDecision-secondary":
+                        steps.append(
+                            {
+                                "verb": "device.app-command",
+                                "args": {
+                                    "verb": "seekNormalized",
+                                    "arguments": {"position": "0"},
+                                },
+                            }
+                        )
+                        continue
+                    if target == "PlayerUI-resumeDecision-primary":
+                        continue
                     steps.append(
                         {
                             "verb": "device.command",

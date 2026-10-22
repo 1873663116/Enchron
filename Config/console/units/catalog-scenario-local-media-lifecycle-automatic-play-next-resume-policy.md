@@ -177,10 +177,9 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.probe",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-resumeDecision-primary"
+        "probe": "PlayerUI-resumeDecision-primary"
       }
     },
     {

@@ -33,7 +33,8 @@
       "verb": "device.stage-media",
       "args": {
         "source": [
-          "test-media:Samples/Spatial/Stereo180/180_3D.mp4"
+          "test-media:Samples/Spatial/Stereo180/180_3D.mp4",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-120s.mp4"
         ],
         "target": "scenario-presentation-tour-portal-episode-switch-lands-in-window"
       }
@@ -96,6 +97,16 @@
         "arguments": {
           "visible": "true"
         }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tapEach",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-episodes"
+        ]
       }
     },
     {

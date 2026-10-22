@@ -109,6 +109,24 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Emby-Episode-",
+        "identifierPrefix": "Emby-Episode-",
+        "waitMilliseconds": 1200
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
