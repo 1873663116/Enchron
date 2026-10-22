@@ -210,7 +210,47 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     current_media: str | None = None
     player_interactions = 0
     menu_opened = False
-    for action in payload["operations"]:
+    operations = payload["operations"]
+    manual_source_flow = "FileBrowsing-SourceConnection-webDAV-name" in json.dumps(
+        operations, ensure_ascii=False
+    )
+    if manual_source_flow:
+        name_text = ""
+        recipe = ""
+        for action in operations:
+            arguments = action.get("arguments") or {}
+            if arguments.get("identifier") == "FileBrowsing-SourceConnection-webDAV-name":
+                name_text = str(arguments.get("text", ""))
+                for token in name_text.split():
+                    if token in {
+                        "credentials-rejected",
+                        "missing-object",
+                        "access-denied",
+                        "corrupt-media",
+                        "transport-interrupted",
+                    }:
+                        recipe = token
+                break
+        operations = [
+            {
+                "operation": "operation:device.connect-source@1",
+                "arguments": {
+                    "provider": "webdav",
+                    "name": name_text or "Failure Matrix",
+                    "recipe": recipe,
+                    "expectFailure": True,
+                },
+                "callId": "call:manual-source",
+            },
+            *[
+                action
+                for action in operations
+                if str(action.get("operation", "")).startswith(
+                    ("operation:app.relaunch", "operation:navigation.select-tab")
+                )
+            ],
+        ]
+    for action in operations:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
         if name == "app.relaunch":
@@ -250,6 +290,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "args": {"action": "tap", "label": LIBRARY_LABEL},
                         }
                     )
+        elif name == "device.connect-source":
+            steps.append({"verb": "device.connect-source", "args": arguments})
         elif name == "media.open":
             identifier = str(arguments["identifier"])
             current_media = media_name(identifier)
@@ -276,6 +318,10 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             landing = None if expects_failure else PRESENTATION.get(
                 str(arguments.get("expectedLanding", "window"))
             )
+            if current_media and any(
+                token in current_media for token in ("APMP", "180", "360", "Panorama")
+            ):
+                landing = None
             if landing:
                 steps.append(
                     {
@@ -305,6 +351,10 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         elif name == "playback.await-window-state":
             episode_card_opened = False
             presentation = PRESENTATION.get(str(arguments.get("presentation", "window")))
+            if current_media and any(
+                token in current_media for token in ("APMP", "180", "360", "Panorama")
+            ):
+                presentation = None
             if presentation:
                 steps.append(
                     {

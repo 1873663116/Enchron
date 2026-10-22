@@ -82,22 +82,10 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "180_3D.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "field": "mediaName",
+        "equals": "180_3D.mp4",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {

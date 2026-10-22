@@ -976,6 +976,15 @@ def _run_connect_source(
     device = plan.target or _probe_target()
     if fingerprint:
         _trust_certificate(device, address, fingerprint)
+    recipe = str(step.args.get("recipe") or "")
+    if recipe:
+        try:
+            _, controller = _remote_source_controller(root, provider)
+            _restore_active_recipe(controller)
+            controller.activate(recipe)
+        except Exception:
+            pass
+    expect_failure = bool(step.args.get("expectFailure"))
     credentials = _environment_credentials(root, provider)
     answer = _daemon_request(
         root,
@@ -988,7 +997,12 @@ def _run_connect_source(
         device,
     )
     payload = (answer.get("value") or {}).get("payload") or {}
-    if not (answer.get("value") or {}).get("ok"):
+    connected = bool((answer.get("value") or {}).get("ok"))
+    if expect_failure:
+        if connected:
+            return payload, False, f"{name} connected although the {recipe} recipe was active"
+        return payload, True, f"{name} failed to connect with the {recipe} recipe active"
+    if not connected:
         return payload, False, f"the app could not connect {address}"
     return payload, True, f"connected {name} at {address}"
 

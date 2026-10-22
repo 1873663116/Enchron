@@ -34,74 +34,12 @@
       "args": {}
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
+      "verb": "device.connect-source",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "FileBrowsing-SourcesSidebar-sourceMore",
-          "FileBrowsing-SourcesSidebar-addWebDAV"
-        ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "typeText",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-name",
-        "text": "Failure Matrix credentials-rejected"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-address"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-username"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-password"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "FileBrowsing-SourceConnection-webDAV-error",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "provider": "webdav",
+        "name": "Failure Matrix credentials-rejected",
+        "recipe": "credentials-rejected",
+        "expectFailure": true
       }
     },
     {
@@ -120,60 +58,18 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "FileBrowsing-SourcesSidebar-sourceMore",
-          "FileBrowsing-SourcesSidebar-addWebDAV"
-        ]
-      }
+      "verb": "app.relaunch",
+      "args": {}
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "typeText",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-name",
-        "text": "Failure Matrix server-unreachable"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "typeText",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-address",
-        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:11/unreachableAddress"
-      }
+      "verb": "device.home",
+      "args": {}
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-username"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-password"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "FileBrowsing-SourceConnection-webDAV-error",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -192,60 +88,18 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "FileBrowsing-SourcesSidebar-sourceMore",
-          "FileBrowsing-SourcesSidebar-addWebDAV"
-        ]
-      }
+      "verb": "app.relaunch",
+      "args": {}
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "typeText",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-name",
-        "text": "Failure Matrix invalid-address"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "typeText",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-address",
-        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:21/missingPathAddress"
-      }
+      "verb": "device.home",
+      "args": {}
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-username"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-password"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "FileBrowsing-SourceConnection-webDAV-error",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
