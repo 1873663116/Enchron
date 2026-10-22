@@ -570,6 +570,18 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 arguments_out: dict[str, Any] = {"action": "tap", "label": label}
                 if "," in label:
                     arguments_out["labelPrefix"] = label.split(",")[0].strip()
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "label",
+                            "equals": label,
+                            "timeoutMs": 20000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
                 menu_targets = [
                     str(item) for item in (arguments.get("identifiers") or []) if item
                 ]

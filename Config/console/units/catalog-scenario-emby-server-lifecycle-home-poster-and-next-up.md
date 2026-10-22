@@ -91,6 +91,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Enchron Regression Series, poster",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",

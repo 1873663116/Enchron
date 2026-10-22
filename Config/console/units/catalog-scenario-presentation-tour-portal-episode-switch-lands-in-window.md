@@ -117,6 +117,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "sdr-bframe-multiaudio-avsync-120s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tapEach",

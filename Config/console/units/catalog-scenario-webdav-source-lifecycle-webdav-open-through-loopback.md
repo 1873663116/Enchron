@@ -50,6 +50,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Enchron Regression WebDAV",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
