@@ -43,7 +43,7 @@ VERBS: dict[str, Verb] = {
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),
             lane="device",
-            parameter=("action", "identifier", "identifiers", "text", "label"),
+            parameter=("action", "identifier", "identifiers", "text", "label", "labelPrefix"),
             choices={
                 "action": (
                     "tap",

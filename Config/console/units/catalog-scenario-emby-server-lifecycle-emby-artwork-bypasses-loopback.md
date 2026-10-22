@@ -79,7 +79,8 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Series, poster"
+        "label": "Enchron Regression Series, poster",
+        "labelPrefix": "Enchron Regression Series"
       }
     },
     {

@@ -221,6 +221,7 @@ class Channel:
         flags: list[str] | None = None,
         identifiers: list[str] | None = None,
         label: str | None = None,
+        label_prefix: str | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if not self.alive():
             return {}, False, "the session is gone; ensure it again"
@@ -232,6 +233,8 @@ class Channel:
             extra.extend(identifiers)
         if label is not None:
             extra.extend(["--label", label])
+        if label_prefix is not None:
+            extra.extend(["--label-prefix", label_prefix])
         if text is not None:
             extra.extend(["--text", text])
         if app_verb is not None:
@@ -351,6 +354,7 @@ class Server:
                 request.get("flags"),
                 request.get("identifiers"),
                 request.get("label"),
+                request.get("labelPrefix"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}

@@ -273,9 +273,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         elif name == "accessibility.activate":
             labels = arguments.get("labels") or []
             if labels:
-                steps.append(
-                    {"verb": "device.command", "args": {"action": "tap", "label": str(labels[0])}}
-                )
+                label = str(labels[0])
+                arguments_out: dict[str, Any] = {"action": "tap", "label": label}
+                if "," in label:
+                    arguments_out["labelPrefix"] = label.split(",")[0].strip()
+                steps.append({"verb": "device.command", "args": arguments_out})
             else:
                 steps.append(
                     {

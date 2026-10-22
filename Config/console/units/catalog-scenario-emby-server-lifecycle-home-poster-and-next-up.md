@@ -79,7 +79,8 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Series, poster"
+        "label": "Enchron Regression Series, poster",
+        "labelPrefix": "Enchron Regression Series"
       }
     },
     {
@@ -126,7 +127,8 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Episode, poster"
+        "label": "Enchron Regression Episode, poster",
+        "labelPrefix": "Enchron Regression Episode"
       }
     },
     {

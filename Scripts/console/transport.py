@@ -974,6 +974,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "assertAbsent",
         "alsoInspect",
         "label",
+        "labelPrefix",
         "trailingLabel",
         "index",
         "duration",
@@ -1816,6 +1817,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--assert-absent", dest="assertAbsent", nargs="+")
     parser.add_argument("--also-inspect", dest="alsoInspect", nargs="+")
     parser.add_argument("--label")
+    parser.add_argument("--label-prefix", dest="labelPrefix")
     parser.add_argument("--trailing-label", dest="trailingLabel")
     parser.add_argument("--index", type=int)
     parser.add_argument("--count", type=int)

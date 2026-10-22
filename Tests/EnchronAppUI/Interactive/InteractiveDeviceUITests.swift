@@ -585,6 +585,13 @@ private final class InteractiveDeviceUIChannel {
                 let candidate = candidates.element(boundBy: index)
                 if candidate.exists { return candidate }
             }
+            if let prefix = command.labelPrefix, prefix.isEmpty == false {
+                let candidates = descendants.matching(
+                    NSPredicate(format: "label BEGINSWITH %@", prefix)
+                )
+                let candidate = candidates.element(boundBy: index)
+                if candidate.exists { return candidate }
+            }
             return nil
         } else {
             return nil
@@ -854,6 +861,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let assertAbsent: [String]?
     let alsoInspect: [String]?
     let label: String?
+    let labelPrefix: String?
     let trailingLabel: String?
     let index: Int?
     let text: String?

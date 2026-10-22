@@ -402,6 +402,7 @@ def _dispatch_daemon(
             "identifier": step.args.get("identifier"),
             "identifiers": step.args.get("identifiers"),
             "label": step.args.get("label"),
+            "labelPrefix": step.args.get("labelPrefix"),
             "text": step.args.get("text"),
         }
         answer = daemon_module.request(root, request, target)

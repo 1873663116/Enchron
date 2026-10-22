@@ -85,14 +85,16 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Series, poster"
+        "label": "Enchron Regression Series, poster",
+        "labelPrefix": "Enchron Regression Series"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Episode, episode"
+        "label": "Enchron Regression Episode, episode",
+        "labelPrefix": "Enchron Regression Episode"
       }
     },
     {

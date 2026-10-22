@@ -73,7 +73,8 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Episode, episode"
+        "label": "Enchron Regression Episode, episode",
+        "labelPrefix": "Enchron Regression Episode"
       }
     },
     {
