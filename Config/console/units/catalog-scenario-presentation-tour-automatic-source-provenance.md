@@ -30,17 +30,23 @@
       "args": {}
     },
     {
-      "verb": "device.connect-source",
+      "verb": "device.stage-media",
       "args": {
-        "provider": "webdav",
-        "name": "Enchron Regression WebDAV"
+        "source": [
+          "test-media:Samples/Spatial/Stereo180/Apple-Streaming-Examples/APMP-180-example.mp4",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
+        ],
+        "target": "scenario-presentation-tour-automatic-source-provenance"
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "label": "Enchron Regression WebDAV"
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-presentation-tour-automatic-source-provenance",
+          "entry": "root"
+        }
       }
     },
     {
@@ -62,6 +68,13 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
       }
     },
@@ -69,22 +82,10 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "APMP-180-example.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "field": "mediaName",
+        "equals": "APMP-180-example.mp4",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -130,6 +131,15 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-presentation-tour-automatic-source-provenance"
+        }
       }
     }
   ],

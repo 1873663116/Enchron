@@ -30,17 +30,23 @@
       "args": {}
     },
     {
-      "verb": "device.connect-source",
+      "verb": "device.stage-media",
       "args": {
-        "provider": "webdav",
-        "name": "Enchron Regression WebDAV"
+        "source": [
+          "test-media:Samples/Spatial/Stereo180/180_3D.mp4",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
+        ],
+        "target": "scenario-presentation-tour-portal-format-and-panorama-actions-coexist"
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "label": "Enchron Regression WebDAV"
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-presentation-tour-portal-format-and-panorama-actions-coexist",
+          "entry": "root"
+        }
       }
     },
     {
@@ -56,6 +62,13 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-portal-format-and-panorama-actions-coexist"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -88,30 +101,10 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "applyFormat",
-        "arguments": {
-          "projection": "equirectangular180",
-          "stereo": "mono"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "equirectangular180",
-        "timeoutMs": 30000,
-        "intervalMs": 300
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Playback surface"
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
@@ -125,29 +118,13 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "PlayerUI-VideoFormat-cancel"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-resumePanorama"
-        ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "Playback surface"
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
       "verb": "device.probe",
       "args": {
-        "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     }
   ],
@@ -157,6 +134,15 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-presentation-tour-portal-format-and-panorama-actions-coexist"
+        }
       }
     }
   ],

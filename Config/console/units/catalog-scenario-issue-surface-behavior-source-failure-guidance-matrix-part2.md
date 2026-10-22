@@ -34,26 +34,19 @@
       "args": {}
     },
     {
-      "verb": "device.connect-source",
-      "args": {
-        "provider": "webdav",
-        "name": "Enchron Regression WebDAV"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "Enchron Regression WebDAV"
-      }
-    },
-    {
       "verb": "app.relaunch",
       "args": {}
     },
     {
       "verb": "device.home",
       "args": {}
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
     },
     {
       "verb": "device.command",

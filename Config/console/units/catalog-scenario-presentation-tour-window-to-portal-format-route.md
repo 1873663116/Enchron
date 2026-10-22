@@ -30,17 +30,23 @@
       "args": {}
     },
     {
-      "verb": "device.connect-source",
+      "verb": "device.stage-media",
       "args": {
-        "provider": "webdav",
-        "name": "Enchron Regression WebDAV"
+        "source": [
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-120s.mp4",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
+        ],
+        "target": "scenario-presentation-tour-window-to-portal-format-route"
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "label": "Enchron Regression WebDAV"
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-presentation-tour-window-to-portal-format-route",
+          "entry": "root"
+        }
       }
     },
     {
@@ -56,6 +62,13 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-window-to-portal-format-route"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -133,7 +146,7 @@
     {
       "verb": "device.probe",
       "args": {
-        "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     }
   ],
@@ -143,6 +156,15 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-presentation-tour-window-to-portal-format-route"
+        }
       }
     }
   ],

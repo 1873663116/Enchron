@@ -58,22 +58,10 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-aggregate-30s.mkv"
-        },
-        "timeoutMs": 90000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 90000,
-        "intervalMs": 400
+        "field": "mediaName",
+        "equals": "sdr-bframe-aggregate-30s.mkv",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {

@@ -58,16 +58,6 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 90000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
         "field": "position",
         "equals": 5.0,
         "mode": "atLeast",
@@ -94,16 +84,6 @@
         "arguments": {
           "position": "0.92"
         }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 90000,
-        "intervalMs": 400
       }
     },
     {

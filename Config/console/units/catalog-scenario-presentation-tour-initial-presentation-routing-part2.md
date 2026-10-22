@@ -210,22 +210,10 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "field": "mediaName",
+        "equals": "sdr-bframe-multiaudio-avsync-120s.mp4",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {

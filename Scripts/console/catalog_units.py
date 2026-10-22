@@ -72,7 +72,11 @@ DIRECT = {
     "playback.wait-position",
 }
 
-PRESENTATION = {"either-main-window": "window", "window": "window"}
+PRESENTATION = {"either-main-window": None, "window": "window"}
+
+LABEL_IDENTIFIERS = {
+    "Playback surface": "PlayerUI-window-playback-surface",
+}
 
 HAND_WRITTEN = {
     "scenario:emby-server-lifecycle:series-season-episode-navigation",
@@ -171,10 +175,15 @@ def navigation(folder: str | None, clear: bool = False) -> list[dict[str, Any]]:
 
 
 def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]], list[Path]]:
-    operation_text = json.dumps(payload.get("operations") or [], ensure_ascii=False).lower()
-    remote_flow = any(
-        marker in operation_text for marker in ("webdav", "smb", "filebrowsing-grid-video-")
+    cancels_format_editor = "PlayerUI-VideoFormat-cancel" in json.dumps(
+        payload.get("operations") or [], ensure_ascii=False
     )
+    remote_opened = any(
+        str(action.get("operation", "")).startswith("operation:media.open")
+        and str((action.get("arguments") or {}).get("identifier", "")).startswith("FileBrowsing-")
+        for action in payload.get("operations", [])
+    )
+    remote_flow = remote_opened
 
     def open_identifier(identifier: str) -> str:
         if remote_flow and identifier.startswith("FileBrowsing-"):
@@ -387,6 +396,16 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
+            elif labels and str(labels[0]) in LABEL_IDENTIFIERS:
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": LABEL_IDENTIFIERS[str(labels[0])],
+                        },
+                    }
+                )
             elif labels:
                 label = str(labels[0])
                 arguments_out: dict[str, Any] = {"action": "tap", "label": label}
@@ -413,6 +432,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     raise SystemExit(
                         f"{name} names neither identifiers nor a label in {payload.get('id')}"
                     )
+                if targets == ["PlayerUI-VideoFormat-cancel"]:
+                    continue
                 if targets == ["PlayerUI-InfoBar-button-back"]:
                     steps.append(
                         {
@@ -641,6 +662,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         elif name == "library.snapshot":
             steps.append({"verb": "device.snapshot", "args": {}})
         elif name == "format.apply":
+            if cancels_format_editor:
+                continue
             projection = str(arguments["projection"])
             arguments_out = {
                 "projection": projection,
@@ -703,10 +726,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
         else:
             raise SystemExit(f"{name} is outside the direct vocabulary")
-    if any(
-        str((action.get("arguments") or {}).get("identifier", "")).startswith("FileBrowsing-")
-        for action in payload.get("operations", [])
-    ):
+    if remote_flow:
         fixtures = []
     return steps, fixtures
 
@@ -904,11 +924,12 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                     },
                 }
             )
-    operation_text = json.dumps(payload.get("operations") or [], ensure_ascii=False).lower()
-    remote_operations = any(
-        marker in operation_text
-        for marker in ("webdav", "smb", "filebrowsing-grid-video-", "remote-faults")
+    remote_opened = any(
+        str(action.get("operation", "")).startswith("operation:media.open")
+        and str((action.get("arguments") or {}).get("identifier", "")).startswith("FileBrowsing-")
+        for action in payload.get("operations", [])
     )
+    remote_operations = remote_opened
     source_labels = {
         str(label)
         for action in payload.get("operations", [])

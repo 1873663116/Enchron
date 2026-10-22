@@ -83,21 +83,11 @@
       "args": {
         "probe": "PlayerUI-window-control-plane",
         "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
+          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4",
+          "presentation": "window"
         },
         "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "intervalMs": 300
       }
     },
     {

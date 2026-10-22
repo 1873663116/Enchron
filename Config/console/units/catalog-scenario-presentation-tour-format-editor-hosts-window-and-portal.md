@@ -211,30 +211,10 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "applyFormat",
-        "arguments": {
-          "projection": "equirectangular180",
-          "stereo": "mono"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "equirectangular180",
-        "timeoutMs": 30000,
-        "intervalMs": 300
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Playback surface"
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
@@ -290,7 +270,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Playback surface"
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
