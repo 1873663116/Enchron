@@ -349,6 +349,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "action": "tap",
                             "identifier": "Emby-Episode-",
                             "identifierPrefix": "Emby-Episode-",
+                            "waitMilliseconds": 1200,
                         },
                     }
                 )

@@ -137,7 +137,8 @@
       "args": {
         "action": "tap",
         "identifier": "Emby-Episode-",
-        "identifierPrefix": "Emby-Episode-"
+        "identifierPrefix": "Emby-Episode-",
+        "waitMilliseconds": 1200
       }
     },
     {
