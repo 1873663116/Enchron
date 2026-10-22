@@ -664,20 +664,19 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                     },
                 }
             )
-    teardown = (
-        [
-            {
-                "verb": "device.app-command",
-                "args": {"verb": "leavePlayback", "arguments": {}},
-            },
+    teardown = [
+        {
+            "verb": "device.app-command",
+            "args": {"verb": "leavePlayback", "arguments": {}},
+        }
+    ]
+    if fixtures:
+        teardown.append(
             {
                 "verb": "device.app-command",
                 "args": {"verb": "deleteLibraryFolder", "arguments": {"name": folder}},
-            },
-        ]
-        if fixtures
-        else []
-    )
+            }
+        )
     simplified = simplify(steps)
     chunks = split_steps(simplified)
     preconditions = (

@@ -137,7 +137,16 @@
     "path": "probe.json",
     "schema": "enchron.console.probe@1"
   },
-  "isolation": "clean-library"
+  "isolation": "clean-library",
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    }
+  ]
 }
 ---
 

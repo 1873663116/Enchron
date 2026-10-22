@@ -170,7 +170,15 @@
       }
     }
   ],
-  "teardown": [],
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    }
+  ],
   "terminal": {
     "kind": "artifact",
     "path": "probe.json",

@@ -27,7 +27,16 @@
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
   },
-  "isolation": "clean-library"
+  "isolation": "clean-library",
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    }
+  ]
 }
 ---
 

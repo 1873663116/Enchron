@@ -52,7 +52,16 @@
     "path": "app-command.json",
     "schema": "enchron.console.app-command@1"
   },
-  "isolation": "clean-library"
+  "isolation": "clean-library",
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    }
+  ]
 }
 ---
 

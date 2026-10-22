@@ -88,7 +88,16 @@
     }
   ],
   "pace": "slow",
-  "isolation": "clean-library"
+  "isolation": "clean-library",
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    }
+  ]
 }
 ---
 
