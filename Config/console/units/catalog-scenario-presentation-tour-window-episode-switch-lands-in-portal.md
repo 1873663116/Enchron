@@ -131,7 +131,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "180_3D.mp4"
       }
     },
     {

@@ -73,7 +73,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Media Library"
       }
     },
     {

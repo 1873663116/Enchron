@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+
+import contextlib
 import hashlib
 import json
-import tempfile
 import os
+import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+
 from pathlib import Path
 from typing import Any
 
@@ -216,6 +220,7 @@ class Channel:
         app_arguments: dict[str, str] | None = None,
         flags: list[str] | None = None,
         identifiers: list[str] | None = None,
+        label: str | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if not self.alive():
             return {}, False, "the session is gone; ensure it again"
@@ -225,6 +230,8 @@ class Channel:
         if identifiers:
             extra.append("--identifiers")
             extra.extend(identifiers)
+        if label is not None:
+            extra.extend(["--label", label])
         if text is not None:
             extra.extend(["--text", text])
         if app_verb is not None:
@@ -321,6 +328,8 @@ class Server:
             connection.sendall(json.dumps(response).encode() + b"\n")
         except OSError:
             return
+        if request.get("op") == "stop":
+            os._exit(0)
 
     def _handle(self, request: dict[str, Any]) -> dict[str, Any]:
         operation = request.get("op")
@@ -341,9 +350,49 @@ class Server:
                 request.get("arguments"),
                 request.get("flags"),
                 request.get("identifiers"),
+                request.get("label"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}
+
+
+def record_path(root: Path, target: str) -> Path:
+    label = hashlib.sha256(f"{root}|{target}".encode()).hexdigest()[:12]
+    return root / ".console" / f"daemon-{target}.json"
+
+
+def read_record(root: Path, target: str) -> dict[str, Any] | None:
+    path = record_path(root, target)
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def wait_for_exit(root: Path, target: str, timeout: float) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        record = read_record(root, target)
+        if record is None:
+            return True
+        pid = int(record.get("pid", 0))
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            record_path(root, target).unlink(missing_ok=True)
+            return True
+        time.sleep(0.2)
+    return False
+
+
+def force_stop(root: Path, target: str) -> None:
+    record = read_record(root, target)
+    if record is not None:
+        pid = int(record.get("pid", 0))
+        if pid:
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGKILL)
+    record_path(root, target).unlink(missing_ok=True)
 
 
 def request(

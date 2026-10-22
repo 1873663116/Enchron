@@ -121,7 +121,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "sdr-bframe-multiaudio-avsync-120s.mp4"
       }
     },
     {

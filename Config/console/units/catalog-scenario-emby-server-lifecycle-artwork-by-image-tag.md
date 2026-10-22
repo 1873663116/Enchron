@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-emby-server-lifecycle-artwork-by-image-tag@1",
   "layer": 3,
   "role": "verification",
-  "pace": "catalog",
+  "pace": "slow",
   "requires": [
     "mac",
     "device",
@@ -52,14 +52,14 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Navigation-Ornament-tab-emby"
+        "identifier": "Emby-Navigation-Tab"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression Emby"
       }
     },
     {

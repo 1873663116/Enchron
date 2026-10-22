@@ -52,7 +52,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Navigation-Ornament-tab-emby"
+        "identifier": "Emby-Navigation-Tab"
       }
     },
     {
@@ -65,14 +65,14 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression Emby"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression Series, poster"
       }
     },
     {
@@ -85,7 +85,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Season 2"
       }
     },
     {
@@ -98,7 +98,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression Episode 2, episode"
       }
     },
     {

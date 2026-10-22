@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-smb-source-lifecycle-smb-browse-shares-and-directories@1",
   "layer": 3,
   "role": "verification",
-  "pace": "catalog",
+  "pace": "slow",
   "requires": [
     "mac",
     "device",

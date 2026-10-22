@@ -52,7 +52,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Navigation-Ornament-tab-emby"
+        "identifier": "Emby-Navigation-Tab"
       }
     },
     {
@@ -65,7 +65,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression Series, poster"
       }
     },
     {

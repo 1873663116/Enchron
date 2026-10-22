@@ -123,6 +123,8 @@ def _daemon(root: Path, arguments, profile) -> int:
         return EXIT_OK
     if arguments.action == "stop":
         daemon_module.request(root, {"op": "stop"}, profile.target or "", timeout=5)
+        if not daemon_module.wait_for_exit(root, profile.target or "", 6.0):
+            daemon_module.force_stop(root, profile.target or "")
         if not arguments.as_json:
             print("daemon stopped")
         return EXIT_OK

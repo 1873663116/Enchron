@@ -66,7 +66,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -207,7 +207,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -348,7 +348,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -489,7 +489,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": null
+        "label": "Enchron Regression WebDAV"
       }
     },
     {

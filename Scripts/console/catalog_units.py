@@ -75,6 +75,20 @@ DIRECT = {
 
 PRESENTATION = {"either-main-window": "window", "window": "window"}
 
+VERIFIED = {
+    "scenario:dynamic-range-interpretation:hdr10-hlg-interpretation",
+    "scenario:format-coverage:unsupported-codec-guidance",
+    "scenario:emby-server-lifecycle:artwork-by-image-tag",
+    "scenario:smb-source-lifecycle:smb-browse-shares-and-directories",
+}
+
+TAB_IDENTIFIERS = {
+    "files": "Navigation-Ornament-tab-files",
+    "emby": "Emby-Navigation-Tab",
+    "plex": "Plex-Navigation-Tab",
+    "jellyfin": "Jellyfin-Navigation-Tab",
+}
+
 
 def scenario(path: Path) -> dict[str, Any] | None:
     parts = path.read_text(encoding="utf-8").split("---")
@@ -137,13 +151,12 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             steps.extend(navigation(folder))
             rewound = True
         elif name == "navigation.select-tab":
-            if not rewound or True:
-                steps.append(
-                    {
-                        "verb": "device.command",
-                        "args": {"action": "tap", "identifier": f"Navigation-Ornament-tab-{arguments['tab']}"},
-                    }
-                )
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {"action": "tap", "identifier": TAB_IDENTIFIERS.get(str(arguments["tab"]), f"Navigation-Ornament-tab-{arguments['tab']}")},
+                }
+            )
         elif name == "media.open":
             identifier = str(arguments["identifier"])
             found = fixture(identifier.split("MediaLibrary-grid-video-")[-1])
@@ -215,6 +228,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     },
                 }
             )
+        elif name == "accessibility.activate":
+            labels = arguments.get("labels") or []
+            if labels:
+                steps.append(
+                    {"verb": "device.command", "args": {"action": "tap", "label": str(labels[0])}}
+                )
+            else:
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": arguments.get("identifier")},
+                    }
+                )
         elif name in {"accessibility.activate", "accessibility.type"}:
             args: dict[str, Any] = {"action": "tap", "identifier": arguments.get("identifier")}
             if name == "accessibility.type" and "text" in arguments:
@@ -359,7 +385,7 @@ def unit_for(path: Path) -> dict[str, Any]:
         "id": f"unit:catalog.{folder}@1",
         "layer": 3,
         "role": "verification",
-        "pace": "catalog",
+        "pace": "slow" if identifier in VERIFIED else "catalog",
         "requires": ["mac", "device", "daemon"],
         "preconditions": [{"kind": "media-server", "provider": "emby"}],
         "actions": actions,
