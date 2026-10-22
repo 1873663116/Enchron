@@ -563,15 +563,11 @@ def source_preconditions(payload: dict[str, Any]) -> list[dict[str, Any]]:
         entry = SOURCE_PRECONDITIONS.get(str(prerequisite.get("key")))
         if entry is not None and entry not in declared:
             declared.append(entry)
-    for operation in payload.get("operations") or []:
-        arguments = operation.get("arguments") or {}
-        check = str(arguments.get("check", ""))
-        if operation.get("operation") != "operation:host.preflight@1":
-            continue
-        for provider in ("webdav", "smb"):
-            entry = {"kind": "media-source", "provider": provider}
-            if provider in check and entry not in declared:
-                declared.append(entry)
+    operation_text = json.dumps(payload.get("operations") or [], ensure_ascii=False).lower()
+    for provider in ("webdav", "smb"):
+        entry = {"kind": "media-source", "provider": provider}
+        if provider in operation_text and entry not in declared:
+            declared.append(entry)
     return declared
 
 

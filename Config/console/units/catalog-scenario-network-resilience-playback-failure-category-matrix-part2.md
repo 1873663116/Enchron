@@ -16,6 +16,10 @@
     {
       "kind": "media-server",
       "provider": "emby"
+    },
+    {
+      "kind": "media-source",
+      "provider": "webdav"
     }
   ],
   "actions": [
