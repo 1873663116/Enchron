@@ -136,6 +136,7 @@ class Compiler:
             errors.append(("C015", "plan resolves to daemon transport without that capability"))
         if errors:
             return None, errors
+        teardown_steps = self._teardown_steps(unit, tier, errors)
         plan = Plan(
             unit=unit.identifier,
             tier=tier,
@@ -149,6 +150,7 @@ class Compiler:
             evidence=tuple(sorted(produced)),
             digest=plan_digest(unit, tier, transport, steps),
             preconditions=unit.preconditions,
+            teardown_steps=teardown_steps,
         )
         return plan, []
 
@@ -270,6 +272,24 @@ class Compiler:
                     errors.append(("C018", f"capture name {name!r} is written twice"))
                 captured[name] = step.index
         return tuple(steps)
+
+    def _teardown_steps(
+        self, unit: Unit, tier: str, errors: list[tuple[str, str]]
+    ) -> tuple[Step, ...]:
+        if not unit.teardown:
+            return ()
+        shadow = Unit(
+            identifier=unit.identifier,
+            layer=unit.layer,
+            actions=unit.teardown,
+            terminal=unit.terminal,
+            requires=unit.requires,
+            role=unit.role,
+            source=unit.source,
+            preconditions=(),
+            pace=unit.pace,
+        )
+        return self._steps(shadow, tier, errors)
 
     def _transport(
         self, steps: tuple[Step, ...], machine: MachineProfile, errors: list[tuple[str, str]]

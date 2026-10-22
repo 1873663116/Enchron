@@ -131,6 +131,7 @@
       }
     }
   ],
+  "teardown": [],
   "terminal": {
     "kind": "artifact",
     "path": "probe.json",

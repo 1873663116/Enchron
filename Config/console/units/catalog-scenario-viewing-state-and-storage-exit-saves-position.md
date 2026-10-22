@@ -148,7 +148,9 @@
       "args": {
         "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
-    },
+    }
+  ],
+  "teardown": [
     {
       "verb": "device.app-command",
       "args": {

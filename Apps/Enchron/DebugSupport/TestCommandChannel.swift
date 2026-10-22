@@ -1694,6 +1694,26 @@ final class TestCommandChannel {
                 detail: "Left playback without a product gesture.",
                 payload: nil
             )
+        case "clearMediaLibrary":
+            let removedReferences = allReferences
+            for reference in removedReferences {
+                mediaLibrary.remove(reference)
+            }
+            mediaLibrary.navigateToRoot()
+            let removedFolders = mediaLibrary.allFolders
+            for folder in removedFolders.reversed() {
+                mediaLibrary.remove(folder)
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "removedReferences=\(removedReferences.count)",
+                    "removedFolders=\(removedFolders.count)",
+                    "remainingReferences=\(allReferences.count)"
+                ]
+            )
         case "resetState":
             await embySession.signOut()
             let references = allReferences

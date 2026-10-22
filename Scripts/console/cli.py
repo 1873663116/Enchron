@@ -192,7 +192,9 @@ def _tier(root: Path, arguments, profile) -> int:
             }
         elif not getattr(arguments, "full", False):
             units = {
-                name: unit for name, unit in units.items() if unit.pace != "catalog"
+                name: unit
+                for name, unit in units.items()
+                if unit.pace not in {"catalog", "scenario"}
             }
         for identifier in sorted(units):
             per_unit = types.SimpleNamespace(

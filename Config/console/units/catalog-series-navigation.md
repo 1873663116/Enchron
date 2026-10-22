@@ -5,7 +5,7 @@
   "id": "unit:catalog.series-navigation@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "scenario",
   "requires": [
     "mac",
     "device",

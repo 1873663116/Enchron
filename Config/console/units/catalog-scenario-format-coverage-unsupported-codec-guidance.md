@@ -62,7 +62,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -119,7 +121,9 @@
       "args": {
         "probe": "PlayerUI-loadFailure-secondary"
       }
-    },
+    }
+  ],
+  "teardown": [
     {
       "verb": "device.app-command",
       "args": {

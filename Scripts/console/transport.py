@@ -967,6 +967,8 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "action": arguments.action,
         "includeScreenshot": not arguments.no_screenshot,
     }
+    if getattr(arguments, "hierarchy", False):
+        command["includeHierarchy"] = True
     for key in (
         "identifier",
         "identifiers",
@@ -975,6 +977,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "alsoInspect",
         "label",
         "labelPrefix",
+        "includeHierarchy",
         "trailingLabel",
         "index",
         "duration",
@@ -1818,6 +1821,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--also-inspect", dest="alsoInspect", nargs="+")
     parser.add_argument("--label")
     parser.add_argument("--label-prefix", dest="labelPrefix")
+    parser.add_argument("--hierarchy", action="store_true")
     parser.add_argument("--trailing-label", dest="trailingLabel")
     parser.add_argument("--index", type=int)
     parser.add_argument("--count", type=int)

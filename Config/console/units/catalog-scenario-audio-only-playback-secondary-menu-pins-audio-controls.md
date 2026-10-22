@@ -62,7 +62,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -149,7 +151,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -229,7 +233,9 @@
       "args": {
         "probe": "PlayerUI-window-control-plane"
       }
-    },
+    }
+  ],
+  "teardown": [
     {
       "verb": "device.app-command",
       "args": {

@@ -158,11 +158,14 @@ private final class InteractiveDeviceUIChannel {
             )
             return false
         }
-        let observationBeforeAction = command.action == .snapshot
+        let wantsObservation = command.includeHierarchy == true
+        let observationBeforeAction = command.action == .snapshot || !wantsObservation
             ? nil
             : matchedElementObservation(for: command)
         let result = execute(command)
-        let observationAfterAction = matchedElementObservation(for: command)
+        let observationAfterAction = wantsObservation
+            ? matchedElementObservation(for: command)
+            : nil
         let observation = command.action == .snapshot
             ? observationAfterAction
             : observationBeforeAction
@@ -672,7 +675,7 @@ private final class InteractiveDeviceUIChannel {
             success: success,
             message: message,
             appState: appStateDescription,
-            hierarchy: app.debugDescription,
+            hierarchy: command.includeHierarchy == false ? "" : app.debugDescription,
             matchedElement: matchedElement,
             elementAfterAction: elementAfterAction,
             screenshotRelativePath: screenshotName,
@@ -730,6 +733,7 @@ private final class InteractiveDeviceUIChannel {
     }
 
     private func hittability(of element: XCUIElement) -> Bool {
+        if element.isHittable { return true }
         guard let frame = (try? element.snapshot())?.frame else { return false }
         return hittability(of: element, frame: frame)
     }
@@ -869,6 +873,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let normalizedX: Double?
     let normalizedY: Double?
     let includeScreenshot: Bool?
+    let includeHierarchy: Bool?
     let screenshotIdentifier: String?
     let count: Int?
     let intervalMilliseconds: Int?

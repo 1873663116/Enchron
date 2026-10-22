@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-emby-server-lifecycle-artwork-by-image-tag@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "scenario",
   "requires": [
     "mac",
     "device",
@@ -34,7 +34,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -92,6 +94,7 @@
       }
     }
   ],
+  "teardown": [],
   "terminal": {
     "kind": "artifact",
     "path": "probe.json",

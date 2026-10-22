@@ -64,6 +64,12 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
             verdict = "failed"
             exit_code = EXIT_TERMINAL
             break
+    for step in plan.teardown_steps:
+        resolved = dataclasses.replace(step, args=_fill(step.args, facts))
+        outcome, _ = _run_step(
+            resolved, plan, root, supervisor, steps_directory, budget_scale
+        )
+        outcomes.append(outcome)
     terminal = _evaluate_terminal(plan, run_directory, steps_directory)
     if not terminal.ok and verdict == "passed":
         verdict = "failed"
@@ -421,7 +427,9 @@ def _dispatch_daemon(
             root, {"op": "ensure", "lane": step.args.get("lane", "simulator")}, target
         )
     elif step.verb == "device.snapshot":
-        answer = _daemon_request(root, {"op": "invoke", "action": "snapshot"}, target)
+        answer = _daemon_request(
+            root, {"op": "invoke", "action": "snapshot", "hierarchy": True}, target
+        )
     elif step.verb == "device.command":
         request = {
             "op": "invoke",
@@ -430,6 +438,7 @@ def _dispatch_daemon(
             "identifiers": step.args.get("identifiers"),
             "label": step.args.get("label"),
             "labelPrefix": step.args.get("labelPrefix"),
+            "hierarchy": bool(step.args.get("hierarchy")),
             "text": step.args.get("text"),
         }
         answer = _daemon_request(root, request, target)
@@ -497,6 +506,7 @@ def _dispatch_daemon(
                     "op": "invoke",
                     "action": "snapshot",
                     "identifier": None if probe == "element" else probe,
+                    "hierarchy": True,
                 },
                 target,
             )
@@ -568,7 +578,7 @@ def _dispatch_daemon(
     elif step.verb == "device.probe":
         answer = _daemon_request(
             root,
-            {"op": "invoke", "action": "snapshot", "identifier": step.args.get("probe")},
+            {"op": "invoke", "action": "snapshot", "identifier": step.args.get("probe"), "hierarchy": True},
             target,
         )
     elif step.verb == "app.relaunch":

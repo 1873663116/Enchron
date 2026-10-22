@@ -64,7 +64,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -146,7 +148,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -228,7 +232,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -303,7 +309,9 @@
         "count": 3,
         "intervalMs": 1000
       }
-    },
+    }
+  ],
+  "teardown": [
     {
       "verb": "device.app-command",
       "args": {

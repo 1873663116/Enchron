@@ -222,6 +222,7 @@ class Channel:
         identifiers: list[str] | None = None,
         label: str | None = None,
         label_prefix: str | None = None,
+        hierarchy: bool = False,
     ) -> tuple[dict[str, Any], bool, str]:
         if action == "relaunch":
             answer = transport.relaunch_by_simctl(self.target)
@@ -243,6 +244,8 @@ class Channel:
             extra.extend(["--label", label])
         if label_prefix is not None:
             extra.extend(["--label-prefix", label_prefix])
+        if hierarchy:
+            extra.append("--hierarchy")
         if text is not None:
             extra.extend(["--text", text])
         if app_verb is not None:
@@ -368,6 +371,7 @@ class Server:
                 request.get("identifiers"),
                 request.get("label"),
                 request.get("labelPrefix"),
+                bool(request.get("hierarchy")),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}

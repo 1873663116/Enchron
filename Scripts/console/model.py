@@ -58,7 +58,7 @@ class Guardrail:
 
 
 PRECONDITION_KINDS = frozenset({"media-server", "media-progress"})
-UNIT_PACES = frozenset({"fast", "slow", "catalog"})
+UNIT_PACES = frozenset({"fast", "slow", "scenario", "catalog"})
 
 
 @dataclass(frozen=True)
@@ -71,6 +71,7 @@ class Unit:
     role: str
     source: str
     preconditions: tuple[dict[str, Any], ...] = ()
+    teardown: tuple[dict[str, Any], ...] = ()
     pace: str = "fast"
 
 
@@ -88,6 +89,7 @@ class Plan:
     evidence: tuple[str, ...]
     digest: str
     preconditions: tuple[dict[str, Any], ...] = ()
+    teardown_steps: tuple[Step, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -153,7 +153,7 @@ def first_emby_label(payload: dict[str, Any]) -> str | None:
 
 def navigation(folder: str | None) -> list[dict[str, Any]]:
     steps: list[dict[str, Any]] = [
-        {"verb": "device.home", "args": {}},
+        {"verb": "device.home", "args": {"clean": True}},
         {"verb": "device.app-command", "args": {"verb": "setViewMode", "arguments": {"mode": "grid"}}},
     ]
     if folder:
@@ -434,21 +434,28 @@ def unit_for(path: Path) -> dict[str, Any]:
             }
         )
     actions.extend(steps)
-    if fixtures:
-        actions.append(
-            {"verb": "device.app-command", "args": {"verb": "deleteLibraryFolder", "arguments": {"name": folder}}}
-        )
+    teardown = (
+        [
+            {
+                "verb": "device.app-command",
+                "args": {"verb": "deleteLibraryFolder", "arguments": {"name": folder}},
+            }
+        ]
+        if fixtures
+        else []
+    )
     return {
         "schema": "enchron.console.unit",
         "schemaVersion": 1,
         "id": f"unit:catalog.{folder}@1",
         "layer": 3,
         "role": "verification",
-        "pace": "slow" if identifier in verified_scenarios() else "catalog",
+        "pace": "scenario" if identifier in verified_scenarios() else "catalog",
         "requires": ["mac", "device", "daemon"],
         "preconditions": [{"kind": "media-server", "provider": "emby"}]
         + ([{"kind": "media-progress"}] if identifier in PROGRESS_SCENARIOS else []),
         "actions": actions,
+        "teardown": teardown,
         "terminal": terminal_of(steps),
     }
 

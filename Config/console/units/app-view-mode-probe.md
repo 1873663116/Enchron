@@ -18,6 +18,32 @@
       }
     },
     {
+      "verb": "device.stage-media",
+      "args": {
+        "source": "test-media:TestVectors/Enchron/PlaybackBehavior/audio-only-aac-stereo-181s.m4a",
+        "target": "view-mode-gate"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "view-mode-gate"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "view-mode-gate",
+          "entry": "root"
+        }
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -36,7 +62,18 @@
     "kind": "artifact",
     "path": "probe.json",
     "schema": "enchron.console.probe@1"
-  }
+  },
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "view-mode-gate"
+        }
+      }
+    }
+  ]
 }
 ---
 

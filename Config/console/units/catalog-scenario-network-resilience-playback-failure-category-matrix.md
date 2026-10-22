@@ -34,7 +34,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -172,7 +174,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -310,7 +314,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -448,7 +454,9 @@
     },
     {
       "verb": "device.home",
-      "args": {}
+      "args": {
+        "clean": true
+      }
     },
     {
       "verb": "device.app-command",
@@ -581,6 +589,7 @@
       }
     }
   ],
+  "teardown": [],
   "terminal": {
     "kind": "artifact",
     "path": "probe.json",
