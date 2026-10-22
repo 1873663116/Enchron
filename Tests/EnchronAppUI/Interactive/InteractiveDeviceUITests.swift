@@ -344,12 +344,9 @@ private final class InteractiveDeviceUIChannel {
                 scrolled.tap()
                 return (true, "Element tapped after scrolling it into view.")
             }
-            if hittability(of: element) {
+            if activationPointIsReachable(element) {
                 element.tap()
                 return (true, "Element tapped.")
-            }
-            guard activationPointIsReachable(element) else {
-                return (false, "The requested element exists but is not currently hittable.")
             }
             let frame = element.frame
             app.coordinate(withNormalizedOffset: .zero)
@@ -456,9 +453,6 @@ private final class InteractiveDeviceUIChannel {
                 surface = element
             } else {
                 return (false, "No current coordinate surface matches the requested identifier and index.")
-            }
-            guard hittability(of: surface) else {
-                return (false, "The requested coordinate surface is not currently hittable.")
             }
             surface.coordinate(
                 withNormalizedOffset: CGVector(dx: x, dy: y)
