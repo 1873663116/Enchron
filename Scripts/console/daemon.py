@@ -268,6 +268,15 @@ class Channel:
             if recovered is not None:
                 answer = send(self._arguments(action, extra))
                 answer["recovery"] = recovered
+        if (
+            not answer.get("success")
+            and action == "app-command"
+            and "did not respond" in str(answer.get("message") or "")
+        ):
+            relaunched = self.relaunch_app()
+            if relaunched:
+                answer = send(self._arguments(action, extra))
+                answer["recovery"] = {"relaunched": True}
         if not answer.get("success") and answer.get("message") == "the session is gone; ensure it again":
             payload, ok, detail = self.ensure_session("simulator")
             if ok:
@@ -276,6 +285,13 @@ class Channel:
         ok = bool(answer.get("success", False))
         detail = str(answer.get("message") or answer.get("error") or f"{action} answered")
         return answer, ok, detail
+
+    def relaunch_app(self) -> bool:
+        answer = transport.relaunch_by_simctl(self.target)
+        if not answer.get("success"):
+            return False
+        payload, ok, _ = self.ensure_session("simulator")
+        return bool(ok)
 
     def _recover(self) -> dict[str, Any] | None:
         self.halt()
