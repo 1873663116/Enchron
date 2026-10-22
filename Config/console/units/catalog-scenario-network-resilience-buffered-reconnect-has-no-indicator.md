@@ -150,10 +150,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.capture-frames",
@@ -263,10 +261,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.capture-frames",

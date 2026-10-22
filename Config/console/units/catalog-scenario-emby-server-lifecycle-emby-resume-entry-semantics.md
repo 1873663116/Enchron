@@ -111,10 +111,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.command",
@@ -161,10 +159,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "device.command",

@@ -834,7 +834,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             if menu_opened and current_media:
                 steps.extend(reopen_steps(folder, current_media))
                 menu_opened = False
-            steps.append({"verb": "device.probe", "args": {"probe": "PlayerUI-window-control-plane"}})
+            steps.append({"verb": "device.snapshot", "args": {}})
         elif name == "host.preflight":
             if arguments.get("check") == "remote-faults":
                 recipe = str(arguments.get("recipe", ""))

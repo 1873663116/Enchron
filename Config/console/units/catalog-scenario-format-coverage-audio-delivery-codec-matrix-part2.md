@@ -142,10 +142,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "app.relaunch",
@@ -218,10 +216,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     },
     {
       "verb": "app.relaunch",
@@ -305,10 +301,8 @@
       }
     },
     {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
+      "verb": "device.snapshot",
+      "args": {}
     }
   ],
   "teardown": [
@@ -331,8 +325,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "probe.json",
-    "schema": "enchron.console.probe@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---
