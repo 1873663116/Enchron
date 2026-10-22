@@ -37,6 +37,8 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+A generated catalog unit can pass alone and fail inside the catalog block: the block is sequence sensitive, so a green single run does not prove the tier is green.
+
 `cli.py inspect <unit>` reads the last run and lists, for the failing step, the element it wanted and the identifiers the app actually showed, ranked by closeness. It needs no device.
 
 `device.probe` fails when no element carries the identifier it names, so a probe cannot pass without proving the element exists.
