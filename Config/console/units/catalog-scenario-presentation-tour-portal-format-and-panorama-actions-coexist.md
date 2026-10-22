@@ -115,13 +115,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
       "verb": "device.probe",
       "args": {
         "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"

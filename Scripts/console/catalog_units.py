@@ -1006,6 +1006,11 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 continue
             if previous["verb"] == action["verb"] == "device.home" and not last:
                 continue
+            if (
+                previous["verb"] == action["verb"] == "device.command"
+                and previous.get("args", {}) == action.get("args", {})
+            ):
+                continue
             if previous["verb"] == "device.probe" and action["verb"] == "device.command":
                 if previous.get("args", {}).get("probe") == action.get("args", {}).get("identifier"):
                     collapsed[-1] = action

@@ -258,13 +258,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
       "verb": "device.app-command",
       "args": {
         "verb": "leavePlayback",
