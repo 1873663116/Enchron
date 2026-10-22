@@ -1714,6 +1714,31 @@ final class TestCommandChannel {
                     "remainingReferences=\(allReferences.count)"
                 ]
             )
+        case "batch":
+            guard let raw = request.args["calls"],
+                  let data = raw.data(using: .utf8),
+                  let calls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw CommandError(message: "batch requires calls as a JSON array.")
+            }
+            var summary: [String] = []
+            for call in calls {
+                guard let verb = call["verb"] as? String else { continue }
+                let rawArguments = call["arguments"] as? [String: Any] ?? [:]
+                let arguments = rawArguments.mapValues { value in
+                    if let text = value as? String { return text }
+                    return String(describing: value)
+                }
+                let outcome = try await execute(
+                    Request(id: request.id, verb: verb, args: arguments)
+                )
+                guard outcome.ok else {
+                    throw CommandError(
+                        message: "batch stopped at \(verb): \(outcome.detail ?? "no detail")"
+                    )
+                }
+                summary.append("\(verb)=ok")
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: summary)
         case "resetState":
             await embySession.signOut()
             let references = allReferences

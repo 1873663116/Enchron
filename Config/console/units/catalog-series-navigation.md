@@ -82,37 +82,19 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Emby-Season-Picker",
-        "timeoutMs": 8000,
-        "intervalMs": 250
+        "action": "tap",
+        "identifier": "Emby-Season-Picker",
+        "waitMilliseconds": 8000
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Emby-Season-Picker"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "label",
-        "equals": "Season 2",
-        "timeoutMs": 8000,
-        "intervalMs": 250
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "Season 2"
+        "label": "Season 2",
+        "waitMilliseconds": 8000
       }
     },
     {
@@ -129,20 +111,12 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Emby-Episode-11249",
-        "timeoutMs": 6000,
-        "intervalMs": 250
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Episode 2, episode"
+        "label": "Enchron Regression Episode 2, episode",
+        "identifier": "Emby-Episode-11249",
+        "waitMilliseconds": 6000
       }
     },
     {

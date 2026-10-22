@@ -448,6 +448,7 @@ def _dispatch_daemon(
             "label": step.args.get("label"),
             "labelPrefix": step.args.get("labelPrefix"),
             "hierarchy": bool(step.args.get("hierarchy")),
+            "waitMilliseconds": step.args.get("waitMilliseconds"),
             "text": step.args.get("text"),
         }
         answer = _daemon_request(root, request, target)
@@ -456,6 +457,18 @@ def _dispatch_daemon(
                 break
             time.sleep(0.5)
             answer = _daemon_request(root, request, target)
+    elif step.verb == "device.app-commands":
+        calls = step.args.get("calls") or []
+        answer = _daemon_request(
+            root,
+            {
+                "op": "invoke",
+                "action": "app-command",
+                "verb": "batch",
+                "arguments": {"calls": json.dumps(calls, ensure_ascii=False)},
+            },
+            target,
+        )
     elif step.verb == "device.home":
         _daemon_request(
             root,

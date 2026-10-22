@@ -580,6 +580,10 @@ private final class InteractiveDeviceUIChannel {
         if let identifier = command.identifier,
            identifier.isEmpty == false {
             matches = descendants.matching(identifier: identifier)
+            if let wait = command.waitMilliseconds, wait > 0 {
+                _ = matches.element(boundBy: command.index ?? 0)
+                    .waitForExistence(timeout: Double(wait) / 1_000)
+            }
         } else if let label = command.label,
                   label.isEmpty == false {
             let index = command.index ?? 0
@@ -876,6 +880,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let normalizedY: Double?
     let includeScreenshot: Bool?
     let includeHierarchy: Bool?
+    let waitMilliseconds: Int?
     let screenshotIdentifier: String?
     let count: Int?
     let intervalMilliseconds: Int?

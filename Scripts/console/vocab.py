@@ -43,7 +43,15 @@ VERBS: dict[str, Verb] = {
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),
             lane="device",
-            parameter=("action", "identifier", "identifiers", "text", "label", "labelPrefix"),
+            parameter=(
+                "action",
+                "identifier",
+                "identifiers",
+                "text",
+                "label",
+                "labelPrefix",
+                "waitMilliseconds",
+            ),
             choices={
                 "action": (
                     "tap",
@@ -133,6 +141,16 @@ VERBS: dict[str, Verb] = {
             evidence="home.json",
             schema="enchron.console.home@1",
             budget_ms=90_000,
+        ),
+        Verb(
+            name="device.app-commands",
+            tier="e2e",
+            capabilities=frozenset({"mac", "device", "daemon"}),
+            lane="device",
+            parameter=("calls",),
+            evidence="app-commands.json",
+            schema="enchron.console.app-commands@1",
+            budget_ms=120_000,
         ),
         Verb(
             name="device.stage-identity",

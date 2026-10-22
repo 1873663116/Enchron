@@ -57,6 +57,10 @@ A session that dies mid run is re-ensured and the command retried once, and a da
 
 The daemon keeps the code it started with. After editing anything it runs, stop it and start it again; `daemon stop` kills the process and waits for it to go.
 
+`device.app-commands` runs a list of app commands in one round trip; three ping commands cost about as much as one.
+
+`device.command` takes `waitMilliseconds`, so a tap waits for the element instead of a separate await step.
+
 A step may carry `capture`, a map from payload field to name. A later step reads that name as `"$name"` in any argument string. The compiler refuses a reference that no earlier step captures (`C018`) and a name captured twice.
 
 A unit may carry `pace`: `fast`, `slow` or `catalog`. `console tier e2e --quick` runs the fast ones, the plain tier runs fast and slow, and `--full` adds the catalog ones a scenario generated. `console tier e2e --quick` runs the fast ones only; the media-import and playback units are slow.

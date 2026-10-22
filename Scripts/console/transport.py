@@ -978,6 +978,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         "label",
         "labelPrefix",
         "includeHierarchy",
+        "waitMilliseconds",
         "trailingLabel",
         "index",
         "duration",
@@ -1822,6 +1823,7 @@ def parse_arguments(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--label")
     parser.add_argument("--label-prefix", dest="labelPrefix")
     parser.add_argument("--hierarchy", action="store_true")
+    parser.add_argument("--wait-milliseconds", dest="waitMilliseconds", type=int)
     parser.add_argument("--trailing-label", dest="trailingLabel")
     parser.add_argument("--index", type=int)
     parser.add_argument("--count", type=int)

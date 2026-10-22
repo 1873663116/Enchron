@@ -35,22 +35,23 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "format-media",
-          "entry": "root"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
+        "calls": [
+          {
+            "verb": "importStagedFolder",
+            "arguments": {
+              "directory": "format-media",
+              "entry": "root"
+            }
+          },
+          {
+            "verb": "setViewMode",
+            "arguments": {
+              "mode": "grid"
+            }
+          }
+        ]
       }
     },
     {

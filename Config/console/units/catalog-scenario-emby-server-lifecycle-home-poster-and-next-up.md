@@ -42,19 +42,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetMediaNavigation",
-        "arguments": {}
+        "calls": [
+          {
+            "verb": "setViewMode",
+            "arguments": {
+              "mode": "grid"
+            }
+          },
+          {
+            "verb": "resetMediaNavigation",
+            "arguments": {}
+          }
+        ]
       }
     },
     {

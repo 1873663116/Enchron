@@ -223,6 +223,7 @@ class Channel:
         label: str | None = None,
         label_prefix: str | None = None,
         hierarchy: bool = False,
+        wait_milliseconds: int | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if action == "relaunch":
             answer = transport.relaunch_by_simctl(self.target)
@@ -246,6 +247,8 @@ class Channel:
             extra.extend(["--label-prefix", label_prefix])
         if hierarchy:
             extra.append("--hierarchy")
+        if wait_milliseconds:
+            extra.extend(["--wait-milliseconds", str(wait_milliseconds)])
         if text is not None:
             extra.extend(["--text", text])
         if app_verb is not None:
@@ -372,6 +375,7 @@ class Server:
                 request.get("label"),
                 request.get("labelPrefix"),
                 bool(request.get("hierarchy")),
+                request.get("waitMilliseconds"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}
