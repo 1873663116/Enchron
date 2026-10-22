@@ -404,7 +404,16 @@ def _dispatch(
     return None, True, f"{step.verb} has no dispatch in this build"
 
 
+def _expects_many(expected: Any) -> bool:
+    return isinstance(expected, dict)
+
+
 def _await_matches(observed: dict[str, str], field: str, expected: Any, mode: str) -> bool:
+    if isinstance(expected, dict):
+        return all(
+            _await_matches(observed, name, target, mode)
+            for name, target in expected.items()
+        )
     value = observed.get(field)
     if mode == "atLeast":
         try:
@@ -534,7 +543,11 @@ def _dispatch_daemon(
                     observed = dict(
                         part.split("=", 1) for part in raw.split(";") if "=" in part
                     )
-                if not field and isinstance(raw, str):
+                if isinstance(expected, dict):
+                    if _await_matches(observed, "", expected, mode):
+                        reached = True
+                        break
+                elif not field and isinstance(raw, str):
                     if _await_matches({"": raw}, "", expected, mode):
                         reached = True
                         break

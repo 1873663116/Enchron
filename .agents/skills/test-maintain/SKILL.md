@@ -45,6 +45,8 @@ A unit may declare `preconditions: [{kind: media-progress}]` to give the seeded 
 
 `device.command` takes `label` and `labelPrefix`. The exact label wins; when it is absent the harness taps the first element whose label starts with the prefix.
 
+`device.await` also takes `equals` as an object of field names to values, so one probe can wait for several control plane fields at once.
+
 `device.await` takes `probe: element` with `field` set to `identifier` or `label` and waits until that element appears in the hierarchy. Use it before tapping anything a menu just revealed.
 
 A tap that misses because the element is not yet hittable is retried three times. A drain of the DEBUG probe journal is answered by one relaunch and one retry.

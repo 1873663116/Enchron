@@ -52,6 +52,24 @@ class DaemonProtocolTests(unittest.TestCase):
         self.assertEqual(first, second)
 
 
+class AwaitFieldTests(unittest.TestCase):
+    def test_one_probe_can_check_several_fields(self) -> None:
+        observed = {"presentation": "window", "mediaName": "clip.mkv"}
+        self.assertTrue(
+            engine_module._await_matches(
+                observed, "", {"presentation": "window", "mediaName": "clip.mkv"}, "equals"
+            )
+        )
+
+    def test_one_mismatched_field_refuses_the_wait(self) -> None:
+        observed = {"presentation": "window", "mediaName": "other.mkv"}
+        self.assertFalse(
+            engine_module._await_matches(
+                observed, "", {"presentation": "window", "mediaName": "clip.mkv"}, "equals"
+            )
+        )
+
+
 class SettlingTests(unittest.TestCase):
     def test_a_transient_miss_is_retried(self) -> None:
         answer = {"kind": "result", "value": {"ok": False, "detail": "The requested element exists but is not currently hittable."}}
