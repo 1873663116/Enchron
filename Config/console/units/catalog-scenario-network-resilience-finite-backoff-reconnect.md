@@ -30,6 +30,10 @@
       }
     },
     {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "resetState",
@@ -51,10 +55,6 @@
         "action": "tap",
         "label": "Enchron Regression WebDAV"
       }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
     },
     {
       "verb": "device.command",

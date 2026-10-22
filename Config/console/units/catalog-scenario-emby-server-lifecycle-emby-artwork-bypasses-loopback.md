@@ -26,6 +26,10 @@
       }
     },
     {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "resetState",
@@ -33,10 +37,6 @@
           "keepSession": "true"
         }
       }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
     },
     {
       "verb": "app.relaunch",

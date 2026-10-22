@@ -1094,17 +1094,17 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
     identifier = str(payload["id"])
     folder = slug(identifier)
     steps, fixtures = translate(payload, folder)
-    actions = [
-        {"verb": "device.session.ensure", "args": {"lane": "simulator"}},
+    actions = [{"verb": "device.session.ensure", "args": {"lane": "simulator"}}]
+    actions.append({"verb": "app.relaunch", "args": {}})
+    actions.append(
         {
             "verb": "device.app-command",
             "args": {
                 "verb": "resetState",
                 "arguments": {"keepSession": "true"},
             },
-        },
-    ]
-    actions.append({"verb": "app.relaunch", "args": {}})
+        }
+    )
     if fixtures:
         actions.append(
             {
@@ -1157,10 +1157,30 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                 },
             }
         )
-        actions.insert(2, actions.pop())
+        reset_index = next(
+            (
+                index
+                for index, action in enumerate(actions)
+                if action["verb"] == "device.app-command"
+                and action["args"].get("verb") == "resetState"
+            ),
+            None,
+        )
+        if reset_index is not None:
+            insertion = reset_index + 1
+        else:
+            insertion = next(
+                (
+                    index + 1
+                    for index, action in enumerate(actions)
+                    if action["verb"] == "app.relaunch"
+                ),
+                len(actions),
+            )
+        actions.insert(insertion, actions.pop())
         if defaulted_source:
             actions.insert(
-                3,
+                insertion + 1,
                 {
                     "verb": "device.command",
                     "args": {
