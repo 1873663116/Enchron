@@ -610,7 +610,12 @@ SHARED_LEXER_GROUPS = (
 )
 
 
+UNBATCHED_CHECKS = frozenset({"vision-test-suite-coverage"})
+
+
 def bundled(check: StructureCheck) -> bool:
+    if check.identifier in UNBATCHED_CHECKS:
+        return False
     return not check.filename.startswith(("tests/", "../verification/tests/"))
 
 
