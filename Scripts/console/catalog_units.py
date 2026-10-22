@@ -186,6 +186,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     episode_card_opened = False
     current_media: str | None = None
     player_interactions = 0
+    menu_opened = False
     repeated_player_steps = sum(
         1
         for action in payload["operations"]
@@ -430,8 +431,54 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             },
                         }
                     )
+                if player_targets and menu_opened and current_media:
+                    steps.extend(navigation(folder))
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {
+                                "action": "tap",
+                                "identifier": f"MediaLibrary-grid-video-{current_media}",
+                            },
+                        }
+                    )
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "PlayerUI-window-control-plane",
+                                "field": "presentation",
+                                "equals": "window",
+                                "timeoutMs": 45000,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "PlayerUI-window-control-plane",
+                                "field": "mediaName",
+                                "equals": current_media,
+                                "timeoutMs": 15000,
+                                "intervalMs": 300,
+                            },
+                        }
+                    )
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "toggleControls",
+                                "arguments": {"visible": "true"},
+                            },
+                        }
+                    )
+                    menu_opened = False
                 if player_targets:
                     player_interactions += 1
+                    menu_opened = True
                 if len(targets) > 1:
                     if episode_card_opened and "Emby-Detail-Play" in targets:
                         targets = [item for item in targets if item != "Emby-Detail-Play"]
@@ -884,11 +931,24 @@ def expressible(path: Path) -> bool:
 def write_feature(journey: str, identifiers: list[str]) -> None:
     slugged = re.sub(r"[^a-z0-9]+", "-", journey.lower()).strip("-")
     target = REPOSITORY_ROOT / "Config/console/features" / f"journey-{slugged}.md"
+    declared: set[str] = set()
+    for unit_path in (REPOSITORY_ROOT / "Config/console/units").glob("*.md"):
+        try:
+            head = unit_path.read_text(encoding="utf-8").split("---")[1]
+            identifier = str(json.loads(head).get("id", ""))
+        except (json.JSONDecodeError, IndexError):
+            continue
+        if identifier:
+            declared.add(identifier)
     existing_units: list[str] = []
     if target.exists():
         head = target.read_text(encoding="utf-8").split("---")[1]
         try:
-            existing_units = [str(unit) for unit in json.loads(head).get("units", [])]
+            existing_units = [
+                str(unit)
+                for unit in json.loads(head).get("units", [])
+                if str(unit) in declared
+            ]
         except (json.JSONDecodeError, IndexError):
             existing_units = []
     payload = {
