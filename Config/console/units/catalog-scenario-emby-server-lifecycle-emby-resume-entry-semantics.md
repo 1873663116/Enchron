@@ -83,13 +83,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-resumeDecision-primary"
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -113,13 +106,6 @@
           "PlayerUI-window-playback-surface",
           "PlayerUI-InfoBar-button-back"
         ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-resumeDecision-secondary"
       }
     },
     {

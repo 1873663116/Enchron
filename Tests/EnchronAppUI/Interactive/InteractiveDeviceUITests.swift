@@ -311,6 +311,13 @@ private final class InteractiveDeviceUIChannel {
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
+            if let scrolled = scrollIntoView(element) {
+                guard hittability(of: scrolled) else {
+                    return (false, "The requested element exists but is not currently hittable.")
+                }
+                scrolled.tap()
+                return (true, "Element tapped after scrolling it into view.")
+            }
             guard hittability(of: element) else {
                 return (false, "The requested element exists but is not currently hittable.")
             }
@@ -770,6 +777,25 @@ private final class InteractiveDeviceUIChannel {
             return value
         }
         return element.value.map { String(describing: $0) }
+    }
+
+    private func activationPointIsReachable(_ element: XCUIElement) -> Bool {
+        guard let frame = (try? element.snapshot())?.frame else { return false }
+        guard frame.width > 0, frame.height > 0 else { return false }
+        let activationPoint = CGPoint(x: frame.midX, y: frame.midY)
+        if let mainWindow = mainWindowFrame() { return mainWindow.contains(activationPoint) }
+        return app.windows.allElementsBoundByIndex.contains { $0.frame.contains(activationPoint) }
+    }
+
+    private func scrollIntoView(_ element: XCUIElement) -> XCUIElement? {
+        if activationPointIsReachable(element) { return nil }
+        let deadline = Date().addingTimeInterval(6)
+        for _ in 0 ..< 3 {
+            guard Date() < deadline else { break }
+            app.scrollViews.firstMatch.swipeUp()
+            if activationPointIsReachable(element) { return element }
+        }
+        return element
     }
 
     private func hittability(of element: XCUIElement) -> Bool {

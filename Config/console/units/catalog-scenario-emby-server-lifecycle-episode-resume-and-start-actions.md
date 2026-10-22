@@ -83,17 +83,9 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.probe",
       "args": {
-        "action": "tap",
-        "identifier": "Emby-Detail-Play"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-resumeDecision-primary"
+        "probe": "PlayerUI-window-control-plane"
       }
     },
     {
@@ -133,13 +125,6 @@
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-InfoBar-button-back"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-resumeDecision-secondary"
       }
     },
     {

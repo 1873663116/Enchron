@@ -373,6 +373,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     )
                 for target in targets:
                     collect_fixture(target, fixtures)
+                if episode_card_opened and all(
+                    target == "Emby-Detail-Play" or target.startswith("PlayerUI-resumeDecision")
+                    for target in targets
+                ):
+                    continue
                 if len(targets) > 1:
                     if episode_card_opened and "Emby-Detail-Play" in targets:
                         targets = [item for item in targets if item != "Emby-Detail-Play"]
@@ -400,6 +405,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         elif name == "accessibility.inspect":
             raw = str(arguments.get("identifier"))
             collect_fixture(raw, fixtures)
+            if raw == "Emby-Detail-Play" and episode_card_opened:
+                raw = "PlayerUI-window-control-plane"
             steps.append(
                 {
                     "verb": "device.probe",
