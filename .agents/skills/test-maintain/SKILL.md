@@ -37,6 +37,8 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+`device.probe` fails when no element carries the identifier it names, so a probe cannot pass without proving the element exists.
+
 `Config/console/known-failures.md` declares a defect that predates the console: an entry names a unit and a phrase the failing step must contain, and a run that matches reports the verdict `known` with exit code 7 instead of turning the tier red. Delete the entry when the defect is gone.
 
 `"isolation": "clean-library"` makes the compiler put a `clearMediaLibrary` command right after the session step, so every unit starts from an empty library instead of whatever the last run left behind.
