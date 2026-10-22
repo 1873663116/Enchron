@@ -165,12 +165,6 @@
     {
       "verb": "device.snapshot",
       "args": {}
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
-      }
     }
   ],
   "teardown": [
@@ -193,8 +187,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "probe.json",
-    "schema": "enchron.console.probe@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---

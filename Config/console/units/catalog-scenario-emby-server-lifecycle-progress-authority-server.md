@@ -152,19 +152,13 @@
     {
       "verb": "device.snapshot",
       "args": {}
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "Emby-Root"
-      }
     }
   ],
   "teardown": [],
   "terminal": {
     "kind": "artifact",
-    "path": "probe.json",
-    "schema": "enchron.console.probe@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---

@@ -123,16 +123,16 @@
       }
     },
     {
+      "verb": "device.probe",
+      "args": {
+        "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
       }
     },
     {
@@ -207,16 +207,16 @@
       }
     },
     {
+      "verb": "device.probe",
+      "args": {
+        "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
         "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
       }
     },
     {

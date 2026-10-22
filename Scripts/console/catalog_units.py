@@ -541,19 +541,29 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     collapsed: list[dict[str, Any]] = []
     for position, action in enumerate(actions):
         last = position == len(actions) - 1
-        if last:
-            collapsed.append(action)
-            continue
         if collapsed:
             previous = collapsed[-1]
-            if previous["verb"] == action["verb"] == "app.relaunch":
+            if previous["verb"] == action["verb"] == "app.relaunch" and not last:
                 continue
-            if previous["verb"] == action["verb"] == "device.home":
+            if previous["verb"] == action["verb"] == "device.home" and not last:
                 continue
             if previous["verb"] == "device.probe" and action["verb"] == "device.command":
                 if previous.get("args", {}).get("probe") == action.get("args", {}).get("identifier"):
                     collapsed[-1] = action
                     continue
+            opens_menu = (
+                previous["verb"] == "device.command"
+                and str(previous.get("args", {}).get("identifier", "")).startswith("PlayerUI-TopAction-")
+            )
+            probes_plane = (
+                action["verb"] == "device.probe"
+                and action.get("args", {}).get("probe") == "PlayerUI-window-control-plane"
+            )
+            if opens_menu and probes_plane:
+                collapsed.append(action)
+                collapsed.append(previous)
+                collapsed.pop(-3)
+                continue
             if previous["verb"] == "device.snapshot" and action["verb"] == "device.probe":
                 continue
             if (
