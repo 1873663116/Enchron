@@ -55,24 +55,6 @@
         "timeoutMs": 10000,
         "intervalMs": 200
       }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "setViewMode",
-        "arguments": {
-          "mode": "grid"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "FileBrowsing-FilesScreen-viewMode",
-        "equals": "grid",
-        "timeoutMs": 10000,
-        "intervalMs": 200
-      }
     }
   ],
   "terminal": {

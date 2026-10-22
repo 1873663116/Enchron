@@ -2522,6 +2522,7 @@ private enum TestCommandChannelBootstrap {
         application: EnchronApplication
     ) {
         guard environment["ENCHRON_TEST_CHANNEL"] == "1" else { return }
+        UIView.setAnimationsEnabled(false)
         do {
             let channel = try TestCommandChannel(
                 mediaLibrary: application.mediaLibraryViewModel,

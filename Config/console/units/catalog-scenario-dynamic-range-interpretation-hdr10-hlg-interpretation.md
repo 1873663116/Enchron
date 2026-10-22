@@ -207,6 +207,13 @@
     {
       "verb": "device.app-command",
       "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
         "verb": "deleteLibraryFolder",
         "arguments": {
           "name": "scenario-dynamic-range-interpretation-hdr10-hlg-interpretation"

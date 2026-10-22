@@ -142,6 +142,13 @@
     {
       "verb": "device.app-command",
       "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
         "verb": "deleteLibraryFolder",
         "arguments": {
           "name": "scenario-presentation-tour-portal-episode-switch-lands-in-window"

@@ -39,20 +39,19 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "setViewMode",
-            "arguments": {
-              "mode": "grid"
-            }
-          },
-          {
-            "verb": "resetMediaNavigation",
-            "arguments": {}
-          }
-        ]
+        "verb": "setViewMode",
+        "arguments": {
+          "mode": "grid"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetMediaNavigation",
+        "arguments": {}
       }
     },
     {

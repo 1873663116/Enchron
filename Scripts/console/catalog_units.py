@@ -435,8 +435,12 @@ def unit_for(path: Path) -> dict[str, Any]:
         [
             {
                 "verb": "device.app-command",
+                "args": {"verb": "leavePlayback", "arguments": {}},
+            },
+            {
+                "verb": "device.app-command",
                 "args": {"verb": "deleteLibraryFolder", "arguments": {"name": folder}},
-            }
+            },
         ]
         if fixtures
         else []

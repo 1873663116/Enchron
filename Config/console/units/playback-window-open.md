@@ -110,7 +110,16 @@
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
   },
-  "pace": "slow"
+  "pace": "slow",
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    }
+  ]
 }
 ---
 

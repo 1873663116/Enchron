@@ -230,6 +230,13 @@
     {
       "verb": "device.app-command",
       "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
         "verb": "deleteLibraryFolder",
         "arguments": {
           "name": "scenario-audio-only-playback-secondary-menu-pins-audio-controls"
