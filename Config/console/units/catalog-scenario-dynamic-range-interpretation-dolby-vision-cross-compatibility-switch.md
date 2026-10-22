@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "catalog",
   "requires": [
     "mac",
     "device",

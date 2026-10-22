@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "catalog",
   "requires": [
     "mac",
     "device",

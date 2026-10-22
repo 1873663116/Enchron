@@ -1,0 +1,343 @@
+---
+{
+  "schema": "enchron.console.unit",
+  "schemaVersion": 1,
+  "id": "unit:catalog.scenario-local-media-lifecycle-automatic-play-next-resume-policy@1",
+  "layer": 3,
+  "role": "verification",
+  "pace": "catalog",
+  "requires": [
+    "mac",
+    "device",
+    "daemon"
+  ],
+  "preconditions": [
+    {
+      "kind": "media-server",
+      "provider": "emby"
+    }
+  ],
+  "actions": [
+    {
+      "verb": "device.session.ensure",
+      "args": {
+        "lane": "simulator"
+      }
+    },
+    {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
+      "verb": "device.stage-media",
+      "args": {
+        "source": [
+          "test-media:TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s.mp4",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4"
+        ],
+        "target": "scenario-local-media-lifecycle-automatic-play-next-resume-policy"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-local-media-lifecycle-automatic-play-next-resume-policy"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-local-media-lifecycle-automatic-play-next-resume-policy",
+          "entry": "root"
+        }
+      }
+    },
+    {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "setViewMode",
+        "arguments": {
+          "mode": "grid"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-local-media-lifecycle-automatic-play-next-resume-policy"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-settings"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "mediaName",
+        "equals": "viewing-storage-16m01s.mp4",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "position",
+        "equals": 20.0,
+        "mode": "atLeast",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "PlayerUI-resumeDecision-primary"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "position",
+        "equals": 20.0,
+        "mode": "atLeast",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-30s.mp4"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "mediaName",
+        "equals": "sdr-bframe-multiaudio-avsync-30s.mp4",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": null
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "position",
+        "equals": 20.0,
+        "mode": "atLeast",
+        "timeoutMs": 90000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-local-media-lifecycle-automatic-play-next-resume-policy"
+        }
+      }
+    }
+  ],
+  "terminal": {
+    "kind": "artifact",
+    "path": "probe.json",
+    "schema": "enchron.console.probe@1"
+  }
+}
+---
+
+Ended Play Next resume policy
+
+Generated from `Config/regression/catalog-root/journeys/local-media-lifecycle/scenarios/automatic-play-next-resume-policy.md`.

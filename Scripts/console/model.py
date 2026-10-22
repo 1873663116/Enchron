@@ -58,7 +58,7 @@ class Guardrail:
 
 
 PRECONDITION_KINDS = frozenset({"media-server"})
-UNIT_PACES = frozenset({"fast", "slow"})
+UNIT_PACES = frozenset({"fast", "slow", "catalog"})
 
 
 @dataclass(frozen=True)

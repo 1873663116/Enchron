@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-dynamic-range-interpretation-hdr10-hlg-interpretation@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "catalog",
   "requires": [
     "mac",
     "device",

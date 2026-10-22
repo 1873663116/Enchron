@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-presentation-tour-window-episode-switch-lands-in-portal@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "catalog",
   "requires": [
     "mac",
     "device",

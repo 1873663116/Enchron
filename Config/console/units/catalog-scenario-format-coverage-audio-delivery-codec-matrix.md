@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-format-coverage-audio-delivery-codec-matrix@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "catalog",
   "requires": [
     "mac",
     "device",

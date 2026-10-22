@@ -31,6 +31,14 @@ BLOCKERS = {
     RESET_PRODUCT_STATE: "the reset signs out the source and clears the library the later steps need",
 }
 
+HANDLED_ELSEWHERE = {
+    "host.preflight",
+    "media.import-staged",
+    "transition-trace.arm",
+    "transition-trace.disarm",
+    "transition-trace.fetch",
+}
+
 UNSUPPORTED = {
     RESET_PRODUCT_STATE,
     "input.device-hub-pinch",
@@ -221,6 +229,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
         elif name in {"diagnostics.playback-state"}:
             steps.append({"verb": "device.probe", "args": {"probe": "PlayerUI-window-control-plane"}})
+        elif name in {"host.preflight", "media.import-staged"}:
+            pass
         elif name == "library.snapshot":
             steps.append({"verb": "device.snapshot", "args": {}})
         elif name == "format.apply":
@@ -349,7 +359,7 @@ def unit_for(path: Path) -> dict[str, Any]:
         "id": f"unit:catalog.{folder}@1",
         "layer": 3,
         "role": "verification",
-        "pace": "slow",
+        "pace": "catalog",
         "requires": ["mac", "device", "daemon"],
         "preconditions": [{"kind": "media-server", "provider": "emby"}],
         "actions": actions,
@@ -384,7 +394,7 @@ def blocked(payload: dict[str, Any]) -> list[str]:
             found.append(name)
         elif name == "format.apply" and str(arguments.get("projection")) == "customAngle":
             found.append("format.apply")
-        elif name not in DIRECT:
+        elif name not in DIRECT and name not in HANDLED_ELSEWHERE:
             found.append(name)
     return found
 
@@ -427,7 +437,8 @@ def report_gaps() -> int:
             for name in set(blocked(payload)):
                 blocking.setdefault(name, []).append(str(payload["id"]))
     for name in sorted(blocking, key=lambda item: -len(blocking[item])):
-        print(f"{len(blocking[name]):3d} scenario(s)  {name}: {BLOCKERS[name]}")
+        reason = BLOCKERS.get(name, "no mapping yet")
+        print(f"{len(blocking[name]):3d} scenario(s)  {name}: {reason}")
     return 0
 
 

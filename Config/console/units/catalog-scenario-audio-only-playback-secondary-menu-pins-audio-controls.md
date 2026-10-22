@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-audio-only-playback-secondary-menu-pins-audio-controls@1",
   "layer": 3,
   "role": "verification",
-  "pace": "slow",
+  "pace": "catalog",
   "requires": [
     "mac",
     "device",
