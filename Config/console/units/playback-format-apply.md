@@ -46,33 +46,12 @@
             }
           },
           {
-            "verb": "setViewMode",
+            "verb": "playMedia",
             "arguments": {
-              "mode": "grid"
+              "name": "sdr-bframe-aggregate-30s.mkv"
             }
           }
         ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-format-media"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
       }
     },
     {

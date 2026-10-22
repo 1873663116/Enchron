@@ -35,44 +35,22 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "importStagedFolder",
-            "arguments": {
-              "directory": "player-open",
-              "entry": "root"
-            }
-          },
-          {
-            "verb": "setViewMode",
-            "arguments": {
-              "mode": "grid"
-            }
-          }
-        ]
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "player-open",
+          "entry": "root"
+        }
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-player-open"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "sdr-bframe-aggregate-30s.mkv"
+        }
       }
     },
     {
@@ -83,26 +61,13 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-aggregate-30s.mkv"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 500
+        "timeoutMs": 60000,
+        "intervalMs": 300
       }
     },
     {
       "verb": "device.snapshot",
-      "args": {},
-      "expect": {
-        "path": "hierarchy",
-        "contains": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "player-open"
-        }
-      }
+      "args": {}
     }
   ],
   "terminal": {

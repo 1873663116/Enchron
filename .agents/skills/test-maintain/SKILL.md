@@ -59,6 +59,8 @@ A session that dies mid run is re-ensured and the command retried once, and a da
 
 The daemon keeps the code it started with. After editing anything it runs, stop it and start it again; `daemon stop` kills the process and waits for it to go.
 
+A unit whose subject is playback, not browsing, opens media with the `playMedia` app command instead of tapping the tab, the folder, and the card; that saves three taps per unit.
+
 `device.app-commands` runs a list of app commands in one round trip; three ping commands cost about as much as one.
 
 `device.command` takes `waitMilliseconds`, so a tap waits for the element instead of a separate await step.
