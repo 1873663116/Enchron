@@ -100,4 +100,4 @@
 
 SMB 共享与目录逐层浏览
 
-Generated from `Config/regression/catalog-root/journeys/smb-source-lifecycle/scenarios/smb-browse-shares-and-directories.md`.
+Generated from `Regression/journeys/smb-source-lifecycle/scenarios/smb-browse-shares-and-directories.md`.

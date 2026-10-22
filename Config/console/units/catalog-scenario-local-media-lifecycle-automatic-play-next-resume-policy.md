@@ -327,4 +327,4 @@
 
 Ended Play Next resume policy
 
-Generated from `Config/regression/catalog-root/journeys/local-media-lifecycle/scenarios/automatic-play-next-resume-policy.md`.
+Generated from `Regression/journeys/local-media-lifecycle/scenarios/automatic-play-next-resume-policy.md`.

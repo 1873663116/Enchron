@@ -126,4 +126,4 @@
 
 凭据、主机与地址失败给出可区分下一步
 
-Generated from `Config/regression/catalog-root/journeys/issue-surface-behavior/scenarios/source-failure-guidance-matrix.md`.
+Generated from `Regression/journeys/issue-surface-behavior/scenarios/source-failure-guidance-matrix.md`.

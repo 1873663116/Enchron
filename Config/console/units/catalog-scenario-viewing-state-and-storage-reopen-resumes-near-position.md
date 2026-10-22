@@ -195,4 +195,4 @@
 
 重新打开从保存位置续播
 
-Generated from `Config/regression/catalog-root/journeys/viewing-state-and-storage/scenarios/reopen-resumes-near-position.md`.
+Generated from `Regression/journeys/viewing-state-and-storage/scenarios/reopen-resumes-near-position.md`.

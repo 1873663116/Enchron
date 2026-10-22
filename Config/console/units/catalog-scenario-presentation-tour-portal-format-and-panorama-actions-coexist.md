@@ -144,4 +144,4 @@
 
 Portal 同时提供格式编辑与 Enter Panorama
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/portal-format-and-panorama-actions-coexist.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/portal-format-and-panorama-actions-coexist.md`.

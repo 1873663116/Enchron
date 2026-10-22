@@ -156,4 +156,4 @@
 
 窗口内切换到全景剧集时翻到 portal
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/window-episode-switch-lands-in-portal.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/window-episode-switch-lands-in-portal.md`.

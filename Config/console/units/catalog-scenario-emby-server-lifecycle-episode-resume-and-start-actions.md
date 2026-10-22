@@ -194,4 +194,4 @@
 
 单集详情页的单一 Play 入口与 Resume Playback? alert 的两个选择
 
-Generated from `Config/regression/catalog-root/journeys/emby-server-lifecycle/scenarios/episode-resume-and-start-actions.md`.
+Generated from `Regression/journeys/emby-server-lifecycle/scenarios/episode-resume-and-start-actions.md`.

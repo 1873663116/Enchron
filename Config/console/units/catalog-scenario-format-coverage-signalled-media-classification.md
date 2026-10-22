@@ -182,4 +182,4 @@
 
 带信令媒体按来源声明选择呈现
 
-Generated from `Config/regression/catalog-root/journeys/format-coverage/scenarios/signalled-media-classification.md`.
+Generated from `Regression/journeys/format-coverage/scenarios/signalled-media-classification.md`.

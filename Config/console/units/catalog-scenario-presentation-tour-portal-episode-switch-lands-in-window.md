@@ -154,4 +154,4 @@
 
 portal 内切换到平面剧集时翻回 window
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/portal-episode-switch-lands-in-window.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/portal-episode-switch-lands-in-window.md`.

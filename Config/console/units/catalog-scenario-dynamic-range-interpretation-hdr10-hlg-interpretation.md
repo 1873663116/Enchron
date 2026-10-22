@@ -194,4 +194,4 @@
 
 HDR10 与 HLG 传递函数和画面解释
 
-Generated from `Config/regression/catalog-root/journeys/dynamic-range-interpretation/scenarios/hdr10-hlg-interpretation.md`.
+Generated from `Regression/journeys/dynamic-range-interpretation/scenarios/hdr10-hlg-interpretation.md`.

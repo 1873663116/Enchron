@@ -10,7 +10,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-SCENARIOS = REPOSITORY_ROOT / "Config/regression/catalog-root/journeys"
+SCENARIOS = REPOSITORY_ROOT / "Regression/journeys"
 MEDIA_ROOT = REPOSITORY_ROOT.parent / "TestMedia"
 
 RESET_PRODUCT_STATE = "harness.reset-product-state"

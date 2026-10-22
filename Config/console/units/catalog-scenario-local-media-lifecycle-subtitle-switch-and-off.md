@@ -353,4 +353,4 @@
 
 字幕切换、关闭与恢复
 
-Generated from `Config/regression/catalog-root/journeys/local-media-lifecycle/scenarios/subtitle-switch-and-off.md`.
+Generated from `Regression/journeys/local-media-lifecycle/scenarios/subtitle-switch-and-off.md`.

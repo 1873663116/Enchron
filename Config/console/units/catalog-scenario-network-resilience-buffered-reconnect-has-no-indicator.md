@@ -268,4 +268,4 @@
 
 缓冲充足时网络重连对用户无提示
 
-Generated from `Config/regression/catalog-root/journeys/network-resilience/scenarios/buffered-reconnect-has-no-indicator.md`.
+Generated from `Regression/journeys/network-resilience/scenarios/buffered-reconnect-has-no-indicator.md`.

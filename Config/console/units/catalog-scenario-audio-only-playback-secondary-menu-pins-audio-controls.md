@@ -256,4 +256,4 @@
 
 纯音频二级菜单钉住最小控件集
 
-Generated from `Config/regression/catalog-root/journeys/audio-only-playback/scenarios/secondary-menu-pins-audio-controls.md`.
+Generated from `Regression/journeys/audio-only-playback/scenarios/secondary-menu-pins-audio-controls.md`.

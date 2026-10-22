@@ -142,4 +142,4 @@
 
 180°、360° 与 Custom Angle 覆盖角
 
-Generated from `Config/regression/catalog-root/journeys/projection-and-stereo/scenarios/panorama-coverage-angle.md`.
+Generated from `Regression/journeys/projection-and-stereo/scenarios/panorama-coverage-angle.md`.

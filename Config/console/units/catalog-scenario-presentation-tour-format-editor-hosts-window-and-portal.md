@@ -352,4 +352,4 @@
 
 Window 与 Portal 共用窗口格式编辑入口
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/format-editor-hosts-window-and-portal.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/format-editor-hosts-window-and-portal.md`.

@@ -109,4 +109,4 @@
 
 注入式导入重新进入生产入库管线
 
-Generated from `Config/regression/catalog-root/journeys/local-media-lifecycle/scenarios/injected-import-rejoins-ingest.md`.
+Generated from `Regression/journeys/local-media-lifecycle/scenarios/injected-import-rejoins-ingest.md`.

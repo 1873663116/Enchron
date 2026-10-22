@@ -175,4 +175,4 @@
 
 Emby 播放进度写回服务器
 
-Generated from `Config/regression/catalog-root/journeys/emby-server-lifecycle/scenarios/progress-authority-server.md`.
+Generated from `Regression/journeys/emby-server-lifecycle/scenarios/progress-authority-server.md`.

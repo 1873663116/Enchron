@@ -296,4 +296,4 @@
 
 播放中四类故障给出对应指引并保住位置
 
-Generated from `Config/regression/catalog-root/journeys/network-resilience/scenarios/playback-failure-category-matrix.md`.
+Generated from `Regression/journeys/network-resilience/scenarios/playback-failure-category-matrix.md`.

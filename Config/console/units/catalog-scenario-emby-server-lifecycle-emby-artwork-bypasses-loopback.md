@@ -118,4 +118,4 @@
 
 Emby Artwork 使用图片接口而非回环端点
 
-Generated from `Config/regression/catalog-root/journeys/emby-server-lifecycle/scenarios/emby-artwork-bypasses-loopback.md`.
+Generated from `Regression/journeys/emby-server-lifecycle/scenarios/emby-artwork-bypasses-loopback.md`.

@@ -120,4 +120,4 @@
 
 Unsupported codec guidance
 
-Generated from `Config/regression/catalog-root/journeys/format-coverage/scenarios/unsupported-codec-guidance.md`.
+Generated from `Regression/journeys/format-coverage/scenarios/unsupported-codec-guidance.md`.

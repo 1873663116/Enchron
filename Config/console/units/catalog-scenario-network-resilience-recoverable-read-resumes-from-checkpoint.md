@@ -160,4 +160,4 @@
 
 可恢复读失败与流结束分离
 
-Generated from `Config/regression/catalog-root/journeys/network-resilience/scenarios/recoverable-read-resumes-from-checkpoint.md`.
+Generated from `Regression/journeys/network-resilience/scenarios/recoverable-read-resumes-from-checkpoint.md`.

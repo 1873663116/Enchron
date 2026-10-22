@@ -237,4 +237,4 @@
 
 首开呈现由来源分类或持久格式覆盖决定
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/initial-presentation-routing.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/initial-presentation-routing.md`.

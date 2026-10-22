@@ -96,4 +96,4 @@
 
 Emby 封面按 image tag 落盘
 
-Generated from `Config/regression/catalog-root/journeys/emby-server-lifecycle/scenarios/artwork-by-image-tag.md`.
+Generated from `Regression/journeys/emby-server-lifecycle/scenarios/artwork-by-image-tag.md`.

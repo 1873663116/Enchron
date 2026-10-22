@@ -255,4 +255,4 @@
 
 Dolby Vision profile 5、7、8 与 10 处理矩阵
 
-Generated from `Config/regression/catalog-root/journeys/dynamic-range-interpretation/scenarios/dolby-vision-profile-matrix.md`.
+Generated from `Regression/journeys/dynamic-range-interpretation/scenarios/dolby-vision-profile-matrix.md`.

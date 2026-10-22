@@ -164,4 +164,4 @@
 
 断线后执行有限退避且引擎不主动断开
 
-Generated from `Config/regression/catalog-root/journeys/network-resilience/scenarios/finite-backoff-reconnect.md`.
+Generated from `Regression/journeys/network-resilience/scenarios/finite-backoff-reconnect.md`.

@@ -178,4 +178,4 @@
 
 应用全景格式从 window 路由到 portal
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/window-to-portal-format-route.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/window-to-portal-format-route.md`.

@@ -255,4 +255,4 @@
 
 立体打包被分离为正确单眼画面
 
-Generated from `Config/regression/catalog-root/journeys/projection-and-stereo/scenarios/stereo-view-separation.md`.
+Generated from `Regression/journeys/projection-and-stereo/scenarios/stereo-view-separation.md`.

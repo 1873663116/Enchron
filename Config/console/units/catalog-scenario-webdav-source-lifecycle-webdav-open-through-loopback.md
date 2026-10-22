@@ -114,4 +114,4 @@
 
 WebDAV 卡片经回环端点进入播放
 
-Generated from `Config/regression/catalog-root/journeys/webdav-source-lifecycle/scenarios/webdav-open-through-loopback.md`.
+Generated from `Regression/journeys/webdav-source-lifecycle/scenarios/webdav-open-through-loopback.md`.

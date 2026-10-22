@@ -153,4 +153,4 @@
 
 Automatic 在来源格式时禁用并显示选中
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/automatic-source-provenance.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/automatic-source-provenance.md`.

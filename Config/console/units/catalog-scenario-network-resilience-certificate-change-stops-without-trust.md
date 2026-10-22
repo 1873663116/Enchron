@@ -129,4 +129,4 @@
 
 播放中证书变化单列且不现场接受
 
-Generated from `Config/regression/catalog-root/journeys/network-resilience/scenarios/certificate-change-stops-without-trust.md`.
+Generated from `Regression/journeys/network-resilience/scenarios/certificate-change-stops-without-trust.md`.

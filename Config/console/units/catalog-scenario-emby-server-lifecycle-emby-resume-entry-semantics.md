@@ -184,4 +184,4 @@
 
 Emby Resume 尊重服务器位置而从头播放忽略它
 
-Generated from `Config/regression/catalog-root/journeys/emby-server-lifecycle/scenarios/emby-resume-entry-semantics.md`.
+Generated from `Regression/journeys/emby-server-lifecycle/scenarios/emby-resume-entry-semantics.md`.

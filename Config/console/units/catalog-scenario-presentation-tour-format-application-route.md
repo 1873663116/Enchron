@@ -258,4 +258,4 @@
 
 格式应用按 Flat 或全景投影路由
 
-Generated from `Config/regression/catalog-root/journeys/presentation-tour/scenarios/format-application-route.md`.
+Generated from `Regression/journeys/presentation-tour/scenarios/format-application-route.md`.

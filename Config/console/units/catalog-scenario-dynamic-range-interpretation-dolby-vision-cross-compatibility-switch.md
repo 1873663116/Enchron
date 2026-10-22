@@ -256,4 +256,4 @@
 
 兼容 Dolby Vision 在 HDR10 或 HLG 解释间切换
 
-Generated from `Config/regression/catalog-root/journeys/dynamic-range-interpretation/scenarios/dolby-vision-cross-compatibility-switch.md`.
+Generated from `Regression/journeys/dynamic-range-interpretation/scenarios/dolby-vision-cross-compatibility-switch.md`.

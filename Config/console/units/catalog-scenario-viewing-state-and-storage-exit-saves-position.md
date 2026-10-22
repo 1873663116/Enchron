@@ -168,4 +168,4 @@
 
 退出播放提交并保存当前位置
 
-Generated from `Config/regression/catalog-root/journeys/viewing-state-and-storage/scenarios/exit-saves-position.md`.
+Generated from `Regression/journeys/viewing-state-and-storage/scenarios/exit-saves-position.md`.

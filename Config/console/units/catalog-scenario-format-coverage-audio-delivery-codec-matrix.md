@@ -295,4 +295,4 @@
 
 压缩直递与 Float32 PCM 编解码矩阵
 
-Generated from `Config/regression/catalog-root/journeys/format-coverage/scenarios/audio-delivery-codec-matrix.md`.
+Generated from `Regression/journeys/format-coverage/scenarios/audio-delivery-codec-matrix.md`.

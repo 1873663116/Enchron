@@ -173,4 +173,4 @@
 
 Emby 首页海报墙与接下来看横条
 
-Generated from `Config/regression/catalog-root/journeys/emby-server-lifecycle/scenarios/home-poster-and-next-up.md`.
+Generated from `Regression/journeys/emby-server-lifecycle/scenarios/home-poster-and-next-up.md`.
