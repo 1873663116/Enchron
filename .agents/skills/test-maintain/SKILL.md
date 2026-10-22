@@ -37,6 +37,10 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+`device.home` leaves playback and brings the library home to the front, so a unit never depends on the screen the previous unit left behind.
+
+A unit may declare `preconditions: [{kind: media-progress}]` to give the seeded episodes the viewing progress a home journey needs.
+
 `device.command` takes `label` and `labelPrefix`. The exact label wins; when it is absent the harness taps the first element whose label starts with the prefix.
 
 `device.await` takes `probe: element` with `field` set to `identifier` or `label` and waits until that element appears in the hierarchy. Use it before tapping anything a menu just revealed.

@@ -123,6 +123,7 @@ def slug(identifier: str) -> str:
 
 
 LIBRARY_LABEL = "Enchron Regression Emby"
+SERIES_PREFIX = "Enchron Regression Series"
 
 
 def first_emby_label(payload: dict[str, Any]) -> str | None:
@@ -191,8 +192,14 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 }
             )
             if str(arguments["tab"]) == "emby":
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": "Emby-Sidebar-home"},
+                    }
+                )
                 target = first_emby_label(payload)
-                if target is not None and target != LIBRARY_LABEL:
+                if target is not None and target.startswith(SERIES_PREFIX):
                     steps.append(
                         {
                             "verb": "device.command",

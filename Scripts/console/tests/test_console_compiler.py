@@ -38,6 +38,32 @@ def write_feature(root: Path, name: str, units: list[str]) -> None:
     (features / f"{name}.md").write_text(f"---\n{body}\n---\n", encoding="utf-8")
 
 
+class ProgressPreconditionTests(unittest.TestCase):
+    def compile(self, preconditions: list[dict]) -> list[str]:
+        unit = loader.parse_unit(
+            {
+                "schema": "enchron.console.unit",
+                "schemaVersion": 1,
+                "id": "unit:progress@1",
+                "layer": 3,
+                "actions": [{"verb": "device.snapshot", "args": {}}],
+                "requires": ["mac", "device", "daemon"],
+                "preconditions": preconditions,
+                "terminal": {"kind": "artifact", "path": "hierarchy.json", "schema": "enchron.console.hierarchy@1"},
+            },
+            "test",
+        )
+        compiler = compile_module.Compiler(Path.cwd())
+        _, errors = compiler.compile(unit, "e2e", machine.synthetic("mac-daemon"))
+        return [code for code, _ in errors]
+
+    def test_a_progress_precondition_compiles(self) -> None:
+        self.assertEqual(self.compile([{"kind": "media-progress"}]), [])
+
+    def test_an_unknown_precondition_is_refused(self) -> None:
+        self.assertIn("C016", self.compile([{"kind": "media-wishes"}]))
+
+
 class ReferenceTests(unittest.TestCase):
     def compile(self, actions: list[dict]) -> list[str]:
         unit = loader.parse_unit(

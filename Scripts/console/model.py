@@ -57,7 +57,7 @@ class Guardrail:
     response: str
 
 
-PRECONDITION_KINDS = frozenset({"media-server"})
+PRECONDITION_KINDS = frozenset({"media-server", "media-progress"})
 UNIT_PACES = frozenset({"fast", "slow", "catalog"})
 
 

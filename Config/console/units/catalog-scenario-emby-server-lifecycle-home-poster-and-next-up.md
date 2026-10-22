@@ -15,6 +15,9 @@
     {
       "kind": "media-server",
       "provider": "emby"
+    },
+    {
+      "kind": "media-progress"
     }
   ],
   "actions": [
@@ -60,6 +63,13 @@
       "args": {
         "action": "tap",
         "identifier": "Emby-Navigation-Tab"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Emby-Sidebar-home"
       }
     },
     {
@@ -120,6 +130,13 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "identifier": "Emby-Sidebar-home"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "label": "Enchron Regression Emby"
       }
     },
@@ -152,6 +169,4 @@
 }
 ---
 
-Emby 首页海报墙与接下来看横条
-
-Generated from `Config/regression/catalog-root/journeys/emby-server-lifecycle/scenarios/home-poster-and-next-up.md`.
+Open the poster the home shows and reach the next episode.

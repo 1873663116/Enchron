@@ -125,6 +125,16 @@ VERBS: dict[str, Verb] = {
             budget_ms=120_000,
         ),
         Verb(
+            name="device.home",
+            tier="e2e",
+            capabilities=frozenset({"mac", "device", "daemon"}),
+            lane="device",
+            parameter=(),
+            evidence="home.json",
+            schema="enchron.console.home@1",
+            budget_ms=90_000,
+        ),
+        Verb(
             name="device.stage-identity",
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),

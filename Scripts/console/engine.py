@@ -143,6 +143,8 @@ def _run_preconditions(
         if kind == "media-server":
             provider = str(precondition.get("provider", ""))
             outcome = _ensure_media_server(provider, root)
+        elif kind == "media-progress":
+            outcome = _ensure_media_progress(root)
         else:
             outcome = {
                 "index": index,
@@ -154,6 +156,30 @@ def _run_preconditions(
         outcome["kind"] = kind
         outcomes.append(outcome)
     return outcomes
+
+
+def _ensure_media_progress(root: Path) -> dict[str, Any]:
+    script = root / "Scripts" / "verification" / "seed_emby_progress.py"
+    completed = subprocess.run(
+        [sys.executable, str(script)],
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+        timeout=300,
+    )
+    receipt: dict[str, Any] = {}
+    try:
+        receipt = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        receipt = {"stdout": completed.stdout[-2000:]}
+    episodes = receipt.get("episodes") or []
+    ok = completed.returncode == 0 and receipt.get("ready") is True
+    detail = (
+        f"seeded progress on {len(episodes)} episode(s)"
+        if ok
+        else f"seed_emby_progress failed: {completed.stderr[-300:]}"
+    )
+    return {"ok": ok, "detail": detail, "receipt": receipt}
 
 
 def _ensure_media_server(provider: str, root: Path) -> dict[str, Any]:
@@ -411,6 +437,29 @@ def _dispatch_daemon(
                 break
             time.sleep(0.5)
             answer = daemon_module.request(root, request, target)
+    elif step.verb == "device.home":
+        daemon_module.request(
+            root,
+            {"op": "invoke", "action": "app-command", "verb": "leavePlayback", "arguments": {}},
+            target,
+        )
+        daemon_module.request(
+            root,
+            {
+                "op": "invoke",
+                "action": "tap",
+                "identifier": "Navigation-Ornament-tab-files",
+            },
+            target,
+        )
+        answer = {
+            "kind": "result",
+            "value": {
+                "ok": True,
+                "detail": "the library home is in front",
+                "payload": {"outcome": "home"},
+            },
+        }
     elif step.verb == "device.capture-frames":
         flags: list[str] = ["--output-directory", str(steps_directory)]
         if step.args.get("count") is not None:

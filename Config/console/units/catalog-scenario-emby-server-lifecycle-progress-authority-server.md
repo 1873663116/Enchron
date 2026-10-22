@@ -63,6 +63,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Emby-Sidebar-home"
+      }
+    },
+    {
       "verb": "device.probe",
       "args": {
         "probe": "Emby-Evidence"

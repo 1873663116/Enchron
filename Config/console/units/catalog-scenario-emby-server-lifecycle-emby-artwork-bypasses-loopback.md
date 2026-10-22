@@ -66,6 +66,13 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "identifier": "Emby-Sidebar-home"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "label": "Enchron Regression Emby"
       }
     },

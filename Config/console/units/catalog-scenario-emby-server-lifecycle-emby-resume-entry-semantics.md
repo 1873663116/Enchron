@@ -66,7 +66,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Emby"
+        "identifier": "Emby-Sidebar-home"
       }
     },
     {
