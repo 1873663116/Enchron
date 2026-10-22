@@ -84,15 +84,44 @@
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.fault-source",
       "args": {
-        "probe": "PlayerUI-loadFailure-primary"
+        "provider": "webdav",
+        "phase": "activate",
+        "recipe": "access-denied"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.92"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-loadFailure-primary",
+        "timeoutMs": 45000,
+        "intervalMs": 400
       }
     },
     {
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "restore",
+        "recipe": ""
       }
     },
     {
@@ -173,15 +202,44 @@
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.fault-source",
       "args": {
-        "probe": "PlayerUI-loadFailure-primary"
+        "provider": "webdav",
+        "phase": "activate",
+        "recipe": "corrupt-media"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.92"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-loadFailure-primary",
+        "timeoutMs": 45000,
+        "intervalMs": 400
       }
     },
     {
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "restore",
+        "recipe": ""
       }
     },
     {

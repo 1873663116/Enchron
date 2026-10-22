@@ -34,6 +34,20 @@
       "args": {}
     },
     {
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "label": "Enchron Regression WebDAV"
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -80,6 +94,23 @@
       }
     },
     {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "activate",
+        "recipe": "recoverable-read-interruption"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.92"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -94,6 +125,14 @@
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "restore",
+        "recipe": ""
       }
     },
     {

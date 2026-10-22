@@ -78,10 +78,18 @@
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-loadFailure-secondary"
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-loadFailure-secondary",
+        "timeoutMs": 45000,
+        "intervalMs": 400
       }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
     }
   ],
   "teardown": [
@@ -104,8 +112,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "probe.json",
-    "schema": "enchron.console.probe@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---

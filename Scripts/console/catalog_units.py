@@ -578,6 +578,20 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
 
             raw = str(arguments.get("identifier"))
             collect_fixture(raw, fixtures)
+            if any(marker in raw for marker in ("loadFailure", "SourceConnection-")):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": open_identifier(raw),
+                            "timeoutMs": int(arguments.get("deadlineSeconds", 45)) * 1000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+                continue
             if raw == "Emby-Detail-Play" and episode_card_opened:
                 raw = "PlayerUI-window-control-plane"
             steps.append(
@@ -598,7 +612,31 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 steps.append({"verb": "device.snapshot", "args": {}})
         elif name in {"diagnostics.playback-state"}:
             steps.append({"verb": "device.probe", "args": {"probe": "PlayerUI-window-control-plane"}})
-        elif name in {"host.preflight", "media.import-staged"}:
+        elif name == "host.preflight":
+            if arguments.get("check") == "remote-faults":
+                recipe = str(arguments.get("recipe", ""))
+                phase = "restore" if arguments.get("phase") == "restore" else "activate"
+                steps.append(
+                    {
+                        "verb": "device.fault-source",
+                        "args": {
+                            "provider": "webdav",
+                            "phase": phase,
+                            "recipe": recipe,
+                        },
+                    }
+                )
+                if phase == "activate":
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "seekNormalized",
+                                "arguments": {"position": "0.92"},
+                            },
+                        }
+                    )
+        elif name == "media.import-staged":
             pass
         elif name == "library.snapshot":
             steps.append({"verb": "device.snapshot", "args": {}})
@@ -866,12 +904,20 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                     },
                 }
             )
+    operation_text = json.dumps(payload.get("operations") or [], ensure_ascii=False).lower()
+    remote_operations = any(
+        marker in operation_text
+        for marker in ("webdav", "smb", "filebrowsing-grid-video-", "remote-faults")
+    )
     source_labels = {
         str(label)
         for action in payload.get("operations", [])
         for label in ((action.get("arguments") or {}).get("labels") or [])
         if "webdav" in str(label).lower()
     }
+    defaulted_source = remote_operations and not source_labels
+    if defaulted_source:
+        source_labels = {"Enchron Regression WebDAV"}
     if source_labels:
         actions.append(
             {
@@ -883,6 +929,17 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
             }
         )
         actions.insert(2, actions.pop())
+        if defaulted_source:
+            actions.insert(
+                3,
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "label": sorted(source_labels)[0],
+                    },
+                },
+            )
     teardown = [
         {
             "verb": "device.app-command",

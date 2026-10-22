@@ -447,6 +447,8 @@ def _dispatch(
         return _run_stage_identity(step, root, plan)
     if step.verb == "device.connect-source":
         return _run_connect_source(step, root, plan)
+    if step.verb == "device.fault-source":
+        return _run_fault_source(step, root, plan)
     if plan.transport == "daemon":
         return _dispatch_daemon(
             step, root, plan.target or _probe_target(), steps_directory
@@ -831,6 +833,72 @@ def _lan_address(host: str) -> str | None:
     return None
 
 
+def _remote_source_controller(root: Path, provider: str):
+    import sys
+
+    verification = root / "Scripts" / "verification"
+    if str(verification) not in sys.path:
+        sys.path.insert(0, str(verification))
+    import regression_remote_source as remote
+
+    from ensure_test_services import primary_lan_ipv4
+
+    configuration = remote.ServiceConfiguration(
+        runtime_root=root.parent / "test-services" / provider,
+        registry_path=remote.DEFAULT_REGISTRY,
+        source_root=remote.DEFAULT_SOURCE_ROOT,
+        bind_host=primary_lan_ipv4() or "127.0.0.1",
+        port=8443 if provider == "webdav" else 445,
+    )
+    return remote, remote.RemoteSourceController(configuration)
+
+
+def _run_fault_source(
+    step: Step, root: Path, plan: Plan
+) -> tuple[dict[str, Any] | None, bool, str]:
+    provider = str(step.args.get("provider", "webdav"))
+    phase = str(step.args.get("phase", "activate"))
+    recipe = str(step.args.get("recipe", ""))
+    try:
+        remote, controller = _remote_source_controller(root, provider)
+    except Exception as error:
+        return None, False, f"the {provider} controller is unavailable: {error}"
+    try:
+        if phase == "activate":
+            _restore_active_recipe(controller)
+            receipt = controller.activate(recipe)
+            ACTIVE_FAULTS.append(receipt.get("receiptID", ""))
+            return receipt, True, f"activated the {recipe} recipe"
+        if phase == "restore":
+            if not ACTIVE_FAULTS:
+                return {}, True, "no fault was active"
+            receipt_id = ACTIVE_FAULTS.pop()
+            report = controller.restore(str(receipt_id))
+            return report, True, f"restored {receipt_id}"
+    except Exception as error:
+        return None, False, f"the {provider} recipe {recipe} was rejected: {error}"
+    return None, False, f"unknown phase {phase}"
+
+
+def _restore_active_recipe(controller) -> None:
+    status = controller.status()
+    active_recipe = str(status.get("recipe", "healthy"))
+    if active_recipe == "healthy":
+        return
+    generation = int(status.get("generation", 0))
+    for candidate in (generation, generation - 1):
+        try:
+            controller.restore(f"receipt:g-{candidate:06d}:{active_recipe}")
+            return
+        except Exception:
+            continue
+    controller.stop()
+    controller.ensure()
+
+
+ACTIVE_FAULTS: list[str] = []
+
+
 def _display_fingerprint(fingerprint: str) -> str:
     hex_digits = fingerprint.split(":", 1)[1] if fingerprint.startswith("sha256:") else fingerprint
     hex_digits = "".join(character for character in hex_digits if character in "0123456789abcdefABCDEF")
@@ -839,26 +907,22 @@ def _display_fingerprint(fingerprint: str) -> str:
 
 
 def _trust_certificate(device: str, address: str, fingerprint: str) -> None:
-    import plistlib
-
     fingerprint = _display_fingerprint(fingerprint)
-    preferences = Path(
-        f"/Users/{getpass.getuser()}/Library/Developer/CoreSimulator/Devices/{device}"
-        f"/data/Library/Preferences/{transport.APP_BUNDLE_ID}.plist"
-    )
-    preferences.parent.mkdir(parents=True, exist_ok=True)
-    if preferences.is_file():
-        try:
-            values = plistlib.loads(preferences.read_bytes())
-        except (OSError, plistlib.InvalidFileException):
-            values = {}
-    else:
-        values = {}
-    for key in [key for key in values if key.startswith("server-certificate-fingerprint.")]:
-        del values[key]
     for host in _address_hosts(address):
-        values[f"server-certificate-fingerprint.{host}"] = fingerprint
-    preferences.write_bytes(plistlib.dumps(values))
+        subprocess.run(
+            [
+                "xcrun",
+                "simctl",
+                "spawn",
+                device,
+                "defaults",
+                "write",
+                transport.APP_BUNDLE_ID,
+                f"server-certificate-fingerprint.{host}",
+                fingerprint,
+            ],
+            capture_output=True,
+        )
     transport.send_command(
         transport.parse_arguments(
             [
@@ -879,6 +943,11 @@ def _run_connect_source(
 ) -> tuple[dict[str, Any] | None, bool, str]:
     provider = str(step.args.get("provider", "webdav"))
     name = str(step.args.get("name", "Enchron Regression WebDAV"))
+    try:
+        _, controller = _remote_source_controller(root, provider)
+        _restore_active_recipe(controller)
+    except Exception:
+        pass
     receipt = _ensure_media_source(provider, root)
     address = ""
     for item in (receipt.get("receipt") or {}).get("receipts", []):

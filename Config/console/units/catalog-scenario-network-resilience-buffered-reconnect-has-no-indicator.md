@@ -96,6 +96,23 @@
       }
     },
     {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "activate",
+        "recipe": "healthy"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.92"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -104,6 +121,14 @@
         "mode": "atLeast",
         "timeoutMs": 45000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "restore",
+        "recipe": ""
       }
     },
     {
@@ -175,6 +200,23 @@
       }
     },
     {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "activate",
+        "recipe": "buffer-absorbed-interruption"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.92"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -183,6 +225,14 @@
         "mode": "atLeast",
         "timeoutMs": 45000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.fault-source",
+      "args": {
+        "provider": "webdav",
+        "phase": "restore",
+        "recipe": ""
       }
     },
     {

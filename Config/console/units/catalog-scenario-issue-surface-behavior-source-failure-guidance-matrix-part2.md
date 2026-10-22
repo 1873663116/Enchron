@@ -34,6 +34,20 @@
       "args": {}
     },
     {
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "label": "Enchron Regression WebDAV"
+      }
+    },
+    {
       "verb": "app.relaunch",
       "args": {}
     },
@@ -89,10 +103,18 @@
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.await",
       "args": {
-        "probe": "FileBrowsing-SourceConnection-webDAV-error"
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-SourceConnection-webDAV-error",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
     }
   ],
   "teardown": [
@@ -106,8 +128,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "probe.json",
-    "schema": "enchron.console.probe@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---

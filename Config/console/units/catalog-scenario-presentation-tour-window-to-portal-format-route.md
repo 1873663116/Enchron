@@ -30,6 +30,20 @@
       "args": {}
     },
     {
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "label": "Enchron Regression WebDAV"
+      }
+    },
+    {
       "verb": "app.relaunch",
       "args": {}
     },
