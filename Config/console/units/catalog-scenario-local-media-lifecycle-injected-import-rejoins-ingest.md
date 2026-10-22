@@ -25,6 +25,25 @@
       "args": {}
     },
     {
+      "verb": "device.stage-media",
+      "args": {
+        "source": [
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
+        ],
+        "target": "scenario-local-media-lifecycle-injected-import-rejoins-ingest"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-local-media-lifecycle-injected-import-rejoins-ingest",
+          "entry": "root"
+        }
+      }
+    },
+    {
       "verb": "device.snapshot",
       "args": {}
     },
@@ -66,7 +85,24 @@
       }
     }
   ],
-  "teardown": [],
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-local-media-lifecycle-injected-import-rejoins-ingest"
+        }
+      }
+    }
+  ],
   "terminal": {
     "kind": "artifact",
     "path": "probe.json",

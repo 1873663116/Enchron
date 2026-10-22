@@ -28,7 +28,8 @@
       "verb": "device.stage-media",
       "args": {
         "source": [
-          "test-media:TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s.mp4"
+          "test-media:TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s.mp4",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv"
         ],
         "target": "scenario-viewing-state-and-storage-reopen-resumes-near-position"
       }
@@ -59,6 +60,13 @@
       "args": {
         "action": "tap",
         "label": "Media Library"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-viewing-state-and-storage-reopen-resumes-near-position"
       }
     },
     {

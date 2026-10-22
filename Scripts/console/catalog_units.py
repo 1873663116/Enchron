@@ -182,12 +182,14 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     reset_emitted = False
     library_opened = False
     series_opened = False
+    folder_opened = False
     for action in payload["operations"]:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
         if name == "app.relaunch":
             steps.append({"verb": "app.relaunch", "args": {}})
             steps.extend(navigation(folder))
+            folder_opened = folder is not None
             rewound = True
         elif name == "navigation.select-tab":
             if str(arguments["tab"]) == "emby" and not reset_emitted:
@@ -221,6 +223,14 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     )
         elif name == "media.open":
             identifier = str(arguments["identifier"])
+            if folder and not folder_opened:
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": f"MediaLibrary-grid-folder-{folder}"},
+                    }
+                )
+                folder_opened = True
             found = fixture(media_name(identifier))
             if found is not None and found not in fixtures:
                 fixtures.append(found)
@@ -339,6 +349,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 steps.append({"verb": "device.command", "args": arguments_out})
             else:
                 target = arguments.get("identifier") or (arguments.get("identifiers") or [None])[0]
+                if target is not None:
+                    collect_fixture(str(target), fixtures)
                 if target is None:
                     raise SystemExit(
                         f"{name} names neither identifiers nor a label in {payload.get('id')}"
@@ -356,10 +368,12 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 args["text"] = arguments["text"]
             steps.append({"verb": "device.command", "args": args})
         elif name == "accessibility.inspect":
+            raw = str(arguments.get("identifier"))
+            collect_fixture(raw, fixtures)
             steps.append(
                 {
                     "verb": "device.probe",
-                    "args": {"probe": library_identifier(str(arguments.get("identifier")))},
+                    "args": {"probe": library_identifier(raw)},
                 }
             )
         elif name in {"diagnostics.surface-probe", "diagnostics.browse-hierarchy", "harness.assert-channels"}:
@@ -513,6 +527,14 @@ def source_preconditions(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if entry is not None and entry not in declared:
             declared.append(entry)
     return declared
+
+
+def collect_fixture(identifier: str, fixtures: list[Path]) -> None:
+    if "-grid-video-" not in identifier:
+        return
+    found = fixture(media_name(identifier))
+    if found is not None and found not in fixtures:
+        fixtures.append(found)
 
 
 def unit_for(path: Path) -> dict[str, Any]:
