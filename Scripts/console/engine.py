@@ -413,14 +413,15 @@ def _dispatch_daemon(
 ) -> tuple[dict[str, Any] | None, bool, str]:
     import daemon as daemon_module
 
-    if daemon_module.request(root, {"op": "ping"}, target, timeout=2).get("kind") != "result":
+    if _daemon_request(root, {"op": "ping"}, target, timeout=2).get("kind") != "result":
         daemon_module.ensure_running(root, target)
+
     if step.verb == "device.session.ensure":
-        answer = daemon_module.request(
+        answer = _daemon_request(
             root, {"op": "ensure", "lane": step.args.get("lane", "simulator")}, target
         )
     elif step.verb == "device.snapshot":
-        answer = daemon_module.request(root, {"op": "invoke", "action": "snapshot"}, target)
+        answer = _daemon_request(root, {"op": "invoke", "action": "snapshot"}, target)
     elif step.verb == "device.command":
         request = {
             "op": "invoke",
@@ -431,19 +432,19 @@ def _dispatch_daemon(
             "labelPrefix": step.args.get("labelPrefix"),
             "text": step.args.get("text"),
         }
-        answer = daemon_module.request(root, request, target)
+        answer = _daemon_request(root, request, target)
         for _ in range(3):
             if _settled(answer):
                 break
             time.sleep(0.5)
-            answer = daemon_module.request(root, request, target)
+            answer = _daemon_request(root, request, target)
     elif step.verb == "device.home":
-        daemon_module.request(
+        _daemon_request(
             root,
             {"op": "invoke", "action": "app-command", "verb": "leavePlayback", "arguments": {}},
             target,
         )
-        daemon_module.request(
+        _daemon_request(
             root,
             {
                 "op": "invoke",
@@ -466,7 +467,7 @@ def _dispatch_daemon(
             flags.extend(["--count", str(step.args["count"])])
         if step.args.get("intervalMs") is not None:
             flags.extend(["--interval-milliseconds", str(step.args["intervalMs"])])
-        answer = daemon_module.request(
+        answer = _daemon_request(
             root,
             {
                 "op": "invoke",
@@ -490,7 +491,7 @@ def _dispatch_daemon(
         reached = False
         while True:
             attempts += 1
-            answer = daemon_module.request(
+            answer = _daemon_request(
                 root,
                 {
                     "op": "invoke",
@@ -558,20 +559,20 @@ def _dispatch_daemon(
             "verb": step.args.get("verb"),
             "arguments": step.args.get("arguments") or {},
         }
-        answer = daemon_module.request(root, request, target)
+        answer = _daemon_request(root, request, target)
         if _journal_unhealthy(answer):
-            daemon_module.request(
+            _daemon_request(
                 root, {"op": "invoke", "action": "relaunch"}, target
             )
-            answer = daemon_module.request(root, request, target)
+            answer = _daemon_request(root, request, target)
     elif step.verb == "device.probe":
-        answer = daemon_module.request(
+        answer = _daemon_request(
             root,
             {"op": "invoke", "action": "snapshot", "identifier": step.args.get("probe")},
             target,
         )
     elif step.verb == "app.relaunch":
-        answer = daemon_module.request(root, {"op": "invoke", "action": "relaunch"}, target)
+        answer = _daemon_request(root, {"op": "invoke", "action": "relaunch"}, target)
     else:
         return None, True, f"{step.verb} has no daemon dispatch"
     if answer.get("kind") != "result":
@@ -581,6 +582,19 @@ def _dispatch_daemon(
     if step.verb == "device.app-command" and isinstance(payload, dict):
         payload = _with_fields(payload)
     return payload, bool(value.get("ok")), str(value.get("detail", ""))
+
+
+def _daemon_request(
+    root: Path, payload: dict[str, Any], target: str, timeout: float = 1200
+) -> dict[str, Any]:
+    import daemon as daemon_module
+
+    answer = daemon_module.request(root, payload, target, timeout)
+    if answer.get("kind") == "error" and answer.get("message") == "no daemon socket":
+        daemon_module.ensure_running(root, target)
+        answer = daemon_module.request(root, payload, target, timeout)
+    return answer
+
 
 
 def _run_stage_media(

@@ -254,6 +254,11 @@ class Channel:
             if recovered is not None:
                 answer = send(self._arguments(action, extra))
                 answer["recovery"] = recovered
+        if not answer.get("success") and answer.get("message") == "the session is gone; ensure it again":
+            payload, ok, detail = self.ensure_session("simulator")
+            if ok:
+                answer = send(self._arguments(action, extra))
+                answer["recovery"] = {"session": payload}
         ok = bool(answer.get("success", False))
         detail = str(answer.get("message") or answer.get("error") or f"{action} answered")
         return answer, ok, detail

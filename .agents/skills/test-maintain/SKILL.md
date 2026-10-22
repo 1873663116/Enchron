@@ -49,6 +49,8 @@ A tap that misses because the element is not yet hittable is retried three times
 
 Installing a new app build retires the runner session. Stop the daemon, delete `.console/session-*.json`, start it again, and run one unit before trusting any other.
 
+A session that dies mid run is re-ensured and the command retried once, and a daemon socket that is gone is rebuilt before the next request.
+
 The daemon keeps the code it started with. After editing anything it runs, stop it and start it again; `daemon stop` kills the process and waits for it to go.
 
 A step may carry `capture`, a map from payload field to name. A later step reads that name as `"$name"` in any argument string. The compiler refuses a reference that no earlier step captures (`C018`) and a name captured twice.

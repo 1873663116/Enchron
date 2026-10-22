@@ -5,7 +5,7 @@
   "id": "unit:catalog.scenario-emby-server-lifecycle-emby-artwork-bypasses-loopback@1",
   "layer": 3,
   "role": "verification",
-  "pace": "catalog",
+  "pace": "slow",
   "requires": [
     "mac",
     "device",
@@ -23,6 +23,10 @@
       "args": {
         "lane": "simulator"
       }
+    },
+    {
+      "verb": "device.home",
+      "args": {}
     },
     {
       "verb": "app.relaunch",

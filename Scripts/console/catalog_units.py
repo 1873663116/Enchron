@@ -79,12 +79,20 @@ HAND_WRITTEN = {
     "scenario:emby-server-lifecycle:series-season-episode-navigation",
 }
 
-VERIFIED = {
-    "scenario:dynamic-range-interpretation:hdr10-hlg-interpretation",
-    "scenario:format-coverage:unsupported-codec-guidance",
-    "scenario:emby-server-lifecycle:artwork-by-image-tag",
-    "scenario:smb-source-lifecycle:smb-browse-shares-and-directories",
+PROGRESS_SCENARIOS = {
+    "scenario:emby-server-lifecycle:home-poster-and-next-up",
+    "scenario:viewing-state-and-storage:resume-entry-semantics",
 }
+
+VERIFIED_FILE = REPOSITORY_ROOT / "Config/console/verified-scenarios.json"
+
+
+def verified_scenarios() -> set[str]:
+    try:
+        listed = json.loads(VERIFIED_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return set()
+    return {str(item) for item in listed} if isinstance(listed, list) else set()
 
 TAB_IDENTIFIERS = {
     "files": "Navigation-Ornament-tab-files",
@@ -404,7 +412,10 @@ def unit_for(path: Path) -> dict[str, Any]:
     identifier = str(payload["id"])
     folder = slug(identifier)
     steps, fixtures = translate(payload, folder)
-    actions = [{"verb": "device.session.ensure", "args": {"lane": "simulator"}}]
+    actions = [
+        {"verb": "device.session.ensure", "args": {"lane": "simulator"}},
+        {"verb": "device.home", "args": {}},
+    ]
     actions.append({"verb": "app.relaunch", "args": {}})
     if fixtures:
         actions.append(
@@ -436,9 +447,10 @@ def unit_for(path: Path) -> dict[str, Any]:
         "id": f"unit:catalog.{folder}@1",
         "layer": 3,
         "role": "verification",
-        "pace": "slow" if identifier in VERIFIED else "catalog",
+        "pace": "slow" if identifier in verified_scenarios() else "catalog",
         "requires": ["mac", "device", "daemon"],
-        "preconditions": [{"kind": "media-server", "provider": "emby"}],
+        "preconditions": [{"kind": "media-server", "provider": "emby"}]
+        + ([{"kind": "media-progress"}] if identifier in PROGRESS_SCENARIOS else []),
         "actions": actions,
         "terminal": terminal_of(steps),
     }
