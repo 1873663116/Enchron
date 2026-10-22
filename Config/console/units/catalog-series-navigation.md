@@ -128,7 +128,7 @@
     {
       "verb": "device.probe",
       "args": {
-        "probe": "Emby-Home"
+        "probe": "Emby-Root"
       }
     }
   ],
