@@ -71,6 +71,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-packed_bframes.avi",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",

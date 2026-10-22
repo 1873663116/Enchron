@@ -185,6 +185,23 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     )
     remote_flow = remote_opened
 
+    def panoramic(media: str | None) -> bool:
+        return bool(media) and any(
+            token in str(media) for token in ("APMP", "180", "360", "Panorama")
+        )
+
+    def window_root_wait(timeout_ms: int) -> dict[str, Any]:
+        return {
+            "verb": "device.await",
+            "args": {
+                "probe": "element",
+                "field": "identifier",
+                "equals": "WindowPlayback-root",
+                "timeoutMs": timeout_ms,
+                "intervalMs": 300,
+            },
+        }
+
     def reopen_steps(opened_folder: str, media: str) -> list[dict[str, Any]]:
         produced: list[dict[str, Any]] = [
             {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
@@ -387,19 +404,31 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             found = fixture(media_name(identifier))
             if found is not None and found not in fixtures and not identifier.startswith("FileBrowsing-"):
                 fixtures.append(found)
+            opened = open_identifier(identifier)
+            if not identifier.startswith("FileBrowsing-"):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": opened,
+                            "timeoutMs": 20000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
             steps.append(
                 {
                     "verb": "device.command",
-                    "args": {"action": "tap", "identifier": open_identifier(identifier)},
+                    "args": {"action": "tap", "identifier": opened},
                 }
             )
             expects_failure = "loadFailure" in json.dumps(payload, ensure_ascii=False)
             landing = None if expects_failure else PRESENTATION.get(
                 str(arguments.get("expectedLanding", "window"))
             )
-            if current_media and any(
-                token in current_media for token in ("APMP", "180", "360", "Panorama")
-            ):
+            if panoramic(current_media):
                 landing = None
             if landing:
                 steps.append(
@@ -414,7 +443,9 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
-            if not expects_failure:
+            if not expects_failure and panoramic(current_media):
+                steps.append(window_root_wait(20000))
+            elif not expects_failure:
                 steps.append(
                     {
                         "verb": "device.await",
@@ -430,9 +461,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         elif name == "playback.await-window-state":
             episode_card_opened = False
             presentation = PRESENTATION.get(str(arguments.get("presentation", "window")))
-            if current_media and any(
-                token in current_media for token in ("APMP", "180", "360", "Panorama")
-            ):
+            if panoramic(current_media):
                 presentation = None
             if presentation:
                 steps.append(
@@ -814,6 +843,12 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             else:
                 steps.append({"verb": "device.snapshot", "args": {}})
         elif name in {"diagnostics.playback-state"}:
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
+                }
+            )
             if menu_opened and current_media:
                 steps.extend(reopen_steps(folder, current_media))
                 menu_opened = False
@@ -863,18 +898,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"verb": "applyFormat", "arguments": arguments_out},
                 }
             )
-            steps.append(
-                {
-                    "verb": "device.await",
-                    "args": {
-                        "probe": "PlayerUI-window-control-plane",
-                        "field": "projection",
-                        "equals": projection,
-                        "timeoutMs": int(arguments.get("deadlineSeconds", 30)) * 1000,
-                        "intervalMs": 300,
-                    },
-                }
-            )
+            if not panoramic(current_media):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "PlayerUI-window-control-plane",
+                            "field": "projection",
+                            "equals": projection,
+                            "timeoutMs": int(arguments.get("deadlineSeconds", 30)) * 1000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
         elif name == "transition-trace.arm":
             arguments_out: dict[str, Any] = {}
             if arguments.get("fault") not in (None, "none"):

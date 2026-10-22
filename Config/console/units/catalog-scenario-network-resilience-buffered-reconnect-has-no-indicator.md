@@ -132,6 +132,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
@@ -233,6 +242,15 @@
         "provider": "webdav",
         "phase": "restore",
         "recipe": ""
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {

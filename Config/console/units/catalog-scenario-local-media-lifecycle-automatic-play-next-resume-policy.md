@@ -116,6 +116,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -238,6 +248,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-30s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -264,6 +284,15 @@
         "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {
@@ -310,6 +339,15 @@
         "mode": "atLeast",
         "timeoutMs": 90000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {

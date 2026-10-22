@@ -74,6 +74,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-audio-codec-matrix-15s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -144,10 +154,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "leavePlayback",
+            "arguments": {}
+          }
+        ]
       }
     },
     {
@@ -228,6 +248,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-audio-codec-matrix-15s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -298,10 +328,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "leavePlayback",
+            "arguments": {}
+          }
+        ]
       }
     },
     {

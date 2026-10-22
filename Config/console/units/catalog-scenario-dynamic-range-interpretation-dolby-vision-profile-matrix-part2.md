@@ -75,6 +75,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -130,6 +140,16 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-media-video-dav1-dav1-1.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

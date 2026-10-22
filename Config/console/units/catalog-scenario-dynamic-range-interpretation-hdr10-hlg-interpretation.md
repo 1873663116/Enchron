@@ -72,6 +72,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-pq-hevc-10bit-avsync-10s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -127,6 +137,16 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-hlg-hevc-10bit-avsync-10s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

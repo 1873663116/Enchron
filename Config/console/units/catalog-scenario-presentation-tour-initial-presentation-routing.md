@@ -72,6 +72,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -101,48 +111,12 @@
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.app-command",
       "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-initial-presentation-routing"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "APMP-180-example.mp4",
-        "timeoutMs": 15000,
-        "intervalMs": 300
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {
@@ -174,6 +148,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-APMP-180-example.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -183,31 +167,95 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "APMP-180-example.mp4",
-        "timeoutMs": 15000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 20000,
         "intervalMs": 300
       }
     },
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "applyFormat",
+        "verb": "toggleControls",
         "arguments": {
-          "projection": "flat",
-          "stereo": "mono"
+          "visible": "true"
         }
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
+      "verb": "device.home",
+      "args": {}
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-initial-presentation-routing"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "flat",
-        "timeoutMs": 30000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-APMP-180-example.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 20000,
         "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.app-commands",
+      "args": {
+        "calls": [
+          {
+            "verb": "applyFormat",
+            "arguments": {
+              "projection": "flat",
+              "stereo": "mono"
+            }
+          },
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          }
+        ]
       }
     },
     {

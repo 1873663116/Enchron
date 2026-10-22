@@ -73,6 +73,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-180_3D.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -82,10 +92,10 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "180_3D.mp4",
-        "timeoutMs": 15000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 20000,
         "intervalMs": 300
       }
     },
@@ -100,16 +110,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "equirectangular180",
-        "timeoutMs": 30000,
-        "intervalMs": 300
-      }
-    },
-    {
       "verb": "app.relaunch",
       "args": {}
     },
@@ -132,6 +132,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-180_3D_TB.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -141,10 +151,10 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "180_3D_TB.mp4",
-        "timeoutMs": 15000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 20000,
         "intervalMs": 300
       }
     },
@@ -159,16 +169,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "equirectangular180",
-        "timeoutMs": 30000,
-        "intervalMs": 300
-      }
-    },
-    {
       "verb": "app.relaunch",
       "args": {}
     },
@@ -188,6 +188,16 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-3D-example.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

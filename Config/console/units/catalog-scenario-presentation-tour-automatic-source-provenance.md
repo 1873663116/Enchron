@@ -72,6 +72,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-APMP-180-example.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -81,38 +91,29 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "APMP-180-example.mp4",
-        "timeoutMs": 15000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 20000,
         "intervalMs": 300
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "applyFormat",
-        "arguments": {
-          "projection": "flat",
-          "stereo": "mono"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "projection",
-        "equals": "flat",
-        "timeoutMs": 30000,
-        "intervalMs": 300
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "reapplyFormat",
-        "arguments": {}
+        "calls": [
+          {
+            "verb": "applyFormat",
+            "arguments": {
+              "projection": "flat",
+              "stereo": "mono"
+            }
+          },
+          {
+            "verb": "reapplyFormat",
+            "arguments": {}
+          }
+        ]
       }
     },
     {

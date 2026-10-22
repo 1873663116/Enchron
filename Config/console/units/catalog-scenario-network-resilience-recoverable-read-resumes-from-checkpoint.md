@@ -76,6 +76,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
@@ -107,6 +116,15 @@
         "mode": "atLeast",
         "timeoutMs": 90000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {

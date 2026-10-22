@@ -74,6 +74,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-dts_es.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -114,6 +124,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
@@ -139,6 +158,16 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-atmos.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -171,6 +200,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
@@ -196,6 +234,16 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-1.0-test_small.ogg",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -236,6 +284,15 @@
         "mode": "atLeast",
         "timeoutMs": 45000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {

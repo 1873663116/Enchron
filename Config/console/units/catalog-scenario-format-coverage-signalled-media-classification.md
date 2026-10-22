@@ -72,6 +72,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-APMP-180-example.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -81,10 +91,10 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "APMP-180-example.mp4",
-        "timeoutMs": 15000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 20000,
         "intervalMs": 300
       }
     },
@@ -115,6 +125,16 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

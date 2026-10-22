@@ -72,6 +72,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-180_3D.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -81,10 +91,10 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "mediaName",
-        "equals": "180_3D.mp4",
-        "timeoutMs": 15000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 20000,
         "intervalMs": 300
       }
     },
