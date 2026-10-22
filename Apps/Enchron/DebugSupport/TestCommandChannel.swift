@@ -1778,6 +1778,30 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: ["stereoLayout=\(layout.rawValue)"]
             )
+        case "resolveResumePrompt":
+            let requested = request.args["action"] ?? "resume"
+            guard ["resume", "startOver", "cancel"].contains(requested) else {
+                throw CommandError(
+                    message: "resolveResumePrompt requires action of resume, startOver, or cancel."
+                )
+            }
+            let pending = playbackLauncher.pendingResumeDecision != nil
+            if pending {
+                switch requested {
+                case "startOver":
+                    playbackLauncher.startPendingPlaybackFromBeginning()
+                case "cancel":
+                    playbackLauncher.cancelPendingResumeDecision()
+                default:
+                    playbackLauncher.resumePendingPlayback()
+                }
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["action=\(requested)", "pending=\(pending)"]
+            )
         case "applyFormat":
             guard let rawProjection = request.args["projection"],
                   let projection = PlaybackModel.ProjectionType(rawValue: rawProjection) else {

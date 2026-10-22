@@ -171,6 +171,28 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tapEach",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-videoFormat",
+          "PlayerUI-VideoFormat-apply"
+        ]
+      }
+    },
+    {
+      "verb": "device.capture-frames",
+      "args": {
+        "count": 3,
+        "intervalMs": 1000
+      }
+    },
+    {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -185,35 +207,14 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "MediaLibrary-grid-video-Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "MediaLibrary-grid-video-Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+        "identifier": "MediaLibrary-grid-video-Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
       }
     },
     {
@@ -222,19 +223,20 @@
         "probe": "PlayerUI-window-control-plane",
         "equals": {
           "presentation": "window",
-          "mediaName": "Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+          "mediaName": "Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
         },
         "timeoutMs": 45000,
         "intervalMs": 400
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.await",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
       }
     },
     {
@@ -244,7 +246,7 @@
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-videoFormat",
-          "PlayerUI-VideoFormat-apply"
+          "PlayerUI-VideoFormat-cancel"
         ]
       }
     },

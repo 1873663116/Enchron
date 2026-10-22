@@ -134,6 +134,13 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -142,6 +149,16 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-format-coverage-audio-delivery-codec-matrix"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-audio-codec-matrix-15s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -261,6 +278,13 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -269,6 +293,16 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-format-coverage-audio-delivery-codec-matrix"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-audio-codec-matrix-15s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

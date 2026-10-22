@@ -147,9 +147,22 @@
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.app-commands",
       "args": {
-        "probe": "PlayerUI-resumeDecision-primary"
+        "calls": [
+          {
+            "verb": "resolveResumePrompt",
+            "arguments": {
+              "action": "resume"
+            }
+          },
+          {
+            "verb": "resolveResumePrompt",
+            "arguments": {
+              "action": "resume"
+            }
+          }
+        ]
       }
     },
     {

@@ -111,6 +111,13 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -119,6 +126,16 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-format-editor-hosts-window-and-portal"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -246,73 +263,6 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-format-editor-hosts-window-and-portal"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tapEach",
@@ -330,6 +280,13 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -338,6 +295,16 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-format-editor-hosts-window-and-portal"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

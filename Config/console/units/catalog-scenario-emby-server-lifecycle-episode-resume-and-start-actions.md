@@ -89,6 +89,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resolveResumePrompt",
+        "arguments": {
+          "action": "resume"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",

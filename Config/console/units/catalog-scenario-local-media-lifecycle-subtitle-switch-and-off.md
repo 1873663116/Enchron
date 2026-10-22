@@ -127,12 +127,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "leavePlayback",
+            "arguments": {}
+          }
+        ]
       }
     },
     {
@@ -144,6 +152,16 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-local-media-lifecycle-subtitle-switch-and-off"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -221,12 +239,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "leavePlayback",
+            "arguments": {}
+          }
+        ]
       }
     },
     {
@@ -238,6 +264,16 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-local-media-lifecycle-subtitle-switch-and-off"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -315,12 +351,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "leavePlayback",
+            "arguments": {}
+          }
+        ]
       }
     },
     {
@@ -332,6 +376,16 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-local-media-lifecycle-subtitle-switch-and-off"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

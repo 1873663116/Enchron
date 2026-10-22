@@ -177,9 +177,22 @@
       }
     },
     {
-      "verb": "device.probe",
+      "verb": "device.app-commands",
       "args": {
-        "probe": "PlayerUI-resumeDecision-primary"
+        "calls": [
+          {
+            "verb": "resolveResumePrompt",
+            "arguments": {
+              "action": "resume"
+            }
+          },
+          {
+            "verb": "resolveResumePrompt",
+            "arguments": {
+              "action": "resume"
+            }
+          }
+        ]
       }
     },
     {
@@ -215,6 +228,13 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {

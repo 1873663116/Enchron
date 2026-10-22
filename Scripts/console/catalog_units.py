@@ -186,8 +186,22 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     remote_flow = remote_opened
 
     def reopen_steps(opened_folder: str, media: str) -> list[dict[str, Any]]:
-        produced: list[dict[str, Any]] = []
+        produced: list[dict[str, Any]] = [
+            {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
+        ]
         produced.extend(navigation(opened_folder))
+        produced.append(
+            {
+                "verb": "device.await",
+                "args": {
+                    "probe": "element",
+                    "field": "identifier",
+                    "equals": f"MediaLibrary-grid-video-{media}",
+                    "timeoutMs": 20000,
+                    "intervalMs": 400,
+                },
+            }
+        )
         produced.append(
             {
                 "verb": "device.command",
@@ -299,6 +313,9 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         arguments = action.get("arguments", {})
         if name == "app.relaunch":
             steps.append({"verb": "app.relaunch", "args": {}})
+            current_media = None
+            menu_opened = False
+            folder_opened = False
             steps.extend(navigation(folder))
             folder_opened = folder is not None
             rewound = True
@@ -338,6 +355,24 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             steps.append({"verb": "device.connect-source", "args": arguments})
         elif name == "media.open":
             identifier = str(arguments["identifier"])
+            if current_media == media_name(identifier):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "PlayerUI-window-control-plane",
+                            "field": "mediaName",
+                            "equals": current_media,
+                            "timeoutMs": 15000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
+                continue
+            if current_media is not None:
+                steps.append(
+                    {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
+                )
             current_media = media_name(identifier)
             if folder and not folder_opened:
                 steps.append(
@@ -541,13 +576,22 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         {
                             "verb": "device.app-command",
                             "args": {
-                                "verb": "seekNormalized",
-                                "arguments": {"position": "0"},
+                                "verb": "resolveResumePrompt",
+                                "arguments": {"action": "startOver"},
                             },
                         }
                     )
                     continue
                 if targets == ["PlayerUI-resumeDecision-primary"]:
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "resolveResumePrompt",
+                                "arguments": {"action": "resume"},
+                            },
+                        }
+                    )
                     continue
                 if targets == ["PlayerPanel-button-play"]:
                     steps.append(
@@ -703,6 +747,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "equals": open_identifier(raw),
                             "timeoutMs": int(arguments.get("deadlineSeconds", 45)) * 1000,
                             "intervalMs": 400,
+                        },
+                    }
+                )
+                continue
+            if raw.startswith("PlayerUI-resumeDecision"):
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {
+                            "verb": "resolveResumePrompt",
+                            "arguments": {
+                                "action": "startOver" if raw.endswith("secondary") else "resume"
+                            },
                         },
                     }
                 )
