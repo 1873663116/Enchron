@@ -187,7 +187,7 @@ def simulator_container(device: str, bundle_id: str) -> Path | None:
 
 
 def stage_media(
-    device: str, bundle_id: str, source: Path, target: str
+    device: str, bundle_id: str, sources: list[Path], target: str
 ) -> dict[str, Any] | None:
     container = simulator_container(device, bundle_id)
     if container is None:
@@ -196,19 +196,22 @@ def stage_media(
     if inbox.exists():
         shutil.rmtree(inbox)
     inbox.mkdir(parents=True, exist_ok=True)
-    files = [source] if source.is_file() else [
-        path for path in sorted(source.rglob("*")) if path.is_file()
-    ]
     copied = 0
     total = 0
-    for path in files:
-        destination = inbox / (path.name if source.is_file() else path.relative_to(source))
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(path, destination)
-        copied += 1
-        total += path.stat().st_size
+    for source in sources:
+        files = [source] if source.is_file() else [
+            path for path in sorted(source.rglob("*")) if path.is_file()
+        ]
+        for path in files:
+            destination = inbox / (
+                path.name if source.is_file() else path.relative_to(source)
+            )
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(path, destination)
+            copied += 1
+            total += path.stat().st_size
     return {
-        "source": str(source),
+        "sources": [str(source) for source in sources],
         "target": target,
         "inbox": str(inbox),
         "fileCount": copied,

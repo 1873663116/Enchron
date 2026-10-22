@@ -448,10 +448,15 @@ def _dispatch_daemon(
 def _run_stage_media(
     step: Step, root: Path, plan: Plan
 ) -> tuple[dict[str, Any] | None, bool, str]:
-    source = _media_source(root, str(step.args["source"]))
+    declared = step.args["source"]
+    sources = (
+        [_media_source(root, str(item)) for item in declared]
+        if isinstance(declared, list)
+        else [_media_source(root, str(declared))]
+    )
     target = str(step.args["target"])
     device = plan.target or _probe_target()
-    payload = transport.stage_media(device, transport.APP_BUNDLE_ID, source, target)
+    payload = transport.stage_media(device, transport.APP_BUNDLE_ID, sources, target)
     if payload is None:
         return None, False, f"could not reach the container on {device}"
     return payload, True, f"staged {payload['fileCount']} file(s) into {target}"

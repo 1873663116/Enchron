@@ -12,4 +12,4 @@
 }
 ---
 
-Covers opening local media, reaching a presenting player window, and changing its format.
+Covers opening local media, reaching a presenting player window, changing its format, and holding frames from a PQ and an HLG clip.
