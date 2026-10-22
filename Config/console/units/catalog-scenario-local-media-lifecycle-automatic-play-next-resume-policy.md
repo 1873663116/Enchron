@@ -273,10 +273,13 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.await",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerPanel-button-play"
+        "probe": "PlayerUI-window-control-plane",
+        "field": "lifecycle",
+        "equals": "Playing",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {

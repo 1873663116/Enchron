@@ -187,19 +187,6 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     current_media: str | None = None
     player_interactions = 0
     menu_opened = False
-    repeated_player_steps = sum(
-        1
-        for action in payload["operations"]
-        if action.get("operation", "").startswith("operation:accessibility.activate")
-        and any(
-            str(item).startswith(("PlayerUI-TopAction-", "PlayerUI-menu-"))
-            for item in (
-                (action.get("arguments") or {}).get("identifiers")
-                or (action.get("arguments") or {}).get("labels")
-                or []
-            )
-        )
-    )
     for action in payload["operations"]:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
@@ -400,6 +387,20 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         }
                     )
                     continue
+                if targets == ["PlayerPanel-button-play"]:
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "PlayerUI-window-control-plane",
+                                "field": "lifecycle",
+                                "equals": "Playing",
+                                "timeoutMs": 15000,
+                                "intervalMs": 300,
+                            },
+                        }
+                    )
+                    continue
                 for target in targets:
                     collect_fixture(target, fixtures)
                 if episode_card_opened and all(
@@ -411,26 +412,6 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     str(target).startswith(("PlayerUI-TopAction-", "PlayerUI-menu-"))
                     for target in targets
                 )
-                if player_targets and player_interactions == 0 and repeated_player_steps > 1:
-                    steps.append(
-                        {
-                            "verb": "device.app-command",
-                            "args": {
-                                "verb": "toggleControls",
-                                "arguments": {"visible": "true"},
-                            },
-                        }
-                    )
-                    steps.append(
-                        {
-                            "verb": "device.command",
-                            "args": {
-                                "action": "tap",
-                                "identifier": "PlayerPanel-button-play",
-                                "waitMilliseconds": 400,
-                            },
-                        }
-                    )
                 if player_targets and menu_opened and current_media:
                     steps.extend(navigation(folder))
                     steps.append(
@@ -672,6 +653,10 @@ def source_preconditions(payload: dict[str, Any]) -> list[dict[str, Any]]:
         if entry is not None and entry not in declared:
             declared.append(entry)
     operation_text = json.dumps(payload.get("operations") or [], ensure_ascii=False).lower()
+    if "remote-faults" in operation_text:
+        entry = {"kind": "media-source", "provider": "webdav"}
+        if entry not in declared:
+            declared.append(entry)
     for provider in ("webdav", "smb"):
         entry = {"kind": "media-source", "provider": provider}
         if provider in operation_text and entry not in declared:
