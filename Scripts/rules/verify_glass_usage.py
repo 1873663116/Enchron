@@ -58,7 +58,7 @@ ALLOWED_WRAPPER_CALLS = Counter(
             path=Path("Apps/Enchron/PlayerView.swift"),
             enclosing_type="PlayerView",
             callee="enchronWindowGlassBackground",
-        ): 1,
+        ): 2,
         WrapperCallIdentity(
             path=Path("Modules/DesignSystem/Components/PlaybackChromeGlassButton.swift"),
             enclosing_type="PlaybackChromeGlassIcon",

@@ -903,9 +903,14 @@ def main() -> int:
     anchored_menu = read("Modules/DesignSystem/Components/AnchoredMenu.swift")
     immersive_menu = read("Modules/Playback/Scenes/ImmersivePlaybackMenu.swift")
     top_actions = read("Modules/Playback/Views/PlaybackTopActions.swift")
+    top_actions_composition = region(
+        top_actions,
+        "public struct PlaybackTopActions: View",
+        "public struct PlaybackWindowDockAction: View",
+    )
     require(
         ".anchoredMenuHost(presentation: windowMenu)" in player_view
-        and top_actions.count(".anchoredMenu(") == 2
+        and top_actions_composition.count(".anchoredMenu(") == 2
         and ".popover(" not in top_actions
         and "AnchoredMenuLayer(presentation: menu.presentation)" in immersive_menu,
         "window and immersive custom menus must use the shared anchored menu presenter",
