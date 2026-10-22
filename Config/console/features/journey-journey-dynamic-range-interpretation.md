@@ -6,6 +6,7 @@
   "title": "Journey:Dynamic Range Interpretation",
   "units": [
     "unit:catalog.scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch@1",
+    "unit:catalog.scenario-dynamic-range-interpretation-dolby-vision-profile-matrix.part2@1",
     "unit:catalog.scenario-dynamic-range-interpretation-dolby-vision-profile-matrix@1",
     "unit:catalog.scenario-dynamic-range-interpretation-hdr10-hlg-interpretation@1"
   ],

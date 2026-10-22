@@ -11,8 +11,13 @@
     "device",
     "daemon"
   ],
-  "preconditions": [],
   "isolation": "clean-library",
+  "preconditions": [
+    {
+      "kind": "media-server",
+      "provider": "emby"
+    }
+  ],
   "actions": [
     {
       "verb": "device.session.ensure",
@@ -189,71 +194,6 @@
         "action": "typeText",
         "identifier": "FileBrowsing-SourceConnection-webDAV-address",
         "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:21/missingPathAddress"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-username"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-password"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-connect"
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "FileBrowsing-SourceConnection-webDAV-error"
-      }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "typeText",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-name",
-        "text": "Failure Matrix requires-https"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "typeText",
-        "identifier": "FileBrowsing-SourceConnection-webDAV-address",
-        "text": "result://call:issue-surface-behavior:source-failure-guidance-matrix:31/httpAddress"
       }
     },
     {

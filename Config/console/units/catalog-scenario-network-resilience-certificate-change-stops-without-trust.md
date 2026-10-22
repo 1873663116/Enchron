@@ -11,8 +11,13 @@
     "device",
     "daemon"
   ],
-  "preconditions": [],
   "isolation": "clean-library",
+  "preconditions": [
+    {
+      "kind": "media-server",
+      "provider": "emby"
+    }
+  ],
   "actions": [
     {
       "verb": "device.session.ensure",

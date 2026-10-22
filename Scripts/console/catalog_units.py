@@ -616,6 +616,10 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def unit_for(path: Path) -> dict[str, Any]:
+    return unit_parts(path)[0]
+
+
+def unit_parts(path: Path) -> list[dict[str, Any]]:
     payload = scenario(path)
     assert payload is not None
     identifier = str(payload["id"])
@@ -650,7 +654,6 @@ def unit_for(path: Path) -> dict[str, Any]:
                     },
                 }
             )
-    actions.extend(simplify(steps))
     teardown = (
         [
             {
@@ -665,22 +668,55 @@ def unit_for(path: Path) -> dict[str, Any]:
         if fixtures
         else []
     )
-    return {
-        "schema": "enchron.console.unit",
-        "schemaVersion": 1,
-        "id": f"unit:catalog.{folder}@1",
-        "layer": 3,
-        "role": "verification",
-        "pace": "scenario" if identifier in verified_scenarios() else "catalog",
-        "requires": ["mac", "device", "daemon"],
-        "preconditions": [{"kind": "media-server", "provider": "emby"}]
-        + ([{"kind": "media-progress"}] if identifier in PROGRESS_SCENARIOS else []),
-        "isolation": "clean-library",
-        "preconditions": source_preconditions(payload),
-        "actions": actions,
-        "teardown": teardown,
-        "terminal": terminal_of(steps),
-    }
+    simplified = simplify(steps)
+    chunks = split_steps(simplified)
+    preconditions = (
+        [{"kind": "media-server", "provider": "emby"}]
+        + ([{"kind": "media-progress"}] if identifier in PROGRESS_SCENARIOS else [])
+        + source_preconditions(payload)
+    )
+    pace = "scenario" if identifier in verified_scenarios() else "catalog"
+    parts: list[dict[str, Any]] = []
+    for position, chunk in enumerate(chunks, start=1):
+        part_steps = list(chunk)
+        if part_steps and part_steps[-1]["verb"] not in EVIDENCE_VERBS:
+            part_steps.append({"verb": "device.snapshot", "args": {}})
+        suffix = "" if position == 1 else f".part{position}"
+        parts.append(
+            {
+                "schema": "enchron.console.unit",
+                "schemaVersion": 1,
+                "id": f"unit:catalog.{folder}{suffix}@1",
+                "layer": 3,
+                "role": "verification",
+                "pace": pace,
+                "requires": ["mac", "device", "daemon"],
+                "isolation": "clean-library",
+                "preconditions": preconditions,
+                "actions": actions + part_steps,
+                "teardown": teardown,
+                "terminal": terminal_of(part_steps),
+            }
+        )
+    return parts
+
+
+MAX_PART_STEPS = 26
+EVIDENCE_VERBS = ("device.probe", "device.snapshot", "device.capture-frames")
+
+
+def split_steps(steps: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
+    chunks: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    for position, step in enumerate(steps):
+        begins_case = step["verb"] == "app.relaunch" and position > 0
+        if begins_case and current and len(current) + 4 > MAX_PART_STEPS:
+            chunks.append(current)
+            current = []
+        current.append(step)
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 EVIDENCE_FALLBACK = {
@@ -774,6 +810,11 @@ def main(argv: list[str]) -> int:
         return report_gaps()
     written = 0
     journeys: dict[str, list[str]] = {}
+    if "--check" not in argv:
+        for stale in (REPOSITORY_ROOT / "Config/console/units").glob("catalog-*.md"):
+            if "series-navigation" in stale.name:
+                continue
+            stale.unlink()
     for path in sorted(SCENARIOS.rglob("*.md")):
         if not expressible(path):
             continue
@@ -785,16 +826,17 @@ def main(argv: list[str]) -> int:
             print(f"would write {target.name}")
             written += 1
             continue
-        body = json.dumps(unit_for(path), indent=2, ensure_ascii=False)
         title = str(payload.get("title", folder))
-        target.write_text(
-            f"---\n{body}\n---\n\n{title}\n\nGenerated from `{path.relative_to(REPOSITORY_ROOT)}`.\n",
-            encoding="utf-8",
-        )
-        journeys.setdefault(str(payload.get("journey", folder)), []).append(
-            f"unit:catalog.{folder}@1"
-        )
-        written += 1
+        for position, unit in enumerate(unit_parts(path), start=1):
+            suffix = "" if position == 1 else f"-part{position}"
+            name = f"catalog-{folder}{suffix}.md"
+            body = json.dumps(unit, indent=2, ensure_ascii=False)
+            (REPOSITORY_ROOT / "Config/console/units" / name).write_text(
+                f"---\n{body}\n---\n\n{title}\n\nGenerated from `{path.relative_to(REPOSITORY_ROOT)}`.\n",
+                encoding="utf-8",
+            )
+            journeys.setdefault(str(payload.get("journey", folder)), []).append(unit["id"])
+            written += 1
     if "--check" not in argv:
         for journey, identifiers in journeys.items():
             write_feature(journey, identifiers)

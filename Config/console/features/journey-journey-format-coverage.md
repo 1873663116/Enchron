@@ -5,6 +5,8 @@
   "id": "feature:journey.journey-format-coverage",
   "title": "Journey:Format Coverage",
   "units": [
+    "unit:catalog.scenario-format-coverage-audio-delivery-codec-matrix.part2@1",
+    "unit:catalog.scenario-format-coverage-audio-delivery-codec-matrix.part3@1",
     "unit:catalog.scenario-format-coverage-audio-delivery-codec-matrix@1",
     "unit:catalog.scenario-format-coverage-signalled-media-classification@1",
     "unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1"
