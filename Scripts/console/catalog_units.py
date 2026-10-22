@@ -297,7 +297,14 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
         elif name == "accessibility.activate":
             targets = [str(item) for item in (arguments.get("labels") or [])]
-            if targets and targets[0].startswith(LIBRARY_ITEM_PREFIX):
+            def reaches_emby() -> bool:
+                return any(
+                    str(item.get("operation", "")) == "operation:navigation.select-tab@1"
+                    and item.get("arguments", {}).get("tab") == "emby"
+                    for item in payload.get("operations", [])
+                )
+
+            if targets and targets[0].startswith(LIBRARY_ITEM_PREFIX) and reaches_emby():
                 if not library_opened:
                     steps.append(
                         {"verb": "device.command", "args": {"action": "tap", "label": LIBRARY_LABEL}}
@@ -493,6 +500,21 @@ def imports_at_root(payload: dict[str, Any]) -> bool:
     return False
 
 
+SOURCE_PRECONDITIONS = {
+    "webdav-test-source-ready": {"kind": "media-source", "provider": "webdav"},
+    "smb-test-source-ready": {"kind": "media-source", "provider": "smb"},
+}
+
+
+def source_preconditions(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    declared = []
+    for prerequisite in payload.get("prerequisites") or []:
+        entry = SOURCE_PRECONDITIONS.get(str(prerequisite.get("key")))
+        if entry is not None and entry not in declared:
+            declared.append(entry)
+    return declared
+
+
 def unit_for(path: Path) -> dict[str, Any]:
     payload = scenario(path)
     assert payload is not None
@@ -554,6 +576,7 @@ def unit_for(path: Path) -> dict[str, Any]:
         "preconditions": [{"kind": "media-server", "provider": "emby"}]
         + ([{"kind": "media-progress"}] if identifier in PROGRESS_SCENARIOS else []),
         "isolation": "clean-library",
+        "preconditions": source_preconditions(payload),
         "actions": actions,
         "teardown": teardown,
         "terminal": terminal_of(steps),

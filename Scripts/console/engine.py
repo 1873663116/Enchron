@@ -158,6 +158,8 @@ def _run_preconditions(
             outcome = _ensure_media_server(provider, root)
         elif kind == "media-progress":
             outcome = _ensure_media_progress(root)
+        elif kind == "media-source":
+            outcome = _ensure_media_source(str(precondition.get("provider", "")), root)
         else:
             outcome = {
                 "index": index,
@@ -193,6 +195,37 @@ def _ensure_media_progress(root: Path) -> dict[str, Any]:
         else f"seed_emby_progress failed: {completed.stderr[-300:]}"
     )
     return {"ok": ok, "detail": detail, "receipt": receipt}
+
+
+def _ensure_media_source(provider: str, root: Path) -> dict[str, Any]:
+    script = root / "Scripts" / "verification" / "ensure_test_services.py"
+    completed = subprocess.run(
+        [sys.executable, str(script), "--service", provider],
+        capture_output=True,
+        text=True,
+        cwd=str(root),
+        timeout=900,
+    )
+    receipt: dict[str, Any] = {}
+    try:
+        receipt = json.loads(completed.stdout)
+    except json.JSONDecodeError:
+        receipt = {"stdout": completed.stdout[-2000:]}
+    actions = [
+        str(item.get("action"))
+        for item in receipt.get("receipts", [])
+        if isinstance(item, dict)
+    ]
+    ok = completed.returncode == 0 and any(
+        action in {"found", "started", "configured"} for action in actions
+    )
+    return {
+        "kind": "media-source",
+        "provider": provider,
+        "ok": ok,
+        "detail": ", ".join(actions) or "no receipt",
+        "receipt": receipt,
+    }
 
 
 def _ensure_media_server(provider: str, root: Path) -> dict[str, Any]:

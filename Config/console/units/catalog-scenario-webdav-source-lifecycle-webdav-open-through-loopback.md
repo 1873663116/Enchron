@@ -13,8 +13,8 @@
   ],
   "preconditions": [
     {
-      "kind": "media-server",
-      "provider": "emby"
+      "kind": "media-source",
+      "provider": "webdav"
     }
   ],
   "isolation": "clean-library",
@@ -52,13 +52,6 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "Enchron Regression Emby"
       }
     },
     {

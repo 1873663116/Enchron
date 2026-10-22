@@ -37,6 +37,8 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+`cli.py inspect <unit>` reads the last run and lists, for the failing step, the element it wanted and the identifiers the app actually showed, ranked by closeness. It needs no device.
+
 `device.probe` fails when no element carries the identifier it names, so a probe cannot pass without proving the element exists.
 
 `Config/console/known-failures.md` declares a defect that predates the console: an entry names a unit and a phrase the failing step must contain, and a run that matches reports the verdict `known` with exit code 7 instead of turning the tier red. Delete the entry when the defect is gone.

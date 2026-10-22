@@ -59,6 +59,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--tier", default="e2e")
     run.add_argument("--timeout-scale", type=float, default=1.0, dest="timeout_scale")
 
+    inspect = commands.add_parser("inspect")
+    inspect.add_argument("unit")
+    inspect.add_argument("--as-json", action="store_true")
     listing = commands.add_parser("list")
     listing.add_argument("--tier", default=None)
     listing.add_argument("--layer", type=int, default=None)
@@ -90,6 +93,16 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _dispatch(arguments, root, profile) -> int:
+    if arguments.command == "inspect":
+        import explain as explain_module
+
+        payload = explain_module.report(root, arguments.unit)
+        print(
+            json.dumps(payload, indent=1)
+            if arguments.as_json
+            else explain_module.render(payload)
+        )
+        return EXIT_OK
     if arguments.command == "doctor":
         return _doctor(profile, arguments.as_json)
     if arguments.command == "list":

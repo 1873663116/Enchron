@@ -13,8 +13,8 @@
   ],
   "preconditions": [
     {
-      "kind": "media-server",
-      "provider": "emby"
+      "kind": "media-source",
+      "provider": "smb"
     }
   ],
   "isolation": "clean-library",

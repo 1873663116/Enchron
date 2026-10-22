@@ -11,12 +11,7 @@
     "device",
     "daemon"
   ],
-  "preconditions": [
-    {
-      "kind": "media-server",
-      "provider": "emby"
-    }
-  ],
+  "preconditions": [],
   "isolation": "clean-library",
   "actions": [
     {

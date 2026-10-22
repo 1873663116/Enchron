@@ -113,6 +113,9 @@ def parse_pace(payload: object, identifier: str, source: str) -> str:
     return str(payload)
 
 
+PRECONDITION_KINDS = {"media-server", "media-progress", "media-source"}
+
+
 def parse_preconditions(
     payload: object, identifier: str, source: str
 ) -> list[dict[str, object]]:
