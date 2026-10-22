@@ -651,7 +651,9 @@ final class EnchronApplication {
             self.streamingModel.disconnect()
         }
         playbackRuntime.externalVideoRendererRebuild = { [weak self] in
-            self?.streamingModel.rebuildRendererGraphForPresentation()
+            guard let renderer = self?.streamingModel.rebuildRendererGraphForPresentation()
+            else { return nil }
+            return PlaybackExternalVideoRenderer(renderer: renderer)
         }
         suspensionWatchdog.start()
         backgroundNotificationObserver = NotificationCenter.default.addObserver(

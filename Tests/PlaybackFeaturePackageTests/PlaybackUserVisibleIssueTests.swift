@@ -54,7 +54,7 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
         message: "This video uses VC-1 video, which Enchron does not support.",
         messageStrategy: .unsupportedVideoCodecFact,
         actions: [.close],
-        locations: [.mainWindow, .mediaLibrary]
+        locations: [.mainWindow]
     ),
     .init(
         issue: .sourceAccessUnavailable,

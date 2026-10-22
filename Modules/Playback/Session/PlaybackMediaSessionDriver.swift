@@ -6,6 +6,17 @@ import MediaSource
 import PlaybackCore
 
 @MainActor
+/// A renderer graph that an externally driven session rebuilt for a presentation
+/// root which cannot reuse the previous graph. The playback runtime consumes this
+/// value, so the concrete AVFoundation renderer stays inside the session layer.
+public struct PlaybackExternalVideoRenderer {
+    public init(renderer: AVSampleBufferVideoRenderer) {
+        self.renderer = renderer
+    }
+
+    let renderer: AVSampleBufferVideoRenderer
+}
+
 class PlaybackMediaSessionDriver {
     struct OpenRequest {
         let url: URL

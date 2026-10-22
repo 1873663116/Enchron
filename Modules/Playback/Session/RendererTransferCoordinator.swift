@@ -423,6 +423,16 @@ final class RendererTransferCoordinator {
         )
     }
 
+    /// Whether the prepared transfer carries a live driver the runtime can adopt.
+    /// The coordinator owns the prepared state, so the runtime asks instead of
+    /// reaching into the prepared resource.
+    var preparedSessionIsActivatable: Bool {
+        guard case .prepared(let prepared) = state,
+              case .technicalSession(let prepared) = prepared.replacement,
+              let driver = prepared.resource.driver else { return false }
+        return isPrepared(driver) && driver.sessionID != nil
+    }
+
     func activateTechnicalSession(
         key: TransferKey,
         cutoverTime: CMTime,

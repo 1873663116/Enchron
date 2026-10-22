@@ -901,6 +901,9 @@ REVIEWED_OBSERVATIONS: dict[str, str] = {
     "to the separate search-error branch.",
     "Emby-Connection-Error": "Error text. The retry button beside it has its own "
     "identifier.",
+    "Stream-Pairing-start": "Pairing needs a Moonlight host that the harness cannot "
+    "supply, so this button can never become a driven matrix cell; the pairing screen "
+    "keeps its own identifier for the manual route.",
     "FileBrowsing-error": "The dialog prefix is not an element. Its primary and "
     "secondary buttons have separate action identifiers.",
     "FileBrowsing-FilesScreen-itemCount": "A count label in a toolbar full of "

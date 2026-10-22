@@ -303,7 +303,7 @@ public extension PlaybackUserVisibleIssueCategory {
                 title: String(localized: "Unable to Play"),
                 messageStrategy: .unsupportedVideoCodecFact,
                 allowedActions: [.close],
-                presentationLocations: [.mainWindow, .mediaLibrary],
+                presentationLocations: [.mainWindow],
                 interruptsPlayback: true
             )
         case .sourceAccessUnavailable:

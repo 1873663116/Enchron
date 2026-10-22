@@ -179,7 +179,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     /// Rebuilds the renderer graph of an externally driven session for a
     /// presentation root that cannot reuse the current graph. The session's owner
     /// returns the renderer its session now feeds, or nil when it cannot rebuild.
-    public var externalVideoRendererRebuild: (() -> AVSampleBufferVideoRenderer?)?
+    public var externalVideoRendererRebuild: (() -> PlaybackExternalVideoRenderer?)?
     public private(set) var prefetchedMetadata: PlaybackMediaMetadata?
     public var overview: String? { prefetchedMetadata?.overview }
     public private(set) var presentationState: PresentationState = .hidden
@@ -581,13 +581,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     /// keeps decoding, pacing and its lifecycle.
     public func beginExternalVideoSession(
         sessionID: String,
-        renderer: AVSampleBufferVideoRenderer
+        renderer: PlaybackExternalVideoRenderer
     ) throws {
         guard currentLaunchRequest == nil else {
             throw RuntimeError.playerWindowBusy
         }
         if externalVideoSessionID == sessionID,
-           rendererTransferCoordinator.activeRenderer === renderer {
+           rendererTransferCoordinator.activeRenderer === renderer.renderer {
             return
         }
         if externalVideoSessionID != nil, externalVideoSessionID != sessionID {
@@ -597,7 +597,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         resetPresentationForExternalSession()
         do {
             try rendererTransferCoordinator.installActive(
-                .init(externallyDrivenSessionID: sessionID, renderer: renderer)
+                .init(externallyDrivenSessionID: sessionID, renderer: renderer.renderer)
             )
         } catch let error as RendererTransferCoordinator.TransferError {
             throw runtimeError(for: error)
@@ -2246,9 +2246,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard generation == key.generation,
               activeSessionID == key.logicalSessionID,
               sourceTechnicalSessionID == key.sourceTechnicalSessionID,
-              let preparedDriver = prepared.resource.driver,
-              rendererTransferCoordinator.isPrepared(preparedDriver),
-              preparedDriver.sessionID != nil else {
+              rendererTransferCoordinator.preparedSessionIsActivatable else {
             _ = await rendererTransferCoordinator.cancelPreparedTransfer()
             technicalSessionReplacementStage = .failed
             throw RuntimeError.mediaSessionChanged
@@ -2280,7 +2278,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
               activeSessionID == key.logicalSessionID,
               rendererTransferCoordinator.activeDriverSessionID
                 == sourceTechnicalSessionID,
-              rendererTransferCoordinator.isPrepared(preparedDriver) else {
+              rendererTransferCoordinator.preparedSessionIsActivatable else {
             _ = await rendererTransferCoordinator.cancelPreparedTransfer()
             technicalSessionReplacementStage = .failed
             throw RuntimeError.mediaSessionChanged
@@ -2306,7 +2304,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             technicalSessionReplacementStage = .failed
             throw runtimeError(for: error)
         }
-        bindDriverCallbacks(to: preparedDriver)
+        guard let activatedDriver = activation.activeResource.driver else {
+            _ = await rendererTransferCoordinator.cancelPreparedTransfer()
+            technicalSessionReplacementStage = .failed
+            throw RuntimeError.noSession
+        }
+        bindDriverCallbacks(to: activatedDriver)
         activeSourceReadFailureSequence = currentLaunchRequest?.source.byteStreamHandle?
             .latestReadFailure()?.sequence ?? 0
         activeTechnicalSessionID = activation.activeResource.sessionID
@@ -2322,19 +2325,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         technicalSessionMediaFormatInterpretation = effectiveMediaFormatInterpretation
         technicalSessionFormatReplacementIsPending = false
         currentPlaybackSpeed = prepared.speed
-        availableAudioTracks = preparedDriver.availableAudioTracks.map {
+        availableAudioTracks = activatedDriver.availableAudioTracks.map {
             Self.audioTrack(
                 $0,
                 isDefault: String($0.streamIndex) == prepared.selectedAudioTrackID
             )
         }
-        currentAudioTrackID = preparedDriver.selectedAudioStreamIndex
+        currentAudioTrackID = activatedDriver.selectedAudioStreamIndex
             .map(String.init)
-        availableSubtitleTracks = preparedDriver.availableSubtitleTracks
+        availableSubtitleTracks = activatedDriver.availableSubtitleTracks
             .map(Self.subtitleTrack)
-        currentSubtitleTrackID = preparedDriver.selectedSubtitleTrackID
-        activeSubtitleCues = preparedDriver.activeSubtitleCues
-        activeSubtitleFrame = preparedDriver.activeSubtitleFrame
+        currentSubtitleTrackID = activatedDriver.selectedSubtitleTrackID
+        activeSubtitleCues = activatedDriver.activeSubtitleCues
+        activeSubtitleFrame = activatedDriver.activeSubtitleFrame
         do {
             try await applySubtitleSelectionIntent(technicalSessionID: activation.activeResource.sessionID)
         } catch {
@@ -2342,13 +2345,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "replacement subtitle selection failed error=\(error.localizedDescription, privacy: .public)"
             )
         }
-        startAutomaticExternalSubtitles(on: preparedDriver, logicalSessionID: key.logicalSessionID)
+        startAutomaticExternalSubtitles(on: activatedDriver, logicalSessionID: key.logicalSessionID)
         if case .ended(let continuity) = activation.continuity,
            let snapshot = currentCutoverSnapshot() {
             adoptEndedContinuity(continuity, cutover: snapshot)
         }
-        receive(preparedDriver.status, from: preparedDriver)
-        receive(preparedDriver.diagnostics)
+        receive(activatedDriver.status, from: activatedDriver)
+        receive(activatedDriver.diagnostics)
         logger.info(
             "prepared technical session activated logical=\(key.logicalSessionID, privacy: .public) technical=\(activation.activeResource.sessionID, privacy: .public)"
         )
@@ -2550,10 +2553,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard externalVideoSessionID == sessionID else {
             throw RuntimeError.mediaSessionChanged
         }
-        if rendererTransferCoordinator.activeRenderer !== renderer {
+        if rendererTransferCoordinator.activeRenderer !== renderer.renderer {
             do {
                 try rendererTransferCoordinator.installActive(
-                    .init(externallyDrivenSessionID: sessionID, renderer: renderer)
+                    .init(externallyDrivenSessionID: sessionID, renderer: renderer.renderer)
                 )
             } catch let error as RendererTransferCoordinator.TransferError {
                 throw runtimeError(for: error)
