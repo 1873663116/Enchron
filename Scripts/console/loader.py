@@ -95,6 +95,7 @@ def parse_unit(metadata: dict[str, Any], source: str) -> Unit:
         source=source,
         preconditions=tuple(parse_preconditions(metadata.get("preconditions"), identifier, source)),
         teardown=tuple(metadata.get("teardown") or ()),
+        isolation=str(metadata.get("isolation") or ""),
         pace=parse_pace(metadata.get("pace"), identifier, source),
     )
 

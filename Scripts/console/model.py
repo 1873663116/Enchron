@@ -72,6 +72,7 @@ class Unit:
     source: str
     preconditions: tuple[dict[str, Any], ...] = ()
     teardown: tuple[dict[str, Any], ...] = ()
+    isolation: str = ""
     pace: str = "fast"
 
 

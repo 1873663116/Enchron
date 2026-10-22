@@ -137,6 +137,7 @@ class Compiler:
         if errors:
             return None, errors
         teardown_steps = self._teardown_steps(unit, tier, errors)
+        steps = self._isolation_steps(unit, steps)
         plan = Plan(
             unit=unit.identifier,
             tier=tier,
@@ -272,6 +273,44 @@ class Compiler:
                     errors.append(("C018", f"capture name {name!r} is written twice"))
                 captured[name] = step.index
         return tuple(steps)
+
+    def _isolation_steps(self, unit: Unit, steps: list[Step]) -> list[Step]:
+        if unit.isolation != "clean-library":
+            return steps
+        preamble = Step(
+            index=0,
+            verb="device.app-command",
+            args={"verb": "clearMediaLibrary", "arguments": {}},
+            expect=None,
+            evidence="app-command.json",
+            capture=None,
+        )
+        reindexed = [
+            Step(
+                index=position + 1,
+                verb=step.verb,
+                args=step.args,
+                expect=step.expect,
+                evidence=step.evidence,
+                capture=step.capture,
+            )
+            for position, step in enumerate(steps)
+        ]
+        if reindexed and reindexed[0].verb == "device.session.ensure":
+            ordered = [reindexed[0], preamble, *reindexed[1:]]
+        else:
+            ordered = [preamble, *reindexed]
+        return [
+            Step(
+                index=position,
+                verb=step.verb,
+                args=step.args,
+                expect=step.expect,
+                evidence=step.evidence,
+                capture=step.capture,
+            )
+            for position, step in enumerate(ordered)
+        ]
 
     def _teardown_steps(
         self, unit: Unit, tier: str, errors: list[tuple[str, str]]

@@ -7,9 +7,18 @@
   "role": "verification",
   "requires": [],
   "actions": [
-    {"verb": "static.check", "args": {"checker": "verify_product_source_comments.py"}}
+    {
+      "verb": "static.check",
+      "args": {
+        "checker": "verify_product_source_comments.py"
+      }
+    }
   ],
-  "terminal": {"kind": "artifact", "path": "static-check.json"}
+  "terminal": {
+    "kind": "artifact",
+    "path": "static-check.json"
+  },
+  "isolation": "clean-library"
 }
 ---
 

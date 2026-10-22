@@ -136,7 +136,8 @@
     "kind": "artifact",
     "path": "probe.json",
     "schema": "enchron.console.probe@1"
-  }
+  },
+  "isolation": "clean-library"
 }
 ---
 

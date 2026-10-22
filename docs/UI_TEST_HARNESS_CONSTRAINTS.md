@@ -7,6 +7,7 @@
 - **测试宿主的 stdout 既不进 xcodebuild 日志，也不进设备上的 result bundle**。app 容器进得去（经 devicectl），所以测量报告写进容器而不是打印出来。解码能力矩阵就落在容器里的 `video-decoder-matrix.tsv`。
 - **`XCUIScreen.main` 在当前 visionOS 构建上返回 1×1 图像**，读起来像一张黑帧而不是一次抓取失败。application element 仍然能抓，所以退化的屏幕图像要回退到它。
 - **模拟器截图 lane 没有点进模拟器的通道**，想看的那一屏必须在启动时就可达；启动参数因此是到达某一屏的唯一途径。
+- **测试通道下探针日志 4 MB，正式构建 192 KB**。192 KB 只够真机短会话；自动化一整轮会跑几十个单元，192 KB 会在中途溢出并丢证据（实测峰值 196532 字节即触发 `evidenceOverflowed`）。
 - **探针日志 192 KB，Dock 里曾几十秒就把因果链冲掉**（2026-09-08 真机：docked 的 `settlement` 每秒约 10 行、每行 1.5 KB，选集失败的错误类别与音频重开的触发点都只剩证据行）。原因是结算签名没把淡入期间每帧变化的 `surfaceOpacity` 排除，两侧宿主各维护一份排除列表且沉浸侧漏了它；现在两侧共用 `PlaybackSettlementProbeSignature`。压缩策略改为：证据超过压缩目标时按最新保留（LRU）并置 `evidenceOverflowed`，不再整本清空；诊断行在证据之外保有 `compactionTarget / 4` 的保底额度。渲染器所有权（`rendererOwnership.*`）、离场实体释放、空间拓扑写入、attachment 放置、`conversionFailed` 都改为证据级，真机回捞时这些跃迁必在。
 - **应答里的元素读数取两次，因为被作用的那个元素在应答写出来之前就可能已经不在层级里了**。`matchedElement` 是动作之前那一次读数，`elementAfterAction` 是动作之后那一次，元素离开层级时后者为 null。`snapshot` 只读不改，它的 `matchedElement` 直接用动作之后那一次，两次读的是同一个状态。这样一次点掉自己目标的 tap 仍然说得出它点的是什么。判定「该元素当时在不在」看 `matchedElement`，判定「这次动作把它变成了什么」看 `elementAfterAction`。`tapSequence` 按同一条规则处理路径，每一步在 `element.tap()` 之前把该步解析到的元素记进 `routeElements`，否则应答里只剩下标识符字符串，路径上每个元素的 label 无处可取。三个字段都由 `Scripts/verification/regression_operation_adapter.py` 消费。
 - **`matchedElement.frame` 的单位是点，截图是像素，应答里没有任何字段记录屏幕的点尺寸**。帧直接来自 `XCUIElementSnapshot.frame`（`Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift:765`），点到像素的比例因此推不出来，按 `matchedElement` 在截图上裁出对应区域这件事做不了。异常包逐条说明为什么产不出裁切图，而不是按猜的比例裁一块出来配上裁决文字——错的区域配上区域观察文字比不裁更糟。

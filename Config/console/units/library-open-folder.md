@@ -5,12 +5,29 @@
   "id": "unit:library.open-folder@1",
   "layer": 3,
   "role": "verification",
-  "requires": ["mac", "device", "daemon"],
-  "actions": [
-    {"verb": "device.session.ensure", "args": {"lane": "simulator"}},
-    {"verb": "device.snapshot", "args": {}}
+  "requires": [
+    "mac",
+    "device",
+    "daemon"
   ],
-  "terminal": {"kind": "artifact", "path": "hierarchy.json", "schema": "enchron.console.hierarchy@1"}
+  "actions": [
+    {
+      "verb": "device.session.ensure",
+      "args": {
+        "lane": "simulator"
+      }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
+    }
+  ],
+  "terminal": {
+    "kind": "artifact",
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
+  },
+  "isolation": "clean-library"
 }
 ---
 

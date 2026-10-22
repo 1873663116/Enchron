@@ -1714,6 +1714,26 @@ final class TestCommandChannel {
                     "remainingReferences=\(allReferences.count)"
                 ]
             )
+        case "setStereoLayout":
+            guard let raw = request.args["layout"],
+                  let layout = PlaybackModel.StereoLayout(rawValue: raw) else {
+                throw CommandError(
+                    message: "setStereoLayout requires layout of mono, sideBySide, or topBottom."
+                )
+            }
+            guard playbackRuntime.activeSessionID != nil else {
+                throw CommandError(message: "setStereoLayout requires an open playback session.")
+            }
+            try await playbackLauncher.applyFormat(
+                projection: playbackRuntime.effectiveProjectionType,
+                stereo: layout
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["stereoLayout=\(layout.rawValue)"]
+            )
         case "batch":
             guard let raw = request.args["calls"],
                   let data = raw.data(using: .utf8),

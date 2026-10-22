@@ -16,19 +16,19 @@ class TranslationTests(unittest.TestCase):
         steps, _ = catalog_units.translate(
             payload(
                 [
-                    {"operation": "navigation.select-tab@1", "arguments": {"tab": "emby"}},
-                    {"operation": "accessibility.activate@2", "arguments": {"labels": ["Enchron Regression Series, poster"]}},
+                    {"operation": "operation:navigation.select-tab@1", "arguments": {"tab": "emby"}},
+                    {"operation": "operation:accessibility.activate@2", "arguments": {"labels": ["Enchron Regression Series, poster"]}},
                 ]
             ),
             "folder",
         )
-        tap = [step for step in steps if step["args"].get("label")][0]
+        tap = [step for step in steps if step["args"].get("labelPrefix")][0]
         self.assertEqual(tap["args"]["label"], "Enchron Regression Series, poster")
         self.assertEqual(tap["args"]["labelPrefix"], "Enchron Regression Series")
 
     def test_a_plain_label_carries_no_prefix(self) -> None:
         steps, _ = catalog_units.translate(
-            payload([{"operation": "accessibility.activate@2", "arguments": {"labels": ["Season 2"]}}]),
+            payload([{"operation": "operation:accessibility.activate@2", "arguments": {"labels": ["Season 2"]}}]),
             "folder",
         )
         tap = [step for step in steps if step["args"].get("label")][0]
@@ -36,7 +36,7 @@ class TranslationTests(unittest.TestCase):
 
     def test_the_emby_tab_resets_the_navigation_first(self) -> None:
         steps, _ = catalog_units.translate(
-            payload([{"operation": "navigation.select-tab@1", "arguments": {"tab": "emby"}}]),
+            payload([{"operation": "operation:navigation.select-tab@1", "arguments": {"tab": "emby"}}]),
             "folder",
         )
         verbs = [step["args"].get("verb") for step in steps]

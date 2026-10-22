@@ -20,6 +20,7 @@
       "kind": "media-progress"
     }
   ],
+  "isolation": "clean-library",
   "actions": [
     {
       "verb": "device.session.ensure",

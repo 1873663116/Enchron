@@ -124,27 +124,10 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "toggleControls",
+        "verb": "setStereoLayout",
         "arguments": {
-          "visible": "true"
+          "layout": "mono"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-videoFormat"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapSequence",
-        "identifiers": [
-          "PlayerUI-VideoFormat-Stereo Layout-Mono",
-          "PlayerUI-VideoFormat-apply"
-        ]
       }
     },
     {
@@ -153,22 +136,13 @@
         "probe": "PlayerUI-window-control-plane",
         "field": "stereoLayout",
         "equals": "mono",
-        "timeoutMs": 30000,
-        "intervalMs": 300
+        "timeoutMs": 20000,
+        "intervalMs": 250
       }
     },
     {
       "verb": "device.snapshot",
       "args": {}
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "deleteLibraryFolder",
-        "arguments": {
-          "name": "format-media"
-        }
-      }
     }
   ],
   "terminal": {
@@ -194,7 +168,8 @@
         }
       }
     }
-  ]
+  ],
+  "isolation": "clean-library"
 }
 ---
 

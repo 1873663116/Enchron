@@ -64,7 +64,8 @@
         }
       }
     }
-  ]
+  ],
+  "isolation": "clean-library"
 }
 ---
 

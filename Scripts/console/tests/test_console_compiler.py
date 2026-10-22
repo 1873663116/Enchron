@@ -61,7 +61,25 @@ class ProgressPreconditionTests(unittest.TestCase):
         self.assertEqual(self.compile([{"kind": "media-progress"}]), [])
 
     def test_an_unknown_precondition_is_refused(self) -> None:
-        self.assertIn("C016", self.compile([{"kind": "media-wishes"}]))
+        with self.assertRaises(loader.LoadRefusal) as raised:
+            loader.parse_unit(
+                {
+                    "schema": "enchron.console.unit",
+                    "schemaVersion": 1,
+                    "id": "unit:progress@1",
+                    "layer": 3,
+                    "actions": [{"verb": "device.snapshot", "args": {}}],
+                    "requires": ["mac", "device", "daemon"],
+                    "preconditions": [{"kind": "media-wishes"}],
+                    "terminal": {
+                        "kind": "artifact",
+                        "path": "hierarchy.json",
+                        "schema": "enchron.console.hierarchy@1",
+                    },
+                },
+                "test",
+            )
+        self.assertEqual(raised.exception.code, "C016")
 
 
 class ReferenceTests(unittest.TestCase):

@@ -455,6 +455,7 @@ def unit_for(path: Path) -> dict[str, Any]:
         "requires": ["mac", "device", "daemon"],
         "preconditions": [{"kind": "media-server", "provider": "emby"}]
         + ([{"kind": "media-progress"}] if identifier in PROGRESS_SCENARIOS else []),
+        "isolation": "clean-library",
         "actions": actions,
         "teardown": teardown,
         "terminal": terminal_of(steps),

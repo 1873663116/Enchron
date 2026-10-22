@@ -17,6 +17,7 @@
       "provider": "emby"
     }
   ],
+  "isolation": "clean-library",
   "actions": [
     {
       "verb": "device.session.ensure",

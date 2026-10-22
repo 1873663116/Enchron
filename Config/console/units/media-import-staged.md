@@ -87,7 +87,8 @@
       "provider": "emby"
     }
   ],
-  "pace": "slow"
+  "pace": "slow",
+  "isolation": "clean-library"
 }
 ---
 

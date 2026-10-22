@@ -119,7 +119,8 @@
         "arguments": {}
       }
     }
-  ]
+  ],
+  "isolation": "clean-library"
 }
 ---
 

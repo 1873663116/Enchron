@@ -72,7 +72,8 @@
         }
       }
     }
-  ]
+  ],
+  "isolation": "clean-library"
 }
 ---
 
