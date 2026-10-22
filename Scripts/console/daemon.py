@@ -227,6 +227,7 @@ class Channel:
         identifier_prefix: str | None = None,
         index: int | None = None,
         trailing_label: str | None = None,
+        duration: float | None = None,
     ) -> tuple[dict[str, Any], bool, str]:
         if action == "relaunch":
             answer = transport.relaunch_by_simctl(self.target)
@@ -250,6 +251,8 @@ class Channel:
             extra.extend(["--index", str(index)])
         if trailing_label is not None:
             extra.extend(["--trailing-label", trailing_label])
+        if duration is not None:
+            extra.extend(["--duration", str(duration)])
         if label is not None:
             extra.extend(["--label", label])
         if label_prefix is not None:
@@ -404,6 +407,7 @@ class Server:
                 request.get("identifierPrefix"),
                 request.get("index"),
                 request.get("trailingLabel"),
+                request.get("duration"),
             )
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         return {"kind": "error", "message": f"unknown op {operation!r}"}

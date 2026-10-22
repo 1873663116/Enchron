@@ -183,6 +183,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     series_opened = False
     folder_opened = False
     home_emitted = False
+    episode_card_opened = False
     for action in payload["operations"]:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
@@ -342,6 +343,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 )
             labels = arguments.get("labels") or []
             if labels and str(labels[0]).startswith(EPISODE_PREFIX) and reaches_emby():
+                episode_card_opened = True
                 steps.append(
                     {
                         "verb": "device.command",
@@ -371,6 +373,18 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     )
                 for target in targets:
                     collect_fixture(target, fixtures)
+                if len(targets) > 1:
+                    if episode_card_opened and "Emby-Detail-Play" in targets:
+                        targets = [item for item in targets if item != "Emby-Detail-Play"]
+                    if len(targets) > 1:
+                        steps.append(
+                            {
+                                "verb": "device.command",
+                                "args": {"action": "tapAnyOf", "identifiers": targets},
+                            }
+                        )
+                        continue
+                for target in targets:
                     steps.append(
                         {
                             "verb": "device.command",

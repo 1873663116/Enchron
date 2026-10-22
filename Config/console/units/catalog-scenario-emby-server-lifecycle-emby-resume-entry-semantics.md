@@ -86,13 +86,6 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Emby-Detail-Play"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
         "identifier": "PlayerUI-resumeDecision-primary"
       }
     },
@@ -115,22 +108,11 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-InfoBar-button-back"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Emby-Detail-Play"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-InfoBar-button-back"
+        ]
       }
     },
     {
@@ -159,15 +141,11 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-InfoBar-button-back"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-InfoBar-button-back"
+        ]
       }
     },
     {

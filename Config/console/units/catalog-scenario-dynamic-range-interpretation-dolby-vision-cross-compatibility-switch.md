@@ -104,22 +104,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-videoFormat"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-VideoFormat-apply"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-videoFormat",
+          "PlayerUI-VideoFormat-apply"
+        ]
       }
     },
     {
@@ -183,22 +173,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-videoFormat"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-VideoFormat-apply"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-videoFormat",
+          "PlayerUI-VideoFormat-apply"
+        ]
       }
     },
     {
@@ -262,22 +242,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-videoFormat"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-VideoFormat-cancel"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-videoFormat",
+          "PlayerUI-VideoFormat-cancel"
+        ]
       }
     },
     {

@@ -81,43 +81,31 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "Settings-menu-resume-strategy"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "Settings-menu-resume-strategy",
+          "Settings-menuOption-resume-strategy-askEveryTime"
+        ]
       }
     },
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "Settings-menuOption-resume-strategy-askEveryTime"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "Settings-menu-end-behavior",
+          "Settings-menuOption-end-behavior-playNext"
+        ]
       }
     },
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "Settings-menu-end-behavior"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Settings-menuOption-end-behavior-playNext"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Settings-menu-controls-auto-hide"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Settings-menuOption-controls-auto-hide-never"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "Settings-menu-controls-auto-hide",
+          "Settings-menuOption-controls-auto-hide-never"
+        ]
       }
     },
     {

@@ -139,13 +139,6 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "Emby-Detail-Play"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
         "identifier": "PlayerUI-resumeDecision-secondary"
       }
     },

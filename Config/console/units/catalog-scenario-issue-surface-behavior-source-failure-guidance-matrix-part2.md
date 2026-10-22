@@ -51,15 +51,11 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-sourceMore"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-addWebDAV"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "FileBrowsing-SourcesSidebar-sourceMore",
+          "FileBrowsing-SourcesSidebar-addWebDAV"
+        ]
       }
     },
     {

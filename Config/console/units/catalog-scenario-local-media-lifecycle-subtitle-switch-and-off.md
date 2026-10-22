@@ -111,22 +111,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
+        ]
       }
     },
     {
@@ -148,22 +138,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
+        ]
       }
     },
     {
@@ -185,22 +165,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles-off"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-off"
+        ]
       }
     },
     {
@@ -222,22 +192,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-subtitles",
+          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
+        ]
       }
     },
     {

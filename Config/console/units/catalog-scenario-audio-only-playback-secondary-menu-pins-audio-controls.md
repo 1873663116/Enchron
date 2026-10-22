@@ -106,22 +106,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-audio"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio"
+        ]
       }
     },
     {
@@ -186,22 +176,12 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-window-playback-surface"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-TopAction-more"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-menu-speed"
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-window-playback-surface",
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-speed"
+        ]
       }
     },
     {

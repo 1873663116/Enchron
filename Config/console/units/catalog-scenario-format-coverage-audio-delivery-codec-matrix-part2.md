@@ -77,74 +77,6 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "MediaLibrary-grid-video-dts_es.mkv"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "dts_es.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "position",
-        "equals": 0.1,
-        "mode": "atLeast",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.probe",
-      "args": {
-        "probe": "PlayerUI-window-control-plane"
-      }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-format-coverage-audio-delivery-codec-matrix"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
         "identifier": "MediaLibrary-grid-video-atmos.mkv"
       }
     },
@@ -236,6 +168,94 @@
         "mode": "atLeast",
         "timeoutMs": 45000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "PlayerUI-window-control-plane"
+      }
+    },
+    {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
+      "verb": "device.home",
+      "args": {}
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-format-coverage-audio-delivery-codec-matrix"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-audio-codec-matrix-15s.mkv"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "window",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "position",
+        "equals": 1.0,
+        "mode": "atLeast",
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tapAnyOf",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-1"
+        ]
       }
     },
     {

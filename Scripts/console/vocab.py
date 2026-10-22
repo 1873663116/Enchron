@@ -52,6 +52,7 @@ VERBS: dict[str, Verb] = {
                 "label",
                 "labelPrefix",
                 "waitMilliseconds",
+                "duration",
             ),
             choices={
                 "action": (
@@ -67,6 +68,7 @@ VERBS: dict[str, Verb] = {
                     "swipeRight",
                     "coordinateTap",
                     "tapSequence",
+                    "tapAnyOf",
                 )
             },
             evidence="command.json",
