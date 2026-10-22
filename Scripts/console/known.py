@@ -27,6 +27,18 @@ def declarations(root: Path) -> list[dict[str, Any]]:
     return list(_front_matter(root / DECLARATION).get("failures") or [])
 
 
+def checker_matching(
+    root: Path, checker: str, text: str
+) -> dict[str, Any] | None:
+    for declaration in declarations(root):
+        if str(declaration.get("checker")) != checker:
+            continue
+        phrase = str(declaration.get("match") or "")
+        if phrase and phrase in text:
+            return declaration
+    return None
+
+
 def matching(root: Path, unit: str, steps: list[Any]) -> dict[str, Any] | None:
     for declaration in declarations(root):
         if str(declaration.get("unit")) != unit:

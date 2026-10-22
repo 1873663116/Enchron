@@ -410,6 +410,28 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     str(target).startswith(("PlayerUI-TopAction-", "PlayerUI-menu-"))
                     for target in targets
                 )
+                if player_targets and player_interactions == 0 and repeated_player_steps > 1:
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "toggleControls",
+                                "arguments": {"visible": "true"},
+                            },
+                        }
+                    )
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {
+                                "action": "tap",
+                                "identifier": "PlayerPanel-button-play",
+                                "waitMilliseconds": 400,
+                            },
+                        }
+                    )
+                if player_targets:
+                    player_interactions += 1
                 if len(targets) > 1:
                     if episode_card_opened and "Emby-Detail-Play" in targets:
                         targets = [item for item in targets if item != "Emby-Detail-Play"]

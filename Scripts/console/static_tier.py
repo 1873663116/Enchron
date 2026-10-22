@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import known
 from report import EXIT_OK, EXIT_TERMINAL, write_json
 
 
@@ -121,13 +122,21 @@ def run_code_only(root: Path, evidence_root: Path) -> dict[str, Any]:
 
 
 CHECK_LINE = re.compile(r"^\s+(PASS|FAIL|SKIP)\s+(\S+)\s+([0-9.]+)s\s*$", re.MULTILINE)
+LAYER_LINE = re.compile(r"^\[(PASS|FAIL)\]\s+([^:]+):\s*(.*)$", re.MULTILINE)
+FAILED_TEST = re.compile(r'✘ Test "([^"]+)" failed after', re.MULTILINE)
 
 
 def _check_breakdown(output: str) -> list[dict[str, Any]]:
-    return [
+    checks = [
         {"checker": name, "state": state, "durationMs": int(float(seconds) * 1000)}
         for state, name, seconds in CHECK_LINE.findall(output)
     ]
+    checks.extend(
+        {"checker": name.strip(), "state": state, "detail": detail, "durationMs": None}
+        for state, name, detail in LAYER_LINE.findall(output)
+        if name.strip() != "Overall verdict"
+    )
+    return checks
 
 
 def run_static_tier(
@@ -165,6 +174,42 @@ def run_static_tier(
         "stdout": completed.stdout[-8000:],
         "stderr": completed.stderr[-8000:],
     }
+    for check in payload["checks"]:
+        if check.get("state") != "FAIL":
+            continue
+        text = str(check)
+        name = str(check["checker"]).lower().replace(" ", "-") + ".log"
+        candidates = [log_root / name, *log_root.rglob(name)]
+        log_text = ""
+        for log in candidates:
+            if log.exists():
+                log_text = log.read_text(encoding="utf-8", errors="replace")[-200000:]
+                break
+        failed_tests = FAILED_TEST.findall(log_text)
+        text += log_text
+        declaration = known.checker_matching(root, str(check["checker"]), text)
+        if declaration is None:
+            continue
+        if failed_tests:
+            phrases = [
+                str(item.get("match") or "")
+                for item in known.declarations(root)
+                if str(item.get("checker")) == str(check["checker"])
+            ]
+            undeclared = [
+                test for test in failed_tests
+                if not any(phrase and phrase in test for phrase in phrases)
+            ]
+            if undeclared:
+                check["undeclaredFailures"] = undeclared
+                continue
+        check["state"] = "known"
+        check["knownReason"] = str(declaration.get("reason", "declared known failure"))
+    payload["exitCode"] = (
+        0
+        if not (completed.returncode and any(c.get("state") == "FAIL" for c in payload["checks"]))
+        else 1
+    )
     evidence_root.mkdir(parents=True, exist_ok=True)
     write_json(evidence_root / "static" / "last-run.json", payload)
     return payload

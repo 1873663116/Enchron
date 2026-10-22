@@ -104,6 +104,23 @@
       "args": {}
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "PlayerPanel-button-play",
+        "waitMilliseconds": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tapEach",
