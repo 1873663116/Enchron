@@ -160,6 +160,8 @@ def _run_preconditions(
             outcome = _ensure_media_progress(root)
         elif kind == "media-source":
             outcome = _ensure_media_source(str(precondition.get("provider", "")), root)
+        elif kind == "media-fixture":
+            outcome = _ensure_media_fixture(precondition, root)
         else:
             outcome = {
                 "index": index,
@@ -195,6 +197,22 @@ def _ensure_media_progress(root: Path) -> dict[str, Any]:
         else f"seed_emby_progress failed: {completed.stderr[-300:]}"
     )
     return {"ok": ok, "detail": detail, "receipt": receipt}
+
+
+def _ensure_media_fixture(
+    precondition: dict[str, Any], root: Path
+) -> dict[str, Any]:
+    media_root = root.parent / "TestMedia"
+    missing = [
+        str(name)
+        for name in precondition.get("fixtures") or []
+        if not list(media_root.rglob(str(name)))
+    ]
+    return {
+        "kind": "media-fixture",
+        "ok": not missing,
+        "detail": "missing " + ", ".join(missing) if missing else "present",
+    }
 
 
 def _ensure_media_source(provider: str, root: Path) -> dict[str, Any]:

@@ -106,7 +106,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",
@@ -176,7 +176,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-TopAction-more",

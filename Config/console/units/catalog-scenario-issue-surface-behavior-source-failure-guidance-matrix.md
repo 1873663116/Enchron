@@ -51,7 +51,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "FileBrowsing-SourcesSidebar-sourceMore",
           "FileBrowsing-SourcesSidebar-addWebDAV"
@@ -118,7 +118,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "FileBrowsing-SourcesSidebar-sourceMore",
           "FileBrowsing-SourcesSidebar-addWebDAV"
@@ -186,7 +186,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "FileBrowsing-SourcesSidebar-sourceMore",
           "FileBrowsing-SourcesSidebar-addWebDAV"

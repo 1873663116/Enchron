@@ -183,6 +183,32 @@ private final class InteractiveDeviceUIChannel {
         return command.action == .stop
     }
 
+    private func executeTapEach(
+        _ command: InteractiveDeviceUICommand
+    ) -> (
+        success: Bool,
+        message: String
+    ) {
+        guard let candidates = command.identifiers, candidates.isEmpty == false else {
+            return (false, "tapEach requires candidate identifiers.")
+        }
+        var tapped: [String] = []
+        for identifier in candidates {
+            let element = app.descendants(matching: .any)
+                .matching(identifier: identifier)
+                .element(boundBy: command.index ?? 0)
+            guard element.waitForExistence(timeout: 2), hittability(of: element) else {
+                continue
+            }
+            element.tap()
+            tapped.append(identifier)
+        }
+        guard tapped.isEmpty == false else {
+            return (false, "None of the candidate identifiers could be tapped.")
+        }
+        return (true, "Tapped \(tapped.joined(separator: ", ")).")
+    }
+
     private func executeTapAnyOf(
         _ command: InteractiveDeviceUICommand
     ) -> (
@@ -329,6 +355,8 @@ private final class InteractiveDeviceUIChannel {
             return (false, "tapFirstMatch must execute through its matching transaction.")
         case .tapAnyOf:
             return executeTapAnyOf(command)
+        case .tapEach:
+            return executeTapEach(command)
         case .doubleTap:
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
@@ -906,6 +934,7 @@ private struct InteractiveDeviceUICommand: Codable {
         case tapSequence
         case tapFirstMatch
         case tapAnyOf
+        case tapEach
         case doubleTap
         case press
         case adjust

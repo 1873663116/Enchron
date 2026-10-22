@@ -111,7 +111,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",
@@ -138,7 +138,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",
@@ -165,7 +165,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",
@@ -192,7 +192,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-subtitles",

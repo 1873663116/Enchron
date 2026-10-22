@@ -184,6 +184,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     folder_opened = False
     home_emitted = False
     episode_card_opened = False
+    current_media: str | None = None
+    player_interactions = 0
+    repeated_player_steps = sum(
+        1
+        for action in payload["operations"]
+        if action.get("operation", "").startswith("operation:accessibility.activate")
+        and any(
+            str(item).startswith(("PlayerUI-TopAction-", "PlayerUI-menu-"))
+            for item in (
+                (action.get("arguments") or {}).get("identifiers")
+                or (action.get("arguments") or {}).get("labels")
+                or []
+            )
+        )
+    )
     for action in payload["operations"]:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
@@ -224,6 +239,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     )
         elif name == "media.open":
             identifier = str(arguments["identifier"])
+            current_media = media_name(identifier)
             if folder and not folder_opened:
                 steps.append(
                     {
@@ -378,14 +394,24 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     for target in targets
                 ):
                     continue
+                player_targets = any(
+                    str(target).startswith(("PlayerUI-TopAction-", "PlayerUI-menu-"))
+                    for target in targets
+                )
                 if len(targets) > 1:
                     if episode_card_opened and "Emby-Detail-Play" in targets:
                         targets = [item for item in targets if item != "Emby-Detail-Play"]
                     if len(targets) > 1:
+                        alternatives = any(
+                            item.startswith("PlayerUI-resumeDecision") for item in targets
+                        )
                         steps.append(
                             {
                                 "verb": "device.command",
-                                "args": {"action": "tapAnyOf", "identifiers": targets},
+                                "args": {
+                                    "action": "tapAnyOf" if alternatives else "tapEach",
+                                    "identifiers": targets,
+                                },
                             }
                         )
                         continue
@@ -721,10 +747,17 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
         )
     simplified = simplify(steps)
     chunks = split_steps(simplified)
+    missing_fixtures = [
+        str(action.get("arguments", {}).get("identifier", "")).split("-grid-video-")[-1]
+        for action in payload.get("operations", [])
+        if action.get("operation", "").startswith("operation:media.open")
+        and fixture(media_name(str(action.get("arguments", {}).get("identifier", "")))) is None
+    ]
     preconditions = (
         [{"kind": "media-server", "provider": "emby"}]
         + ([{"kind": "media-progress"}] if identifier in PROGRESS_SCENARIOS else [])
         + source_preconditions(payload)
+        + ([{"kind": "media-fixture", "fixtures": missing_fixtures}] if missing_fixtures else [])
     )
     pace = "scenario" if identifier in verified_scenarios() else "catalog"
     parts: list[dict[str, Any]] = []

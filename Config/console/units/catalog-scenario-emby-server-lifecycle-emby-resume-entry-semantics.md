@@ -101,7 +101,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-InfoBar-button-back"
@@ -127,7 +127,7 @@
     {
       "verb": "device.command",
       "args": {
-        "action": "tapAnyOf",
+        "action": "tapEach",
         "identifiers": [
           "PlayerUI-window-playback-surface",
           "PlayerUI-InfoBar-button-back"
