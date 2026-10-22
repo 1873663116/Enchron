@@ -215,6 +215,34 @@
     {
       "verb": "device.command",
       "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-audio-only-aac-stereo-181s.m4a"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "audio-only-aac-stereo-181s.m4a"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
         "action": "tapEach",
         "identifiers": [
           "PlayerUI-window-playback-surface",

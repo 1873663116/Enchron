@@ -177,6 +177,34 @@
     {
       "verb": "device.command",
       "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
         "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
@@ -243,6 +271,34 @@
     {
       "verb": "device.command",
       "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
         "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
@@ -276,6 +332,34 @@
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-grid-folder-scenario-local-media-lifecycle-subtitle-switch-and-off"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
       }
     },
     {

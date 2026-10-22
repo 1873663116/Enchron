@@ -134,6 +134,45 @@
       }
     },
     {
+      "verb": "device.home",
+      "args": {}
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-format-coverage-audio-delivery-codec-matrix"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-audio-codec-matrix-15s.mkv"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
       "verb": "device.probe",
       "args": {
         "probe": "PlayerUI-window-control-plane"
@@ -211,6 +250,17 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tapEach",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-3"
+        ]
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -247,17 +297,6 @@
         "arguments": {
           "visible": "true"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-3"
-        ]
       }
     },
     {

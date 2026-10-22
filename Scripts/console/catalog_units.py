@@ -185,6 +185,50 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     )
     remote_flow = remote_opened
 
+    def reopen_steps(opened_folder: str, media: str) -> list[dict[str, Any]]:
+        produced: list[dict[str, Any]] = []
+        produced.extend(navigation(opened_folder))
+        produced.append(
+            {
+                "verb": "device.command",
+                "args": {
+                    "action": "tap",
+                    "identifier": f"MediaLibrary-grid-video-{media}",
+                },
+            }
+        )
+        produced.append(
+            {
+                "verb": "device.await",
+                "args": {
+                    "probe": "PlayerUI-window-control-plane",
+                    "field": "presentation",
+                    "equals": "window",
+                    "timeoutMs": 45000,
+                    "intervalMs": 400,
+                },
+            }
+        )
+        produced.append(
+            {
+                "verb": "device.await",
+                "args": {
+                    "probe": "PlayerUI-window-control-plane",
+                    "field": "mediaName",
+                    "equals": media,
+                    "timeoutMs": 15000,
+                    "intervalMs": 300,
+                },
+            }
+        )
+        produced.append(
+            {
+                "verb": "device.app-command",
+                "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
+            }
+        )
+        return produced
+
     def open_identifier(identifier: str) -> str:
         if remote_flow and identifier.startswith("FileBrowsing-"):
             return identifier
@@ -546,7 +590,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     for target in targets
                 )
                 if player_targets and menu_opened and current_media:
-                    steps.extend(navigation(folder))
+                    steps.extend(reopen_steps(folder, current_media))
                     steps.append(
                         {
                             "verb": "device.command",
@@ -682,6 +726,9 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             else:
                 steps.append({"verb": "device.snapshot", "args": {}})
         elif name in {"diagnostics.playback-state"}:
+            if menu_opened and current_media:
+                steps.extend(reopen_steps(folder, current_media))
+                menu_opened = False
             steps.append({"verb": "device.probe", "args": {"probe": "PlayerUI-window-control-plane"}})
         elif name == "host.preflight":
             if arguments.get("check") == "remote-faults":

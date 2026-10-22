@@ -123,6 +123,17 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tapEach",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-1"
+        ]
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -159,17 +170,6 @@
         "arguments": {
           "visible": "true"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-1"
-        ]
       }
     },
     {
@@ -250,6 +250,17 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tapEach",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-8"
+        ]
+      }
+    },
+    {
       "verb": "device.home",
       "args": {}
     },
@@ -286,17 +297,6 @@
         "arguments": {
           "visible": "true"
         }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-8"
-        ]
       }
     },
     {
