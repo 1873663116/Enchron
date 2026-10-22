@@ -108,10 +108,10 @@
       "args": {}
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-loadFailure-secondary"
+        "verb": "clearPlaybackIssue",
+        "arguments": {}
       }
     },
     {

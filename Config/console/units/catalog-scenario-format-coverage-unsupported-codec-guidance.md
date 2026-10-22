@@ -100,8 +100,8 @@
       "verb": "device.await",
       "args": {
         "probe": "element",
-        "field": "identifier",
-        "equals": "PlayerUI-loadFailure-secondary",
+        "field": "label",
+        "equals": "Unable to Play",
         "timeoutMs": 45000,
         "intervalMs": 400
       }

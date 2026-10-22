@@ -600,6 +600,18 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         }
                     )
                     continue
+                if targets and all(
+                    item.startswith("PlayerUI-loadFailure-")
+                    or item.startswith("PlayerUI-playbackIssue-")
+                    for item in targets
+                ):
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {"verb": "clearPlaybackIssue", "arguments": {}},
+                        }
+                    )
+                    continue
                 if targets == ["PlayerUI-resumeDecision-secondary"]:
                     steps.append(
                         {
@@ -756,13 +768,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             raw = str(arguments.get("identifier"))
             collect_fixture(raw, fixtures)
             if any(marker in raw for marker in ("loadFailure", "SourceConnection-")):
+                expected = open_identifier(raw)
+                field = "identifier"
+                if expected == "PlayerUI-loadFailure-secondary" and any(
+                    category in json.dumps(payload, ensure_ascii=False)
+                    for category in ("unsupportedVideoCodec", "mediaRequestFailed")
+                ):
+                    expected = "Unable to Play"
+                    field = "label"
                 steps.append(
                     {
                         "verb": "device.await",
                         "args": {
                             "probe": "element",
-                            "field": "identifier",
-                            "equals": open_identifier(raw),
+                            "field": field,
+                            "equals": expected,
                             "timeoutMs": int(arguments.get("deadlineSeconds", 45)) * 1000,
                             "intervalMs": 400,
                         },

@@ -1872,6 +1872,15 @@ final class TestCommandChannel {
                 summary.append("\(verb)=ok")
             }
             return Response(id: request.id, ok: true, detail: nil, payload: summary)
+        case "clearPlaybackIssue":
+            let category = playbackRuntime.userVisibleIssue?.category.rawValue ?? "none"
+            playbackRuntime.setUserVisibleIssue(nil)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["category=\(category)"]
+            )
         case "resetState":
             if request.args["keepSession"] != "true" {
                 await embySession.signOut()

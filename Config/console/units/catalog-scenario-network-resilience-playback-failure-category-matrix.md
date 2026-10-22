@@ -143,10 +143,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-loadFailure-primary"
+        "verb": "clearPlaybackIssue",
+        "arguments": {}
       }
     },
     {
@@ -279,10 +279,10 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "PlayerUI-loadFailure-primary"
+        "verb": "clearPlaybackIssue",
+        "arguments": {}
       }
     },
     {
