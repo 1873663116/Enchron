@@ -183,7 +183,12 @@ def _tier(root: Path, arguments, profile) -> int:
         import loader as loader_module
 
         codes: list[tuple[str, int]] = []
-        for identifier in sorted(loader_module.load_units(root)):
+        units = loader_module.load_units(root)
+        if getattr(arguments, "quick", False):
+            units = {
+                name: unit for name, unit in units.items() if unit.pace == "fast"
+            }
+        for identifier in sorted(units):
             per_unit = types.SimpleNamespace(
                 unit=identifier,
                 tier="e2e",

@@ -52,6 +52,72 @@ class DaemonProtocolTests(unittest.TestCase):
         self.assertEqual(first, second)
 
 
+class RecoveryTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        (self.root / ".console").mkdir(parents=True, exist_ok=True)
+        self.channel = daemon_module.Channel(self.root, "SIM-TEST-UDID")
+        self.channel.session_ready = True
+        self.channel.ready = {"sessionID": "session-1"}
+        self.calls: list[str] = []
+        self.original_send = daemon_module.transport.send_command
+        self.original_alive = self.channel.alive
+        self.original_recover = self.channel._recover
+
+    def tearDown(self) -> None:
+        daemon_module.transport.send_command = self.original_send
+        self.channel.alive = self.original_alive
+        self.channel._recover = self.original_recover
+        self.directory.cleanup()
+
+    def test_a_dead_runner_is_recovered_once_and_the_call_retried(self) -> None:
+        answers = [
+            {"success": False, "stage": "runnerGone", "message": "runner gone"},
+            {"success": True, "message": "Element tapped."},
+        ]
+
+        def send(_arguments):
+            self.calls.append("send")
+            return answers.pop(0)
+
+        self.channel.alive = lambda: True
+        self.channel._recover = lambda: {"restarted": True}
+        daemon_module.transport.send_command = send
+        answer, ok, detail = self.channel.invoke("tap", "X", None)
+        self.assertTrue(ok)
+        self.assertEqual(detail, "Element tapped.")
+        self.assertEqual(len(self.calls), 2)
+        self.assertEqual(answer["recovery"], {"restarted": True})
+
+    def test_a_second_failure_is_reported_without_another_retry(self) -> None:
+        def send(_arguments):
+            self.calls.append("send")
+            return {"success": False, "stage": "runnerGone", "message": "runner gone"}
+
+        self.channel.alive = lambda: True
+        self.channel._recover = lambda: {"restarted": True}
+        daemon_module.transport.send_command = send
+        _, ok, detail = self.channel.invoke("tap", "X", None)
+        self.assertFalse(ok)
+        self.assertEqual(detail, "runner gone")
+        self.assertEqual(len(self.calls), 2)
+
+    def test_a_non_recoverable_failure_is_not_retried(self) -> None:
+        self.channel.alive = lambda: True
+        self.channel._recover = lambda: self.fail("recovery must not run")
+
+        def send(_arguments):
+            self.calls.append("send")
+            return {"success": False, "stage": "refused", "message": "no such identifier"}
+
+        daemon_module.transport.send_command = send
+        _, ok, detail = self.channel.invoke("tap", "X", None)
+        self.assertFalse(ok)
+        self.assertEqual(detail, "no such identifier")
+        self.assertEqual(len(self.calls), 1)
+
+
 class DaemonSocketTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()

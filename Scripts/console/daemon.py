@@ -27,6 +27,8 @@ START_DEADLINE_SECONDS = 15.0
 BUILD_PRODUCTS = Path(".scratch/build/Build/Products")
 RUNNER_SPEC = "InteractiveDeviceSession"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
+RECOVERABLE_STAGES = frozenset({"runnerGone", "responseTimeout"})
+
 READY_TIMEOUT_SECONDS = 300.0
 
 
@@ -231,14 +233,27 @@ class Channel:
             extra.extend(["--arg", f"{key}={value}"])
         extra.extend(flags or [])
         arguments = self._arguments(action, extra)
-        answer = (
-            transport.app_command(arguments)
+        send = (
+            transport.app_command
             if action == "app-command"
-            else transport.send_command(arguments)
+            else transport.send_command
         )
+        answer = send(arguments)
+        if not answer.get("success") and str(answer.get("stage")) in RECOVERABLE_STAGES:
+            recovered = self._recover()
+            if recovered is not None:
+                answer = send(self._arguments(action, extra))
+                answer["recovery"] = recovered
         ok = bool(answer.get("success", False))
         detail = str(answer.get("message") or answer.get("error") or f"{action} answered")
         return answer, ok, detail
+
+    def _recover(self) -> dict[str, Any] | None:
+        self.halt()
+        payload, ok, detail = self.ensure_session("simulator")
+        if not ok:
+            return None
+        return {"restarted": True, "detail": detail, "payload": payload}
 
 class Server:
     def __init__(self, root: Path, target: str) -> None:

@@ -193,7 +193,8 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "pace": "slow"
 }
 ---
 

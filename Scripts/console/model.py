@@ -57,6 +57,7 @@ class Guardrail:
 
 
 PRECONDITION_KINDS = frozenset({"media-server"})
+UNIT_PACES = frozenset({"fast", "slow"})
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,7 @@ class Unit:
     role: str
     source: str
     preconditions: tuple[dict[str, Any], ...] = ()
+    pace: str = "fast"
 
 
 @dataclass(frozen=True)

@@ -95,7 +95,8 @@
       "kind": "media-server",
       "provider": "emby"
     }
-  ]
+  ],
+  "pace": "slow"
 }
 ---
 

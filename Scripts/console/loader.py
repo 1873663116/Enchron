@@ -8,6 +8,7 @@ DEFINITION_ROOT = "Config/console"
 
 from model import (
     PRECONDITION_KINDS,
+    UNIT_PACES,
     Expectation,
     LoadRefusal,
     Terminal,
@@ -93,7 +94,21 @@ def parse_unit(metadata: dict[str, Any], source: str) -> Unit:
         role=role,
         source=source,
         preconditions=tuple(parse_preconditions(metadata.get("preconditions"), identifier, source)),
+        pace=parse_pace(metadata.get("pace"), identifier, source),
     )
+
+
+def parse_pace(payload: object, identifier: str, source: str) -> str:
+    if payload is None:
+        return "fast"
+    if payload not in UNIT_PACES:
+        raise LoadRefusal(
+            "C017",
+            f"unit {identifier} names pace {payload!r}; the closed set is "
+            + ", ".join(sorted(UNIT_PACES)),
+            source,
+        )
+    return str(payload)
 
 
 def parse_preconditions(
