@@ -51,7 +51,7 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
             payload = getattr(outcome, "payload", None)
             if isinstance(payload, dict):
                 for field, name in step.capture.items():
-                    value = payload.get(field)
+                    value = _resolve_field(payload, field)
                     if isinstance(value, (str, int, float)):
                         facts[name] = str(value)
         outcomes.append(outcome)
@@ -83,6 +83,20 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
     write_json(run_directory / "report.json", report_payload(report))
     _append_index(evidence_root, report)
     return report
+
+
+def _with_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    pairs = payload.get("payload")
+    if not isinstance(pairs, list):
+        return payload
+    fields = {
+        str(item).split("=", 1)[0]: str(item).split("=", 1)[1]
+        for item in pairs
+        if isinstance(item, str) and "=" in item
+    }
+    if not fields:
+        return payload
+    return {**payload, "fields": fields}
 
 
 def _fill(value: Any, facts: dict[str, str]) -> Any:
@@ -467,7 +481,10 @@ def _dispatch_daemon(
     if answer.get("kind") != "result":
         return None, False, answer.get("message", "daemon refused")
     value = answer.get("value", {})
-    return value.get("payload"), bool(value.get("ok")), str(value.get("detail", ""))
+    payload = value.get("payload")
+    if step.verb == "device.app-command" and isinstance(payload, dict):
+        payload = _with_fields(payload)
+    return payload, bool(value.get("ok")), str(value.get("detail", ""))
 
 
 def _run_stage_media(

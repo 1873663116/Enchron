@@ -27,10 +27,7 @@ BLOCKERS = {
     "presentation.enter-panorama": "the route taps a panorama sequence and settles",
     "presentation.exit-spatial": "the route reads the spatial state before it exits",
     "storage.clear": "the route taps a settings action and compares storage observations",
-    "transition-trace.arm": "the arm reads the prior snapshot before it arms",
-    "transition-trace.disarm": "the disarm needs the generation token an earlier call returned",
-    "transition-trace.fetch": "the fetch needs the generation token an earlier call returned",
-    "format.apply": "the route taps a menu sequence and settles the presentation",
+    "format.apply": "the custom angle route needs the menu picker",
     RESET_PRODUCT_STATE: "the reset signs out the source and clears the library the later steps need",
 }
 
@@ -47,9 +44,6 @@ UNSUPPORTED = {
     "presentation.enter-panorama",
     "presentation.exit-spatial",
     "storage.clear",
-    "transition-trace.arm",
-    "transition-trace.disarm",
-    "transition-trace.fetch",
     "format.apply",
 }
 
@@ -102,15 +96,28 @@ def slug(identifier: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", identifier.lower()).strip("-")
 
 
-def navigation(folder: str) -> list[dict[str, Any]]:
-    return [
+def navigation(folder: str | None) -> list[dict[str, Any]]:
+    steps: list[dict[str, Any]] = [
         {"verb": "device.app-command", "args": {"verb": "setViewMode", "arguments": {"mode": "grid"}}},
         {"verb": "device.command", "args": {"action": "tap", "identifier": "Navigation-Ornament-tab-files"}},
-        {"verb": "device.command", "args": {"action": "tap", "identifier": f"MediaLibrary-grid-folder-{folder}"}},
     ]
+    if folder:
+        steps.append(
+            {
+                "verb": "device.command",
+                "args": {"action": "tap", "identifier": f"MediaLibrary-grid-folder-{folder}"},
+            }
+        )
+    return steps
 
 
 def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]], list[Path]]:
+    staged = any(
+        str(action.get("operation", "")).startswith("operation:media.import-staged")
+        or str(action.get("operation", "")).startswith("operation:media.open")
+        for action in payload.get("operations", [])
+    )
+    folder = folder if staged else None
     steps: list[dict[str, Any]] = []
     fixtures: list[Path] = []
     rewound = False
@@ -218,8 +225,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             steps.append({"verb": "device.snapshot", "args": {}})
         elif name == "format.apply":
             projection = str(arguments["projection"])
-            if projection != "flat":
-                raise SystemExit("format.apply outside the flat route")
+            projection_identifier = {
+                "flat": "PlayerUI-VideoFormat-Projection-Flat",
+                "equirectangular180": "PlayerUI-VideoFormat-Projection-180°",
+                "equirectangular360": "PlayerUI-VideoFormat-Projection-360°",
+            }[projection]
             stereo = {
                 "mono": "Mono",
                 "sideBySide": "Side-by-Side",
@@ -243,7 +253,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {
                         "action": "tapSequence",
                         "identifiers": [
-                            "PlayerUI-VideoFormat-Projection-Flat",
+                            projection_identifier,
                             f"PlayerUI-VideoFormat-Stereo Layout-{stereo}",
                             "PlayerUI-VideoFormat-apply",
                         ],
@@ -256,10 +266,34 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {
                         "probe": "PlayerUI-window-control-plane",
                         "field": "projection",
-                        "equals": "flat",
+                        "equals": projection,
                         "timeoutMs": int(arguments.get("deadlineSeconds", 30)) * 1000,
                         "intervalMs": 300,
                     },
+                }
+            )
+        elif name == "transition-trace.arm":
+            arguments_out: dict[str, Any] = {}
+            if arguments.get("fault") not in (None, "none"):
+                arguments_out["fault"] = str(arguments["fault"])
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "armTransitionTrace", "arguments": arguments_out},
+                }
+            )
+        elif name == "transition-trace.fetch":
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "fetchTransitionTraceSnapshot", "arguments": {}},
+                }
+            )
+        elif name == "transition-trace.disarm":
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "disarmTransitionTrace", "arguments": {}},
                 }
             )
         elif name == RESET_PRODUCT_STATE:
@@ -348,7 +382,7 @@ def blocked(payload: dict[str, Any]) -> list[str]:
         arguments = action.get("arguments", {})
         if name in UNSUPPORTED:
             found.append(name)
-        elif name == "format.apply" and str(arguments.get("projection")) != "flat":
+        elif name == "format.apply" and str(arguments.get("projection")) == "customAngle":
             found.append("format.apply")
         elif name not in DIRECT:
             found.append(name)
@@ -389,9 +423,8 @@ def report_gaps() -> int:
         names = operation_names(payload)
         if not names:
             continue
-        blocked = [name for name in names if name in BLOCKERS]
-        if blocked:
-            for name in set(blocked):
+        if blocked(payload):
+            for name in set(blocked(payload)):
                 blocking.setdefault(name, []).append(str(payload["id"]))
     for name in sorted(blocking, key=lambda item: -len(blocking[item])):
         print(f"{len(blocking[name]):3d} scenario(s)  {name}: {BLOCKERS[name]}")
