@@ -11,7 +11,8 @@
     "unit:catalog.scenario-emby-server-lifecycle-episode-resume-and-start-actions@1",
     "unit:catalog.scenario-emby-server-lifecycle-home-poster-and-next-up@1",
     "unit:catalog.scenario-emby-server-lifecycle-progress-authority-server@1",
-    "unit:catalog.scenario-emby-server-lifecycle-series-season-episode-navigation@1"
+    "unit:catalog.scenario-emby-server-lifecycle-series-season-episode-navigation@1",
+    "unit:catalog.series-navigation@1"
   ],
   "promises": []
 }

@@ -174,6 +174,12 @@ class EmbyBoundary(Protocol):
 
     def refresh_library(self, session: AuthenticatedSession) -> None: ...
 
+    def refresh_metadata(self, session: AuthenticatedSession, item_id: str) -> None: ...
+
+    def seeded_item_ids(
+        self, session: AuthenticatedSession, library_id: str
+    ) -> list[str]: ...
+
     def catalog(
         self,
         session: AuthenticatedSession,
@@ -574,6 +580,8 @@ class EmbySourceController:
                     session, LIBRARY_NAME, self.configuration.library_root
                 )
             self.boundary.refresh_library(session)
+            for item_id in self.boundary.seeded_item_ids(session, library_id):
+                self.boundary.refresh_metadata(session, item_id)
             catalog = self.boundary.catalog(
                 session,
                 LIBRARY_NAME,
@@ -1260,7 +1268,10 @@ class HTTPEmbyBoundary:
                 "CollectionType": "tvshows",
                 "RefreshLibrary": True,
                 "Paths": [str(path.resolve())],
-                "LibraryOptions": {},
+                "LibraryOptions": {
+                    "PreferredMetadataLanguage": "en",
+                    "MetadataCountryCode": "US",
+                },
             },
             timeout=30,
             allow_empty=True,
@@ -1269,6 +1280,44 @@ class HTTPEmbyBoundary:
         if binding is None:
             raise EmbySeedError("Emby did not publish the owned library")
         return binding.identifier
+
+    def refresh_metadata(self, session: AuthenticatedSession, item_id: str) -> None:
+        self._json_request(
+            "POST",
+            f"/Items/{item_id}/Refresh",
+            session=session,
+            query={
+                "metadataRefreshMode": "FullRefresh",
+                "imageRefreshMode": "FullRefresh",
+                "replaceAllMetadata": "true",
+                "api_key": session.access_token,
+            },
+            body={},
+            timeout=30,
+            allow_empty=True,
+        )
+
+    def seeded_item_ids(
+        self, session: AuthenticatedSession, library_id: str
+    ) -> list[str]:
+        result = self._json_request(
+            "GET",
+            "/Items",
+            session=session,
+            query={
+                "ParentId": library_id,
+                "Recursive": "true",
+                "IncludeItemTypes": "Series,Season",
+                "api_key": session.access_token,
+            },
+            timeout=30,
+        )
+        items = result.get("Items", []) if isinstance(result, dict) else []
+        return [
+            str(item["Id"])
+            for item in items
+            if isinstance(item, dict) and isinstance(item.get("Id"), str)
+        ]
 
     def refresh_library(self, session: AuthenticatedSession) -> None:
         self._json_request(
