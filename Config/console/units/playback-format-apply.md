@@ -101,12 +101,9 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.set-stereo-layout",
       "args": {
-        "verb": "setStereoLayout",
-        "arguments": {
-          "layout": "mono"
-        }
+        "layout": "mono"
       }
     },
     {

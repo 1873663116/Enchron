@@ -143,6 +143,16 @@ VERBS: dict[str, Verb] = {
             budget_ms=90_000,
         ),
         Verb(
+            name="device.set-stereo-layout",
+            tier="e2e",
+            capabilities=frozenset({"mac", "device", "daemon"}),
+            lane="device",
+            parameter=("layout",),
+            evidence="app-command.json",
+            schema="enchron.console.app-command@1",
+            budget_ms=60_000,
+        ),
+        Verb(
             name="device.app-commands",
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),

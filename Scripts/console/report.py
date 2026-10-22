@@ -14,6 +14,7 @@ EXIT_REFUSED = 3
 EXIT_CAPABILITY = 4
 EXIT_GUARDRAIL = 5
 EXIT_ENGINE = 6
+EXIT_KNOWN = 7
 
 
 def plan_payload(plan: Plan) -> dict[str, Any]:
@@ -102,6 +103,10 @@ def render_report(report: Report) -> str:
     lines = [
         f"{report.verdict}  {report.unit}  tier={report.tier}  {report.duration_ms} ms",
     ]
+    if report.verdict == "known":
+        lines.append(
+            "  this failure is declared in Config/console/known-failures.md"
+        )
     for precondition in report.preconditions:
         mark = "ok  " if precondition.get("ok") else "FAIL"
         lines.append(f"  {mark} pre {precondition.get('kind')}  {precondition.get('detail')}")

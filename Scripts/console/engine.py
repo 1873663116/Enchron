@@ -11,6 +11,7 @@ from typing import Any
 
 from guard import GuardrailHit, Supervisor
 from model import Plan, Report, Step, StepOutcome, TerminalOutcome
+import known as known_module
 import report as report_module
 import transport
 from report import (
@@ -70,6 +71,12 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
             resolved, plan, root, supervisor, steps_directory, budget_scale
         )
         outcomes.append(outcome)
+    known = None
+    if verdict == "failed":
+        known = known_module.matching(root, plan.unit, outcomes)
+        if known is not None:
+            verdict = "known"
+            exit_code = report_module.EXIT_KNOWN
     terminal = _evaluate_terminal(plan, run_directory, steps_directory)
     if not terminal.ok and verdict == "passed":
         verdict = "failed"
@@ -457,6 +464,17 @@ def _dispatch_daemon(
                 break
             time.sleep(0.5)
             answer = _daemon_request(root, request, target)
+    elif step.verb == "device.set-stereo-layout":
+        answer = _daemon_request(
+            root,
+            {
+                "op": "invoke",
+                "action": "app-command",
+                "verb": "setStereoLayout",
+                "arguments": {"layout": str(step.args.get("layout"))},
+            },
+            target,
+        )
     elif step.verb == "device.app-commands":
         calls = step.args.get("calls") or []
         answer = _daemon_request(

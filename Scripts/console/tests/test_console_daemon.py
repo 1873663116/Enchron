@@ -5,12 +5,14 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 CONSOLE_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(CONSOLE_ROOT))
 
 import daemon as daemon_module
 import engine as engine_module
+import known as known_module
 
 
 class DaemonProtocolTests(unittest.TestCase):
@@ -50,6 +52,37 @@ class DaemonProtocolTests(unittest.TestCase):
         first = daemon_module.socket_path(self.root, self.target)
         second = daemon_module.socket_path(self.root, self.target)
         self.assertEqual(first, second)
+
+
+class KnownFailureTests(unittest.TestCase):
+    def test_a_declared_phrase_turns_a_failure_into_a_known_one(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Config/console").mkdir(parents=True)
+            (root / "Config/console/known-failures.md").write_text(
+                '---\n' + json.dumps({
+                    "schema": "enchron.console.known-failures",
+                    "schemaVersion": 1,
+                    "failures": [
+                        {"id": "known:tidal", "unit": "unit:example@1", "match": "CancellationError"}
+                    ],
+                }) + '\n---\n',
+                encoding="utf-8",
+            )
+            step = SimpleNamespace(ok=False, detail="step threw CancellationError")
+            found = known_module.matching(root, "unit:example@1", [step])
+            self.assertIsNotNone(found)
+            self.assertEqual(found["id"], "known:tidal")
+
+    def test_an_undeclared_unit_stays_a_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Config/console").mkdir(parents=True)
+            (root / "Config/console/known-failures.md").write_text(
+                '---\n' + json.dumps({"failures": []}) + '\n---\n', encoding="utf-8"
+            )
+            step = SimpleNamespace(ok=False, detail="something broke")
+            self.assertIsNone(known_module.matching(root, "unit:example@1", [step]))
 
 
 class AwaitFieldTests(unittest.TestCase):

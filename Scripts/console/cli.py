@@ -14,6 +14,7 @@ from model import TIER_ORDER
 from report import (
     EXIT_CAPABILITY,
     EXIT_ENGINE,
+    EXIT_KNOWN,
     EXIT_OK,
     EXIT_REFUSED,
     EXIT_TERMINAL,
@@ -208,7 +209,14 @@ def _tier(root: Path, arguments, profile) -> int:
                     codes.append((identifier, _run(root, per_unit, profile)))
             else:
                 codes.append((identifier, _run(root, per_unit, profile)))
-        failed = [name for name, code in codes if code != 0]
+        known = [
+            name for name, code in codes if code == EXIT_KNOWN
+        ]
+        failed = [
+            name
+            for name, code in codes
+            if code not in (0, EXIT_KNOWN)
+        ]
         if arguments.as_json:
             print(
                 json.dumps(
@@ -224,6 +232,8 @@ def _tier(root: Path, arguments, profile) -> int:
             )
         else:
             print(f"e2e {len(codes) - len(failed)}/{len(codes)} unit(s) passed")
+            for name in known:
+                print(f"  known  {name}")
             for name in failed:
                 print(f"  failed {name}", file=sys.stderr)
         return EXIT_OK if codes and not failed else EXIT_TERMINAL
