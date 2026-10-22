@@ -75,6 +75,10 @@ DIRECT = {
 
 PRESENTATION = {"either-main-window": "window", "window": "window"}
 
+HAND_WRITTEN = {
+    "scenario:emby-server-lifecycle:series-season-episode-navigation",
+}
+
 VERIFIED = {
     "scenario:dynamic-range-interpretation:hdr10-hlg-interpretation",
     "scenario:format-coverage:unsupported-codec-guidance",
@@ -429,7 +433,11 @@ def expressible(path: Path) -> bool:
     payload = scenario(path)
     if payload is None:
         return False
-    return bool(operation_names(payload)) and not blocked(payload)
+    return (
+        bool(operation_names(payload))
+        and not blocked(payload)
+        and str(payload.get("id")) not in HAND_WRITTEN
+    )
 
 
 def write_feature(journey: str, identifiers: list[str]) -> None:

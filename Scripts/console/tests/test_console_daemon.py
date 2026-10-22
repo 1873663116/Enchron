@@ -52,6 +52,24 @@ class DaemonProtocolTests(unittest.TestCase):
         self.assertEqual(first, second)
 
 
+class SettlingTests(unittest.TestCase):
+    def test_a_transient_miss_is_retried(self) -> None:
+        answer = {"kind": "result", "value": {"ok": False, "detail": "The requested element exists but is not currently hittable."}}
+        self.assertFalse(engine_module._settled(answer))
+
+    def test_a_real_failure_is_not_retried(self) -> None:
+        answer = {"kind": "result", "value": {"ok": False, "detail": "The identifier is not in the allowlist."}}
+        self.assertTrue(engine_module._settled(answer))
+
+    def test_a_healthy_journal_is_not_recovered(self) -> None:
+        answer = {"kind": "result", "value": {"ok": True, "detail": "App command probeStatus completed."}}
+        self.assertFalse(engine_module._journal_unhealthy(answer))
+
+    def test_an_unhealthy_journal_is_recovered(self) -> None:
+        answer = {"kind": "result", "value": {"ok": False, "detail": "The DEBUG probe journal is unhealthy."}}
+        self.assertTrue(engine_module._journal_unhealthy(answer))
+
+
 class RecoveryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()

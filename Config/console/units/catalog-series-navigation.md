@@ -5,7 +5,7 @@
   "id": "unit:catalog.series-navigation@1",
   "layer": 3,
   "role": "verification",
-  "pace": "catalog",
+  "pace": "slow",
   "requires": [
     "mac",
     "device",
@@ -82,10 +82,30 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Emby-Season-Picker",
+        "timeoutMs": 8000,
+        "intervalMs": 250
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
         "identifier": "Emby-Season-Picker"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Season 2",
+        "timeoutMs": 8000,
+        "intervalMs": 250
       }
     },
     {
@@ -99,6 +119,23 @@
       "verb": "device.probe",
       "args": {
         "probe": "Emby-Evidence"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "swipeUp",
+        "identifier": "Emby-Detail-list"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Emby-Episode-11249",
+        "timeoutMs": 6000,
+        "intervalMs": 250
       }
     },
     {

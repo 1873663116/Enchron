@@ -37,6 +37,10 @@ The console is the only test entry in this repository. This skill covers changin
 
 Data lives in `Config/console/units/` and `Config/console/features/`.
 
+`device.await` takes `probe: element` with `field` set to `identifier` or `label` and waits until that element appears in the hierarchy. Use it before tapping anything a menu just revealed.
+
+A tap that misses because the element is not yet hittable is retried three times. A drain of the DEBUG probe journal is answered by one relaunch and one retry.
+
 The daemon keeps the code it started with. After editing anything it runs, stop it and start it again; `daemon stop` kills the process and waits for it to go.
 
 A step may carry `capture`, a map from payload field to name. A later step reads that name as `"$name"` in any argument string. The compiler refuses a reference that no earlier step captures (`C018`) and a name captured twice.

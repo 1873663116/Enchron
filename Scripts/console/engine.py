@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
 import subprocess
 import sys
 import time
@@ -83,6 +84,28 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
     write_json(run_directory / "report.json", report_payload(report))
     _append_index(evidence_root, report)
     return report
+
+
+DEFERRED_FAILURES = (
+    "not currently hittable",
+    "No current element matches",
+)
+
+
+def _journal_unhealthy(answer: dict[str, Any]) -> bool:
+    if answer.get("kind") != "result":
+        return False
+    value = answer.get("value") or {}
+    return "probe journal is unhealthy" in str(value.get("detail", "")).lower()
+
+
+def _settled(answer: dict[str, Any]) -> bool:
+    if answer.get("kind") != "result":
+        return True
+    value = answer.get("value") or {}
+    return bool(value.get("ok")) or not any(
+        marker in str(value.get("detail", "")) for marker in DEFERRED_FAILURES
+    )
 
 
 def _with_fields(payload: dict[str, Any]) -> dict[str, Any]:
@@ -373,18 +396,20 @@ def _dispatch_daemon(
     elif step.verb == "device.snapshot":
         answer = daemon_module.request(root, {"op": "invoke", "action": "snapshot"}, target)
     elif step.verb == "device.command":
-        answer = daemon_module.request(
-            root,
-            {
-                "op": "invoke",
-                "action": step.args.get("action", "tap"),
-                "identifier": step.args.get("identifier"),
-                "identifiers": step.args.get("identifiers"),
-                "label": step.args.get("label"),
-                "text": step.args.get("text"),
-            },
-            target,
-        )
+        request = {
+            "op": "invoke",
+            "action": step.args.get("action", "tap"),
+            "identifier": step.args.get("identifier"),
+            "identifiers": step.args.get("identifiers"),
+            "label": step.args.get("label"),
+            "text": step.args.get("text"),
+        }
+        answer = daemon_module.request(root, request, target)
+        for _ in range(3):
+            if _settled(answer):
+                break
+            time.sleep(0.5)
+            answer = daemon_module.request(root, request, target)
     elif step.verb == "device.capture-frames":
         flags: list[str] = ["--output-directory", str(steps_directory)]
         if step.args.get("count") is not None:
@@ -417,10 +442,28 @@ def _dispatch_daemon(
             attempts += 1
             answer = daemon_module.request(
                 root,
-                {"op": "invoke", "action": "snapshot", "identifier": probe},
+                {
+                    "op": "invoke",
+                    "action": "snapshot",
+                    "identifier": None if probe == "element" else probe,
+                },
                 target,
             )
-            if answer.get("kind") == "result":
+            if answer.get("kind") == "result" and probe == "element":
+                value = answer.get("value", {})
+                payload = value.get("payload") or {}
+                hierarchy = payload.get("hierarchy")
+                if isinstance(hierarchy, str):
+                    pattern = (
+                        rf"identifier: '{re.escape(str(expected))}'"
+                        if field == "identifier"
+                        else rf"label: '{re.escape(str(expected))}'"
+                    )
+                    if re.search(pattern, hierarchy):
+                        observed = {field: str(expected)}
+                        reached = True
+                        break
+            elif answer.get("kind") == "result":
                 value = answer.get("value", {})
                 payload = value.get("payload") or {}
                 element = payload.get("matchedElement") or {}
@@ -459,16 +502,18 @@ def _dispatch_daemon(
             else {"kind": "error", "message": f"never reached {expected!r}; saw {detail}"}
         )
     elif step.verb == "device.app-command":
-        answer = daemon_module.request(
-            root,
-            {
-                "op": "invoke",
-                "action": "app-command",
-                "verb": step.args.get("verb"),
-                "arguments": step.args.get("arguments") or {},
-            },
-            target,
-        )
+        request = {
+            "op": "invoke",
+            "action": "app-command",
+            "verb": step.args.get("verb"),
+            "arguments": step.args.get("arguments") or {},
+        }
+        answer = daemon_module.request(root, request, target)
+        if _journal_unhealthy(answer):
+            daemon_module.request(
+                root, {"op": "invoke", "action": "relaunch"}, target
+            )
+            answer = daemon_module.request(root, request, target)
     elif step.verb == "device.probe":
         answer = daemon_module.request(
             root,
