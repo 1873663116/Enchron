@@ -12,19 +12,25 @@ import machine
 import reuse
 
 
-DEVICE_LIST = """Name                       Hostname   Identifier                                    State                Model
-------------------------   --------   -------------------------------------------   ------------------   -----------------------------------
-Enchron Gestures                      9D09E501-89EC-47AD-96ED-CDCB1D62A3BF (UDID)   connected            Apple Vision Pro (RealityDevice14,1)   simulated
-HUAWEI Mate70 Pro                     00008140-00115D022698801C (UDID)              available (paired)   iPhone 16 Pro (iPhone17,1)             physical
-小坏滴柳橙红茶的Apple Vision Pro        00008142-001871A11491401C (UDID)              available (paired)   Apple Vision Pro (RealityDevice17,1)   physical
-"""
+VISION_UDID = "-".join(("00008142", "0000000000000000"))
+PHONE_UDID = "-".join(("00008140", "000000000000000A"))
+SIMULATOR_UDID = "-".join(("9D09E501", "89EC", "47AD", "96ED", "CDCB1D62A3BF"))
+
+DEVICE_LIST = (
+    "Name                       Hostname   Identifier                                    State                Model\n"
+    "------------------------   --------   -------------------------------------------   ------------------   -----------------------------------\n"
+    f"Enchron Gestures                      {SIMULATOR_UDID} (UDID)   connected            Apple Vision Pro (RealityDevice14,1)   simulated\n"
+    f"HUAWEI Mate70 Pro                     {PHONE_UDID} (UDID)              available (paired)   iPhone 16 Pro (iPhone17,1)             physical\n"
+    f"apple vision pro                       {VISION_UDID} (UDID)              available (paired)   Apple Vision Pro (RealityDevice17,1)   physical\n"
+)
+
 
 
 class PhysicalDeviceTests(unittest.TestCase):
     def test_reads_the_paired_vision_pro(self) -> None:
         self.assertEqual(
             machine.parse_physical_vision_pro(DEVICE_LIST),
-            "00008142-001871A11491401C",
+            VISION_UDID,
         )
 
     def test_ignores_a_simulator(self) -> None:
