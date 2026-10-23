@@ -68,6 +68,17 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -149,6 +160,17 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -227,7 +249,7 @@
     },
     {
       "key": "speed-menu",
-      "start": 13
+      "start": 14
     }
   ]
 }

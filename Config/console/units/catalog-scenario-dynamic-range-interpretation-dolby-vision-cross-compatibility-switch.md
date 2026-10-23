@@ -70,6 +70,17 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -135,6 +146,17 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
       }
     },
     {
@@ -206,6 +228,17 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -271,11 +304,11 @@
     },
     {
       "key": "profile-8-hlg",
-      "start": 11
+      "start": 12
     },
     {
       "key": "profile-5-no-fallback",
-      "start": 19
+      "start": 21
     }
   ]
 }

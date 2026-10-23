@@ -91,15 +91,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFiles",
-        "arguments": {
-          "directory": "scenario-local-media-lifecycle-external-subtitle-source-matrix"
-        }
-      }
-    },
-    {
       "verb": "device.stage-media",
       "args": {
         "source": [

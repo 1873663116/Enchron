@@ -60,6 +60,49 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-",
+        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+        "index": 1
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -129,6 +172,55 @@
     {
       "verb": "device.snapshot",
       "args": {}
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-",
+        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+        "index": 1
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+      }
     }
   ],
   "teardown": [
@@ -142,8 +234,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "hierarchy.json",
-    "schema": "enchron.console.hierarchy@1"
+    "path": "probe.json",
+    "schema": "enchron.console.probe@1"
   },
   "cases": [
     {

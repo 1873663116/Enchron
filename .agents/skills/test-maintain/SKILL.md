@@ -47,6 +47,8 @@ Scenario units come from `Regression/journeys/` through `Scripts/console/catalog
 
 A generated unit may carry `cases`: ordered `{key, start}` entries whose `start` is an action index. `console run UNIT --case KEY` keeps the steps before the first case and the selected case, gives the run its own digest and evidence name, and is the way to reproduce one catalog case in 10–30 seconds.
 
+The e2e tier restarts the UI session after a failed unit so the next unit starts from a fresh app; a clean unit costs about fifteen seconds of session restart that only a failure pays.
+
 `Config/console/cold-start-cases.json` maps every `operation:app.relaunch` in `Regression/journeys/` to a cold-start or isolation decision. The translator keeps only declared cold starts; every isolation case establishes its start with `leavePlayback`, `resetState`, a re-import and `playMedia`. `python3 Scripts/console/catalog_units.py --restarts` prints the audit and fails on an undeclared or stale entry.
 
 Form scenarios fill the product's source connection sheet from `device.source-facts` runtime facts and then tap Connect followed by whichever trust or save-password control appears; the unit never pre-writes the certificate fingerprint, because the point is the product's own connection path. A scenario whose evidence needs the certificate trust prompt does not run on the simulator lane: the simulator trusts the fixture certificate, so the product accepts the first connection silently.

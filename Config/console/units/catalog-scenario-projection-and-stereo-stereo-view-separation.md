@@ -70,6 +70,17 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -129,6 +140,17 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
       }
     },
     {
@@ -194,6 +216,17 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -252,11 +285,11 @@
     },
     {
       "key": "top-bottom",
-      "start": 10
+      "start": 11
     },
     {
       "key": "mv-hevc-two-view",
-      "start": 17
+      "start": 19
     }
   ]
 }

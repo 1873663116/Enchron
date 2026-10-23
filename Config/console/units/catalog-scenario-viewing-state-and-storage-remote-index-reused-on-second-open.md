@@ -151,6 +151,49 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-",
+        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+        "index": 1
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -216,6 +259,23 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetMediaNavigation",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 10000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.viewing-storage",
       "args": {},
       "capture": {
@@ -232,6 +292,49 @@
         "identifier": "FileBrowsing-SourcesSidebar-source-",
         "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
         "index": 1
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-",
+        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+        "index": 1
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 300
       }
     },
     {
@@ -281,6 +384,49 @@
         "viewingStateProtectedStateDigest": "viewingProtectedDigest17",
         "protectedStateDigest": "libraryProtectedDigest17",
         "snapshotDigest": "viewingStorageDigest17"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-",
+        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+        "index": 1
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 300
       }
     },
     {

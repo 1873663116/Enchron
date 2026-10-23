@@ -69,15 +69,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFiles",
-        "arguments": {
-          "directory": "scenario-presentation-tour-track-selection-survives-seek-and-presentation"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -244,15 +235,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFiles",
-        "arguments": {
-          "directory": "scenario-presentation-tour-track-selection-survives-seek-and-presentation"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -388,7 +370,7 @@
     },
     {
       "key": "format-replacement",
-      "start": 24
+      "start": 23
     }
   ]
 }

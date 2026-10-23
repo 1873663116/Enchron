@@ -333,7 +333,17 @@ def _tier(root: Path, arguments, profile) -> int:
                 for name, unit in units.items()
                 if unit.pace not in {"catalog", "scenario"}
             }
+        import daemon as daemon_module
         import reuse as reuse_module
+
+        def recover_session() -> None:
+            daemon_module.ensure_running(root, profile.target)
+            daemon_module.request(
+                root,
+                {"op": "restart", "lane": "simulator"},
+                profile.target,
+                timeout=300,
+            )
 
         current_product = reuse_module.product_digest(root)
         reuse_enabled = not getattr(arguments, "force", False)
@@ -360,9 +370,17 @@ def _tier(root: Path, arguments, profile) -> int:
                     continue
             if arguments.as_json:
                 with contextlib.redirect_stdout(sys.stderr):
-                    codes.append((identifier, _run(root, per_unit, profile)))
+                    code = _run(root, per_unit, profile)
             else:
-                codes.append((identifier, _run(root, per_unit, profile)))
+                code = _run(root, per_unit, profile)
+            codes.append((identifier, code))
+            if code not in (0, EXIT_KNOWN):
+                if not arguments.as_json:
+                    print(f"  recover {identifier}: restarting the session", file=sys.stderr)
+                try:
+                    recover_session()
+                except OSError as error:
+                    print(f"  recovery failed: {error}", file=sys.stderr)
         known = [
             name for name, code in codes if code == EXIT_KNOWN
         ]

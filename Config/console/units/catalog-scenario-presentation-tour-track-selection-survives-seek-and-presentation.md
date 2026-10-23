@@ -207,15 +207,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFiles",
-        "arguments": {
-          "directory": "scenario-presentation-tour-track-selection-survives-seek-and-presentation"
-        }
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",

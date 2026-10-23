@@ -82,6 +82,17 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -215,15 +226,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFiles",
-        "arguments": {
-          "directory": "scenario-local-media-lifecycle-external-subtitle-source-matrix"
-        }
-      }
-    },
-    {
       "verb": "device.stage-media",
       "args": {
         "source": [
@@ -252,6 +254,49 @@
         "identifier": "FileBrowsing-SourcesSidebar-source-",
         "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
         "index": 1
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-",
+        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+        "index": 1
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
+        "timeoutMs": 20000,
+        "intervalMs": 300
       }
     },
     {
@@ -395,7 +440,7 @@
     },
     {
       "key": "webdav-sidecar",
-      "start": 20
+      "start": 21
     }
   ]
 }

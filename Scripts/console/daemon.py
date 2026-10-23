@@ -397,6 +397,10 @@ class Server:
         if operation == "ensure":
             payload, ok, detail = self.channel.ensure_session(request.get("lane", "simulator"))
             return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
+        if operation == "restart":
+            self.channel.halt()
+            payload, ok, detail = self.channel.ensure_session(request.get("lane", "simulator"))
+            return {"kind": "result", "value": {"ok": ok, "detail": detail, "payload": payload}}
         if operation == "invoke":
             payload, ok, detail = self.channel.invoke(
                 request.get("action", "snapshot"),

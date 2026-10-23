@@ -357,6 +357,86 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             for token in ("apmp", "180", "360", "panorama", "spatial", "immersive")
         )
 
+    def browser_card_steps(identifier: str) -> list[dict[str, Any]]:
+        produced: list[dict[str, Any]] = [
+            {
+                "verb": "device.app-command",
+                "args": {"verb": "leavePlayback", "arguments": {}},
+            },
+            {
+                "verb": "device.command",
+                "args": {
+                    "action": "tap",
+                    "identifier": "Navigation-Ornament-tab-files",
+                },
+            },
+            {
+                "verb": "device.await",
+                "args": {
+                    "probe": "element",
+                    "field": "identifier",
+                    "equals": "FileBrowsing-FilesScreen",
+                    "timeoutMs": 20000,
+                    "intervalMs": 400,
+                },
+            },
+        ]
+        if identifier.startswith("FileBrowsing-"):
+            produced.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "identifier": "FileBrowsing-SourcesSidebar-source-",
+                        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+                        "index": 1,
+                    },
+                }
+            )
+        else:
+            produced.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "identifier": "FileBrowsing-SourcesSidebar-source-media-library",
+                    },
+                }
+            )
+            if not imports_at_root(payload):
+                folder_identifier = f"MediaLibrary-grid-folder-{staging_folder}"
+                produced.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": folder_identifier,
+                            "timeoutMs": 20000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
+                produced.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": folder_identifier},
+                    }
+                )
+        produced.append(
+            {
+                "verb": "device.await",
+                "args": {
+                    "probe": "element",
+                    "field": "identifier",
+                    "equals": identifier,
+                    "timeoutMs": 20000,
+                    "intervalMs": 300,
+                },
+            }
+        )
+        return produced
+
     def window_root_wait(timeout_ms: int) -> dict[str, Any]:
         return {
             "verb": "device.await",
@@ -524,6 +604,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     in_settings = False
     issue_played = False
     issue_presented = False
+    replay_pending = False
     ui_tab = "files"
     settings_category: str | None = None
     cold_calls = cold_start_calls(str(payload.get("id", "")))
@@ -542,6 +623,13 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
 
     def import_actions() -> list[dict[str, Any]]:
         if not fixtures:
+            return []
+        if remote_flow and not any(
+            str(action.get("operation", "")).startswith(
+                "operation:media.import-staged"
+            )
+            for action in payload.get("operations", [])
+        ):
             return []
         if imports_at_root(payload) or local_library_flow:
             return [
@@ -586,8 +674,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             }
         )
         steps.extend(relink_source())
-        steps.extend(import_actions())
-        steps.extend(preparation_import_steps(payload))
+        preparation = preparation_import_steps(payload)
+        if preparation:
+            steps.extend(preparation)
+        else:
+            steps.extend(import_actions())
 
     def already_awaited(probe: str, field: str, equals: str) -> bool:
         for step in reversed(steps):
@@ -872,8 +963,28 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 steps.append(
                     {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
                 )
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {"verb": "resetMediaNavigation", "arguments": {}},
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": "Navigation-Ornament-tab-files",
+                            "timeoutMs": 10000,
+                            "intervalMs": 200,
+                        },
+                    }
+                )
             current_media = media_name(identifier)
             direct_open = identifier.startswith("MediaLibrary-grid-video-")
+            replay_open = identifier.startswith("MediaLibrary-grid-video-") and replay_pending
+            replay_pending = False
             if folder and not folder_opened and not direct_open:
                 steps.append(
                     {
@@ -903,7 +1014,28 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
-            if direct_open:
+            if replay_open:
+                steps.extend(browser_card_steps(opened))
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": opened},
+                    }
+                )
+            elif direct_open:
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": "PlayerUI-window-control-plane",
+                            "mode": "absent",
+                            "timeoutMs": 15000,
+                            "intervalMs": 200,
+                        },
+                    }
+                )
                 steps.append(
                     {
                         "verb": "device.app-command",
@@ -1249,6 +1381,18 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     )
                 if targets == ["PlayerUI-VideoFormat-cancel"]:
                     continue
+                if replay_pending and targets[0].startswith(
+                    ("MediaLibrary-grid-video-", "FileBrowsing-grid-video-")
+                ):
+                    replay_pending = False
+                    steps.extend(browser_card_steps(targets[0]))
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {"action": "tap", "identifier": targets[0]},
+                        }
+                    )
+                    continue
                 if targets == ["PlayerUI-InfoBar-button-back"]:
                     steps.append(
                         {
@@ -1256,6 +1400,25 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "args": {"verb": "leavePlayback", "arguments": {}},
                         }
                     )
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {"verb": "resetMediaNavigation", "arguments": {}},
+                        }
+                    )
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "element",
+                                "field": "identifier",
+                                "equals": "Navigation-Ornament-tab-files",
+                                "timeoutMs": 10000,
+                                "intervalMs": 200,
+                            },
+                        }
+                    )
+                    replay_pending = True
                     current_media = None
                     continue
                 if targets and all(
@@ -1468,6 +1631,35 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     steps.append({"verb": "device.command", "args": action_args})
         elif name in {"accessibility.activate", "accessibility.type"}:
             activated_identifier = str(arguments.get("identifier") or "")
+            if replay_pending and activated_identifier.startswith(
+                ("MediaLibrary-grid-video-", "FileBrowsing-grid-video-")
+            ):
+                replay_pending = False
+                steps.extend(browser_card_steps(activated_identifier))
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": activated_identifier},
+                    }
+                )
+                continue
+            if (
+                (activated_identifier.startswith("FileBrowsing-grid-video-")
+                 or activated_identifier.startswith("MediaLibrary-grid-video-"))
+                and not already_awaited("element", "identifier", activated_identifier)
+            ):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": activated_identifier,
+                            "timeoutMs": 20000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
             if activated_identifier.startswith("Settings-category-"):
                 if settings_category == activated_identifier:
                     continue
@@ -1499,6 +1691,10 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             if not raw.startswith("Settings-"):
                 ensure_files_context()
             collect_fixture(raw, fixtures)
+            if "-grid-video-" in raw and not raw.startswith("Settings-"):
+                steps.extend(browser_card_steps(raw))
+                steps.append({"verb": "device.probe", "args": {"probe": raw}})
+                continue
             if form_flow and arguments.get("requireMatchedElement"):
                 steps.append(
                     {
@@ -2436,7 +2632,16 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
         for label in ((action.get("arguments") or {}).get("labels") or [])
         if "webdav" in str(label).lower()
     }
+    browser_remote = any(
+        str(action.get("operation", "")).startswith("operation:accessibility.inspect")
+        and str((action.get("arguments") or {}).get("identifier", "")).startswith(
+            "FileBrowsing-grid-video-"
+        )
+        for action in payload.get("operations", [])
+    )
     defaulted_source = remote_operations and not source_labels
+    if browser_remote and not source_labels:
+        source_labels = {"Enchron Regression WebDAV"}
     if defaulted_source:
         source_labels = {"Enchron Regression WebDAV"}
     if source_labels:
