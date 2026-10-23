@@ -29,6 +29,8 @@ The console is the only test entry in this repository. This skill covers changin
 
 `Scripts/console/merge_gate.py` runs the merge gate: CI, build and unit, classified against the declarations and override records main carries.
 
+`Scripts/console/ops.py` runs a single operation for debugging, records and replays debug sessions, and scaffolds a unit draft. It writes under `.scratch/console/debug/` and never under `TestEvidence`.
+
 `Scripts/console/build_tier.py` runs the build and unit tiers.
 
 `Scripts/console/daemon.py` holds the session, speaks the socket protocol, launches the runner, and recovers a dead runner.
@@ -368,6 +370,9 @@ The refactor is done when every line holds.
 - A build runs `console tier static --code-only` before Sources, and a forbidden comment fails that build.
 - A commit runs `console plan check` and `console tier static --changed-staged`; a push runs them against the pushed range. The changed paths decide whether the tooling self-tests run.
 - A merge into main runs `console merge check` from the `pre-merge-commit` hook; the merge commit message carries the gate status.
+- A failed `run` prints the failing step, the planned expectation, the actual detail, the evidence directory and a rerun command.
+- `console op` writes only under `.scratch/console/debug/`; `console replay` reports operations whose outcome changed.
+- `console unit scaffold` output parses as a unit and needs an assertion and a feature reference before it joins the unit set.
 - Green and yellow allow the merge, a valid override allows it and records itself, and red aborts it.
 - Declarations and override records are read from main; a record added by the branch is inert until it lands on main.
 - The yellow count against main may shrink and never grow. An expired declaration or override is inert.

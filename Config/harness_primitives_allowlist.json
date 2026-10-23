@@ -5,6 +5,7 @@
  "Scripts/console/engine.py",
  "Scripts/console/machine.py",
  "Scripts/console/merge_gate.py",
+ "Scripts/console/ops.py",
  "Scripts/console/static_tier.py",
  "Scripts/console/tests/test_console_compiler.py",
  "Scripts/console/tests/test_console_daemon.py",

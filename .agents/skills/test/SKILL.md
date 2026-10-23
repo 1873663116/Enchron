@@ -67,6 +67,14 @@ Declarations live in `Config/console/known-failures.md`; override records live i
 
 Red refuses the merge. The only way through is an override record on main naming the failure signature, with `approvedBy`, `approvedAt`, a reason and an expiry. Adding one needs human approval (需请示人类): an agent stops and asks a human; it does not write the record itself.
 
+## Debugging
+
+`console op VERB --args '{...}'` runs one operation and prints its result, duration and a short state summary. `--session NAME` records the operation, with its payload, under `.scratch/console/debug/NAME/`. A debugging operation never writes under `TestEvidence` and never enters the reuse index.
+
+`console replay NAME` runs the recorded sequence again and reports every operation whose outcome differs. `console unit scaffold NAME` writes a unit draft from the sequence. Complete the terminal assertion and add a feature-map reference before moving the draft into `Config/console/units`.
+
+A failed `console run` prints the failing step, the planned expectation, the actual detail, the evidence directory and the commands to rerun and inspect it. `console inspect UNIT` repeats that from the last run and ranks the slowest steps.
+
 ## The daemon
 
 `console daemon start` brings the resident process up and adopts a live runner if one exists. `console daemon status` answers. `console daemon stop` halts the session and removes the socket.
@@ -111,6 +119,8 @@ A unit without `terminal` is refused at load. The guardrails cannot tell an expe
 
 `console merge check` runs the merge gate: CI, build and unit, aggregated to green, yellow, override or red.
 
+`console op VERB --args '{...}'` runs one operation against the live session. `console replay NAME` runs a recorded sequence again. `console unit scaffold NAME` writes a unit draft from that sequence.
+
 ## One unit per call
 
 `run` accepts exactly one unit. A second unit is a usage error. There is no `--all` on `run`. Batches exist only in `plan check --all`, which compiles and reports without executing.
@@ -129,7 +139,7 @@ Exit codes. 0 passed. 1 terminal not met. 2 usage. 3 refused. 4 missing capabili
 
 Every run gets a directory under `TestEvidence/console/<unit>/<stamp>/`. It holds `plan.json`, `report.json` and `steps/`. `index.jsonl` appends one line per run.
 
-Nothing is deleted. A passing run can still be wrong, so its evidence stays.
+Nothing is deleted. A passing run can still be wrong, so its evidence stays. Only `console run` writes adjudicated evidence; operations, replays and drafts stay under `.scratch/console/debug/`.
 
 ## Changing units
 

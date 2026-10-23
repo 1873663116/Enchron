@@ -31,6 +31,16 @@ def plan_payload(plan: Plan) -> dict[str, Any]:
                 "verb": step.verb,
                 "args": step.args,
                 "evidence": step.evidence,
+                "expect": (
+                    {
+                        "path": step.expect.path,
+                        "equals": step.expect.equals,
+                        "contains": step.expect.contains,
+                    }
+                    if step.expect is not None
+                    else None
+                ),
+                "capture": step.capture,
             }
             for step in plan.steps
         ],
@@ -97,6 +107,49 @@ def render_diagnostics(findings: list[tuple[str, str, str]]) -> str:
     lines = [f"{len(findings)} finding(s)"]
     for unit, code, message in findings:
         lines.append(f"  {code}  {unit}  {message}")
+    return "\n".join(lines)
+
+
+def describe_expectation(path: str, equals: Any = None, contains: str | None = None) -> str:
+    if contains is not None:
+        return f"{path} contains {contains!r}"
+    return f"{path} equals {equals!r}"
+
+
+def failure_summary(report: Report, plan: Plan) -> str | None:
+    if report.verdict not in {"failed", "known"}:
+        return None
+    failing = next((step for step in report.steps if not step.ok), None)
+    terminal_failed = not report.terminal.ok
+    lines = [
+        f"failure  {report.unit}  verdict={report.verdict}  {report.duration_ms} ms",
+    ]
+    if failing is not None:
+        planned = next((step for step in plan.steps if step.index == failing.index), None)
+        lines.append(
+            f"  step      {failing.index:02d} {failing.verb}  {failing.duration_ms} ms"
+        )
+        if planned is not None and planned.expect is not None:
+            lines.append(
+                "  expected  "
+                + describe_expectation(
+                    planned.expect.path,
+                    planned.expect.equals,
+                    planned.expect.contains,
+                )
+            )
+        lines.append(f"  actual    {failing.detail}")
+        if planned is not None and planned.args:
+            lines.append(f"  args      {json.dumps(planned.args, sort_keys=True)}")
+    if terminal_failed:
+        lines.append(
+            f"  terminal  {report.terminal.kind} failed: {report.terminal.detail}"
+        )
+    lines.append(f"  evidence  {report.evidence_dir}")
+    lines.append(
+        f"  rerun     python3 Scripts/console/cli.py run {report.unit} --tier {report.tier}"
+    )
+    lines.append(f"  inspect   python3 Scripts/console/cli.py inspect {report.unit}")
     return "\n".join(lines)
 
 

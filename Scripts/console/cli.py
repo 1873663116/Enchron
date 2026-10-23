@@ -11,6 +11,7 @@ import engine
 import machine as machine_module
 from loader import LoadRefusal, load_units
 from model import TIER_ORDER
+import report as report_module
 from report import (
     EXIT_CAPABILITY,
     EXIT_ENGINE,
@@ -94,6 +95,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     merge = commands.add_parser("merge")
     merge.add_argument("action", choices=("check",))
+
+    op = commands.add_parser("op")
+    op.add_argument("verb")
+    op.add_argument("--args", default="{}")
+    op.add_argument("--session", default="")
+    op.add_argument("--timeout-scale", type=float, default=1.0, dest="timeout_scale")
+
+    replay = commands.add_parser("replay")
+    replay.add_argument("session")
+    replay.add_argument("--timeout-scale", type=float, default=1.0, dest="timeout_scale")
+
+    unit = commands.add_parser("unit")
+    unit_commands = unit.add_subparsers(dest="subcommand", required=True)
+    scaffold = unit_commands.add_parser("scaffold")
+    scaffold.add_argument("session")
+    scaffold.add_argument("--out", default="")
     return parser
 
 
@@ -133,6 +150,12 @@ def _dispatch(arguments, root, profile) -> int:
         return _tier(root, arguments, profile)
     if arguments.command == "merge":
         return _merge(root, arguments, profile)
+    if arguments.command == "op":
+        return _op(root, arguments, profile)
+    if arguments.command == "replay":
+        return _replay(root, arguments, profile)
+    if arguments.command == "unit":
+        return _unit(root, arguments, profile)
     return EXIT_USAGE
 
 
@@ -176,6 +199,70 @@ def _daemon(root: Path, arguments, profile) -> int:
 
 
 STARTS_ON_DEMAND = frozenset({"daemon"})
+
+
+def _op(root: Path, arguments, profile) -> int:
+    import ops
+
+    try:
+        args = ops.parse_arguments(arguments.args)
+        result = ops.run_operation(
+            root,
+            profile,
+            arguments.verb,
+            args,
+            session=arguments.session,
+            timeout_scale=arguments.timeout_scale,
+        )
+    except ops.OperationRefusal as refusal:
+        if arguments.as_json:
+            print(json.dumps({"ok": False, "message": str(refusal)}, indent=1))
+        else:
+            print(f"refused: {refusal}", file=sys.stderr)
+        return EXIT_USAGE
+    if arguments.as_json:
+        print(json.dumps(result, indent=1))
+    else:
+        print(ops.render_operation(result))
+    return EXIT_OK if result["ok"] else EXIT_TERMINAL
+
+
+def _replay(root: Path, arguments, profile) -> int:
+    import ops
+
+    try:
+        summary = ops.replay_session(
+            root, profile, arguments.session, arguments.timeout_scale
+        )
+    except ops.OperationRefusal as refusal:
+        if arguments.as_json:
+            print(json.dumps({"ok": False, "message": str(refusal)}, indent=1))
+        else:
+            print(f"refused: {refusal}", file=sys.stderr)
+        return EXIT_USAGE
+    if arguments.as_json:
+        print(json.dumps(summary, indent=1))
+    else:
+        print(ops.render_replay(summary))
+    return EXIT_OK if not summary["mismatched"] else EXIT_TERMINAL
+
+
+def _unit(root: Path, arguments, profile) -> int:
+    import ops
+
+    try:
+        summary = ops.scaffold_unit(root, arguments.session, arguments.out)
+    except ops.OperationRefusal as refusal:
+        if arguments.as_json:
+            print(json.dumps({"ok": False, "message": str(refusal)}, indent=1))
+        else:
+            print(f"refused: {refusal}", file=sys.stderr)
+        return EXIT_USAGE
+    if arguments.as_json:
+        print(json.dumps(summary, indent=1))
+    else:
+        print(ops.render_scaffold(summary))
+    return EXIT_OK
 
 
 def _merge(root: Path, arguments, profile) -> int:
@@ -482,6 +569,9 @@ def _run(root: Path, arguments, profile) -> int:
         print(json.dumps(engine_report(report), indent=1))
     else:
         print(render_report(report))
+        summary = report_module.failure_summary(report, plan)
+        if summary:
+            print(summary)
     return report.exit_code
 
 

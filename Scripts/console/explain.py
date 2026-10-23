@@ -61,7 +61,25 @@ def report(root: Path, unit: str, limit: int = 6) -> dict[str, Any]:
     step = failing[0]
     plan = json.loads((run / "plan.json").read_text(encoding="utf-8"))
     index = step["index"]
-    args = (plan.get("steps") or [{}])[index].get("args") or {}
+    planned = next(
+        (item for item in plan.get("steps") or [] if item.get("index") == index),
+        {},
+    )
+    args = planned.get("args") or {}
+    expectation = planned.get("expect") or {}
+    expected = ""
+    if expectation.get("contains") is not None:
+        expected = f"{expectation.get('path')} contains {expectation.get('contains')!r}"
+    elif expectation:
+        expected = f"{expectation.get('path')} equals {expectation.get('equals')!r}"
+    slowest = sorted(
+        (
+            {"index": item.get("index"), "verb": item.get("verb"), "durationMs": item.get("durationMs")}
+            for item in data.get("steps", [])
+        ),
+        key=lambda item: item["durationMs"] or 0,
+        reverse=True,
+    )[:3]
     wanted = (
         args.get("identifier")
         or args.get("probe")
@@ -84,10 +102,16 @@ def report(root: Path, unit: str, limit: int = 6) -> dict[str, Any]:
         "step": index,
         "verb": step["verb"],
         "detail": step["detail"],
+        "expected": expected,
         "wanted": wanted,
         "hierarchyStep": source,
         "identifiersSeen": len(shown),
         "candidates": [name for _, name in ranked],
+        "evidence": data.get("evidenceDir", ""),
+        "rerun": (
+            f"python3 Scripts/console/cli.py run {unit} --tier e2e"
+        ),
+        "slowest": slowest,
     }
 
 
@@ -102,6 +126,16 @@ def render(payload: dict[str, Any]) -> str:
         f"  detail  {payload['detail']}",
         f"  looked at step {payload['hierarchyStep']} with {payload['identifiersSeen']} identifier(s)",
     ]
+    if payload.get("expected"):
+        lines.append(f"  expected  {payload['expected']}")
     for name in payload["candidates"]:
         lines.append(f"    candidate  {name}")
+    for item in payload.get("slowest") or []:
+        lines.append(
+            f"    slowest  {item['index']:02d} {item['verb']}  {item['durationMs']} ms"
+        )
+    if payload.get("evidence"):
+        lines.append(f"  evidence  {payload['evidence']}")
+    if payload.get("rerun"):
+        lines.append(f"  rerun     {payload['rerun']}")
     return "\n".join(lines)

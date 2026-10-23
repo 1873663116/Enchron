@@ -551,7 +551,13 @@ def _dispatch_daemon(
         )
     elif step.verb == "device.snapshot":
         answer = _daemon_request(
-            root, {"op": "invoke", "action": "snapshot", "hierarchy": True}, target
+            root,
+            {
+                "op": "invoke",
+                "action": "snapshot",
+                "hierarchy": bool(step.args.get("hierarchy", True)),
+            },
+            target,
         )
     elif step.verb == "device.command":
         request: dict[str, Any] = {"op": "invoke"}
