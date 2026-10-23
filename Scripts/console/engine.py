@@ -1147,7 +1147,7 @@ def _run_source_facts(
         except json.JSONDecodeError:
             runtime_payload = {}
         fingerprint = str(runtime_payload.get("certificateFingerprint") or "")
-    if fingerprint:
+    if step.args.get("trust") is True and fingerprint:
         device = plan.target or _probe_target()
         _trust_certificate(device, address, fingerprint)
     credentials = _environment_credentials(root, provider)

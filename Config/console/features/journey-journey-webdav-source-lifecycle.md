@@ -5,6 +5,7 @@
   "id": "feature:journey.journey-webdav-source-lifecycle",
   "title": "Journey:Webdav Source Lifecycle",
   "units": [
+    "unit:catalog.scenario-webdav-source-lifecycle-webdav-add-source@1",
     "unit:catalog.scenario-webdav-source-lifecycle-webdav-open-through-loopback@1"
   ],
   "promises": []

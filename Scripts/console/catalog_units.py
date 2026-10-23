@@ -374,6 +374,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         break
     manual_source_flow = bool(fault_recipe)
     form_flow = bool(source_name_text) and not manual_source_flow
+    remote_flow = remote_flow or form_flow
     if manual_source_flow:
         name_text = source_name_text
         recipe = fault_recipe
@@ -569,6 +570,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             ):
                 fixtures.append(found)
             opened = open_identifier(identifier)
+            if form_flow and identifier.startswith("FileBrowsing-"):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": opened,
+                            "timeoutMs": int(arguments.get("deadlineSeconds", 45)) * 1000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
             if not identifier.startswith("FileBrowsing-"):
                 steps.append(
                     {
@@ -687,6 +701,18 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     for item in payload.get("operations", [])
                 )
 
+            if targets and str(targets[0]) in {"以后", "Later", "Not Now"}:
+                if activation_targets:
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {
+                                "action": "tapEach",
+                                "identifiers": activation_targets,
+                            },
+                        }
+                    )
+                continue
             if targets and targets[0].startswith(LIBRARY_ITEM_PREFIX) and reaches_emby():
                 if not library_opened:
                     steps.append(
@@ -811,6 +837,29 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     for item in (arguments.get("identifiers") or [arguments.get("identifier")])
                     if item
                 ]
+                if targets and targets[0].endswith("SourceConnection-webDAV-connect"):
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "element",
+                                "field": "identifier",
+                                "equals": targets[0],
+                                "timeoutMs": 30000,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {
+                                "action": "tapEach",
+                                "identifiers": targets,
+                            },
+                        }
+                    )
+                    continue
                 if not targets:
                     raise SystemExit(
                         f"{name} names neither identifiers nor a label in {payload.get('id')}"
@@ -1019,6 +1068,20 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             if not raw.startswith("Settings-"):
                 ensure_files_context()
             collect_fixture(raw, fixtures)
+            if form_flow and arguments.get("requireMatchedElement"):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": open_identifier(raw),
+                            "timeoutMs": int(arguments.get("deadlineSeconds", 45)) * 1000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+                continue
             if any(marker in raw for marker in ("loadFailure", "SourceConnection-")):
                 expected = open_identifier(raw)
                 field = "identifier"
@@ -1657,7 +1720,14 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
         and str((action.get("arguments") or {}).get("identifier", "")).startswith("FileBrowsing-")
         for action in payload.get("operations", [])
     )
-    remote_operations = remote_opened
+    form_scenario = any(
+        str(action.get("operation", "")).startswith("operation:accessibility.type")
+        and str((action.get("arguments") or {}).get("identifier", "")).endswith(
+            "webDAV-address"
+        )
+        for action in payload.get("operations", [])
+    )
+    remote_operations = remote_opened and not form_scenario
     source_labels = {
         str(label)
         for action in payload.get("operations", [])
@@ -1835,12 +1905,7 @@ def blocked(payload: dict[str, Any]) -> list[str]:
     return found
 
 
-FORM_FACTS = frozenset(
-    {
-        "scenario:webdav-source-lifecycle:webdav-add-source",
-        "scenario:webdav-source-lifecycle:certificate-trust-boundary",
-    }
-)
+FORM_FACTS: frozenset[str] = frozenset()
 
 STORAGE_CLEAR_ACTIONS = {
     "artwork-cache": "clear-artwork-cache",
@@ -1905,6 +1970,7 @@ VERIFIED_RESET_SCENARIOS = frozenset(
         "scenario:library-management:move-references",
         "scenario:local-media-lifecycle:clean-flat-playback-main-gate",
         "scenario:local-media-lifecycle:clean-start-position-zero",
+        "scenario:webdav-source-lifecycle:webdav-add-source",
     }
 )
 
