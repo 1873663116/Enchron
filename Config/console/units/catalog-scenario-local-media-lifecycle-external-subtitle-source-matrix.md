@@ -387,7 +387,17 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "local-sidecar",
+      "start": 6
+    },
+    {
+      "key": "webdav-sidecar",
+      "start": 20
+    }
+  ]
 }
 ---
 

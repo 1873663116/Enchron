@@ -125,6 +125,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -180,6 +187,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -232,6 +246,13 @@
           "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -290,7 +311,25 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "equirectangular-180",
+      "start": 5
+    },
+    {
+      "key": "equirectangular-360",
+      "start": 10
+    },
+    {
+      "key": "custom-angle-200",
+      "start": 17
+    },
+    {
+      "key": "custom-angle-240",
+      "start": 24
+    }
+  ]
 }
 ---
 

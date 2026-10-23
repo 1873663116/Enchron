@@ -149,6 +149,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -319,7 +328,13 @@
     "kind": "artifact",
     "path": "frames.json",
     "schema": "enchron.console.frames@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "default",
+      "start": 5
+    }
+  ]
 }
 ---
 

@@ -389,7 +389,17 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "seek",
+      "start": 4
+    },
+    {
+      "key": "window-docked-window",
+      "start": 20
+    }
+  ]
 }
 ---
 

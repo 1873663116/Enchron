@@ -124,41 +124,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-settings"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Settings-SettingsScreen",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Settings-category-storagePrivacy",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Settings-category-storagePrivacy",
-        "waitMilliseconds": 800
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "element",
@@ -192,23 +157,6 @@
         "field": "containerIndexEntryCount",
         "equals": "0",
         "timeoutMs": 30000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "FileBrowsing-FilesScreen",
-        "timeoutMs": 20000,
         "intervalMs": 400
       }
     },
@@ -322,6 +270,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -379,41 +336,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-settings"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Settings-SettingsScreen",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Settings-category-storagePrivacy",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Settings-category-storagePrivacy",
-        "waitMilliseconds": 800
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "element",
@@ -444,41 +366,6 @@
       "verb": "device.probe",
       "args": {
         "probe": "Settings-StoragePrivacy-group"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-settings"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Settings-SettingsScreen",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Settings-category-storagePrivacy",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Settings-category-storagePrivacy",
-        "waitMilliseconds": 800
       }
     },
     {
@@ -580,7 +467,13 @@
     "kind": "artifact",
     "path": "probe.json",
     "schema": "enchron.console.probe@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "default",
+      "start": 6
+    }
+  ]
 }
 ---
 

@@ -374,7 +374,13 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
         ]
         if media and not remote_flow:
-            produced.append({"verb": "device.home", "args": {}})
+            produced.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "resetState", "arguments": {"keepSession": "true"}},
+                }
+            )
+            produced.extend(import_actions())
             produced.append(
                 {
                     "verb": "device.app-command",
@@ -518,7 +524,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     in_settings = False
     issue_played = False
     issue_presented = False
-    skip_files_tab = False
+    ui_tab = "files"
+    settings_category: str | None = None
     cold_calls = cold_start_calls(str(payload.get("id", "")))
     staging_folder = slug(str(payload.get("id", "")))
     local_library_flow = any(
@@ -750,27 +757,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 menu_opened = False
                 folder_opened = False
                 rewound = True
-                following = (
-                    operations[operation_index + 1]
-                    if operation_index + 1 < len(operations)
-                    else {}
-                )
-                if str(following.get("operation", "")).startswith(
-                    "operation:navigation.select-tab"
-                ) and str((following.get("arguments") or {}).get("tab")) == "files":
-                    skip_files_tab = True
             else:
                 current_media = None
                 menu_opened = False
                 folder_opened = False
                 rewound = True
         elif name == "navigation.select-tab":
-            if skip_files_tab and str(arguments.get("tab")) == "files":
-                skip_files_tab = False
+            tab = str(arguments.get("tab"))
+            if tab == "settings" and ui_tab == "settings":
                 continue
-            if remote_flow and str(arguments.get("tab")) == "files":
+            ui_tab = tab
+            if tab != "settings":
+                settings_category = None
+            if remote_flow and tab == "files":
                 continue
-            if str(arguments["tab"]) == "emby" and not reset_emitted:
+            if tab == "emby" and not reset_emitted:
                 steps.append(
                     {
                         "verb": "device.app-command",
@@ -990,7 +991,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 )
         elif name == "playback.wait-position":
             minimum_millis = int(arguments.get("minimumPositionMillis", 0))
-            if minimum_millis >= 8000:
+            if minimum_millis >= 1000:
                 steps.append(
                     {
                         "verb": "device.app-command",
@@ -1466,6 +1467,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         )
                     steps.append({"verb": "device.command", "args": action_args})
         elif name in {"accessibility.activate", "accessibility.type"}:
+            activated_identifier = str(arguments.get("identifier") or "")
+            if activated_identifier.startswith("Settings-category-"):
+                if settings_category == activated_identifier:
+                    continue
+                settings_category = activated_identifier
             args: dict[str, Any] = {"action": "tap", "identifier": arguments.get("identifier")}
             gesture = str(arguments.get("gesture") or "")
             if gesture == "press":
@@ -2508,7 +2514,16 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
         if imports:
             actions = [action for action in actions if action not in imports]
             simplified[scenario_reset + 1 : scenario_reset + 1] = imports
+    segment_starts = [0] + [
+        position
+        for position, action in enumerate(simplified)
+        if position > 0 and begins_case(action)
+    ]
+    names = case_names(payload, segment_starts)
+    segment_index = {start: index for index, start in enumerate(segment_starts)}
+    simplified = dedupe_settings(dedupe_steps(simplified))
     chunks = split_steps(simplified)
+    preamble_length = len(actions)
     missing_fixtures = [
         str(action.get("arguments", {}).get("identifier", "")).split("-grid-video-")[-1]
         for action in payload.get("operations", [])
@@ -2523,8 +2538,28 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
     )
     pace = "scenario" if identifier in verified_scenarios() else "catalog"
     parts: list[dict[str, Any]] = []
+    chunk_offset = 0
     for position, chunk in enumerate(chunks, start=1):
         part_steps = list(chunk)
+        part_cases = []
+        for local_index in range(len(part_steps)):
+            simplified_index = chunk_offset + local_index
+            if local_index == 0 and simplified_index not in segment_index:
+                earlier = [start for start in segment_starts if start <= simplified_index]
+                owner = segment_index[earlier[-1]] if earlier else 0
+            elif simplified_index in segment_index:
+                owner = segment_index[simplified_index]
+            else:
+                continue
+            part_cases.append(
+                {
+                    "key": names[owner],
+                    "start": preamble_length + local_index,
+                }
+            )
+        if not part_cases and part_steps:
+            part_cases.append({"key": names[0], "start": preamble_length})
+        chunk_offset += len(part_steps)
         if part_steps and part_steps[-1]["verb"] not in EVIDENCE_VERBS:
             part_steps.append({"verb": "device.snapshot", "args": {}})
         suffix = "" if position == 1 else f".part{position}"
@@ -2547,6 +2582,7 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                 "actions": actions + part_steps,
                 "teardown": teardown,
                 "terminal": terminal_of(part_steps),
+                "cases": part_cases,
             }
         )
     return parts
@@ -2565,31 +2601,101 @@ CASE_COMMANDS = frozenset(
 )
 
 
+def begins_case(step: dict[str, Any]) -> bool:
+    if step["verb"] == "app.relaunch":
+        return True
+    if step["verb"] == "device.app-command":
+        return step["args"].get("verb") == "resetState"
+    if step["verb"] == "device.app-commands":
+        return any(
+            call.get("verb") == "resetState"
+            for call in step["args"].get("calls", [])
+        )
+    return False
+
+
+def dedupe_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    index = 0
+    while index < len(steps):
+        if index + 3 < len(steps):
+            first, second, third, fourth = steps[index : index + 4]
+            if (
+                first == third
+                and second == fourth
+                and first != second
+            ):
+                result.extend([first, second])
+                index += 4
+                continue
+        result.append(steps[index])
+        index += 1
+    return result
+
+
+def dedupe_settings(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    tab = "files"
+    category = ""
+    skip_awaits = False
+    for step in steps:
+        verb = step["verb"]
+        arguments = step.get("args") or {}
+        identifier = str(arguments.get("identifier") or "")
+        if skip_awaits and verb == "device.await":
+            expected = str(arguments.get("equals") or "")
+            if expected in {"Settings-SettingsScreen", "Settings-category-storagePrivacy"}:
+                continue
+            skip_awaits = False
+        elif verb != "device.await":
+            skip_awaits = False
+        if verb == "device.home" or verb == "app.relaunch":
+            tab = "files"
+            category = ""
+            result.append(step)
+            continue
+        if verb == "device.command" and identifier == "Navigation-Ornament-tab-settings":
+            if tab == "settings":
+                skip_awaits = True
+                continue
+            tab = "settings"
+            category = ""
+            result.append(step)
+            continue
+        if verb == "device.command" and identifier.startswith("Navigation-Ornament-tab-"):
+            tab = identifier.removeprefix("Navigation-Ornament-tab-")
+            category = ""
+            result.append(step)
+            continue
+        if verb == "device.command" and identifier.startswith("Settings-category-"):
+            if tab == "settings" and category == identifier:
+                continue
+            category = identifier
+            result.append(step)
+            continue
+        result.append(step)
+    return result
+
+
 def split_steps(steps: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     chunks: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     for position, step in enumerate(steps):
-        begins_case = position > 0 and (
-            step["verb"] == "app.relaunch"
-            or (
-                step["verb"] == "device.app-command"
-                and step["args"].get("verb") == "resetState"
-            )
-            or (
-                step["verb"] == "device.app-commands"
-                and any(
-                    call.get("verb") == "resetState"
-                    for call in step["args"].get("calls", [])
-                )
-            )
-        )
-        if begins_case and current and len(current) + 4 > MAX_PART_STEPS:
+        starts_case = position > 0 and begins_case(step)
+        if starts_case and current and len(current) + 4 > MAX_PART_STEPS:
             chunks.append(current)
             current = []
         current.append(step)
     if current:
         chunks.append(current)
     return chunks
+
+
+def case_names(payload: dict[str, Any], starts: list[int]) -> list[str]:
+    declared = [str(item) for item in payload.get("staticCases") or []]
+    if len(declared) == len(starts):
+        return declared
+    return [f"case-{position}" for position in range(1, len(starts) + 1)]
 
 
 EVIDENCE_FALLBACK = {

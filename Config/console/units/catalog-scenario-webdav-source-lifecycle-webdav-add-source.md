@@ -200,7 +200,21 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "case-1",
+      "start": 3
+    },
+    {
+      "key": "case-2",
+      "start": 4
+    },
+    {
+      "key": "case-3",
+      "start": 6
+    }
+  ]
 }
 ---
 

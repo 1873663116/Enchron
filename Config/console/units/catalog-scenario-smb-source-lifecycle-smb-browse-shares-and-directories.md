@@ -98,7 +98,13 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "default",
+      "start": 5
+    }
+  ]
 }
 ---
 

@@ -58,6 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     run = commands.add_parser("run")
     run.add_argument("unit")
     run.add_argument("--tier", default="e2e")
+    run.add_argument("--case", default="")
     run.add_argument("--timeout-scale", type=float, default=1.0, dest="timeout_scale")
     run.add_argument("--reuse", action="store_true")
     run.add_argument("--assume", action="append", default=[], dest="assume")
@@ -445,13 +446,18 @@ def _list(root: Path, arguments, profile) -> int:
                 "layer": unit.layer,
                 "requires": sorted(unit.requires),
                 "role": unit.role,
+                "cases": [case["key"] for case in unit.cases],
             }
         )
     if arguments.as_json:
         print(json.dumps({"units": rows, "count": len(rows)}, indent=1))
     else:
         for row in rows:
-            print(f"{row['unit']}  layer={row['layer']}  {', '.join(row['requires']) or 'none'}")
+            cases = f"  cases={len(row['cases'])}" if row["cases"] else ""
+            print(
+                f"{row['unit']}  layer={row['layer']}  "
+                f"{', '.join(row['requires']) or 'none'}{cases}"
+            )
         print(f"{len(rows)} unit(s)")
     return EXIT_OK
 
@@ -524,6 +530,13 @@ def _run(root: Path, arguments, profile) -> int:
             )
     if plan is None:
         return _refuse_many(arguments.unit, errors, arguments.as_json)
+    case_key = str(getattr(arguments, "case", ""))
+    if case_key:
+        subset, refusal = compiler_module.case_plan(plan, unit, case_key)
+        if subset is None:
+            print(refusal, file=sys.stderr)
+            return EXIT_USAGE
+        plan = subset
     import reuse as reuse_module
 
     current_product = reuse_module.product_digest(root)

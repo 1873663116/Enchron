@@ -97,7 +97,37 @@ def parse_unit(metadata: dict[str, Any], source: str) -> Unit:
         teardown=tuple(metadata.get("teardown") or ()),
         isolation=str(metadata.get("isolation") or ""),
         pace=parse_pace(metadata.get("pace"), identifier, source),
+        cases=parse_cases(metadata.get("cases"), identifier, source),
     )
+
+
+def parse_cases(
+    payload: object, identifier: str, source: str
+) -> tuple[dict[str, Any], ...]:
+    if payload is None:
+        return ()
+    if not isinstance(payload, list):
+        raise LoadRefusal("C019", f"unit {identifier} has malformed cases", source)
+    cases: list[dict[str, Any]] = []
+    previous = -1
+    for entry in payload:
+        if (
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("key"), str)
+            or not entry.get("key")
+            or not isinstance(entry.get("start"), int)
+            or entry["start"] < 0
+        ):
+            raise LoadRefusal(
+                "C019", f"unit {identifier} has a malformed case entry", source
+            )
+        if entry["start"] <= previous:
+            raise LoadRefusal(
+                "C019", f"unit {identifier} case starts are not ascending", source
+            )
+        previous = entry["start"]
+        cases.append({"key": entry["key"], "start": entry["start"]})
+    return tuple(cases)
 
 
 def parse_pace(payload: object, identifier: str, source: str) -> str:

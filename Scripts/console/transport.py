@@ -29,6 +29,7 @@ DEFERRED_APP_COMMAND_ROOT = "Documents/test-commands"
 APP_RESPONSE_ROOT = "Documents/test-responses"
 APP_REQUEST_SLOT_POLL_INTERVAL_SECONDS = 0.5
 DEFERRED_COMMAND_SLOT_HOLD_SECONDS = 1.5 * APP_REQUEST_SLOT_POLL_INTERVAL_SECONDS
+APP_COMMAND_RESPONSE_POLL_SECONDS = 0.02
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
 SCRIPTS_ROOT = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_ROOT) not in sys.path:
@@ -1118,7 +1119,15 @@ def relaunch_by_simctl(device: str) -> dict[str, object]:
     }
 
 
+APP_AWAKE_REVALIDATE_SECONDS = 15.0
+_AWAKE_APPS: dict[tuple[str, str], float] = {}
+
+
 def ensure_app_awake(device: str, bundle_id: str) -> None:
+    key = (device, bundle_id)
+    now = time.monotonic()
+    if now - _AWAKE_APPS.get(key, 0.0) < APP_AWAKE_REVALIDATE_SECONDS:
+        return
     if is_simulator(device):
         environment = dict(os.environ)
         for name, value in APP_CHANNEL_ENVIRONMENT.items():
@@ -1130,6 +1139,7 @@ def ensure_app_awake(device: str, bundle_id: str) -> None:
             capture_output=True,
             env=environment,
         )
+        _AWAKE_APPS[key] = time.monotonic()
         return
     run_devicectl(
         [
@@ -1142,6 +1152,7 @@ def ensure_app_awake(device: str, bundle_id: str) -> None:
             "--terminate-existing",
         ]
     )
+    _AWAKE_APPS[key] = time.monotonic()
 
 
 def app_command(arguments: argparse.Namespace) -> dict[str, object]:
@@ -1209,7 +1220,7 @@ def app_command(arguments: argparse.Namespace) -> dict[str, object]:
                     ),
                     "id": command_id,
                 }
-            time.sleep(1.0)
+            time.sleep(APP_COMMAND_RESPONSE_POLL_SECONDS)
 
         response = json.loads(response_path.read_text(encoding="utf-8"))
         if not isinstance(response, dict):

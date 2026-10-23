@@ -84,6 +84,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -134,7 +141,13 @@
     "kind": "artifact",
     "path": "frames.json",
     "schema": "enchron.console.frames@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "dv-profile-10",
+      "start": 5
+    }
+  ]
 }
 ---
 

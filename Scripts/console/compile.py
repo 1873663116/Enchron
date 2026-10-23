@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
@@ -13,6 +14,7 @@ from model import (
     MachineProfile,
     Plan,
     Step,
+    Terminal,
     Unit,
     TIER_ORDER,
 )
@@ -376,6 +378,48 @@ def compile_unit(
     compiler = Compiler(root)
     plan, errors = compiler.compile(unit, tier, machine)
     return plan, errors, unit
+
+
+def case_plan(
+    plan: Plan, unit: Unit, key: str
+) -> tuple[Plan | None, str]:
+    cases = list(unit.cases)
+    if not cases:
+        return None, f"{unit.identifier} records no case boundaries"
+    names = [case["key"] for case in cases]
+    if key not in names:
+        return None, (
+            f"{unit.identifier} has no case {key!r}; the cases are "
+            + ", ".join(names)
+        )
+    index = names.index(key)
+    offset = len(plan.steps) - len(unit.actions)
+    if offset < 0:
+        return None, f"{unit.identifier} compiles fewer steps than it declares"
+    start = offset + cases[index]["start"]
+    end = offset + (
+        cases[index + 1]["start"] if index + 1 < len(cases) else len(unit.actions)
+    )
+    preamble = offset + cases[0]["start"]
+    steps = plan.steps[:preamble] + plan.steps[start:end]
+    terminal = None
+    for step in reversed(steps):
+        verb = VERBS.get(step.verb)
+        if verb is not None and verb.evidence:
+            terminal = Terminal(kind="artifact", path=verb.evidence, equals=None, schema=None)
+            break
+    if terminal is None:
+        terminal = Terminal(kind="exit", path=None, equals=0, schema=None)
+    return (
+        dataclasses.replace(
+            plan,
+            unit=f"{plan.unit}#{key}",
+            steps=steps,
+            terminal=terminal,
+            digest=digest_of({"plan": plan.digest, "case": key}),
+        ),
+        "",
+    )
 
 
 def natural_tier(unit: Unit) -> str:

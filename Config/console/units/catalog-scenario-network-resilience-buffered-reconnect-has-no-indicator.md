@@ -81,6 +81,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -100,12 +109,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.92"
-        }
+        "calls": [
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.92"
+            }
+          },
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.1"
+            }
+          }
+        ]
       }
     },
     {
@@ -208,6 +227,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -227,12 +255,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.92"
-        }
+        "calls": [
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.92"
+            }
+          },
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.1"
+            }
+          }
+        ]
       }
     },
     {
@@ -288,7 +326,17 @@
     "kind": "artifact",
     "path": "frames.json",
     "schema": "enchron.console.frames@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "paired-control",
+      "start": 4
+    },
+    {
+      "key": "buffer-absorbed-interruption",
+      "start": 17
+    }
+  ]
 }
 ---
 

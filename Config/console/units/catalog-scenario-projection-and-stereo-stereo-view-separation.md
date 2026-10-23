@@ -125,6 +125,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -180,6 +187,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -230,7 +244,21 @@
     "kind": "artifact",
     "path": "frames.json",
     "schema": "enchron.console.frames@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "side-by-side",
+      "start": 5
+    },
+    {
+      "key": "top-bottom",
+      "start": 10
+    },
+    {
+      "key": "mv-hevc-two-view",
+      "start": 17
+    }
+  ]
 }
 ---
 

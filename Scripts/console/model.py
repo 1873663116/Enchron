@@ -75,6 +75,7 @@ class Unit:
     teardown: tuple[dict[str, Any], ...] = ()
     isolation: str = ""
     pace: str = "fast"
+    cases: tuple[dict[str, Any], ...] = ()
 
 
 @dataclass(frozen=True)

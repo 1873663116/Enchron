@@ -189,7 +189,17 @@
     "kind": "artifact",
     "path": "probe.json",
     "schema": "enchron.console.probe@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "case-1",
+      "start": 3
+    },
+    {
+      "key": "case-2",
+      "start": 14
+    }
+  ]
 }
 ---
 

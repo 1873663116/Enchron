@@ -380,7 +380,17 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "window-portal-window",
+      "start": 4
+    },
+    {
+      "key": "format-replacement",
+      "start": 24
+    }
+  ]
 }
 ---
 

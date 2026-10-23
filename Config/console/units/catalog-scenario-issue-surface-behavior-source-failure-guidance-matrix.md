@@ -71,19 +71,10 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.command",
       "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -103,6 +94,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "leavePlayback",
@@ -116,6 +114,36 @@
         "arguments": {
           "keepSession": "true"
         }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -136,7 +164,29 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "case-1",
+      "start": 3
+    },
+    {
+      "key": "case-2",
+      "start": 5
+    },
+    {
+      "key": "case-3",
+      "start": 8
+    },
+    {
+      "key": "case-4",
+      "start": 11
+    },
+    {
+      "key": "case-5",
+      "start": 14
+    }
+  ]
 }
 ---
 

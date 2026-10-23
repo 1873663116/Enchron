@@ -126,6 +126,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -180,6 +187,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -231,6 +245,13 @@
           "directory": "scenario-dynamic-range-interpretation-dolby-vision-profile-matrix",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -295,7 +316,25 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "dv-profile-5",
+      "start": 5
+    },
+    {
+      "key": "dv-profile-7-dual",
+      "start": 10
+    },
+    {
+      "key": "dv-profile-8-hdr10",
+      "start": 17
+    },
+    {
+      "key": "dv-profile-8-hlg",
+      "start": 24
+    }
+  ]
 }
 ---
 

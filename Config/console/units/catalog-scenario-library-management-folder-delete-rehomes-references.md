@@ -159,23 +159,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "label",
-        "equals": "Remove from Library",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "Remove from Library"
-      }
-    },
-    {
       "verb": "device.snapshot",
       "args": {}
     }
@@ -202,7 +185,13 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "default",
+      "start": 4
+    }
+  ]
 }
 ---
 

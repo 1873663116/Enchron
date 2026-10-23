@@ -69,7 +69,7 @@ Red refuses the merge. The only way through is an override record on main naming
 
 ## Generated units
 
-A generated catalog unit establishes each case with product commands instead of a relaunch: `leavePlayback`, `resetState`, re-import of the staged media and `playMedia`. A relaunch stays only where `Config/console/cold-start-cases.json` declares that the claim needs a cold start. `python3 Scripts/console/catalog_units.py --restarts` prints every declaration.
+A generated catalog unit establishes each case with product commands instead of a relaunch: `leavePlayback`, `resetState`, re-import of the staged media and `playMedia`. A relaunch stays only where `Config/console/cold-start-cases.json` declares that the claim needs a cold start. `python3 Scripts/console/catalog_units.py --restarts` prints every declaration. A unit that records more than one case carries its case keys and starts; a case run is the reproducible form of a failed catalog case.
 
 ## Debugging
 
@@ -117,7 +117,7 @@ A unit without `terminal` is refused at load. The guardrails cannot tell an expe
 
 `console plan show UNIT --tier e2e` prints one compiled plan with its digest.
 
-`console run UNIT --tier e2e` runs one unit and writes evidence.
+`console run UNIT --tier e2e` runs one unit and writes evidence. `console run UNIT --case KEY --tier e2e` keeps the unit setup and runs one recorded case; `console list` prints the case count of each unit.
 
 `console tier static` runs the checkers. `--event commit|push|pr|merge` selects the comparison base for that CI trigger; `--changed-staged`, `--changed-since` and `--changed-list` accept a scope directly.
 

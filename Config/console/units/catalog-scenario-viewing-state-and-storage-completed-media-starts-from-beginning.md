@@ -259,7 +259,13 @@
     "kind": "artifact",
     "path": "probe.json",
     "schema": "enchron.console.probe@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "default",
+      "start": 5
+    }
+  ]
 }
 ---
 

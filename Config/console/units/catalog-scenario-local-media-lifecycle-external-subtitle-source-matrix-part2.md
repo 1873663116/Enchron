@@ -280,7 +280,13 @@
     "kind": "artifact",
     "path": "frames.json",
     "schema": "enchron.console.frames@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "emby-external-stream",
+      "start": 6
+    }
+  ]
 }
 ---
 

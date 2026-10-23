@@ -103,8 +103,23 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-presentation-tour-format-editor-hosts-window-and-portal",
+          "entry": "root"
+        }
+      }
     },
     {
       "verb": "device.app-command",
@@ -161,6 +176,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -196,8 +218,23 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-presentation-tour-format-editor-hosts-window-and-portal",
+          "entry": "root"
+        }
+      }
     },
     {
       "verb": "device.app-command",
@@ -247,7 +284,25 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "case-1",
+      "start": 5
+    },
+    {
+      "key": "case-2",
+      "start": 10
+    },
+    {
+      "key": "case-3",
+      "start": 16
+    },
+    {
+      "key": "case-4",
+      "start": 23
+    }
+  ]
 }
 ---
 

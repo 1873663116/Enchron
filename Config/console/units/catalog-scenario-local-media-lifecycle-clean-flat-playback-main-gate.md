@@ -149,7 +149,17 @@
     "kind": "artifact",
     "path": "frames.json",
     "schema": "enchron.console.frames@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "case-1",
+      "start": 4
+    },
+    {
+      "key": "case-2",
+      "start": 5
+    }
+  ]
 }
 ---
 

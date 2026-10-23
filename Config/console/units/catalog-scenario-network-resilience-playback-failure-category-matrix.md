@@ -79,6 +79,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -138,10 +147,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "clearPlaybackIssue",
-        "arguments": {}
+        "calls": [
+          {
+            "verb": "clearPlaybackIssue",
+            "arguments": {}
+          },
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.1"
+            }
+          }
+        ]
       }
     },
     {
@@ -227,6 +246,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -286,10 +314,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "clearPlaybackIssue",
-        "arguments": {}
+        "calls": [
+          {
+            "verb": "clearPlaybackIssue",
+            "arguments": {}
+          },
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.1"
+            }
+          }
+        ]
       }
     },
     {
@@ -341,7 +379,17 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "connection-interrupted",
+      "start": 4
+    },
+    {
+      "key": "file-missing",
+      "start": 20
+    }
+  ]
 }
 ---
 

@@ -129,6 +129,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -184,6 +191,13 @@
           "directory": "scenario-presentation-tour-initial-presentation-routing",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -300,7 +314,25 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "case-1",
+      "start": 5
+    },
+    {
+      "key": "case-2",
+      "start": 11
+    },
+    {
+      "key": "case-3",
+      "start": 19
+    },
+    {
+      "key": "case-4",
+      "start": 26
+    }
+  ]
 }
 ---
 

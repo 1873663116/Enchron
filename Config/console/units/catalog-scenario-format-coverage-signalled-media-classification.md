@@ -121,6 +121,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -169,7 +176,17 @@
     "kind": "artifact",
     "path": "frames.json",
     "schema": "enchron.console.frames@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "apple-apmp-180",
+      "start": 5
+    },
+    {
+      "key": "mv-hevc-stereo",
+      "start": 10
+    }
+  ]
 }
 ---
 

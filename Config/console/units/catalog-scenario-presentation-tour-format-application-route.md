@@ -150,6 +150,13 @@
       }
     },
     {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "playMedia",
@@ -246,7 +253,17 @@
     "kind": "artifact",
     "path": "hierarchy.json",
     "schema": "enchron.console.hierarchy@1"
-  }
+  },
+  "cases": [
+    {
+      "key": "panoramic-to-portal",
+      "start": 5
+    },
+    {
+      "key": "flat-to-window",
+      "start": 11
+    }
+  ]
 }
 ---
 

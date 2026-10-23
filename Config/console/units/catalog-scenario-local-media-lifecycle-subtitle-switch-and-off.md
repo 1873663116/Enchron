@@ -132,8 +132,23 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-local-media-lifecycle-subtitle-switch-and-off",
+          "entry": "root"
+        }
+      }
     },
     {
       "verb": "device.app-command",
@@ -200,8 +215,23 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-local-media-lifecycle-subtitle-switch-and-off",
+          "entry": "root"
+        }
+      }
     },
     {
       "verb": "device.app-command",
@@ -268,56 +298,8 @@
       }
     },
     {
-      "verb": "device.home",
+      "verb": "device.snapshot",
       "args": {}
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "playMedia",
-        "arguments": {
-          "name": "sdr-bframe-multiaudio-subtitles-30s.mkv"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-subtitles",
-          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
-        ]
-      }
-    },
-    {
-      "verb": "device.capture-frames",
-      "args": {
-        "count": 1,
-        "intervalMs": 1000
-      }
     }
   ],
   "teardown": [
@@ -340,9 +322,23 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "frames.json",
-    "schema": "enchron.console.frames@1"
-  }
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
+  },
+  "cases": [
+    {
+      "key": "embedded-text",
+      "start": 5
+    },
+    {
+      "key": "embedded-bitmap",
+      "start": 13
+    },
+    {
+      "key": "off",
+      "start": 22
+    }
+  ]
 }
 ---
 
