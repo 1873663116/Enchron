@@ -41,7 +41,7 @@ For `diagnostic-bypass`, read or verify infrastructure state without assigning p
 
 ## Map namespaces to drivers
 
-`harness` and `app` calls use the shared controller lifecycle and application command channel. `navigation`, `accessibility`, `menu`, `media`, `playback`, `presentation`, `format`, `tracks`, `library`, `settings`, `cache`, and `issue` calls use the matching feature sequence and controller action. `input.device-hub-pinch` uses the Simulator Device Hub driver. `diagnostics` and `evidence` calls use the state and capture channels in the vp-e2e references. `host` calls use the named preflight or source probe and must return a receipt before any restore call. `source` calls combine the product browse route with the matching source preflight.
+`harness` and `app` calls use the shared controller lifecycle and application command channel. `navigation`, `accessibility`, `menu`, `media`, `playback`, `presentation`, `format`, `tracks`, `library`, `settings`, `cache`, and `issue` calls use the matching feature sequence and controller action. `input.device-hub-pinch` and `input.device-hub-prepare` deliver Simulator Device Hub gaze and pinch; the XCUITest lane cannot synthesize it, so those Scenarios carry no end-to-end unit. `diagnostics` and `evidence` calls use the state and capture channels in the vp-e2e references. `host` calls use the named preflight or source probe and must return a receipt before any restore call. `source` calls combine the product browse route with the matching source preflight.
 
 ## Preserve the evidence boundary
 

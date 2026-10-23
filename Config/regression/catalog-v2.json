@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:6d74ad625bd8b4b69415fbf31ea809f1dadc120ae4a3489300875d2c05797c96",
+  "contentDigest": "sha256:0593de9d4b3bc633b80138f25a082d26c5ce6494cb4640e74b1ca36bbf3fcf5c",
   "copyDocuments": [
     {
       "digest": "sha256:26774c4d658658d5141afd7cfcdaed01ce2244a2b5462bd2b3c860254b01917e",
@@ -22,7 +22,7 @@
       "path": "agent-operability-review-protocol.md"
     },
     {
-      "digest": "sha256:09eb6cc39dc3d5bf257fa11f165944d2bc405a7b07ef4047b873d987c2098229",
+      "digest": "sha256:42a7eb3283cdae73b0f9802853cbf9975aef523c7f0360e95f5ec72f8e77e8ef",
       "path": "execution-protocol.md"
     },
     {
