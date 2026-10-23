@@ -549,6 +549,26 @@ def _await_matches(observed: dict[str, str], field: str, expected: Any, mode: st
     return value == expected
 
 
+def _wait_for_hierarchy(root: Path, target: str, seconds: float = 15.0) -> None:
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        answer = _daemon_request(
+            root,
+            {
+                "op": "invoke",
+                "action": "snapshot",
+                "hierarchy": True,
+                "no_screenshot": True,
+            },
+            target,
+        )
+        payload = (answer.get("value") or {}).get("payload") or {}
+        hierarchy = payload.get("hierarchy")
+        if isinstance(hierarchy, str) and len(hierarchy) > 200:
+            return
+        time.sleep(0.25)
+
+
 def _clear_session_state(root: Path, target: str) -> None:
     try:
         _daemon_request(
@@ -882,6 +902,8 @@ def _dispatch_daemon(
                 }
     elif step.verb == "app.relaunch":
         answer = _daemon_request(root, {"op": "invoke", "action": "relaunch"}, target)
+        if answer.get("kind") == "result" and answer.get("value", {}).get("ok"):
+            _wait_for_hierarchy(root, target)
     else:
         return None, True, f"{step.verb} has no daemon dispatch"
     if answer.get("kind") != "result":
