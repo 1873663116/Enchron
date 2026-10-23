@@ -89,32 +89,24 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-2"
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "audio",
+              "target": "2"
+            }
+          }
         ]
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
       }
     },
     {
@@ -245,32 +237,24 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-2"
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "audio",
+              "target": "2"
+            }
+          }
         ]
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
       }
     },
     {
@@ -392,7 +376,7 @@
     },
     {
       "key": "window-docked-window",
-      "start": 20
+      "start": 18
     }
   ]
 }

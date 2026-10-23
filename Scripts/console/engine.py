@@ -60,6 +60,8 @@ def run_plan(
         verdict = "precondition"
         exit_code = EXIT_TERMINAL
     facts: dict[str, str] = {}
+    if not unmet and plan.transport == "daemon" and plan.target:
+        _clear_session_state(root, plan.target)
     for step in plan.steps if not unmet else ():
         resolved = dataclasses.replace(step, args=_fill(step.args, facts))
         outcome, hit = _run_step(resolved, plan, root, supervisor, steps_directory, budget_scale)
@@ -545,6 +547,31 @@ def _await_matches(observed: dict[str, str], field: str, expected: Any, mode: st
     if mode == "differs":
         return value is not None and value != str(expected)
     return value == expected
+
+
+def _clear_session_state(root: Path, target: str) -> None:
+    try:
+        _daemon_request(
+            root,
+            {
+                "op": "invoke",
+                "action": "app-command",
+                "verb": "batch",
+                "arguments": {
+                    "calls": json.dumps(
+                        [
+                            {"verb": "leavePlayback", "arguments": {}},
+                            {"verb": "exitSpatial", "arguments": {}},
+                            {"verb": "resetMediaNavigation", "arguments": {}},
+                        ]
+                    )
+                },
+            },
+            target,
+            timeout=60,
+        )
+    except OSError:
+        pass
 
 
 def _dispatch_daemon(

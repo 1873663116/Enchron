@@ -124,32 +124,24 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-2"
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "audio",
+              "target": "2"
+            }
+          }
         ]
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
       }
     },
     {
@@ -243,23 +235,114 @@
       }
     },
     {
+      "verb": "device.app-commands",
+      "args": {
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "audio",
+              "target": "3"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
+    },
+    {
       "verb": "device.app-command",
       "args": {
-        "verb": "toggleControls",
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
         "arguments": {
-          "visible": "true"
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-format-coverage-audio-delivery-codec-matrix",
+          "entry": "root"
         }
       }
     },
     {
       "verb": "device.command",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-3"
-        ]
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "playMedia",
+        "arguments": {
+          "name": "dts_es.mkv"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "dts_es.mkv"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "position",
+        "equals": 0.1,
+        "mode": "atLeast",
+        "timeoutMs": 45000,
+        "intervalMs": 400
       }
     },
     {
@@ -317,7 +400,11 @@
     },
     {
       "key": "eac3-joc",
-      "start": 16
+      "start": 14
+    },
+    {
+      "key": "dts",
+      "start": 25
     }
   ]
 }

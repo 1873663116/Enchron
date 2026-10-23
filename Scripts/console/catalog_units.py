@@ -1500,6 +1500,45 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     raise SystemExit(
                         f"{name} names neither identifiers nor a label in {payload.get('id')}"
                     )
+                for prefix, host in (
+                    ("PlayerUI-menu-", "playerUI"),
+                    ("PlayerPanel-menu-", "playerPanel"),
+                ):
+                    leaf = next(
+                        (
+                            item
+                            for item in reversed(targets)
+                            if item.startswith(prefix)
+                            and not item.endswith(
+                                ("-subtitles", "-audio", "-speed", "-episodes", "-more")
+                            )
+                        ),
+                        None,
+                    )
+                    if leaf is None:
+                        continue
+                    remainder = leaf[len(prefix) :]
+                    family, _, target = remainder.partition("-")
+                    if family not in {"subtitles", "audio", "speed", "episodes"} or not target:
+                        continue
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "selectMenuItem",
+                                "arguments": {
+                                    "host": host,
+                                    "family": family,
+                                    "target": target,
+                                },
+                            },
+                        }
+                    )
+                    break
+                else:
+                    leaf = None
+                if leaf is not None:
+                    continue
                 if targets == ["PlayerUI-VideoFormat-cancel"]:
                     continue
                 if targets[0].startswith("MediaLibrary-") or targets[0] == "FileBrowsing-Manage-button":
@@ -2568,7 +2607,35 @@ def collect_fixture(
 
 def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
     collapsed: list[dict[str, Any]] = []
+    menu_roots = {"PlayerUI-menu-subtitles", "PlayerUI-menu-audio", "PlayerUI-menu-speed"}
     for position, action in enumerate(actions):
+        if action["verb"] == "device.command" and action["args"].get("action") == "tapEach":
+            chain = [str(item) for item in action["args"].get("identifiers") or ()]
+            if (
+                len(chain) >= 3
+                and chain[-1].startswith("PlayerUI-menu-")
+                and chain[-1] not in menu_roots
+            ):
+                collapsed.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tapEach",
+                            "identifiers": chain[:-1],
+                        },
+                    }
+                )
+                collapsed.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": chain[-1],
+                            "waitMilliseconds": 1200,
+                        },
+                    }
+                )
+                continue
         last = position == len(actions) - 1
         if collapsed:
             previous = collapsed[-1]

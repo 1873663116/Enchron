@@ -110,22 +110,23 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-subtitles",
-          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "subtitles",
+              "target": "ffmpeg.subtitle.3"
+            }
+          }
         ]
       }
     },
@@ -137,22 +138,23 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-subtitles",
-          "PlayerUI-menu-subtitles-ffmpeg.subtitle.5"
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "subtitles",
+              "target": "ffmpeg.subtitle.5"
+            }
+          }
         ]
       }
     },
@@ -164,22 +166,23 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-subtitles",
-          "PlayerUI-menu-subtitles-off"
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "subtitles",
+              "target": "off"
+            }
+          }
         ]
       }
     },
@@ -191,22 +194,23 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-subtitles",
-          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
+        "calls": [
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "playerUI",
+              "family": "subtitles",
+              "target": "ffmpeg.subtitle.3"
+            }
+          }
         ]
       }
     },
