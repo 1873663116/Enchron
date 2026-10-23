@@ -766,7 +766,7 @@ struct PlaybackDockMenuContent: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-DockMenu")
         .onAppear {
-            EnvironmentSceneMapping.prefetch([.quietRoom, cardEnvironment])
+            EnvironmentSceneMapping.prefetch([.quietRoom, cardEnvironment], owner: .views)
         }
     }
 

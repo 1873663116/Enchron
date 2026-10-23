@@ -386,13 +386,13 @@ struct EnvironmentCardCarousel: View {
         .onAppear(perform: centerDefaultEnvironment)
         .onChange(of: prefetchEnvironment, initial: true) { _, environment in
             guard activeEnvironment == nil else { return }
-            EnvironmentSceneMapping.prefetch(environment.map { [$0] } ?? [])
+            EnvironmentSceneMapping.prefetch(environment.map { [$0] } ?? [], owner: .views)
         }
         .onDisappear {
-            if activeEnvironment == nil { EnvironmentSceneMapping.prefetch([]) }
+            if activeEnvironment == nil { EnvironmentSceneMapping.prefetch([], owner: .views) }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
-            EnvironmentSceneMapping.prefetch([])
+            EnvironmentSceneMapping.prefetch([], owner: .views)
         }
         .onChange(of: centeredEnvironment, initial: true) { _, environment in
             onCenterChange(environment)

@@ -34,12 +34,12 @@ final class TidalEnvironmentRuntime {
         init(entity: Entity, index: Int, material: ShaderGraphMaterial) {
             self.entity = entity
             self.index = index
-            var names: [String] = []
-            if material.parameterNames.contains("GlassOpacity") {
-                names = ["LampSpecularGain", "EdgeHighlightGain", "SkyReflectionGain"]
-            } else if material.parameterNames.contains("GlassTintStrength") {
-                names = ["HighlightStrength", "EnvironmentReflectionGain"]
-            }
+            let dimsHighlights = material.parameterNames.contains("GlassOpacity")
+                || material.parameterNames.contains("HighlightStrength")
+            let names = dimsHighlights ? [
+                "LampSpecularGain", "EdgeHighlightGain", "SkyReflectionGain",
+                "HighlightStrength", "EnvironmentReflectionGain",
+            ].filter { material.parameterNames.contains($0) } : []
             highlights = names.reduce(into: [:]) { result, name in
                 if case .float(let value)? = material.getParameter(name: name) { result[name] = value }
             }

@@ -108,4 +108,8 @@ public final class TidalEnvironmentScene: EnvironmentScene {
         if let screen { root.alignDockingRegion(to: screen) }
         root.components[TidalRuntimeComponent.self]?.runtime.updateScreen(screen, in: root)
     }
+
+    public func advance(_ deltaTime: TimeInterval, in root: Entity) {
+        root.components[TidalRuntimeComponent.self]?.runtime.advance(by: deltaTime)
+    }
 }

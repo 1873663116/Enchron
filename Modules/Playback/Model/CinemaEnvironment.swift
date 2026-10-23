@@ -91,17 +91,32 @@ public nonisolated enum EnvironmentSceneMapping {
 
     @MainActor private static var scenes: [SpatialSceneDomain.CinemaEnvironment: any EnvironmentScene] = [:]
     @MainActor private static var prefetchTasks: [SpatialSceneDomain.CinemaEnvironment: Task<Entity, Error>] = [:]
+    @MainActor private static var prefetchOwners: [SpatialSceneDomain.CinemaEnvironment: Set<EnvironmentPrefetchOwner>] = [:]
     @MainActor private static var prefetchStarted: [SpatialSceneDomain.CinemaEnvironment: ContinuousClock.Instant] = [:]
 
     @MainActor
-    public static func prefetch(_ environments: [SpatialSceneDomain.CinemaEnvironment]) {
-        for stale in prefetchTasks.keys where !environments.contains(stale) {
-            prefetchTasks[stale]?.cancel()
-            prefetchTasks[stale] = nil
-            prefetchStarted[stale] = nil
-            scenes[stale] = nil
+    public static func prefetch(
+        _ environments: [SpatialSceneDomain.CinemaEnvironment],
+        owner: EnvironmentPrefetchOwner
+    ) {
+        let requested = Set(environments)
+        for environment in SpatialSceneDomain.CinemaEnvironment.allCases
+        where !requested.contains(environment) {
+            guard var owners = prefetchOwners[environment], owners.remove(owner) != nil else {
+                continue
+            }
+            guard owners.isEmpty else {
+                prefetchOwners[environment] = owners
+                continue
+            }
+            prefetchOwners[environment] = nil
+            prefetchTasks[environment]?.cancel()
+            prefetchTasks[environment] = nil
+            prefetchStarted[environment] = nil
+            scenes[environment] = nil
         }
-        for environment in environments {
+        for environment in requested {
+            prefetchOwners[environment, default: []].insert(owner)
             guard prefetchTasks[environment] == nil else { continue }
             let scene = scene(for: environment)
             prefetchStarted[environment] = ContinuousClock().now
@@ -126,6 +141,7 @@ public nonisolated enum EnvironmentSceneMapping {
         } catch {
             if prefetchTasks[environment] == task {
                 prefetchTasks[environment] = nil
+                prefetchOwners[environment] = nil
                 prefetchStarted[environment] = nil
                 scenes[environment] = nil
             }
@@ -137,14 +153,9 @@ public nonisolated enum EnvironmentSceneMapping {
     public static func takePrefetch(
         for environment: SpatialSceneDomain.CinemaEnvironment
     ) -> Task<Entity, Error>? {
-        for stale in prefetchTasks.keys where stale != environment {
-            prefetchTasks[stale]?.cancel()
-            prefetchTasks[stale] = nil
-            prefetchStarted[stale] = nil
-            scenes[stale] = nil
-        }
         defer {
             prefetchTasks[environment] = nil
+            prefetchOwners[environment] = nil
             prefetchStarted[environment] = nil
         }
         return prefetchTasks[environment]
@@ -172,4 +183,17 @@ public nonisolated enum EnvironmentSceneMapping {
         scenes[environment] = scene
         return scene
     }
+}
+
+public struct EnvironmentPrefetchOwner: Hashable, Sendable, CustomStringConvertible {
+    public let name: String
+
+    public init(_ name: String) {
+        self.name = name
+    }
+
+    public var description: String { name }
+
+    public static let views = EnvironmentPrefetchOwner("views")
+    public static let session = EnvironmentPrefetchOwner("session")
 }

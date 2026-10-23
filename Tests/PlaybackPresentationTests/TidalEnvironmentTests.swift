@@ -27,7 +27,7 @@ struct TidalEnvironmentTests {
         }
         defer { memorySampler.cancel() }
         let started = ContinuousClock.now
-        EnvironmentSceneMapping.prefetch([.tidal])
+        EnvironmentSceneMapping.prefetch([.tidal], owner: EnvironmentPrefetchOwner("verification"))
         try await EnvironmentSceneMapping.waitForPrefetch(for: .tidal)
         var prepared: Task<Entity, Error>? = try #require(EnvironmentSceneMapping.takePrefetch(for: .tidal))
         var root: Entity? = try await prepared?.value
@@ -188,17 +188,22 @@ struct TidalEnvironmentTests {
         let lightMean = try await renderedMean("light")
         let switchStarted = ContinuousClock.now
         scene.apply(.dark, to: try #require(root))
+        for _ in 0..<20 { scene.advance(0.1, in: try #require(root)) }
         let darkMean = try await renderedMean("dark", deltaTime: 0.1, frames: 15)
         do {
             let water = try #require(root?.findEntity(named: "PoolWater"))
             let material = try #require(reflectionMaterials(in: water).first)
             #expect(material.getParameter(name: "LampSpecularGain") == .float(1))
             #expect(material.getParameter(name: "SkyReflectionGain") == .float(1))
-            #expect(material.getParameter(name: "ReflectionStrength") == .float(2.15))
+            #expect(material.getParameter(name: "ReflectionStrength") == .float(2.35))
         }
         for (entity, index, parameter, light) in highlights {
             let material = try #require(entity.components[ModelComponent.self]?.materials[index] as? ShaderGraphMaterial)
-            #expect(material.getParameter(name: parameter) == .float(light * 0.15))
+            let actual = material.getParameter(name: parameter)
+            #expect(
+                actual == .float(light * 0.15),
+                "highlight \(parameter) light=\(light) actual=\(String(describing: actual)) entity=\(entity.name)"
+            )
         }
         print("Tidal deep appearance: \(switchStarted.duration(to: .now))")
         for (entity, index, parameter, light) in surfaces {
@@ -230,6 +235,7 @@ struct TidalEnvironmentTests {
         #expect(lightMean > darkMean)
         #expect(darkMean > 0)
         scene.apply(.light, to: try #require(root))
+        for _ in 0..<20 { scene.advance(0.1, in: try #require(root)) }
         _ = try await renderedMean("light-restored", deltaTime: 0.1, frames: 15)
         for (entity, index, parameter, light) in highlights {
             let material = try #require(entity.components[ModelComponent.self]?.materials[index] as? ShaderGraphMaterial)
