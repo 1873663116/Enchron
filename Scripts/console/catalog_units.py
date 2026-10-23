@@ -8,6 +8,18 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import vocab as vocab_module
+
+
+def required_capabilities(steps: list[dict[str, Any]]) -> list[str]:
+    capabilities: set[str] = set()
+    for step in steps:
+        verb = vocab_module.verb_or_none(str(step.get("verb", "")))
+        if verb is not None:
+            capabilities |= set(verb.capabilities)
+    return sorted(capabilities)
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCENARIOS = REPOSITORY_ROOT / "Regression/journeys"
@@ -29,7 +41,7 @@ BLOCKERS = {
     "input.device-hub-pinch": "no verb carries the device hub pinch gesture",
     "input.device-hub-prepare": "no verb prepares the device hub",
     "evidence.capture-audio": "no verb captures audio",
-    "evidence.structural-test": "no verb runs a structural check",
+    "evidence.structural-test": "the route runs repository checks before it inspects",
     "issue.present": "the induce route reads the issue control plane first",
     "playback.seek": "the seek needs the viewing-storage probe before it can land",
     "playback.select-subtitle": "the route reads the subtitle listing before it selects",
@@ -44,6 +56,7 @@ HANDLED_ELSEWHERE = {
     "presentation.enter-docked-default",
     "presentation.enter-panorama",
     "presentation.exit-spatial",
+    "evidence.structural-test",
     "playback.seek",
     "storage.clear",
     "host.preflight",
@@ -56,7 +69,6 @@ HANDLED_ELSEWHERE = {
 UNSUPPORTED = {
     "input.device-hub-pinch",
     "evidence.capture-audio",
-    "evidence.structural-test",
     "input.device-hub-prepare",
     "issue.present",
     "playback.select-subtitle",
@@ -966,6 +978,13 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"probe": open_identifier(raw)},
                 }
             )
+        elif name == "evidence.structural-test":
+            steps.append(
+                {
+                    "verb": "static.structural-test",
+                    "args": {"check": str(arguments.get("check", ""))},
+                }
+            )
         elif name == "storage.clear":
             target_name = str(arguments.get("target", ""))
             action_identifier = f"Settings-action-clear-{target_name}"
@@ -1317,6 +1336,13 @@ ROOT_LEVEL_IDS = (
 
 
 def imports_at_root(payload: dict[str, Any]) -> bool:
+    inspect_only = all(
+        str(action.get("operation", "")).split(":")[1].split("@")[0]
+        in {"evidence.structural-test", "accessibility.inspect"}
+        for action in payload.get("operations", [])
+    )
+    if inspect_only:
+        return True
     for action in payload.get("operations", []):
         name = str(action.get("operation", ""))
         arguments = action.get("arguments", {})
@@ -1642,7 +1668,12 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                 "layer": 3,
                 "role": "verification",
                 "pace": pace,
-                "requires": ["mac", "device", "daemon"],
+                "requires": (
+                    ["mac", "device", "daemon"]
+                    if set(required_capabilities(actions + part_steps + list(teardown)))
+                    == {"mac", "device", "daemon"}
+                    else required_capabilities(actions + part_steps + list(teardown))
+                ),
                 "isolation": "clean-library",
                 "preconditions": preconditions,
                 "actions": actions + part_steps,

@@ -487,6 +487,8 @@ def _dispatch(
         return _run_stage_media(step, root, plan)
     if step.verb == "device.stage-identity":
         return _run_stage_identity(step, root, plan)
+    if step.verb == "static.structural-test":
+        return _run_structural_test(step, root)
     if step.verb == "device.viewing-storage":
         return _run_viewing_storage(step, root, plan)
     if step.verb == "device.source-facts":
@@ -1024,6 +1026,52 @@ def _trust_certificate(device: str, address: str, fingerprint: str) -> None:
         )
     )
     time.sleep(3.0)
+
+
+STRUCTURAL_CHECKS: dict[str, tuple[str, ...]] | None = None
+
+
+def _structural_commands() -> dict[str, tuple[str, ...]]:
+    global STRUCTURAL_CHECKS
+    if STRUCTURAL_CHECKS is None:
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "verification"))
+        import regression_operation_adapter as adapter
+
+        STRUCTURAL_CHECKS = {
+            str(name): tuple(str(item) for item in command)
+            for name, command in adapter.STRUCTURAL_CHECKS.items()
+        }
+    return STRUCTURAL_CHECKS
+
+
+def _run_structural_test(
+    step: Step, root: Path
+) -> tuple[dict[str, Any] | None, bool, str]:
+    check = str(step.args.get("check", ""))
+    commands = _structural_commands()
+    command = commands.get(check)
+    if command is None:
+        return {"check": check}, False, f"{check} is not a known structural check"
+    environment = dict(os.environ)
+    environment.setdefault(
+        "DEVELOPER_DIR", "/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer"
+    )
+    completed = subprocess.run(
+        list(command),
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=900,
+        env=environment,
+    )
+    payload = {
+        "check": check,
+        "command": " ".join(command),
+        "exitCode": completed.returncode,
+        "stdout": completed.stdout[-8000:],
+        "stderr": completed.stderr[-8000:],
+    }
+    return payload, completed.returncode == 0, f"{check} exited {completed.returncode}"
 
 
 def _run_viewing_storage(

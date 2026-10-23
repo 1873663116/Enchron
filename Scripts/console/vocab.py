@@ -121,6 +121,16 @@ VERBS: dict[str, Verb] = {
             budget_ms=60_000,
         ),
         Verb(
+            name="static.structural-test",
+            tier="static",
+            capabilities=frozenset({"mac", "python", "xcode"}),
+            lane=None,
+            parameter=("check",),
+            evidence="structural-test.json",
+            schema="enchron.console.structural-test@1",
+            budget_ms=900_000,
+        ),
+        Verb(
             name="device.viewing-storage",
             tier="e2e",
             capabilities=frozenset({"mac", "device", "daemon"}),
