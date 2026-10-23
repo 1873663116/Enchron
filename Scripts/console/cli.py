@@ -338,6 +338,31 @@ def _tier(root: Path, arguments, profile) -> int:
 
         def recover_session() -> None:
             daemon_module.ensure_running(root, profile.target)
+            try:
+                daemon_module.request(
+                    root,
+                    {
+                        "op": "invoke",
+                        "action": "app-command",
+                        "verb": "batch",
+                        "arguments": {
+                            "calls": json.dumps(
+                                [
+                                    {"verb": "leavePlayback", "arguments": {}},
+                                    {"verb": "exitSpatial", "arguments": {}},
+                                    {
+                                        "verb": "resetState",
+                                        "arguments": {"keepSession": "true"},
+                                    },
+                                ]
+                            )
+                        },
+                    },
+                    profile.target,
+                    timeout=120,
+                )
+            except OSError:
+                pass
             daemon_module.request(
                 root,
                 {"op": "restart", "lane": "simulator"},
@@ -348,7 +373,11 @@ def _tier(root: Path, arguments, profile) -> int:
         current_product = reuse_module.product_digest(root)
         reuse_enabled = not getattr(arguments, "force", False)
         reused: list[str] = []
-        for identifier in sorted(units):
+        ordered = sorted(
+            units,
+            key=lambda name: ("emby-server-lifecycle" in name, name),
+        )
+        for identifier in ordered:
             per_unit = types.SimpleNamespace(
                 unit=identifier,
                 tier="e2e",
