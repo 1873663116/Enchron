@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 import re
 import getpass
@@ -486,6 +487,8 @@ def _dispatch(
         return _run_stage_media(step, root, plan)
     if step.verb == "device.stage-identity":
         return _run_stage_identity(step, root, plan)
+    if step.verb == "device.viewing-storage":
+        return _run_viewing_storage(step, root, plan)
     if step.verb == "device.source-facts":
         return _run_source_facts(step, root, plan)
     if step.verb == "device.connect-source":
@@ -683,7 +686,48 @@ def _dispatch_daemon(
                 },
                 target,
             )
-            if answer.get("kind") == "result" and probe == "element":
+            if probe == "viewing-storage":
+                answer = _daemon_request(
+                    root,
+                    {
+                        "op": "invoke",
+                        "action": "app-command",
+                        "verb": "viewingStorageProbe",
+                        "arguments": {},
+                    },
+                    target,
+                )
+                value = answer.get("value", {})
+                payload = value.get("payload") or {}
+                canonical = json.dumps(
+                    payload.get("viewingStorageSnapshot") or {},
+                    ensure_ascii=False,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                normalized = {
+                    "snapshotDigest": "sha256:"
+                    + hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+                    "viewingStateRecordCount": _resolve_field(
+                        payload, "viewingStorageSnapshot.viewingState.persistedRecordCount"
+                    ),
+                    "containerIndexEntryCount": _resolve_field(
+                        payload, "viewingStorageSnapshot.containerIndex.entryCount"
+                    ),
+                }
+                names = list(expected) if isinstance(expected, dict) else [field]
+                observed = {}
+                for name in names:
+                    if name in normalized:
+                        current = normalized[name]
+                    else:
+                        current = _resolve_field(payload, name)
+                    observed[name] = "" if current is None else str(current)
+                last_value = observed[names[0]]
+                if _await_matches(observed, field, expected, mode):
+                    reached = True
+                    break
+            elif answer.get("kind") == "result" and probe == "element":
                 value = answer.get("value", {})
                 payload = value.get("payload") or {}
                 hierarchy = payload.get("hierarchy")
@@ -980,6 +1024,55 @@ def _trust_certificate(device: str, address: str, fingerprint: str) -> None:
         )
     )
     time.sleep(3.0)
+
+
+def _run_viewing_storage(
+    step: Step, root: Path, plan: Plan
+) -> tuple[dict[str, Any] | None, bool, str]:
+    target = plan.target or _probe_target()
+    answer = _daemon_request(
+        root,
+        {
+            "op": "invoke",
+            "action": "app-command",
+            "verb": "viewingStorageProbe",
+            "arguments": {},
+        },
+        target,
+    )
+    if answer.get("kind") != "result":
+        return None, False, answer.get("message", "daemon refused the storage probe")
+    value = answer.get("value", {})
+    payload = value.get("payload")
+    if not isinstance(payload, dict):
+        return None, False, str(value.get("detail") or "the storage probe answered no payload")
+    snapshot = payload.get("viewingStorageSnapshot")
+    if not isinstance(snapshot, dict):
+        return None, False, "the storage probe answered no viewing storage snapshot"
+    canonical = json.dumps(
+        snapshot, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+    enriched = {
+        **payload,
+        "snapshotDigest": "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        "viewingStateRecordCount": int(
+            _resolve_field(snapshot, "viewingState.persistedRecordCount") or 0
+        ),
+        "containerIndexEntryCount": int(
+            _resolve_field(snapshot, "containerIndex.entryCount") or 0
+        ),
+        "viewingStateProtectedStateDigest": str(
+            _resolve_field(snapshot, "viewingState.protectedStateDigest") or ""
+        ),
+        "protectedStateDigest": str(
+            _resolve_field(snapshot, "protectedState.digest") or ""
+        ),
+    }
+    return (
+        enriched,
+        True,
+        f"viewing storage snapshot {enriched['snapshotDigest']}",
+    )
 
 
 def _run_source_facts(

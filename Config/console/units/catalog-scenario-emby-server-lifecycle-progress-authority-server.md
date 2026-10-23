@@ -74,8 +74,14 @@
       }
     },
     {
-      "verb": "device.snapshot",
-      "args": {}
+      "verb": "device.viewing-storage",
+      "args": {},
+      "capture": {
+        "viewingStateRecordCount": "viewingRecords5",
+        "viewingStateProtectedStateDigest": "viewingProtectedDigest5",
+        "protectedStateDigest": "libraryProtectedDigest5",
+        "snapshotDigest": "viewingStorageDigest5"
+      }
     },
     {
       "verb": "device.command",
@@ -180,8 +186,26 @@
       }
     },
     {
-      "verb": "device.snapshot",
-      "args": {}
+      "verb": "device.viewing-storage",
+      "args": {},
+      "capture": {
+        "viewingStateRecordCount": "viewingRecords13",
+        "viewingStateProtectedStateDigest": "viewingProtectedDigest13",
+        "protectedStateDigest": "libraryProtectedDigest13",
+        "snapshotDigest": "viewingStorageDigest13"
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "Emby-Evidence"
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "Emby-Root"
+      }
     }
   ],
   "teardown": [
@@ -195,8 +219,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "hierarchy.json",
-    "schema": "enchron.console.hierarchy@1"
+    "path": "probe.json",
+    "schema": "enchron.console.probe@1"
   }
 }
 ---

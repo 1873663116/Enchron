@@ -36,7 +36,7 @@ BLOCKERS = {
     "presentation.enter-docked-default": "immersive transitions need the device lane",
     "presentation.enter-panorama": "immersive transitions need the device lane",
     "presentation.exit-spatial": "immersive transitions need the device lane",
-    "storage.clear": "the route taps a settings action and compares storage observations",
+    "storage.clear": "the route needs the settings clear action and the viewing storage probe",
 }
 
 HANDLED_ELSEWHERE = {
@@ -45,6 +45,7 @@ HANDLED_ELSEWHERE = {
     "presentation.enter-panorama",
     "presentation.exit-spatial",
     "playback.seek",
+    "storage.clear",
     "host.preflight",
     "media.import-staged",
     "transition-trace.arm",
@@ -59,7 +60,6 @@ UNSUPPORTED = {
     "input.device-hub-prepare",
     "issue.present",
     "playback.select-subtitle",
-    "storage.clear",
 }
 
 DIRECT = {
@@ -85,6 +85,8 @@ PRESENTATION = {"either-main-window": None, "window": "window"}
 
 LABEL_IDENTIFIERS = {
     "Playback surface": "PlayerUI-window-playback-surface",
+    "Media Library": "FileBrowsing-SourcesSidebar-source-media-library",
+    "Local Files": "FileBrowsing-SourcesSidebar-source-media-library",
 }
 
 HAND_WRITTEN = {
@@ -299,6 +301,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     reset_scenario = RESET_PRODUCT_STATE in operation_names(payload)
     form_facts_emitted = False
     trace_generation = 0
+    storage_probes = 0
     operations = payload["operations"]
     for action in operations:
         arguments = action.get("arguments") or {}
@@ -435,7 +438,20 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             found = fixture(file_name) if file_name else None
             if found is not None and found not in fixtures:
                 fixtures.append(found)
-            if RESET_PRODUCT_STATE in operation_names(payload) and imports_at_root(payload):
+            local_library_flow = any(
+                str(action.get("operation", "")).startswith("operation:media.open")
+                and str((action.get("arguments") or {}).get("identifier", "")).startswith(
+                    "MediaLibrary-grid-video-"
+                )
+                for action in payload.get("operations", [])
+            ) and any(
+                str(label) in {"Media Library", "Local Files"}
+                for action in payload.get("operations", [])
+                for label in ((action.get("arguments") or {}).get("labels") or [])
+            )
+            if RESET_PRODUCT_STATE in operation_names(payload) and (
+                imports_at_root(payload) or local_library_flow
+            ):
                 steps.append(
                     {
                         "verb": "device.app-command",
@@ -632,13 +648,33 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
             elif labels and str(labels[0]) in LABEL_IDENTIFIERS:
+                target_identifier = LABEL_IDENTIFIERS[str(labels[0])]
+                if target_identifier.startswith("FileBrowsing-SourcesSidebar-"):
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {
+                                "action": "tap",
+                                "identifier": "Navigation-Ornament-tab-files",
+                            },
+                        }
+                    )
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "element",
+                                "field": "identifier",
+                                "equals": "FileBrowsing-FilesScreen",
+                                "timeoutMs": 20000,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
                 steps.append(
                     {
                         "verb": "device.command",
-                        "args": {
-                            "action": "tap",
-                            "identifier": LABEL_IDENTIFIERS[str(labels[0])],
-                        },
+                        "args": {"action": "tap", "identifier": target_identifier},
                     }
                 )
             elif labels:
@@ -930,7 +966,103 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"probe": open_identifier(raw)},
                 }
             )
+        elif name == "storage.clear":
+            target_name = str(arguments.get("target", ""))
+            action_identifier = f"Settings-action-clear-{target_name}"
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "identifier": "Navigation-Ornament-tab-settings",
+                    },
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "identifier",
+                        "equals": "Settings-SettingsScreen",
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "identifier": "Settings-category-storagePrivacy",
+                    },
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "identifier",
+                        "equals": action_identifier,
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {"action": "tap", "identifier": action_identifier},
+                }
+            )
         elif name in {"diagnostics.surface-probe", "diagnostics.browse-hierarchy", "harness.assert-channels"}:
+            if arguments.get("includeViewingStorage"):
+                call = re.findall(r":([0-9]{2})$", str(action.get("callId") or ""))
+                probe_index = int(call[0]) if call else storage_probes + 1
+                storage_probes = probe_index
+                capture = {
+                    "viewingStateRecordCount": f"viewingRecords{probe_index}",
+                    "viewingStateProtectedStateDigest": f"viewingProtectedDigest{probe_index}",
+                    "protectedStateDigest": f"libraryProtectedDigest{probe_index}",
+                    "snapshotDigest": f"viewingStorageDigest{probe_index}",
+                }
+                steps.append(
+                    {"verb": "device.viewing-storage", "args": {}, "capture": capture}
+                )
+                deadline_ms = int(arguments.get("deadlineSeconds", 30)) * 1000
+                empty_stores = [
+                    str(item) for item in (arguments.get("awaitEmptyStores") or [])
+                ]
+                if "viewing-state" in empty_stores:
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "viewing-storage",
+                                "field": "viewingStateRecordCount",
+                                "equals": "0",
+                                "timeoutMs": deadline_ms,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
+                if "container-index" in empty_stores:
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "viewing-storage",
+                                "field": "containerIndexEntryCount",
+                                "equals": "0",
+                                "timeoutMs": deadline_ms,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
+                if not arguments.get("identifier"):
+                    continue
             if arguments.get("identifier"):
                 steps.append(
                     {
@@ -1145,7 +1277,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
         else:
             raise SystemExit(f"{name} is outside the direct vocabulary")
-    if remote_flow:
+    imports_local_files = any(
+        str(action.get("operation", "")).startswith("operation:media.import-staged")
+        for action in payload.get("operations", [])
+    )
+    if remote_flow and not imports_local_files:
         fixtures = []
     return steps, fixtures
 
@@ -1574,6 +1710,7 @@ FORM_FACTS = frozenset(
 )
 
 VERIFIED_SEEK_SCENARIOS = frozenset()
+VERIFIED_CLEAR_SCENARIOS = frozenset()
 PRESENTATION_OPS = frozenset(
     {
         "presentation.enter-panorama",
@@ -1625,6 +1762,10 @@ def expressible(path: Path) -> bool:
         and (
             "playback.seek" not in operation_names(payload)
             or str(payload.get("id")) in VERIFIED_SEEK_SCENARIOS
+        )
+        and (
+            "storage.clear" not in operation_names(payload)
+            or str(payload.get("id")) in VERIFIED_CLEAR_SCENARIOS
         )
     )
 

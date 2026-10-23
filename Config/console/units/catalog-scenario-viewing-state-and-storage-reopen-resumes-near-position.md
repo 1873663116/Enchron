@@ -59,8 +59,24 @@
       }
     },
     {
-      "verb": "device.snapshot",
-      "args": {}
+      "verb": "device.viewing-storage",
+      "args": {},
+      "capture": {
+        "viewingStateRecordCount": "viewingRecords1",
+        "viewingStateProtectedStateDigest": "viewingProtectedDigest1",
+        "protectedStateDigest": "libraryProtectedDigest1",
+        "snapshotDigest": "viewingStorageDigest1"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "viewing-storage",
+        "field": "viewingStateRecordCount",
+        "equals": "0",
+        "timeoutMs": 30000,
+        "intervalMs": 400
+      }
     },
     {
       "verb": "device.command",
@@ -73,8 +89,8 @@
       "verb": "device.await",
       "args": {
         "probe": "element",
-        "field": "label",
-        "equals": "Media Library",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
         "timeoutMs": 20000,
         "intervalMs": 400
       }
@@ -83,7 +99,7 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Media Library"
+        "identifier": "FileBrowsing-SourcesSidebar-source-media-library"
       }
     },
     {
@@ -144,8 +160,14 @@
       }
     },
     {
-      "verb": "device.snapshot",
-      "args": {}
+      "verb": "device.viewing-storage",
+      "args": {},
+      "capture": {
+        "viewingStateRecordCount": "viewingRecords8",
+        "viewingStateProtectedStateDigest": "viewingProtectedDigest8",
+        "protectedStateDigest": "libraryProtectedDigest8",
+        "snapshotDigest": "viewingStorageDigest8"
+      }
     },
     {
       "verb": "device.app-commands",
@@ -165,8 +187,14 @@
       }
     },
     {
-      "verb": "device.snapshot",
-      "args": {}
+      "verb": "device.viewing-storage",
+      "args": {},
+      "capture": {
+        "viewingStateRecordCount": "viewingRecords10",
+        "viewingStateProtectedStateDigest": "viewingProtectedDigest10",
+        "protectedStateDigest": "libraryProtectedDigest10",
+        "snapshotDigest": "viewingStorageDigest10"
+      }
     },
     {
       "verb": "device.command",
@@ -195,8 +223,20 @@
       }
     },
     {
-      "verb": "device.snapshot",
-      "args": {}
+      "verb": "device.viewing-storage",
+      "args": {},
+      "capture": {
+        "viewingStateRecordCount": "viewingRecords15",
+        "viewingStateProtectedStateDigest": "viewingProtectedDigest15",
+        "protectedStateDigest": "libraryProtectedDigest15",
+        "snapshotDigest": "viewingStorageDigest15"
+      }
+    },
+    {
+      "verb": "device.probe",
+      "args": {
+        "probe": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+      }
     }
   ],
   "teardown": [
@@ -219,8 +259,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "hierarchy.json",
-    "schema": "enchron.console.hierarchy@1"
+    "path": "probe.json",
+    "schema": "enchron.console.probe@1"
   }
 }
 ---
