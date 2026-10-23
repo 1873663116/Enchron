@@ -1013,81 +1013,15 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             "presentation.exit-spatial",
         }:
             deadline_ms = int(arguments.get("deadlineSeconds", 30)) * 1000
-            steps.append(
-                {
-                    "verb": "device.app-command",
-                    "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
-                }
-            )
-            if name == "presentation.enter-panorama":
+            if name == "presentation.exit-spatial":
                 steps.append(
                     {
-                        "verb": "device.command",
-                        "args": {
-                            "action": "tap",
-                            "identifier": "PlayerUI-TopAction-resumePanorama",
-                        },
+                        "verb": "device.app-command",
+                        "args": {"verb": "exitSpatial", "arguments": {}},
                     }
                 )
-                steps.append(
-                    {
-                        "verb": "device.await",
-                        "args": {
-                            "probe": "element",
-                            "field": "identifier",
-                            "equals": "PlayerPanel-button-exit-spatial",
-                            "timeoutMs": deadline_ms,
-                            "intervalMs": 400,
-                        },
-                    }
-                )
-            elif name == "presentation.enter-docked-default":
-                steps.append(
-                    {
-                        "verb": "device.command",
-                        "args": {"action": "tap", "identifier": "PlayerUI-TopAction-dock"},
-                    }
-                )
-                steps.append(
-                    {
-                        "verb": "device.await",
-                        "args": {
-                            "probe": "element",
-                            "field": "identifier",
-                            "equals": "PlayerUI-DockMenu-default",
-                            "timeoutMs": 15000,
-                            "intervalMs": 300,
-                        },
-                    }
-                )
-                steps.append(
-                    {
-                        "verb": "device.command",
-                        "args": {"action": "tap", "identifier": "PlayerUI-DockMenu-default"},
-                    }
-                )
-                steps.append(
-                    {
-                        "verb": "device.await",
-                        "args": {
-                            "probe": "element",
-                            "field": "identifier",
-                            "equals": "PlayerPanel-button-exit-spatial",
-                            "timeoutMs": deadline_ms,
-                            "intervalMs": 400,
-                        },
-                    }
-                )
-            else:
-                expected = "portal" if panoramic(current_media) else "window"
-                steps.append(
-                    {
-                        "verb": "device.command",
-                        "args": {
-                            "action": "tap",
-                            "identifier": "PlayerPanel-button-exit-spatial",
-                        },
-                    }
+                expected = (
+                    "portal" if portal_projection or panoramic(current_media) else "window"
                 )
                 steps.append(
                     {
@@ -1096,6 +1030,43 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "probe": "PlayerUI-window-control-plane",
                             "field": "presentation",
                             "equals": expected,
+                            "timeoutMs": deadline_ms,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+            else:
+                landing = (
+                    "portal" if portal_projection or panoramic(current_media) else "window"
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "PlayerUI-window-control-plane",
+                            "field": "presentation",
+                            "equals": landing,
+                            "timeoutMs": deadline_ms,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+                spatial_arguments: dict[str, Any] = {}
+                if name == "presentation.enter-docked-default":
+                    spatial_arguments["environment"] = "quiet-room"
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {"verb": "enterSpatial", "arguments": spatial_arguments},
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": "PlayerPanel-button-exit-spatial",
                             "timeoutMs": deadline_ms,
                             "intervalMs": 400,
                         },
@@ -1574,6 +1545,10 @@ VERIFIED_PRESENTATION_SCENARIOS = frozenset(
     {
         "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
         "scenario:projection-and-stereo:panorama-coverage-angle",
+        "scenario:presentation-tour:portal-to-panorama-explicit-entry",
+        "scenario:presentation-tour:panorama-to-portal-exit",
+        "scenario:presentation-tour:window-docked-round-trip",
+        "scenario:presentation-tour:transition-timeout-rolls-back",
     }
 )
 
