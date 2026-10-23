@@ -739,13 +739,24 @@ def _dispatch_daemon(
                 payload = value.get("payload") or {}
                 hierarchy = payload.get("hierarchy")
                 if isinstance(hierarchy, str):
-                    pattern = (
-                        rf"identifier: '{re.escape(str(expected))}'"
-                        if field == "identifier"
-                        else rf"label: '{re.escape(str(expected))}'"
+                    wanted = (
+                        {str(name): str(value) for name, value in expected.items()}
+                        if isinstance(expected, dict)
+                        else {field: str(expected)}
                     )
-                    if re.search(pattern, hierarchy):
-                        observed = {field: str(expected)}
+                    observed = {
+                        name: value
+                        for name, value in wanted.items()
+                        if re.search(
+                            rf"{name}: '{re.escape(value)}'",
+                            hierarchy,
+                        )
+                        is not None
+                    }
+                    matched = len(observed) == len(wanted)
+                    if (mode == "absent" and not matched) or (
+                        mode != "absent" and matched
+                    ):
                         reached = True
                         break
             elif answer.get("kind") == "result":

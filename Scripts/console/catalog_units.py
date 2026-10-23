@@ -56,6 +56,7 @@ HANDLED_ELSEWHERE = {
     "presentation.exit-spatial",
     "evidence.structural-test",
     "playback.seek",
+    "issue.present",
     "playback.select-subtitle",
     "storage.clear",
     "host.preflight",
@@ -67,7 +68,6 @@ HANDLED_ELSEWHERE = {
 
 UNSUPPORTED = {
     "evidence.capture-audio",
-    "issue.present",
 }
 
 DIRECT = {
@@ -238,6 +238,21 @@ def slug(identifier: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", identifier.lower()).strip("-")
 
 
+ISSUE_RECIPES = {
+    "source-file-missing": "missing-object",
+    "source-access-denied": "access-denied",
+    "connection-interrupted": "transport-interrupted",
+    "media-data-corrupt": "corrupt-media",
+    "server-certificate-changed": "certificate-rotation",
+}
+ISSUE_SLOT_POLICY = {
+    "source-file-missing": ("Playback Error", True, True, False),
+    "source-access-denied": ("Playback Error", True, True, False),
+    "connection-interrupted": ("Playback Error", True, True, False),
+    "media-data-corrupt": ("Playback Error", True, True, False),
+    "server-certificate-changed": ("Server Certificate Changed", False, True, False),
+}
+ISSUE_MEDIA_IDENTIFIER = "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
 LIBRARY_LABEL = "Enchron Regression Emby"
 LIBRARY_ITEM_PREFIX = "Enchron Regression"
 EPISODE_PREFIX = "Enchron Regression Episode"
@@ -407,6 +422,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     storage_probes = 0
     import_emitted = False
     in_settings = False
+    issue_played = False
+    issue_presented = False
 
     def ensure_files_context() -> None:
         nonlocal in_settings
@@ -461,7 +478,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         break
     manual_source_flow = bool(fault_recipe)
     form_flow = bool(source_name_text) and not manual_source_flow
-    remote_flow = remote_flow or form_flow
+    issue_flow = any(
+        str(action.get("operation", "")).startswith("operation:issue.present")
+        for action in payload.get("operations", [])
+    )
+    remote_flow = remote_flow or form_flow or issue_flow
     if manual_source_flow:
         name_text = source_name_text
         recipe = fault_recipe
@@ -1227,6 +1248,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
                 continue
+            if raw == "PlayerUI-playbackIssue-confirm":
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": raw,
+                            "mode": "absent",
+                            "timeoutMs": 20000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+                continue
             if raw.startswith("PlayerUI-resumeDecision"):
                 steps.append(
                     {
@@ -1255,6 +1291,126 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"check": str(arguments.get("check", ""))},
                 }
             )
+        elif name == "issue.present":
+            category = str(arguments.get("category") or "")
+            recipe = ISSUE_RECIPES.get(category)
+            policy = ISSUE_SLOT_POLICY.get(category)
+            if recipe is None or policy is None:
+                continue
+            deadline_ms = int(arguments.get("deadlineSeconds", 45)) * 1000
+            activate_step = {
+                "verb": "device.fault-source",
+                "args": {
+                    "provider": "webdav",
+                    "phase": "activate",
+                    "recipe": recipe,
+                },
+            }
+            if not issue_played:
+                ensure_files_context()
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": "FileBrowsing-SourcesSidebar-source-",
+                            "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+                            "index": 1,
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": ISSUE_MEDIA_IDENTIFIER,
+                            "timeoutMs": 20000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": ISSUE_MEDIA_IDENTIFIER},
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "PlayerUI-window-control-plane",
+                            "field": "position",
+                            "equals": 1.0,
+                            "mode": "atLeast",
+                            "timeoutMs": deadline_ms,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+                issue_played = True
+                steps.append(activate_step)
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {
+                            "verb": "seekNormalized",
+                            "arguments": {"position": "0.92"},
+                        },
+                    }
+                )
+            else:
+                steps.append(activate_step)
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": "PlayerUI-loadFailure-primary",
+                        },
+                    }
+                )
+            title, primary, secondary, confirm = policy
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "label",
+                        "equals": title,
+                        "timeoutMs": deadline_ms,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            for identifier, required in (
+                ("PlayerUI-loadFailure-primary", primary),
+                ("PlayerUI-loadFailure-secondary", secondary),
+                ("PlayerUI-playbackIssue-confirm", confirm),
+            ):
+                args: dict[str, Any] = {
+                    "probe": "element",
+                    "field": "identifier",
+                    "equals": identifier,
+                    "timeoutMs": 20000,
+                    "intervalMs": 400,
+                }
+                if not required:
+                    args["mode"] = "absent"
+                steps.append({"verb": "device.await", "args": args})
+            steps.append(
+                {
+                    "verb": "device.fault-source",
+                    "args": {
+                        "provider": "webdav",
+                        "phase": "restore",
+                        "recipe": recipe,
+                    },
+                }
+            )
+            issue_presented = True
         elif name == "storage.clear":
             target_name = str(arguments.get("target", ""))
             action_identifier = "Settings-action-" + STORAGE_CLEAR_ACTIONS.get(
@@ -1954,7 +2110,11 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
         )
         for action in payload.get("operations", [])
     )
-    remote_operations = remote_opened and not form_scenario
+    issue_scenario = any(
+        str(action.get("operation", "")).startswith("operation:issue.present")
+        for action in payload.get("operations", [])
+    )
+    remote_operations = (remote_opened or issue_scenario) and not form_scenario
     source_labels = {
         str(label)
         for action in payload.get("operations", [])

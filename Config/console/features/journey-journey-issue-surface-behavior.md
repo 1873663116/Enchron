@@ -5,7 +5,8 @@
   "id": "feature:journey.journey-issue-surface-behavior",
   "title": "Journey:Issue Surface Behavior",
   "units": [
-    "unit:catalog.scenario-issue-surface-behavior-source-failure-guidance-matrix@1"
+    "unit:catalog.scenario-issue-surface-behavior-source-failure-guidance-matrix@1",
+    "unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1"
   ],
   "promises": []
 }
