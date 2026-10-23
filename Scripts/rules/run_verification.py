@@ -1531,6 +1531,8 @@ def print_summary(results: list[LayerResult], run_directory: Path) -> bool:
 def requested_changes(
     arguments: argparse.Namespace, environment: dict[str, str]
 ) -> frozenset[str] | None:
+    if arguments.changed_list:
+        return listed_changed_paths(arguments.changed_list)
     if arguments.event:
         return event_changed_paths(
             arguments.event,
@@ -1539,8 +1541,6 @@ def requested_changes(
             base_ref=arguments.base_ref,
             local_oid=arguments.local_oid,
         )
-    if arguments.changed_list:
-        return listed_changed_paths(arguments.changed_list)
     if arguments.changed_staged:
         return staged_changed_paths(environment)
     return changed_paths(arguments.changed_since, environment)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import fcntl
 import io
@@ -450,6 +451,24 @@ class ChangeScopeTests(unittest.TestCase):
             self.assertEqual(
                 verification.listed_changed_paths(str(path)),
                 frozenset({"Scripts/a.py", "Apps/b.swift"}),
+            )
+
+    def test_an_explicit_changed_list_wins_over_the_event_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "changed.txt"
+            path.write_text("Scripts/a.py\n", encoding="utf-8")
+            arguments = argparse.Namespace(
+                event="commit",
+                changed_list=str(path),
+                changed_staged=False,
+                changed_since="",
+                remote_oid="",
+                base_ref="main",
+                local_oid="HEAD",
+            )
+            self.assertEqual(
+                verification.requested_changes(arguments, {}),
+                frozenset({"Scripts/a.py"}),
             )
 
     def test_console_tests_are_discovered_as_self_tests(self) -> None:
