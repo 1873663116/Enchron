@@ -513,6 +513,7 @@ def discovered_check(identifier: str, filename: str) -> StructureCheck:
 def discovered_test_checks() -> tuple[StructureCheck, ...]:
     tests_root = REPOSITORY_ROOT / "Scripts/rules/tests"
     verification_tests = REPOSITORY_ROOT / "Scripts/verification/tests"
+    console_tests = REPOSITORY_ROOT / "Scripts/console/tests"
     discovered = [
         discovered_check(path.stem.replace("_", "-"), f"tests/{path.name}")
         for path in sorted(tests_root.glob("test_*.py"))
@@ -520,6 +521,10 @@ def discovered_test_checks() -> tuple[StructureCheck, ...]:
     discovered.extend(
         discovered_check(path.stem.replace("_", "-"), f"../verification/tests/{path.name}")
         for path in sorted(verification_tests.glob("test_*.py"))
+    )
+    discovered.extend(
+        discovered_check(path.stem.replace("_", "-"), f"../console/tests/{path.name}")
+        for path in sorted(console_tests.glob("test_*.py"))
     )
     if not discovered:
         raise ValueError(f"no self-tests found under {tests_root}")
@@ -707,6 +712,8 @@ def self_test_target(check: StructureCheck) -> str | None:
         return f"Scripts/rules/{stem}.py"
     if check.filename.startswith("../verification/tests/"):
         return f"Scripts/verification/{stem}.py"
+    if check.filename.startswith("../console/tests/"):
+        return f"Scripts/console/{stem}.py"
     return None
 
 
@@ -761,7 +768,9 @@ def structure_groups(
 def bundled(check: StructureCheck) -> bool:
     if check.identifier in UNBATCHED_CHECKS:
         return False
-    return not check.filename.startswith(("tests/", "../verification/tests/"))
+    return not check.filename.startswith(
+        ("tests/", "../verification/tests/", "../console/tests/")
+    )
 
 
 def run_batch(

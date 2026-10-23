@@ -7,24 +7,36 @@ defect that predates the refactor does not hide new ones.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 DECLARATION = Path("Config/console/known-failures.md")
+ENVIRONMENT = "ENCHRON_KNOWN_FAILURES"
 
 
-def _front_matter(path: Path) -> dict[str, Any]:
-    if not path.exists():
-        return {}
-    text = path.read_text(encoding="utf-8")
+def declaration_path(root: Path) -> Path:
+    override = os.environ.get(ENVIRONMENT, "").strip()
+    return Path(override) if override else root / DECLARATION
+
+
+def parse_declarations(text: str) -> list[dict[str, Any]]:
     parts = text.split("---")
     if len(parts) < 3:
-        return {}
-    return json.loads(parts[1])
+        return []
+    try:
+        payload = json.loads(parts[1])
+    except json.JSONDecodeError:
+        return []
+    failures = payload.get("failures") if isinstance(payload, dict) else None
+    return list(failures or [])
 
 
 def declarations(root: Path) -> list[dict[str, Any]]:
-    return list(_front_matter(root / DECLARATION).get("failures") or [])
+    path = declaration_path(root)
+    if not path.exists():
+        return []
+    return parse_declarations(path.read_text(encoding="utf-8"))
 
 
 def checker_matching(

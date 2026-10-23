@@ -91,6 +91,9 @@ def build_parser() -> argparse.ArgumentParser:
     tier.add_argument("--base-ref", default="main", dest="base_ref")
     tier.add_argument("--local-oid", default="HEAD", dest="local_oid")
     tier.add_argument("--force", action="store_true")
+
+    merge = commands.add_parser("merge")
+    merge.add_argument("action", choices=("check",))
     return parser
 
 
@@ -128,6 +131,8 @@ def _dispatch(arguments, root, profile) -> int:
         return _daemon(root, arguments, profile)
     if arguments.command == "tier":
         return _tier(root, arguments, profile)
+    if arguments.command == "merge":
+        return _merge(root, arguments, profile)
     return EXIT_USAGE
 
 
@@ -171,6 +176,17 @@ def _daemon(root: Path, arguments, profile) -> int:
 
 
 STARTS_ON_DEMAND = frozenset({"daemon"})
+
+
+def _merge(root: Path, arguments, profile) -> int:
+    import merge_gate
+
+    exit_code, payload = merge_gate.run_gate(
+        root, profile.target, evidence_root(root)
+    )
+    if arguments.as_json:
+        print(json.dumps(payload, indent=1))
+    return exit_code
 
 
 def _tier(root: Path, arguments, profile) -> int:

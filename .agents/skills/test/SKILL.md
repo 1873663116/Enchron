@@ -50,6 +50,23 @@ Both rules carry a baseline of what already exists. Editing product code without
 
 The code-only phase covers text rules. CI covers the full text layer. A build therefore cannot ship a comment violation, and a push cannot ship a broken plan.
 
+## Merge gate
+
+A merge into main runs `console merge check` from the `pre-merge-commit` hook. Merges into other branches do not run it. Merge into main with `git merge --no-ff`: a fast-forward creates no merge commit, so the hook never fires.
+
+The gate runs CI, the build tier and the unit tier, writes `TestEvidence/console/merges/<stamp>/summary.json`, and appends one status line to the merge commit message.
+
+| State | Condition | Merge |
+| --- | --- | --- |
+| green | every tier passed | allowed |
+| yellow | every failure is declared on main and no declaration is expired | allowed, shrink-only |
+| override | every red failure has a human-approved record on main | allowed, recorded |
+| red | any undeclared, branch-declared, expired or build failure | refused |
+
+Declarations live in `Config/console/known-failures.md`; override records live in `Config/console/merge-overrides/`. Both are read from main, never from the branch being merged; a branch that adds one protects nothing. The yellow count may shrink against main and never grow: a failure with no live declaration on main is red.
+
+Red refuses the merge. The only way through is an override record on main naming the failure signature, with `approvedBy`, `approvedAt`, a reason and an expiry. Adding one needs human approval (需请示人类): an agent stops and asks a human; it does not write the record itself.
+
 ## The daemon
 
 `console daemon start` brings the resident process up and adopts a live runner if one exists. `console daemon status` answers. `console daemon stop` halts the session and removes the socket.
@@ -91,6 +108,8 @@ A unit without `terminal` is refused at load. The guardrails cannot tell an expe
 `console run UNIT --tier e2e` runs one unit and writes evidence.
 
 `console tier static` runs the checkers. `--event commit|push|pr|merge` selects the comparison base for that CI trigger; `--changed-staged`, `--changed-since` and `--changed-list` accept a scope directly.
+
+`console merge check` runs the merge gate: CI, build and unit, aggregated to green, yellow, override or red.
 
 ## One unit per call
 

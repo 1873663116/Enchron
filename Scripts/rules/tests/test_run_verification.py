@@ -452,6 +452,15 @@ class ChangeScopeTests(unittest.TestCase):
                 frozenset({"Scripts/a.py", "Apps/b.swift"}),
             )
 
+    def test_console_tests_are_discovered_as_self_tests(self) -> None:
+        checks = tuple(
+            check
+            for check in verification.discovered_test_checks()
+            if check.filename.startswith("../console/tests/")
+        )
+        self.assertGreaterEqual(len(checks), 7)
+        self.assertTrue(all(verification.is_self_test(check) for check in checks))
+
     def test_an_unreadable_changed_list_is_unknown(self) -> None:
         self.assertIsNone(verification.listed_changed_paths("/nonexistent/changed.txt"))
 
@@ -620,6 +629,63 @@ class StructureGroupTests(unittest.TestCase):
         groups = verification.structure_groups((unbatched, bundled), 2)
         flat = [check.identifier for group in groups for check in group]
         self.assertEqual(flat, ["verify-something"])
+
+
+class PreMergeCommitHookTests(unittest.TestCase):
+    def run_hook(
+        self, branch: str = "main", exit_code: int = 0
+    ) -> tuple[subprocess.CompletedProcess, Path, Path]:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        root = Path(scratch.name)
+        subprocess.run(
+            ["git", "init", "-q", "-b", branch],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        )
+        console = root / "Scripts" / "console"
+        console.mkdir(parents=True)
+        marker = root / "verification-ran"
+        status_directory = root / ".scratch" / "console" / "merge-gate"
+        status_directory.mkdir(parents=True)
+        script = console / "cli.py"
+        script.write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).open('a').write(' '.join(sys.argv[1:]) + '\\n')\n"
+            f"Path({str(status_directory / 'status.txt')!r}).write_text('yellow (1 known)')\n"
+            f"sys.exit({exit_code})\n",
+            encoding="utf-8",
+        )
+        merge_msg = root / ".git" / "MERGE_MSG"
+        merge_msg.write_text("Merge branch 'topic'\n", encoding="utf-8")
+        hook = Path(__file__).resolve().parents[3] / ".githooks" / "pre-merge-commit"
+        result = subprocess.run(
+            ["/bin/zsh", str(hook)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        return result, marker, merge_msg
+
+    def test_the_merge_hook_runs_the_gate_and_records_the_status(self) -> None:
+        result, marker, merge_msg = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(marker.read_text().strip(), "merge check")
+        self.assertIn("Merge-gate: yellow (1 known)", merge_msg.read_text())
+
+    def test_a_merge_off_main_does_not_run_the_gate(self) -> None:
+        result, marker, merge_msg = self.run_hook(branch="feature")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(marker.exists())
+        self.assertNotIn("Merge-gate:", merge_msg.read_text())
+
+    def test_a_red_gate_aborts_the_merge_before_the_message_is_recorded(self) -> None:
+        result, marker, merge_msg = self.run_hook(exit_code=1)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertTrue(marker.exists())
+        self.assertNotIn("Merge-gate:", merge_msg.read_text())
 
 
 class TreeHygieneTests(unittest.TestCase):

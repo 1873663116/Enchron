@@ -27,6 +27,8 @@ The console is the only test entry in this repository. This skill covers changin
 
 `Scripts/console/static_tier.py` wraps the existing checkers. The full text set and the eight-checker code-only lane both live here.
 
+`Scripts/console/merge_gate.py` runs the merge gate: CI, build and unit, classified against the declarations and override records main carries.
+
 `Scripts/console/build_tier.py` runs the build and unit tiers.
 
 `Scripts/console/daemon.py` holds the session, speaks the socket protocol, launches the runner, and recovers a dead runner.
@@ -365,6 +367,10 @@ The refactor is done when every line holds.
 - `static` tier duration and its per-check breakdown are available from a real run.
 - A build runs `console tier static --code-only` before Sources, and a forbidden comment fails that build.
 - A commit runs `console plan check` and `console tier static --changed-staged`; a push runs them against the pushed range. The changed paths decide whether the tooling self-tests run.
+- A merge into main runs `console merge check` from the `pre-merge-commit` hook; the merge commit message carries the gate status.
+- Green and yellow allow the merge, a valid override allows it and records itself, and red aborts it.
+- Declarations and override records are read from main; a record added by the branch is inert until it lands on main.
+- The yellow count against main may shrink and never grow. An expired declaration or override is inert.
 - `console tier build` and `console tier unit` name the missing capability on a machine that cannot run them.
 - `console daemon start`, `status` and `stop` all answer, and a run adopts an already-live session in about 100 ms.
 
