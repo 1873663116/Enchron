@@ -108,13 +108,19 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "armTransitionTrace",
+        "arguments": {}
+      },
+      "capture": {
+        "generation": "traceGeneration1"
+      }
+    },
+    {
       "verb": "device.app-commands",
       "args": {
         "calls": [
-          {
-            "verb": "armTransitionTrace",
-            "arguments": {}
-          },
           {
             "verb": "applyFormat",
             "arguments": {
@@ -124,11 +130,15 @@
           },
           {
             "verb": "fetchTransitionTraceSnapshot",
-            "arguments": {}
+            "arguments": {
+              "generation": "$traceGeneration1"
+            }
           },
           {
             "verb": "disarmTransitionTrace",
-            "arguments": {}
+            "arguments": {
+              "generation": "$traceGeneration1"
+            }
           }
         ]
       }
@@ -195,21 +205,23 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "armTransitionTrace",
-            "arguments": {}
-          },
-          {
-            "verb": "applyFormat",
-            "arguments": {
-              "projection": "flat",
-              "stereo": "mono"
-            }
-          }
-        ]
+        "verb": "armTransitionTrace",
+        "arguments": {}
+      },
+      "capture": {
+        "generation": "traceGeneration2"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "applyFormat",
+        "arguments": {
+          "projection": "flat",
+          "stereo": "mono"
+        }
       }
     },
     {
@@ -228,11 +240,15 @@
         "calls": [
           {
             "verb": "fetchTransitionTraceSnapshot",
-            "arguments": {}
+            "arguments": {
+              "generation": "$traceGeneration2"
+            }
           },
           {
             "verb": "disarmTransitionTrace",
-            "arguments": {}
+            "arguments": {
+              "generation": "$traceGeneration2"
+            }
           }
         ]
       }

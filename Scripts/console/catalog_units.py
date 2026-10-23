@@ -33,14 +33,17 @@ BLOCKERS = {
     "issue.present": "the induce route reads the issue control plane first",
     "playback.seek": "the seek reads the session, media name and duration before it acts",
     "playback.select-subtitle": "the route reads the subtitle listing before it selects",
-    "presentation.enter-docked-default": "the route taps a dock placement sequence",
-    "presentation.enter-panorama": "the route taps a panorama sequence and settles",
-    "presentation.exit-spatial": "the route reads the spatial state before it exits",
+    "presentation.enter-docked-default": "immersive transitions need the device lane",
+    "presentation.enter-panorama": "immersive transitions need the device lane",
+    "presentation.exit-spatial": "immersive transitions need the device lane",
     "storage.clear": "the route taps a settings action and compares storage observations",
 }
 
 HANDLED_ELSEWHERE = {
     RESET_PRODUCT_STATE,
+    "presentation.enter-docked-default",
+    "presentation.enter-panorama",
+    "presentation.exit-spatial",
     "host.preflight",
     "media.import-staged",
     "transition-trace.arm",
@@ -56,9 +59,6 @@ UNSUPPORTED = {
     "issue.present",
     "playback.seek",
     "playback.select-subtitle",
-    "presentation.enter-docked-default",
-    "presentation.enter-panorama",
-    "presentation.exit-spatial",
     "storage.clear",
 }
 
@@ -298,6 +298,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     portal_projection = False
     reset_scenario = RESET_PRODUCT_STATE in operation_names(payload)
     form_facts_emitted = False
+    trace_generation = 0
     operations = payload["operations"]
     for action in operations:
         arguments = action.get("arguments") or {}
@@ -1006,28 +1007,130 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
+        elif name in {
+            "presentation.enter-panorama",
+            "presentation.enter-docked-default",
+            "presentation.exit-spatial",
+        }:
+            deadline_ms = int(arguments.get("deadlineSeconds", 30)) * 1000
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
+                }
+            )
+            if name == "presentation.enter-panorama":
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": "PlayerUI-TopAction-resumePanorama",
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": "PlayerPanel-button-exit-spatial",
+                            "timeoutMs": deadline_ms,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+            elif name == "presentation.enter-docked-default":
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": "PlayerUI-TopAction-dock"},
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": "PlayerUI-DockMenu-default",
+                            "timeoutMs": 15000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": "PlayerUI-DockMenu-default"},
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": "PlayerPanel-button-exit-spatial",
+                            "timeoutMs": deadline_ms,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+            else:
+                expected = "portal" if panoramic(current_media) else "window"
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": "PlayerPanel-button-exit-spatial",
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "PlayerUI-window-control-plane",
+                            "field": "presentation",
+                            "equals": expected,
+                            "timeoutMs": deadline_ms,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
         elif name == "transition-trace.arm":
             arguments_out: dict[str, Any] = {}
             if arguments.get("fault") not in (None, "none"):
                 arguments_out["fault"] = str(arguments["fault"])
+            trace_generation += 1
             steps.append(
                 {
                     "verb": "device.app-command",
                     "args": {"verb": "armTransitionTrace", "arguments": arguments_out},
+                    "capture": {"generation": f"traceGeneration{trace_generation}"},
                 }
             )
         elif name == "transition-trace.fetch":
             steps.append(
                 {
                     "verb": "device.app-command",
-                    "args": {"verb": "fetchTransitionTraceSnapshot", "arguments": {}},
+                    "args": {
+                        "verb": "fetchTransitionTraceSnapshot",
+                        "arguments": {"generation": f"$traceGeneration{trace_generation}"},
+                    },
                 }
             )
         elif name == "transition-trace.disarm":
             steps.append(
                 {
                     "verb": "device.app-command",
-                    "args": {"verb": "disarmTransitionTrace", "arguments": {}},
+                    "args": {
+                        "verb": "disarmTransitionTrace",
+                        "arguments": {"generation": f"$traceGeneration{trace_generation}"},
+                    },
                 }
             )
         else:
@@ -1190,7 +1293,11 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     )
                     collapsed[-1] = merged
                     continue
-            if previous["verb"] == action["verb"] == "device.app-command":
+            if (
+                previous["verb"] == action["verb"] == "device.app-command"
+                and not previous.get("capture")
+                and not action.get("capture")
+            ):
                 merged = {
                     "verb": "device.app-commands",
                     "args": {
@@ -1456,6 +1563,20 @@ FORM_FACTS = frozenset(
     }
 )
 
+PRESENTATION_OPS = frozenset(
+    {
+        "presentation.enter-panorama",
+        "presentation.enter-docked-default",
+        "presentation.exit-spatial",
+    }
+)
+VERIFIED_PRESENTATION_SCENARIOS = frozenset(
+    {
+        "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
+        "scenario:projection-and-stereo:panorama-coverage-angle",
+    }
+)
+
 VERIFIED_RESET_SCENARIOS = frozenset(
     {
         "scenario:library-management:confirmed-batch-deletion",
@@ -1481,6 +1602,10 @@ def expressible(path: Path) -> bool:
         and (
             RESET_PRODUCT_STATE not in operation_names(payload)
             or str(payload.get("id")) in VERIFIED_RESET_SCENARIOS
+        )
+        and (
+            not (PRESENTATION_OPS & set(operation_names(payload)))
+            or str(payload.get("id")) in VERIFIED_PRESENTATION_SCENARIOS
         )
     )
 

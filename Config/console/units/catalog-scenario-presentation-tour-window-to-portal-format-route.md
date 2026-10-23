@@ -120,13 +120,19 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "armTransitionTrace",
+        "arguments": {}
+      },
+      "capture": {
+        "generation": "traceGeneration1"
+      }
+    },
+    {
       "verb": "device.app-commands",
       "args": {
         "calls": [
-          {
-            "verb": "armTransitionTrace",
-            "arguments": {}
-          },
           {
             "verb": "applyFormat",
             "arguments": {
@@ -136,11 +142,15 @@
           },
           {
             "verb": "fetchTransitionTraceSnapshot",
-            "arguments": {}
+            "arguments": {
+              "generation": "$traceGeneration1"
+            }
           },
           {
             "verb": "disarmTransitionTrace",
-            "arguments": {}
+            "arguments": {
+              "generation": "$traceGeneration1"
+            }
           }
         ]
       }
