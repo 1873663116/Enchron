@@ -38,8 +38,8 @@ FAULT_RECIPES = frozenset(
 
 BLOCKERS = {
     "harness.reset-product-state": "the form connection path needs a product-side look before it can be driven",
-    "input.device-hub-pinch": "no verb carries the device hub pinch gesture",
-    "input.device-hub-prepare": "no verb prepares the device hub",
+    "input.device-hub-pinch": "the Device Hub canvas needs its zoom on fit before it can be driven",
+    "input.device-hub-prepare": "the Device Hub canvas needs its zoom on fit before it can be driven",
     "evidence.capture-audio": "no verb captures audio",
     "evidence.structural-test": "the route runs repository checks before it inspects",
     "issue.present": "the induce route reads the issue control plane first",
@@ -57,6 +57,8 @@ HANDLED_ELSEWHERE = {
     "presentation.enter-panorama",
     "presentation.exit-spatial",
     "evidence.structural-test",
+    "input.device-hub-pinch",
+    "input.device-hub-prepare",
     "playback.seek",
     "storage.clear",
     "host.preflight",
@@ -67,9 +69,7 @@ HANDLED_ELSEWHERE = {
 }
 
 UNSUPPORTED = {
-    "input.device-hub-pinch",
     "evidence.capture-audio",
-    "input.device-hub-prepare",
     "issue.present",
     "playback.select-subtitle",
 }
@@ -978,6 +978,32 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"probe": open_identifier(raw)},
                 }
             )
+        elif name == "input.device-hub-prepare":
+            steps.append({"verb": "device.hub", "args": {"action": "enlarge"}})
+        elif name == "input.device-hub-pinch":
+            if str(arguments.get("targetDomain")) == "system-toolbar":
+                steps.append(
+                    {
+                        "verb": "device.hub",
+                        "args": {
+                            "action": "system-control",
+                            "control": str(arguments.get("systemControl", "home")),
+                        },
+                    }
+                )
+            else:
+                steps.append(
+                    {
+                        "verb": "device.hub",
+                        "args": {
+                            "action": "pinch",
+                            "shotX": arguments.get("shotX", 0),
+                            "shotY": arguments.get("shotY", 0),
+                            "shotWidth": arguments.get("shotWidth", 0),
+                            "shotHeight": arguments.get("shotHeight", 0),
+                        },
+                    }
+                )
         elif name == "evidence.structural-test":
             steps.append(
                 {
@@ -1742,6 +1768,8 @@ FORM_FACTS = frozenset(
 
 VERIFIED_SEEK_SCENARIOS = frozenset()
 VERIFIED_CLEAR_SCENARIOS = frozenset()
+HUB_OPS = frozenset({"input.device-hub-pinch", "input.device-hub-prepare"})
+VERIFIED_HUB_SCENARIOS = frozenset()
 PRESENTATION_OPS = frozenset(
     {
         "presentation.enter-panorama",
@@ -1797,6 +1825,10 @@ def expressible(path: Path) -> bool:
         and (
             "storage.clear" not in operation_names(payload)
             or str(payload.get("id")) in VERIFIED_CLEAR_SCENARIOS
+        )
+        and (
+            not (HUB_OPS & set(operation_names(payload)))
+            or str(payload.get("id")) in VERIFIED_HUB_SCENARIOS
         )
     )
 
@@ -1894,6 +1926,28 @@ def report_gaps() -> int:
     if pending:
         print(
             f"{len(pending):3d} scenario(s)  {RESET_PRODUCT_STATE}: "
+            "translated, waiting for a verification run"
+        )
+    gates = (
+        (PRESENTATION_OPS, VERIFIED_PRESENTATION_SCENARIOS),
+        (HUB_OPS, VERIFIED_HUB_SCENARIOS),
+        (frozenset({"playback.seek"}), VERIFIED_SEEK_SCENARIOS),
+        (frozenset({"storage.clear"}), VERIFIED_CLEAR_SCENARIOS),
+    )
+    waiting: dict[str, list[str]] = {}
+    for path in sorted(SCENARIOS.rglob("*.md")):
+        payload = scenario(path)
+        if payload is None:
+            continue
+        names = set(operation_names(payload))
+        if not names:
+            continue
+        for operations, verified in gates:
+            if operations & names and str(payload["id"]) not in verified:
+                waiting.setdefault(sorted(operations)[0], []).append(str(payload["id"]))
+    for name in sorted(waiting, key=lambda item: -len(waiting[item])):
+        print(
+            f"{len(waiting[name]):3d} scenario(s)  {name}: "
             "translated, waiting for a verification run"
         )
     return 0
