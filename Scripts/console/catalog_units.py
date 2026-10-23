@@ -253,6 +253,13 @@ ISSUE_SLOT_POLICY = {
     "server-certificate-changed": ("Server Certificate Changed", False, True, False),
 }
 ISSUE_MEDIA_IDENTIFIER = "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
+
+AUDIO_TRACK_LABELS = {
+    "1": "AAC 880 Hz sync pulse · aac · 2ch",
+    "2": "FLAC 660 Hz sync pulse · flac · 2ch",
+    "3": "AC-3 440 Hz sync pulse · ac3 · 2ch",
+    "4": "E-AC-3 550 Hz sync pulse · eac3 · 2ch",
+}
 LIBRARY_LABEL = "Enchron Regression Emby"
 LIBRARY_ITEM_PREFIX = "Enchron Regression"
 EPISODE_PREFIX = "Enchron Regression Episode"
@@ -336,6 +343,40 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         produced: list[dict[str, Any]] = [
             {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
         ]
+        if remote_flow:
+            produced.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "identifier": "FileBrowsing-SourcesSidebar-source-",
+                        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+                        "index": 1,
+                    },
+                }
+            )
+            produced.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "identifier",
+                        "equals": f"FileBrowsing-grid-video-{media}",
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            produced.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "identifier": f"FileBrowsing-grid-video-{media}",
+                    },
+                }
+            )
+            return produced
         produced.extend(navigation(opened_folder))
         produced.append(
             {
@@ -505,7 +546,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 )
             ],
         ]
-    for action in operations:
+    for operation_index, action in enumerate(operations):
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
         if name == RESET_PRODUCT_STATE:
@@ -975,6 +1016,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         }
                     )
                 steps.append({"verb": "device.command", "args": arguments_out})
+                menu_opened = False
             else:
                 targets = [
                     str(item)
@@ -1104,6 +1146,49 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     or item == "PlayerUI-VideoFormat-cancel"
                     for item in targets
                 ):
+                    continue
+                audio_target = next(
+                    (
+                        item
+                        for item in targets
+                        if re.fullmatch(r"PlayerUI-menu-audio-\d+", str(item))
+                    ),
+                    None,
+                )
+                audio_label = None
+                if (
+                    audio_target is not None
+                    and current_media == "sdr-bframe-aggregate-30s.mkv"
+                ):
+                    ordinal = str(audio_target).rsplit("-", 1)[-1]
+                    audio_label = AUDIO_TRACK_LABELS.get(ordinal)
+                if audio_label is not None:
+                    label = audio_label
+                    remaining = [item for item in targets if item != audio_target]
+                    if remaining:
+                        if any(item.startswith("PlayerUI-TopAction-") for item in remaining):
+                            steps.append(
+                                {
+                                    "verb": "device.app-command",
+                                    "args": {
+                                        "verb": "toggleControls",
+                                        "arguments": {"visible": "true"},
+                                    },
+                                }
+                            )
+                        steps.append(
+                            {
+                                "verb": "device.command",
+                                "args": {"action": "tapEach", "identifiers": remaining},
+                            }
+                        )
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {"action": "tap", "label": label},
+                        }
+                    )
+                    menu_opened = False
                     continue
                 if len(targets) > 1 and any(
                     item.startswith("PlayerUI-VideoFormat-") for item in targets
@@ -1584,6 +1669,12 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             field_of_view = arguments.get("horizontalFieldOfViewDegrees")
             if field_of_view is not None:
                 arguments_out["horizontalFieldOfViewDegrees"] = str(field_of_view)
+            next_is_format_apply = (
+                operation_index + 1 < len(operations)
+                and str(operations[operation_index + 1].get("operation", "")).startswith(
+                    "operation:format.apply"
+                )
+            )
             steps.append(
                 {
                     "verb": "device.app-command",
@@ -1594,7 +1685,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 current_media
             )
             portal_projection = leaves_window
-            if not leaves_window:
+            if leaves_window and next_is_format_apply:
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "PlayerUI-window-control-plane",
+                            "field": "presentation",
+                            "equals": "portal",
+                            "timeoutMs": int(arguments.get("deadlineSeconds", 30))
+                            * 1000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
+            elif not leaves_window:
                 steps.append(
                     {
                         "verb": "device.await",
@@ -2305,6 +2410,7 @@ VERIFIED_SEEK_SCENARIOS = frozenset(
     {
         "scenario:viewing-state-and-storage:clear-all-local-progress",
         "scenario:viewing-state-and-storage:completed-media-starts-from-beginning",
+        "scenario:presentation-tour:track-selection-survives-seek-and-presentation",
     }
 )
 VERIFIED_CLEAR_SCENARIOS = frozenset(
@@ -2340,6 +2446,7 @@ VERIFIED_PRESENTATION_SCENARIOS = frozenset(
     {
         "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
         "scenario:presentation-tour:panorama-to-portal-exit",
+        "scenario:presentation-tour:track-selection-survives-seek-and-presentation",
         "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
         "scenario:presentation-tour:portal-to-panorama-explicit-entry",
         "scenario:presentation-tour:transition-timeout-rolls-back",

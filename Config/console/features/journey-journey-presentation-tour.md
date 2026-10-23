@@ -15,6 +15,8 @@
     "unit:catalog.scenario-presentation-tour-portal-episode-switch-lands-in-window@1",
     "unit:catalog.scenario-presentation-tour-portal-format-and-panorama-actions-coexist@1",
     "unit:catalog.scenario-presentation-tour-portal-to-panorama-explicit-entry@1",
+    "unit:catalog.scenario-presentation-tour-track-selection-survives-seek-and-presentation.part2@1",
+    "unit:catalog.scenario-presentation-tour-track-selection-survives-seek-and-presentation@1",
     "unit:catalog.scenario-presentation-tour-transition-timeout-rolls-back@1",
     "unit:catalog.scenario-presentation-tour-window-docked-round-trip@1",
     "unit:catalog.scenario-presentation-tour-window-episode-switch-lands-in-portal@1",
