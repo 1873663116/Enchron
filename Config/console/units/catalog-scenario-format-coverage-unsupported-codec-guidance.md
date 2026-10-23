@@ -72,6 +72,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,

@@ -259,7 +259,14 @@ def _ensure_media_fixture(
     }
 
 
+_MEDIA_SOURCE_CACHE: dict[tuple[str, str], dict[str, Any]] = {}
+
+
 def _ensure_media_source(provider: str, root: Path) -> dict[str, Any]:
+    cache_key = (str(root), provider)
+    cached = _MEDIA_SOURCE_CACHE.get(cache_key)
+    if cached is not None and cached.get("ok"):
+        return cached
     script = root / "Scripts" / "verification" / "ensure_test_services.py"
     completed = subprocess.run(
         [sys.executable, str(script), "--service", provider],
@@ -281,13 +288,16 @@ def _ensure_media_source(provider: str, root: Path) -> dict[str, Any]:
     ok = completed.returncode == 0 and any(
         action in {"found", "started", "configured", "moved"} for action in actions
     )
-    return {
+    result = {
         "kind": "media-source",
         "provider": provider,
         "ok": ok,
         "detail": ", ".join(actions) or "no receipt",
         "receipt": receipt,
     }
+    if ok:
+        _MEDIA_SOURCE_CACHE[cache_key] = result
+    return result
 
 
 def _ensure_media_server(provider: str, root: Path) -> dict[str, Any]:

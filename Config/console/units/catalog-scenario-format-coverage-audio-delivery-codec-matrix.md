@@ -75,6 +75,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -100,15 +110,6 @@
         },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.1"
-        }
       }
     },
     {
@@ -149,53 +150,6 @@
         "arguments": {
           "visible": "true"
         }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "scenario-format-coverage-audio-delivery-codec-matrix",
-          "entry": "root"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "playMedia",
-        "arguments": {
-          "name": "sdr-bframe-audio-codec-matrix-15s.mkv"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
       }
     },
     {
@@ -240,6 +194,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -265,15 +229,6 @@
         },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.1"
-        }
       }
     },
     {
@@ -317,6 +272,10 @@
       }
     },
     {
+      "verb": "device.snapshot",
+      "args": {}
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "leavePlayback",
@@ -353,16 +312,12 @@
   },
   "cases": [
     {
-      "key": "case-1",
+      "key": "ac3",
       "start": 5
     },
     {
-      "key": "case-2",
-      "start": 15
-    },
-    {
-      "key": "case-3",
-      "start": 21
+      "key": "eac3-joc",
+      "start": 16
     }
   ]
 }

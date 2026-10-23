@@ -78,7 +78,58 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-media-library"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "identifier": "MediaLibrary-grid-folder-sdr-bframe-aggregate-30s-sidecars"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -248,12 +299,20 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Enchron Regression WebDAV",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -278,15 +337,6 @@
         "equals": "FileBrowsing-FilesScreen",
         "timeoutMs": 20000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
       }
     },
     {
@@ -440,7 +490,7 @@
     },
     {
       "key": "webdav-sidecar",
-      "start": 21
+      "start": 27
     }
   ]
 }

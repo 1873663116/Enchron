@@ -72,6 +72,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -104,53 +114,6 @@
       "args": {
         "verb": "reapplyFormat",
         "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "scenario-presentation-tour-format-editor-hosts-window-and-portal",
-          "entry": "root"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "playMedia",
-        "arguments": {
-          "name": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
       }
     },
     {
@@ -198,6 +161,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -235,48 +208,22 @@
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "leavePlayback",
+        "verb": "reapplyFormat",
         "arguments": {}
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.command",
       "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
+        "action": "tap",
+        "identifier": "PlayerUI-window-playback-surface"
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.command",
       "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "scenario-presentation-tour-format-editor-hosts-window-and-portal",
-          "entry": "root"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "playMedia",
-        "arguments": {
-          "name": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        },
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "action": "tap",
+        "identifier": "PlayerUI-TopAction-videoFormat"
       }
     },
     {
@@ -309,20 +256,12 @@
   },
   "cases": [
     {
-      "key": "case-1",
+      "key": "window",
       "start": 5
     },
     {
-      "key": "case-2",
-      "start": 11
-    },
-    {
-      "key": "case-3",
-      "start": 17
-    },
-    {
-      "key": "case-4",
-      "start": 25
+      "key": "portal",
+      "start": 13
     }
   ]
 }

@@ -94,6 +94,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -105,7 +115,7 @@
       "args": {
         "verb": "playMedia",
         "arguments": {
-          "name": "1.0-test_small.ogg"
+          "name": "sdr-bframe-audio-codec-matrix-15s.mkv"
         }
       }
     },
@@ -115,19 +125,10 @@
         "probe": "PlayerUI-window-control-plane",
         "equals": {
           "presentation": "window",
-          "mediaName": "1.0-test_small.ogg"
+          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
         },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.1"
-        }
       }
     },
     {
@@ -139,6 +140,26 @@
         "mode": "atLeast",
         "timeoutMs": 45000,
         "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tapEach",
+        "identifiers": [
+          "PlayerUI-TopAction-more",
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-1"
+        ]
       }
     },
     {
@@ -192,6 +213,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -217,15 +248,6 @@
         },
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.1"
-        }
       }
     },
     {
@@ -255,7 +277,7 @@
         "identifiers": [
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-audio",
-          "PlayerUI-menu-audio-1"
+          "PlayerUI-menu-audio-8"
         ]
       }
     },
@@ -266,13 +288,6 @@
         "arguments": {
           "visible": "true"
         }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
       }
     },
     {
@@ -305,12 +320,12 @@
   },
   "cases": [
     {
-      "key": "case-7",
+      "key": "aac",
       "start": 5
     },
     {
-      "key": "case-8",
-      "start": 16
+      "key": "flac",
+      "start": 18
     }
   ]
 }

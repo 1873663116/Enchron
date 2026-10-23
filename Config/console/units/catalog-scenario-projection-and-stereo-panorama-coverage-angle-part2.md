@@ -2,7 +2,7 @@
 {
   "schema": "enchron.console.unit",
   "schemaVersion": 1,
-  "id": "unit:catalog.scenario-local-media-lifecycle-subtitle-switch-and-off.part2@1",
+  "id": "unit:catalog.scenario-projection-and-stereo-panorama-coverage-angle.part2@1",
   "layer": 3,
   "role": "verification",
   "pace": "catalog",
@@ -45,9 +45,11 @@
       "verb": "device.stage-media",
       "args": {
         "source": [
-          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+          "test-media:Samples/Spatial/Stereo180/180_3D.mp4",
+          "test-media:Samples/Spatial/Panorama/360.mp4",
+          "test-media:Samples/Spatial/Stereo180/Apple-Streaming-Examples/APMP-180-example.mp4"
         ],
-        "target": "scenario-local-media-lifecycle-subtitle-switch-and-off"
+        "target": "scenario-projection-and-stereo-panorama-coverage-angle"
       }
     },
     {
@@ -55,7 +57,7 @@
       "args": {
         "verb": "importStagedFolder",
         "arguments": {
-          "directory": "scenario-local-media-lifecycle-subtitle-switch-and-off",
+          "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
           "entry": "root"
         }
       }
@@ -74,9 +76,37 @@
       "args": {
         "verb": "importStagedFolder",
         "arguments": {
-          "directory": "scenario-local-media-lifecycle-subtitle-switch-and-off",
+          "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
       }
     },
     {
@@ -84,48 +114,33 @@
       "args": {
         "verb": "playMedia",
         "arguments": {
-          "name": "sdr-bframe-multiaudio-subtitles-30s.mkv"
+          "name": "APMP-180-example.mp4"
         }
       }
     },
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-multiaudio-subtitles-30s.mkv"
-        },
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
         "timeoutMs": 45000,
-        "intervalMs": 400
+        "intervalMs": 300
       }
     },
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "toggleControls",
+        "verb": "applyFormat",
         "arguments": {
-          "visible": "true"
+          "projection": "customAngle",
+          "stereo": "mono"
         }
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "PlayerUI-TopAction-more",
-          "PlayerUI-menu-subtitles",
-          "PlayerUI-menu-subtitles-ffmpeg.subtitle.3"
-        ]
-      }
-    },
-    {
-      "verb": "device.capture-frames",
-      "args": {
-        "count": 1,
-        "intervalMs": 1000
-      }
+      "verb": "device.snapshot",
+      "args": {}
     }
   ],
   "teardown": [
@@ -141,25 +156,25 @@
       "args": {
         "verb": "deleteLibraryFolder",
         "arguments": {
-          "name": "scenario-local-media-lifecycle-subtitle-switch-and-off"
+          "name": "scenario-projection-and-stereo-panorama-coverage-angle"
         }
       }
     }
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "frames.json",
-    "schema": "enchron.console.frames@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   },
   "cases": [
     {
-      "key": "restore",
+      "key": "custom-angle-240",
       "start": 5
     }
   ]
 }
 ---
 
-字幕切换、关闭与恢复
+180°、360° 与 Custom Angle 覆盖角
 
-Generated from `Regression/journeys/local-media-lifecycle/scenarios/subtitle-switch-and-off.md`.
+Generated from `Regression/journeys/projection-and-stereo/scenarios/panorama-coverage-angle.md`.

@@ -204,16 +204,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Navigation-Ornament-tab-files",
-        "timeoutMs": 10000,
-        "intervalMs": 200
-      }
-    },
-    {
       "verb": "device.viewing-storage",
       "args": {},
       "capture": {

@@ -69,23 +69,68 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "element",
         "field": "identifier",
-        "equals": "PlayerUI-window-control-plane",
-        "mode": "absent",
-        "timeoutMs": 15000,
-        "intervalMs": 200
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.command",
       "args": {
-        "verb": "playMedia",
-        "arguments": {
-          "name": "sdr-bframe-multiaudio-avsync-120s.mp4"
-        }
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-media-library"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-folder-scenario-presentation-tour-window-episode-switch-lands-in-portal",
+        "timeoutMs": 20000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-window-episode-switch-lands-in-portal"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-120s.mp4"
       }
     },
     {

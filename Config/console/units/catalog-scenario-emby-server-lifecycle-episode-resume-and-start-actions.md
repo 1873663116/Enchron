@@ -163,16 +163,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "Navigation-Ornament-tab-files",
-        "timeoutMs": 10000,
-        "intervalMs": 200
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -186,9 +176,9 @@
       "args": {
         "calls": [
           {
-            "verb": "seekNormalized",
+            "verb": "resolveResumePrompt",
             "arguments": {
-              "position": "0"
+              "action": "startOver"
             }
           },
           {

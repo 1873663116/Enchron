@@ -351,6 +351,44 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     if remote_opened and not remote_source_labels:
         remote_source_labels = {"Enchron Regression WebDAV"}
 
+    source_selected = False
+    emby_detail_open = False
+
+    def remote_source_row_steps() -> list[dict[str, Any]]:
+        nonlocal source_selected
+        if source_selected:
+            return []
+        source_selected = True
+        if remote_source_labels:
+            label = sorted(remote_source_labels)[0]
+            return [
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "label",
+                        "equals": label,
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                },
+                {
+                    "verb": "device.command",
+                    "args": {"action": "tap", "label": label},
+                },
+            ]
+        return [
+            {
+                "verb": "device.command",
+                "args": {
+                    "action": "tap",
+                    "identifier": "FileBrowsing-SourcesSidebar-source-",
+                    "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+                    "index": 1,
+                },
+            }
+        ]
+
     def panoramic(media: str | None) -> bool:
         return bool(media) and any(
             token in str(media).lower()
@@ -382,17 +420,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             },
         ]
         if identifier.startswith("FileBrowsing-"):
-            produced.append(
-                {
-                    "verb": "device.command",
-                    "args": {
-                        "action": "tap",
-                        "identifier": "FileBrowsing-SourcesSidebar-source-",
-                        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-                        "index": 1,
-                    },
-                }
-            )
+            produced.extend(remote_source_row_steps())
         else:
             produced.append(
                 {
@@ -437,6 +465,42 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         )
         return produced
 
+    def ensure_media_library() -> None:
+        nonlocal media_library_open
+        if media_library_open:
+            return
+        steps.append(
+            {
+                "verb": "device.command",
+                "args": {
+                    "action": "tap",
+                    "identifier": "Navigation-Ornament-tab-files",
+                },
+            }
+        )
+        steps.append(
+            {
+                "verb": "device.await",
+                "args": {
+                    "probe": "element",
+                    "field": "identifier",
+                    "equals": "FileBrowsing-FilesScreen",
+                    "timeoutMs": 20000,
+                    "intervalMs": 400,
+                },
+            }
+        )
+        steps.append(
+            {
+                "verb": "device.command",
+                "args": {
+                    "action": "tap",
+                    "identifier": "FileBrowsing-SourcesSidebar-source-media-library",
+                },
+            }
+        )
+        media_library_open = True
+
     def window_root_wait(timeout_ms: int) -> dict[str, Any]:
         return {
             "verb": "device.await",
@@ -463,6 +527,40 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             produced.extend(import_actions())
             produced.append(
                 {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "tap",
+                        "identifier": "Navigation-Ornament-tab-files",
+                    },
+                }
+            )
+            produced.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "identifier",
+                        "equals": "FileBrowsing-FilesScreen",
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            produced.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "identifier",
+                        "equals": "PlayerUI-window-control-plane",
+                        "mode": "absent",
+                        "timeoutMs": 15000,
+                        "intervalMs": 200,
+                    },
+                }
+            )
+            produced.append(
+                {
                     "verb": "device.app-command",
                     "args": {"verb": "playMedia", "arguments": {"name": media}},
                 }
@@ -483,17 +581,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
             return produced
         if remote_flow:
-            produced.append(
-                {
-                    "verb": "device.command",
-                    "args": {
-                        "action": "tap",
-                        "identifier": "FileBrowsing-SourcesSidebar-source-",
-                        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-                        "index": 1,
-                    },
-                }
-            )
+            produced.extend(remote_source_row_steps())
             produced.append(
                 {
                     "verb": "device.await",
@@ -605,6 +693,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     issue_played = False
     issue_presented = False
     replay_pending = False
+    media_library_open = False
     ui_tab = "files"
     settings_category: str | None = None
     cold_calls = cold_start_calls(str(payload.get("id", "")))
@@ -664,6 +753,9 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         ]
 
     def reset_case() -> None:
+        nonlocal media_library_open, source_selected
+        media_library_open = False
+        source_selected = False
         steps.append(
             {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
         )
@@ -784,6 +876,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 )
             ],
         ]
+    episode_flow = "menu-episodes" in json.dumps(payload, ensure_ascii=False)
     for operation_index, action in enumerate(operations):
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
@@ -814,7 +907,11 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             current_media = None
             menu_opened = False
             folder_opened = False
+            media_library_open = False
         elif name == "app.relaunch":
+            media_library_open = False
+            source_selected = False
+            emby_detail_open = False
             if str(action.get("callId", "")) in cold_calls:
                 steps.append({"verb": "app.relaunch", "args": {}})
                 current_media = None
@@ -1022,7 +1119,36 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         "args": {"action": "tap", "identifier": opened},
                     }
                 )
+            elif direct_open and episode_flow:
+                steps.extend(browser_card_steps(opened))
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": opened},
+                    }
+                )
             elif direct_open:
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {
+                            "action": "tap",
+                            "identifier": "Navigation-Ornament-tab-files",
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": "FileBrowsing-FilesScreen",
+                            "timeoutMs": 20000,
+                            "intervalMs": 400,
+                        },
+                    }
+                )
                 steps.append(
                     {
                         "verb": "device.await",
@@ -1123,7 +1249,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 )
         elif name == "playback.wait-position":
             minimum_millis = int(arguments.get("minimumPositionMillis", 0))
-            if minimum_millis >= 1000:
+            if minimum_millis >= 5000:
                 steps.append(
                     {
                         "verb": "device.app-command",
@@ -1261,6 +1387,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             if labels and str(labels[0]).startswith(EPISODE_PREFIX) and reaches_emby():
                 episode_card_opened = True
                 episode_played = True
+                emby_detail_open = True
                 steps.append(
                     {
                         "verb": "device.command",
@@ -1273,13 +1400,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
             elif labels and str(labels[0]) in remote_source_labels:
-                source_row = {
-                    "action": "tap",
-                    "identifier": "FileBrowsing-SourcesSidebar-source-",
-                    "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-                    "index": 1,
-                }
-                steps.append({"verb": "device.command", "args": source_row})
+                steps.extend(remote_source_row_steps())
             elif labels and str(labels[0]) in LABEL_IDENTIFIERS:
                 target_identifier = LABEL_IDENTIFIERS[str(labels[0])]
                 if target_identifier.startswith("FileBrowsing-SourcesSidebar-"):
@@ -1381,6 +1502,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     )
                 if targets == ["PlayerUI-VideoFormat-cancel"]:
                     continue
+                if targets[0].startswith("MediaLibrary-") or targets[0] == "FileBrowsing-Manage-button":
+                    ensure_media_library()
                 if replay_pending and targets[0].startswith(
                     ("MediaLibrary-grid-video-", "FileBrowsing-grid-video-")
                 ):
@@ -1406,19 +1529,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "args": {"verb": "resetMediaNavigation", "arguments": {}},
                         }
                     )
-                    steps.append(
-                        {
-                            "verb": "device.await",
-                            "args": {
-                                "probe": "element",
-                                "field": "identifier",
-                                "equals": "Navigation-Ornament-tab-files",
-                                "timeoutMs": 10000,
-                                "intervalMs": 200,
-                            },
-                        }
-                    )
-                    replay_pending = True
+                    if not reaches_emby():
+                        steps.append(
+                            {
+                                "verb": "device.await",
+                                "args": {
+                                    "probe": "element",
+                                    "field": "identifier",
+                                    "equals": "Navigation-Ornament-tab-files",
+                                    "timeoutMs": 10000,
+                                    "intervalMs": 200,
+                                },
+                            }
+                        )
+                        replay_pending = True
+                    emby_detail_open = False
                     current_media = None
                     continue
                 if targets and all(
@@ -1489,67 +1614,38 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             },
                         }
                     )
-                    if not targets:
-                        continue
-                player_targets = any(
-                    str(target).startswith(("PlayerUI-TopAction-", "PlayerUI-menu-"))
-                    for target in targets
-                )
-                if player_targets and menu_opened and current_media:
-                    steps.extend(reopen_steps(folder, current_media))
-                    menu_opened = False
-                if player_targets:
-                    player_interactions += 1
-                    menu_opened = True
-                if targets and all(
-                    item.startswith("PlayerUI-TopAction-")
-                    or item == "PlayerUI-VideoFormat-cancel"
-                    for item in targets
-                ):
-                    continue
-                audio_target = next(
-                    (
-                        item
-                        for item in targets
-                        if re.fullmatch(r"PlayerUI-menu-audio-\d+", str(item))
-                    ),
-                    None,
-                )
-                audio_label = None
-                if (
-                    audio_target is not None
-                    and current_media == "sdr-bframe-aggregate-30s.mkv"
-                ):
-                    ordinal = str(audio_target).rsplit("-", 1)[-1]
-                    audio_label = AUDIO_TRACK_LABELS.get(ordinal)
-                if audio_label is not None:
-                    label = audio_label
-                    remaining = [item for item in targets if item != audio_target]
-                    if remaining:
-                        if any(item.startswith("PlayerUI-TopAction-") for item in remaining):
-                            steps.append(
-                                {
-                                    "verb": "device.app-command",
-                                    "args": {
-                                        "verb": "toggleControls",
-                                        "arguments": {"visible": "true"},
-                                    },
-                                }
-                            )
+                    if "PlayerUI-resumeDecision-secondary" in targets:
+                        targets = [
+                            item
+                            for item in targets
+                            if item != "PlayerUI-resumeDecision-secondary"
+                        ]
                         steps.append(
                             {
-                                "verb": "device.command",
-                                "args": {"action": "tapEach", "identifiers": remaining},
+                                "verb": "device.app-command",
+                                "args": {
+                                    "verb": "resolveResumePrompt",
+                                    "arguments": {"action": "startOver"},
+                                },
                             }
                         )
-                    steps.append(
-                        {
-                            "verb": "device.command",
-                            "args": {"action": "tap", "label": label},
-                        }
-                    )
-                    menu_opened = False
-                    continue
+                    if "PlayerUI-resumeDecision-primary" in targets:
+                        targets = [
+                            item
+                            for item in targets
+                            if item != "PlayerUI-resumeDecision-primary"
+                        ]
+                        steps.append(
+                            {
+                                "verb": "device.app-command",
+                                "args": {
+                                    "verb": "resolveResumePrompt",
+                                    "arguments": {"action": "resume"},
+                                },
+                            }
+                        )
+                    if not targets:
+                        continue
                 if len(targets) > 1 and any(
                     item.startswith("PlayerUI-VideoFormat-") for item in targets
                 ):
@@ -1602,6 +1698,22 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             steps.append({"verb": "device.command", "args": arguments_out})
                         continue
                 for target in targets:
+                    if target.startswith(
+                        ("MediaLibrary-", "FileBrowsing-grid-folder-")
+                    ) or target == "FileBrowsing-Manage-button":
+                        if not already_awaited("element", "identifier", target):
+                            steps.append(
+                                {
+                                    "verb": "device.await",
+                                    "args": {
+                                        "probe": "element",
+                                        "field": "identifier",
+                                        "equals": target,
+                                        "timeoutMs": 15000,
+                                        "intervalMs": 300,
+                                    },
+                                }
+                            )
                     if target == "PlayerUI-resumeDecision-secondary":
                         steps.append(
                             {
@@ -1660,6 +1772,10 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
+            if activated_identifier == "FileBrowsing-SourcesSidebar-source-media-library":
+                media_library_open = True
+            elif activated_identifier.startswith("MediaLibrary-"):
+                ensure_media_library()
             if activated_identifier.startswith("Settings-category-"):
                 if settings_category == activated_identifier:
                     continue
@@ -1791,17 +1907,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             }
             if not issue_played:
                 ensure_files_context()
-                steps.append(
-                    {
-                        "verb": "device.command",
-                        "args": {
-                            "action": "tap",
-                            "identifier": "FileBrowsing-SourcesSidebar-source-",
-                            "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-                            "index": 1,
-                        },
-                    }
-                )
+                steps.extend(remote_source_row_steps())
                 steps.append(
                     {
                         "verb": "device.await",
@@ -2159,18 +2265,32 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         "args": {"verb": "enterSpatial", "arguments": spatial_arguments},
                     }
                 )
-                steps.append(
-                    {
-                        "verb": "device.await",
-                        "args": {
-                            "probe": "element",
-                            "field": "identifier",
-                            "equals": "PlayerPanel-button-exit-spatial",
-                            "timeoutMs": deadline_ms,
-                            "intervalMs": 400,
-                        },
-                    }
-                )
+                if "rollback" in str(arguments.get("expectedResult") or ""):
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "PlayerUI-window-control-plane",
+                                "field": "presentation",
+                                "equals": landing,
+                                "timeoutMs": deadline_ms,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
+                else:
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "element",
+                                "field": "identifier",
+                                "equals": "PlayerPanel-button-exit-spatial",
+                                "timeoutMs": deadline_ms,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
         elif name == "playback.select-subtitle":
             deadline_ms = int(arguments.get("deadlineSeconds", 30)) * 1000
             host = str(arguments.get("host") or "playerUI")
@@ -2501,7 +2621,7 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     and action["args"].get("field")
                     and previous["args"]["field"] != action["args"]["field"]
                 )
-                if same_probe and simple:
+                if same_probe and simple and previous["args"].get("probe") != "element":
                     merged = dict(previous)
                     merged["args"] = dict(previous["args"])
                     merged["args"]["equals"] = {
@@ -2676,16 +2796,7 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
             )
         actions.insert(insertion, actions.pop())
         if defaulted_source:
-            actions.insert(
-                insertion + 1,
-                {
-                    "verb": "device.command",
-                    "args": {
-                        "action": "tap",
-                        "label": sorted(source_labels)[0],
-                    },
-                },
-            )
+            actions[insertion + 1 : insertion + 1] = []
     teardown = [
         {
             "verb": "device.app-command",

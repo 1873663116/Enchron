@@ -68,6 +68,33 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-media-library"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-folder-Regression Parent",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -75,10 +102,30 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-Manage-button",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
         "identifier": "FileBrowsing-Manage-button"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-Manage-newFolder",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -97,10 +144,30 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-NewFolder-create",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
         "identifier": "MediaLibrary-NewFolder-create"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-grid-folder-Regression Child",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {

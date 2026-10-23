@@ -138,9 +138,9 @@
       "args": {
         "calls": [
           {
-            "verb": "seekNormalized",
+            "verb": "resolveResumePrompt",
             "arguments": {
-              "position": "0"
+              "action": "startOver"
             }
           },
           {

@@ -53,12 +53,20 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Enchron Regression WebDAV",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -95,15 +103,9 @@
         "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio"
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-2"
         ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "FLAC 660 Hz sync pulse · flac · 2ch"
       }
     },
     {
@@ -207,12 +209,20 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Enchron Regression WebDAV",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -249,15 +259,9 @@
         "action": "tapEach",
         "identifiers": [
           "PlayerUI-TopAction-more",
-          "PlayerUI-menu-audio"
+          "PlayerUI-menu-audio",
+          "PlayerUI-menu-audio-2"
         ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "FLAC 660 Hz sync pulse · flac · 2ch"
       }
     },
     {

@@ -52,13 +52,6 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression WebDAV"
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
         "identifier": "FileBrowsing-SourcesSidebar-source-",
         "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
         "index": 1
@@ -113,11 +106,19 @@
       "verb": "device.await",
       "args": {
         "probe": "element",
-        "equals": {
-          "label": "Playback Error",
-          "identifier": "PlayerUI-loadFailure-primary"
-        },
+        "field": "label",
+        "equals": "Playback Error",
         "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-loadFailure-primary",
+        "timeoutMs": 20000,
         "intervalMs": 400
       }
     },
@@ -271,15 +272,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "element",
@@ -313,7 +305,7 @@
   "cases": [
     {
       "key": "default",
-      "start": 5
+      "start": 4
     }
   ]
 }

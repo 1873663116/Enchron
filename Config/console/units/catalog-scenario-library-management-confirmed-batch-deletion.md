@@ -78,10 +78,47 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "FileBrowsing-SourcesSidebar-source-media-library"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-Manage-button",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
         "identifier": "FileBrowsing-Manage-button"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-Manage-selectMultiple",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -102,6 +139,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-MultiSelect-delete",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -111,6 +158,16 @@
     {
       "verb": "device.snapshot",
       "args": {}
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "MediaLibrary-MultiSelect-confirmDelete",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
     },
     {
       "verb": "device.command",

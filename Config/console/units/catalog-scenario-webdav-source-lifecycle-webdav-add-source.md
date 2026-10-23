@@ -233,15 +233,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "element",

@@ -80,6 +80,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -149,9 +159,9 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "PlayerPanel-button-exit-spatial",
+        "probe": "PlayerUI-window-control-plane",
+        "field": "presentation",
+        "equals": "portal",
         "timeoutMs": 45000,
         "intervalMs": 400
       }

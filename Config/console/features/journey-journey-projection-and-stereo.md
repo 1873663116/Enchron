@@ -5,6 +5,7 @@
   "id": "feature:journey.journey-projection-and-stereo",
   "title": "Journey:Projection And Stereo",
   "units": [
+    "unit:catalog.scenario-projection-and-stereo-panorama-coverage-angle.part2@1",
     "unit:catalog.scenario-projection-and-stereo-panorama-coverage-angle@1",
     "unit:catalog.scenario-projection-and-stereo-stereo-view-separation@1"
   ],

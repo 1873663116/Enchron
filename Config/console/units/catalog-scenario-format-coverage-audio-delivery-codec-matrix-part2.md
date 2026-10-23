@@ -83,61 +83,20 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.command",
       "args": {
-        "verb": "playMedia",
-        "arguments": {
-          "name": "sdr-bframe-audio-codec-matrix-15s.mkv"
-        }
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "sdr-bframe-audio-codec-matrix-15s.mkv"
-        },
-        "timeoutMs": 45000,
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.snapshot",
-      "args": {}
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "scenario-format-coverage-audio-delivery-codec-matrix",
-          "entry": "root"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
       }
     },
     {
@@ -234,6 +193,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -257,6 +226,105 @@
           "presentation": "window",
           "mediaName": "atmos.mkv"
         },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-format-coverage-audio-delivery-codec-matrix",
+          "entry": "root"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "playMedia",
+        "arguments": {
+          "name": "1.0-test_small.ogg"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "1.0-test_small.ogg"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "field": "position",
+        "equals": 1.0,
+        "mode": "atLeast",
         "timeoutMs": 45000,
         "intervalMs": 400
       }
@@ -311,16 +379,16 @@
   },
   "cases": [
     {
-      "key": "case-4",
+      "key": "dts",
       "start": 5
     },
     {
-      "key": "case-5",
-      "start": 11
+      "key": "truehd",
+      "start": 16
     },
     {
-      "key": "case-6",
-      "start": 21
+      "key": "vorbis",
+      "start": 26
     }
   ]
 }

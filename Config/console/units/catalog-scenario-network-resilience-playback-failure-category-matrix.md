@@ -53,12 +53,20 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Enchron Regression WebDAV",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -86,15 +94,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "element",
@@ -119,15 +118,6 @@
         "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.1"
-        }
       }
     },
     {
@@ -190,20 +180,10 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "clearPlaybackIssue",
-            "arguments": {}
-          },
-          {
-            "verb": "seekNormalized",
-            "arguments": {
-              "position": "0.1"
-            }
-          }
-        ]
+        "verb": "clearPlaybackIssue",
+        "arguments": {}
       }
     },
     {
@@ -254,12 +234,20 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "Enchron Regression WebDAV",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
+        "label": "Enchron Regression WebDAV"
       }
     },
     {
@@ -287,15 +275,6 @@
       }
     },
     {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-SourcesSidebar-source-",
-        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
-        "index": 1
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "element",
@@ -320,15 +299,6 @@
         "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.1"
-        }
       }
     },
     {
@@ -391,20 +361,10 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "clearPlaybackIssue",
-            "arguments": {}
-          },
-          {
-            "verb": "seekNormalized",
-            "arguments": {
-              "position": "0.1"
-            }
-          }
-        ]
+        "verb": "clearPlaybackIssue",
+        "arguments": {}
       }
     },
     {
@@ -464,7 +424,7 @@
     },
     {
       "key": "file-missing",
-      "start": 25
+      "start": 24
     }
   ]
 }

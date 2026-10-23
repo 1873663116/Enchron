@@ -9,7 +9,6 @@
     "unit:catalog.scenario-network-resilience-certificate-change-stops-without-trust@1",
     "unit:catalog.scenario-network-resilience-finite-backoff-reconnect@1",
     "unit:catalog.scenario-network-resilience-playback-failure-category-matrix.part2@1",
-    "unit:catalog.scenario-network-resilience-playback-failure-category-matrix.part3@1",
     "unit:catalog.scenario-network-resilience-playback-failure-category-matrix@1",
     "unit:catalog.scenario-network-resilience-prefetch-without-waiting-consumer@1",
     "unit:catalog.scenario-network-resilience-recoverable-read-resumes-from-checkpoint@1"

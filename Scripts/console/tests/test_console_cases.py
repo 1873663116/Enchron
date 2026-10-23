@@ -167,9 +167,20 @@ class GeneratedCaseTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[3]
         units = loader.load_units(root)
         matrix = units["unit:catalog.scenario-dynamic-range-interpretation-dolby-vision-profile-matrix@1"]
+        second = units[
+            "unit:catalog.scenario-dynamic-range-interpretation-"
+            "dolby-vision-profile-matrix.part2@1"
+        ]
         self.assertEqual(
-            [case["key"] for case in matrix.cases],
-            ["dv-profile-5", "dv-profile-7-dual", "dv-profile-8-hdr10", "dv-profile-8-hlg"],
+            [case["key"] for case in matrix.cases]
+            + [case["key"] for case in second.cases],
+            [
+                "dv-profile-5",
+                "dv-profile-7-dual",
+                "dv-profile-8-hdr10",
+                "dv-profile-8-hlg",
+                "dv-profile-10",
+            ],
         )
         plan, _ = compiler.Compiler(root).compile(matrix, "e2e", PROFILE)
         subset, refusal = compiler.case_plan(plan, matrix, "dv-profile-5")

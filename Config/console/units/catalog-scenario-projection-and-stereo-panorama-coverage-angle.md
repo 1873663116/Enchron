@@ -74,6 +74,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -140,6 +150,16 @@
       "args": {
         "action": "tap",
         "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {
@@ -220,6 +240,16 @@
       "args": {
         "probe": "element",
         "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
         "equals": "PlayerUI-window-control-plane",
         "mode": "absent",
         "timeoutMs": 15000,
@@ -260,72 +290,6 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "importStagedFolder",
-        "arguments": {
-          "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
-          "entry": "root"
-        }
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "PlayerUI-window-control-plane",
-        "mode": "absent",
-        "timeoutMs": 15000,
-        "intervalMs": 200
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "playMedia",
-        "arguments": {
-          "name": "APMP-180-example.mp4"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "WindowPlayback-root",
-        "timeoutMs": 45000,
-        "intervalMs": 300
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "applyFormat",
-        "arguments": {
-          "projection": "customAngle",
-          "stereo": "mono"
-        }
       }
     },
     {
@@ -363,15 +327,11 @@
     },
     {
       "key": "equirectangular-360",
-      "start": 11
+      "start": 12
     },
     {
       "key": "custom-angle-200",
-      "start": 19
-    },
-    {
-      "key": "custom-angle-240",
-      "start": 27
+      "start": 21
     }
   ]
 }
