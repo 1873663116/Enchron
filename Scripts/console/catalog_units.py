@@ -14,8 +14,18 @@ SCENARIOS = REPOSITORY_ROOT / "Regression/journeys"
 MEDIA_ROOT = REPOSITORY_ROOT.parent / "TestMedia"
 
 RESET_PRODUCT_STATE = "harness.reset-product-state"
+FAULT_RECIPES = frozenset(
+    {
+        "credentials-rejected",
+        "missing-object",
+        "access-denied",
+        "corrupt-media",
+        "transport-interrupted",
+    }
+)
 
 BLOCKERS = {
+    "harness.reset-product-state": "the product form needs fixture facts typed into it before it can be driven",
     "input.device-hub-pinch": "no verb carries the device hub pinch gesture",
     "input.device-hub-prepare": "no verb prepares the device hub",
     "evidence.capture-audio": "no verb captures audio",
@@ -27,10 +37,10 @@ BLOCKERS = {
     "presentation.enter-panorama": "the route taps a panorama sequence and settles",
     "presentation.exit-spatial": "the route reads the spatial state before it exits",
     "storage.clear": "the route taps a settings action and compares storage observations",
-    RESET_PRODUCT_STATE: "the reset signs out the source and clears the library the later steps need",
 }
 
 HANDLED_ELSEWHERE = {
+    RESET_PRODUCT_STATE,
     "host.preflight",
     "media.import-staged",
     "transition-trace.arm",
@@ -39,7 +49,6 @@ HANDLED_ELSEWHERE = {
 }
 
 UNSUPPORTED = {
-    RESET_PRODUCT_STATE,
     "input.device-hub-pinch",
     "evidence.capture-audio",
     "evidence.structural-test",
@@ -288,26 +297,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     menu_opened = False
     portal_projection = False
     operations = payload["operations"]
-    manual_source_flow = "FileBrowsing-SourceConnection-webDAV-name" in json.dumps(
-        operations, ensure_ascii=False
-    )
+    source_name_text = ""
+    fault_recipe = ""
+    for action in operations:
+        arguments = action.get("arguments") or {}
+        if arguments.get("identifier") != "FileBrowsing-SourceConnection-webDAV-name":
+            continue
+        source_name_text = str(arguments.get("text", ""))
+        for token in source_name_text.split():
+            if token in FAULT_RECIPES:
+                fault_recipe = token
+        break
+    manual_source_flow = bool(fault_recipe)
     if manual_source_flow:
-        name_text = ""
-        recipe = ""
-        for action in operations:
-            arguments = action.get("arguments") or {}
-            if arguments.get("identifier") == "FileBrowsing-SourceConnection-webDAV-name":
-                name_text = str(arguments.get("text", ""))
-                for token in name_text.split():
-                    if token in {
-                        "credentials-rejected",
-                        "missing-object",
-                        "access-denied",
-                        "corrupt-media",
-                        "transport-interrupted",
-                    }:
-                        recipe = token
-                break
+        name_text = source_name_text
+        recipe = fault_recipe
         operations = [
             {
                 "operation": "operation:device.connect-source@1",
@@ -330,7 +334,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     for action in operations:
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
-        if name == "app.relaunch":
+        if name == RESET_PRODUCT_STATE:
+            reset_arguments: dict[str, str] = {"keepSession": "true"}
+            folder_name = arguments.get("rootFolderName")
+            if folder_name:
+                reset_arguments["libraryFolder"] = str(folder_name)
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "resetState", "arguments": reset_arguments},
+                }
+            )
+            current_media = None
+            menu_opened = False
+            folder_opened = False
+        elif name == "app.relaunch":
             steps.append({"verb": "app.relaunch", "args": {}})
             current_media = None
             menu_opened = False
@@ -934,16 +952,6 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"verb": "disarmTransitionTrace", "arguments": {}},
                 }
             )
-        elif name == RESET_PRODUCT_STATE:
-            steps.append(
-                {
-                    "verb": "device.app-command",
-                    "args": {
-                        "verb": "resetState",
-                        "arguments": {"libraryFolder": arguments.get("rootFolderName", "")},
-                    },
-                }
-            )
         else:
             raise SystemExit(f"{name} is outside the direct vocabulary")
     if remote_flow:
@@ -1230,6 +1238,26 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
             }
         )
     simplified = simplify(steps)
+    scenario_reset = next(
+        (
+            index
+            for index, action in enumerate(simplified)
+            if action["verb"] == "device.app-command"
+            and action["args"].get("verb") == "resetState"
+            and action["args"].get("arguments", {}).get("libraryFolder")
+        ),
+        None,
+    )
+    if scenario_reset is not None:
+        imports = [
+            action
+            for action in actions
+            if action["verb"] == "device.app-command"
+            and action["args"].get("verb") in {"importStagedFolder", "importStagedFiles"}
+        ]
+        if imports:
+            actions = [action for action in actions if action not in imports]
+            simplified[scenario_reset + 1 : scenario_reset + 1] = imports
     chunks = split_steps(simplified)
     missing_fixtures = [
         str(action.get("arguments", {}).get("identifier", "")).split("-grid-video-")[-1]
@@ -1318,6 +1346,20 @@ def blocked(payload: dict[str, Any]) -> list[str]:
     return found
 
 
+FORM_FACTS = frozenset(
+    {
+        "scenario:webdav-source-lifecycle:webdav-add-source",
+        "scenario:webdav-source-lifecycle:certificate-trust-boundary",
+    }
+)
+
+VERIFIED_RESET_SCENARIOS = frozenset(
+    {
+        "scenario:local-media-lifecycle:clean-flat-playback-main-gate",
+    }
+)
+
+
 def expressible(path: Path) -> bool:
     payload = scenario(path)
     if payload is None:
@@ -1326,6 +1368,11 @@ def expressible(path: Path) -> bool:
         bool(operation_names(payload))
         and not blocked(payload)
         and str(payload.get("id")) not in HAND_WRITTEN
+        and str(payload.get("id")) not in FORM_FACTS
+        and (
+            RESET_PRODUCT_STATE not in operation_names(payload)
+            or str(payload.get("id")) in VERIFIED_RESET_SCENARIOS
+        )
     )
 
 
@@ -1365,6 +1412,36 @@ def write_feature(journey: str, identifiers: list[str]) -> None:
         f"---\n{body}\n---\n\nEvery scenario of the {journey} journey that the direct vocabulary already carries.\n",
         encoding="utf-8",
     )
+
+
+def prune_features() -> None:
+    declared: set[str] = set()
+    for unit_path in (REPOSITORY_ROOT / "Config/console/units").glob("*.md"):
+        try:
+            head = unit_path.read_text(encoding="utf-8").split("---")[1]
+            identifier = str(json.loads(head).get("id", ""))
+        except (json.JSONDecodeError, IndexError):
+            continue
+        if identifier:
+            declared.add(identifier)
+    for feature_path in (REPOSITORY_ROOT / "Config/console/features").glob("*.md"):
+        try:
+            head = feature_path.read_text(encoding="utf-8").split("---")[1]
+            payload = json.loads(head)
+        except (json.JSONDecodeError, IndexError):
+            continue
+        units = [str(unit) for unit in payload.get("units", []) if str(unit) in declared]
+        if units == [str(unit) for unit in payload.get("units", [])]:
+            continue
+        if not units:
+            feature_path.unlink()
+            continue
+        payload["units"] = units
+        body = json.dumps(payload, indent=2, ensure_ascii=False)
+        feature_path.write_text(
+            f"---\n{body}\n---\n\n{feature_path.read_text(encoding='utf-8').split('---', 2)[2].lstrip()}\n",
+            encoding="utf-8",
+        )
 
 
 def report_gaps() -> int:
@@ -1420,6 +1497,7 @@ def main(argv: list[str]) -> int:
     if "--check" not in argv:
         for journey, identifiers in journeys.items():
             write_feature(journey, identifiers)
+        prune_features()
     print(f"{written} scenario unit(s), {len(journeys)} journey feature(s)")
     return 0
 
