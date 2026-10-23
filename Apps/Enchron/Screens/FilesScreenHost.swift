@@ -1,7 +1,6 @@
 import Foundation
 import MediaLibrary
 import Observation
-import PhotosUI
 import Playback
 import SwiftUI
 import UniformTypeIdentifiers
@@ -122,92 +121,6 @@ final class FilesScreenFileImportCoordinator {
     }
 }
 
-@MainActor
-@Observable
-final class FilesScreenPhotosImportCoordinator {
-    typealias Loader = @Sendable (PhotosPickerItem) async throws -> AppManagedMediaFile?
-
-    var isPresented = false
-    var selection: PhotosPickerItem?
-    @ObservationIgnored private var completion: FilesScreenProductEntryCompletion?
-    private let loader: Loader
-#if DEBUG
-    @ObservationIgnored private var diagnosticRequestID: UUID?
-#endif
-
-    init(
-        loader: @escaping Loader = { item in
-            try await item.loadTransferable(type: AppManagedMediaFile.self)
-        }
-    ) {
-        self.loader = loader
-    }
-
-    func present(
-        completion: @escaping FilesScreenProductEntryCompletion
-    ) {
-        selection = nil
-        self.completion = completion
-#if DEBUG
-        if let diagnosticRequestID {
-            SystemImportDeliveryDiagnostics.discardRequest(diagnosticRequestID)
-        }
-        diagnosticRequestID = SystemImportDeliveryDiagnostics.beginRequest(
-            deliveryDomain: .appManagedPhotoTransfer
-        )
-#endif
-        isPresented = true
-    }
-
-    func deliverSelection() async {
-        guard let selection, let completion else { return }
-        let assetIdentifier = selection.itemIdentifier
-        self.selection = nil
-        self.completion = nil
-        isPresented = false
-
-        do {
-            guard let importedFile = try await loader(selection) else {
-#if DEBUG
-                if let diagnosticRequestID {
-                    SystemImportDeliveryDiagnostics.discardRequest(diagnosticRequestID)
-                    self.diagnosticRequestID = nil
-                }
-#endif
-                completion(.failure(ManagedMediaImportError.transferUnavailable))
-                return
-            }
-#if DEBUG
-            if let diagnosticRequestID {
-                SystemImportDeliveryDiagnostics.recordPhotosTransferCompletion(
-                    requestID: diagnosticRequestID,
-                    assetIdentifier: assetIdentifier,
-                    deliveredURL: importedFile.url
-                )
-                self.diagnosticRequestID = nil
-            }
-#endif
-            completion(.success([importedFile.url]))
-        } catch is CancellationError {
-#if DEBUG
-            if let diagnosticRequestID {
-                SystemImportDeliveryDiagnostics.discardRequest(diagnosticRequestID)
-                self.diagnosticRequestID = nil
-            }
-#endif
-            return
-        } catch {
-#if DEBUG
-            if let diagnosticRequestID {
-                SystemImportDeliveryDiagnostics.discardRequest(diagnosticRequestID)
-                self.diagnosticRequestID = nil
-            }
-#endif
-            completion(.failure(error))
-        }
-    }
-}
-
 struct FilesScreenHost: View {
     @Environment(AppModalPresentationCoordinator.self)
     private var modalPresentationCoordinator
@@ -218,7 +131,6 @@ struct FilesScreenHost: View {
 
     @State private var screenState = FilesScreenViewState()
     @State private var fileImportCoordinator = FilesScreenFileImportCoordinator()
-    @State private var photosImportCoordinator = FilesScreenPhotosImportCoordinator()
 
     var body: some View {
         MediaLibrary.FilesScreen(
@@ -235,16 +147,6 @@ struct FilesScreenHost: View {
             allowsMultipleSelection: fileImportCoordinator.kind == .mediaFiles,
             onCompletion: fileImportCoordinator.deliver
         )
-        .photosPicker(
-            isPresented: $photosImportCoordinator.isPresented,
-            selection: $photosImportCoordinator.selection,
-            matching: .videos,
-            preferredItemEncoding: .current
-        )
-        .onChange(of: photosImportCoordinator.selection) { _, selection in
-            guard selection != nil else { return }
-            Task { await photosImportCoordinator.deliverSelection() }
-        }
 #if DEBUG
         .onReceive(
             NotificationCenter.default.publisher(for: .fileBrowserReachabilityError)
@@ -313,12 +215,6 @@ struct FilesScreenHost: View {
         switch entry {
         case .fileImporter(let kind):
             fileImportCoordinator.present(kind: kind, completion: completion)
-        case .photos:
-            Task {
-                await modalPresentationCoordinator
-                    .dismissPresentedModalBeforePresentingNext()
-                photosImportCoordinator.present(completion: completion)
-            }
         }
     }
 

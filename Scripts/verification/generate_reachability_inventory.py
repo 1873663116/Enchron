@@ -153,7 +153,6 @@ DEBUG_MENU_EQUIVALENTS: dict[str, dict[str, object]] = {
 
 for identifier, family, target in (
     ("MediaLibrary-Manage-addFiles", "manage", "addFiles"),
-    ("MediaLibrary-Manage-addPhotos", "manage", "addPhotos"),
     ("MediaLibrary-Manage-addFolder", "manage", "addFolder"),
     ("MediaLibrary-Manage-newFolder", "manage", "newFolder"),
     ("MediaLibrary-Manage-selectMultiple", "manage", "selectMultiple"),
@@ -860,7 +859,6 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "overview-expand",
             "-create",
             "-addfiles",
-            "-addphotos",
             "-addfolder",
             "-newfolder",
             "-selectmultiple",

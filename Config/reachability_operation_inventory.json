@@ -1910,18 +1910,6 @@
           "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
         }
       ],
-      "template": "MediaLibrary-Manage-addPhotos"
-    },
-    {
-      "action": "activate",
-      "family": "MediaLibrary",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Modules/MediaLibrary/Views/FilesScreen.swift"
-        }
-      ],
       "template": "MediaLibrary-Manage-newFolder"
     },
     {
@@ -5739,34 +5727,6 @@
       },
       "id": "accessibility:MediaLibrary-Manage-addFolder",
       "identifierTemplate": "MediaLibrary-Manage-addFolder",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "browserWindowSurface",
-        "sources": [
-          {
-            "path": "Apps/Enchron/MainView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "main-window-browser"
-      ],
-      "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "debugEquivalent": {
-        "families": [
-          "manage"
-        ],
-        "host": "files",
-        "listVerb": "listMenuItems",
-        "parentOperation": "accessibility:FileBrowsing-Manage-button",
-        "selectVerb": "selectMenuItem",
-        "target": "addPhotos"
-      },
-      "id": "accessibility:MediaLibrary-Manage-addPhotos",
-      "identifierTemplate": "MediaLibrary-Manage-addPhotos",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",

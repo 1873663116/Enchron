@@ -847,7 +847,7 @@ public final class MediaLibraryViewModel {
         to candidate: inout FileBrowsingDomain.MediaLibrary
     ) throws {
         guard FileBrowsingDomain.FileFilter.playable.matches(fileURL: url) else {
-            throw ManagedMediaImportError.unsupportedMedia(
+            throw MediaLibraryImportError.unsupportedMedia(
                 filename: url.lastPathComponent
             )
         }

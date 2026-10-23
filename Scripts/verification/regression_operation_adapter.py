@@ -1539,10 +1539,7 @@ def validate_system_import_delivery_snapshot(
         snapshot["requestID"], "systemImportDeliverySnapshot.requestID"
     )
     delivery_domain = snapshot["deliveryDomain"]
-    if delivery_domain not in {
-        "files-provider-security-scope",
-        "app-managed-photo-transfer",
-    }:
+    if delivery_domain != "files-provider-security-scope":
         raise OperationAdapterError(
             "systemImportDeliverySnapshot has an unknown delivery domain"
         )
@@ -1555,10 +1552,7 @@ def validate_system_import_delivery_snapshot(
         raise OperationAdapterError(
             "systemImportDeliverySnapshot must contain delivered items"
         )
-    expected_identity_kind = {
-        "files-provider-security-scope": "files-provider-url",
-        "app-managed-photo-transfer": "photos-asset",
-    }[str(delivery_domain)]
+    expected_identity_kind = "files-provider-url"
     for index, value_item in enumerate(items):
         location = f"systemImportDeliverySnapshot.items[{index}]"
         item = closed_object(
@@ -3044,7 +3038,7 @@ def _specs() -> tuple[OperationSpec, ...]:
                     "systemImportExpectation",
                     string,
                     required=False,
-                    choices=_choices("files", "photos"),
+                    choices=_choices("files"),
                 ),
             ),
             (("library.command", "library-command@1"),),
@@ -6907,15 +6901,9 @@ class ResidentOperationBackend:
             ).runtime_file
             runtime = _system_import.validate_runtime(runtime_path)
             expectation = str(arguments["systemImportExpectation"])
-            expected = runtime[
-                "filesPicker" if expectation == "files" else "photosPicker"
-            ]
+            expected = runtime["filesPicker"]
             assert isinstance(expected, dict)
-            expected_name = str(
-                expected[
-                    "displayName" if expectation == "files" else "originalFilename"
-                ]
-            )
+            expected_name = str(expected["displayName"])
             expected_digest = str(expected["digest"])
             delivery = validate_system_import_delivery_snapshot(
                 response.get("systemImportDeliverySnapshot")
@@ -6943,11 +6931,7 @@ class ResidentOperationBackend:
                 "environmentIdentity": runtime["environmentIdentity"],
                 "fixture": dict(runtime["fixture"]),
                 "configuredPicker": dict(expected),
-                "expectedDeliveryDomain": (
-                    "files-provider-security-scope"
-                    if expectation == "files"
-                    else "app-managed-photo-transfer"
-                ),
+                "expectedDeliveryDomain": "files-provider-security-scope",
                 "expectedDeliveredName": expected_name,
                 "expectedDeliveredDigest": expected_digest,
                 "deliverySnapshot": dict(delivery),

@@ -4539,7 +4539,6 @@ class ReachabilityRun:
         for target, expected_action in (
             ("addFiles", "manage.addFiles"),
             ("addFolder", "manage.addFolder"),
-            ("addPhotos", "manage.addPhotos"),
         ):
             self.relaunch()
             self.tap(presentation, "Navigation-Ornament-tab-files")

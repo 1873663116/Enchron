@@ -1947,14 +1947,6 @@ class OperationAllowlistTests(unittest.TestCase):
                 "path": "/provider/Enchron-System-Import-30s.mp4",
                 "digest": "sha256:" + "2" * 64,
             },
-            "photosPicker": {
-                "authorizationMode": "system-picker-no-library-authorization",
-                "assetUUID": "11111111-1111-4111-8111-111111111111",
-                "originalFilename": system_import.VISIBLE_FILENAME,
-                "storedRelativePath": "DCIM/100APPLE/fixture.mp4",
-                "digest": "sha256:" + "2" * 64,
-                "durationSeconds": 30.0,
-            },
         }
         with (
             mock.patch.object(backend, "_app_command", return_value=response),

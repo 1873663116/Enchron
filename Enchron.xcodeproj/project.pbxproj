@@ -154,7 +154,6 @@
 				GameStreaming/Views/StreamSessionContentView.swift,
 				GameStreaming/Views/StreamSettingsSection.swift,
 				GameStreaming/Views/StreamingHomeView.swift,
-				MediaLibrary/AppManagedMediaImportStore.swift,
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,
 				MediaLibrary/MediaLibraryViewModel.swift,

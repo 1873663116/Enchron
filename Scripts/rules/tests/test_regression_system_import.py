@@ -7,7 +7,6 @@ import json
 import os
 from pathlib import Path
 import plistlib
-import sqlite3
 import stat
 import subprocess
 import sys
@@ -24,65 +23,9 @@ import regression_system_import as system_import
 class FakeSimulator:
     def __init__(self, data_root: Path) -> None:
         self.data_root = data_root
-        self.added: list[tuple[str, Path]] = []
-        self.asset_counter = 0
 
     def resolve_booted_visionos_data_root(self, device_identifier: str) -> Path:
         return self.data_root
-
-    def add_media(self, device_identifier: str, source: Path) -> None:
-        self.added.append((device_identifier, source))
-        self.asset_counter += 1
-        media = self.data_root / "Media/DCIM/100APPLE"
-        media.mkdir(parents=True, exist_ok=True)
-        filename = f"IMG_{self.asset_counter:04d}.MP4"
-        stored = media / filename
-        stored.write_bytes(source.read_bytes())
-        database = self.data_root / "Media/PhotoData/Photos.sqlite"
-        database.parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(database) as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ZASSET (
-                    Z_PK INTEGER PRIMARY KEY,
-                    ZUUID TEXT,
-                    ZDIRECTORY TEXT,
-                    ZFILENAME TEXT,
-                    ZDURATION REAL,
-                    ZTRASHEDSTATE INTEGER
-                )
-                """
-            )
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS ZADDITIONALASSETATTRIBUTES (
-                    ZASSET INTEGER,
-                    ZORIGINALFILENAME TEXT,
-                    ZORIGINALFILESIZE INTEGER
-                )
-                """
-            )
-            asset_uuid = f"00000000-0000-4000-8000-{self.asset_counter:012d}"
-            cursor = connection.execute(
-                """
-                INSERT INTO ZASSET (
-                    ZUUID, ZDIRECTORY, ZFILENAME, ZDURATION, ZTRASHEDSTATE
-                ) VALUES (?, ?, ?, ?, 0)
-                """,
-                (asset_uuid, "DCIM/100APPLE", filename, 30.0),
-            )
-            connection.execute(
-                """
-                INSERT INTO ZADDITIONALASSETATTRIBUTES (
-                    ZASSET, ZORIGINALFILENAME, ZORIGINALFILESIZE
-                ) VALUES (?, ?, ?)
-                """,
-                (
-                    cursor.lastrowid,
-                    system_import.VISIBLE_FILENAME,
-                    source.stat().st_size,
-                ),
-            )
 
 
 class SystemImportTests(unittest.TestCase):
@@ -137,18 +80,16 @@ class SystemImportTests(unittest.TestCase):
             runtime_root=self.runtime_root,
             registry_path=self.registry,
             fixture_root=self.fixture_root,
-            photo_poll_timeout_seconds=0.5,
         )
         self.simulator = FakeSimulator(self.data_root)
 
-    def test_ensure_seeds_both_pickers_and_is_byte_stable(self) -> None:
+    def test_ensure_seeds_the_files_picker_and_is_byte_stable(self) -> None:
         first = system_import.ensure(self.configuration, boundary=self.simulator)
         encoded = self.configuration.runtime_file.read_bytes()
         information = self.configuration.runtime_file.lstat()
         second = system_import.ensure(self.configuration, boundary=self.simulator)
 
         self.assertEqual(first, second)
-        self.assertEqual(len(self.simulator.added), 1)
         self.assertEqual(encoded, self.configuration.runtime_file.read_bytes())
         current = self.configuration.runtime_file.lstat()
         self.assertEqual(current.st_ino, information.st_ino)
@@ -160,13 +101,6 @@ class SystemImportTests(unittest.TestCase):
         self.assertEqual(
             first["filesPicker"]["authorizationMode"],
             "system-picker-security-scoped",
-        )
-        self.assertEqual(
-            first["photosPicker"]["authorizationMode"],
-            "system-picker-no-library-authorization",
-        )
-        self.assertEqual(
-            first["filesPicker"]["digest"], first["photosPicker"]["digest"]
         )
         runtime = system_import.validate_runtime(self.configuration.runtime_file)
         self.assertRegex(
@@ -181,7 +115,7 @@ class SystemImportTests(unittest.TestCase):
         )
 
         tampered = json.loads(json.dumps(first))
-        tampered["photosPicker"]["digest"] = "sha256:" + "0" * 64
+        tampered["filesPicker"]["digest"] = "sha256:" + "0" * 64
         self.assertFalse(
             system_import.validate_preflight_report(
                 tampered,
@@ -205,31 +139,6 @@ class SystemImportTests(unittest.TestCase):
         system_import.ensure(self.configuration, boundary=self.simulator)
 
         self.assertEqual(destination.read_bytes(), self.payload)
-        self.assertEqual(len(self.simulator.added), 1)
-
-    def test_duplicate_or_tampered_photo_asset_fails_closed(self) -> None:
-        system_import.ensure(self.configuration, boundary=self.simulator)
-        self.simulator.add_media(self.device, self.fixture)
-        report = system_import.run_preflight(
-            self.configuration, boundary=self.simulator
-        )
-        self.assertFalse(report["ready"])
-        self.assertIn("duplicate", report["reason"])
-        self.assertFalse(self.configuration.runtime_file.exists())
-
-        database = self.data_root / "Media/PhotoData/Photos.sqlite"
-        with sqlite3.connect(database) as connection:
-            connection.execute(
-                "DELETE FROM ZADDITIONALASSETATTRIBUTES WHERE ZASSET = 2"
-            )
-            connection.execute("DELETE FROM ZASSET WHERE Z_PK = 2")
-        stored = self.data_root / "Media/DCIM/100APPLE/IMG_0001.MP4"
-        stored.write_bytes(b"tampered")
-        report = system_import.run_preflight(
-            self.configuration, boundary=self.simulator
-        )
-        self.assertFalse(report["ready"])
-        self.assertIn("digest mismatch", report["reason"])
 
     def test_registry_digest_and_file_provider_identity_fail_closed(self) -> None:
         self.fixture.write_bytes(b"changed")
@@ -278,17 +187,11 @@ class SystemImportTests(unittest.TestCase):
         ):
             system_import.validate_runtime(self.configuration.runtime_file)
 
-    def test_configuration_rejects_non_uuid_and_nonpositive_timeout(self) -> None:
+    def test_configuration_rejects_a_non_uuid_target(self) -> None:
         with self.assertRaisesRegex(
             system_import.SystemImportConfigurationError, "Simulator UUID"
         ):
             system_import.SystemImportConfiguration("booted")
-        with self.assertRaisesRegex(
-            system_import.SystemImportConfigurationError, "positive"
-        ):
-            system_import.SystemImportConfiguration(
-                self.device, photo_poll_timeout_seconds=0
-            )
 
     def test_simctl_boundary_accepts_xros_runtime_and_rejects_ios_runtime(self) -> None:
         expected = (
