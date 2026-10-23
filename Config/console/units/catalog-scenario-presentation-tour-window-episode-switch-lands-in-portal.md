@@ -119,16 +119,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "label",
-        "equals": "180_3D.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tapEach",
@@ -136,6 +126,16 @@
           "PlayerUI-TopAction-more",
           "PlayerUI-menu-episodes"
         ]
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "label",
+        "equals": "180_3D.mp4",
+        "timeoutMs": 20000,
+        "intervalMs": 400
       }
     },
     {

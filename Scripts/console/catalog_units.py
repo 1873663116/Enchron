@@ -31,7 +31,7 @@ BLOCKERS = {
     "evidence.capture-audio": "no verb captures audio",
     "evidence.structural-test": "no verb runs a structural check",
     "issue.present": "the induce route reads the issue control plane first",
-    "playback.seek": "the seek reads the session, media name and duration before it acts",
+    "playback.seek": "the seek needs the viewing-storage probe before it can land",
     "playback.select-subtitle": "the route reads the subtitle listing before it selects",
     "presentation.enter-docked-default": "immersive transitions need the device lane",
     "presentation.enter-panorama": "immersive transitions need the device lane",
@@ -44,6 +44,7 @@ HANDLED_ELSEWHERE = {
     "presentation.enter-docked-default",
     "presentation.enter-panorama",
     "presentation.exit-spatial",
+    "playback.seek",
     "host.preflight",
     "media.import-staged",
     "transition-trace.arm",
@@ -57,7 +58,6 @@ UNSUPPORTED = {
     "evidence.structural-test",
     "input.device-hub-prepare",
     "issue.present",
-    "playback.seek",
     "playback.select-subtitle",
     "storage.clear",
 }
@@ -646,6 +646,16 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 arguments_out: dict[str, Any] = {"action": "tap", "label": label}
                 if "," in label:
                     arguments_out["labelPrefix"] = label.split(",")[0].strip()
+                menu_targets = [
+                    str(item) for item in (arguments.get("identifiers") or []) if item
+                ]
+                if menu_targets and arguments.get("labelsAfterIdentifiers"):
+                    steps.append(
+                        {
+                            "verb": "device.command",
+                            "args": {"action": "tapEach", "identifiers": menu_targets},
+                        }
+                    )
                 steps.append(
                     {
                         "verb": "device.await",
@@ -658,10 +668,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
-                menu_targets = [
-                    str(item) for item in (arguments.get("identifiers") or []) if item
-                ]
-                if menu_targets:
+                if menu_targets and not arguments.get("labelsAfterIdentifiers"):
                     steps.append(
                         {
                             "verb": "device.command",
@@ -1072,6 +1079,38 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
+        elif name == "playback.seek":
+            if arguments.get("summonControls"):
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {"verb": "toggleControls", "arguments": {"visible": "true"}},
+                    }
+                )
+            millionths = int(arguments["positionMillionths"])
+            steps.append(
+                {
+                    "verb": "device.command",
+                    "args": {
+                        "action": "coordinateTap",
+                        "identifier": "PlayerPanel-progress",
+                        "normalizedX": round(millionths / 1_000_000, 4),
+                        "normalizedY": 0.5,
+                    },
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "PlayerUI-window-control-plane",
+                        "field": "presentation",
+                        "equals": "window",
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
         elif name == "transition-trace.arm":
             arguments_out: dict[str, Any] = {}
             if arguments.get("fault") not in (None, "none"):
@@ -1534,6 +1573,7 @@ FORM_FACTS = frozenset(
     }
 )
 
+VERIFIED_SEEK_SCENARIOS = frozenset()
 PRESENTATION_OPS = frozenset(
     {
         "presentation.enter-panorama",
@@ -1581,6 +1621,10 @@ def expressible(path: Path) -> bool:
         and (
             not (PRESENTATION_OPS & set(operation_names(payload)))
             or str(payload.get("id")) in VERIFIED_PRESENTATION_SCENARIOS
+        )
+        and (
+            "playback.seek" not in operation_names(payload)
+            or str(payload.get("id")) in VERIFIED_SEEK_SCENARIOS
         )
     )
 
