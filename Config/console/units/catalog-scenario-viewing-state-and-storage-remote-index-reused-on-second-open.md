@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -170,16 +173,6 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 90000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
         "field": "position",
         "equals": 3.0,
         "mode": "atLeast",
@@ -198,20 +191,19 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "toggleControls",
-            "arguments": {
-              "visible": "true"
-            }
-          },
-          {
-            "verb": "leavePlayback",
-            "arguments": {}
-          }
-        ]
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
@@ -248,16 +240,6 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-aggregate-30s.mkv"
         },
-        "timeoutMs": 90000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 90000,
         "intervalMs": 400
       }

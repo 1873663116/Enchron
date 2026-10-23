@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -127,27 +130,12 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-local-media-lifecycle-artwork-captured-on-exit"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "sdr-bframe-aggregate-30s.mkv"
+        }
       }
     },
     {
@@ -193,49 +181,40 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 4,
+        "count": 1,
         "intervalMs": 0
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "toggleControls",
-            "arguments": {
-              "visible": "true"
-            }
-          },
-          {
-            "verb": "leavePlayback",
-            "arguments": {}
-          }
-        ]
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 4,
+        "count": 1,
         "intervalMs": 0
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "sdr-bframe-aggregate-30s.mkv"
+        }
       }
     },
     {
@@ -246,6 +225,15 @@
         "equals": "sdr-bframe-aggregate-30s.mkv",
         "timeoutMs": 15000,
         "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
       }
     },
     {
@@ -281,31 +269,30 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 4,
+        "count": 1,
         "intervalMs": 0
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "toggleControls",
-            "arguments": {
-              "visible": "true"
-            }
-          },
-          {
-            "verb": "leavePlayback",
-            "arguments": {}
-          }
-        ]
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 4,
+        "count": 1,
         "intervalMs": 0
       }
     }

@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -60,21 +63,6 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-projection-and-stereo-panorama-coverage-angle"
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -82,20 +70,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-180_3D.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-180_3D.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "180_3D.mp4"
+        }
       }
     },
     {
@@ -119,42 +99,38 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-projection-and-stereo-panorama-coverage-angle"
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-360.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
+          "entry": "root"
+        }
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-360.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "360.mp4"
+        }
       }
     },
     {
@@ -178,25 +154,38 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-projection-and-stereo-panorama-coverage-angle"
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
+          "entry": "root"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "playMedia",
+        "arguments": {
+          "name": "APMP-180-example.mp4"
+        }
       }
     },
     {
@@ -204,16 +193,54 @@
       "args": {
         "probe": "element",
         "field": "identifier",
-        "equals": "MediaLibrary-grid-video-APMP-180-example.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "equals": "WindowPlayback-root",
+        "timeoutMs": 45000,
+        "intervalMs": 300
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
+        "verb": "applyFormat",
+        "arguments": {
+          "projection": "customAngle",
+          "stereo": "mono"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
+          "entry": "root"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "playMedia",
+        "arguments": {
+          "name": "APMP-180-example.mp4"
+        }
       }
     },
     {

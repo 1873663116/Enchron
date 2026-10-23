@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -50,12 +53,29 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-presentation-tour-track-selection-survives-seek-and-presentation"
+        }
+      }
     },
     {
       "verb": "device.command",
@@ -81,16 +101,6 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-aggregate-30s.mkv"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }
@@ -211,12 +221,36 @@
       "args": {}
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-presentation-tour-track-selection-survives-seek-and-presentation"
+        }
+      }
     },
     {
       "verb": "device.command",
@@ -242,16 +276,6 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-aggregate-30s.mkv"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }

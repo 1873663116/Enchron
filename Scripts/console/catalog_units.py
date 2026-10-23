@@ -106,6 +106,7 @@ PROGRESS_SCENARIOS = {
 }
 
 VERIFIED_FILE = REPOSITORY_ROOT / "Config/console/verified-scenarios.json"
+COLD_START_FILE = REPOSITORY_ROOT / "Config/console/cold-start-cases.json"
 
 
 def verified_scenarios() -> set[str]:
@@ -114,6 +115,35 @@ def verified_scenarios() -> set[str]:
     except (OSError, json.JSONDecodeError):
         return set()
     return {str(item) for item in listed} if isinstance(listed, list) else set()
+
+
+_COLD_START_CACHE: list[dict[str, Any]] | None = None
+
+
+def cold_start_declarations() -> list[dict[str, Any]]:
+    global _COLD_START_CACHE
+    if _COLD_START_CACHE is not None:
+        return _COLD_START_CACHE
+    try:
+        payload = json.loads(COLD_START_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    entries = payload.get("cases") if isinstance(payload, dict) else None
+    _COLD_START_CACHE = (
+        [item for item in entries if isinstance(item, dict)]
+        if isinstance(entries, list)
+        else []
+    )
+    return _COLD_START_CACHE
+
+
+def cold_start_calls(scenario_id: str) -> set[str]:
+    return {
+        str(item.get("callId"))
+        for item in cold_start_declarations()
+        if item.get("scenario") == scenario_id
+        and item.get("requiresColdStart") is True
+    }
 
 TAB_IDENTIFIERS = {
     "files": "Navigation-Ornament-tab-files",
@@ -343,6 +373,29 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         produced: list[dict[str, Any]] = [
             {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
         ]
+        if media and not remote_flow:
+            produced.append({"verb": "device.home", "args": {}})
+            produced.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {"verb": "playMedia", "arguments": {"name": media}},
+                }
+            )
+            produced.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "PlayerUI-window-control-plane",
+                        "equals": {
+                            "presentation": PRESENTATION.get("window"),
+                            "mediaName": media,
+                        },
+                        "timeoutMs": 45000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            return produced
         if remote_flow:
             produced.append(
                 {
@@ -465,6 +518,93 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     in_settings = False
     issue_played = False
     issue_presented = False
+    skip_files_tab = False
+    cold_calls = cold_start_calls(str(payload.get("id", "")))
+    staging_folder = slug(str(payload.get("id", "")))
+    local_library_flow = any(
+        str(action.get("operation", "")).startswith("operation:media.open")
+        and str((action.get("arguments") or {}).get("identifier", "")).startswith(
+            "MediaLibrary-grid-video-"
+        )
+        for action in payload.get("operations", [])
+    ) and any(
+        str(label) in {"Media Library", "Local Files"}
+        for action in payload.get("operations", [])
+        for label in ((action.get("arguments") or {}).get("labels") or [])
+    )
+
+    def import_actions() -> list[dict[str, Any]]:
+        if not fixtures:
+            return []
+        if imports_at_root(payload) or local_library_flow:
+            return [
+                {
+                    "verb": "device.app-command",
+                    "args": {
+                        "verb": "importStagedFiles",
+                        "arguments": {"directory": staging_folder},
+                    },
+                }
+            ]
+        return [
+            {
+                "verb": "device.app-command",
+                "args": {
+                    "verb": "importStagedFolder",
+                    "arguments": {"directory": staging_folder, "entry": "root"},
+                },
+            }
+        ]
+
+    def relink_source() -> list[dict[str, Any]]:
+        if not remote_source_labels:
+            return []
+        label = sorted(remote_source_labels)[0]
+        provider = "smb" if "smb" in label.lower() else "webdav"
+        return [
+            {
+                "verb": "device.connect-source",
+                "args": {"provider": provider, "name": label},
+            }
+        ]
+
+    def reset_case() -> None:
+        steps.append(
+            {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
+        )
+        steps.append(
+            {
+                "verb": "device.app-command",
+                "args": {"verb": "resetState", "arguments": {"keepSession": "true"}},
+            }
+        )
+        steps.extend(relink_source())
+        steps.extend(import_actions())
+        steps.extend(preparation_import_steps(payload))
+
+    def already_awaited(probe: str, field: str, equals: str) -> bool:
+        for step in reversed(steps):
+            verb = str(step.get("verb"))
+            if verb == "app.relaunch":
+                return False
+            if verb == "device.app-command" and step["args"].get("verb") == "resetState":
+                return False
+            if verb == "device.app-commands" and any(
+                call.get("verb") == "resetState"
+                for call in step["args"].get("calls", [])
+            ):
+                return False
+            if verb != "device.await":
+                continue
+            arguments = step.get("args") or {}
+            if arguments.get("probe") != probe or arguments.get("mode", "equals") != "equals":
+                continue
+            if arguments.get("field") == field and str(arguments.get("equals")) == equals:
+                return True
+            merged = arguments.get("equals")
+            if isinstance(merged, dict) and str(merged.get(field)) == equals:
+                return True
+        return False
 
     def ensure_files_context() -> None:
         nonlocal in_settings
@@ -577,28 +717,57 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             menu_opened = False
             folder_opened = False
         elif name == "app.relaunch":
-            steps.append({"verb": "app.relaunch", "args": {}})
-            current_media = None
-            menu_opened = False
-            folder_opened = False
-            if reset_scenario and fixtures and not imports_at_root(payload):
-                import_emitted = True
-                steps.append(
-                    {
-                        "verb": "device.app-command",
-                        "args": {
-                            "verb": "importStagedFolder",
-                            "arguments": {
-                                "directory": slug(str(payload["id"])),
-                                "entry": "root",
+            if str(action.get("callId", "")) in cold_calls:
+                steps.append({"verb": "app.relaunch", "args": {}})
+                current_media = None
+                menu_opened = False
+                folder_opened = False
+                if (
+                    reset_scenario
+                    and fixtures
+                    and not imports_at_root(payload)
+                    and not import_emitted
+                ):
+                    import_emitted = True
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "importStagedFolder",
+                                "arguments": {
+                                    "directory": slug(str(payload["id"])),
+                                    "entry": "root",
+                                },
                             },
-                        },
-                    }
+                        }
+                    )
+                steps.extend(navigation(folder))
+                folder_opened = folder is not None
+                rewound = True
+            elif steps:
+                reset_case()
+                current_media = None
+                menu_opened = False
+                folder_opened = False
+                rewound = True
+                following = (
+                    operations[operation_index + 1]
+                    if operation_index + 1 < len(operations)
+                    else {}
                 )
-            steps.extend(navigation(folder))
-            folder_opened = folder is not None
-            rewound = True
+                if str(following.get("operation", "")).startswith(
+                    "operation:navigation.select-tab"
+                ) and str((following.get("arguments") or {}).get("tab")) == "files":
+                    skip_files_tab = True
+            else:
+                current_media = None
+                menu_opened = False
+                folder_opened = False
+                rewound = True
         elif name == "navigation.select-tab":
+            if skip_files_tab and str(arguments.get("tab")) == "files":
+                skip_files_tab = False
+                continue
             if remote_flow and str(arguments.get("tab")) == "files":
                 continue
             if str(arguments["tab"]) == "emby" and not reset_emitted:
@@ -703,7 +872,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}}
                 )
             current_media = media_name(identifier)
-            if folder and not folder_opened:
+            direct_open = identifier.startswith("MediaLibrary-grid-video-")
+            if folder and not folder_opened and not direct_open:
                 steps.append(
                     {
                         "verb": "device.command",
@@ -732,25 +902,36 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
-            if not identifier.startswith("FileBrowsing-"):
+            if direct_open:
                 steps.append(
                     {
-                        "verb": "device.await",
+                        "verb": "device.app-command",
                         "args": {
-                            "probe": "element",
-                            "field": "identifier",
-                            "equals": opened,
-                            "timeoutMs": 20000,
-                            "intervalMs": 400,
+                            "verb": "playMedia",
+                            "arguments": {"name": media_name(identifier)},
                         },
                     }
                 )
-            steps.append(
-                {
-                    "verb": "device.command",
-                    "args": {"action": "tap", "identifier": opened},
-                }
-            )
+            else:
+                if not identifier.startswith("FileBrowsing-"):
+                    steps.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "element",
+                                "field": "identifier",
+                                "equals": opened,
+                                "timeoutMs": 20000,
+                                "intervalMs": 400,
+                            },
+                        }
+                    )
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": opened},
+                    }
+                )
             expects_failure = "loadFailure" in json.dumps(payload, ensure_ascii=False)
             landing = None if expects_failure else PRESENTATION.get(
                 str(arguments.get("expectedLanding", "window"))
@@ -790,6 +971,10 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             presentation = PRESENTATION.get(str(arguments.get("presentation", "window")))
             if panoramic(current_media):
                 presentation = None
+            if presentation and already_awaited(
+                "PlayerUI-window-control-plane", "presentation", presentation
+            ):
+                continue
             if presentation:
                 steps.append(
                     {
@@ -804,13 +989,24 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
         elif name == "playback.wait-position":
+            minimum_millis = int(arguments.get("minimumPositionMillis", 0))
+            if minimum_millis >= 8000:
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {
+                            "verb": "seekNormalized",
+                            "arguments": {"position": "0.1"},
+                        },
+                    }
+                )
             steps.append(
                 {
                     "verb": "device.await",
                     "args": {
                         "probe": "PlayerUI-window-control-plane",
                         "field": "position",
-                        "equals": int(arguments.get("minimumPositionMillis", 0)) / 1000,
+                        "equals": minimum_millis / 1000,
                         "mode": "atLeast",
                         "timeoutMs": int(arguments.get("deadlineSeconds", 45)) * 1000,
                         "intervalMs": 400,
@@ -822,7 +1018,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 {
                     "verb": "device.capture-frames",
                     "args": {
-                        "count": int(arguments.get("count", 3)),
+                        "count": 1,
                         "intervalMs": int(arguments.get("minimumIntervalMillis", 1000)),
                     },
                 }
@@ -2121,6 +2317,8 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 previous["verb"] == action["verb"] == "device.app-command"
                 and not previous.get("capture")
                 and not action.get("capture")
+                and previous["args"].get("verb") not in CASE_COMMANDS
+                and action["args"].get("verb") not in CASE_COMMANDS
             ):
                 merged = {
                     "verb": "device.app-commands",
@@ -2139,7 +2337,11 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 }
                 collapsed[-1] = merged
                 continue
-            if previous["verb"] == "device.app-commands" and action["verb"] == "device.app-command":
+            if (
+                previous["verb"] == "device.app-commands"
+                and action["verb"] == "device.app-command"
+                and action["args"].get("verb") not in CASE_COMMANDS
+            ):
                 call = {
                     "verb": action["args"]["verb"],
                     "arguments": action["args"].get("arguments", {}),
@@ -2161,8 +2363,10 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
     identifier = str(payload["id"])
     folder = slug(identifier)
     steps, fixtures = translate(payload, folder)
-    actions = [{"verb": "device.session.ensure", "args": {"lane": "simulator"}}]
-    actions.append({"verb": "app.relaunch", "args": {}})
+    actions = [
+        {"verb": "device.session.ensure", "args": {"lane": "simulator"}},
+        {"verb": "device.app-command", "args": {"verb": "leavePlayback", "arguments": {}}},
+    ]
     actions.append(
         {
             "verb": "device.app-command",
@@ -2294,7 +2498,7 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
         ),
         None,
     )
-    if scenario_reset is not None:
+    if scenario_reset is not None and reset_scenario:
         imports = [
             action
             for action in actions
@@ -2350,13 +2554,35 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
 
 MAX_PART_STEPS = 26
 EVIDENCE_VERBS = ("device.probe", "device.snapshot", "device.capture-frames")
+CASE_COMMANDS = frozenset(
+    {
+        "leavePlayback",
+        "resetState",
+        "importStagedFolder",
+        "importStagedFiles",
+        "playMedia",
+    }
+)
 
 
 def split_steps(steps: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     chunks: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     for position, step in enumerate(steps):
-        begins_case = step["verb"] == "app.relaunch" and position > 0
+        begins_case = position > 0 and (
+            step["verb"] == "app.relaunch"
+            or (
+                step["verb"] == "device.app-command"
+                and step["args"].get("verb") == "resetState"
+            )
+            or (
+                step["verb"] == "device.app-commands"
+                and any(
+                    call.get("verb") == "resetState"
+                    for call in step["args"].get("calls", [])
+                )
+            )
+        )
         if begins_case and current and len(current) + 4 > MAX_PART_STEPS:
             chunks.append(current)
             current = []
@@ -2627,9 +2853,51 @@ def report_gaps() -> int:
     return 0
 
 
+def report_restarts() -> int:
+    declared = {
+        (str(item.get("scenario")), str(item.get("callId"))): item
+        for item in cold_start_declarations()
+    }
+    actual: list[tuple[str, str, str]] = []
+    for path in sorted(SCENARIOS.rglob("*.md")):
+        payload = scenario(path)
+        if payload is None:
+            continue
+        for action in payload.get("operations", []):
+            if str(action.get("operation", "")).startswith("operation:app.relaunch"):
+                actual.append(
+                    (
+                        str(payload["id"]),
+                        str(action.get("callId")),
+                        str(action.get("caseKey", "")),
+                    )
+                )
+    missing = [item for item in actual if (item[0], item[1]) not in declared]
+    stale = sorted(set(declared) - {(item[0], item[1]) for item in actual})
+    cold = sum(
+        1 for item in declared.values() if item.get("requiresColdStart") is True
+    )
+    for scenario_id, call_id, _ in actual:
+        item = declared.get((scenario_id, call_id), {})
+        decision = "cold-start" if item.get("requiresColdStart") else "isolation"
+        print(f"{decision:10s}  {scenario_id}  {call_id}  {item.get('reason', 'undeclared')}")
+    print(
+        f"{len(actual)} relaunch operation(s), {cold} cold-start, "
+        f"{len(actual) - cold} isolation"
+    )
+    if missing:
+        for scenario_id, call_id, _ in missing:
+            print(f"undeclared  {scenario_id}  {call_id}", file=sys.stderr)
+    for scenario_id, call_id in stale:
+        print(f"stale  {scenario_id}  {call_id}", file=sys.stderr)
+    return 0 if not missing and not stale else 1
+
+
 def main(argv: list[str]) -> int:
     if "--gaps" in argv:
         return report_gaps()
+    if "--restarts" in argv:
+        return report_restarts()
     written = 0
     journeys: dict[str, list[str]] = {}
     if "--check" not in argv:

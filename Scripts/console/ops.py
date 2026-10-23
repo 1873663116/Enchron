@@ -241,7 +241,8 @@ def record_operation(
         "state": state_summary(result.get("payload")),
         "guardrails": result.get("guardrails", []),
         "sessionEnsureMs": result.get("sessionEnsureMs", 0),
-        "payload": payload_path.relative_to(directory).as_posix(),
+        "payloadPath": payload_path.relative_to(directory).as_posix(),
+        "evidence": result.get("payload"),
         "at": datetime.now(timezone.utc).isoformat(),
     }
     _write_json(payload_path, entry)

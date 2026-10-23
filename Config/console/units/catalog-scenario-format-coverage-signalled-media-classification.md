@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -59,21 +62,6 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-format-coverage-signalled-media-classification"
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -81,20 +69,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-APMP-180-example.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-APMP-180-example.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "APMP-180-example.mp4"
+        }
       }
     },
     {
@@ -110,47 +90,43 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-format-coverage-signalled-media-classification"
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-format-coverage-signalled-media-classification",
+          "entry": "root"
+        }
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-spatial_lighthouse_flowers_waves_short.mov"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "spatial_lighthouse_flowers_waves_short.mov"
+        }
       }
     },
     {
@@ -166,7 +142,7 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     }

@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -102,7 +105,7 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     },

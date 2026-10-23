@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -59,21 +62,6 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-dynamic-range-interpretation-hdr10-hlg-interpretation"
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -81,20 +69,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-pq-hevc-10bit-avsync-10s.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-pq-hevc-10bit-avsync-10s.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "pq-hevc-10bit-avsync-10s.mp4"
+        }
       }
     },
     {
@@ -110,59 +90,45 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-dynamic-range-interpretation-hdr10-hlg-interpretation"
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-hlg-hevc-10bit-avsync-10s.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-dynamic-range-interpretation-hdr10-hlg-interpretation",
+          "entry": "root"
+        }
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-hlg-hevc-10bit-avsync-10s.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "hlg-hevc-10bit-avsync-10s.mp4"
+        }
       }
     },
     {
@@ -178,19 +144,9 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     }

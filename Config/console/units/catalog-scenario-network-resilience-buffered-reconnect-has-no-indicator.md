@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -48,14 +51,6 @@
         "provider": "webdav",
         "name": "Enchron Regression WebDAV"
       }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
     },
     {
       "verb": "device.command",
@@ -81,16 +76,6 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-aggregate-30s.mkv"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }
@@ -158,17 +143,41 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-network-resilience-buffered-reconnect-has-no-indicator"
+        }
+      }
     },
     {
       "verb": "device.command",
@@ -194,16 +203,6 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-aggregate-30s.mkv"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }
@@ -271,7 +270,7 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     }

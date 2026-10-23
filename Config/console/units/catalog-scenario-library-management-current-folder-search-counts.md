@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -49,24 +52,23 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "resetState",
-            "arguments": {
-              "keepSession": "true",
-              "libraryFolder": "Regression Search Folder"
-            }
-          },
-          {
-            "verb": "importStagedFolder",
-            "arguments": {
-              "directory": "scenario-library-management-current-folder-search-counts",
-              "entry": "root"
-            }
-          }
-        ]
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true",
+          "libraryFolder": "Regression Search Folder"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-library-management-current-folder-search-counts",
+          "entry": "root"
+        }
       }
     },
     {

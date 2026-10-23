@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -59,21 +62,6 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-presentation-tour-portal-episode-switch-lands-in-window"
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -81,20 +69,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-180_3D.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-180_3D.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "180_3D.mp4"
+        }
       }
     },
     {
@@ -150,7 +130,7 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     }

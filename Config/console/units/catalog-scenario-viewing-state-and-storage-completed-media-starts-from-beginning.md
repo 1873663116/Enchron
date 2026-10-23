@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -103,27 +106,12 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-viewing-state-and-storage-completed-media-starts-from-beginning"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-viewing-storage-16m01s-b.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s-b.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "viewing-storage-16m01s-b.mp4"
+        }
       }
     },
     {
@@ -134,16 +122,6 @@
           "presentation": "window",
           "mediaName": "viewing-storage-16m01s-b.mp4"
         },
-        "timeoutMs": 90000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 90000,
         "intervalMs": 400
       }
@@ -177,16 +155,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 90000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.viewing-storage",
       "args": {},
       "capture": {
@@ -197,20 +165,19 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "toggleControls",
-            "arguments": {
-              "visible": "true"
-            }
-          },
-          {
-            "verb": "leavePlayback",
-            "arguments": {}
-          }
-        ]
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
@@ -224,20 +191,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-viewing-storage-16m01s-b.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s-b.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "viewing-storage-16m01s-b.mp4"
+        }
       }
     },
     {
@@ -259,16 +218,6 @@
         "arguments": {
           "action": "resume"
         }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 90000,
-        "intervalMs": 400
       }
     },
     {

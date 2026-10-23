@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -50,12 +53,29 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-network-resilience-playback-failure-category-matrix"
+        }
+      }
     },
     {
       "verb": "device.command",
@@ -153,16 +173,6 @@
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 5000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
         "field": "position",
         "equals": 2.0,
         "mode": "atLeast",
@@ -184,12 +194,36 @@
       "args": {}
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-network-resilience-playback-failure-category-matrix"
+        }
+      }
     },
     {
       "verb": "device.command",
@@ -281,16 +315,6 @@
       "args": {
         "verb": "clearPlaybackIssue",
         "arguments": {}
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 5000,
-        "intervalMs": 400
       }
     },
     {

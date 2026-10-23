@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -145,6 +148,15 @@
       }
     },
     {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
+      }
+    },
+    {
       "verb": "device.await",
       "args": {
         "probe": "PlayerUI-window-control-plane",
@@ -169,20 +181,19 @@
       "args": {}
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "toggleControls",
-            "arguments": {
-              "visible": "true"
-            }
-          },
-          {
-            "verb": "leavePlayback",
-            "arguments": {}
-          }
-        ]
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {

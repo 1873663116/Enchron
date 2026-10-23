@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -132,25 +135,24 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "toggleControls",
-            "arguments": {
-              "visible": "true"
-            }
-          },
-          {
-            "verb": "leavePlayback",
-            "arguments": {}
-          }
-        ]
+        "verb": "toggleControls",
+        "arguments": {
+          "visible": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
@@ -163,31 +165,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
+        "calls": [
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0"
+            }
+          },
+          {
+            "verb": "toggleControls",
+            "arguments": {
+              "visible": "true"
+            }
+          }
+        ]
       }
     },
     {

@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -56,21 +59,6 @@
           "directory": "scenario-local-media-lifecycle-automatic-play-next-resume-policy",
           "entry": "root"
         }
-      }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-local-media-lifecycle-automatic-play-next-resume-policy"
       }
     },
     {
@@ -125,20 +113,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-viewing-storage-16m01s.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "viewing-storage-16m01s.mp4"
+        }
       }
     },
     {
@@ -154,13 +134,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
       }
     },
     {
@@ -196,22 +175,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "resolveResumePrompt",
-        "arguments": {
-          "action": "resume"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "calls": [
+          {
+            "verb": "resolveResumePrompt",
+            "arguments": {
+              "action": "resume"
+            }
+          },
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.1"
+            }
+          }
+        ]
       }
     },
     {
@@ -240,20 +219,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-30s.mp4",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-30s.mp4"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "sdr-bframe-multiaudio-avsync-30s.mp4"
+        }
       }
     },
     {
@@ -264,16 +235,6 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-multiaudio-avsync-30s.mp4"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }
@@ -292,16 +253,6 @@
       "args": {}
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.app-command",
       "args": {
         "verb": "toggleControls",
@@ -318,6 +269,15 @@
         "equals": "Playing",
         "timeoutMs": 15000,
         "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "seekNormalized",
+        "arguments": {
+          "position": "0.1"
+        }
       }
     },
     {

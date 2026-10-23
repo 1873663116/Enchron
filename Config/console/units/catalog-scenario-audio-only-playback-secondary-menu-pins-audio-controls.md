@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -58,21 +61,6 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-audio-only-playback-secondary-menu-pins-audio-controls"
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -80,20 +68,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-audio-only-aac-stereo-181s.m4a",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-audio-only-aac-stereo-181s.m4a"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "audio-only-aac-stereo-181s.m4a"
+        }
       }
     },
     {
@@ -104,16 +84,6 @@
           "presentation": "window",
           "mediaName": "audio-only-aac-stereo-181s.m4a"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }
@@ -146,42 +116,38 @@
       "args": {}
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-folder-scenario-audio-only-playback-secondary-menu-pins-audio-controls"
+        "verb": "leavePlayback",
+        "arguments": {}
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-audio-only-aac-stereo-181s.m4a",
-        "timeoutMs": 20000,
-        "intervalMs": 400
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-audio-only-playback-secondary-menu-pins-audio-controls",
+          "entry": "root"
+        }
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-command",
       "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-audio-only-aac-stereo-181s.m4a"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "audio-only-aac-stereo-181s.m4a"
+        }
       }
     },
     {
@@ -192,16 +158,6 @@
           "presentation": "window",
           "mediaName": "audio-only-aac-stereo-181s.m4a"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }

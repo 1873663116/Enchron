@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -72,14 +75,6 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
-    },
-    {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -87,20 +82,12 @@
       }
     },
     {
-      "verb": "device.await",
+      "verb": "device.app-command",
       "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "MediaLibrary-grid-video-sdr-bframe-aggregate-30s.mkv"
+        "verb": "playMedia",
+        "arguments": {
+          "name": "sdr-bframe-aggregate-30s.mkv"
+        }
       }
     },
     {
@@ -111,16 +98,6 @@
           "presentation": "window",
           "mediaName": "sdr-bframe-aggregate-30s.mkv"
         },
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
         "timeoutMs": 45000,
         "intervalMs": 400
       }
@@ -210,17 +187,63 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-local-media-lifecycle-external-subtitle-source-matrix"
+        }
+      }
+    },
+    {
+      "verb": "device.stage-media",
+      "args": {
+        "source": [
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.zh-CN.srt",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.styled.ass"
+        ],
+        "target": "."
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importMediaDirectory",
+        "arguments": {
+          "directory": "sdr-bframe-aggregate-30s-sidecars",
+          "media": "sdr-bframe-aggregate-30s.mkv",
+          "files": "[\"sdr-bframe-aggregate-30s.mkv\", \"sdr-bframe-aggregate-30s.zh-CN.srt\", \"sdr-bframe-aggregate-30s.styled.ass\"]"
+        }
+      }
     },
     {
       "verb": "device.command",
@@ -251,16 +274,6 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.app-command",
       "args": {
         "verb": "toggleControls",
@@ -345,9 +358,20 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.snapshot",
+      "args": {}
     }
   ],
   "teardown": [
@@ -361,8 +385,8 @@
   ],
   "terminal": {
     "kind": "artifact",
-    "path": "frames.json",
-    "schema": "enchron.console.frames@1"
+    "path": "hierarchy.json",
+    "schema": "enchron.console.hierarchy@1"
   }
 }
 ---

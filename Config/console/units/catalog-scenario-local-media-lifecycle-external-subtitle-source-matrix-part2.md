@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -72,18 +75,58 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.connect-source",
+      "args": {
+        "provider": "webdav",
+        "name": "Enchron Regression WebDAV"
+      }
     },
     {
       "verb": "device.app-command",
       "args": {
-        "verb": "resetMediaNavigation",
-        "arguments": {}
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-local-media-lifecycle-external-subtitle-source-matrix"
+        }
+      }
+    },
+    {
+      "verb": "device.stage-media",
+      "args": {
+        "source": [
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.mkv",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.zh-CN.srt",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-aggregate-30s.styled.ass"
+        ],
+        "target": "."
+      }
+    },
+    {
+      "verb": "device.app-commands",
+      "args": {
+        "calls": [
+          {
+            "verb": "importMediaDirectory",
+            "arguments": {
+              "directory": "sdr-bframe-aggregate-30s-sidecars",
+              "media": "sdr-bframe-aggregate-30s.mkv",
+              "files": "[\"sdr-bframe-aggregate-30s.mkv\", \"sdr-bframe-aggregate-30s.zh-CN.srt\", \"sdr-bframe-aggregate-30s.styled.ass\"]"
+            }
+          },
+          {
+            "verb": "resetMediaNavigation",
+            "arguments": {}
+          }
+        ]
       }
     },
     {
@@ -219,7 +262,7 @@
     {
       "verb": "device.capture-frames",
       "args": {
-        "count": 3,
+        "count": 1,
         "intervalMs": 1000
       }
     }

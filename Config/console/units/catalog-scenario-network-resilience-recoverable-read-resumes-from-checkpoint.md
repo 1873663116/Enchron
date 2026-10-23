@@ -30,8 +30,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -106,12 +109,22 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.92"
-        }
+        "calls": [
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.92"
+            }
+          },
+          {
+            "verb": "seekNormalized",
+            "arguments": {
+              "position": "0.1"
+            }
+          }
+        ]
       }
     },
     {

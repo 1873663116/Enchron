@@ -26,8 +26,11 @@
       }
     },
     {
-      "verb": "app.relaunch",
-      "args": {}
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
     },
     {
       "verb": "device.app-command",
@@ -48,23 +51,22 @@
       }
     },
     {
-      "verb": "device.app-commands",
+      "verb": "device.app-command",
       "args": {
-        "calls": [
-          {
-            "verb": "resetState",
-            "arguments": {
-              "keepSession": "true",
-              "libraryFolder": "Regression Destination"
-            }
-          },
-          {
-            "verb": "importStagedFiles",
-            "arguments": {
-              "directory": "scenario-library-management-move-references"
-            }
-          }
-        ]
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true",
+          "libraryFolder": "Regression Destination"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFiles",
+        "arguments": {
+          "directory": "scenario-library-management-move-references"
+        }
       }
     },
     {

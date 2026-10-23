@@ -67,6 +67,10 @@ Declarations live in `Config/console/known-failures.md`; override records live i
 
 Red refuses the merge. The only way through is an override record on main naming the failure signature, with `approvedBy`, `approvedAt`, a reason and an expiry. Adding one needs human approval (需请示人类): an agent stops and asks a human; it does not write the record itself.
 
+## Generated units
+
+A generated catalog unit establishes each case with product commands instead of a relaunch: `leavePlayback`, `resetState`, re-import of the staged media and `playMedia`. A relaunch stays only where `Config/console/cold-start-cases.json` declares that the claim needs a cold start. `python3 Scripts/console/catalog_units.py --restarts` prints every declaration.
+
 ## Debugging
 
 `console op VERB --args '{...}'` runs one operation and prints its result, duration and a short state summary. `--session NAME` records the operation, with its payload, under `.scratch/console/debug/NAME/`. A debugging operation never writes under `TestEvidence` and never enters the reuse index.
