@@ -486,6 +486,8 @@ def _dispatch(
         return _run_stage_media(step, root, plan)
     if step.verb == "device.stage-identity":
         return _run_stage_identity(step, root, plan)
+    if step.verb == "device.source-facts":
+        return _run_source_facts(step, root, plan)
     if step.verb == "device.connect-source":
         return _run_connect_source(step, root, plan)
     if step.verb == "device.fault-source":
@@ -978,6 +980,41 @@ def _trust_certificate(device: str, address: str, fingerprint: str) -> None:
         )
     )
     time.sleep(3.0)
+
+
+def _run_source_facts(
+    step: Step, root: Path, plan: Plan
+) -> tuple[dict[str, Any] | None, bool, str]:
+    provider = str(step.args.get("provider", "webdav"))
+    receipt = _ensure_media_source(provider, root)
+    address = ""
+    for item in (receipt.get("receipt") or {}).get("receipts", []):
+        address = str(item.get("address") or "")
+        if address:
+            break
+    if not address:
+        return None, False, f"the {provider} source has no reachable address"
+    fingerprint = ""
+    runtime_payload: dict[str, Any] = {}
+    runtime_file = root.parent / "test-services" / provider / "runtime.json"
+    if runtime_file.is_file():
+        try:
+            runtime_payload = json.loads(runtime_file.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            runtime_payload = {}
+        fingerprint = str(runtime_payload.get("certificateFingerprint") or "")
+    if fingerprint:
+        device = plan.target or _probe_target()
+        _trust_certificate(device, address, fingerprint)
+    credentials = _environment_credentials(root, provider)
+    payload = {
+        "url": address,
+        "username": str(runtime_payload.get("user") or credentials.get("username", "")),
+        "password": str(
+            runtime_payload.get("password") or credentials.get("password", "")
+        ),
+    }
+    return payload, True, f"{provider} facts at {address}"
 
 
 def _run_connect_source(

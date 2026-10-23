@@ -25,7 +25,7 @@ FAULT_RECIPES = frozenset(
 )
 
 BLOCKERS = {
-    "harness.reset-product-state": "the product form needs fixture facts typed into it before it can be driven",
+    "harness.reset-product-state": "the form connection path needs a product-side look before it can be driven",
     "input.device-hub-pinch": "no verb carries the device hub pinch gesture",
     "input.device-hub-prepare": "no verb prepares the device hub",
     "evidence.capture-audio": "no verb captures audio",
@@ -297,6 +297,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     menu_opened = False
     portal_projection = False
     reset_scenario = RESET_PRODUCT_STATE in operation_names(payload)
+    form_facts_emitted = False
     operations = payload["operations"]
     for action in operations:
         arguments = action.get("arguments") or {}
@@ -322,6 +323,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 fault_recipe = token
         break
     manual_source_flow = bool(fault_recipe)
+    form_flow = bool(source_name_text) and not manual_source_flow
     if manual_source_flow:
         name_text = source_name_text
         recipe = fault_recipe
@@ -348,6 +350,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         name = str(action["operation"]).split(":")[1].split("@")[0]
         arguments = action.get("arguments", {})
         if name == RESET_PRODUCT_STATE:
+            if form_flow and not form_facts_emitted:
+                steps.append(
+                    {
+                        "verb": "device.source-facts",
+                        "args": {"provider": "webdav"},
+                        "capture": {
+                            "url": "webdavUrl",
+                            "username": "webdavUser",
+                            "password": "webdavPassword",
+                        },
+                    }
+                )
+                form_facts_emitted = True
             reset_arguments: dict[str, str] = {"keepSession": "true"}
             folder_name = arguments.get("rootFolderName")
             if folder_name:
@@ -847,6 +862,18 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             if name == "accessibility.type" and "text" in arguments:
                 args["action"] = "typeText"
                 args["text"] = arguments["text"]
+            elif name == "accessibility.type" and form_flow:
+                field = str(arguments.get("identifier") or "")
+                references = {
+                    "webDAV-address": "$webdavUrl",
+                    "webDAV-username": "$webdavUser",
+                    "webDAV-password": "$webdavPassword",
+                }
+                for marker, reference in references.items():
+                    if field.endswith(marker):
+                        args["action"] = "typeText"
+                        args["text"] = reference
+                        break
             steps.append({"verb": "device.command", "args": args})
         elif name == "accessibility.inspect":
 
