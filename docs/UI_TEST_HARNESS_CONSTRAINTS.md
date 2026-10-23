@@ -212,3 +212,18 @@ xctrace 与 devicectl 走的是**两条不同的设备通道**：devicectl 是�
 - **`freeze` 同时核对 app 与 UI 测试包的内嵌来源**。2026-09-07 两次 UI 测试 target 编译失败后，`Enchron.debug.dylib` 因产品代码未变而带着当前树摘要，旧的 `EnchronAppUITests.xctest` 却没有任何来源标记，冻结照样通过，两段真机回归跑在旧 runner 上。`EnchronAppUITests` target 现在也链接 `$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)`，`_bind_lane` 解析 `EnchronAppUITests.xctest/EnchronAppUITests` 的 `__TEXT,__enchsrc`，与当前树摘要不一致即拒绝冻结（`test_bootstrap_freeze.test_a_stale_ui_test_bundle_refuses_to_freeze`）。编译失败的产物从此冻不进去。
 - **段在场景阶段一旦通道丢失就结束当前场景**。原先 `run_segment` 只在场景之间检查 `channel_failures`，场景内部的每一步都还会得到"already failed"的拒绝文档并继续走完；runner 在第 31 步消失，段又发了二十多条注定失败的命令。现在 `controller` 在场景阶段（`scenario_phase`）遇到通道拒绝时抛 `SegmentChannelLost`，场景循环捕获后直接进入收尾；收尾阶段（probeStatus、拷贝、健康检查）不受影响。
 - **每一步之后写 `progress.json`**。段输出目录下的这份文件只有几行：步数、最近一步与其成败、通道失败数、是否已停、结束状态。盯段的人读它，不读层级树。
+
+## 全量端到端档的实测耗时与偏差
+
+81 个单元的模拟器全量档在 2026-10-24 实测：墙钟 3011 s（50.2 分钟），76 个通过、4 个失败、1 个 blocked；基线是 3576.8 s（59.6 分钟）。单单元耗时中位 30.5 s、p90 64.8 s；目录单元 68 个，中位 33.6 s、p90 78.3 s、最大 105.5 s，其中 6 个 ≥80 s、3 个 ≥90 s。三个试点相对基线：DV 43.1 s 对 102.8 s（−58.1 %）、audio 39.1 s 对 76.1 s（−48.6 %）、storage rows 57.1 s 对 102.3 s（−44.2 %）。单用例复现 `dv-profile-5` 12.0 s。
+
+墙钟与分位数目标未达成（目标：≤30 分钟、p90 ≤50 s、max ≤70 s、0 个 ≥80/90 s）。实测偏差来自四处：
+
+- 远程媒体起始要付 WebDAV 连接与远程字幕发现，8–12 s 起步；同一批次里第二次连接不再节省（产品每次重新连接）。
+- 播放断言必须观测到真实位置、字幕 cue 或转场落点，这些等待按媒体时长和转场预算计，不能压缩。
+- Emby 生命周期单元依赖服务器会话，会话恢复和 episode 恢复流程对时序敏感，排在档末避免污染其它 lane。
+- 4 个失败单元与 1 个 blocked 单元各付约 16 s 会话重启加恢复命令。
+
+本分支上连续三轮全量档（中间含修复提交）的墙钟为 2733 s、3278 s、3011 s（通过数 74、71、76），说明主机热状态带来的波动超过 10%，p90 的分位受少数远程单元的长尾支配。残留失败都是可独立复现的单元级问题：文件夹删除单元偶发在 15 s 内等不到 `MediaLibrary-grid-folder-Regression Parent`（同一单元单独重跑通过）；远程外挂字幕矩阵 part2 偶发字幕 cue 25 s 内保持 0（媒体起始停滞）；format-application-route 偶发 `WindowPlayback-root` 46 s 不出现；`viewing-state-and-storage-local-playback-does-not-write-...` 与 `emby-server-lifecycle-episode-resume-and-start-actions` 因前置断言不满足报 blocked。
+
+其余三档同轮实测：CI 快档 10.6 s（只有产品路径，跳过 144 个工具自检），慢档 50.8 s（基础设施路径，宿主负载下在 28–51 s 波动）；构建档增量 37.9 s（touch 产品源文件后），冷构建 204.0 s，无改动复用 0 ms；单元档在构建复用下 80.7 s，冷构建后首跑 155.0 s。
