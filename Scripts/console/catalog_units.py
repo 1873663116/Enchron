@@ -1459,6 +1459,18 @@ def report_gaps() -> int:
     for name in sorted(blocking, key=lambda item: -len(blocking[item])):
         reason = BLOCKERS.get(name, "no mapping yet")
         print(f"{len(blocking[name]):3d} scenario(s)  {name}: {reason}")
+    pending = [
+        str(payload["id"])
+        for path in SCENARIOS.rglob("*.md")
+        if (payload := scenario(path)) is not None
+        and RESET_PRODUCT_STATE in operation_names(payload)
+        and str(payload["id"]) not in VERIFIED_RESET_SCENARIOS
+    ]
+    if pending:
+        print(
+            f"{len(pending):3d} scenario(s)  {RESET_PRODUCT_STATE}: "
+            "translated, waiting for a verification run"
+        )
     return 0
 
 
