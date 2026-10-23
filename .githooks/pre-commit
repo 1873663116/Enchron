@@ -5,6 +5,10 @@ set -euo pipefail
 repository_root=$(git rev-parse --show-toplevel)
 cd "$repository_root"
 
+changed_paths=$(mktemp -t enchron-pre-commit)
+trap 'rm -f "$changed_paths"' EXIT
+git diff --cached --name-only >"$changed_paths"
+
 (
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX \
@@ -12,5 +16,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
 
 eval "$(bash "$repository_root/Scripts/ci/prepare.sh" shell --emit)"
 python3 "$repository_root/Scripts/console/cli.py" plan check
-python3 "$repository_root/Scripts/console/cli.py" tier static --event commit
+python3 "$repository_root/Scripts/console/cli.py" tier static \
+    --event commit --changed-list "$changed_paths"
 )
