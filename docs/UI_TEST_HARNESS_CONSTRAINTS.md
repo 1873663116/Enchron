@@ -226,4 +226,4 @@ xctrace 与 devicectl 走的是**两条不同的设备通道**：devicectl 是�
 
 本分支上连续三轮全量档（中间含修复提交）的墙钟为 2733 s、3278 s、3011 s（通过数 74、71、76），说明主机热状态带来的波动超过 10%，p90 的分位受少数远程单元的长尾支配。残留失败都是可独立复现的单元级问题：文件夹删除单元偶发在 15 s 内等不到 `MediaLibrary-grid-folder-Regression Parent`（同一单元单独重跑通过）；远程外挂字幕矩阵 part2 偶发字幕 cue 25 s 内保持 0（媒体起始停滞）；format-application-route 偶发 `WindowPlayback-root` 46 s 不出现；`viewing-state-and-storage-local-playback-does-not-write-...` 与 `emby-server-lifecycle-episode-resume-and-start-actions` 因前置断言不满足报 blocked。
 
-其余三档同轮实测：CI 快档 10.6 s（只有产品路径，跳过 144 个工具自检），慢档 50.8 s（基础设施路径，宿主负载下在 28–51 s 波动）；构建档增量 37.9 s（touch 产品源文件后），冷构建 204.0 s，无改动复用 0 ms；单元档在构建复用下 80.7 s，冷构建后首跑 155.0 s。
+其余三档在模拟器关闭后的空闲宿主上实测：CI 快档 5.8 s（只有产品路径，跳过 144 个工具自检），慢档 27.7 s，PR 事件 27.5 s，push 事件 27.2 s；构建档增量 26.1 s（touch 产品源文件后），冷构建 93.6 s，无改动复用 0 ms；单元档在构建复用下 58.9 s，冷构建后首跑 161.0 s。模拟器与会话占着宿主时，同一命令的 CI 慢档可到 50.8 s、构建冷档可到 204.0 s，文档的记录以空闲值作为档位耗时。
