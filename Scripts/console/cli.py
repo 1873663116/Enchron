@@ -58,6 +58,9 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("unit")
     run.add_argument("--tier", default="e2e")
     run.add_argument("--timeout-scale", type=float, default=1.0, dest="timeout_scale")
+    run.add_argument("--reuse", action="store_true")
+    run.add_argument("--assume", action="append", default=[], dest="assume")
+    run.add_argument("--force", action="store_true")
 
     inspect = commands.add_parser("inspect")
     inspect.add_argument("unit")
@@ -78,6 +81,7 @@ def build_parser() -> argparse.ArgumentParser:
     tier.add_argument("--gate", action="store_true", dest="gate")
     tier.add_argument("--full", action="store_true", dest="full")
     tier.add_argument("--changed-since", default="", dest="changed_since")
+    tier.add_argument("--force", action="store_true")
     return parser
 
 
@@ -210,13 +214,31 @@ def _tier(root: Path, arguments, profile) -> int:
                 for name, unit in units.items()
                 if unit.pace not in {"catalog", "scenario"}
             }
+        import reuse as reuse_module
+
+        current_product = reuse_module.product_digest(root)
+        reuse_enabled = not getattr(arguments, "force", False)
+        reused: list[str] = []
         for identifier in sorted(units):
             per_unit = types.SimpleNamespace(
                 unit=identifier,
                 tier="e2e",
                 as_json=False,
                 timeout_scale=1.0,
+                reuse=False,
+                assume=[],
+                force=False,
             )
+            if reuse_enabled:
+                plan, _, _ = compiler_module.compile_unit(
+                    root, identifier, "e2e", profile
+                )
+                if plan is not None and reuse_module.reusable_report(
+                    evidence_root(root), identifier, plan.digest, current_product
+                ):
+                    reused.append(identifier)
+                    codes.append((identifier, EXIT_OK))
+                    continue
             if arguments.as_json:
                 with contextlib.redirect_stdout(sys.stderr):
                     codes.append((identifier, _run(root, per_unit, profile)))
@@ -236,6 +258,7 @@ def _tier(root: Path, arguments, profile) -> int:
                     {
                         "ok": bool(codes) and not failed,
                         "tier": "e2e",
+                        "reused": reused,
                         "units": [
                             {"unit": name, "exitCode": code} for name, code in codes
                         ],
@@ -244,7 +267,10 @@ def _tier(root: Path, arguments, profile) -> int:
                 )
             )
         else:
-            print(f"e2e {len(codes) - len(failed)}/{len(codes)} unit(s) passed")
+            print(
+                f"e2e {len(codes) - len(failed)}/{len(codes)} unit(s) passed"
+                f" (reused {len(reused)}, ran {len(codes) - len(reused)})"
+            )
             for name in known:
                 print(f"  known  {name}")
             for name in failed:
@@ -266,6 +292,7 @@ def _doctor(profile, as_json: bool) -> int:
     payload = {
         "capabilities": sorted(profile.capabilities),
         "target": profile.target,
+        "physical": profile.physical,
         "tiers": [
             tier
             for tier in TIER_ORDER
@@ -278,6 +305,7 @@ def _doctor(profile, as_json: bool) -> int:
     else:
         print(f"capabilities {', '.join(payload['capabilities'])}")
         print(f"target {payload['target'] or 'none'}")
+        print(f"physical {payload['physical'] or 'none'}")
         print(f"tiers {', '.join(payload['tiers']) or 'none'}")
         for tier, capabilities in missing.items():
             print(f"missing {tier}: {', '.join(capabilities)}")
@@ -378,8 +406,46 @@ def _run(root: Path, arguments, profile) -> int:
             )
     if plan is None:
         return _refuse_many(arguments.unit, errors, arguments.as_json)
+    import reuse as reuse_module
+
+    current_product = reuse_module.product_digest(root)
+    reuse_flag = bool(getattr(arguments, "reuse", False)) and not bool(
+        getattr(arguments, "force", False)
+    )
+    if reuse_flag:
+        matched = reuse_module.reusable_report(
+            evidence_root(root), plan.unit, plan.digest, current_product
+        )
+        if matched is not None:
+            if arguments.as_json:
+                print(json.dumps({"unit": plan.unit, "verdict": "reused",
+                                  "evidenceDirectory": matched["evidenceDirectory"]}, indent=1))
+            else:
+                print(f"reused  {plan.unit}  {matched['evidenceDirectory']}")
+            return EXIT_OK
+    declared = {reuse_module.precondition_key(pre) for pre in plan.preconditions}
+    requested = set()
+    for item in getattr(arguments, "assume", []) or []:
+        requested.update(part for part in item.split(",") if part)
+    unknown = reuse_module.unknown_assumptions(plan.preconditions, requested)
+    if unknown:
+        print(
+            f"前置未声明：{', '.join(unknown)}；本单元声明的是 "
+            f"{', '.join(sorted(declared)) or '无'}",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    if requested and not reuse_module.passing_evidence(
+        evidence_root(root), plan.unit, plan.digest
+    ):
+        print(
+            "假定前置需要同一单元在当前计划下有一次通过记录。",
+            file=sys.stderr,
+        )
+        return EXIT_USAGE
+    assumed = requested
     report = engine.run_plan(
-        plan, root, evidence_root(root), arguments.timeout_scale
+        plan, root, evidence_root(root), arguments.timeout_scale, assumed
     )
     if arguments.as_json:
         print(json.dumps(engine_report(report), indent=1))

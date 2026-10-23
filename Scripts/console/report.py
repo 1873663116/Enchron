@@ -51,6 +51,7 @@ def report_payload(report: Report) -> dict[str, Any]:
     return {
         "unit": report.unit,
         "digest": report.digest,
+        "productDigest": report.product_digest,
         "verdict": report.verdict,
         "tier": report.tier,
         "durationMs": report.duration_ms,

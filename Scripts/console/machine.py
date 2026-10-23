@@ -2,10 +2,14 @@ from __future__ import annotations
 
 import os
 import platform
+import re
 import shutil
 import subprocess
 
 from model import MachineProfile
+
+
+DEVICE_UDID = re.compile(r"\b([0-9A-F]{8}-[0-9A-F]{8,24})\b")
 
 
 def probe() -> MachineProfile:
@@ -16,14 +20,47 @@ def probe() -> MachineProfile:
             capabilities.add("xcode")
         if shutil.which("xcrun"):
             capabilities.add("simulator")
-    target = os.environ.get("ENCHRON_TARGET_DEVICE") or os.environ.get(
-        "ENCHRON_CORE_DEVICE"
-    ) or _booted_simulator()
+    physical = physical_vision_pro()
+    if physical:
+        capabilities.add("physical-device")
+    target = (
+        os.environ.get("ENCHRON_TARGET_DEVICE")
+        or os.environ.get("ENCHRON_CORE_DEVICE")
+        or _booted_simulator()
+        or physical
+    )
     if target:
         capabilities.add("device")
     if "mac" in capabilities:
         capabilities.add("daemon")
-    return MachineProfile(capabilities=frozenset(capabilities), target=target)
+    return MachineProfile(
+        capabilities=frozenset(capabilities), target=target, physical=physical
+    )
+
+
+def parse_physical_vision_pro(output: str) -> str | None:
+    for row in output.splitlines()[1:]:
+        if "physical" not in row:
+            continue
+        if "Vision" not in row and "RealityDevice" not in row:
+            continue
+        match = DEVICE_UDID.search(row)
+        if match:
+            return match.group(1)
+    return None
+
+
+def physical_vision_pro() -> str | None:
+    if not shutil.which("xcrun"):
+        return None
+    completed = subprocess.run(
+        ["xcrun", "devicectl", "list", "devices"],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return None
+    return parse_physical_vision_pro(completed.stdout)
 
 
 def _booted_simulator() -> str | None:
@@ -51,6 +88,9 @@ def synthetic(name: str) -> MachineProfile:
         "mac": frozenset({"python", "mac", "xcode", "simulator"}),
         "mac-device": frozenset(
             {"python", "mac", "xcode", "simulator", "device"}
+        ),
+        "mac-physical": frozenset(
+            {"python", "mac", "xcode", "simulator", "device", "physical-device"}
         ),
         "mac-daemon": frozenset(
             {"python", "mac", "xcode", "simulator", "device", "daemon"}

@@ -21,6 +21,7 @@ class LoadRefusal(Exception):
 class MachineProfile:
     capabilities: frozenset[str]
     target: str | None
+    physical: str | None = None
 
     def has(self, capability: str) -> bool:
         return capability in self.capabilities
@@ -131,3 +132,4 @@ class Report:
     evidence_dir: str
     exit_code: int
     preconditions: tuple[dict[str, Any], ...] = ()
+    product_digest: str = ""

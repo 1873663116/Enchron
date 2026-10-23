@@ -15,6 +15,7 @@ from guard import GuardrailHit, Supervisor
 from model import Plan, Report, Step, StepOutcome, TerminalOutcome
 import known as known_module
 import report as report_module
+import reuse as reuse_module
 import transport
 from report import (
     EXIT_GUARDRAIL,
@@ -28,7 +29,13 @@ from vocab import VERBS
 
 
 
-def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -> Report:
+def run_plan(
+    plan: Plan,
+    root: Path,
+    evidence_root: Path,
+    budget_scale: float,
+    assumed_preconditions: tuple[dict[str, Any], ...] | set[str] = frozenset(),
+) -> Report:
     run_directory = _run_directory(evidence_root, plan.unit)
     steps_directory = run_directory / "steps"
     steps_directory.mkdir(parents=True, exist_ok=True)
@@ -38,7 +45,11 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
     outcomes: list[StepOutcome] = []
     verdict = "passed"
     exit_code = EXIT_OK
-    precondition_outcomes = _run_preconditions(plan, root, run_directory)
+    assumed = set(assumed_preconditions)
+    precondition_outcomes = [
+        item
+        for item in _run_preconditions(plan, root, run_directory, assumed)
+    ]
     write_json(
         run_directory / "preconditions.json",
         {"unit": plan.unit, "preconditions": precondition_outcomes},
@@ -87,6 +98,7 @@ def run_plan(plan: Plan, root: Path, evidence_root: Path, budget_scale: float) -
     report = Report(
         unit=plan.unit,
         digest=plan.digest,
+        product_digest=reuse_module.product_digest(root),
         verdict=verdict,
         tier=plan.tier,
         duration_ms=duration_ms,
@@ -150,11 +162,30 @@ def _fill(value: Any, facts: dict[str, str]) -> Any:
 
 
 def _run_preconditions(
-    plan: Plan, root: Path, run_directory: Path
+    plan: Plan,
+    root: Path,
+    run_directory: Path,
+    assumed: set[str] = frozenset(),
 ) -> list[dict[str, Any]]:
     outcomes: list[dict[str, Any]] = []
     for index, precondition in enumerate(plan.preconditions):
         kind = str(precondition.get("kind"))
+        provider = str(precondition.get("provider", ""))
+        key = f"{kind}:{provider}" if provider else kind
+        if key in assumed:
+            outcomes.append(
+                {
+                    "index": index,
+                    "kind": kind,
+                    "provider": provider,
+                    "ok": True,
+                    "action": "assumed",
+                    "detail": f"{key} is assumed from a passing run",
+                    "durationMs": 0,
+                }
+            )
+            continue
+        started = time.monotonic()
         if kind == "media-server":
             provider = str(precondition.get("provider", ""))
             outcome = _ensure_media_server(provider, root)
@@ -173,6 +204,9 @@ def _run_preconditions(
             }
         outcome["index"] = index
         outcome["kind"] = kind
+        if provider:
+            outcome["provider"] = provider
+        outcome.setdefault("durationMs", int((time.monotonic() - started) * 1000))
         outcomes.append(outcome)
     return outcomes
 
