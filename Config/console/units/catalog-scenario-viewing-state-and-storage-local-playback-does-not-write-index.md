@@ -120,20 +120,6 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "FileBrowsing-FilesScreen",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.viewing-storage",
       "args": {},
       "capture": {
@@ -152,6 +138,23 @@
           "containerIndexEntryCount": "0"
         },
         "timeoutMs": 30000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
         "intervalMs": 400
       }
     },
@@ -271,20 +274,12 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "label",
-        "equals": "Enchron Regression WebDAV",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression WebDAV"
+        "identifier": "FileBrowsing-SourcesSidebar-source-",
+        "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+        "index": 1
       }
     },
     {

@@ -711,6 +711,9 @@ def _dispatch_daemon(
                     "snapshotDigest": "sha256:"
                     + hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
                     "viewingStateRecordCount": _resolve_field(
+                        payload, "viewingStorageSnapshot.viewingState.viewingRecordCount"
+                    ),
+                    "persistedRecordCount": _resolve_field(
                         payload, "viewingStorageSnapshot.viewingState.persistedRecordCount"
                     ),
                     "containerIndexEntryCount": _resolve_field(

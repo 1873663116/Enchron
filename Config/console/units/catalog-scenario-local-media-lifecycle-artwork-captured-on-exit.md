@@ -110,8 +110,11 @@
       }
     },
     {
-      "verb": "device.home",
-      "args": {}
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
     },
     {
       "verb": "device.await",

@@ -49,13 +49,24 @@
       }
     },
     {
-      "verb": "device.app-command",
+      "verb": "device.app-commands",
       "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true",
-          "libraryFolder": "Regression Search Folder"
-        }
+        "calls": [
+          {
+            "verb": "resetState",
+            "arguments": {
+              "keepSession": "true",
+              "libraryFolder": "Regression Search Folder"
+            }
+          },
+          {
+            "verb": "importStagedFolder",
+            "arguments": {
+              "directory": "scenario-library-management-current-folder-search-counts",
+              "entry": "root"
+            }
+          }
+        ]
       }
     },
     {

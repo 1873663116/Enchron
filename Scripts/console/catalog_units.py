@@ -196,17 +196,26 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     cancels_format_editor = "PlayerUI-VideoFormat-cancel" in json.dumps(
         payload.get("operations") or [], ensure_ascii=False
     )
+    source_rows: list[str] = []
+    remote_source_labels: set[str] = {
+        str(label)
+        for action in payload.get("operations", [])
+        for label in ((action.get("arguments") or {}).get("labels") or [])
+        if "webdav" in str(label).lower() or "smb" in str(label).lower()
+    }
     remote_opened = any(
         str(action.get("operation", "")).startswith("operation:media.open")
         and str((action.get("arguments") or {}).get("identifier", "")).startswith("FileBrowsing-")
         for action in payload.get("operations", [])
     )
     remote_flow = remote_opened
+    if remote_opened and not remote_source_labels:
+        remote_source_labels = {"Enchron Regression WebDAV"}
 
     def panoramic(media: str | None) -> bool:
         return bool(media) and any(
             token in str(media).lower()
-            for token in ("apmp", "180", "360", "panorama", "spatial")
+            for token in ("apmp", "180", "360", "panorama", "spatial", "immersive")
         )
 
     def window_root_wait(timeout_ms: int) -> dict[str, Any]:
@@ -309,6 +318,36 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     form_facts_emitted = False
     trace_generation = 0
     storage_probes = 0
+    import_emitted = False
+    in_settings = False
+
+    def ensure_files_context() -> None:
+        nonlocal in_settings
+        if not in_settings:
+            return
+        in_settings = False
+        steps.append(
+            {
+                "verb": "device.command",
+                "args": {
+                    "action": "tap",
+                    "identifier": "Navigation-Ornament-tab-files",
+                },
+            }
+        )
+        steps.append(
+            {
+                "verb": "device.await",
+                "args": {
+                    "probe": "element",
+                    "field": "identifier",
+                    "equals": "FileBrowsing-FilesScreen",
+                    "timeoutMs": 20000,
+                    "intervalMs": 400,
+                },
+            }
+        )
+
     operations = payload["operations"]
     for action in operations:
         arguments = action.get("arguments") or {}
@@ -321,7 +360,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             value = arguments.get(key)
             for candidate in value if isinstance(value, list) else [value]:
                 if candidate:
-                    collect_fixture(str(candidate), fixtures)
+                    collect_fixture(str(candidate), fixtures, remote_flow)
     source_name_text = ""
     fault_recipe = ""
     for action in operations:
@@ -393,6 +432,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             menu_opened = False
             folder_opened = False
             if reset_scenario and fixtures and not imports_at_root(payload):
+                import_emitted = True
                 steps.append(
                     {
                         "verb": "device.app-command",
@@ -409,7 +449,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             folder_opened = folder is not None
             rewound = True
         elif name == "navigation.select-tab":
-            if remote_flow:
+            if remote_flow and str(arguments.get("tab")) == "files":
                 continue
             if str(arguments["tab"]) == "emby" and not reset_emitted:
                 steps.append(
@@ -419,6 +459,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
                 reset_emitted = True
+            in_settings = str(arguments["tab"]) == "settings"
             steps.append(
                 {
                     "verb": "device.command",
@@ -456,21 +497,42 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 for action in payload.get("operations", [])
                 for label in ((action.get("arguments") or {}).get("labels") or [])
             )
-            if RESET_PRODUCT_STATE in operation_names(payload) and (
-                imports_at_root(payload) or local_library_flow
+            if (
+                RESET_PRODUCT_STATE in operation_names(payload)
+                and fixtures
+                and not import_emitted
             ):
-                steps.append(
-                    {
-                        "verb": "device.app-command",
-                        "args": {
-                            "verb": "importStagedFiles",
-                            "arguments": {"directory": slug(str(payload["id"]))},
-                        },
-                    }
-                )
+                import_emitted = True
+                if imports_at_root(payload) or local_library_flow:
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "importStagedFiles",
+                                "arguments": {"directory": slug(str(payload["id"]))},
+                            },
+                        }
+                    )
+                else:
+                    steps.append(
+                        {
+                            "verb": "device.app-command",
+                            "args": {
+                                "verb": "importStagedFolder",
+                                "arguments": {
+                                    "directory": slug(str(payload["id"])),
+                                    "entry": "root",
+                                },
+                            },
+                        }
+                    )
         elif name == "device.connect-source":
+            source_name = str(arguments.get("name") or "")
+            if source_name:
+                source_rows.append(source_name)
             steps.append({"verb": "device.connect-source", "args": arguments})
         elif name == "media.open":
+            ensure_files_context()
             identifier = str(arguments["identifier"])
             if current_media == media_name(identifier):
                 steps.append(
@@ -499,10 +561,12 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
                 folder_opened = True
-            if identifier.startswith("FileBrowsing-"):
-                fixtures.clear()
             found = fixture(media_name(identifier))
-            if found is not None and found not in fixtures and not identifier.startswith("FileBrowsing-"):
+            if (
+                found is not None
+                and found not in fixtures
+                and not (remote_flow and identifier.startswith("FileBrowsing-"))
+            ):
                 fixtures.append(found)
             opened = open_identifier(identifier)
             if not identifier.startswith("FileBrowsing-"):
@@ -601,6 +665,20 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 }
             )
         elif name == "accessibility.activate":
+            activation_targets = [
+                str(item)
+                for item in (
+                    arguments.get("identifiers")
+                    or [arguments.get("identifier")]
+                )
+                if item
+            ]
+            activation_labels = arguments.get("labels") or []
+            if (
+                activation_targets
+                and not any(item.startswith("Settings-") for item in activation_targets)
+            ) or (not activation_targets and activation_labels):
+                ensure_files_context()
             targets = [str(item) for item in (arguments.get("labels") or [])]
             def reaches_emby() -> bool:
                 return any(
@@ -654,6 +732,14 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
+            elif labels and str(labels[0]) in remote_source_labels:
+                source_row = {
+                    "action": "tap",
+                    "identifier": "FileBrowsing-SourcesSidebar-source-",
+                    "identifierPrefix": "FileBrowsing-SourcesSidebar-source-",
+                    "index": 1,
+                }
+                steps.append({"verb": "device.command", "args": source_row})
             elif labels and str(labels[0]) in LABEL_IDENTIFIERS:
                 target_identifier = LABEL_IDENTIFIERS[str(labels[0])]
                 if target_identifier.startswith("FileBrowsing-SourcesSidebar-"):
@@ -930,6 +1016,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
         elif name == "accessibility.inspect":
 
             raw = str(arguments.get("identifier"))
+            if not raw.startswith("Settings-"):
+                ensure_files_context()
             collect_fixture(raw, fixtures)
             if any(marker in raw for marker in ("loadFailure", "SourceConnection-")):
                 expected = open_identifier(raw)
@@ -986,6 +1074,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             action_identifier = "Settings-action-" + STORAGE_CLEAR_ACTIONS.get(
                 target_name, f"clear-{target_name}"
             )
+            in_settings = True
             steps.append(
                 {
                     "verb": "device.command",
@@ -1045,19 +1134,6 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 {
                     "verb": "device.command",
                     "args": {"action": "tap", "identifier": action_identifier},
-                }
-            )
-            steps.append({"verb": "device.home", "args": {}})
-            steps.append(
-                {
-                    "verb": "device.await",
-                    "args": {
-                        "probe": "element",
-                        "field": "identifier",
-                        "equals": "FileBrowsing-FilesScreen",
-                        "timeoutMs": 20000,
-                        "intervalMs": 400,
-                    },
                 }
             )
         elif name in {"diagnostics.surface-probe", "diagnostics.browse-hierarchy", "harness.assert-channels"}:
@@ -1202,9 +1278,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         "args": {"verb": "exitSpatial", "arguments": {}},
                     }
                 )
-                expected = (
-                    "portal" if portal_projection or panoramic(current_media) else "window"
-                )
+                expected = "portal" if portal_projection else "window"
                 steps.append(
                     {
                         "verb": "device.await",
@@ -1218,9 +1292,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     }
                 )
             else:
-                landing = (
-                    "portal" if portal_projection or panoramic(current_media) else "window"
-                )
+                landing = "portal" if portal_projection else "window"
                 steps.append(
                     {
                         "verb": "device.await",
@@ -1412,8 +1484,14 @@ def source_preconditions(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return declared
 
 
-def collect_fixture(identifier: str, fixtures: list[Path]) -> None:
+def collect_fixture(
+    identifier: str,
+    fixtures: list[Path],
+    remote_flow: bool = False,
+) -> None:
     if "-grid-video-" not in identifier:
+        return
+    if remote_flow and identifier.startswith(RECORDED_VIDEO_PREFIX):
         return
     found = fixture(media_name(identifier))
     if found is not None and found not in fixtures:
@@ -1773,13 +1851,17 @@ STORAGE_CLEAR_ACTIONS = {
 
 VERIFIED_SEEK_SCENARIOS = frozenset(
     {
+        "scenario:viewing-state-and-storage:clear-all-local-progress",
         "scenario:viewing-state-and-storage:completed-media-starts-from-beginning",
     }
 )
 VERIFIED_CLEAR_SCENARIOS = frozenset(
     {
         "scenario:local-media-lifecycle:artwork-captured-on-exit",
+        "scenario:viewing-state-and-storage:clear-all-local-progress",
         "scenario:viewing-state-and-storage:local-playback-does-not-write-index",
+        "scenario:viewing-state-and-storage:remote-index-reused-on-second-open",
+        "scenario:viewing-state-and-storage:storage-rows-report-and-clear",
     }
 )
 SKIPPED_FILE = REPOSITORY_ROOT / "Config/console/skipped-scenarios.json"

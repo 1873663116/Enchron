@@ -41,6 +41,8 @@ A generated catalog unit can pass alone and fail inside the catalog block: the b
 
 Scenario units come from `Regression/journeys/` through `Scripts/console/catalog_units.py`. A scenario whose operations no XCUITest lane can deliver goes into `Config/console/skipped-scenarios.json` and stays out of generation. Every other scenario enters generation only after a verification run passes: add its id to the operation-family set in `catalog_units.py` (`VERIFIED_PRESENTATION_SCENARIOS`, `VERIFIED_SEEK_SCENARIOS`, `VERIFIED_CLEAR_SCENARIOS`, `VERIFIED_RESET_SCENARIOS`), regenerate the units, and run the generated unit. A failing scenario keeps its id out of the set, so it reports in `--gaps` instead of shipping a red unit.
 
+Translation keeps three ownership facts that cost runs to rediscover: a remote source is selected by the sidebar row's identifier prefix (`FileBrowsing-SourcesSidebar-source-`, index 1 for the single data source after Local Files) because its label also names the breadcrumb; the settings screen is left through the Files tab, which restores the browsing state where `device.home` would reset it to the library root; and staged fixtures are staged as a folder for folder navigation flows and as files at the library root otherwise, while remote-source media is never staged locally.
+
 The appearance transition in a scene is driven by `EnvironmentScene.advance`; the Tidal scene forwards it to its runtime, and an offscreen renderer calls it directly because it has no frame loop.
 
 `cli.py inspect <unit>` reads the last run and lists, for the failing step, the element it wanted and the identifiers the app actually showed, ranked by closeness. It needs no device.
