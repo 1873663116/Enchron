@@ -5,6 +5,7 @@
   "id": "feature:journey.journey-local-media-lifecycle",
   "title": "Journey:Local Media Lifecycle",
   "units": [
+    "unit:catalog.scenario-local-media-lifecycle-artwork-captured-on-exit@1",
     "unit:catalog.scenario-local-media-lifecycle-automatic-play-next-resume-policy@1",
     "unit:catalog.scenario-local-media-lifecycle-clean-flat-playback-main-gate@1",
     "unit:catalog.scenario-local-media-lifecycle-clean-start-position-zero@1",

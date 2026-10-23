@@ -240,13 +240,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
       "verb": "device.await",
       "args": {
         "probe": "element",

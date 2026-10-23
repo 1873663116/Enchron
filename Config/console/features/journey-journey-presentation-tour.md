@@ -6,6 +6,7 @@
   "title": "Journey:Presentation Tour",
   "units": [
     "unit:catalog.scenario-presentation-tour-automatic-source-provenance@1",
+    "unit:catalog.scenario-presentation-tour-docked-episode-switch-settles-and-exits@1",
     "unit:catalog.scenario-presentation-tour-format-application-route@1",
     "unit:catalog.scenario-presentation-tour-format-editor-hosts-window-and-portal@1",
     "unit:catalog.scenario-presentation-tour-initial-presentation-routing.part2@1",

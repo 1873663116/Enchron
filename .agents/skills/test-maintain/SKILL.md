@@ -39,6 +39,10 @@ Data lives in `Config/console/units/` and `Config/console/features/`.
 
 A generated catalog unit can pass alone and fail inside the catalog block: the block is sequence sensitive, so a green single run does not prove the tier is green.
 
+Scenario units come from `Regression/journeys/` through `Scripts/console/catalog_units.py`. A scenario whose operations no XCUITest lane can deliver goes into `Config/console/skipped-scenarios.json` and stays out of generation. Every other scenario enters generation only after a verification run passes: add its id to the operation-family set in `catalog_units.py` (`VERIFIED_PRESENTATION_SCENARIOS`, `VERIFIED_SEEK_SCENARIOS`, `VERIFIED_CLEAR_SCENARIOS`, `VERIFIED_RESET_SCENARIOS`), regenerate the units, and run the generated unit. A failing scenario keeps its id out of the set, so it reports in `--gaps` instead of shipping a red unit.
+
+The appearance transition in a scene is driven by `EnvironmentScene.advance`; the Tidal scene forwards it to its runtime, and an offscreen renderer calls it directly because it has no frame loop.
+
 `cli.py inspect <unit>` reads the last run and lists, for the failing step, the element it wanted and the identifiers the app actually showed, ranked by closeness. It needs no device.
 
 `device.probe` fails when no element carries the identifier it names, so a probe cannot pass without proving the element exists.
@@ -362,4 +366,3 @@ Adding a verb changes `vocab.py`, which is a rebuild. Adding a unit does not.
 
 The channel has no cross-process lock. Two concurrent writers to `Documents/test-commands` corrupt each other. Serialization must come from the caller staying one-at-a-time.
 
-`TidalEnvironmentTests.swift:10` raises `CancellationError` on a clean `main`. It is not caused by this infrastructure.

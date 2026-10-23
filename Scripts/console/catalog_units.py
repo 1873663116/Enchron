@@ -738,6 +738,7 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "args": {"verb": "leavePlayback", "arguments": {}},
                         }
                     )
+                    current_media = None
                     continue
                 if targets and all(
                     item.startswith("PlayerUI-loadFailure-")
@@ -982,7 +983,9 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
         elif name == "storage.clear":
             target_name = str(arguments.get("target", ""))
-            action_identifier = f"Settings-action-clear-{target_name}"
+            action_identifier = "Settings-action-" + STORAGE_CLEAR_ACTIONS.get(
+                target_name, f"clear-{target_name}"
+            )
             steps.append(
                 {
                     "verb": "device.command",
@@ -1006,10 +1009,23 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             )
             steps.append(
                 {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "identifier",
+                        "equals": "Settings-category-storagePrivacy",
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            steps.append(
+                {
                     "verb": "device.command",
                     "args": {
                         "action": "tap",
                         "identifier": "Settings-category-storagePrivacy",
+                        "waitMilliseconds": 800,
                     },
                 }
             )
@@ -1029,6 +1045,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                 {
                     "verb": "device.command",
                     "args": {"action": "tap", "identifier": action_identifier},
+                }
+            )
+            steps.append({"verb": "device.home", "args": {}})
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "element",
+                        "field": "identifier",
+                        "equals": "FileBrowsing-FilesScreen",
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
                 }
             )
         elif name in {"diagnostics.surface-probe", "diagnostics.browse-hierarchy", "harness.assert-channels"}:
@@ -1735,8 +1764,24 @@ FORM_FACTS = frozenset(
     }
 )
 
-VERIFIED_SEEK_SCENARIOS = frozenset()
-VERIFIED_CLEAR_SCENARIOS = frozenset()
+STORAGE_CLEAR_ACTIONS = {
+    "artwork-cache": "clear-artwork-cache",
+    "container-index-cache": "clear-container-index-cache",
+    "playback-progress": "clear-progress",
+}
+
+
+VERIFIED_SEEK_SCENARIOS = frozenset(
+    {
+        "scenario:viewing-state-and-storage:completed-media-starts-from-beginning",
+    }
+)
+VERIFIED_CLEAR_SCENARIOS = frozenset(
+    {
+        "scenario:local-media-lifecycle:artwork-captured-on-exit",
+        "scenario:viewing-state-and-storage:local-playback-does-not-write-index",
+    }
+)
 SKIPPED_FILE = REPOSITORY_ROOT / "Config/console/skipped-scenarios.json"
 
 
@@ -1759,12 +1804,13 @@ PRESENTATION_OPS = frozenset(
 )
 VERIFIED_PRESENTATION_SCENARIOS = frozenset(
     {
-        "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
-        "scenario:projection-and-stereo:panorama-coverage-angle",
-        "scenario:presentation-tour:portal-to-panorama-explicit-entry",
+        "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
         "scenario:presentation-tour:panorama-to-portal-exit",
-        "scenario:presentation-tour:window-docked-round-trip",
+        "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
+        "scenario:presentation-tour:portal-to-panorama-explicit-entry",
         "scenario:presentation-tour:transition-timeout-rolls-back",
+        "scenario:presentation-tour:window-docked-round-trip",
+        "scenario:projection-and-stereo:panorama-coverage-angle",
     }
 )
 
