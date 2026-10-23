@@ -39,9 +39,11 @@ python3 Scripts/console/transport.py \
 
 ### 空间手势：Device Hub 的鼠标映射
 
-Device Hub 的鼠标映射已退役。XCUITest 无法为 Immersive Space 与 RealityView 的空间表面推导激活坐标，也无法合成注视加捏合语义，因此这条能力不进自动化：需要空间手势的场景在目录里标记为跳过（`Config/console/skipped-scenarios.json`），不生成端到端单元。
+XCUITest 无法合成画布上的缩放与捏合映射，也无法为 Immersive Space 与 RealityView 的空间表面推导激活坐标。这类端到端操作走 Device Hub：画布呈现佩戴者视野，把人手在 Mac 上的鼠标位置与点击映射成系统的注视与捏合，computer use 在画布上合成鼠标事件，代替缩放与捏合的点击。开始前放大 Device Hub 窗口，把画布缩放挡位切到 fit、输入模式切到指针；画布越大，指点越准。
 
-需要在模拟器上人工确认时，直接用 computer use 在模拟器窗口上合成鼠标点击即可，不需要画布映射脚本。普通 2D 窗口的点击可走这条通路，界面元素仍直接读 App 的 Accessibility 树。系统控件（Home 主菜单、Files 与 Photos 选择器、控制中心）用同样的点击方式到达，这些目标不在 App 的 Accessibility 树里，用后继系统界面与产品证据确认动作到达。
+同一通路到达不在 App Accessibility 树里的系统目标：Files 选择器、Home 主菜单、控制中心。点击前后各用 `xcrun simctl io <设备> screenshot` 取一张画面，再用后继系统界面与产品证据确认动作到达。普通 2D 窗口的点击也可这样完成，界面元素仍直接读 App 的 Accessibility 树。
+
+需要这类动作的场景在控制台目录里登记为跳过（`Config/console/skipped-scenarios.json`），不生成端到端单元；端到端确认由 Agent 在 Device Hub 上按上面的方式执行。
 
 Simulator 不替代真机。Dolby Vision、AV1、MV-HEVC 第二视图与真实硬件音频输出继续使用 device lane。
 

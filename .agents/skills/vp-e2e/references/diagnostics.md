@@ -13,7 +13,7 @@
 | 两条 | 控制台打印 `Wait for <bundle> to idle` | XCTest 到达了正常的同步点 | 继续观察是否返回新快照或 session 响应。只有在排除了直接观察到的锁定与权限门槛之后仍无进展，才标记为停滞。 |
 | 真机 | 可见系统权限 Scene，而经 App 发送的事件报 `Received invalid scene ID (nil) from Accessibility` | 事件指向的是 App Scene，而权限弹窗属于系统 Scene | 交由佩戴者处理可见权限。 |
 | 两条 | 外部启动目标进程后，普通 App 窗口可读，而所有合成事件均报 `Received invalid scene ID (nil) from Accessibility` | 目标 App 不属于当前 XCTest 的自动化 Scene 关系 | 结束无效会话，经 `XCUIApplication.launch()` 建立由 XCTest 拥有的新会话。只能截图的通道不构成可交互。 |
-| 两条 | Window 控件可以接受合成事件，而 RealityKit 或沉浸表面报 `invalid activation point transform (nil)` | Window 侧的自动化关系正常；XCUIAutomation 无法为该空间表面推导激活坐标变换 | 单独记录这条空间输入边界。产品存在真正公开的空间 Accessibility target 时使用它；模拟器 lane 的空间手势按跳过登记处理（见[模拟器 lane](simulator.md)）；真机上需要佩戴者操作与直接物理证据。 |
+| 两条 | Window 控件可以接受合成事件，而 RealityKit 或沉浸表面报 `invalid activation point transform (nil)` | Window 侧的自动化关系正常；XCUIAutomation 无法为该空间表面推导激活坐标变换 | 单独记录这条空间输入边界。产品存在真正公开的空间 Accessibility target 时使用它；模拟器 lane 经 Device Hub 用 computer use 合成鼠标事件（见[模拟器 lane](simulator.md)）；真机上需要佩戴者操作与直接物理证据。 |
 | 两条 | 元素存在但不可命中，且层级中另有大型 Window 或 Scene | 另一个产品或系统 Scene 可能遮挡了画面或持有焦点 | 对照可见像素、几何范围、Scene 声明、恢复与默认启动行为判定。这属于产品 Scene 证据，区别于传输通道失败。 |
 | 两条 | 控制器 UI 命令返回 `stage: responseTimeout`，附带现场观察清单（Mac 侧 runner 进程、设备进程表、runner 日志尾部、沉浸计数，逐项注明来源） | 文件应答未在时限内到达。清单只陈述观察，归因由读者作出 | 按清单区分：runner 进程消失、设备上 App 消失，各自指向不同原因。经 halt 后 ensure-session 重建，保持单一 runner。 |
 | 真机 | 反复进出沉浸后合成事件停止投递，或 runner 进程无声消失（2026-08-10 出现两次） | 进入沉浸会断开主窗口的 UIScene（探针实测：SwiftUI 的 `onDisappear` 不触发、场景身份值不变，而 UIKit session 已断开，执行器正是靠 `mainWindowSceneIsDisconnected` 确认关闭），而 XCTest 绑定的正是被销毁的那个 UIScene。这是 visionOS 正常的场景生命周期。控制器会对沉浸进入计数，随响应（`immersiveFacts`）与超时观察清单一起返回 | 测试侧据此规划：跨沉浸转场的批次把每个 cell 都视为可能失去输入所有权；命令返回 responseTimeout 即 halt 后重建会话；单个会话内的沉浸往返保持有限次数。 |

@@ -5,7 +5,6 @@
 ## Sub-features
 
 - 通过 Files 选择器导入。这是真实用户的主路径，包含 iCloud Drive 的目录导航。
-- 通过相册选择器导入。
 - 验证用的注入路径：位于 TestMediaInbox 内的文件经由通道命令 `importMedia` 导入，走的是同一个 addFiles 入口。
 
 ## How to get to it (user POV)
@@ -14,7 +13,7 @@
 
 ## Driving it with the controller
 
-Preconditions: 会话已建立且 `ping` 有应答。注入路径还要求 fixture 已推入 App 容器的 `Documents/TestMediaInbox/` 目录。系统选择器路径要求 Device Hub 预检已经返回当前 Simulator 的 `targetBinding` 和可定位的 Fit 画布。
+Preconditions: 会话已建立且 `ping` 有应答。注入路径还要求 fixture 已推入 App 容器的 `Documents/TestMediaInbox/` 目录。系统选择器路径要求 Device Hub 已打开，画布可见且缩放挡位在 fit。
 
 注入路径用于快速验证生产入库管线：
 
@@ -32,7 +31,7 @@ python3 Scripts/console/transport.py --device <id> \
 |---|---|---|
 | 结构 | 所有导入入口都汇聚到 `mediaLibrary.addFiles(urls)`；媒体引用被正确写入资料库并持久化 | 模拟器单测 |
 | 物理 | 注入路径：`importMedia` 应答 ok，且媒体库网格中出现对应卡片 | 两条 lane 的产品通道 |
-| 物理 | Files 与 Photos 选择器路径，包括跨进程系统界面和系统权限门 | Simulator Device Hub、选择结果和资料库快照 |
+| 物理 | Files 选择器路径，包括跨进程系统界面和系统权限门 | Simulator Device Hub、选择结果和资料库快照 |
 | 感知 | 不适用 | |
 
 ## 证明的终态
@@ -42,4 +41,4 @@ python3 Scripts/console/transport.py --device <id> \
 ## Gotchas
 
 - importMedia 只接受 TestMediaInbox 的直接子文件名，含路径穿越的输入会被拒绝。
-- 注入路径只覆盖入库管线。Files 与 Photos 选择器使用 Simulator Device Hub 单独覆盖，不能由注入结果替代。
+- 注入路径只覆盖入库管线。Files 选择器路径使用 Simulator Device Hub 单独覆盖，不能由注入结果替代。

@@ -46,14 +46,14 @@ from regression.materialize_catalog_v2 import materialize
 
 
 EXPECTED_COUNTS = {
-    "promises": 65,
+    "promises": 64,
     "facts": 10,
     "operations": 35,
     "oracles": 11,
-    "rubrics": 107,
+    "rubrics": 106,
     "preparations": 18,
     "journeys": 14,
-    "scenarios": 70,
+    "scenarios": 69,
 }
 EXPECTED_OPERATION_IDS = frozenset(
     {
@@ -227,17 +227,17 @@ class MaterializedCatalogTests(unittest.TestCase):
         self.assertEqual(
             report["counts"],
             {
-                "promises": 65,
+                "promises": 64,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 107,
+                "rubrics": 106,
                 "preparations": 18,
                 "journeys": 14,
-                "scenarios": 70,
-                "staticCases": 119,
+                "scenarios": 69,
+                "staticCases": 118,
             },
         )
-        self.assertEqual(report["scenarioReadiness"], {"ready": 70})
+        self.assertEqual(report["scenarioReadiness"], {"ready": 69})
         self.assertEqual(
             report["preparationReadiness"],
             {"ready": 18},
@@ -253,11 +253,11 @@ class MaterializedCatalogTests(unittest.TestCase):
         )
         self.assertEqual(
             sum(len(scenario.static_cases) for scenario in catalog.scenarios),
-            119,
+            118,
         )
         self.assertEqual(
             sum(len(scenario.obligations) for scenario in catalog.scenarios),
-            158,
+            157,
         )
         self.assertTrue(
             all(
@@ -534,9 +534,9 @@ class MaterializedCatalogTests(unittest.TestCase):
         analysis = analyze_catalog(self.catalog, request)
 
         gate_id = "scenario:local-media-lifecycle:clean-flat-playback-main-gate"
-        self.assertEqual(len(analysis.target_promises), 65)
-        self.assertEqual(len(analysis.target_scenarios), 70)
-        self.assertEqual(len(analysis.selected_scenarios), 70)
+        self.assertEqual(len(analysis.target_promises), 64)
+        self.assertEqual(len(analysis.target_scenarios), 69)
+        self.assertEqual(len(analysis.selected_scenarios), 69)
         self.assertEqual(
             {(gate.lane, str(gate.scenario_id)) for gate in analysis.main_gates},
             {

@@ -88,8 +88,8 @@ SEMANTIC_AUTHORITY_PATH = Path("Regression/semantic-authority.json")
 DERIVED_HUMAN_ACTOR_ID = "authority:approved-composite-design"
 DERIVED_HUMAN_RUNTIME = "semantic-authority-derivation-v1"
 _CATALOG_SCOPE_FACT = FactID("fact:runtime.catalog-scope-included")
-_EXPECTED_PROMISES = 65
-_EXPECTED_SCENARIOS = 70
+_EXPECTED_PROMISES = 64
+_EXPECTED_SCENARIOS = 69
 
 _CONTRACT_KIND = (
     (PromiseContract, ReviewUnitKind.PROMISE),

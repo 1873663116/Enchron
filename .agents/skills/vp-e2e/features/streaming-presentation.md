@@ -25,7 +25,7 @@
 
 Preconditions: 模拟器已启动并装有带测试通道的 Enchron；主机为已配对状态。
 
-呈现转场由真实指针动作触发。空间手势不进自动化：需要注视与捏合的场景在目录里按跳过登记，不生成端到端单元；人工确认时用 computer use 在模拟器窗口的对应位置点一下，坐标取自 `simctl io <UDID> screenshot` 的原图。
+呈现转场由真实指针动作触发。需要注视与捏合的动作走 Device Hub：用 computer use 在 Device Hub 画布上合成鼠标事件，坐标取自 `simctl io <UDID> screenshot` 的原图。需要这类动作的场景在目录里按跳过登记，不生成端到端单元。
 
 ```sh
 # 每次指针动作前后各看一次画面
@@ -71,4 +71,4 @@ tail -20 "$D/stream-session-probe.log"
 - **命令通道会卡死。** 通道无响应时命令文件堆积在 `Documents/test-commands/`、`Documents/test-responses/` 没有新增。此时先清空这两个目录再重启 App，携带 `SIMCTL_CHILD_ENCHRON_TEST_CHANNEL=1` 启动。
 - **启动失败不写探针。** 会话建立前的失败只把原因放进内存并渲染成窗口内的一行红字（identifier `Stream-HostDetail-error`，详情在 accessibilityValue 的 `upstreamDetail`），探针一行不增。遇到「点了没反应、探针没动静」时先区分这两种情况：事件没送达，还是送达但启动失败。
 - **应用网格可能显示模拟后端的条目。** `SimulatedStreamingBackend` 提供 `Enchron Probe` 这类名称，真实 Sunshine 不提供。点中这类卡片会启动失败，与呈现缺陷无关。
-- **空间手势只做人工确认。** 一次点击能否到达空间表面，靠动作后的画面与产品探针判定；自动化不覆盖这一段。
+- **空间手势经 Device Hub 确认。** 一次点击能否到达空间表面，靠动作后的画面与产品探针判定；XCUITest 目录不覆盖这一段。

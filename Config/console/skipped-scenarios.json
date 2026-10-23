@@ -5,23 +5,18 @@
   "skipped": [
     {
       "scenario": "scenario:library-management:files-picker-import-route",
-      "reason": "系统文件选择器需要鼠标点击与后继确认",
-      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
-    },
-    {
-      "scenario": "scenario:library-management:photo-picker-import-route",
-      "reason": "系统照片选择器需要鼠标点击与后继确认",
-      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
+      "reason": "系统文件选择器要经 Device Hub 合成鼠标事件，XCUITest 目录不生成单元",
+      "note": "XCUITest 无法合成注视与捏合；这类端到端动作由 Agent 在 Device Hub 上用 computer use 合成鼠标事件完成。"
     },
     {
       "scenario": "scenario:presentation-tour:spatial-controls-summon",
-      "reason": "空间控件求和需要注视与捏合",
-      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
+      "reason": "空间控件求和要经 Device Hub 合成注视与捏合，XCUITest 目录不生成单元",
+      "note": "XCUITest 无法合成注视与捏合；这类端到端动作由 Agent 在 Device Hub 上用 computer use 合成鼠标事件完成。"
     },
     {
       "scenario": "scenario:window-spatial-input:window-surface-controls-toggle-and-autohide",
-      "reason": "窗口表面控件切换与自动隐藏需要注视与捏合",
-      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
+      "reason": "窗口表面控件切换与自动隐藏要经 Device Hub 合成注视与捏合，XCUITest 目录不生成单元",
+      "note": "XCUITest 无法合成注视与捏合；这类端到端动作由 Agent 在 Device Hub 上用 computer use 合成鼠标事件完成。"
     }
   ]
 }

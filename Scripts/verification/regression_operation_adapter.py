@@ -8535,14 +8535,14 @@ class ResidentOperationBackend:
 
     def _input_device_hub_prepare_1(self, arguments, context):
         raise OperationAdapterError(
-            "gaze and pinch delivery is skipped: XCUITest cannot synthesize it, "
-            "and the canvas mapping tool is retired"
+            "gaze and pinch delivery runs through Device Hub with computer-use "
+            "mouse events; the XCUITest lane cannot synthesize it"
         )
 
     def _input_device_hub_pinch_2(self, arguments, context):
         raise OperationAdapterError(
-            "gaze and pinch delivery is skipped: XCUITest cannot synthesize it, "
-            "and the canvas mapping tool is retired"
+            "gaze and pinch delivery runs through Device Hub with computer-use "
+            "mouse events; the XCUITest lane cannot synthesize it"
         )
 
     def _evidence_structural_test_1(self, arguments, context):

@@ -79,7 +79,7 @@ Bug 复现与回归测试应当模拟真实用户操作，默认走产品自己�
 - 真机的物理输入本身，例如 Digital Crown 的旋转与按压。模拟器 lane 不继承这条限制：Device Hub 的工具栏可以用 Mac 合成鼠标事件点击 Home 等价按钮、视角控制和其他系统控件，画布内的系统 Scene 也可以用同一输入通路操作。
 - HDR 亮度、画面舒适度、眩晕、音质等主观感受。
 
-“XCTest 触达不到”不等于“Agent 无法测试”。权限对话框、Files／Photos 选择器、Home 主菜单、控制中心等系统 Scene 在模拟器 lane 可由 Device Hub 驱动。Device Hub 默认窗口很小，任何定位或点击之前必须先放大窗口并将画布切到 fit；完整操作边界见[模拟器 lane](references/simulator.md)。
+“XCTest 触达不到”不等于“Agent 无法测试”。权限对话框、Files 选择器、Home 主菜单、控制中心等系统 Scene 在模拟器 lane 由 Device Hub 与 computer use 合成鼠标事件驱动；完整操作边界见[模拟器 lane](references/simulator.md)。
 
 投影与立体布局不在此列：mono、SBS、TB 在 2D 截图上各自不同，结合结构化字段就可以判断输出是否正确。
 

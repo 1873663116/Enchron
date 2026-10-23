@@ -11,7 +11,7 @@
     "fact:viewing.minimum-media-duration-seconds": 900,
     "fact:viewing.minimum-observed-seconds": 15
   },
-  "contentDigest": "sha256:208768c706604181e614527916652e9a02ddcd7d6547a98d856e70446aa5faa5",
+  "contentDigest": "sha256:6d74ad625bd8b4b69415fbf31ea809f1dadc120ae4a3489300875d2c05797c96",
   "copyDocuments": [
     {
       "digest": "sha256:26774c4d658658d5141afd7cfcdaed01ce2244a2b5462bd2b3c860254b01917e",
@@ -22,7 +22,7 @@
       "path": "agent-operability-review-protocol.md"
     },
     {
-      "digest": "sha256:6a9ed057e1925a59415395af37c884b7738dd4b8ef892876327de6a2aef55173",
+      "digest": "sha256:09eb6cc39dc3d5bf257fa11f165944d2bc405a7b07ef4047b873d987c2098229",
       "path": "execution-protocol.md"
     },
     {
@@ -102,7 +102,7 @@
       "path": "promises/library-management.md"
     },
     {
-      "digest": "sha256:58adc94359d1e092b666d997ebee55363ad3e152e9a3dc1646bd4a33a950bf43",
+      "digest": "sha256:01e2c57ba3e42ff16439a6d35770234e031bfcd851bbeceaa41a650fcd261fba",
       "path": "promises/media-import.md"
     },
     {
@@ -147,10 +147,10 @@
     "operations": 35,
     "oracles": 11,
     "preparations": 18,
-    "promises": 65,
-    "rubrics": 107,
-    "scenarios": 70,
-    "staticCases": 119
+    "promises": 64,
+    "rubrics": 106,
+    "scenarios": 69,
+    "staticCases": 118
   },
   "journeys": [
     {
@@ -378,7 +378,6 @@
       "ordering": [],
       "scenarioRefs": [
         "scenario:library-management:files-picker-import-route",
-        "scenario:library-management:photo-picker-import-route",
         "scenario:library-management:folder-naming",
         "scenario:library-management:folder-delete-rehomes-references",
         "scenario:library-management:move-references",
@@ -1363,20 +1362,6 @@
         "Copying, duplicating, or modifying a source file violates the move contract."
       ],
       "title": "Move references"
-    },
-    {
-      "criteria": [
-        "The product Add from Photos entry opens the system photo picker; Device Hub selects the reviewed video asset and the PhotosPicker transfer returns through the production completion.",
-        "The final systemImportObservation is bound to the seeded photo asset UUID and contains exactly one persistent app-managed reference named Enchron-System-Import-30s.mp4 with digest sha256:31444db5d84f3c8ea9af0f22a4d8602bd9bc2848d2e23ff857fbaf4ede9316aa and the app-managed photo-transfer delivery domain."
-      ],
-      "filename": "rubric-library-management-photo-picker-import-route-o01-1.md",
-      "id": "rubric:library-management.photo-picker-import-route.o01@1",
-      "negativeControls": [
-        "Element existence or isHittable alone does not prove that the product received the action.",
-        "A route reached only through a diagnostic injection cannot satisfy a user-path delivery criterion.",
-        "An injected inbox import, a runtime human permission step, or selection without a persistent reference cannot satisfy the rubric."
-      ],
-      "title": "Photo Picker Import Route"
     },
     {
       "criteria": [
@@ -14811,114 +14796,6 @@
         "observation": "obligation:library-management:files-picker-import-route:o01:default"
       },
       "title": "Files 选择器与 iCloud Drive 导航导入"
-    },
-    {
-      "applicability": {
-        "factEquals": {
-          "fact": "fact:runtime.catalog-scope-included",
-          "value": true
-        }
-      },
-      "blockers": [],
-      "contract": "Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.",
-      "estimatedCostMillis": 130000,
-      "id": "scenario:library-management:photo-picker-import-route",
-      "journey": "journey:library-management",
-      "lane": "simulator",
-      "mainGateFor": [],
-      "obligations": [
-        {
-          "artifactClass": "coverage",
-          "caseKey": "default",
-          "evidenceSchema": "library-command@1",
-          "evidenceType": "library.command",
-          "id": "obligation:library-management:photo-picker-import-route:o01:default",
-          "oracle": "oracle:agent-structured-library-command@1",
-          "producedByCall": "call:library-management:photo-picker-import-route:07",
-          "rubric": "rubric:library-management.photo-picker-import-route.o01@1"
-        }
-      ],
-      "operations": [
-        {
-          "arguments": {},
-          "callId": "call:library-management:photo-picker-import-route:01",
-          "maxInvocations": 1,
-          "operation": "operation:harness.reset-product-state@2"
-        },
-        {
-          "arguments": {
-            "tab": "files"
-          },
-          "callId": "call:library-management:photo-picker-import-route:02",
-          "maxInvocations": 1,
-          "operation": "operation:navigation.select-tab@1"
-        },
-        {
-          "arguments": {
-            "context": "main-window-browser",
-            "identifiers": [
-              "FileBrowsing-Manage-button"
-            ]
-          },
-          "callId": "call:library-management:photo-picker-import-route:03",
-          "maxInvocations": 1,
-          "operation": "operation:accessibility.activate@2"
-        },
-        {
-          "arguments": {
-            "context": "main-window-browser",
-            "identifiers": [
-              "MediaLibrary-Manage-addPhotos"
-            ]
-          },
-          "callId": "call:library-management:photo-picker-import-route:04",
-          "maxInvocations": 1,
-          "operation": "operation:accessibility.activate@2"
-        },
-        {
-          "arguments": {},
-          "callId": "call:library-management:photo-picker-import-route:05",
-          "maxInvocations": 1,
-          "operation": "operation:input.device-hub-prepare@1"
-        },
-        {
-          "arguments": {
-            "shotHeight": 2160,
-            "shotWidth": 3840,
-            "shotX": 1540,
-            "shotY": 1300,
-            "targetDomain": "canvas"
-          },
-          "callId": "call:library-management:photo-picker-import-route:06",
-          "maxInvocations": 1,
-          "operation": "operation:input.device-hub-pinch@2"
-        },
-        {
-          "arguments": {
-            "systemImportExpectation": "photos"
-          },
-          "callId": "call:library-management:photo-picker-import-route:07",
-          "maxInvocations": 1,
-          "operation": "operation:library.snapshot@1"
-        }
-      ],
-      "prerequisites": [
-        {
-          "key": "system-import-fixtures-ready",
-          "schema": "fixture-set.system-import@2"
-        }
-      ],
-      "promiseRefs": [
-        "promise:media-import:c02"
-      ],
-      "readiness": "ready",
-      "staticCases": [
-        "default"
-      ],
-      "success": {
-        "observation": "obligation:library-management:photo-picker-import-route:o01:default"
-      },
-      "title": "相册选择器导入媒体"
     },
     {
       "applicability": {
