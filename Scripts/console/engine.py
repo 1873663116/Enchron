@@ -532,6 +532,8 @@ def _await_matches(observed: dict[str, str], field: str, expected: Any, mode: st
             return float(value) >= float(expected)
         except (TypeError, ValueError):
             return False
+    if mode == "differs":
+        return value is not None and value != str(expected)
     return value == expected
 
 

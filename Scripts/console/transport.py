@@ -210,8 +210,9 @@ def stage_media(
     container = simulator_container(device, bundle_id)
     if container is None:
         return None
-    inbox = container / "Documents" / "TestMediaInbox" / target
-    if inbox.exists():
+    root_inbox = container / "Documents" / "TestMediaInbox"
+    inbox = root_inbox if target == "." else root_inbox / target
+    if target != "." and inbox.exists():
         shutil.rmtree(inbox)
     inbox.mkdir(parents=True, exist_ok=True)
     copied = 0

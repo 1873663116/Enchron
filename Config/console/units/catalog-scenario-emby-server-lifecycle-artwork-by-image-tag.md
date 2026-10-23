@@ -75,20 +75,11 @@
       }
     },
     {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "label",
-        "equals": "Enchron Regression Emby",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
       "verb": "device.command",
       "args": {
         "action": "tap",
-        "label": "Enchron Regression Emby"
+        "label": "Enchron Regression Series, poster",
+        "labelPrefix": "Enchron Regression Series"
       }
     },
     {

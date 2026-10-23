@@ -74,6 +74,7 @@ VERBS: dict[str, Verb] = {
                     "tapSequence",
                     "tapAnyOf",
                     "tapEach",
+                    "tapFirstMatch",
                 )
             },
             evidence="command.json",

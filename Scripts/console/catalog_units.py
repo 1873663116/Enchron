@@ -56,6 +56,7 @@ HANDLED_ELSEWHERE = {
     "presentation.exit-spatial",
     "evidence.structural-test",
     "playback.seek",
+    "playback.select-subtitle",
     "storage.clear",
     "host.preflight",
     "media.import-staged",
@@ -67,7 +68,6 @@ HANDLED_ELSEWHERE = {
 UNSUPPORTED = {
     "evidence.capture-audio",
     "issue.present",
-    "playback.select-subtitle",
 }
 
 DIRECT = {
@@ -131,6 +131,93 @@ def scenario(path: Path) -> dict[str, Any] | None:
         return json.loads(parts[1])
     except json.JSONDecodeError:
         return None
+
+
+PREPARATION_ROOT = REPOSITORY_ROOT / "Regression" / "preparations"
+FIXTURE_REGISTRY = REPOSITORY_ROOT / "Tests" / "Fixtures" / "fixture-registry.json"
+
+
+def fixture_device_import_path(fixture_id: str) -> str | None:
+    try:
+        registry = json.loads(FIXTURE_REGISTRY.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    entries = registry.get("fixtures") if isinstance(registry, dict) else registry
+    if not isinstance(entries, list):
+        return None
+    for entry in entries:
+        if isinstance(entry, dict) and entry.get("id") == fixture_id:
+            path = entry.get("deviceImportPath")
+            return str(path) if path else None
+    return None
+
+
+def preparation_import_steps(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    keys = {
+        str(item.get("key"))
+        for item in payload.get("prerequisites") or []
+        if isinstance(item, dict)
+        and item.get("schema") == "media-source.local-directory-sidecars@1"
+    }
+    if not keys or not PREPARATION_ROOT.is_dir():
+        return []
+    for path in sorted(PREPARATION_ROOT.glob("*.md")):
+        preparation = scenario(path)
+        if not preparation:
+            continue
+        outputs = {
+            str(item.get("key")) for item in preparation.get("produces") or []
+        }
+        if not (outputs & keys):
+            continue
+        members: dict[str, str] = {}
+        directory = ""
+        for action in preparation.get("operations") or []:
+            name = str(action.get("operation", "")).split(":")[1].split("@")[0]
+            arguments = action.get("arguments") or {}
+            if name == "media.stage-fixture":
+                fixture_id = str(arguments.get("fixtureID") or "")
+                import_path = fixture_device_import_path(fixture_id)
+                if import_path:
+                    members[Path(import_path).name] = import_path
+            elif name == "preparation.local-directory-subtitle-source":
+                directory = str(arguments.get("directoryName") or "")
+                wanted = {
+                    str(item) for item in arguments.get("memberFileNames") or []
+                }
+                if wanted:
+                    members = {
+                        name: value for name, value in members.items() if name in wanted
+                    }
+        if not directory or not members:
+            continue
+        media_file = ""
+        for action in preparation.get("operations") or []:
+            name = str(action.get("operation", "")).split(":")[1].split("@")[0]
+            if name != "preparation.local-directory-subtitle-source":
+                continue
+            media_file = str((action.get("arguments") or {}).get("mediaFileName") or "")
+        if not media_file:
+            continue
+        sources = [f"test-media:{members[name]}" for name in members]
+        return [
+            {
+                "verb": "device.stage-media",
+                "args": {"source": sources, "target": "."},
+            },
+            {
+                "verb": "device.app-command",
+                "args": {
+                    "verb": "importMediaDirectory",
+                    "arguments": {
+                        "directory": directory,
+                        "media": media_file,
+                        "files": json.dumps(list(members)),
+                    },
+                },
+            },
+        ]
+    return []
 
 
 def operation_names(payload: dict[str, Any]) -> list[str]:
@@ -713,7 +800,15 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         }
                     )
                 continue
-            if targets and targets[0].startswith(LIBRARY_ITEM_PREFIX) and reaches_emby():
+            emby_target = bool(targets) and (
+                targets[0] == LIBRARY_LABEL
+                or targets[0].startswith((SERIES_PREFIX, EPISODE_PREFIX))
+            )
+            if (
+                emby_target
+                and str(targets[0]) not in remote_source_labels
+                and reaches_emby()
+            ):
                 if not library_opened:
                     steps.append(
                         {"verb": "device.command", "args": {"action": "tap", "label": LIBRARY_LABEL}}
@@ -731,6 +826,34 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         }
                     )
                     series_opened = True
+                if len(targets) > 1:
+                    for target in targets[1:]:
+                        if target.startswith(SERIES_PREFIX):
+                            if not series_opened:
+                                steps.append(
+                                    {
+                                        "verb": "device.command",
+                                        "args": {
+                                            "action": "tap",
+                                            "label": f"{SERIES_PREFIX}, poster",
+                                            "labelPrefix": SERIES_PREFIX,
+                                        },
+                                    }
+                                )
+                                series_opened = True
+                        elif target.startswith(EPISODE_PREFIX):
+                            steps.append(
+                                {
+                                    "verb": "device.command",
+                                    "args": {
+                                        "action": "tap",
+                                        "identifier": "Emby-Episode-",
+                                        "identifierPrefix": "Emby-Episode-",
+                                        "waitMilliseconds": 1200,
+                                    },
+                                }
+                            )
+                    continue
             summed = str(arguments.get("summonControls", ""))
             if summed and summed not in {"false", "none"}:
                 steps.append(
@@ -1389,6 +1512,109 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         },
                     }
                 )
+        elif name == "playback.select-subtitle":
+            deadline_ms = int(arguments.get("deadlineSeconds", 30)) * 1000
+            host = str(arguments.get("host") or "playerUI")
+            if host == "playerPanel":
+                more_identifier = "PlayerPanel-menu-more"
+                subtitles_identifier = "PlayerPanel-menu-subtitles"
+            else:
+                more_identifier = "PlayerUI-TopAction-more"
+                subtitles_identifier = "PlayerUI-menu-subtitles"
+            track_label = str(arguments.get("trackLabel") or "")
+            steps.append(
+                {
+                    "verb": "device.app-command",
+                    "args": {
+                        "verb": "toggleControls",
+                        "arguments": {"visible": "true"},
+                    },
+                }
+            )
+            for identifier in (more_identifier, subtitles_identifier):
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "identifier",
+                            "equals": identifier,
+                            "timeoutMs": 20000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "identifier": identifier},
+                    }
+                )
+            if track_label:
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "label",
+                            "equals": track_label,
+                            "timeoutMs": 20000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "label": track_label},
+                    }
+                )
+            else:
+                emby_stream_label = "English (SRT)"
+                steps.append(
+                    {
+                        "verb": "device.await",
+                        "args": {
+                            "probe": "element",
+                            "field": "label",
+                            "equals": emby_stream_label,
+                            "timeoutMs": 20000,
+                            "intervalMs": 300,
+                        },
+                    }
+                )
+                steps.append(
+                    {
+                        "verb": "device.command",
+                        "args": {"action": "tap", "label": emby_stream_label},
+                    }
+                )
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "PlayerUI-window-control-plane",
+                        "field": "subtitleTrack",
+                        "mode": "differs",
+                        "equals": "off",
+                        "timeoutMs": deadline_ms,
+                        "intervalMs": 400,
+                    },
+                }
+            )
+            steps.append(
+                {
+                    "verb": "device.await",
+                    "args": {
+                        "probe": "PlayerUI-window-control-plane",
+                        "field": "subtitleCues",
+                        "mode": "atLeast",
+                        "equals": 1,
+                        "timeoutMs": 20000,
+                        "intervalMs": 400,
+                    },
+                }
+            )
         elif name == "playback.seek":
             if arguments.get("summonControls"):
                 steps.append(
@@ -1715,6 +1941,7 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                     },
                 }
             )
+    actions.extend(preparation_import_steps(payload))
     remote_opened = any(
         str(action.get("operation", "")).startswith("operation:media.open")
         and str((action.get("arguments") or {}).get("identifier", "")).startswith("FileBrowsing-")
