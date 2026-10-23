@@ -187,7 +187,8 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
 
     def panoramic(media: str | None) -> bool:
         return bool(media) and any(
-            token in str(media) for token in ("APMP", "180", "360", "Panorama")
+            token in str(media).lower()
+            for token in ("apmp", "180", "360", "panorama", "spatial")
         )
 
     def window_root_wait(timeout_ms: int) -> dict[str, Any]:

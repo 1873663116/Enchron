@@ -156,23 +156,11 @@
     {
       "verb": "device.await",
       "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "equals": {
-          "presentation": "window",
-          "mediaName": "spatial_lighthouse_flowers_waves_short.mov"
-        },
+        "probe": "element",
+        "field": "identifier",
+        "equals": "WindowPlayback-root",
         "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
+        "intervalMs": 300
       }
     },
     {
