@@ -126,6 +126,13 @@ def _journal_unhealthy(answer: dict[str, Any]) -> bool:
     return "probe journal is unhealthy" in str(value.get("detail", "")).lower()
 
 
+def _absent(answer: dict[str, Any]) -> bool:
+    if answer.get("kind") != "result":
+        return False
+    value = answer.get("value") or {}
+    return "No current element matches" in str(value.get("detail", ""))
+
+
 def _settled(answer: dict[str, Any]) -> bool:
     if answer.get("kind") != "result":
         return True
@@ -557,7 +564,8 @@ def _dispatch_daemon(
         request["action"] = step.args.get("action", "tap")
         request["hierarchy"] = bool(step.args.get("hierarchy"))
         answer = _daemon_request(root, request, target)
-        for _ in range(3):
+        attempts = 8 if _absent(answer) else 3
+        for _ in range(attempts):
             if _settled(answer):
                 break
             time.sleep(0.5)
