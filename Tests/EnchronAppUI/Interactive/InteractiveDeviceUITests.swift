@@ -703,6 +703,12 @@ private final class InteractiveDeviceUIChannel {
             let element = query.element(boundBy: index)
             if element.exists { return element }
         }
+        if queries.isEmpty {
+            let textField = app.textFields.element(boundBy: index)
+            if textField.exists { return textField }
+            let secureField = app.secureTextFields.element(boundBy: index)
+            if secureField.exists { return secureField }
+        }
         return nil
     }
 

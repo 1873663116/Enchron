@@ -58,6 +58,10 @@
       }
     },
     {
+      "verb": "app.relaunch",
+      "args": {}
+    },
+    {
       "verb": "device.app-command",
       "args": {
         "verb": "importStagedFolder",
@@ -66,10 +70,6 @@
           "entry": "root"
         }
       }
-    },
-    {
-      "verb": "app.relaunch",
-      "args": {}
     },
     {
       "verb": "device.home",

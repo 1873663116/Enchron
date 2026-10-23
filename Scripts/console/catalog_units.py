@@ -296,7 +296,20 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
     player_interactions = 0
     menu_opened = False
     portal_projection = False
+    reset_scenario = RESET_PRODUCT_STATE in operation_names(payload)
     operations = payload["operations"]
+    for action in operations:
+        arguments = action.get("arguments") or {}
+        name_text = str(arguments.get("fileName") or "")
+        if name_text:
+            found = fixture(name_text)
+            if found is not None and found not in fixtures:
+                fixtures.append(found)
+        for key in ("identifier", "identifiers", "alsoInspect"):
+            value = arguments.get(key)
+            for candidate in value if isinstance(value, list) else [value]:
+                if candidate:
+                    collect_fixture(str(candidate), fixtures)
     source_name_text = ""
     fault_recipe = ""
     for action in operations:
@@ -353,6 +366,19 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
             current_media = None
             menu_opened = False
             folder_opened = False
+            if reset_scenario and fixtures and not imports_at_root(payload):
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {
+                            "verb": "importStagedFolder",
+                            "arguments": {
+                                "directory": slug(str(payload["id"])),
+                                "entry": "root",
+                            },
+                        },
+                    }
+                )
             steps.extend(navigation(folder))
             folder_opened = folder is not None
             rewound = True
@@ -388,6 +414,21 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             "args": {"action": "tap", "label": LIBRARY_LABEL},
                         }
                     )
+        elif name == "media.import-staged":
+            file_name = str(arguments.get("fileName") or "")
+            found = fixture(file_name) if file_name else None
+            if found is not None and found not in fixtures:
+                fixtures.append(found)
+            if RESET_PRODUCT_STATE in operation_names(payload) and imports_at_root(payload):
+                steps.append(
+                    {
+                        "verb": "device.app-command",
+                        "args": {
+                            "verb": "importStagedFiles",
+                            "arguments": {"directory": slug(str(payload["id"]))},
+                        },
+                    }
+                )
         elif name == "device.connect-source":
             steps.append({"verb": "device.connect-source", "args": arguments})
         elif name == "media.open":
@@ -783,14 +824,26 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                         continue
                     if target == "PlayerUI-resumeDecision-primary":
                         continue
-                    steps.append(
-                        {
-                            "verb": "device.command",
-                            "args": {"action": "tap", "identifier": target},
-                        }
+                    action_name = (
+                        "press"
+                        if str(arguments.get("gesture") or "") == "press"
+                        else "tap"
                     )
+                    action_args: dict[str, Any] = {
+                        "action": action_name,
+                        "identifier": target,
+                    }
+                    if action_name == "press":
+                        action_args["duration"] = (
+                            float(arguments.get("durationMillis", 1000)) / 1000.0
+                        )
+                    steps.append({"verb": "device.command", "args": action_args})
         elif name in {"accessibility.activate", "accessibility.type"}:
             args: dict[str, Any] = {"action": "tap", "identifier": arguments.get("identifier")}
+            gesture = str(arguments.get("gesture") or "")
+            if gesture == "press":
+                args["action"] = "press"
+                args["duration"] = float(arguments.get("durationMillis", 1000)) / 1000.0
             if name == "accessibility.type" and "text" in arguments:
                 args["action"] = "typeText"
                 args["text"] = arguments["text"]
@@ -890,8 +943,6 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                             },
                         }
                     )
-        elif name == "media.import-staged":
-            pass
         elif name == "library.snapshot":
             steps.append({"verb": "device.snapshot", "args": {}})
         elif name == "format.apply":
@@ -983,12 +1034,30 @@ def media_name(identifier: str) -> str:
     return identifier.split("-video-")[-1]
 
 
+ROOT_LEVEL_IDS = (
+    "MediaLibrary-Manage-",
+    "MediaLibrary-MultiSelect-",
+)
+
+
 def imports_at_root(payload: dict[str, Any]) -> bool:
     for action in payload.get("operations", []):
-        if str(action.get("operation", "")).endswith("media.open@2") is False:
+        name = str(action.get("operation", ""))
+        arguments = action.get("arguments", {})
+        if name.endswith("media.open@2"):
+            identifier = str(arguments.get("identifier", ""))
+            if identifier.startswith("FileBrowsing-grid-video-"):
+                return True
             continue
-        identifier = str(action.get("arguments", {}).get("identifier", ""))
-        if identifier.startswith("FileBrowsing-grid-video-"):
+        if not name.endswith("accessibility.activate@2"):
+            continue
+        text = " ".join(
+            [
+                *[str(item) for item in arguments.get("identifiers") or []],
+                *[str(item) for item in arguments.get("alsoInspect") or []],
+            ]
+        )
+        if any(marker in text for marker in ROOT_LEVEL_IDS):
             return True
     return False
 
@@ -1035,10 +1104,15 @@ def simplify(actions: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 continue
             if previous["verb"] == action["verb"] == "device.home" and not last:
                 continue
+            repeated_navigation = (
+                action["verb"] == "device.command"
+                and "navBackForward" in str(action.get("args", {}).get("identifier", ""))
+            )
             if (
                 previous["verb"] == action["verb"]
                 and previous["verb"] in {"device.command", "device.app-command"}
                 and previous.get("args", {}) == action.get("args", {})
+                and not repeated_navigation
             ):
                 continue
             if previous["verb"] == "device.probe" and action["verb"] == "device.command":
@@ -1140,6 +1214,7 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
             },
         }
     )
+    reset_scenario = RESET_PRODUCT_STATE in operation_names(payload)
     if fixtures:
         actions.append(
             {
@@ -1150,7 +1225,9 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
                 },
             }
         )
-        if imports_at_root(payload):
+        if reset_scenario:
+            pass
+        elif imports_at_root(payload):
             actions.append(
                 {
                     "verb": "device.app-command",
@@ -1244,7 +1321,6 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
             for index, action in enumerate(simplified)
             if action["verb"] == "device.app-command"
             and action["args"].get("verb") == "resetState"
-            and action["args"].get("arguments", {}).get("libraryFolder")
         ),
         None,
     )
@@ -1355,7 +1431,13 @@ FORM_FACTS = frozenset(
 
 VERIFIED_RESET_SCENARIOS = frozenset(
     {
+        "scenario:library-management:confirmed-batch-deletion",
+        "scenario:library-management:current-folder-search-counts",
+        "scenario:library-management:folder-delete-rehomes-references",
+        "scenario:library-management:folder-naming",
+        "scenario:library-management:move-references",
         "scenario:local-media-lifecycle:clean-flat-playback-main-gate",
+        "scenario:local-media-lifecycle:clean-start-position-zero",
     }
 )
 

@@ -42,8 +42,8 @@
       "verb": "device.stage-media",
       "args": {
         "source": [
-          "test-media:TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s.mp4",
-          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4"
+          "test-media:TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4",
+          "test-media:TestVectors/Enchron/PlaybackBehavior/viewing-storage-16m01s.mp4"
         ],
         "target": "scenario-local-media-lifecycle-automatic-play-next-resume-policy"
       }
