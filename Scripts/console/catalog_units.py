@@ -38,8 +38,6 @@ FAULT_RECIPES = frozenset(
 
 BLOCKERS = {
     "harness.reset-product-state": "the form connection path needs a product-side look before it can be driven",
-    "input.device-hub-pinch": "the Device Hub canvas needs its zoom on fit before it can be driven",
-    "input.device-hub-prepare": "the Device Hub canvas needs its zoom on fit before it can be driven",
     "evidence.capture-audio": "no verb captures audio",
     "evidence.structural-test": "the route runs repository checks before it inspects",
     "issue.present": "the induce route reads the issue control plane first",
@@ -57,8 +55,6 @@ HANDLED_ELSEWHERE = {
     "presentation.enter-panorama",
     "presentation.exit-spatial",
     "evidence.structural-test",
-    "input.device-hub-pinch",
-    "input.device-hub-prepare",
     "playback.seek",
     "storage.clear",
     "host.preflight",
@@ -85,7 +81,6 @@ DIRECT = {
     "evidence.capture-frames",
     "format.apply",
     "harness.assert-channels",
-    "input.device-hub-pinch",
     "library.snapshot",
     "media.open",
     "navigation.select-tab",
@@ -978,32 +973,6 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     "args": {"probe": open_identifier(raw)},
                 }
             )
-        elif name == "input.device-hub-prepare":
-            steps.append({"verb": "device.hub", "args": {"action": "enlarge"}})
-        elif name == "input.device-hub-pinch":
-            if str(arguments.get("targetDomain")) == "system-toolbar":
-                steps.append(
-                    {
-                        "verb": "device.hub",
-                        "args": {
-                            "action": "system-control",
-                            "control": str(arguments.get("systemControl", "home")),
-                        },
-                    }
-                )
-            else:
-                steps.append(
-                    {
-                        "verb": "device.hub",
-                        "args": {
-                            "action": "pinch",
-                            "shotX": arguments.get("shotX", 0),
-                            "shotY": arguments.get("shotY", 0),
-                            "shotWidth": arguments.get("shotWidth", 0),
-                            "shotHeight": arguments.get("shotHeight", 0),
-                        },
-                    }
-                )
         elif name == "evidence.structural-test":
             steps.append(
                 {
@@ -1768,8 +1737,19 @@ FORM_FACTS = frozenset(
 
 VERIFIED_SEEK_SCENARIOS = frozenset()
 VERIFIED_CLEAR_SCENARIOS = frozenset()
-HUB_OPS = frozenset({"input.device-hub-pinch", "input.device-hub-prepare"})
-VERIFIED_HUB_SCENARIOS = frozenset()
+SKIPPED_FILE = REPOSITORY_ROOT / "Config/console/skipped-scenarios.json"
+
+
+def skipped_scenarios() -> dict[str, str]:
+    try:
+        payload = json.loads(SKIPPED_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {
+        str(item["scenario"]): str(item.get("reason", ""))
+        for item in payload.get("skipped", [])
+        if isinstance(item, dict) and item.get("scenario")
+    }
 PRESENTATION_OPS = frozenset(
     {
         "presentation.enter-panorama",
@@ -1826,10 +1806,7 @@ def expressible(path: Path) -> bool:
             "storage.clear" not in operation_names(payload)
             or str(payload.get("id")) in VERIFIED_CLEAR_SCENARIOS
         )
-        and (
-            not (HUB_OPS & set(operation_names(payload)))
-            or str(payload.get("id")) in VERIFIED_HUB_SCENARIOS
-        )
+        and str(payload.get("id")) not in skipped_scenarios()
     )
 
 
@@ -1902,6 +1879,7 @@ def prune_features() -> None:
 
 
 def report_gaps() -> int:
+    registered = skipped_scenarios()
     blocking: dict[str, list[str]] = {}
     for path in sorted(SCENARIOS.rglob("*.md")):
         payload = scenario(path)
@@ -1909,6 +1887,8 @@ def report_gaps() -> int:
             continue
         names = operation_names(payload)
         if not names:
+            continue
+        if str(payload["id"]) in registered:
             continue
         if blocked(payload):
             for name in set(blocked(payload)):
@@ -1920,6 +1900,7 @@ def report_gaps() -> int:
         str(payload["id"])
         for path in SCENARIOS.rglob("*.md")
         if (payload := scenario(path)) is not None
+        and str(payload["id"]) not in registered
         and RESET_PRODUCT_STATE in operation_names(payload)
         and str(payload["id"]) not in VERIFIED_RESET_SCENARIOS
     ]
@@ -1930,7 +1911,6 @@ def report_gaps() -> int:
         )
     gates = (
         (PRESENTATION_OPS, VERIFIED_PRESENTATION_SCENARIOS),
-        (HUB_OPS, VERIFIED_HUB_SCENARIOS),
         (frozenset({"playback.seek"}), VERIFIED_SEEK_SCENARIOS),
         (frozenset({"storage.clear"}), VERIFIED_CLEAR_SCENARIOS),
     )
@@ -1940,11 +1920,17 @@ def report_gaps() -> int:
         if payload is None:
             continue
         names = set(operation_names(payload))
-        if not names:
+        if not names or str(payload["id"]) in registered:
             continue
         for operations, verified in gates:
             if operations & names and str(payload["id"]) not in verified:
                 waiting.setdefault(sorted(operations)[0], []).append(str(payload["id"]))
+    if registered:
+        reasons = sorted({reason for reason in registered.values()})
+        print(
+            f"{len(registered):3d} scenario(s)  {SKIPPED_FILE.relative_to(REPOSITORY_ROOT)}: "
+            + "; ".join(reasons)
+        )
     for name in sorted(waiting, key=lambda item: -len(waiting[item])):
         print(
             f"{len(waiting[name]):3d} scenario(s)  {name}: "

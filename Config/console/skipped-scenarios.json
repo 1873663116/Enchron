@@ -1,0 +1,27 @@
+{
+  "schema": "enchron.console.skipped-scenarios",
+  "schemaVersion": 1,
+  "reason": "spatial-input-outside-xcuitest",
+  "skipped": [
+    {
+      "scenario": "scenario:library-management:files-picker-import-route",
+      "reason": "系统文件选择器需要画布上的注视与捏合",
+      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
+    },
+    {
+      "scenario": "scenario:library-management:photo-picker-import-route",
+      "reason": "系统照片选择器需要画布上的注视与捏合",
+      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
+    },
+    {
+      "scenario": "scenario:presentation-tour:spatial-controls-summon",
+      "reason": "空间控件求和靠画布上的注视与捏合",
+      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
+    },
+    {
+      "scenario": "scenario:window-spatial-input:window-surface-controls-toggle-and-autohide",
+      "reason": "窗口表面控件靠画布上的注视与捏合",
+      "note": "XCUITest 无法合成注视与捏合；这类动作改用 computer use 直接点模拟器窗口，或在需要时由命令行跳过这些端到端点击。"
+    }
+  ]
+}

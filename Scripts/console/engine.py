@@ -487,8 +487,6 @@ def _dispatch(
         return _run_stage_media(step, root, plan)
     if step.verb == "device.stage-identity":
         return _run_stage_identity(step, root, plan)
-    if step.verb == "device.hub":
-        return _run_device_hub(step, root, plan)
     if step.verb == "static.structural-test":
         return _run_structural_test(step, root)
     if step.verb == "device.viewing-storage":
@@ -1028,49 +1026,6 @@ def _trust_certificate(device: str, address: str, fingerprint: str) -> None:
         )
     )
     time.sleep(3.0)
-
-
-def _run_device_hub(
-    step: Step, root: Path, plan: Plan
-) -> tuple[dict[str, Any] | None, bool, str]:
-    action = str(step.args.get("action", "pinch"))
-    target = plan.target or _probe_target()
-    command = [
-        sys.executable,
-        str(Path(__file__).resolve().parents[1] / "verification" / "device_hub_canvas.py"),
-        "--device",
-        target,
-        action,
-    ]
-    if action == "system-control":
-        command.extend(["--control", str(step.args.get("control", "home"))])
-    elif action in {"pinch", "gaze", "hold"}:
-        for name, flag in (
-            ("shotX", "--shot-x"),
-            ("shotY", "--shot-y"),
-            ("shotWidth", "--shot-width"),
-            ("shotHeight", "--shot-height"),
-        ):
-            command.extend([flag, str(step.args.get(name, 0))])
-    completed = subprocess.run(
-        command, cwd=root, capture_output=True, text=True, timeout=180
-    )
-    payload: dict[str, Any] = {
-        "action": action,
-        "exitCode": completed.returncode,
-        "stdout": completed.stdout[-4000:],
-        "stderr": completed.stderr[-4000:],
-    }
-    if completed.stdout.strip():
-        try:
-            payload["result"] = json.loads(completed.stdout)
-        except json.JSONDecodeError:
-            payload["result"] = None
-    detail = str(
-        (payload.get("result") or {}).get("error")
-        or f"device hub {action} exited {completed.returncode}"
-    )
-    return payload, completed.returncode == 0, detail
 
 
 STRUCTURAL_CHECKS: dict[str, tuple[str, ...]] | None = None

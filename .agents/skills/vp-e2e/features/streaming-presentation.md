@@ -23,20 +23,14 @@
 
 ## Driving it with computer use
 
-Preconditions: 模拟器已启动并装有带测试通道的 Enchron；Device Hub 已打开且目标 Simulator 画布可见；画布缩放挡位在 fit，输入模式在指针挡；Device Hub 是前台应用。主机为已配对状态。
+Preconditions: 模拟器已启动并装有带测试通道的 Enchron；主机为已配对状态。
 
-驱动这条特性的操作全部是真实指针动作，经 Device Hub 画布映射成系统的注视加捏合输入。截屏坐标取自 `simctl io … screenshot` 的原图，`--shot-width`／`--shot-height` 必须填该原图的尺寸，不是预览图尺寸。
+呈现转场由真实指针动作触发。空间手势不进自动化：需要注视与捏合的场景在目录里按跳过登记，不生成端到端单元；人工确认时用 computer use 在模拟器窗口的对应位置点一下，坐标取自 `simctl io <UDID> screenshot` 的原图。
 
 ```sh
-# 每次指针动作之前先看一次屏幕，确认当前画面
-screencapture -x /tmp/before.png
+# 每次指针动作前后各看一次画面
 xcrun simctl io <UDID> screenshot /tmp/sim-before.png
-
-# 悬停即 Gaze，点击即 Pinch
-python3 Scripts/verification/device_hub_canvas.py --device <UDID> gaze  --shot-x <x> --shot-y <y> --shot-width 3840 --shot-height 2160
-python3 Scripts/verification/device_hub_canvas.py --device <UDID> pinch --shot-x <x> --shot-y <y> --shot-width 3840 --shot-height 2160
-
-# 动作后取证
+# 用 computer use 在模拟器窗口里点一下
 xcrun simctl io <UDID> screenshot /tmp/sim-after.png
 ```
 
@@ -77,5 +71,4 @@ tail -20 "$D/stream-session-probe.log"
 - **命令通道会卡死。** 通道无响应时命令文件堆积在 `Documents/test-commands/`、`Documents/test-responses/` 没有新增。此时先清空这两个目录再重启 App，携带 `SIMCTL_CHILD_ENCHRON_TEST_CHANNEL=1` 启动。
 - **启动失败不写探针。** 会话建立前的失败只把原因放进内存并渲染成窗口内的一行红字（identifier `Stream-HostDetail-error`，详情在 accessibilityValue 的 `upstreamDetail`），探针一行不增。遇到「点了没反应、探针没动静」时先区分这两种情况：事件没送达，还是送达但启动失败。
 - **应用网格可能显示模拟后端的条目。** `SimulatedStreamingBackend` 提供 `Enchron Probe` 这类名称，真实 Sunshine 不提供。点中这类卡片会启动失败，与呈现缺陷无关。
-- **Device Hub 必须前台。** 前台被抢走时 cliclick 的事件落到别处且不报错，画布一条探针都不增，读起来与「产品没收下点击」完全一致。
-- **画布缩放挡位必须在 fit。** 停在 1:1 时画布不随窗口放大，`device_hub_canvas.py` 会以宽高比不符拒绝执行。
+- **空间手势只做人工确认。** 一次点击能否到达空间表面，靠动作后的画面与产品探针判定；自动化不覆盖这一段。

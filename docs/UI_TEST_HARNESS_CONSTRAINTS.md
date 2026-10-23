@@ -31,7 +31,7 @@
 - **本机常连一台真实 Apple Vision Pro，随时可控制，不需要密码**。2026-10-23 实测：`xcrun devicectl list devices` 列出 `小坏滴柳橙红茶的Apple Vision Pro`，visionOS 27.0.1，`available (paired)`，连接经 localNetwork；`xcrun devicectl device info details --device <该机 UDID>` 返回 `Device State: connected`、`Pairing State: paired`、`Device Reality: physical`。UDID 从 `devicectl list devices` 现取，不入库——设备标识禁止出现在受版本控制的文本里。`xcrun xctrace list devices` 把它列在 Devices Offline，那是隧道未在拉取时的状态，不代表不可用。因此"本机只有模拟器"是错的：真机单元、`reachability_matrix.py` 的设备判定、以及只能在真机上量的项都可跑。控制台机器档案探测它：`Scripts/console/machine.py` 的 `probe()` 增加 `physical-device` 能力与 `physical` 字段，`cli.py doctor` 打印 `physical <UDID>`；`target` 仍是 `ENCHRON_TARGET_DEVICE`、再退到已启动模拟器、再退到真机。
 - **沉浸空间在进入后没有主窗口控制面**。`enterSpatial`/`exitSpatial` 这两个通道动词完成进出，进入后 `PlayerUI-window-control-plane` 消失，落点判据改为沉浸面板里的 `PlayerPanel-button-exit-spatial` 出现；退出后再等主窗口控制面回报 `portal` 或 `window`。停靠式的目标是 `docked`，进入时必须带 `environment`（`quiet-room`、`ocean`、`tidal`），不带会得到 `dockedPresentationRequiresEnvironment`；全景式的目标不带环境。
 - **菜单项与标签的顺序由 `labelsAfterIdentifiers` 声明**。声明为真时先点菜单标识（更多 → 字幕/音轨），再等标签出现、再点标签；顺序反过来会在菜单打开前等一个不存在的标签。
-- **设备环手势要 Device Hub 画布满足两个前提**。`Scripts/verification/device_hub_canvas.py` 用 `cliclick` 在 Device Hub 的模拟器画布上做注视加点按：Device Hub 必须是前台应用，画布缩放必须停在适应而不是 1:1，否则脚本按像素量出的画布宽高比与模拟器的 1.7778 不符会直接拒绝。`device.hub` 动词把 `enlarge`、`system-control` 与按截图像素坐标的 `pinch` 包成三步；设备环场景在画布满足前提并通过一次验证之前不进目录。
+- **空间手势不进自动化**。XCUITest 无法为 Immersive Space 与 RealityView 的空间表面推导激活坐标，也无法合成注视加捏合语义；靠画布映射脚本去点模拟器这条路已退休。需要空间手势的场景登记在 `Config/console/skipped-scenarios.json`，不生成端到端单元；人工确认时直接用 computer use 在模拟器窗口上合成鼠标点击，不需要任何映射层。系统控件（Home 主菜单、Files 与 Photos 选择器、控制中心）用同样的点击方式到达，这些目标不在 App 的 Accessibility 树里，用后继系统界面与产品证据确认动作到达。
 - **结构检查跑的是仓库命令，不是设备动作**。`evidence.structural-test` 的检查名对应宿主命令（规则脚本或 `swift test --package-path Packages/PlaybackCore --filter …`），控制台按同一张表执行并留下退出码与输出尾部；这类单元只为 `swift test` 声明 `xcode` 能力。
 - **观看存储探针的摘要取自整份快照**。通道的 `viewingStorageProbe` 返回观看状态、容器索引、封面与设置的快照；`snapshotDigest` 是整份快照按键排序、紧凑编码后的 sha256，会随播放位置变化，前后对比只看受保护状态摘要与各类计数。控制台的 `device.viewing-storage` 动词把它归一成快照摘要、观看记录数、容器索引条目数与两个受保护摘要。
 - **设置页的清理项标识是 `Settings-action-clear-<target>`**。清理动作先进 `Navigation-Ornament-tab-settings`，再点 `Settings-category-storagePrivacy`，最后点对应清除按钮；容器索引清除是带数值动作的那一格。清理后回到文件页要点 `Navigation-Ornament-tab-files` 再点来源侧栏。
@@ -142,7 +142,7 @@
 
 - **常驻 runner 以 300 s 的控件自动隐藏启动 app**。Preparation 不覆盖它时，任何"菜单打开时控件仍在"的读数都由 harness 保证，成对的 controls=hidden 判据永远不会触发。见 `Scripts/verification/regression_preparation_adapter.py`。
 - **secondary-menu-pins-audio-controls 在 9000 ms settle 之后探测 controls=shown**，audio-only Preparation 因此把自动隐藏窗口压到 8 s。见 `Scripts/verification/regression_preparation_adapter.py`。
-- **window-surface-controls-toggle-and-autohide 从三次 Device Hub 捏合读出 shown-hidden-shown**。一次捏合是一次 `device_hub_canvas.py` 往返加一次控制器快照，各需数秒；8 s 的空闲窗口会在两次捏合之间触发，25 s 覆盖整段序列，并且短于该 Scenario 收尾的 30000 ms 探测 settle（适配器上限）。见 `Scripts/verification/regression_preparation_adapter.py`。
+- **window-surface-controls-toggle-and-autohide 依赖三次空间捏合**。它读的是 shown-hidden-shown 三段，捏合之间还有 8 s 空闲窗口；这条场景按空间手势跳过，不生成端到端单元。
 - **audio-only 集合里的 FATE 片长在 0.107 s 到 11.9 s 之间**，撑不到 tap 之后三次控制器往返的那次控制面读数；181 s 的生成资产是集合里唯一能撑到的。见 `Scripts/rules/tests/test_fixture_registry.py`。
 
 ## 可达性清单的字符串扫描

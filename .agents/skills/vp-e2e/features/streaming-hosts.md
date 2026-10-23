@@ -31,9 +31,7 @@ Preconditions: 同[串流呈现](streaming-presentation.md)。测试通道已建
 
 导航与配对确认走真实指针动作。主机侧的 PIN 确认在 Sunshine 的 Web UI 上完成，属于 `host-sunshine` 证据：
 
-```sh
-python3 Scripts/verification/device_hub_canvas.py --device <UDID> pinch --shot-x <x> --shot-y <y> --shot-width 3840 --shot-height 2160
-```
+用 computer use 在模拟器窗口的对应位置点一下，坐标取自 `simctl io <UDID> screenshot` 的原图尺寸与点击位置。
 
 配对状态与主机行内容读产品自己发布的 accessibilityValue：
 

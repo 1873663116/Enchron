@@ -27,11 +27,12 @@ Moonlight 标签页选中主机 → 应用网格点一个卡片。会话窗口�
 
 ## Driving it with computer use
 
+用 computer use 在模拟器窗口的对应位置点一下；坐标取自 `simctl io <UDID> screenshot` 的原图。
+
 Preconditions: 主机已配对、应用清单非空。会话必须由真实点击应用卡片启动——命令通道的 `streamLaunch` 只用于比较与非呈现类单元，用它启动的会话不能作为「用户能启动会话」的证据。
 
 ```sh
 # 启动：真实点击应用卡片
-python3 Scripts/verification/device_hub_canvas.py --device <UDID> --device <UDID> pinch \
   --shot-x <x> --shot-y <y> --shot-width 3840 --shot-height 2160
 ```
 

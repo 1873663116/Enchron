@@ -183,7 +183,6 @@ DECLARED_IMPLEMENTATION_PATHS = (
     "Apps/Enchron/DebugSupport/TestCommandChannel.swift",
     "Modules/MediaServer/MediaServerSessionViewModel.swift",
     "Regression/semantic-authority.json",
-    "Scripts/verification/device_hub_canvas.py",
     "Scripts/verification/bluray_webdav_tree.py",
     "Scripts/console/transport.py",
     "Scripts/verification/regression_emby_source.py",

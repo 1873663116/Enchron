@@ -1542,40 +1542,17 @@ class OperationAllowlistTests(unittest.TestCase):
             ):
                 spec.validate("simulator", arguments)
 
-    def test_device_hub_backend_routes_system_toolbar_without_canvas_coordinates(self) -> None:
+    def test_device_hub_backend_is_skipped(self) -> None:
         backend = adapter.ResidentOperationBackend()
-        with (
-            mock.patch.object(
-                backend,
-                "_run_json",
-                return_value={
-                    "control": "home",
-                    "point": [10, 20],
-                    "targetBinding": {"device": self.simulator.target},
-                },
-            ) as run_json,
-            mock.patch.object(
-                backend,
-                "_controller",
-                return_value={
-                    "success": True,
-                    "appState": "runningBackground",
-                    "hierarchy": "SpringBoard",
-                    "chromeContainment": [],
-                },
-            ) as controller,
+        for operation, arguments in (
+            ("_input_device_hub_prepare_1", {}),
+            ("_input_device_hub_pinch_2", {"targetDomain": "canvas"}),
+            ("_input_device_hub_pinch_2", {"targetDomain": "system-toolbar"}),
         ):
-            result = backend._input_device_hub_pinch_2(
-                {"targetDomain": "system-toolbar", "systemControl": "home"},
-                self.simulator,
-            )
-        self.assertTrue(result["succeeded"])
-        run_json.assert_called_once()
-        self.assertEqual(run_json.call_args[0][1][:5], [sys.executable, "Scripts/verification/device_hub_canvas.py", "--device", self.simulator.target, "system-control"])
-        self.assertEqual(run_json.call_args[0][2], "device-hub-pinch")
-        controller.assert_called_once_with(
-            self.simulator, "snapshot", "--no-screenshot"
-        )
+            with self.subTest(operation=operation, arguments=arguments), self.assertRaises(
+                adapter.OperationAdapterError
+            ):
+                getattr(backend, operation)(arguments, self.simulator)
 
     def test_structural_test_name_is_a_closed_command_allowlist(self) -> None:
         self.assertEqual(
@@ -2325,7 +2302,7 @@ class OperationAllowlistTests(unittest.TestCase):
         self.assertEqual(result["observedUserData"], observed)
         self.assertIs(result["fields"], control_plane["fields"])
 
-    def test_system_import_preflight_binds_simulator_assets_and_enlarged_device_hub(self) -> None:
+    def test_system_import_preflight_binds_simulator_assets_without_a_canvas(self) -> None:
         backend = adapter.ResidentOperationBackend()
         target = "3dd8e196-0fc4-42c5-bf8f-060e025664fc"
         context = adapter.OperationContext(
@@ -2341,16 +2318,6 @@ class OperationAllowlistTests(unittest.TestCase):
             "ready": True,
             "runtimeIdentity": {"path": str(runtime_file), "mode": "0600"},
         }
-        device_hub = {
-            "window": {"width": 2200, "height": 1180},
-            "canvas": {"width": 1729, "height": 972},
-            "pointerMode": [100, 100],
-            "targetBinding": {
-                "device": target.upper(),
-                "name": "Apple Vision Pro",
-                "runtime": "com.apple.CoreSimulator.SimRuntime.xrOS-27-0",
-            },
-        }
         configuration = type(
             "Configuration", (), {"runtime_file": runtime_file}
         )()
@@ -2365,35 +2332,23 @@ class OperationAllowlistTests(unittest.TestCase):
                 "validate_preflight_report",
                 return_value=True,
             ) as validate,
-            mock.patch.object(
-                backend, "_run_json", side_effect=[report, device_hub]
-            ) as run_json,
+            mock.patch.object(backend, "_run_json", return_value=report) as run_json,
         ):
             result = backend._host_preflight_1(
                 {"check": "system-import-fixtures"}, context
             )
         self.assertEqual(result["runtimePath"], str(runtime_file))
-        self.assertEqual(result["deviceHub"]["canvas"]["width"], 1729)
         self.assertEqual(
             set(result["implementations"]),
             set(adapter.SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES),
         )
-        self.assertEqual(run_json.call_count, 2)
+        self.assertEqual(run_json.call_count, 1)
         self.assertIn(target, run_json.call_args_list[0].args[1])
-        self.assertEqual(run_json.call_args_list[1].args[1][-1], "enlarge")
-        self.assertIn(target, run_json.call_args_list[1].args[1])
         validate.assert_called_once_with(
             report,
             device_identifier=target,
             runtime_file=runtime_file,
         )
-
-        with self.assertRaisesRegex(
-            adapter.OperationAdapterError, "Simulator lane"
-        ):
-            backend._host_preflight_1(
-                {"check": "system-import-fixtures"}, self.device
-            )
 
     def test_smb_preflight_is_digest_bound_and_returns_only_runtime_references(self) -> None:
         expected = {
@@ -6944,40 +6899,16 @@ class RuntimeSemanticClosureTests(unittest.TestCase):
         self.assertTrue(cleanup["disarmed"])
         self.assertFalse(cleanup["postActionState"]["isArmed"])
 
-    def test_device_hub_input_binds_host_interaction_to_product_post_state(self) -> None:
+    def test_device_hub_input_is_skipped(self) -> None:
         backend = adapter.ResidentOperationBackend()
-        host_result = {
-            "targetBinding": {"device": self.simulator.target},
-            "canvas": {"width": 1400, "height": 800},
-            "point": [700, 400],
-        }
-        product_state = self.action_response(
-            "Application, identifier: 'PlayerPanel-controls'"
-        )
-        with (
-            mock.patch.object(backend, "_run_json", return_value=host_result),
-            mock.patch.object(
-                backend, "_controller", return_value=product_state
-            ) as controller,
-        ):
-            result = backend._input_device_hub_pinch_2(
-                {
-                    "targetDomain": "canvas",
-                    "shotX": 100,
-                    "shotY": 100,
-                    "shotWidth": 1200,
-                    "shotHeight": 900,
-                },
-                self.simulator,
-            )
-
-        controller.assert_called_once_with(
-            self.simulator, "snapshot", "--no-screenshot"
-        )
-        self.assertEqual(result["interaction"], host_result)
-        self.assertEqual(
-            result["postActionState"]["appState"], "runningForeground"
-        )
+        for target in ("canvas", "system-toolbar"):
+            with self.subTest(targetDomain=target), self.assertRaises(
+                adapter.OperationAdapterError
+            ):
+                backend._input_device_hub_pinch_2(
+                    {"targetDomain": target, "shotX": 100, "shotY": 100},
+                    self.simulator,
+                )
 
 
 if __name__ == "__main__":

@@ -29,7 +29,6 @@ REMOTE_PREFLIGHT_PATH = (
 )
 SMB_SOURCE_PATH = REPOSITORY_ROOT / "Scripts/verification/regression_smb_source.py"
 SYSTEM_IMPORT_PATH = REPOSITORY_ROOT / "Scripts/verification/regression_system_import.py"
-DEVICE_HUB_CANVAS_PATH = REPOSITORY_ROOT / "Scripts/verification/device_hub_canvas.py"
 SPATIAL_INPUT_PROBE = re.compile(
     r"(?:\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})\s+"
     r"(?:probeSequence=\d+\s+probeRetention=(?:diagnostic|evidence)\s+probeSession=\S+\s+)?)?"
@@ -144,10 +143,7 @@ SMB_IMPLEMENTATION_IDENTITIES = MappingProxyType(
     {"smb-source-preflight": _source_identity(SMB_SOURCE_PATH)}
 )
 SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES = MappingProxyType(
-    {
-        "system-import-preflight": _source_identity(SYSTEM_IMPORT_PATH),
-        "device-hub-driver": _source_identity(DEVICE_HUB_CANVAS_PATH),
-    }
+    {"system-import-preflight": _source_identity(SYSTEM_IMPORT_PATH)}
 )
 
 
@@ -3574,19 +3570,6 @@ class ResidentOperationBackend:
         assert isinstance(sanitized, dict)
         return sanitized
 
-    def _require_device_hub_binding(
-        self, result: Mapping[str, object], context: OperationContext
-    ) -> None:
-        binding = result.get("targetBinding")
-        if not isinstance(binding, Mapping):
-            raise OperationAdapterError("Device Hub result has no target binding")
-        device = binding.get("device")
-        if not isinstance(device, str) or device.casefold() != context.target.casefold():
-            raise OperationAdapterError(
-                f"Device Hub target binding {device!r} differs from lease target "
-                f"{context.target!r}"
-            )
-
     def _matrix(self, context: OperationContext):
         import playback_mode_matrix as matrix
 
@@ -5258,36 +5241,12 @@ class ResidentOperationBackend:
                 raise OperationAdapterError(
                     "system import preflight did not return its exact typed runtime identity"
                 )
-            device_hub = self._run_json(
-                context,
-                [
-                    sys.executable,
-                    str(DEVICE_HUB_CANVAS_PATH),
-                    "--device",
-                    context.target,
-                    "enlarge",
-                ],
-                "local-tool",
-            )
-            self._require_device_hub_binding(device_hub, context)
-            canvas = device_hub.get("canvas")
-            if (
-                not isinstance(canvas, dict)
-                or type(canvas.get("width")) is not int
-                or canvas["width"] < 1200
-                or type(canvas.get("height")) is not int
-                or canvas["height"] <= 0
-            ):
-                raise OperationAdapterError(
-                    "Device Hub was not enlarged to one targetable fit canvas"
-                )
             return {
                 "succeeded": True,
                 "check": check,
                 "report": result,
                 "runtimePath": str(runtime_file),
                 "runtimeIdentity": dict(result["runtimeIdentity"]),
-                "deviceHub": device_hub,
                 "implementations": {
                     identity: dict(binding)
                     for identity, binding in SYSTEM_IMPORT_IMPLEMENTATION_IDENTITIES.items()
@@ -8575,81 +8534,16 @@ class ResidentOperationBackend:
         }
 
     def _input_device_hub_prepare_1(self, arguments, context):
-        result = self._run_json(
-            context,
-            [
-                sys.executable,
-                "Scripts/verification/device_hub_canvas.py",
-                "--device",
-                context.target,
-                "enlarge",
-            ],
-            "device-hub-prepare",
+        raise OperationAdapterError(
+            "gaze and pinch delivery is skipped: XCUITest cannot synthesize it, "
+            "and the canvas mapping tool is retired"
         )
-        self._require_device_hub_binding(result, context)
-        canvas = result.get("canvas")
-        if (
-            not isinstance(canvas, Mapping)
-            or type(canvas.get("width")) is not int
-            or canvas["width"] < 1200
-        ):
-            raise OperationAdapterError(
-                "Device Hub prepare did not establish a targetable canvas"
-            )
-        return {"succeeded": True, **result}
 
     def _input_device_hub_pinch_2(self, arguments, context):
-        def bind_product_state(
-            interaction: Mapping[str, object],
-        ) -> dict[str, object]:
-            snapshot = self._controller(context, "snapshot", "--no-screenshot")
-            self._require_success(snapshot, "Device Hub post-action product snapshot")
-            return {
-                "succeeded": True,
-                **dict(interaction),
-                "interaction": dict(interaction),
-                "postActionState": self._post_action_state(snapshot),
-                "postActionResponse": snapshot,
-            }
-
-        if arguments["targetDomain"] == "system-toolbar":
-            command = [
-                sys.executable,
-                "Scripts/verification/device_hub_canvas.py",
-                "--device",
-                context.target,
-                "system-control",
-                "--control",
-                str(arguments.get("systemControl", "home")),
-            ]
-            result = self._run_json(context, command, "device-hub-pinch")
-            self._require_device_hub_binding(result, context)
-            return bind_product_state(result)
-        command = [
-            sys.executable,
-            "Scripts/verification/device_hub_canvas.py",
-            "--device",
-            context.target,
-            "pinch",
-        ]
-        shot_defaults = {
-            "shotX": 0,
-            "shotY": 0,
-            "shotWidth": 1,
-            "shotHeight": 1,
-        }
-        for source, flag in (
-            ("shotX", "--shot-x"),
-            ("shotY", "--shot-y"),
-            ("shotWidth", "--shot-width"),
-            ("shotHeight", "--shot-height"),
-        ):
-            command.extend((flag, str(arguments.get(source, shot_defaults[source]))))
-        if arguments.get("allowSmall") is True:
-            command.append("--allow-small")
-        result = self._run_json(context, command, "local-tool")
-        self._require_device_hub_binding(result, context)
-        return bind_product_state(result)
+        raise OperationAdapterError(
+            "gaze and pinch delivery is skipped: XCUITest cannot synthesize it, "
+            "and the canvas mapping tool is retired"
+        )
 
     def _evidence_structural_test_1(self, arguments, context):
         import hashlib

@@ -18,7 +18,7 @@ Read [the vp-e2e skill](../.agents/skills/vp-e2e/SKILL.md) before execution. Use
 - [Feature map](../.agents/skills/vp-e2e/features/README.md) routes product actions to the feature-specific drive and evidence sequence.
 - `Scripts/console/transport.py` owns the shared session, accessibility actions, application commands, snapshots, and capture output.
 - `Scripts/console/cli.py` is the single entry. `run`, `tier`, `plan` and `daemon` cover what the retired MCP surface and its CLI wrapper used to expose.
-- `Scripts/verification/device_hub_canvas.py` owns Simulator gaze-and-pinch delivery.
+- Simulator gaze-and-pinch delivery is skipped: XCUITest cannot synthesize it, and those Scenarios carry no end-to-end unit.
 - `Scripts/verification/journey_preflight.py` and the source-specific probes under `Scripts/verification/` own read-only fixture and remote-source checks.
 
 ## Name the lease holder, the session mode, and the known-defect ledger
