@@ -530,7 +530,8 @@ def structure_worker_count(total: int) -> int:
     configured = os.environ.get("ENCHRON_STRUCTURE_WORKERS", "").strip()
     if configured.isdigit():
         return max(1, min(int(configured), total))
-    return max(1, min(8, total))
+    available = os.cpu_count() or 8
+    return max(1, min(max(8, available), total))
 
 
 def services_available() -> bool:
@@ -559,19 +560,140 @@ def run_one_check(
     return check, code, time.monotonic() - started, log
 
 
-def changed_paths(since: str, environment: dict[str, str]) -> frozenset[str] | None:
-    if not since:
-        return None
+INFRASTRUCTURE_PREFIXES = (
+    ".github/",
+    ".githooks/",
+    "Config/",
+    "Regression/",
+    "Scripts/",
+)
+INFRASTRUCTURE_FILES = frozenset({".swiftlint.yml"})
+
+
+def infrastructure_changed(changed: frozenset[str]) -> bool:
+    return any(
+        path in INFRASTRUCTURE_FILES or path.startswith(INFRASTRUCTURE_PREFIXES)
+        for path in changed
+    )
+
+
+def git_output(
+    arguments: list[str],
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> str | None:
     completed = subprocess.run(
-        ["git", "diff", "--name-only", f"{since}...HEAD"],
-        cwd=REPOSITORY_ROOT,
+        ["git", *arguments],
+        cwd=repository or REPOSITORY_ROOT,
         env=environment,
         capture_output=True,
         text=True,
     )
     if completed.returncode != 0:
         return None
-    return frozenset(line for line in completed.stdout.splitlines() if line)
+    return completed.stdout
+
+
+def git_changed_paths(
+    arguments: list[str],
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> frozenset[str] | None:
+    output = git_output(arguments, environment, repository)
+    if output is None:
+        return None
+    return frozenset(line for line in output.splitlines() if line)
+
+
+def changed_paths(
+    since: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> frozenset[str] | None:
+    if not since:
+        return None
+    return git_changed_paths(
+        ["diff", "--name-only", f"{since}...HEAD"], environment, repository
+    )
+
+
+def git_merge_base(
+    first: str,
+    second: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> str | None:
+    output = git_output(["merge-base", first, second], environment, repository)
+    if output is None or not output.strip():
+        return None
+    return output.strip()
+
+
+def git_root_commit(
+    revision: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> str | None:
+    output = git_output(["rev-list", "--max-parents=0", revision], environment, repository)
+    roots = [line for line in (output or "").splitlines() if line]
+    return roots[-1] if roots else None
+
+
+def staged_changed_paths(
+    environment: dict[str, str], repository: Path | None = None
+) -> frozenset[str] | None:
+    return git_changed_paths(
+        ["diff", "--cached", "--name-only"], environment, repository
+    )
+
+
+def event_changed_paths(
+    event: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+    remote_oid: str = "",
+    base_ref: str = "main",
+    local_oid: str = "HEAD",
+) -> frozenset[str] | None:
+    root = repository or REPOSITORY_ROOT
+    if event == "commit":
+        return staged_changed_paths(environment, root)
+    if event == "push":
+        remote_oid = remote_oid.strip()
+        base = remote_oid if remote_oid.strip("0") else ""
+        if not base:
+            base = git_merge_base(
+                "refs/remotes/origin/main", local_oid, environment, root
+            ) or git_root_commit(local_oid, environment, root) or ""
+        if not base:
+            return None
+        return git_changed_paths(
+            ["diff", "--name-only", base, local_oid], environment, root
+        )
+    if event == "pr":
+        base = git_merge_base(
+            f"refs/remotes/origin/{base_ref}", local_oid, environment, root
+        )
+        if not base:
+            return None
+        return git_changed_paths(
+            ["diff", "--name-only", base, local_oid], environment, root
+        )
+    if event == "merge":
+        return git_changed_paths(
+            ["diff", "--name-only", "HEAD", "MERGE_HEAD"], environment, root
+        )
+    return None
+
+
+def listed_changed_paths(path: str) -> frozenset[str] | None:
+    if not path:
+        return None
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return frozenset(line.strip() for line in text.splitlines() if line.strip())
 
 
 def self_test_target(check: StructureCheck) -> str | None:
@@ -588,21 +710,18 @@ def self_test_target(check: StructureCheck) -> str | None:
     return None
 
 
-def unchanged_self_tests(
-    checks: tuple[StructureCheck, ...], changed: frozenset[str]
+def is_self_test(check: StructureCheck) -> bool:
+    return self_test_target(check) is not None
+
+
+def skipped_tooling_self_tests(
+    checks: tuple[StructureCheck, ...], changed: frozenset[str] | None
 ) -> frozenset[str]:
-    selected: set[str] = set()
-    for check in checks:
-        target = self_test_target(check)
-        if target is None:
-            continue
-        own = f"Scripts/rules/tests/{Path(check.filename).name}"
-        if check.filename.startswith("../verification/tests/"):
-            own = f"Scripts/verification/tests/{Path(check.filename).name}"
-        if target in changed or own in changed:
-            continue
-        selected.add(check.identifier)
-    return frozenset(selected)
+    if changed is None or infrastructure_changed(changed):
+        return frozenset()
+    return frozenset(
+        check.identifier for check in checks if is_self_test(check)
+    )
 
 
 SHARED_LEXER_GROUPS = (
@@ -610,7 +729,33 @@ SHARED_LEXER_GROUPS = (
 )
 
 
-UNBATCHED_CHECKS = frozenset({"vision-test-suite-coverage"})
+UNBATCHED_CHECKS = frozenset({"vision-test-suite-coverage", "no-literal-rfc1918"})
+
+
+def structure_groups(
+    checks: tuple[StructureCheck, ...], workers: int
+) -> list[tuple[StructureCheck, ...]]:
+    batched = tuple(check for check in checks if bundled(check))
+    groups: list[tuple[StructureCheck, ...]] = [
+        tuple(batched[index::workers])
+        for index in range(workers)
+        if batched[index::workers]
+    ]
+    for partners in SHARED_LEXER_GROUPS:
+        holders = [
+            group for group in groups if any(check.identifier in partners for check in group)
+        ]
+        if len(holders) < 2:
+            continue
+        gathered = tuple(
+            check for group in holders for check in group if check.identifier in partners
+        )
+        others = tuple(
+            check for group in holders for check in group if check.identifier not in partners
+        )
+        groups = [group for group in groups if group not in holders]
+        groups.append(gathered + others)
+    return groups
 
 
 def bundled(check: StructureCheck) -> bool:
@@ -677,24 +822,15 @@ def run_structure_checks(
         if (portable or check.environment != "services")
         and (not text_only or check.environment == "text")
     )
-    settled = unchanged_self_tests(checks, changed) if changed is not None else frozenset()
-    if settled:
-        checks = tuple(check for check in checks if check.identifier not in settled)
+    skipped_tooling = skipped_tooling_self_tests(checks, changed)
+    if skipped_tooling:
+        checks = tuple(
+            check for check in checks if check.identifier not in skipped_tooling
+        )
     unevaluated = tuple(check for check in everything if check not in checks)
     workers = structure_worker_count(len(checks))
-    batched = tuple(check for check in checks if bundled(check))
     separate = tuple(check for check in checks if not bundled(check))
-    groups: list[tuple[StructureCheck, ...]] = [
-        tuple(batched[index::workers]) for index in range(workers) if batched[index::workers]
-    ]
-    for partners in SHARED_LEXER_GROUPS:
-        holders = [group for group in groups if any(c.identifier in partners for c in group)]
-        if len(holders) < 2:
-            continue
-        gathered = tuple(check for group in holders for check in group if check.identifier in partners)
-        keep = tuple(check for check in holders[0] if check.identifier not in partners)
-        groups = [group for group in groups if group not in holders]
-        groups.append(gathered + keep)
+    groups = structure_groups(checks, workers)
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(run_batch, group, run_directory, environment) for group in groups]
         futures.extend(
@@ -721,18 +857,18 @@ def run_structure_checks(
                 )
     order = {name: index for index, name in enumerate(sorted(ATTRIBUTIONS))}
     failures.sort(key=lambda item: order.get(item.split("/", 1)[0], len(order)))
-    if settled:
-        failures.append(
-            f"not selected, tooling unchanged ({len(settled)}): "
-            + ", ".join(sorted(settled))
-        )
     mode_filtered = frozenset(
         check
         for check in unevaluated
         if (quick and not check.runs_in_quick_mode)
         or (text_only and check.environment != "text")
+        or check.identifier in skipped_tooling
     )
-    skipped_by_request = tuple(check for check in unevaluated if check in mode_filtered)
+    skipped_by_request = tuple(
+        check
+        for check in unevaluated
+        if check in mode_filtered and check.identifier not in skipped_tooling
+    )
     deferred_checks = tuple(check for check in unevaluated if check not in mode_filtered)
     if deferred_checks:
         deferred = ", ".join(check.identifier for check in deferred_checks)
@@ -752,6 +888,12 @@ def run_structure_checks(
     detail = f"all {len(checks)} {'quick ' if quick else ''}checks passed"
     if note:
         detail = f"{detail}; outside this mode ({len(skipped_by_request)}): {note}"
+    if skipped_tooling:
+        detail = (
+            f"{detail}; tooling self-tests skipped, CI and test infrastructure "
+            f"unchanged ({len(skipped_tooling)}): "
+            + ", ".join(sorted(skipped_tooling))
+        )
     return LayerResult(
         "Structure checks",
         "PASS",
@@ -1377,6 +1519,24 @@ def print_summary(results: list[LayerResult], run_directory: Path) -> bool:
     return not failed
 
 
+def requested_changes(
+    arguments: argparse.Namespace, environment: dict[str, str]
+) -> frozenset[str] | None:
+    if arguments.event:
+        return event_changed_paths(
+            arguments.event,
+            environment,
+            remote_oid=arguments.remote_oid,
+            base_ref=arguments.base_ref,
+            local_oid=arguments.local_oid,
+        )
+    if arguments.changed_list:
+        return listed_changed_paths(arguments.changed_list)
+    if arguments.changed_staged:
+        return staged_changed_paths(environment)
+    return changed_paths(arguments.changed_since, environment)
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run Enchron's layered local verification gate."
@@ -1397,8 +1557,30 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--changed-since",
         default="",
-        help="a revision to diff against; self-tests of unchanged tooling are skipped",
+        help=(
+            "a revision to diff against; the tooling self-tests run only when "
+            "CI or test infrastructure paths changed"
+        ),
     )
+    parser.add_argument(
+        "--changed-staged",
+        action="store_true",
+        help="take the changed paths from the index; used by the commit hook",
+    )
+    parser.add_argument(
+        "--changed-list",
+        default="",
+        help="a file listing changed repository paths; used by the push hook",
+    )
+    parser.add_argument(
+        "--event",
+        choices=("commit", "push", "pr", "merge"),
+        default="",
+        help="take the changed paths from a CI event and its comparison base",
+    )
+    parser.add_argument("--remote-oid", default="", help="the remote tip for a push")
+    parser.add_argument("--base-ref", default="main", help="the PR target branch name")
+    parser.add_argument("--local-oid", default="HEAD", help="the pushed or head revision")
     parser.add_argument("--log-root", type=Path, default=DEFAULT_LOG_ROOT)
     parser.add_argument("--retain-runs", type=int, default=14)
     arguments = parser.parse_args()
@@ -1502,7 +1684,7 @@ def main() -> int:
                 environment,
                 arguments.quick,
                 arguments.text_only,
-                changed_paths(arguments.changed_since, environment),
+                requested_changes(arguments, environment),
             )
         )
         if arguments.text_only:

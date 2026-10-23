@@ -8,44 +8,17 @@ cd "$repository_root"
 push_updates=$(cat)
 [[ -n "$push_updates" ]] || exit 0
 
-remote_oid=""
-while read -r local_ref local_oid remote_ref zero_oid; do
-    if [[ "$local_ref" != "(delete)" || -n "${local_oid//0/}" ]]; then
-        remote_oid="$zero_oid"
-        break
-    fi
+local_oids=()
+remote_oids=()
+while read -r local_ref local_oid remote_ref remote_oid; do
+    [[ -n "$local_ref" ]] || continue
+    [[ "$local_ref" == "(delete)" ]] && continue
+    local_oids+=("$local_oid")
+    remote_oids+=("$remote_oid")
 done <<< "$push_updates"
 
-[[ -n "$remote_oid" ]] || exit 0
-
-if [[ "$remote_oid" == 0000000000000000000000000000000000000000 ]]; then
-    base=$(git rev-list --max-parents=0 HEAD 2>/dev/null | tail -1 || true)
-else
-    base="$remote_oid"
-fi
-
-needs_check=0
-if [[ -z "$base" ]]; then
-    needs_check=1
-else
-    changed=$(git diff --name-only "$base" HEAD 2>/dev/null || true)
-    [[ -n "$changed" ]] || exit 0
-fi
-
-while read -r changed_path; do
-    [[ -n "$changed_path" ]] || continue
-    case "$changed_path" in
-        Scripts/rules/*|Scripts/console/*|Config/*|Regression/*|.githooks/*|.swiftlint.yml)
-            needs_check=1
-            ;;
-        *.swift|*.m|*.h|*.py|*.sh|Package.swift|*.xcodeproj/*)
-            needs_check=1
-            ;;
-    esac
-    (( needs_check )) && break
-done <<< "${changed:-}"
-
-(( needs_check )) || exit 0
+empty_list=$(mktemp "${TMPDIR:-/tmp}/enchron-changed.XXXXXX")
+trap 'rm -f "$empty_list"' EXIT
 
 (
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
@@ -54,7 +27,18 @@ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
 
 eval "$(bash "$repository_root/Scripts/ci/prepare.sh" shell --emit)"
 python3 "$repository_root/Scripts/console/cli.py" plan check
-python3 "$repository_root/Scripts/console/cli.py" tier static --quick
+if (( ${#local_oids} == 0 )); then
+    python3 "$repository_root/Scripts/console/cli.py" tier static --changed-list "$empty_list"
+else
+    index=1
+    while (( index <= ${#local_oids} )); do
+        python3 "$repository_root/Scripts/console/cli.py" tier static \
+            --event push \
+            --remote-oid "${remote_oids[$index]}" \
+            --local-oid "${local_oids[$index]}"
+        (( index++ ))
+    done
+fi
 )
 
 git lfs pre-push "$@" <<< "$push_updates"

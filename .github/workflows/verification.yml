@@ -3,7 +3,7 @@ name: verification
 
 on:
   push:
-    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
@@ -18,9 +18,13 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     steps:
-      - name: Run the quick verification at the pushed revision
+      - name: Run CI at the pushed or requested revision
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           WORKSPACE=/Volumes/Cortisol/DevSpace/EnchronWorkspace
@@ -32,7 +36,26 @@ jobs:
             -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" \
             fetch --no-tags --force origin \
               '+refs/heads/*:refs/remotes/origin/*' \
-              '+refs/tags/*:refs/tags/*'
-          git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
+              '+refs/tags/*:refs/tags/*' \
+              '+refs/pull/*/head:refs/remotes/origin/pull/*'
+          head_sha="$GITHUB_SHA"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            head_sha="$PR_HEAD_SHA"
+          fi
+          git -C "$REPO" checkout --force --detach "$head_sha"
           source "$REPO/Scripts/ci/prepare.sh" ci
-          python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" tier static
+          python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" plan check
+          case "$EVENT_NAME" in
+            push)
+              python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" \
+                tier static --event push --remote-oid "$PUSH_BEFORE"
+              ;;
+            pull_request)
+              python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" \
+                tier static --event pr --base-ref "$PR_BASE_REF"
+              ;;
+            *)
+              python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" \
+                tier static
+              ;;
+          esac

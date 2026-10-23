@@ -404,7 +404,7 @@ IDENTITY_HINT = re.compile(
 )
 
 
-def identity_failures() -> list[str]:
+def identity_failures(paths: Sequence[Path] | None = None) -> list[str]:
     found: list[str] = []
     account_patterns = bare_account_patterns()
     names = account_names()
@@ -413,7 +413,8 @@ def identity_failures() -> list[str]:
         hint = re.compile(
             IDENTITY_HINT.pattern + "|" + "|".join(re.escape(name) for name in names)
         )
-    for path in identity_scan_paths():
+    scanned = identity_scan_paths() if paths is None else paths
+    for path in scanned:
         try:
             text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
@@ -464,7 +465,7 @@ def identity_failures() -> list[str]:
                     )
     return found
 
-def failures() -> list[str]:
+def failures(identity_paths: Sequence[Path] | None = None) -> list[str]:
     found: list[str] = []
     for root in scan_roots():
         if not root.is_dir():
@@ -511,11 +512,12 @@ def failures() -> list[str]:
                     if '"/' in line and not stripped.startswith('"'):
                         if re.search(r'"/(?:Users|var|tmp|private|Volumes)/', line):
                             found.append(f"{relative}:{index}: contains absolute path literal")
-    found.extend(identity_failures())
+    found.extend(identity_failures(identity_paths))
     return sorted(found)
 
 def main() -> int:
-    found = failures()
+    identity_paths = identity_scan_paths()
+    found = failures(identity_paths)
     for line in found:
         print(line)
     if found:
@@ -526,7 +528,7 @@ def main() -> int:
         if root.is_dir():
             count += sum(1 for _ in root.rglob("*") if _.is_file())
     print(f"no literal RFC1918 in {count} harness files")
-    print(f"no tracked identity in {len(identity_scan_paths())} source and document files")
+    print(f"no tracked identity in {len(identity_paths)} source and document files")
     return 0
 
 if __name__ == "__main__":

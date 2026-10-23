@@ -27,13 +27,28 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 ## Where the gate fires
 
+Every commit runs `console plan check` and `console tier static --changed-staged` through the `pre-commit` hook. Every push runs them through the `pre-push` hook against the pushed range. The `verification` workflow runs them for `push` and `pull_request`. CI runs on every event; no event is skipped for having no interesting diff.
+
+Each event supplies its changed paths: the index against `HEAD` for a commit, the remote tip recorded by the pre-push hook for a push, `merge-base(base, head)` for a pull request, `HEAD` against `MERGE_HEAD` for a merge.
+
+The checkers always run. The self-tests of the tooling run only when the changed paths touch CI or test infrastructure:
+
+```
+Scripts/**
+.github/**
+.githooks/**
+Config/**
+Regression/**
+.swiftlint.yml
+```
+
+A product-only change skips the tooling self-tests: about five seconds. A change inside the set runs all of them: about thirty seconds. A skipped self-test is reported as skipped, not as a failure.
+
 Every build runs `console tier static --code-only` as the first build phase, before Sources. A new forbidden comment or a SwiftLint violation outside the baseline fails the build, not the review.
 
 Both rules carry a baseline of what already exists. Editing product code without adding a comment keeps passing. Adding one fails immediately, which is the whole point.
 
-Every push runs `console plan check` and then `console tier static --quick`, unless the diff touches no code, configuration or rule.
-
-The code-only phase covers text rules. The push covers the full quick set. A build therefore cannot ship a comment violation, and a push cannot ship a broken plan.
+The code-only phase covers text rules. CI covers the full text layer. A build therefore cannot ship a comment violation, and a push cannot ship a broken plan.
 
 ## The daemon
 
@@ -75,7 +90,7 @@ A unit without `terminal` is refused at load. The guardrails cannot tell an expe
 
 `console run UNIT --tier e2e` runs one unit and writes evidence.
 
-`console tier static --quick` runs the checkers.
+`console tier static` runs the checkers. `--event commit|push|pr|merge` selects the comparison base for that CI trigger; `--changed-staged`, `--changed-since` and `--changed-list` accept a scope directly.
 
 ## One unit per call
 

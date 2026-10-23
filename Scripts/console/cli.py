@@ -81,6 +81,15 @@ def build_parser() -> argparse.ArgumentParser:
     tier.add_argument("--gate", action="store_true", dest="gate")
     tier.add_argument("--full", action="store_true", dest="full")
     tier.add_argument("--changed-since", default="", dest="changed_since")
+    tier.add_argument("--changed-staged", action="store_true", dest="changed_staged")
+    tier.add_argument("--changed-list", default="", dest="changed_list")
+    tier.add_argument(
+        "--event", default="", choices=("", "commit", "push", "pr", "merge"),
+        dest="event",
+    )
+    tier.add_argument("--remote-oid", default="", dest="remote_oid")
+    tier.add_argument("--base-ref", default="main", dest="base_ref")
+    tier.add_argument("--local-oid", default="HEAD", dest="local_oid")
     tier.add_argument("--force", action="store_true")
     return parser
 
@@ -176,6 +185,12 @@ def _tier(root: Path, arguments, profile) -> int:
             getattr(arguments, "full", False),
             getattr(arguments, "changed_since", ""),
             getattr(arguments, "gate", False),
+            getattr(arguments, "changed_staged", False),
+            getattr(arguments, "changed_list", ""),
+            getattr(arguments, "event", ""),
+            getattr(arguments, "remote_oid", ""),
+            getattr(arguments, "base_ref", "main"),
+            getattr(arguments, "local_oid", "HEAD"),
         )
         if arguments.as_json:
             print(json.dumps(payload, indent=1))

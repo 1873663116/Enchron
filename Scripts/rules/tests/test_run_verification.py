@@ -258,7 +258,7 @@ class InterpreterFloorTests(unittest.TestCase):
 
 
 class PrePushHookTests(unittest.TestCase):
-    def run_hook(self, stdin: str) -> tuple[subprocess.CompletedProcess, Path]:
+    def run_hook(self, stdin: str) -> tuple[subprocess.CompletedProcess, Path, Path]:
         scratch = tempfile.TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
         root = Path(scratch.name)
@@ -271,10 +271,13 @@ class PrePushHookTests(unittest.TestCase):
         console = root / "Scripts" / "console"
         console.mkdir(parents=True)
         marker = root / "verification-ran"
+        arguments = root / "verification-arguments"
         script = console / "cli.py"
         script.write_text(
+            "import sys\n"
             "from pathlib import Path\n"
-            f"Path({str(marker)!r}).touch()\n",
+            f"Path({str(marker)!r}).touch()\n"
+            f"Path({str(arguments)!r}).open('a').write(' '.join(sys.argv[1:]) + '\\n')\n",
             encoding="utf-8",
         )
         binaries = root / "bin"
@@ -292,26 +295,32 @@ class PrePushHookTests(unittest.TestCase):
             text=True,
             env=environment,
         )
-        return result, marker
+        return result, marker, arguments
 
-    def test_a_push_of_only_deletions_skips_verification(self) -> None:
+    def test_a_push_of_only_deletions_still_runs_the_ci(self) -> None:
         zero = "0" * 40
         oid = "a" * 40
         stdin = (
             f"(delete) {zero} refs/heads/old-branch {oid}\n"
             f"(delete) {zero} refs/tags/old-tag {oid}\n"
         )
-        result, marker = self.run_hook(stdin)
+        result, marker, arguments = self.run_hook(stdin)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertFalse(marker.exists())
+        self.assertTrue(marker.exists())
+        self.assertIn("--changed-list", arguments.read_text())
 
     def test_a_branch_update_runs_verification(self) -> None:
         zero = "0" * 40
         oid = "b" * 40
         stdin = f"refs/heads/main {oid} refs/heads/main {zero}\n"
-        result, marker = self.run_hook(stdin)
+        result, marker, arguments = self.run_hook(stdin)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(marker.exists())
+        calls = arguments.read_text().splitlines()
+        self.assertEqual(calls[0], "plan check")
+        self.assertIn("--event push", calls[1])
+        self.assertIn(f"--remote-oid {zero}", calls[1])
+        self.assertIn(f"--local-oid {oid}", calls[1])
 
     def test_a_mixed_push_still_runs_verification(self) -> None:
         zero = "0" * 40
@@ -320,7 +329,7 @@ class PrePushHookTests(unittest.TestCase):
             f"(delete) {zero} refs/heads/old-branch {oid}\n"
             f"refs/heads/main {oid} refs/heads/main {zero}\n"
         )
-        result, marker = self.run_hook(stdin)
+        result, marker, arguments = self.run_hook(stdin)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue(marker.exists())
         self.assertEqual((marker.parent / "lfs-input").read_text(), stdin)
@@ -330,10 +339,287 @@ class PrePushHookTests(unittest.TestCase):
         )
 
     def test_an_empty_push_runs_neither_verification_nor_lfs(self) -> None:
-        result, marker = self.run_hook("")
+        result, marker, arguments = self.run_hook("")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertFalse(marker.exists())
+        self.assertFalse(arguments.exists())
         self.assertFalse((marker.parent / "lfs-input").exists())
+
+
+class PreCommitHookTests(unittest.TestCase):
+    def run_hook(self) -> tuple[subprocess.CompletedProcess, Path]:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        root = Path(scratch.name)
+        subprocess.run(
+            ["git", "init", "-q"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        )
+        console = root / "Scripts" / "console"
+        console.mkdir(parents=True)
+        marker = root / "verification-ran"
+        script = console / "cli.py"
+        script.write_text(
+            "import sys\n"
+            "from pathlib import Path\n"
+            f"Path({str(marker)!r}).open('a').write(' '.join(sys.argv[1:]) + '\\n')\n",
+            encoding="utf-8",
+        )
+        hook = Path(__file__).resolve().parents[3] / ".githooks" / "pre-commit"
+        result = subprocess.run(
+            ["/bin/zsh", str(hook)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        return result, marker
+
+    def test_the_commit_hook_checks_the_plan_and_the_staged_diff(self) -> None:
+        result, marker = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = marker.read_text().splitlines()
+        self.assertEqual(len(calls), 2, calls)
+        self.assertEqual(calls[0], "plan check")
+        self.assertIn("tier static", calls[1])
+        self.assertIn("--event commit", calls[1])
+
+
+class ChangeScopeTests(unittest.TestCase):
+    def test_infrastructure_paths_force_the_tooling_self_tests(self) -> None:
+        for path in (
+            "Scripts/rules/run_verification.py",
+            "Scripts/console/cli.py",
+            ".github/workflows/verification.yml",
+            ".githooks/pre-push",
+            "Config/console/units/static-comment-rule.md",
+            "Regression/journeys/presentation-tour/scenarios/format-application-route.md",
+            ".swiftlint.yml",
+        ):
+            self.assertTrue(
+                verification.infrastructure_changed(frozenset({path})), path
+            )
+
+    def test_product_and_document_paths_leave_the_tooling_self_tests_skipped(self) -> None:
+        for path in (
+            "Apps/Enchron/PlayerView.swift",
+            "Tests/EnchronDomainTests/PlaybackTests.swift",
+            "docs/CONTEXT.md",
+            "Samples/DynamicRange/HLG/example.ts",
+        ):
+            self.assertFalse(
+                verification.infrastructure_changed(frozenset({path})), path
+            )
+
+    def test_a_self_test_is_recognized_by_its_target(self) -> None:
+        self_test = verification.discovered_check("test-something", "tests/test_something.py")
+        checker = verification.StructureCheck("verify-something", "verify_something.py")
+        self.assertTrue(verification.is_self_test(self_test))
+        self.assertFalse(verification.is_self_test(checker))
+
+    def test_unchanged_tooling_skips_every_self_test(self) -> None:
+        self_test = verification.discovered_check("test-something", "tests/test_something.py")
+        checker = verification.StructureCheck("verify-something", "verify_something.py")
+        checks = (self_test, checker)
+        skipped = verification.skipped_tooling_self_tests(
+            checks, frozenset({"Apps/Enchron/PlayerView.swift"})
+        )
+        self.assertEqual(skipped, frozenset({"test-something"}))
+
+    def test_changed_tooling_runs_every_self_test(self) -> None:
+        self_test = verification.discovered_check("test-something", "tests/test_something.py")
+        checker = verification.StructureCheck("verify-something", "verify_something.py")
+        self.assertEqual(
+            verification.skipped_tooling_self_tests(
+                (self_test, checker), frozenset({"Scripts/rules/verify_something.py"})
+            ),
+            frozenset(),
+        )
+
+    def test_an_unknown_diff_runs_every_self_test(self) -> None:
+        self_test = verification.discovered_check("test-something", "tests/test_something.py")
+        self.assertEqual(
+            verification.skipped_tooling_self_tests((self_test,), None), frozenset()
+        )
+
+    def test_a_changed_list_file_names_each_path(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "changed.txt"
+            path.write_text("Scripts/a.py\n\n Apps/b.swift \n", encoding="utf-8")
+            self.assertEqual(
+                verification.listed_changed_paths(str(path)),
+                frozenset({"Scripts/a.py", "Apps/b.swift"}),
+            )
+
+    def test_an_unreadable_changed_list_is_unknown(self) -> None:
+        self.assertIsNone(verification.listed_changed_paths("/nonexistent/changed.txt"))
+
+    def test_an_empty_changed_list_is_empty(self) -> None:
+        with tempfile.TemporaryDirectory() as scratch:
+            path = Path(scratch) / "changed.txt"
+            path.write_text("\n", encoding="utf-8")
+            self.assertEqual(verification.listed_changed_paths(str(path)), frozenset())
+
+
+class EventScopeTests(unittest.TestCase):
+    def repository(self) -> Path:
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        root = Path(scratch.name)
+        self.git(root, "init", "-q", "-b", "main")
+        self.git(root, "config", "user.email", "tests@example.com")
+        self.git(root, "config", "user.name", "tests")
+        return root
+
+    def git(self, root: Path, *arguments: str) -> subprocess.CompletedProcess:
+        environment = dict(os.environ)
+        for name in (
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_INDEX_FILE",
+            "GIT_COMMON_DIR",
+            "GIT_PREFIX",
+        ):
+            environment.pop(name, None)
+        environment["GIT_EDITOR"] = "true"
+        return subprocess.run(
+            ["git", *arguments],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+
+    def write_and_commit(self, root: Path, name: str, content: str) -> str:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        self.git(root, "add", name)
+        self.git(root, "commit", "-q", "-m", name)
+        return self.git(root, "rev-parse", "HEAD").stdout.strip()
+
+    def changed(self, root: Path, event: str, **arguments: str) -> frozenset[str] | None:
+        return verification.event_changed_paths(
+            event,
+            dict(os.environ),
+            repository=root,
+            **arguments,
+        )
+
+    def test_a_commit_compares_the_index_with_head(self) -> None:
+        root = self.repository()
+        self.write_and_commit(root, "tracked.txt", "one\n")
+        (root / "staged.txt").write_text("two\n", encoding="utf-8")
+        (root / "unstaged.txt").write_text("three\n", encoding="utf-8")
+        self.git(root, "add", "staged.txt")
+        self.assertEqual(
+            self.changed(root, "commit"), frozenset({"staged.txt"})
+        )
+
+    def test_a_push_compares_the_remote_tip_with_the_pushed_revision(self) -> None:
+        root = self.repository()
+        first = self.write_and_commit(root, "first.txt", "one\n")
+        second = self.write_and_commit(root, "second.txt", "two\n")
+        self.assertEqual(
+            self.changed(root, "push", remote_oid=first, local_oid=second),
+            frozenset({"second.txt"}),
+        )
+
+    def test_a_new_branch_compares_the_merge_base_with_main(self) -> None:
+        root = self.repository()
+        first = self.write_and_commit(root, "first.txt", "one\n")
+        second = self.write_and_commit(root, "second.txt", "two\n")
+        self.git(root, "update-ref", "refs/remotes/origin/main", first)
+        self.assertEqual(
+            self.changed(
+                root,
+                "push",
+                remote_oid="0" * 40,
+                local_oid=second,
+            ),
+            frozenset({"second.txt"}),
+        )
+
+    def test_a_pull_request_compares_the_base_branch_merge_base_with_head(self) -> None:
+        root = self.repository()
+        first = self.write_and_commit(root, "first.txt", "one\n")
+        second = self.write_and_commit(root, "second.txt", "two\n")
+        self.git(root, "update-ref", "refs/remotes/origin/main", first)
+        self.assertEqual(
+            self.changed(root, "pr", base_ref="main", local_oid=second),
+            frozenset({"second.txt"}),
+        )
+
+    def test_a_merge_compares_head_with_merge_head(self) -> None:
+        root = self.repository()
+        self.write_and_commit(root, "first.txt", "one\n")
+        self.git(root, "checkout", "-q", "-b", "topic")
+        self.write_and_commit(root, "topic.txt", "two\n")
+        self.git(root, "checkout", "-q", "main")
+        self.git(root, "merge", "--no-commit", "--no-ff", "topic")
+        self.assertEqual(
+            self.changed(root, "merge"), frozenset({"topic.txt"})
+        )
+
+    def test_an_unknown_event_has_no_scope(self) -> None:
+        root = self.repository()
+        self.assertIsNone(self.changed(root, "unknown"))
+
+
+class StructureGroupTests(unittest.TestCase):
+    def test_every_check_lands_in_exactly_one_group(self) -> None:
+        checks = tuple(
+            verification.discovered_check(f"check-{index}", f"verify_check_{index}.py")
+            for index in range(10)
+        ) + (
+            verification.StructureCheck(
+                "media-discovery-admission", "verify_media_discovery_admission.py"
+            ),
+            verification.StructureCheck(
+                "playback-issue-ownership", "verify_playback_issue_ownership.py"
+            ),
+        )
+        groups = verification.structure_groups(checks, 2)
+        flat = [check.identifier for group in groups for check in group]
+        self.assertEqual(len(flat), len(set(flat)))
+        self.assertEqual(set(flat), {check.identifier for check in checks})
+
+    def test_shared_lexer_partners_land_in_one_group(self) -> None:
+        checks = tuple(
+            verification.discovered_check(f"check-{index}", f"verify_check_{index}.py")
+            for index in range(6)
+        ) + (
+            verification.StructureCheck(
+                "media-discovery-admission", "verify_media_discovery_admission.py"
+            ),
+            verification.StructureCheck(
+                "playback-issue-ownership", "verify_playback_issue_ownership.py"
+            ),
+        )
+        groups = verification.structure_groups(checks, 2)
+        holders = [
+            group
+            for group in groups
+            if any(
+                check.identifier in ("media-discovery-admission", "playback-issue-ownership")
+                for check in group
+            )
+        ]
+        self.assertEqual(len(holders), 1)
+        identifiers = {check.identifier for check in holders[0]}
+        self.assertIn("media-discovery-admission", identifiers)
+        self.assertIn("playback-issue-ownership", identifiers)
+
+    def test_unbatched_checks_are_left_to_the_worker_path(self) -> None:
+        unbatched = verification.StructureCheck(
+            "vision-test-suite-coverage", "verify_vision_test_suite_coverage.py"
+        )
+        bundled = verification.StructureCheck("verify-something", "verify_something.py")
+        groups = verification.structure_groups((unbatched, bundled), 2)
+        flat = [check.identifier for group in groups for check in group]
+        self.assertEqual(flat, ["verify-something"])
 
 
 class TreeHygieneTests(unittest.TestCase):

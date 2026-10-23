@@ -147,6 +147,12 @@ def run_static_tier(
     full: bool = False,
     changed_since: str = "",
     gate: bool = False,
+    changed_staged: bool = False,
+    changed_list: str = "",
+    event: str = "",
+    remote_oid: str = "",
+    base_ref: str = "main",
+    local_oid: str = "HEAD",
 ) -> dict[str, Any]:
     if code_only:
         if gate:
@@ -158,6 +164,18 @@ def run_static_tier(
         command.append("--text-only")
     if changed_since:
         command.extend(["--changed-since", changed_since])
+    if changed_staged:
+        command.append("--changed-staged")
+    if changed_list:
+        command.extend(["--changed-list", changed_list])
+    if event:
+        command.extend(["--event", event])
+    if remote_oid:
+        command.extend(["--remote-oid", remote_oid])
+    if base_ref != "main":
+        command.extend(["--base-ref", base_ref])
+    if local_oid != "HEAD":
+        command.extend(["--local-oid", local_oid])
     if quick:
         command.append("--quick")
     log_root = evidence_root / "static" / time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
@@ -231,9 +249,20 @@ def summarize(payload: dict[str, Any]) -> str:
             return "static code-only up to date, nothing changed since the last gate"
         detail = f"failing {', '.join(failed)}" if failed else "every code checker passed"
         return f"static code-only {state} in {payload['durationMs']} ms ({detail})"
+    skipped_tooling = ""
+    for item in payload.get("checks", []):
+        detail = str(item.get("detail") or "")
+        match = re.search(
+            r"tooling self-tests skipped, CI and test infrastructure unchanged \((\d+)\)",
+            detail,
+        )
+        if match:
+            skipped_tooling = f"; tooling self-tests skipped ({match.group(1)})"
+            break
     return (
         f"static {state} in {payload['durationMs']} ms "
         f"(quick={payload['quick']}, exit {payload['exitCode']})"
+        f"{skipped_tooling}"
     )
 
 

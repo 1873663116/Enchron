@@ -131,7 +131,13 @@ def await_recorder(segment: Segment) -> None:
         return [{"segment": str(segment.path), "exists": segment.path.exists()}]
 
     try:
-        wait_for(f"segment {segment.path.name}", probe, START_BUDGET, observe)
+        wait_for(
+            f"segment {segment.path.name}",
+            probe,
+            START_BUDGET,
+            observe,
+            poll_interval_seconds=0.05,
+        )
     except InstrumentFault as expiry:
         segment.process.kill()
         raise RecordingError(

@@ -25,7 +25,7 @@ The console is the only test entry in this repository. This skill covers changin
 
 `Scripts/console/guard.py` holds the single guardrail mechanism. The three guardrail kinds are data, not code paths.
 
-`Scripts/console/static_tier.py` wraps the existing checkers. The full quick set and the eight-checker code-only lane both live here.
+`Scripts/console/static_tier.py` wraps the existing checkers. The full text set and the eight-checker code-only lane both live here.
 
 `Scripts/console/build_tier.py` runs the build and unit tiers.
 
@@ -318,7 +318,7 @@ A unit compile is about 2 to 3 ms. `plan check --all` over the whole repository 
 
 The self-test suite runs in 0.43 s.
 
-`static` tier with `--quick` took 371 870 ms. The checkers themselves account for roughly 318 s: 194 checks, of which the six slowest take 63 percent. `test-generate-reachability-inventory` alone is 88 s.
+`static` tier takes about 30 s when the changed paths force the tooling self-tests and about 6 s when they do not. It runs 170 checks; the longest single check is `test-merge-authority` at about 19 s.
 
 The branch carries the console plus every `main` commit it was built against, and it merges into `main` with no conflicts. Re-check after a merge that both baselines still pass, because code arriving from `main` can bring findings the console has never seen.
 
@@ -330,15 +330,15 @@ Neither baseline hides debt. Widening one is refused, so the only way to clear a
 
 Runner channel latency, for the e2e tier. A command round trip is 0.65 s. A snapshot is 1.23 s, a tap 2.04 s, typing 2.55 s. Bringing a session up is 59 s at the median and 263 s at the worst.
 
-A cold build for testing is about 13 minutes. Unit test execution is 7.4 s for 703 tests. The build dominates; the tests are a rounding error.
+A cold build for testing is about 103 s. Unit test execution is about 7 s for 686 tests. The build dominates; the tests are a rounding error.
 
 ## Improving speed
 
 Measure before changing. The tier reports its own duration in every run and writes `last-run.json`, so take the number from a run rather than from a wrapper that re-times it.
 
-The measured shape of the static tier: 193 checks, 364 s wall, run one after another. The longest single check is 82 s (`test-generate-reachability-inventory`), the next is 59 s (`playback-core-tests`), and the median is well under a second. Running the independent ones concurrently bounds the tier at the longest single check, so the ceiling is roughly four times faster. Anything beyond that needs the two slow checks to be split or cached.
+The measured shape of the static tier: 170 checks. When the changed paths force the tooling self-tests, the tier takes about 30 s wall; without them, about 6 s. The longest single check is `test-merge-authority` at about 19 s, which sets the slow-path floor. The fast path is set by the slowest scanner, so a scanner that costs several seconds on a one-line change is a defect in that scanner.
 
-Attack in this order. First the two checks that set the floor. A check that takes 82 s while the median check takes 0.1 s is a defect in that check, not a cost of the tier. Then the fan-out, which is the second fourfold.
+Attack in this order. First the longest self-test that sets the slow-path floor. Then the slowest scanner on the fast path. Then the fan-out.
 
 Parallelism is available: the checks are independent processes. Any change here must keep one unit per call, so parallel fan-out belongs inside a tier, never across units. Not every check is safe to run beside another: one that boots a simulator or binds a port serialises with its peers, and the fan-out has to know which is which.
 
@@ -364,7 +364,7 @@ The refactor is done when every line holds.
 - `python3 Scripts/rules/harness_primitives_gate.py` passes, with `Scripts/console` inside its scan roots.
 - `static` tier duration and its per-check breakdown are available from a real run.
 - A build runs `console tier static --code-only` before Sources, and a forbidden comment fails that build.
-- A push runs `console plan check` and `console tier static --quick`, and skips both when the diff touches no code.
+- A commit runs `console plan check` and `console tier static --changed-staged`; a push runs them against the pushed range. The changed paths decide whether the tooling self-tests run.
 - `console tier build` and `console tier unit` name the missing capability on a machine that cannot run them.
 - `console daemon start`, `status` and `stop` all answer, and a run adopts an already-live session in about 100 ms.
 
