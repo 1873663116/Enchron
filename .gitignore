@@ -26,6 +26,7 @@ tmp/
 
 # Xcode local build output
 /build/
+/Packages/*/build/
 **/xcuserdata/
 
 # Local validation output
