@@ -524,12 +524,18 @@ class RemoteSourceCertificateSanTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        environment_file = root / ".env"
+        environment_file.write_text(
+            "WEBDAV_USER=verification\nWEBDAV_PASSWORD=verification\n",
+            encoding="utf-8",
+        )
         configuration = remote.ServiceConfiguration(
             runtime_root=root / "runtime",
             registry_path=registry,
             source_root=source_root,
             bind_host=host_ip,
             port=0,
+            environment_file=environment_file,
         )
         controller = remote.RemoteSourceController(configuration)
         identity = controller.ensure()
