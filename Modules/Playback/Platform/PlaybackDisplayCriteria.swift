@@ -44,6 +44,7 @@ public final class PlaybackDisplayCriteria {
     @ObservationIgnored private var hosts: [UUID: Host] = [:]
     @ObservationIgnored private var appliedManager: AVDisplayManager?
     @ObservationIgnored private var appliedFormat: CMFormatDescription?
+    @ObservationIgnored private var reportedUnavailableManager = false
 #endif
 
     public init() {}
@@ -82,20 +83,19 @@ public final class PlaybackDisplayCriteria {
         let host = hosts.values.first {
             $0.immersive == (playbackHost == .immersiveSpace) && $0.window != nil
         }
-        let manager = host?.window?.avDisplayManager
-        guard isEnabled, let format, let targetHz, let manager else {
+        guard isEnabled, let format, let targetHz else {
             statusText = !isEnabled ? "Off" : targetHz == nil ? "Not requested"
-                : format == nil ? "Waiting for video" : "Waiting for window"
-            if requestedHz != nil {
-                SurfaceInputProbes.record("displayCriteria cleared", retention: .evidence)
-            }
-            appliedManager?.preferredDisplayCriteria = nil
-            appliedManager = nil
-            appliedFormat = nil
-            requestedHz = nil
-            matchingEnabled = nil
+                : "Waiting for video"
+            releaseRequest()
             return
         }
+        guard let manager = host?.window?.playbackDisplayManager else {
+            statusText = host == nil ? "Waiting for window" : "Unavailable"
+            reportUnavailableManager(hasHost: host != nil)
+            releaseRequest()
+            return
+        }
+        reportedUnavailableManager = false
         statusText = "Submitted"
         matchingEnabled = manager.isDisplayCriteriaMatchingEnabled
         let sameFormat = appliedFormat.map {
@@ -121,7 +121,39 @@ public final class PlaybackDisplayCriteria {
         )
 #endif
     }
+
+#if os(visionOS)
+    private func releaseRequest() {
+        if requestedHz != nil {
+            SurfaceInputProbes.record("displayCriteria cleared", retention: .evidence)
+        }
+        appliedManager?.preferredDisplayCriteria = nil
+        appliedManager = nil
+        appliedFormat = nil
+        requestedHz = nil
+        matchingEnabled = nil
+    }
+
+    private func reportUnavailableManager(hasHost: Bool) {
+        guard hasHost, reportedUnavailableManager == false else { return }
+        reportedUnavailableManager = true
+        SurfaceInputProbes.record(
+            "displayCriteria unavailable windowSelector=avDisplayManager",
+            retention: .evidence
+        )
+    }
+#endif
 }
+
+#if os(visionOS)
+private extension UIWindow {
+    var playbackDisplayManager: AVDisplayManager? {
+        let selector = NSSelectorFromString("avDisplayManager")
+        guard responds(to: selector) else { return nil }
+        return avDisplayManager
+    }
+}
+#endif
 
 #if os(visionOS)
 private struct PlaybackDisplayCriteriaHost: UIViewRepresentable {
