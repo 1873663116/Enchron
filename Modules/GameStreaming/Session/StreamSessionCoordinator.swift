@@ -77,7 +77,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     private var governorState: TimelineGovernorState = .measuring
-    private let streamingDisplaysImmediately = false
+    private var streamingDisplaysImmediately: Bool { !options.framePacing }
     private var governorTargetLeadSeconds = 0.016
     private var governorLeadEmaSeconds: Double = .nan
     private var governorSecondLeads: [Double] = []
