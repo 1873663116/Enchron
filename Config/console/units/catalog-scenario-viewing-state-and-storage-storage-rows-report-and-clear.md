@@ -311,6 +311,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -538,6 +548,16 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {

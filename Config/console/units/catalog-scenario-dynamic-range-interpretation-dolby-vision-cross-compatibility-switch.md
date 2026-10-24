@@ -152,6 +152,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -238,6 +248,16 @@
           "directory": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -338,7 +358,7 @@
     },
     {
       "key": "profile-5-no-fallback",
-      "start": 23
+      "start": 24
     }
   ]
 }

@@ -71,26 +71,13 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.await",
       "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -117,6 +104,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -137,6 +134,49 @@
         "arguments": {
           "keepSession": "true"
         }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -176,15 +216,15 @@
     },
     {
       "key": "case-3",
-      "start": 8
+      "start": 9
     },
     {
       "key": "case-4",
-      "start": 11
+      "start": 13
     },
     {
       "key": "case-5",
-      "start": 14
+      "start": 17
     }
   ]
 }

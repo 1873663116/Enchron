@@ -1500,6 +1500,28 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     raise SystemExit(
                         f"{name} names neither identifiers nor a label in {payload.get('id')}"
                     )
+                if (
+                    len(targets) == 2
+                    and targets[0].startswith("Settings-menu-")
+                    and targets[1].startswith("Settings-menuOption-")
+                ):
+                    family = targets[0].removeprefix("Settings-menu-")
+                    leaf_prefix = f"Settings-menuOption-{family}-"
+                    if targets[1].startswith(leaf_prefix):
+                        steps.append(
+                            {
+                                "verb": "device.app-command",
+                                "args": {
+                                    "verb": "selectMenuItem",
+                                    "arguments": {
+                                        "host": "settings",
+                                        "family": family,
+                                        "target": targets[1].removeprefix(leaf_prefix),
+                                    },
+                                },
+                            }
+                        )
+                        continue
                 for prefix, host in (
                     ("PlayerUI-menu-", "playerUI"),
                     ("PlayerPanel-menu-", "playerPanel"),
@@ -1642,6 +1664,29 @@ def translate(payload: dict[str, Any], folder: str) -> tuple[list[dict[str, Any]
                     continue
                 if "Emby-Detail-Play" in targets and episode_played:
                     targets = [item for item in targets if item != "Emby-Detail-Play"]
+                    if any(
+                        step.get("verb") == "device.app-command"
+                        and step.get("args", {}).get("verb") == "leavePlayback"
+                        for step in steps[-3:]
+                    ):
+                        steps.append(
+                            {
+                                "verb": "device.command",
+                                "args": {"action": "tap", "label": LIBRARY_LABEL},
+                            }
+                        )
+                        steps.append(
+                            {
+                                "verb": "device.command",
+                                "args": {
+                                    "action": "tap",
+                                    "label": f"{SERIES_PREFIX}, poster",
+                                    "labelPrefix": SERIES_PREFIX,
+                                },
+                            }
+                        )
+                        library_opened = True
+                        series_opened = True
                     steps.append(
                         {
                             "verb": "device.command",
@@ -2897,6 +2942,8 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
         if imports:
             actions = [action for action in actions if action not in imports]
             simplified[scenario_reset + 1 : scenario_reset + 1] = imports
+    simplified = dedupe_settings(dedupe_steps(simplified))
+    simplified = ensure_awaits(simplified)
     segment_starts = [0] + [
         position
         for position, action in enumerate(simplified)
@@ -2904,7 +2951,6 @@ def unit_parts(path: Path) -> list[dict[str, Any]]:
     ]
     names = case_names(payload, segment_starts)
     segment_index = {start: index for index, start in enumerate(segment_starts)}
-    simplified = dedupe_settings(dedupe_steps(simplified))
     chunks = split_steps(simplified)
     preamble_length = len(actions)
     missing_fixtures = [
@@ -3003,10 +3049,15 @@ def dedupe_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     while index < len(steps):
         if index + 3 < len(steps):
             first, second, third, fourth = steps[index : index + 4]
+            repeated_label_tap = (
+                second.get("verb") == "device.command"
+                and "label" in (second.get("args") or {})
+            )
             if (
                 first == third
                 and second == fourth
                 and first != second
+                and not repeated_label_tap
             ):
                 result.extend([first, second])
                 index += 4
@@ -3014,6 +3065,70 @@ def dedupe_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         result.append(steps[index])
         index += 1
     return result
+
+
+def _awaits_identifier(step: dict[str, Any], field: str, value: str) -> bool:
+    if step.get("verb") != "device.await":
+        return False
+    arguments = step.get("args") or {}
+    if arguments.get("probe") != "element" or str(arguments.get("mode") or "equals") != "equals":
+        return False
+    merged = arguments.get("equals")
+    if isinstance(merged, dict):
+        return str(merged.get(field)) == value
+    return arguments.get("field") == field and str(arguments.get("equals")) == value
+
+
+def ensure_awaits(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    produced: list[dict[str, Any]] = []
+    for step in steps:
+        verb = str(step.get("verb"))
+        arguments = step.get("args") or {}
+        previous = produced[-1] if produced else None
+        transition = previous is not None and previous.get("verb") in {
+            "app.relaunch",
+            "device.app-command",
+            "device.app-commands",
+        }
+        if verb == "device.command" and str(arguments.get("action") or "") in {
+            "tap",
+            "doubleTap",
+            "press",
+        }:
+            prefix = arguments.get("identifierPrefix")
+            identifier = arguments.get("identifier")
+            if prefix and transition:
+                if not _awaits_identifier(step, "identifierPrefix", str(prefix)):
+                    produced.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "element",
+                                "field": "identifierPrefix",
+                                "equals": str(prefix),
+                                "timeoutMs": 20000,
+                                "intervalMs": 300,
+                            },
+                        }
+                    )
+            elif isinstance(identifier, str) and identifier.startswith(
+                "Navigation-Ornament-tab-"
+            ):
+                if transition and not _awaits_identifier(step, "identifier", identifier):
+                    produced.append(
+                        {
+                            "verb": "device.await",
+                            "args": {
+                                "probe": "element",
+                                "field": "identifier",
+                                "equals": identifier,
+                                "timeoutMs": 15000,
+                                "intervalMs": 300,
+                            },
+                        }
+                    )
+        produced.append(step)
+    return produced
 
 
 def dedupe_settings(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:

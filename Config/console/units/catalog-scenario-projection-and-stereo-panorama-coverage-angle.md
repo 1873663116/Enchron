@@ -146,6 +146,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -226,6 +236,16 @@
           "directory": "scenario-projection-and-stereo-panorama-coverage-angle",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -331,7 +351,7 @@
     },
     {
       "key": "custom-angle-200",
-      "start": 21
+      "start": 22
     }
   ]
 }

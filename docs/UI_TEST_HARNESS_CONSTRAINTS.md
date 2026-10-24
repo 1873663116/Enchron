@@ -213,17 +213,26 @@ xctrace 与 devicectl 走的是**两条不同的设备通道**：devicectl 是�
 - **段在场景阶段一旦通道丢失就结束当前场景**。原先 `run_segment` 只在场景之间检查 `channel_failures`，场景内部的每一步都还会得到"already failed"的拒绝文档并继续走完；runner 在第 31 步消失，段又发了二十多条注定失败的命令。现在 `controller` 在场景阶段（`scenario_phase`）遇到通道拒绝时抛 `SegmentChannelLost`，场景循环捕获后直接进入收尾；收尾阶段（probeStatus、拷贝、健康检查）不受影响。
 - **每一步之后写 `progress.json`**。段输出目录下的这份文件只有几行：步数、最近一步与其成败、通道失败数、是否已停、结束状态。盯段的人读它，不读层级树。
 
+## 端到端档的设备状态与夹具约束
+
+- **证书指纹由 app 命令 `trustCertificate` 在进程内写入**。`resetState` 清空 `server-certificate-fingerprint.*` 默认值，产品没有忘记入口，所以每个单元连接来源前都要重新注入信任。只写用户默认值时 app 进程读不到新值，必须 relaunch 并等 3 秒；进程内命令把一次连接压到 1 秒级。`connectWebDAV` 与 `device.source-facts` 的信任写入共用这个命令。
+- **帧证据用宿主 `simctl io` 截取**。runner 的 burst 截图要经 XCUITest 通道拷回附件，每帧约 4–5 秒；宿主截图约 0.3 秒。模拟器进程不能直接写外部卷上的证据目录（`NSCocoaErrorDomain 513`），所以先落到 `/tmp` 再移动进 `steps/`。截图失败时回退到 runner burst，证据格式不变。
+- **WebDAV 夹具绑定所有本机地址**。`Mac-mini.local` 的 mDNS 应答同时含回环与 LAN 地址，解析器可能先返回 `127.0.0.1`；夹具只绑 LAN 地址时，主机名一旦解析到回环，所有远程来源单元在连接图上失败。`ServiceConfiguration.bindWildcard` 让服务监听 `0.0.0.0` 而仍以主机名作为服务地址，证书 SAN 与地址语义不变。
+- **连接来源后浏览器回到 Files 根**。`connectWebDAV` 完成连接后调用 `useDefaultFolder()`。来源已经处于打开状态时再点同一来源行会换出第二个窗口，XCUITest 随后绑在旧场景上，层级只剩面包屑与系统服务；单元之后的所有元素等待都会落空。单元自己点来源行完成唯一的打开动作。
+- **失败残留的 recipe 在下一次激活前恢复**。`device.fault-source` 激活前无条件尝试恢复当前 generation 的 receipt；只按 `status.recipe == healthy` 跳过会漏掉「health recipe 仍持有一张未恢复的 receipt」的状态，下一次激活被服务拒绝。
+- **服务 receipt 与来源 receipt 跨进程缓存 180 秒**。每个单元是独立进程，`ensure_test_services` 的启动探测按 provider 缓存在 `.scratch/console/service-cache/`，TTL 内命中直接复用地址与指纹。来源目录内容与证书变化仍由每单元重新读取 runtime 文件与 `device.connect-source` 的食谱恢复覆盖。
+- **结构检查在单元启动时预取**。`static.structural-test` 与设备步骤无数据依赖，`run_plan` 在清状态前就以子进程启动它们，步骤执行时取回结果；网络单元 13.7 秒的结构检查因此与设备步骤重叠。
+- **设置菜单用 `selectMenuItem` 选择**。设置页的菜单行支持 `DebugMenuSelectionFamily`（`resume-strategy`、`end-behavior`、`default-speed`、`hold-speed`、`controls-auto-hide`），翻译器把 `Settings-menu-*` 的 tapEach 链换成 `host=settings` 的调试命令，省去每次 3.7 秒的菜单动画与元素查询。
+
 ## 全量端到端档的实测耗时与偏差
 
-81 个单元的模拟器全量档在 2026-10-24 实测：墙钟 2602 s（43.4 分钟），77 个通过、3 个失败、1 个 blocked；基线是 3576.8 s（59.6 分钟）。全部单元耗时中位 27.6 s、p90 60.7 s、最大 75.5 s；目录单元 68 个，中位 30.7 s、p90 61.9 s、最大 75.5 s，80 s 以上与 90 s 以上都是 0 个。三个试点相对基线：DV 43.1 s 对 102.8 s（−58.1 %）、audio 39.1 s 对 76.1 s（−48.6 %）、storage rows 57.1 s 对 102.3 s（−44.2 %）。单用例复现 `dv-profile-5` 12.0 s。
+82 个单元的模拟器全量档在 2026-10-24 实测：墙钟 2277 s（37.9 分钟），79 个通过、3 个失败；单元耗时中位 22.6 s、p90 50.1 s、最大 66.4 s；目录单元 69 个，中位 24.0 s、p90 52.0 s、最大 66.4 s，80 s 以上与 90 s 以上都是 0 个。三个试点：DV 24.6 s、audio 28.5 s、storage rows 57.1 s。
 
-墙钟与分位数目标未达成（目标：≤30 分钟、p90 ≤50 s、max ≤70 s、目录中位 ≤28 s、0 个 ≥80/90 s）。0 个 ≥80/90 s 与整档通过率达成，墙钟、p90、max 与目录中位未达成。实测偏差来自四处：
+目标与实际：p90 ≤50 s 的目标以 50.1 s 擦线；max ≤70 s、目录中位 ≤28 s、0 个 ≥80/90 s 达成；墙钟 ≤30 分钟未达成。剩余成本的构成：
 
-- 远程媒体起始要付 WebDAV 连接与远程字幕发现，8–12 s 起步；同一批次里第二次连接不再节省（产品每次重新连接）。
-- 播放断言必须观测到真实位置、字幕 cue 或转场落点，这些等待按媒体时长和转场预算计，不能压缩。
-- Emby 生命周期单元依赖服务器会话，会话恢复和 episode 恢复流程对时序敏感，排在档末避免污染其它 lane。
-- 4 个失败单元与 1 个 blocked 单元各付约 16 s 会话重启加恢复命令。
-
-本分支上连续四轮全量档（中间含修复提交）的墙钟为 2733 s、3278 s、3011 s、2602 s（通过数 74、71、76、77），说明主机热状态带来的波动超过 10%，p90 的分位受少数远程单元的长尾支配。残留失败都是可独立复现的单元级问题：文件夹删除单元偶发在 15 s 内等不到 `MediaLibrary-grid-folder-Regression Parent`（同一单元单独重跑通过）；automatic-source-provenance 偶发离开播放后立即点 Files 标签时元素查询落空；format-application-route 偶发 `WindowPlayback-root` 45 s 不出现；`emby-server-lifecycle-episode-resume-and-start-actions` 的单个 `device.command` 偶发超过 30 s 命令预算而报 blocked。
+- 每个单元固定开销约 2–3 s：清播放/沉浸/媒体导航状态、连接会话、teardown 删库。82 个单元合计约 200 s。
+- 远程来源单元每单元 1–2 次连接，每次约 1 s；媒体打开与远程字幕发现仍要 3–5 s 起步。
+- 播放断言要观测真实位置、cue 与转场落点；Emby 生命周期单元要等服务器会话，整档排在最后。
+- 3 个失败单元各付一次会话重启（约 16 s）。失败是间歇的场景/呈现状态问题：presentation 两个单元连续单独重跑 2/2 通过，webdav-add-source 单独重跑 1/2 通过；失败点都在播放窗口或网格元素的等待，不是断言判错。
 
 默认端到端档 12 个单元实测 77 s，全部通过。其余三档在模拟器关闭后的空闲宿主上实测：CI 快档 5.8 s（只有产品路径，跳过 144 个工具自检），慢档 27.7 s，PR 事件 27.5 s，push 事件 27.2 s；构建档增量 26.1 s（touch 产品源文件后），冷构建 93.6 s，无改动复用 0 ms；单元档在构建复用下 58.9 s，冷构建后首跑 161.0 s。模拟器与会话占着宿主时，同一命令的 CI 慢档可到 50.8 s、构建冷档可到 204.0 s，文档的记录以空闲值作为档位耗时。

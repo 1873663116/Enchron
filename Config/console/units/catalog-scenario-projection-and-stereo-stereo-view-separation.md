@@ -146,6 +146,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -226,6 +236,16 @@
           "directory": "scenario-projection-and-stereo-stereo-view-separation",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -319,7 +339,7 @@
     },
     {
       "key": "mv-hevc-two-view",
-      "start": 21
+      "start": 22
     }
   ]
 }

@@ -76,33 +76,44 @@
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.app-commands",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "Settings-menu-resume-strategy",
-          "Settings-menuOption-resume-strategy-askEveryTime"
+        "calls": [
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "settings",
+              "family": "resume-strategy",
+              "target": "askEveryTime"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "settings",
+              "family": "end-behavior",
+              "target": "playNext"
+            }
+          },
+          {
+            "verb": "selectMenuItem",
+            "arguments": {
+              "host": "settings",
+              "family": "controls-auto-hide",
+              "target": "never"
+            }
+          }
         ]
       }
     },
     {
-      "verb": "device.command",
+      "verb": "device.await",
       "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "Settings-menu-end-behavior",
-          "Settings-menuOption-end-behavior-playNext"
-        ]
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tapEach",
-        "identifiers": [
-          "Settings-menu-controls-auto-hide",
-          "Settings-menuOption-controls-auto-hide-never"
-        ]
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -230,6 +241,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -353,6 +374,16 @@
       "args": {
         "verb": "leavePlayback",
         "arguments": {}
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {

@@ -338,31 +338,25 @@ def _tier(root: Path, arguments, profile) -> int:
 
         def recover_session() -> None:
             daemon_module.ensure_running(root, profile.target)
-            try:
-                daemon_module.request(
-                    root,
-                    {
-                        "op": "invoke",
-                        "action": "app-command",
-                        "verb": "batch",
-                        "arguments": {
-                            "calls": json.dumps(
-                                [
-                                    {"verb": "leavePlayback", "arguments": {}},
-                                    {"verb": "exitSpatial", "arguments": {}},
-                                    {
-                                        "verb": "resetState",
-                                        "arguments": {"keepSession": "true"},
-                                    },
-                                ]
-                            )
+            for verb, arguments in (
+                ("exitSpatial", {}),
+                ("leavePlayback", {}),
+                ("resetState", {"keepSession": "true"}),
+            ):
+                try:
+                    daemon_module.request(
+                        root,
+                        {
+                            "op": "invoke",
+                            "action": "app-command",
+                            "verb": verb,
+                            "arguments": arguments,
                         },
-                    },
-                    profile.target,
-                    timeout=120,
-                )
-            except OSError:
-                pass
+                        profile.target,
+                        timeout=120,
+                    )
+                except OSError:
+                    pass
             daemon_module.request(
                 root,
                 {"op": "restart", "lane": "simulator"},

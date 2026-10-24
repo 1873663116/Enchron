@@ -150,6 +150,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -233,6 +243,16 @@
           "directory": "scenario-presentation-tour-initial-presentation-routing",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -341,7 +361,7 @@
     },
     {
       "key": "case-3",
-      "start": 23
+      "start": 24
     }
   ]
 }

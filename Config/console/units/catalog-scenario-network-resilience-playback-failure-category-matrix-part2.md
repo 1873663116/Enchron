@@ -93,6 +93,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -234,176 +244,6 @@
       }
     },
     {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "resetState",
-        "arguments": {
-          "keepSession": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.connect-source",
-      "args": {
-        "provider": "webdav",
-        "name": "Enchron Regression WebDAV"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "label",
-        "equals": "Enchron Regression WebDAV",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "label": "Enchron Regression WebDAV"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "leavePlayback",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "Navigation-Ornament-tab-files"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "FileBrowsing-FilesScreen",
-        "timeoutMs": 20000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv",
-        "timeoutMs": 20000,
-        "intervalMs": 300
-      }
-    },
-    {
-      "verb": "device.command",
-      "args": {
-        "action": "tap",
-        "identifier": "FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv"
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "presentation",
-        "equals": "window",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "position",
-        "equals": 1.0,
-        "mode": "atLeast",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.fault-source",
-      "args": {
-        "provider": "webdav",
-        "phase": "activate",
-        "recipe": "corrupt-media"
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "seekNormalized",
-        "arguments": {
-          "position": "0.92"
-        }
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "element",
-        "field": "identifier",
-        "equals": "PlayerUI-loadFailure-primary",
-        "timeoutMs": 45000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
-      "verb": "device.snapshot",
-      "args": {}
-    },
-    {
-      "verb": "device.fault-source",
-      "args": {
-        "provider": "webdav",
-        "phase": "restore",
-        "recipe": ""
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "clearPlaybackIssue",
-        "arguments": {}
-      }
-    },
-    {
-      "verb": "device.await",
-      "args": {
-        "probe": "PlayerUI-window-control-plane",
-        "field": "position",
-        "equals": 2.0,
-        "mode": "atLeast",
-        "timeoutMs": 5000,
-        "intervalMs": 400
-      }
-    },
-    {
-      "verb": "device.app-command",
-      "args": {
-        "verb": "toggleControls",
-        "arguments": {
-          "visible": "true"
-        }
-      }
-    },
-    {
       "verb": "device.snapshot",
       "args": {}
     }
@@ -426,10 +266,6 @@
     {
       "key": "access-refused",
       "start": 4
-    },
-    {
-      "key": "data-corrupt",
-      "start": 26
     }
   ]
 }

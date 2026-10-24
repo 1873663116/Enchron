@@ -6,8 +6,10 @@ import json
 import re
 import getpass
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -62,25 +64,31 @@ def run_plan(
     facts: dict[str, str] = {}
     if not unmet and plan.transport == "daemon" and plan.target:
         _clear_session_state(root, plan.target)
-    for step in plan.steps if not unmet else ():
-        resolved = dataclasses.replace(step, args=_fill(step.args, facts))
-        outcome, hit = _run_step(resolved, plan, root, supervisor, steps_directory, budget_scale)
-        if outcome.ok and step.capture:
-            payload = getattr(outcome, "payload", None)
-            if isinstance(payload, dict):
-                for field, name in step.capture.items():
-                    value = _resolve_field(payload, field)
-                    if isinstance(value, (str, int, float)):
-                        facts[name] = str(value)
-        outcomes.append(outcome)
-        if hit is not None:
-            verdict = "blocked"
-            exit_code = EXIT_GUARDRAIL
-            break
-        if not outcome.ok:
-            verdict = "failed"
-            exit_code = EXIT_TERMINAL
-            break
+    prefetched = _prefetch_structural(plan, root) if not unmet else {}
+    try:
+        for step in plan.steps if not unmet else ():
+            resolved = dataclasses.replace(step, args=_fill(step.args, facts))
+            outcome, hit = _run_step(
+                resolved, plan, root, supervisor, steps_directory, budget_scale
+            )
+            if outcome.ok and step.capture:
+                payload = getattr(outcome, "payload", None)
+                if isinstance(payload, dict):
+                    for field, name in step.capture.items():
+                        value = _resolve_field(payload, field)
+                        if isinstance(value, (str, int, float)):
+                            facts[name] = str(value)
+            outcomes.append(outcome)
+            if hit is not None:
+                verdict = "blocked"
+                exit_code = EXIT_GUARDRAIL
+                break
+            if not outcome.ok:
+                verdict = "failed"
+                exit_code = EXIT_TERMINAL
+                break
+    finally:
+        _discard_prefetch(prefetched)
     for step in plan.teardown_steps:
         resolved = dataclasses.replace(step, args=_fill(step.args, facts))
         outcome, _ = _run_step(
@@ -269,6 +277,10 @@ def _ensure_media_source(provider: str, root: Path) -> dict[str, Any]:
     cached = _MEDIA_SOURCE_CACHE.get(cache_key)
     if cached is not None and cached.get("ok"):
         return cached
+    cached = _read_service_cache(root, provider, "source")
+    if cached is not None:
+        _MEDIA_SOURCE_CACHE[cache_key] = cached
+        return cached
     script = root / "Scripts" / "verification" / "ensure_test_services.py"
     completed = subprocess.run(
         [sys.executable, str(script), "--service", provider],
@@ -299,10 +311,51 @@ def _ensure_media_source(provider: str, root: Path) -> dict[str, Any]:
     }
     if ok:
         _MEDIA_SOURCE_CACHE[cache_key] = result
+        _write_service_cache(root, provider, "source", result)
     return result
 
 
+SERVICE_CACHE_ROOT = Path(".scratch/console/service-cache")
+SERVICE_CACHE_SECONDS = 180.0
+
+
+def _service_cache_path(root: Path, provider: str, kind: str) -> Path:
+    return root / SERVICE_CACHE_ROOT / f"{provider}-{kind}.json"
+
+
+def _read_service_cache(root: Path, provider: str, kind: str) -> dict[str, Any] | None:
+    path = _service_cache_path(root, provider, kind)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    stamp = payload.get("stamp")
+    if not isinstance(stamp, (int, float)):
+        return None
+    if time.time() - float(stamp) > SERVICE_CACHE_SECONDS:
+        return None
+    receipt = payload.get("receipt")
+    return receipt if isinstance(receipt, dict) else None
+
+
+def _write_service_cache(
+    root: Path, provider: str, kind: str, receipt: dict[str, Any]
+) -> None:
+    path = _service_cache_path(root, provider, kind)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps({"stamp": time.time(), "receipt": receipt}, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass
+
+
 def _ensure_media_server(provider: str, root: Path) -> dict[str, Any]:
+    cached = _read_service_cache(root, provider, "server")
+    if cached is not None:
+        return cached
     script = root / "Scripts" / "verification" / "ensure_test_services.py"
     completed = subprocess.run(
         [sys.executable, str(script), "--service", provider],
@@ -324,7 +377,7 @@ def _ensure_media_server(provider: str, root: Path) -> dict[str, Any]:
     ok = completed.returncode == 0 and any(
         action in {"found", "started", "configured"} for action in actions
     )
-    return {
+    result = {
         "kind": "media-server",
         "provider": provider,
         "ok": ok,
@@ -336,6 +389,9 @@ def _ensure_media_server(provider: str, root: Path) -> dict[str, Any]:
         ),
         "receipt": receipt,
     }
+    if ok:
+        _write_service_cache(root, provider, "server", result)
+    return result
 
 
 def _safe_name(value: Any) -> str:
@@ -500,7 +556,7 @@ def _dispatch(
     if step.verb == "device.stage-identity":
         return _run_stage_identity(step, root, plan)
     if step.verb == "static.structural-test":
-        return _run_structural_test(step, root)
+        return _run_structural_test(step, root, plan)
     if step.verb == "device.viewing-storage":
         return _run_viewing_storage(step, root, plan)
     if step.verb == "device.source-facts":
@@ -549,7 +605,21 @@ def _await_matches(observed: dict[str, str], field: str, expected: Any, mode: st
     return value == expected
 
 
-def _wait_for_hierarchy(root: Path, target: str, seconds: float = 15.0) -> None:
+SIMULATOR_UDID = re.compile(
+    r"^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$"
+)
+
+
+def _is_simulator_target(target: str) -> bool:
+    return bool(target) and SIMULATOR_UDID.match(target) is not None
+
+
+def _hierarchy_ready(
+    root: Path,
+    target: str,
+    seconds: float = 15.0,
+    reject_modals: bool = False,
+) -> bool:
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
         answer = _daemon_request(
@@ -565,33 +635,41 @@ def _wait_for_hierarchy(root: Path, target: str, seconds: float = 15.0) -> None:
         payload = (answer.get("value") or {}).get("payload") or {}
         hierarchy = payload.get("hierarchy")
         if isinstance(hierarchy, str) and len(hierarchy) > 200:
-            return
+            if not reject_modals or not any(
+                marker in hierarchy for marker in (" Sheet,", " Alert,")
+            ):
+                return True
         time.sleep(0.25)
+    return False
+
+
+def _wait_for_hierarchy(root: Path, target: str, seconds: float = 15.0) -> None:
+    _hierarchy_ready(root, target, seconds)
 
 
 def _clear_session_state(root: Path, target: str) -> None:
-    try:
-        _daemon_request(
-            root,
-            {
-                "op": "invoke",
-                "action": "app-command",
-                "verb": "batch",
-                "arguments": {
-                    "calls": json.dumps(
-                        [
-                            {"verb": "leavePlayback", "arguments": {}},
-                            {"verb": "exitSpatial", "arguments": {}},
-                            {"verb": "resetMediaNavigation", "arguments": {}},
-                        ]
-                    )
+    for verb in ("exitSpatial", "leavePlayback", "resetMediaNavigation"):
+        try:
+            _daemon_request(
+                root,
+                {
+                    "op": "invoke",
+                    "action": "app-command",
+                    "verb": verb,
+                    "arguments": {},
                 },
-            },
-            target,
-            timeout=60,
-        )
+                target,
+                timeout=60,
+            )
+        except OSError:
+            pass
+    if _hierarchy_ready(root, target, seconds=3.0, reject_modals=True):
+        return
+    try:
+        _daemon_request(root, {"op": "restart"}, target, timeout=300)
     except OSError:
-        pass
+        return
+    _hierarchy_ready(root, target, seconds=30.0, reject_modals=True)
 
 
 def _dispatch_daemon(
@@ -638,7 +716,7 @@ def _dispatch_daemon(
         answer = _daemon_request(root, request, target)
         attempts = 8 if _absent(answer) else 3
         for _ in range(attempts):
-            if _settled(answer):
+            if answer.get("kind") == "result" and _settled(answer):
                 break
             time.sleep(0.5)
             answer = _daemon_request(root, request, target)
@@ -714,21 +792,73 @@ def _dispatch_daemon(
                 },
             }
     elif step.verb == "device.capture-frames":
-        flags: list[str] = ["--output-directory", str(steps_directory)]
-        if step.args.get("count") is not None:
-            flags.extend(["--count", str(step.args["count"])])
-        if step.args.get("intervalMs") is not None:
-            flags.extend(["--interval-milliseconds", str(step.args["intervalMs"])])
-        answer = _daemon_request(
-            root,
-            {
-                "op": "invoke",
-                "action": "screenshotBurst",
-                "identifier": step.args.get("identifier"),
-                "flags": flags,
-            },
-            target,
-        )
+        answer: dict[str, Any] | None = None
+        if _is_simulator_target(target):
+            count = max(1, int(step.args.get("count") or 1))
+            interval = max(0.0, float(step.args.get("intervalMs") or 0) / 1000.0)
+            captured = time.monotonic()
+            written: list[str] = []
+            host_error = ""
+            staging = Path(tempfile.mkdtemp(prefix="enchron-frames-"))
+            try:
+                for index in range(count):
+                    staged = staging / f"frame-{index:02d}.png"
+                    completed = subprocess.run(
+                        [
+                            "xcrun",
+                            "simctl",
+                            "io",
+                            target,
+                            "screenshot",
+                            "--type=png",
+                            str(staged),
+                        ],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if completed.returncode != 0:
+                        host_error = (completed.stderr or completed.stdout).strip()
+                        break
+                    destination = steps_directory / f"{step.index:02d}-frame-{index:02d}.png"
+                    shutil.move(str(staged), str(destination))
+                    written.append(str(destination))
+                    if interval > 0 and index + 1 < count:
+                        time.sleep(interval)
+            finally:
+                shutil.rmtree(staging, ignore_errors=True)
+            if written:
+                elapsed = int((time.monotonic() - captured) * 1000)
+                answer = {
+                    "kind": "result",
+                    "value": {
+                        "ok": True,
+                        "detail": f"Captured {len(written)} frames over {elapsed} ms.",
+                        "payload": {"frames": written},
+                    },
+                }
+        if answer is None:
+            if host_error:
+                try:
+                    log = steps_directory.parent.parent / "host-capture.log"
+                    with log.open("a", encoding="utf-8") as handle:
+                        handle.write(f"{steps_directory.name} step {step.index}: {host_error}\n")
+                except OSError:
+                    pass
+            flags: list[str] = ["--output-directory", str(steps_directory)]
+            if step.args.get("count") is not None:
+                flags.extend(["--count", str(step.args["count"])])
+            if step.args.get("intervalMs") is not None:
+                flags.extend(["--interval-milliseconds", str(step.args["intervalMs"])])
+            answer = _daemon_request(
+                root,
+                {
+                    "op": "invoke",
+                    "action": "screenshotBurst",
+                    "identifier": step.args.get("identifier"),
+                    "flags": flags,
+                },
+                target,
+            )
     elif step.verb == "device.await":
         probe = str(step.args.get("probe") or "")
         field = str(step.args.get("field") or "")
@@ -801,7 +931,11 @@ def _dispatch_daemon(
                 value = answer.get("value", {})
                 payload = value.get("payload") or {}
                 hierarchy = payload.get("hierarchy")
-                if isinstance(hierarchy, str):
+                if isinstance(hierarchy, str) and field == "identifierPrefix":
+                    if re.search(rf"identifier: '{re.escape(str(expected))}", hierarchy):
+                        reached = True
+                        break
+                elif isinstance(hierarchy, str):
                     wanted = (
                         {str(name): str(value) for name, value in expected.items()}
                         if isinstance(expected, dict)
@@ -1054,8 +1188,6 @@ def _run_fault_source(
 def _restore_active_recipe(controller) -> None:
     status = controller.status()
     active_recipe = str(status.get("recipe", "healthy"))
-    if active_recipe == "healthy":
-        return
     generation = int(status.get("generation", 0))
     for candidate in (generation, generation - 1):
         try:
@@ -1063,6 +1195,8 @@ def _restore_active_recipe(controller) -> None:
             return
         except Exception:
             continue
+    if active_recipe == "healthy":
+        return
     controller.stop()
     controller.ensure()
 
@@ -1077,9 +1211,54 @@ def _display_fingerprint(fingerprint: str) -> str:
     return ":".join(pairs)
 
 
-def _trust_certificate(device: str, address: str, fingerprint: str) -> None:
+def _certificate_already_trusted(
+    device: str, host: str, expected: str
+) -> bool:
+    completed = subprocess.run(
+        [
+            "xcrun",
+            "simctl",
+            "spawn",
+            device,
+            "defaults",
+            "read",
+            transport.APP_BUNDLE_ID,
+            f"server-certificate-fingerprint.{host}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return False
+    return completed.stdout.strip() == expected
+
+
+def _trust_certificate(
+    root: Path, device: str, address: str, fingerprint: str
+) -> None:
     fingerprint = _display_fingerprint(fingerprint)
-    for host in _address_hosts(address):
+    hosts = _address_hosts(address)
+    if hosts and all(
+        _certificate_already_trusted(device, host, fingerprint) for host in hosts
+    ):
+        return
+    if hosts:
+        answer = _daemon_request(
+            root,
+            {
+                "op": "invoke",
+                "action": "app-command",
+                "verb": "trustCertificate",
+                "arguments": {
+                    "addresses": ",".join(hosts),
+                    "fingerprint": fingerprint,
+                },
+            },
+            device,
+        )
+        if answer.get("kind") == "result" and (answer.get("value") or {}).get("ok"):
+            return
+    for host in hosts:
         subprocess.run(
             [
                 "xcrun",
@@ -1125,8 +1304,53 @@ def _structural_commands() -> dict[str, tuple[str, ...]]:
     return STRUCTURAL_CHECKS
 
 
+STRUCTURAL_PREFETCH: dict[tuple[str, int], subprocess.Popen[str]] = {}
+
+
+def _prefetch_structural(
+    plan: Plan, root: Path
+) -> dict[tuple[str, int], subprocess.Popen[str]]:
+    commands = _structural_commands()
+    environment = dict(os.environ)
+    environment.setdefault(
+        "DEVELOPER_DIR", "/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer"
+    )
+    started: dict[tuple[str, int], subprocess.Popen[str]] = {}
+    for step in plan.steps:
+        if step.verb != "static.structural-test":
+            continue
+        command = commands.get(str(step.args.get("check", "")))
+        if command is None:
+            continue
+        process = subprocess.Popen(
+            list(command),
+            cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=environment,
+        )
+        key = (plan.digest, step.index)
+        STRUCTURAL_PREFETCH[key] = process
+        started[key] = process
+    return started
+
+
+def _discard_prefetch(
+    started: dict[tuple[str, int], subprocess.Popen[str]]
+) -> None:
+    for key, process in started.items():
+        STRUCTURAL_PREFETCH.pop(key, None)
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                process.kill()
+
+
 def _run_structural_test(
-    step: Step, root: Path
+    step: Step, root: Path, plan: Plan | None = None
 ) -> tuple[dict[str, Any] | None, bool, str]:
     check = str(step.args.get("check", ""))
     commands = _structural_commands()
@@ -1137,14 +1361,27 @@ def _run_structural_test(
     environment.setdefault(
         "DEVELOPER_DIR", "/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer"
     )
-    completed = subprocess.run(
-        list(command),
-        cwd=root,
-        capture_output=True,
-        text=True,
-        timeout=900,
-        env=environment,
-    )
+    process = None
+    if plan is not None:
+        process = STRUCTURAL_PREFETCH.get((plan.digest, step.index))
+    if process is not None:
+        try:
+            stdout, stderr = process.communicate(timeout=900)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+        completed = subprocess.CompletedProcess(
+            list(command), process.returncode, stdout, stderr
+        )
+    else:
+        completed = subprocess.run(
+            list(command),
+            cwd=root,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=environment,
+        )
     payload = {
         "check": check,
         "command": " ".join(command),
@@ -1227,7 +1464,7 @@ def _run_source_facts(
         fingerprint = str(runtime_payload.get("certificateFingerprint") or "")
     if step.args.get("trust") is True and fingerprint:
         device = plan.target or _probe_target()
-        _trust_certificate(device, address, fingerprint)
+        _trust_certificate(root, device, address, fingerprint)
     credentials = _environment_credentials(root, provider)
     payload = {
         "url": address,
@@ -1276,7 +1513,7 @@ def _run_connect_source(
                 break
     device = plan.target or _probe_target()
     if fingerprint:
-        _trust_certificate(device, address, fingerprint)
+        _trust_certificate(root, device, address, fingerprint)
     recipe = str(step.args.get("recipe") or "")
     if recipe:
         try:

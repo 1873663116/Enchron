@@ -166,6 +166,21 @@
       "verb": "device.command",
       "args": {
         "action": "tap",
+        "label": "Enchron Regression Emby"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "label": "Enchron Regression Series, poster",
+        "labelPrefix": "Enchron Regression Series"
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
         "identifier": "Emby-Episode-",
         "identifierPrefix": "Emby-Episode-",
         "waitMilliseconds": 1200

@@ -71,6 +71,8 @@ Red refuses the merge. The only way through is an override record on main naming
 
 A generated catalog unit establishes each case with product commands instead of a relaunch: `leavePlayback`, `resetState`, re-import of the staged media and `playMedia`. A relaunch stays only where `Config/console/cold-start-cases.json` declares that the claim needs a cold start. `python3 Scripts/console/catalog_units.py --restarts` prints every declaration. A unit that records more than one case carries its case keys and starts; a case run is the reproducible form of a failed catalog case.
 
+`device.connect-source` re-injects the fixture certificate inside the app process and ends at the Files root; the unit then taps the source row exactly once. Settings menus use `selectMenuItem` with `host=settings` instead of a menu tap chain.
+
 ## Debugging
 
 `console op VERB --args '{...}'` runs one operation and prints its result, duration and a short state summary. `--session NAME` records the operation, with its payload, under `.scratch/console/debug/NAME/`. A debugging operation never writes under `TestEvidence` and never enters the reuse index.

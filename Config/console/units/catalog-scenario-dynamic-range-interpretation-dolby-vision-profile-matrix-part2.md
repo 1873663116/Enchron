@@ -84,6 +84,16 @@
       }
     },
     {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
       "verb": "device.command",
       "args": {
         "action": "tap",
@@ -163,6 +173,16 @@
           "directory": "scenario-dynamic-range-interpretation-dolby-vision-profile-matrix",
           "entry": "root"
         }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
       }
     },
     {
@@ -252,7 +272,7 @@
     },
     {
       "key": "dv-profile-10",
-      "start": 14
+      "start": 15
     }
   ]
 }

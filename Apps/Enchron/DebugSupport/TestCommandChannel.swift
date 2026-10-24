@@ -1437,6 +1437,24 @@ final class TestCommandChannel {
                 ]
             )
 #endif
+        case "trustCertificate":
+            guard let addresses = request.args["addresses"], addresses.isEmpty == false,
+                  let fingerprint = request.args["fingerprint"], fingerprint.isEmpty == false
+            else {
+                throw CommandError(
+                    message: "trustCertificate requires addresses and fingerprint."
+                )
+            }
+            let trusted = addresses.split(separator: ",").map(String.init)
+            for address in trusted {
+                defaults.set(fingerprint, forKey: "server-certificate-fingerprint.\(address)")
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: trusted.map { "trusted=\($0)" }
+            )
         case "toggleControls":
             let requestedVisibility = request.args["visible"].flatMap(Bool.init)
             if requestedVisibility == nil || requestedVisibility != playbackSession.showControls {
@@ -1608,6 +1626,7 @@ final class TestCommandChannel {
                 )
             }
             let result = await fileBrowser.connectToDataSource(dataSource, credential: credential)
+            await fileBrowser.useDefaultFolder()
             SurfaceInputProbes.record(
                 "testcmd connectWebDAV url=\(address) result=\(String(describing: result))",
                 retention: .evidence
@@ -1738,6 +1757,7 @@ final class TestCommandChannel {
             appModel.selectedTab = .files
             mediaLibrary.navigateToRoot()
             mediaLibraryUIState.viewMode = .grid
+            fileBrowser.searchText = ""
             var summary = ["tab=files", "viewMode=grid"]
             if request.args["clear"] == "true" {
                 let removedReferences = allReferences
@@ -1904,6 +1924,7 @@ final class TestCommandChannel {
                 defaults.removeObject(forKey: key)
             }
             mediaLibraryUIState.viewMode = .grid
+            fileBrowser.searchText = ""
             var createdFolderNames: [String] = []
             if let folderName = request.args["libraryFolder"],
                folderName.isEmpty == false {
