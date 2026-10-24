@@ -181,7 +181,8 @@ public final class MoonlightStreamSession: NSObject, @unchecked Sendable {
             assembleMaxMs: Int(stats.assembleMaxMs),
             queueWaitMaxMs: Int(stats.queueWaitMaxMs),
             callbackMaxMs: Int(stats.callbackMaxMs),
-            pendingMax: Int(stats.pendingMax)
+            pendingMax: Int(stats.pendingMax),
+            decoderQos: Int(stats.decoderQos)
         )
     }
 }

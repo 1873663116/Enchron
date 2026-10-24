@@ -143,6 +143,7 @@ public struct MoonlightVideoStats: Sendable {
     public var queueWaitMaxMs: Int
     public var callbackMaxMs: Int
     public var pendingMax: Int
+    public var decoderQos: Int
 }
 
 public enum MoonlightClientError: Error, Sendable {

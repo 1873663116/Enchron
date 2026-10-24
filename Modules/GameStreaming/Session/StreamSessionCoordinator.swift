@@ -1638,6 +1638,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " queueWaitMaxMs=\(stats?.queueWaitMaxMs ?? 0)"
                 + " callbackMaxMs=\(stats?.callbackMaxMs ?? 0)"
                 + " pendingMax=\(stats?.pendingMax ?? 0)"
+                + " decoderQos=0x\(String(stats?.decoderQos ?? 0, radix: 16))"
                 + " ptsGap=\(gapDelta.ptsGap)"
                 + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
                 + " leadAvgMs=\(String(format: "%.1f", governorSecondLeads.isEmpty ? 0 : governorSecondLeads.reduce(0, +) / Double(governorSecondLeads.count)))"

@@ -126,6 +126,7 @@ public struct BackendVideoStats: Sendable {
     public var queueWaitMaxMs: Int
     public var callbackMaxMs: Int
     public var pendingMax: Int
+    public var decoderQos: Int
     public var framesWithHostProcessingLatency: Int
     public var averageHostProcessingLatencyMs: Double?
     public var measuredIntervalSeconds: Double
@@ -144,7 +145,8 @@ public struct BackendVideoStats: Sendable {
         assembleMaxMs: Int = 0,
         queueWaitMaxMs: Int = 0,
         callbackMaxMs: Int = 0,
-        pendingMax: Int = 0
+        pendingMax: Int = 0,
+        decoderQos: Int = 0
     ) {
         self.receivedFrames = receivedFrames
         self.networkDroppedFrames = networkDroppedFrames
@@ -157,6 +159,7 @@ public struct BackendVideoStats: Sendable {
         self.queueWaitMaxMs = queueWaitMaxMs
         self.callbackMaxMs = callbackMaxMs
         self.pendingMax = pendingMax
+        self.decoderQos = decoderQos
         self.framesWithHostProcessingLatency = framesWithHostProcessingLatency
         self.averageHostProcessingLatencyMs = averageHostProcessingLatencyMs
         self.measuredIntervalSeconds = measuredIntervalSeconds

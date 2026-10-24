@@ -80,6 +80,7 @@ static void recordDecodeUnitTiming(PDECODE_UNIT decodeUnit, uint64_t entryUs, ui
     if (pending > currentVideoStats.pendingMax) {
         currentVideoStats.pendingMax = pending;
     }
+    currentVideoStats.decoderQos = (int)qos_class_self();
 }
 
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)

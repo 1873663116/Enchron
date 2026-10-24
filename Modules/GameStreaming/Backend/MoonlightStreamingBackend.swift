@@ -438,7 +438,8 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
             assembleMaxMs: stats.assembleMaxMs,
             queueWaitMaxMs: stats.queueWaitMaxMs,
             callbackMaxMs: stats.callbackMaxMs,
-            pendingMax: stats.pendingMax
+            pendingMax: stats.pendingMax,
+            decoderQos: stats.decoderQos
         )
     }
 

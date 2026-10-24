@@ -23,6 +23,7 @@ typedef struct {
     int queueWaitMaxMs;
     int callbackMaxMs;
     int pendingMax;
+    int decoderQos;
 } video_stats_t;
 
 @interface MLCConnection : NSOperation
