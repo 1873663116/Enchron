@@ -216,6 +216,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
         observeRenderingEvents()
         startDiagnosticsTimer()
+        StreamStallWatch.shared.start()
 
         publishActivity(.launching)
         StreamSessionProbes.record(
@@ -268,6 +269,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             guard !isStopped(snapshotStorage.state) else { return }
             snapshotStorage.state = .stopping
         }
+        StreamStallWatch.shared.stop()
         publishSnapshot()
 
         StreamSessionProbes.record(
@@ -1645,6 +1647,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " callbackMaxMs=\(stats?.callbackMaxMs ?? 0)"
                 + " pendingMax=\(stats?.pendingMax ?? 0)"
                 + " decoderQos=0x\(String(stats?.decoderQos ?? 0, radix: 16))"
+                + " \(StreamStallWatch.shared.drain())"
                 + " ptsGap=\(gapDelta.ptsGap)"
                 + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
                 + " leadAvgMs=\(String(format: "%.1f", governorSecondLeads.isEmpty ? 0 : governorSecondLeads.reduce(0, +) / Double(governorSecondLeads.count)))"
