@@ -1,7 +1,3 @@
-//
-//  MLCHttpResponse.m
-//  Adapted from moonlight-ios Limelight/Network/HttpResponse.m at 02dc9780.
-//
 
 #import "MLCHttpResponse.h"
 @import libxml2;
@@ -66,8 +62,6 @@
     }
 
     if (self.statusCode == -1 && [self.statusMessage isEqualToString:@"Invalid"]) {
-        // Special case handling an audio capture error which GFE doesn't
-        // provide any useful status message for.
         self.statusCode = 418;
         self.statusMessage = @"Missing audio capture device. Reinstalling GeForce Experience should resolve this error.";
     }

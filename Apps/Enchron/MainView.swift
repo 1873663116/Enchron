@@ -409,7 +409,7 @@ public struct MainView: View {
         do {
             try playbackRuntime.beginExternalVideoSession(
                 sessionID: binding.sessionID.rawValue,
-                renderer: binding.videoRenderer
+                renderer: PlaybackExternalVideoRenderer(renderer: binding.videoRenderer)
             )
         } catch {
             logger.error(

@@ -44,8 +44,6 @@ if [[ ! -f "$SOURCE/.enchron-source-ready" ]]; then
   tar -xf "$BLURAY_ARCHIVE" -C "$staging" --strip-components=1
   udf_staging="$(mktemp -d "$BUILD_ROOT/udfread.XXXXXX")"
   tar -xf "$UDF_ARCHIVE" -C "$udf_staging" --strip-components=1
-  # The release bundle includes a copy of libudfread. Replace it with the
-  # separately pinned upstream archive so both inputs have explicit hashes.
   rm -rf "$staging/contrib/libudfread"
   mv "$udf_staging" "$staging/contrib/libudfread"
   patch -d "$staging" -p1 < "$PATCH"

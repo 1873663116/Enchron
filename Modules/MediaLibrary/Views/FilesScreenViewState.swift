@@ -31,7 +31,6 @@ enum FilesScreenFileImportAction: Equatable, Sendable {
 
 public enum FilesScreenProductEntry: Equatable, Sendable {
     case fileImporter(FilesScreenFileImportKind)
-    case photos
 }
 
 public typealias FilesScreenProductEntryCompletion = @MainActor (
@@ -82,7 +81,6 @@ public enum FilesScreenBreadcrumbKind: String, Equatable, Sendable {
 
 public enum FilesScreenManageAction: String, CaseIterable, Equatable, Sendable {
     case addFiles
-    case addPhotos
     case addFolder
     case newFolder
     case selectMultiple
@@ -90,7 +88,6 @@ public enum FilesScreenManageAction: String, CaseIterable, Equatable, Sendable {
     var title: String {
         switch self {
         case .addFiles: "Add Files"
-        case .addPhotos: "Add from Photos"
         case .addFolder: "Add Folder"
         case .newFolder: "New Library Folder"
         case .selectMultiple: "Select Multiple"

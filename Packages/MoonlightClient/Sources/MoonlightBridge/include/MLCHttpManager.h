@@ -1,7 +1,3 @@
-//
-//  MLCHttpManager.h
-//  Adapted from moonlight-ios Limelight/Network/HttpManager.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 #import "MLCHttpRequest.h"

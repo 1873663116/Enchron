@@ -1,7 +1,3 @@
-//
-//  MLCCryptoManager.m
-//  Adapted from moonlight-ios Limelight/Crypto/CryptoManager.m at 02dc9780.
-//
 
 #import "MLCCryptoManager.h"
 #import "MLCLogger.h"

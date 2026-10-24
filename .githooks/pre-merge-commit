@@ -1,0 +1,26 @@
+#!/bin/zsh
+
+set -euo pipefail
+
+repository_root=$(git rev-parse --show-toplevel)
+cd "$repository_root"
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+[[ "$branch" == "main" ]] || exit 0
+
+(
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
+      GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX \
+      GIT_QUARANTINE_PATH
+
+eval "$(bash "$repository_root/Scripts/ci/prepare.sh" shell --emit)"
+python3 "$repository_root/Scripts/console/cli.py" merge check
+)
+
+status_file="$repository_root/.scratch/console/merge-gate/status.txt"
+if [[ -f "$status_file" ]]; then
+    merge_msg=$(git rev-parse --git-path MERGE_MSG)
+    if [[ -f "$merge_msg" ]]; then
+        printf '\nMerge-gate: %s\n' "$(cat "$status_file")" >> "$merge_msg"
+    fi
+fi

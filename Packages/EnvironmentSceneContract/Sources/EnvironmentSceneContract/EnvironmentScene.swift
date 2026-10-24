@@ -1,3 +1,4 @@
+import Foundation
 import RealityKit
 import simd
 
@@ -224,10 +225,12 @@ public protocol EnvironmentScene: AnyObject {
     func apply(_ appearance: EnvironmentAppearance, to root: Entity)
     func update(_ screen: EnvironmentScreenState?, in root: Entity)
     func setVideoPlaying(_ isPlaying: Bool, in root: Entity)
+    func advance(_ deltaTime: TimeInterval, in root: Entity)
 }
 
 extension EnvironmentScene {
     public func setVideoPlaying(_ isPlaying: Bool, in root: Entity) {}
+    public func advance(_ deltaTime: TimeInterval, in root: Entity) {}
 }
 
 public enum EnvironmentSceneLoadingError: Error, Equatable {

@@ -8,7 +8,7 @@ from pathlib import Path
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 FORBIDDEN_TOKENS = ("subprocess", "timeout=", "time.sleep", "time.monotonic", "devicectl")
 FORBIDDEN_TIME_NAMES = frozenset({"sleep", "monotonic"})
-EXEMPT_BASENAMES = ("interactive_visionpro_ui.py", "enchron_target.py")
+EXEMPT_BASENAMES = ("transport.py", "enchron_target.py")
 EXEMPT_PREFIX = "Scripts/verification/harness"
 
 
@@ -28,7 +28,11 @@ def load_allowlist() -> set[str]:
 
 
 def scan_roots() -> tuple[Path, ...]:
-    return (REPOSITORY_ROOT / "Scripts/verification", REPOSITORY_ROOT / "Scripts/regression")
+    return (
+        REPOSITORY_ROOT / "Scripts/verification",
+        REPOSITORY_ROOT / "Scripts/regression",
+        REPOSITORY_ROOT / "Scripts/console",
+    )
 
 
 def is_exempt(relative: str, allowlist: set[str]) -> bool:

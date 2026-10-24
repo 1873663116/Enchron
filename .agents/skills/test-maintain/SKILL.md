@@ -1,0 +1,397 @@
+---
+name: test-maintain
+description: Use when changing the console test infrastructure itself, proving it stays correct, or improving how fast a tier runs. Covers the module layout, the correctness argument, the measured baselines, and the acceptance checklist.
+---
+
+# Maintaining the test infrastructure
+
+The console is the only test entry in this repository. This skill covers changing it and proving the change is sound.
+
+## Layout
+
+`Scripts/console/cli.py` parses arguments and dispatches. It holds no verification logic.
+
+`Scripts/console/model.py` holds the frozen value types. No disk access.
+
+`Scripts/console/vocab.py` is the verb closed set. A verb carries its tier, the capabilities it needs, whether it occupies a lane, its parameters, the evidence it produces and its budget. Editing this file is the only change that needs a rebuild.
+
+`Scripts/console/loader.py` reads unit and feature files, and refuses a unit without a terminal.
+
+`Scripts/console/compile.py` turns a unit into a frozen plan. It is a pure function of values. Every definition error is decided here.
+
+`Scripts/console/machine.py` probes capabilities, or builds a synthetic profile so CI can compile Mac-only units on a Linux machine.
+
+`Scripts/console/engine.py` executes a plan, writes evidence and produces a report.
+
+`Scripts/console/guard.py` holds the single guardrail mechanism. The three guardrail kinds are data, not code paths.
+
+`Scripts/console/static_tier.py` wraps the existing checkers. The full text set and the eight-checker code-only lane both live here.
+
+`Scripts/console/merge_gate.py` runs the merge gate: CI, build and unit, classified against the declarations and override records main carries.
+
+`Scripts/console/ops.py` runs a single operation for debugging, records and replays debug sessions, and scaffolds a unit draft. It writes under `.scratch/console/debug/` and never under `TestEvidence`.
+
+`Scripts/console/build_tier.py` runs the build and unit tiers.
+
+`Scripts/console/daemon.py` holds the session, speaks the socket protocol, launches the runner, and recovers a dead runner.
+
+`Scripts/console/transport.py` speaks the runner protocol: command file, Darwin notification, response file. It also scopes runner processes to this worktree, so a run in another worktree is never touched. It stages host media into the app's `Documents/TestMediaInbox` for the import command.
+
+`Scripts/console/report.py` renders human and JSON output and owns the exit codes.
+
+Data lives in `Config/console/units/` and `Config/console/features/`.
+
+A generated catalog unit can pass alone and fail inside the catalog block: the block is sequence sensitive, so a green single run does not prove the tier is green.
+
+Scenario units come from `Regression/journeys/` through `Scripts/console/catalog_units.py`. A scenario whose operations no XCUITest lane can deliver goes into `Config/console/skipped-scenarios.json` and stays out of generation. Every other scenario enters generation only after a verification run passes: add its id to the operation-family set in `catalog_units.py` (`VERIFIED_PRESENTATION_SCENARIOS`, `VERIFIED_SEEK_SCENARIOS`, `VERIFIED_CLEAR_SCENARIOS`, `VERIFIED_RESET_SCENARIOS`), regenerate the units, and run the generated unit. A failing scenario keeps its id out of the set, so it reports in `--gaps` instead of shipping a red unit.
+
+A generated unit may carry `cases`: ordered `{key, start}` entries whose `start` is an action index. `console run UNIT --case KEY` keeps the steps before the first case and the selected case, gives the run its own digest and evidence name, and is the way to reproduce one catalog case in 10–30 seconds.
+
+The e2e tier clears playback, immersive space and media navigation state before every unit, and restarts the UI session after a failed unit so the next unit starts from a fresh app. After an `app.relaunch` action the engine waits until the app publishes a hierarchy again before it runs the next step, so a relaunch cannot race the following command. Emby lifecycle units run last because their server session does not tolerate another lane taking it. A failure costs a sixteen-second session restart plus the recovery commands; a clean unit pays only the state-clear round trip.
+
+Each unit pays its own certificate trust: `resetState` clears `server-certificate-fingerprint.*`, and the engine injects the fixture fingerprint with the `trustCertificate` app command inside the app process before `connectWebDAV`. `connectWebDAV` ends at the Files root, so the unit taps the source row exactly once; tapping an already open source row opens a second window and the XCUITest hierarchy sticks to the old scene. Frame evidence uses host `simctl io` screenshots staged under `/tmp`, falling back to the runner burst. The WebDAV fixture listens on every local address because `Mac-mini.local` can resolve to loopback. `device.fault-source` restores a leftover receipt before activating. Service and source receipts are cached for 180 seconds, and `static.structural-test` starts before the device steps so it overlaps them. Settings menus are selected with `selectMenuItem` and `host=settings`.
+
+`Config/console/cold-start-cases.json` maps every `operation:app.relaunch` in `Regression/journeys/` to a cold-start or isolation decision. The translator keeps only declared cold starts; every isolation case establishes its start with `leavePlayback`, `resetState`, a re-import and `playMedia`. `python3 Scripts/console/catalog_units.py --restarts` prints the audit and fails on an undeclared or stale entry.
+
+Form scenarios fill the product's source connection sheet from `device.source-facts` runtime facts and then tap Connect followed by whichever trust or save-password control appears; the unit never pre-writes the certificate fingerprint, because the point is the product's own connection path. A scenario whose evidence needs the certificate trust prompt does not run on the simulator lane: the simulator trusts the fixture certificate, so the product accepts the first connection silently.
+
+Track rows in the playback menus are not addressable through the XCUITest tree on the simulator, so the translator selects them with the debug app command `selectMenuItem` (`host=playerUI` or `host=playerPanel`, `family=audio|subtitles|speed|episodes`, `target=item id`); confirm through the control plane fields `audioTrack`, `subtitleTrack` and `subtitleCues`. Reopening remote media after a relaunch goes back to the source sidebar before the grid, never through a local library identifier. Two adjacent format applications need the `portal` presentation to land between them, otherwise the second rebuild fails with `rendererTransferPending`.
+
+Typed playback issues come from real server faults, never from a debug switch: activate a WebDAV recipe, force a read by seeking to 92 percent, then wait for the issue title and slot actions. The generic playback failure reports `error=playbackFailed` while its title is `Playback Error`, so units discriminate the typed slot by title plus the presence or absence of primary, secondary and confirm actions; a rotated certificate produces the `Server Certificate Changed` alert whose only action is the secondary `Close`.
+
+Playback menu items render without accessibility identifiers on the simulator while the menu is open, so subtitle rows are selected with `selectMenuItem`; the third-party sidecar labels are the staged file names and the Emby external stream label is `English (SRT)`. Remote sidecar discovery only sees files when the directory PROPFIND URL keeps its collection trailing slash, so the WebDAV adapter appends the slash for listing requests and any reappearing 404 on a directory request means that invariant broke.
+
+Translation keeps three ownership facts that cost runs to rediscover: a remote source is selected by the sidebar row's identifier prefix (`FileBrowsing-SourcesSidebar-source-`, index 1 for the single data source after Local Files) because its label also names the breadcrumb; the settings screen is left through the Files tab, which restores the browsing state where `device.home` would reset it to the library root; and staged fixtures are staged as a folder for folder navigation flows and as files at the library root otherwise, while remote-source media is never staged locally.
+
+The appearance transition in a scene is driven by `EnvironmentScene.advance`; the Tidal scene forwards it to its runtime, and an offscreen renderer calls it directly because it has no frame loop.
+
+`cli.py inspect <unit>` reads the last run and lists, for the failing step, the element it wanted and the identifiers the app actually showed, ranked by closeness. It needs no device.
+
+`device.probe` fails when no element carries the identifier it names, so a probe cannot pass without proving the element exists.
+
+`Config/console/known-failures.md` declares a defect that predates the console: an entry names a unit and a phrase the failing step must contain, and a run that matches reports the verdict `known` with exit code 7 instead of turning the tier red. Delete the entry when the defect is gone.
+
+`"isolation": "clean-library"` makes the compiler put a `clearMediaLibrary` command right after the session step, so every unit starts from an empty library instead of whatever the last run left behind.
+
+A unit may declare `teardown`, steps that run whether the earlier steps passed or failed; put library cleanup there so a failed run cannot leave a big library that slows every later command.
+
+`device.home` leaves playback and brings the library home to the front, so a unit never depends on the screen the previous unit left behind.
+
+A unit may declare `preconditions: [{kind: media-progress}]` to give the seeded episodes the viewing progress a home journey needs.
+
+`device.command` takes `label` and `labelPrefix`. The exact label wins; when it is absent the harness taps the first element whose label starts with the prefix.
+
+`device.await` also takes `equals` as an object of field names to values, so one probe can wait for several control plane fields at once.
+
+`device.await` takes `probe: element` with `field` set to `identifier` or `label` and waits until that element appears in the hierarchy. Use it before tapping anything a menu just revealed.
+
+A tap that misses because the element is not yet hittable is retried three times. A drain of the DEBUG probe journal is answered by one relaunch and one retry.
+
+Installing a new app build retires the runner session. Stop the daemon, delete `.console/session-*.json`, start it again, and run one unit before trusting any other.
+
+A session that dies mid run is re-ensured and the command retried once, and a daemon socket that is gone is rebuilt before the next request.
+
+The daemon keeps the code it started with. After editing anything it runs, stop it and start it again; `daemon stop` kills the process and waits for it to go.
+
+A unit whose subject is playback, not browsing, opens media with the `playMedia` app command instead of tapping the tab, the folder, and the card; that saves three taps per unit.
+
+`device.app-commands` runs a list of app commands in one round trip; three ping commands cost about as much as one.
+
+`device.command` takes `waitMilliseconds`, so a tap waits for the element instead of a separate await step.
+
+A step may carry `capture`, a map from payload field to name. A later step reads that name as `"$name"` in any argument string. The compiler refuses a reference that no earlier step captures (`C018`) and a name captured twice.
+
+A unit may carry `pace`: `fast`, `slow` or `catalog`. `console tier e2e --quick` runs the fast ones, the plain tier runs fast and slow, and `--full` adds the catalog ones a scenario generated. `console tier e2e --quick` runs the fast ones only; the media-import and playback units are slow.
+
+A unit may carry `preconditions`, the closed set of environment checks that must hold before the first step. `media-server` resolves one provider through `Scripts/verification/ensure_test_services.py`; the run records the receipt in `preconditions.json` and stops with verdict `precondition` when one is unmet.
+
+## The state machine
+
+Three machines run at once: the operator's process, the resident daemon, and the
+runner. Only the daemon outlives one command. Read this before debugging anything
+that behaves differently on the second run.
+
+### One `console run`
+
+```
+  argv
+   │
+   ├─ LoadRefusal (C001–C015) ──> exit 3 or 4, nothing started
+   ▼
+  compiled plan ────────────────> plan.json written
+   │
+   ▼
+  step loop, one step at a time, never in parallel
+   │        │
+   │        ├─ static.check ──> checker subprocess ──> exit code
+   │        └─ device.*     ──> daemon ──> transport ──> runner
+   │
+   ├─ guardrail trips ──> verdict blocked, remaining steps skipped
+   ▼
+  terminal check, evaluated even when a step failed
+   │
+   ▼
+  verdict passed | failed | blocked ──> report.json, index.jsonl, exit code
+```
+
+The terminal check decides the verdict on its own. A failed step does not skip
+it, and a written artifact does not rescue a failed step. Both are recorded.
+
+### The daemon
+
+```
+  absent ──ensure_running──> starting ──ping answers──> listening
+     ▲                          │                          │
+     │                          └── no ping in 15 s ──────┘
+     │                                                     │
+     └──── no request for 900 s, halts the session ────────┘
+                                                           │
+     ┌─────────────────────────────────────────────────────┘
+     ▼
+  listening ──op=ensure──> holds a session ──op=invoke──> command in flight
+```
+
+The exit is measured from the last request, not from startup. A daemon in use
+does not exit.
+
+### The session
+
+```
+  none ──ensure──> launching ──ready.json published──> ready
+    ▲                  │                                  │
+    │                  └── 300 s without ready ───────────┤
+    │                                                     │
+    └────────── runner exited, or halt ───────────────────┘
+```
+
+`halt` kills every runner this worktree started before it launches another, so
+two runners never drive one device. The cost is that a second daemon claiming
+the same worktree kills the first one's session.
+
+A lane is one target device. Each target gets its own socket at
+`$TMPDIR/enchron-console-<digest>.sock`, derived from the worktree and the
+target, and its own `.console/session-<target>.json`. Two targets therefore run
+side by side from one worktree without touching each other. The socket lives
+outside the worktree because a Unix socket path stops working at about 100
+characters, and this repository's worktree paths are already long.
+
+Ownership lives in `.console/session-<target>.json`: the daemon records the pid it
+launched and the sessionID that runner published. A session counts as held only
+while that pid is alive, `ready.json` still names that session, and the two
+agree. Without the record, a stale `ready.json` plus any live runner reads as a
+held session and the next command fails.
+
+### What the states tell you
+
+| Symptom | State | Move |
+| --- | --- | --- |
+| `no daemon socket` | absent | `console daemon start` |
+| `the session is gone; ensure it again` | runner died while held | rerun; the next ensure relaunches |
+| Runs take 24 s every time | launching, never ready | check `.console/runner.log` |
+| Runs take 24 s after a good one | second daemon halted the first | run one daemon per worktree |
+| `blocked` with a guardrail name | guardrail tripped | raise the budget in the unit |
+| Passing step, failed terminal | artifact missing or empty | read the evidence directory |
+
+```bash
+python3 Scripts/console/cli.py daemon status
+python3 Scripts/console/cli.py daemon stop
+python3 Scripts/console/formal/run.sh
+```
+
+The last command checks the session machine against three promises. It needs a
+Java runtime, and it fetches `tla2tools.jar` on first use.
+
+## Where the seconds go
+
+Cold session bring-up measured 23 s. The split, from the runner log:
+
+| Phase | Cost |
+| --- | --- |
+| `halt` with nothing running | 0.2 s |
+| `xcodebuild` start to the runner process | 3.5 s |
+| XCUITest setting up the automation session | 4.0 s |
+| waiting for the app to go idle | 4.8 s |
+| finding the target application | 5.6 s |
+| first accessibility snapshot | 1.7 s |
+
+The app itself launches from `simctl` in 0.4 to 1.0 s. Everything after the
+runner process starts is XCUITest attaching to a large visionOS app, so no
+change to this repository makes that cheaper. The cost is paid once per session
+and then sits at 0.16 s per reuse, which is why the resident daemon exists.
+
+## Running lanes in parallel
+
+Three things are serial and stay serial: the steps inside one unit, the units
+inside one run, and the commands inside one daemon. Everything else can overlap.
+
+| Axis | State | Limit |
+| --- | --- | --- |
+| Checkers inside the static tier | serial, measurably 4x available | the longest single check sets the floor |
+| Device lane beside simulator lane | works now, one daemon per target | none observed |
+| Several simulators on one Mac | works now | needs an M-series Mac with 32 GB or more; this machine has 16 GB and must not |
+| Several Macs | works, each Mac is its own worktree and lane | none |
+| Several physical devices on one Mac | unverified | each needs its own daemon and its own provisioning |
+
+The tier is the axis worth taking next: 193 checks run one after another for
+364 s while the longest single check is 82 s. A fan-out needs to know which
+checks may sit beside another, because a check that boots a simulator or binds a
+port serialises with its peers.
+
+## Environment preparation
+
+`Scripts/ci/prepare.sh` is the only place that prepares a machine to run a
+check. Both workflows source it with `ci` from the tree they just checked out,
+the push hook and the three Xcode build phases take `shell --emit`, which prints
+the export lines they eval.
+
+The workflows own the four git commands that produce the tree — worktree, fetch,
+checkout — because the script cannot exist before the tree does. Everything
+after that comes from the script at the revision under test: the empty virtual
+environment under the workspace, the clean that keeps `.build`,
+`.scratch/DerivedData` and `.scratch/SourcePackages`, the vendored binary links,
+and the `.env` copy the full tier needs.
+
+Four details are load-bearing and look removable:
+
+- The virtual environment is created with `--without-pip` and an empty
+  `site-packages`. A stray `.pth` from an unrelated editable install points into
+  `~/Documents`, and every interpreter start blocked there for the whole job
+  budget. `PYTHONPATH` still reaches numpy and Pillow without making that
+  directory a site directory, which is what would execute the `.pth` again.
+- The three build directories survive the clean because deleting the 3.3 GB
+  tree costs more than the job's time budget on this volume.
+- `.env` is copied only for the full tier, with traps for `EXIT`, `INT` and
+  `TERM`, so a cancelled job still removes it. Only a `SIGKILL` escapes, and the
+  next run's clean is the backstop.
+- The main checkout is the git database the CI worktree hangs off, and the
+  source of the two vendored binaries. A cloud runner has neither, so it clones
+  and provisions them by a different path.
+
+## Reading a failure
+
+Every check carries three tags: the environment it needs, what its failure
+means, and who has to act. A failure line prints the last two, so the first
+token of a failure names the owner.
+
+| Axis | Values |
+| --- | --- |
+| environment | text, toolchain, simulator, services |
+| authority | blocking, reporting, precondition |
+| attribution | product, infrastructure, release |
+
+Registered checks take their tags from `CHECK_TAGS` in
+`Scripts/rules/run_verification.py`. A registered check without an entry is
+reported by `untagged` and fails its self-test. Discovered test checks inherit
+`DISCOVERED_TAGS`, and the few that need a live service override the environment
+through `DISCOVERED_TAGS_OVERRIDES`.
+
+Checks a quick run does not reach are listed under `unevaluated` rather than
+counted as passing.
+
+## Identity and credentials
+
+`Config/test_service_identities.json` names every variable that carries an
+identity and the service it belongs to. The registry holds names, never values.
+Values live in the environment or in `.env`, which is ignored.
+
+`Scripts/rules/verify_test_service_identities.py` reads the registry and reports
+three things: a variable that appears in the tree but not in the registry, a
+value from the environment found anywhere in the tree, and four credential
+shapes that need no registry at all — a private key block, a credential inside a
+URL, a literal authorization header, a certificate fingerprint.
+
+A new supplier is one registry entry. A supplier that is never registered fails
+on its first commit, which is the point: forgetting to maintain the registry is
+an error, not a silent gap.
+
+The identity classes in `check_no_literal_rfc1918.py` read the account name from
+`EMBY_USER`, `SMB_USER` and `WEBDAV_USER` instead of carrying the literal. When
+none is set, that scan reports nothing and the shape rules still run.
+
+## The correctness argument
+
+Three properties carry the design.
+
+**Definition errors are decided before any device, build or network touch.** `compile.py` takes only values. `plan check --all` therefore runs on any machine and reports every refusal without a Mac.
+
+**One unit per call is structural.** `run` and `plan compile` take a single positional unit. There is no `--all` on either. A batch can only exist where nothing executes.
+
+**The terminal is required.** A unit without one is refused at load with `C001`, not degraded at run time. Without it the guardrails cannot separate an expected confirmation from an unexpected one.
+
+To prove a change preserves these, run `python3 -m unittest discover -s Scripts/console/tests`. The suite asserts each refusal code, the single-unit rule and a clean compile.
+
+## Baselines
+
+Measured on this repository, 2026-10-21.
+
+`console` process startup, including stdlib imports, is about 40 ms.
+
+A unit compile is about 2 to 3 ms. `plan check --all` over the whole repository is single digit milliseconds per unit.
+
+The self-test suite runs in 0.43 s.
+
+`static` tier takes about 30 s when the changed paths force the tooling self-tests and about 6 s when they do not. It runs 170 checks; the longest single check is `test-merge-authority` at about 19 s.
+
+The branch carries the console plus every `main` commit it was built against, and it merges into `main` with no conflicts. Re-check after a merge that both baselines still pass, because code arriving from `main` can bring findings the console has never seen.
+
+`Config/swiftlint_baseline.json` holds a baseline so a build can pass on a tree that already broke a rule; a new finding fails, and one that disappears also fails until the baseline shrinks.
+
+The prose comment rule holds no baseline. Every first-party text file is scanned: Swift, C, Python, shell, YAML, plist and JSON. Exemptions come only from `Config/third_party_sources.json`, which lists the vendored paths and the provenance of adapted files; a license header outside that registry fails.
+
+Neither baseline hides debt. Widening one is refused, so the only way to clear an entry is to fix the code.
+
+Runner channel latency, for the e2e tier. A command round trip is 0.65 s. A snapshot is 1.23 s, a tap 2.04 s, typing 2.55 s. Bringing a session up is 59 s at the median and 263 s at the worst.
+
+A cold build for testing is about 103 s. Unit test execution is about 7 s for 686 tests. The build dominates; the tests are a rounding error.
+
+## Improving speed
+
+Measure before changing. The tier reports its own duration in every run and writes `last-run.json`, so take the number from a run rather than from a wrapper that re-times it.
+
+The measured shape of the static tier: 170 checks. When the changed paths force the tooling self-tests, the tier takes about 30 s wall; without them, about 6 s. The longest single check is `test-merge-authority` at about 19 s, which sets the slow-path floor. The fast path is set by the slowest scanner, so a scanner that costs several seconds on a one-line change is a defect in that scanner.
+
+Attack in this order. First the longest self-test that sets the slow-path floor. Then the slowest scanner on the fast path. Then the fan-out.
+
+Parallelism is available: the checks are independent processes. Any change here must keep one unit per call, so parallel fan-out belongs inside a tier, never across units. Not every check is safe to run beside another: one that boots a simulator or binds a port serialises with its peers, and the fan-out has to know which is which.
+
+The session is not the bottleneck it looks like. Bring-up costs 23 s cold and 0.16 s when the daemon already holds a session, so the fix for a slow e2e loop is a warm daemon, not a faster bring-up.
+
+Do not trade coverage for a headline number. The tier may be slower than its target and still be honest; a tier that skips checks to hit a number is worse than no tier.
+
+## Acceptance checklist
+
+The refactor is done when every line holds.
+
+- `console doctor` reports the tiers this machine can run, and names what is missing on one that cannot run them.
+- `console --machine linux tier build` exits 4 and names the missing capabilities.
+- `console plan check --tier static` runs with no Mac, no device and no build.
+- A unit with no terminal is refused with `C001`, at load, with no flag to override.
+- `console run UNIT UNIT` is a usage error.
+- Adding a unit, editing one, and removing one each have a path: a clean compile after the change, then one `run` that passes.
+- Removing a unit a feature still names reports `C012`. A unit no feature names reports `C013`.
+- Using a verb outside the vocabulary reports `C003` and says a recompile is needed.
+- A run writes evidence under `TestEvidence/console/<unit>/<stamp>/` with `plan.json`, `report.json` and `steps/`.
+- `index.jsonl` gains exactly one line per run.
+- `python3 -m unittest discover -s Scripts/console/tests` passes.
+- `python3 Scripts/rules/harness_primitives_gate.py` passes, with `Scripts/console` inside its scan roots.
+- `static` tier duration and its per-check breakdown are available from a real run.
+- A build runs `console tier static --code-only` before Sources, and a forbidden comment fails that build.
+- A commit runs `console plan check` and `console tier static --changed-staged`; a push runs them against the pushed range. The changed paths decide whether the tooling self-tests run.
+- A merge into main runs `console merge check` from the `pre-merge-commit` hook; the merge commit message carries the gate status.
+- A failed `run` prints the failing step, the planned expectation, the actual detail, the evidence directory and a rerun command.
+- `console op` writes only under `.scratch/console/debug/`; `console replay` reports operations whose outcome changed.
+- `console unit scaffold` output parses as a unit and needs an assertion and a feature reference before it joins the unit set.
+- Green and yellow allow the merge, a valid override allows it and records itself, and red aborts it.
+- Declarations and override records are read from main; a record added by the branch is inert until it lands on main.
+- The yellow count against main may shrink and never grow. An expired declaration or override is inert.
+- `console tier build` and `console tier unit` name the missing capability on a machine that cannot run them.
+- `console daemon start`, `status` and `stop` all answer, and a run adopts an already-live session in about 100 ms.
+
+## Traps
+
+The gate scans `Scripts/console` now. Any module using `subprocess` or a timing primitive past `time.monotonic` must be in `Config/harness_primitives_allowlist.json`.
+
+Adding a verb changes `vocab.py`, which is a rebuild. Adding a unit does not.
+
+The channel has no cross-process lock. Two concurrent writers to `Documents/test-commands` corrupt each other. Serialization must come from the caller staying one-at-a-time.
+

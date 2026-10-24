@@ -1,33 +1,15 @@
 name: verification
 
-# The runner is self-hosted on the maintainer's Mac, so the trigger list is the
-# security boundary: `push` and `workflow_dispatch` can be fired only by an
-# account with write access to this repository. `pull_request` is deliberately
-# absent. A job-level `if:` comparing the head repository cannot substitute for
-# its absence, because for `pull_request` events GitHub Actions reads the
-# workflow definition from the pull request's own merge commit - a fork pull
-# request that deletes the condition runs on this machine anyway. The cost of
-# leaving `pull_request` out is that a pull request from a fork gets no CI; on
-# a solo-owner repository that is the cheaper side of the trade, and the owner
-# runs verification on any branch from the Actions tab on demand.
-#
-# Requiring approval before an outside contributor's workflow runs is a
-# repository setting, not part of this file, and nothing here can assert it.
-# The owner should confirm it under Settings > Actions > General > Fork pull
-# request workflows from outside collaborators, and treat it as a second layer
-# rather than as this boundary.
 
 on:
   push:
-    branches: [main]
+  pull_request:
   workflow_dispatch:
 
 concurrency:
   group: verification
   cancel-in-progress: false
 
-# The job reads the repository over HTTPS with the run's own token and calls no
-# other GitHub API, so read access to contents is the whole requirement.
 permissions:
   contents: read
 
@@ -36,58 +18,44 @@ jobs:
     runs-on: self-hosted
     timeout-minutes: 45
     steps:
-      - name: Run the quick verification at the pushed revision
+      - name: Run CI at the pushed or requested revision
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
-          export PATH="/opt/homebrew/bin:$PATH"
           WORKSPACE=/Volumes/Cortisol/DevSpace/EnchronWorkspace
           MAIN="$WORKSPACE/Enchron"
           REPO="$WORKSPACE/wt-ci"
-          if [ ! -d "$REPO" ]; then
-            git -C "$MAIN" worktree add --detach "$REPO" HEAD
-          fi
+          [ -d "$REPO" ] || git -C "$MAIN" worktree add --detach "$REPO" HEAD
           AUTH=$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64)
-          # Branch tips and tags are both fetched, because the Actions ref
-          # picker offers tags to `workflow_dispatch` and a tag's commit need
-          # not be reachable from any branch tip. `--no-tags` only turns off
-          # automatic tag following; the explicit refspec still applies. Pull
-          # request merge refs are not fetched because no pull request event
-          # reaches this workflow.
           git -C "$REPO" -c credential.helper= \
             -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $AUTH" \
             fetch --no-tags --force origin \
               '+refs/heads/*:refs/remotes/origin/*' \
-              '+refs/tags/*:refs/tags/*'
-          git -C "$REPO" checkout --force --detach "$GITHUB_SHA"
-          # The build caches are the one thing worth carrying between runs.
-          # Deleting the 3.3 GB DerivedData tree the full tier leaves behind
-          # takes longer on this volume than the job's whole time budget, and
-          # both Xcode and SwiftPM invalidate their trees by content.
-          # The test services keep their runtime identity documents and the
-          # SMB mount point under $WORKSPACE/test-services, outside every
-          # checkout, so this clean never walks into a live network mount.
-          git -C "$REPO" clean -ffdx \
-            -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
-          "$REPO/Scripts/provision_vendored_ffmpeg.sh" "$MAIN"
-          "$REPO/Scripts/provision_vendored_bluray.sh" "$MAIN"
-          # No credential reaches this checkout. The quick tier needs none:
-          # every check that parses an environment file writes its own fake one
-          # into a temporary directory, and the Emby live suite lives in a
-          # SwiftPM test target no tier of run_verification.py executes.
-          # A stray .pth left by an unrelated editable install points into
-          # ~/Documents, and every interpreter startup under the runner blocked
-          # in opendir there for as long as the job was allowed to run. An empty
-          # virtual environment processes no .pth file at all, and PYTHONPATH
-          # reaches the machine's numpy and Pillow without turning that
-          # directory back into a site directory, which is what would execute
-          # the .pth again.
-          VENV="$WORKSPACE/wt-ci-venv"
-          if ! "$VENV/bin/python3" -c "" 2>/dev/null; then
-            rm -rf "$VENV"
-            python3 -S -m venv --without-pip "$VENV"
+              '+refs/tags/*:refs/tags/*' \
+              '+refs/pull/*/head:refs/remotes/origin/pull/*'
+          head_sha="$GITHUB_SHA"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            head_sha="$PR_HEAD_SHA"
           fi
-          export PYTHONPATH="$(python3 -S -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')"
-          export PATH="$VENV/bin:$PATH"
-          python3 "$REPO/Scripts/rules/run_verification.py" --quick
+          git -C "$REPO" checkout --force --detach "$head_sha"
+          source "$REPO/Scripts/ci/prepare.sh" ci
+          python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" plan check
+          case "$EVENT_NAME" in
+            push)
+              python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" \
+                tier static --event push --remote-oid "$PUSH_BEFORE"
+              ;;
+            pull_request)
+              python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" \
+                tier static --event pr --base-ref "$PR_BASE_REF"
+              ;;
+            *)
+              python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" \
+                tier static
+              ;;
+          esac

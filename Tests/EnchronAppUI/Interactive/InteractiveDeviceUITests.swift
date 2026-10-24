@@ -47,6 +47,7 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
 
 @MainActor
 private final class InteractiveDeviceUIChannel {
+    private static let commandPollInterval: TimeInterval = 0.02
     private static let commandNotification =
         "com.enchron.interactive-device-ui.command"
     private static let responseNotificationPrefix =
@@ -95,6 +96,7 @@ private final class InteractiveDeviceUIChannel {
     func publishReadyState() throws {
         let ready = InteractiveDeviceUIReadyState(
             sessionID: sessionID,
+            commandPollMillis: Int(Self.commandPollInterval * 1000),
             commandNotification: Self.commandNotification,
             responseNotificationPrefix: Self.responseNotificationPrefix,
             appState: appStateDescription
@@ -103,8 +105,13 @@ private final class InteractiveDeviceUIChannel {
     }
 
     func waitForCommand(within maximumIdleInterval: TimeInterval) async -> Bool {
-        if fileManager.fileExists(atPath: commandURL.path) { return true }
-        return await signal.wait(within: maximumIdleInterval)
+        let deadline = Date().addingTimeInterval(maximumIdleInterval)
+        while Date() < deadline {
+            if fileManager.fileExists(atPath: commandURL.path) { return true }
+            let slice = min(Self.commandPollInterval, deadline.timeIntervalSinceNow)
+            if slice > 0, await signal.wait(within: slice) { return true }
+        }
+        return fileManager.fileExists(atPath: commandURL.path)
     }
 
     func consumeCommandIfPresent() throws -> InteractiveDeviceUICommand? {
@@ -151,11 +158,14 @@ private final class InteractiveDeviceUIChannel {
             )
             return false
         }
-        let observationBeforeAction = command.action == .snapshot
+        let wantsObservation = command.includeHierarchy == true
+        let observationBeforeAction = command.action == .snapshot || !wantsObservation
             ? nil
             : matchedElementObservation(for: command)
         let result = execute(command)
-        let observationAfterAction = matchedElementObservation(for: command)
+        let observationAfterAction = wantsObservation
+            ? matchedElementObservation(for: command)
+            : nil
         let observation = command.action == .snapshot
             ? observationAfterAction
             : observationBeforeAction
@@ -171,6 +181,57 @@ private final class InteractiveDeviceUIChannel {
                 : []
         )
         return command.action == .stop
+    }
+
+    private func executeTapEach(
+        _ command: InteractiveDeviceUICommand
+    ) -> (
+        success: Bool,
+        message: String
+    ) {
+        guard let candidates = command.identifiers, candidates.isEmpty == false else {
+            return (false, "tapEach requires candidate identifiers.")
+        }
+        var tapped: [String] = []
+        for identifier in candidates {
+            let element = app.descendants(matching: .any)
+                .matching(identifier: identifier)
+                .element(boundBy: command.index ?? 0)
+            guard element.waitForExistence(timeout: 2), hittability(of: element) else {
+                continue
+            }
+            element.tap()
+            tapped.append(identifier)
+        }
+        guard tapped.isEmpty == false else {
+            return (false, "None of the candidate identifiers could be tapped.")
+        }
+        return (true, "Tapped \(tapped.joined(separator: ", ")).")
+    }
+
+    private func executeTapAnyOf(
+        _ command: InteractiveDeviceUICommand
+    ) -> (
+        success: Bool,
+        message: String
+    ) {
+        guard let candidates = command.identifiers, candidates.isEmpty == false else {
+            return (false, "tapAnyOf requires candidate identifiers.")
+        }
+        for identifier in candidates {
+            let element = app.descendants(matching: .any)
+                .matching(identifier: identifier)
+                .element(boundBy: command.index ?? 0)
+            guard element.waitForExistence(timeout: 3), hittability(of: element) else {
+                continue
+            }
+            element.tap()
+            return (true, "Tapped \(identifier).")
+        }
+        return (
+            false,
+            "None of the candidate identifiers \(candidates.joined(separator: ", ")) was present."
+        )
     }
 
     private func executeTapFirstMatch(
@@ -276,15 +337,30 @@ private final class InteractiveDeviceUIChannel {
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
             }
-            guard hittability(of: element) else {
-                return (false, "The requested element exists but is not currently hittable.")
+            if let scrolled = scrollIntoView(element) {
+                guard hittability(of: scrolled) else {
+                    return (false, "The requested element exists but is not currently hittable.")
+                }
+                scrolled.tap()
+                return (true, "Element tapped after scrolling it into view.")
             }
-            element.tap()
-            return (true, "Element tapped.")
+            if activationPointIsReachable(element) {
+                element.tap()
+                return (true, "Element tapped.")
+            }
+            let frame = element.frame
+            app.coordinate(withNormalizedOffset: .zero)
+                .withOffset(CGVector(dx: frame.midX, dy: frame.midY))
+                .tap()
+            return (true, "Element tapped by coordinate.")
         case .tapSequence:
             return (false, "tapSequence must execute through its sequence transaction.")
         case .tapFirstMatch:
             return (false, "tapFirstMatch must execute through its matching transaction.")
+        case .tapAnyOf:
+            return executeTapAnyOf(command)
+        case .tapEach:
+            return executeTapEach(command)
         case .doubleTap:
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
@@ -378,9 +454,6 @@ private final class InteractiveDeviceUIChannel {
             } else {
                 return (false, "No current coordinate surface matches the requested identifier and index.")
             }
-            guard hittability(of: surface) else {
-                return (false, "The requested coordinate surface is not currently hittable.")
-            }
             surface.coordinate(
                 withNormalizedOffset: CGVector(dx: x, dy: y)
             ).tap()
@@ -452,7 +525,8 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            if let observation = matchedElementObservation(for: element) {
+            if command.includeHierarchy == true,
+               let observation = matchedElementObservation(for: element) {
                 routeElements.append(observation)
             }
             element.tap()
@@ -480,7 +554,8 @@ private final class InteractiveDeviceUIChannel {
                     routeElements
                 )
             }
-            if let observation = matchedElementObservation(for: element) {
+            if command.includeHierarchy == true,
+               let observation = matchedElementObservation(for: element) {
                 routeElements.append(observation)
             }
             element.tap()
@@ -564,16 +639,34 @@ private final class InteractiveDeviceUIChannel {
         for command: InteractiveDeviceUICommand
     ) -> XCUIElement? {
         let descendants = app.descendants(matching: .any)
-        let matches: XCUIElementQuery
+        var matches: XCUIElementQuery
         if let identifier = command.identifier,
            identifier.isEmpty == false {
             matches = descendants.matching(identifier: identifier)
+            if let wait = command.waitMilliseconds, wait > 0 {
+                _ = matches.element(boundBy: command.index ?? 0)
+                    .waitForExistence(timeout: Double(wait) / 1_000)
+            }
+            if matches.count == 0,
+               let prefix = command.identifierPrefix,
+               prefix.isEmpty == false {
+                matches = descendants.matching(
+                    NSPredicate(format: "identifier BEGINSWITH %@", prefix)
+                )
+            }
         } else if let label = command.label,
                   label.isEmpty == false {
             let index = command.index ?? 0
             for format in ["label == %@", "placeholderValue == %@"] {
                 let candidates = descendants.matching(
                     NSPredicate(format: format, label)
+                )
+                let candidate = candidates.element(boundBy: index)
+                if candidate.exists { return candidate }
+            }
+            if let prefix = command.labelPrefix, prefix.isEmpty == false {
+                let candidates = descendants.matching(
+                    NSPredicate(format: "label BEGINSWITH %@", prefix)
                 )
                 let candidate = candidates.element(boundBy: index)
                 if candidate.exists { return candidate }
@@ -609,6 +702,12 @@ private final class InteractiveDeviceUIChannel {
         for query in queries {
             let element = query.element(boundBy: index)
             if element.exists { return element }
+        }
+        if queries.isEmpty {
+            let textField = app.textFields.element(boundBy: index)
+            if textField.exists { return textField }
+            let secureField = app.secureTextFields.element(boundBy: index)
+            if secureField.exists { return secureField }
         }
         return nil
     }
@@ -658,7 +757,7 @@ private final class InteractiveDeviceUIChannel {
             success: success,
             message: message,
             appState: appStateDescription,
-            hierarchy: app.debugDescription,
+            hierarchy: command.includeHierarchy == false ? "" : app.debugDescription,
             matchedElement: matchedElement,
             elementAfterAction: elementAfterAction,
             screenshotRelativePath: screenshotName,
@@ -715,7 +814,27 @@ private final class InteractiveDeviceUIChannel {
         return element.value.map { String(describing: $0) }
     }
 
+    private func activationPointIsReachable(_ element: XCUIElement) -> Bool {
+        let frame = element.frame
+        guard frame.width > 0, frame.height > 0 else { return false }
+        let activationPoint = CGPoint(x: frame.midX, y: frame.midY)
+        if let mainWindow = mainWindowFrame() { return mainWindow.contains(activationPoint) }
+        return app.windows.allElementsBoundByIndex.contains { $0.frame.contains(activationPoint) }
+    }
+
+    private func scrollIntoView(_ element: XCUIElement) -> XCUIElement? {
+        if activationPointIsReachable(element) { return nil }
+        let deadline = Date().addingTimeInterval(2)
+        for _ in 0 ..< 2 {
+            guard Date() < deadline else { break }
+            app.scrollViews.firstMatch.swipeUp()
+            if activationPointIsReachable(element) { return element }
+        }
+        return element
+    }
+
     private func hittability(of element: XCUIElement) -> Bool {
+        if element.isHittable { return true }
         guard let frame = (try? element.snapshot())?.frame else { return false }
         return hittability(of: element, frame: frame)
     }
@@ -809,6 +928,7 @@ private final class InteractiveDeviceUIChannel {
 
 private struct InteractiveDeviceUIReadyState: Codable {
     let sessionID: String
+    let commandPollMillis: Int?
     let commandNotification: String
     let responseNotificationPrefix: String
     let appState: String
@@ -820,6 +940,8 @@ private struct InteractiveDeviceUICommand: Codable {
         case tap
         case tapSequence
         case tapFirstMatch
+        case tapAnyOf
+        case tapEach
         case doubleTap
         case press
         case adjust
@@ -846,6 +968,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let assertAbsent: [String]?
     let alsoInspect: [String]?
     let label: String?
+    let labelPrefix: String?
     let trailingLabel: String?
     let index: Int?
     let text: String?
@@ -853,6 +976,8 @@ private struct InteractiveDeviceUICommand: Codable {
     let normalizedX: Double?
     let normalizedY: Double?
     let includeScreenshot: Bool?
+    let includeHierarchy: Bool?
+    let waitMilliseconds: Int?
     let screenshotIdentifier: String?
     let count: Int?
     let intervalMilliseconds: Int?

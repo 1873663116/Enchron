@@ -71,14 +71,14 @@ class BudgetDerivationTests(unittest.TestCase):
         self.assertAlmostEqual(budget.seconds, 19.0 * 1.5)
         self.assertEqual(budget.provenance, "p95 19.00s × 1.5, lane=device, n=20, censored=0")
 
-    def test_censored_samples_merge_into_p95(self) -> None:
+    def test_censored_samples_are_counted_but_do_not_move_p95(self) -> None:
         samples = [measured(2.0) for _ in range(8)] + [
             measured(30.0, censored=True),
             measured(30.0, censored=True),
         ]
         write_timings(self.directory, "device", "press", samples)
         budget = provider(self.directory).budget("device", "press")
-        self.assertAlmostEqual(budget.seconds, 30.0 * 1.5)
+        self.assertEqual(budget.seconds, 5.0)
         self.assertIn("censored=2", budget.provenance)
         self.assertIn("n=10", budget.provenance)
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Seed and verify the fixed Simulator Files and Photos import fixture."""
+"""Seed and verify the fixed Simulator Files import fixture."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from pathlib import Path, PurePosixPath
 import plistlib
 import re
 import shutil
-import sqlite3
 import stat
 import subprocess
 import tempfile
@@ -54,7 +53,6 @@ class SystemImportConfiguration:
     runtime_root: Path = DEFAULT_RUNTIME_ROOT
     registry_path: Path = DEFAULT_REGISTRY
     fixture_root: Path = DEFAULT_FIXTURE_ROOT
-    photo_poll_timeout_seconds: float = 30.0
 
     def __post_init__(self) -> None:
         if not UUID_PATTERN.fullmatch(self.device_identifier):
@@ -64,10 +62,6 @@ class SystemImportConfiguration:
         object.__setattr__(self, "runtime_root", Path(self.runtime_root).resolve())
         object.__setattr__(self, "registry_path", Path(self.registry_path).resolve())
         object.__setattr__(self, "fixture_root", Path(self.fixture_root).resolve())
-        if self.photo_poll_timeout_seconds <= 0:
-            raise SystemImportConfigurationError(
-                "Photos verification timeout must be positive"
-            )
 
     @property
     def runtime_file(self) -> Path:
@@ -83,21 +77,8 @@ class _Fixture:
     duration_seconds: float
 
 
-@dataclass(frozen=True)
-class _PhotoAsset:
-    asset_uuid: str
-    original_filename: str
-    original_size: int
-    duration_seconds: float
-    stored_path: Path
-    stored_relative_path: str
-    digest: str
-
-
 class SimulatorBoundary(Protocol):
     def resolve_booted_visionos_data_root(self, device_identifier: str) -> Path: ...
-
-    def add_media(self, device_identifier: str, source: Path) -> None: ...
 
 
 def _file_digest(path: Path) -> str:
@@ -255,10 +236,6 @@ class SimctlBoundary:
             raise SystemImportUnavailable("Simulator data root shape is invalid")
         return root
 
-    def add_media(self, device_identifier: str, source: Path) -> None:
-        self._run(["addmedia", device_identifier, str(source)])
-
-
 def _local_storage_root(data_root: Path) -> Path:
     app_groups = data_root / "Containers/Shared/AppGroup"
     matches: list[Path] = []
@@ -328,114 +305,6 @@ def _copy_fixture_to_files_provider(fixture: _Fixture, storage: Path) -> Path:
     return destination
 
 
-def _photo_assets(
-    data_root: Path, fixture: _Fixture
-) -> tuple[_PhotoAsset, ...]:
-    database = data_root / "Media/PhotoData/Photos.sqlite"
-    if not database.is_file():
-        return ()
-    try:
-        connection = sqlite3.connect(f"file:{database}?mode=ro", uri=True)
-        try:
-            rows = connection.execute(
-                """
-                SELECT a.ZUUID, a.ZDIRECTORY, a.ZFILENAME, a.ZDURATION,
-                       x.ZORIGINALFILENAME, x.ZORIGINALFILESIZE
-                FROM ZASSET AS a
-                JOIN ZADDITIONALASSETATTRIBUTES AS x
-                  ON x.ZASSET = a.Z_PK
-                WHERE x.ZORIGINALFILENAME = ?
-                  AND COALESCE(a.ZTRASHEDSTATE, 0) = 0
-                ORDER BY a.ZUUID
-                """,
-                (VISIBLE_FILENAME,),
-            ).fetchall()
-        finally:
-            connection.close()
-    except sqlite3.Error as error:
-        raise SystemImportUnavailable("Simulator Photos index is unreadable") from error
-    assets: list[_PhotoAsset] = []
-    media_root = (data_root / "Media").resolve()
-    for row in rows:
-        if len(row) != 6:
-            raise SystemImportUnavailable("Simulator Photos asset schema drifted")
-        uuid, directory, filename, duration, original_filename, original_size = row
-        if not isinstance(uuid, str) or not UUID_PATTERN.fullmatch(uuid):
-            raise SystemImportUnavailable("Simulator Photos asset UUID is invalid")
-        if (
-            not isinstance(directory, str)
-            or not isinstance(filename, str)
-            or not isinstance(original_filename, str)
-            or not isinstance(original_size, int)
-            or not isinstance(duration, (int, float))
-        ):
-            raise SystemImportUnavailable("Simulator Photos asset metadata is invalid")
-        relative = PurePosixPath(directory) / filename
-        if relative.is_absolute() or ".." in relative.parts:
-            raise SystemImportUnavailable("Simulator Photos asset path is unsafe")
-        stored = media_root.joinpath(*relative.parts).resolve()
-        try:
-            stored.relative_to(media_root)
-        except ValueError as error:
-            raise SystemImportUnavailable(
-                "Simulator Photos asset escaped Media"
-            ) from error
-        if not stored.is_file() or stored.is_symlink():
-            raise SystemImportUnavailable("Simulator Photos asset bytes are missing")
-        assets.append(
-            _PhotoAsset(
-                asset_uuid=uuid.lower(),
-                original_filename=original_filename,
-                original_size=original_size,
-                duration_seconds=float(duration),
-                stored_path=stored,
-                stored_relative_path=str(PurePosixPath("Media") / relative),
-                digest=_file_digest(stored),
-            )
-        )
-    return tuple(assets)
-
-
-def _validate_photo_asset(asset: _PhotoAsset, fixture: _Fixture) -> None:
-    if asset.original_filename != VISIBLE_FILENAME:
-        raise SystemImportUnavailable("Simulator Photos original filename drifted")
-    if asset.original_size != fixture.size:
-        raise SystemImportUnavailable("Simulator Photos original size mismatch")
-    if asset.digest != fixture.digest:
-        raise SystemImportUnavailable("Simulator Photos fixture digest mismatch")
-    if abs(asset.duration_seconds - fixture.duration_seconds) > 0.05:
-        raise SystemImportUnavailable("Simulator Photos fixture duration mismatch")
-
-
-def _ensure_photo_asset(
-    configuration: SystemImportConfiguration,
-    boundary: SimulatorBoundary,
-    data_root: Path,
-    fixture: _Fixture,
-) -> _PhotoAsset:
-    assets = _photo_assets(data_root, fixture)
-    if len(assets) > 1:
-        raise SystemImportUnavailable(
-            "Simulator Photos contains duplicate system import fixtures"
-        )
-    if len(assets) == 1:
-        _validate_photo_asset(assets[0], fixture)
-        return assets[0]
-    boundary.add_media(configuration.device_identifier, fixture.path)
-    deadline = time.monotonic() + configuration.photo_poll_timeout_seconds
-    while time.monotonic() < deadline:
-        assets = _photo_assets(data_root, fixture)
-        if len(assets) > 1:
-            raise SystemImportUnavailable(
-                "Simulator Photos created duplicate system import fixtures"
-            )
-        if len(assets) == 1:
-            _validate_photo_asset(assets[0], fixture)
-            return assets[0]
-        time.sleep(0.1)
-    raise SystemImportUnavailable("Simulator Photos did not index the import fixture")
-
-
 def _write_runtime(path: Path, document: Mapping[str, object]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     os.chmod(path.parent, 0o700)
@@ -476,7 +345,6 @@ def _runtime_document(
     fixture: _Fixture,
     data_root: Path,
     files_path: Path,
-    photo: _PhotoAsset,
 ) -> dict[str, object]:
     facts: dict[str, object] = {
         "deviceIdentifier": configuration.device_identifier,
@@ -492,14 +360,6 @@ def _runtime_document(
             "displayName": VISIBLE_FILENAME,
             "path": str(files_path),
             "digest": _file_digest(files_path),
-        },
-        "photosPicker": {
-            "authorizationMode": "system-picker-no-library-authorization",
-            "assetUUID": photo.asset_uuid,
-            "originalFilename": photo.original_filename,
-            "storedRelativePath": photo.stored_relative_path,
-            "digest": photo.digest,
-            "durationSeconds": photo.duration_seconds,
         },
         "simulatorDataRoot": str(data_root),
     }
@@ -533,7 +393,6 @@ def validate_runtime(path: Path) -> dict[str, object]:
         "deviceIdentifier",
         "fixture",
         "filesPicker",
-        "photosPicker",
         "simulatorDataRoot",
     }
     if not isinstance(document, dict) or set(document) != expected_keys:
@@ -562,7 +421,6 @@ def validate_runtime(path: Path) -> dict[str, object]:
         )
     fixture = document.get("fixture")
     files = document.get("filesPicker")
-    photos = document.get("photosPicker")
     if (
         not isinstance(fixture, dict)
         or set(fixture) != {"id", "digest", "size", "durationSeconds"}
@@ -584,28 +442,7 @@ def validate_runtime(path: Path) -> dict[str, object]:
         or not isinstance(files.get("path"), str)
     ):
         raise SystemImportConfigurationError("Files picker identity is invalid")
-    if (
-        not isinstance(photos, dict)
-        or set(photos)
-        != {
-            "authorizationMode",
-            "assetUUID",
-            "originalFilename",
-            "storedRelativePath",
-            "digest",
-            "durationSeconds",
-        }
-        or photos.get("authorizationMode")
-        != "system-picker-no-library-authorization"
-        or not isinstance(photos.get("assetUUID"), str)
-        or not UUID_PATTERN.fullmatch(str(photos["assetUUID"]))
-        or photos.get("originalFilename") != VISIBLE_FILENAME
-        or not isinstance(photos.get("storedRelativePath"), str)
-        or not _is_sha256(photos.get("digest"))
-        or not isinstance(photos.get("durationSeconds"), (int, float))
-    ):
-        raise SystemImportConfigurationError("Photos picker identity is invalid")
-    if files["digest"] != fixture["digest"] or photos["digest"] != fixture["digest"]:
+    if files["digest"] != fixture["digest"]:
         raise SystemImportConfigurationError(
             "system import picker bytes are not bound to the fixture"
         )
@@ -631,16 +468,6 @@ def _report(path: Path, runtime: Mapping[str, object]) -> dict[str, object]:
             key: runtime["filesPicker"][key]
             for key in ("authorizationMode", "provider", "displayName", "digest")
         },
-        "photosPicker": {
-            key: runtime["photosPicker"][key]
-            for key in (
-                "authorizationMode",
-                "assetUUID",
-                "originalFilename",
-                "digest",
-                "durationSeconds",
-            )
-        },
     }
 
 
@@ -656,18 +483,11 @@ def ensure(
     fixture = _load_fixture(configuration)
     storage = _local_storage_root(data_root)
     files_path = _copy_fixture_to_files_provider(fixture, storage)
-    photo = _ensure_photo_asset(
-        configuration,
-        simulator,
-        data_root,
-        fixture,
-    )
     runtime_document = _runtime_document(
         configuration,
         fixture,
         data_root,
         files_path,
-        photo,
     )
     _write_runtime(configuration.runtime_file, runtime_document)
     runtime = validate_runtime(configuration.runtime_file)

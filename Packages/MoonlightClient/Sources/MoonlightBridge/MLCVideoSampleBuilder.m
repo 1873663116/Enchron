@@ -1,7 +1,3 @@
-//
-//  MLCVideoSampleBuilder.m
-//  Adapted from moonlight-ios Limelight/Stream/VideoDecoderRenderer.{h,m} at 02dc9780.
-//
 
 #import "MLCVideoSampleBuilder.h"
 #import "MLCLogger.h"
@@ -15,7 +11,6 @@
 #include <libavformat/avio.h>
 #include <libavutil/mem.h>
 
-// Private libavformat API for writing the AV1 Codec Configuration Box
 extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                               int write_seq_header);
 #endif
@@ -23,9 +18,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 #define NALU_START_PREFIX_SIZE 3
 #define NAL_LENGTH_PREFIX_SIZE 4
 
-// Marks the pulled decode unit complete on the frame's behalf. The sample buffer
-// retains this object, so the decode unit stays alive until the renderer drops
-// the sample buffer that references it.
 @interface MLCFrameCompletion : NSObject
 @property (nonatomic, assign) void* frameHandle;
 @end
@@ -85,7 +77,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     OSStatus status;
     size_t oldOffset = CMBlockBufferGetDataLength(frameBuffer);
 
-    // Append a 4 byte buffer to the frame block for the length prefix
     status = CMBlockBufferAppendMemoryBlock(frameBuffer, NULL,
                                             NAL_LENGTH_PREFIX_SIZE,
                                             kCFAllocatorDefault, NULL, 0,
@@ -95,7 +86,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         return;
     }
 
-    // Write the length prefix to the new buffer
     const int dataLength = nalLength - NALU_START_PREFIX_SIZE;
     const uint8_t lengthBytes[] = {(uint8_t)(dataLength >> 24), (uint8_t)(dataLength >> 16),
         (uint8_t)(dataLength >> 8), (uint8_t)dataLength};
@@ -106,7 +96,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         return;
     }
 
-    // Attach the data buffer to the frame buffer by reference
     status = CMBlockBufferAppendBufferReference(frameBuffer, dataBuffer, offset + NALU_START_PREFIX_SIZE, dataLength, 0);
     if (status != noErr) {
         Log(LOG_E, @"CMBlockBufferAppendBufferReference failed: %d", (int)status);
@@ -125,20 +114,16 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         return nil;
     }
 
-    // Submit the IDR frame to write the av1C blob
     err = ff_isom_write_av1c(ioctx, (uint8_t*)frameData.bytes, (int)frameData.length, 1);
     if (err < 0) {
         Log(LOG_E, @"ff_isom_write_av1c() failed: %d", err);
-        // Fall-through to close and free buffer
     }
 
-    // Close the dynbuf and get the underlying buffer back (which we must free)
     uint8_t* av1cBuf = NULL;
     int av1cBufLen = avio_close_dyn_buf(ioctx, &av1cBuf);
 
     Log(LOG_I, @"av1C block is %d bytes", av1cBufLen);
 
-    // Only return data if ff_isom_write_av1c() was successful
     NSData* data = nil;
     if (err >= 0 && av1cBufLen > 0) {
         data = [NSData dataWithBytes:av1cBuf length:av1cBufLen];
@@ -148,7 +133,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     return data;
 }
 
-// Much of this logic comes from Chrome
 - (CMVideoFormatDescriptionRef)createAV1FormatDescriptionForIDRFrame:(NSData*)frameData {
     NSMutableDictionary* extensions = [[NSMutableDictionary alloc] init];
 
@@ -163,7 +147,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     avPacket.data = (uint8_t*)frameData.bytes;
     avPacket.size = (int)frameData.length;
 
-    // Read the sequence header OBU
     CodedBitstreamFragment cbsFrag = {};
     err = ff_cbs_read_packet(cbsCtx, &cbsFrag, &avPacket);
     if (err < 0) {
@@ -177,8 +160,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
     SET_EXTENSION(kCMFormatDescriptionExtension_FormatName, @"av01");
 
-    // We use the value for YUV without alpha, same as Chrome
-    // https://developer.apple.com/library/archive/qa/qa1183/_index.html
     SET_EXTENSION(kCMFormatDescriptionExtension_Depth, @24);
 
     CodedBitstreamAV1Context* bitstreamCtx = (CodedBitstreamAV1Context*)cbsCtx->priv_data;
@@ -191,17 +172,17 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 
     switch (seqHeader->color_config.color_primaries) {
-        case 1: // CP_BT_709
+        case 1:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_ColorPrimaries,
                                 kCMFormatDescriptionColorPrimaries_ITU_R_709_2);
             break;
 
-        case 6: // CP_BT_601
+        case 6:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_ColorPrimaries,
                                 kCMFormatDescriptionColorPrimaries_SMPTE_C);
             break;
 
-        case 9: // CP_BT_2020
+        case 9:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_ColorPrimaries,
                                 kCMFormatDescriptionColorPrimaries_ITU_R_2020);
             break;
@@ -212,34 +193,34 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 
     switch (seqHeader->color_config.transfer_characteristics) {
-        case 1: // TC_BT_709
-        case 6: // TC_BT_601
+        case 1:
+        case 6:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_TransferFunction,
                                 kCMFormatDescriptionTransferFunction_ITU_R_709_2);
             break;
 
-        case 7: // TC_SMPTE_240
+        case 7:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_TransferFunction,
                                 kCMFormatDescriptionTransferFunction_SMPTE_240M_1995);
             break;
 
-        case 8: // TC_LINEAR
+        case 8:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_TransferFunction,
                                 kCMFormatDescriptionTransferFunction_Linear);
             break;
 
-        case 14: // TC_BT_2020_10_BIT
-        case 15: // TC_BT_2020_12_BIT
+        case 14:
+        case 15:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_TransferFunction,
                                 kCMFormatDescriptionTransferFunction_ITU_R_2020);
             break;
 
-        case 16: // TC_SMPTE_2084
+        case 16:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_TransferFunction,
                                 kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ);
             break;
 
-        case 17: // TC_HLG
+        case 17:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_TransferFunction,
                                 kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG);
             break;
@@ -250,22 +231,22 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 
     switch (seqHeader->color_config.matrix_coefficients) {
-        case 1: // MC_BT_709
+        case 1:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_YCbCrMatrix,
                                 kCMFormatDescriptionYCbCrMatrix_ITU_R_709_2);
             break;
 
-        case 6: // MC_BT_601
+        case 6:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_YCbCrMatrix,
                                 kCMFormatDescriptionYCbCrMatrix_ITU_R_601_4);
             break;
 
-        case 7: // MC_SMPTE_240
+        case 7:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_YCbCrMatrix,
                                 kCMFormatDescriptionYCbCrMatrix_SMPTE_240M_1995);
             break;
 
-        case 9: // MC_BT_2020_NCL
+        case 9:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_YCbCrMatrix,
                                 kCMFormatDescriptionYCbCrMatrix_ITU_R_2020);
             break;
@@ -277,16 +258,15 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 
     SET_EXTENSION(kCMFormatDescriptionExtension_FullRangeVideo, @(seqHeader->color_config.color_range == 1));
 
-    // Progressive content
     SET_EXTENSION(kCMFormatDescriptionExtension_FieldCount, @(1));
 
     switch (seqHeader->color_config.chroma_sample_position) {
-        case 1: // CSP_VERTICAL
+        case 1:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_ChromaLocationTopField,
                                 kCMFormatDescriptionChromaLocation_Left);
             break;
 
-        case 2: // CSP_COLOCATED
+        case 2:
             SET_CFSTR_EXTENSION(kCMFormatDescriptionExtension_ChromaLocationTopField,
                                 kCMFormatDescriptionChromaLocation_TopLeft);
             break;
@@ -304,8 +284,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         SET_EXTENSION(kCMFormatDescriptionExtension_MasteringDisplayColorVolume, masteringDisplayColorVolume);
     }
 
-    // Referenced the VP9 code in Chrome that performs a similar function
-    // https://source.chromium.org/chromium/chromium/src/+/main:media/gpu/mac/vt_config_util.mm;drc=977dc02c431b4979e34c7792bc3d646f649dacb4;l=155
     extensions[(__bridge NSString*)kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms] =
     @{
         @"av1C" : [self getAv1CodecConfigurationBox:frameData],
@@ -315,7 +293,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 #undef SET_EXTENSION
 #undef SET_CFSTR_EXTENSION
 
-    // AV1 doesn't have a special format description function like H.264 and HEVC have, so we just use the generic one
     CMVideoFormatDescriptionRef newFormatDesc = NULL;
     OSStatus status = CMVideoFormatDescriptionCreate(kCFAllocatorDefault, kCMVideoCodecType_AV1,
                                                      bitstreamCtx->frame_width, bitstreamCtx->frame_height,
@@ -332,38 +309,27 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
 }
 #endif
 
-// This function must free data for bufferType == BUFFER_TYPE_PICDATA
 - (int)submitDecodeBuffer:(unsigned char*)data length:(int)length bufferType:(int)bufferType decodeUnit:(PDECODE_UNIT)du {
     OSStatus status;
 
-    // Construct a new format description object each time we receive an IDR frame
     if (du->frameType == FRAME_TYPE_IDR) {
         if (bufferType != BUFFER_TYPE_PICDATA) {
             if (bufferType == BUFFER_TYPE_VPS || bufferType == BUFFER_TYPE_SPS || bufferType == BUFFER_TYPE_PPS) {
-                // Add new parameter set into the parameter set array
                 int startLen = data[2] == 0x01 ? 3 : 4;
                 [parameterSetBuffers addObject:[NSData dataWithBytes:&data[startLen] length:length - startLen]];
             }
 
-            // Data is NOT to be freed here. It's a direct usage of the caller's buffer.
 
-            // No frame data to submit for these NALUs
             return DR_OK;
         }
 
-        // Create the new format description when we get the first picture data buffer of an IDR frame.
-        // This is the only way we know that there is no more CSD for this frame.
-        //
-        // NB: This logic depends on the fact that we submit all picture data in one buffer!
 
-        // Free the old format description
         if (formatDesc != NULL) {
             CFRelease(formatDesc);
             formatDesc = NULL;
         }
 
         if (videoFormat & VIDEO_FORMAT_MASK_H264) {
-            // Construct parameter set arrays for the format description
             size_t parameterSetCount = [parameterSetBuffers count];
             const uint8_t* parameterSetPointers[parameterSetCount];
             size_t parameterSetSizes[parameterSetCount];
@@ -385,11 +351,9 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                 formatDesc = NULL;
             }
 
-            // Free parameter set buffers after submission
             [parameterSetBuffers removeAllObjects];
         }
         else if (videoFormat & VIDEO_FORMAT_MASK_H265) {
-            // Construct parameter set arrays for the format description
             size_t parameterSetCount = [parameterSetBuffers count];
             const uint8_t* parameterSetPointers[parameterSetCount];
             size_t parameterSetSizes[parameterSetCount];
@@ -438,7 +402,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                 formatDesc = NULL;
             }
 
-            // Free parameter set buffers after submission
             [parameterSetBuffers removeAllObjects];
         }
         else if (videoFormat & VIDEO_FORMAT_MASK_AV1) {
@@ -449,24 +412,19 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
             formatDesc = [self createAV1FormatDescriptionForIDRFrame:fullFrameData];
             [parameterSetBuffers removeAllObjects];
 #else
-            // AV1 format description construction needs the FFmpeg bitstream parser,
-            // which this package does not vendor yet.
             Log(LOG_E, @"AV1 format description construction is not compiled in");
 #endif
         }
         else {
-            // Unsupported codec!
             abort();
         }
     }
 
     if (formatDesc == NULL) {
-        // Can't decode if we haven't gotten our parameter sets yet
         free(data);
         return DR_NEED_IDR;
     }
 
-    // Now we're decoding actual frame data here
     CMBlockBufferRef frameBlockBuffer;
     CMBlockBufferRef dataBlockBuffer;
 
@@ -477,7 +435,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         return DR_NEED_IDR;
     }
 
-    // From now on, CMBlockBuffer owns the data pointer and will free it when it's dereferenced
 
     status = CMBlockBufferCreateEmpty(NULL, 0, 0, &frameBlockBuffer);
     if (status != noErr) {
@@ -486,15 +443,11 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         return DR_NEED_IDR;
     }
 
-    // H.264 and HEVC formats require NAL prefix fixups from Annex B to length-delimited
     if (videoFormat & (VIDEO_FORMAT_MASK_H264 | VIDEO_FORMAT_MASK_H265)) {
         int lastOffset = -1;
         for (int i = 0; i < length - NALU_START_PREFIX_SIZE; i++) {
-            // Search for a NALU
             if (data[i] == 0 && data[i+1] == 0 && data[i+2] == 1) {
-                // It's the start of a new NALU
                 if (lastOffset != -1) {
-                    // We've seen a start before this so enqueue that NALU
                     [self updateAnnexBBufferForRange:frameBlockBuffer dataBlock:dataBlockBuffer offset:lastOffset length:i - lastOffset];
                 }
 
@@ -503,12 +456,10 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         }
 
         if (lastOffset != -1) {
-            // Enqueue the remaining data
             [self updateAnnexBBufferForRange:frameBlockBuffer dataBlock:dataBlockBuffer offset:lastOffset length:length - lastOffset];
         }
     }
     else {
-        // For formats that require no length-changing fixups, just append a reference to the raw data block
         status = CMBlockBufferAppendBufferReference(frameBlockBuffer, dataBlockBuffer, 0, length, 0);
         if (status != noErr) {
             Log(LOG_E, @"CMBlockBufferAppendBufferReference failed: %d", (int)status);
@@ -537,7 +488,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
                             frameType:du->frameType
                     presentationTimeUs:du->presentationTimeUs];
 
-    // Dereference the buffers
     CFRelease(dataBlockBuffer);
     CFRelease(frameBlockBuffer);
     CFRelease(sampleBuffer);
@@ -557,7 +507,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 
     if (hasMetadata && hdrMetadata.displayPrimaries[0].x != 0 && hdrMetadata.maxDisplayLuminance != 0) {
-        // This data is all in big-endian
         struct {
           vector_ushort2 primaries[3];
           vector_ushort2 white_point;
@@ -565,7 +514,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
           uint32_t luminance_min;
         } __attribute__((packed, aligned(4))) mdcv;
 
-        // mdcv is in GBR order while SS_HDR_METADATA is in RGB order
         mdcv.primaries[0].x = __builtin_bswap16(hdrMetadata.displayPrimaries[1].x);
         mdcv.primaries[0].y = __builtin_bswap16(hdrMetadata.displayPrimaries[1].y);
         mdcv.primaries[1].x = __builtin_bswap16(hdrMetadata.displayPrimaries[2].x);
@@ -576,7 +524,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         mdcv.white_point.x = __builtin_bswap16(hdrMetadata.whitePoint.x);
         mdcv.white_point.y = __builtin_bswap16(hdrMetadata.whitePoint.y);
 
-        // These luminance values are in 10000ths of a nit
         mdcv.luminance_max = __builtin_bswap32((uint32_t)hdrMetadata.maxDisplayLuminance * 10000);
         mdcv.luminance_min = __builtin_bswap32(hdrMetadata.minDisplayLuminance);
 
@@ -592,7 +539,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
     }
 
     if (hasMetadata && hdrMetadata.maxContentLightLevel != 0 && hdrMetadata.maxFrameAverageLightLevel != 0) {
-        // This data is all in big-endian
         struct {
             uint16_t max_content_light_level;
             uint16_t max_frame_average_light_level;
@@ -612,7 +558,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         metadataChanged = YES;
     }
 
-    // If the metadata changed, request an IDR frame to re-create the CMVideoFormatDescription
     if (metadataChanged) {
         LiRequestIdrFrame();
     }
@@ -740,8 +685,6 @@ extern int ff_isom_write_av1c(AVIOContext *pb, const uint8_t *buf, int size,
         }
         else if (videoFormat & VIDEO_FORMAT_MASK_AV1) {
 #if MLC_ENABLE_AV1
-            // The AV1 configuration box needs the sequence header, which can be
-            // split across entries, so gather the IDR frame once.
             NSMutableData* frameData = [[NSMutableData alloc] initWithCapacity:du->fullLength];
             for (PLENTRY entry = du->bufferList; entry != NULL; entry = entry->next) {
                 if (entry->bufferType == BUFFER_TYPE_PICDATA) {

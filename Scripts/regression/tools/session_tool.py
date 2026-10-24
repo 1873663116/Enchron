@@ -16,7 +16,7 @@ VERIFICATION = Path(__file__).resolve().parents[2] / "verification"
 if str(VERIFICATION) not in sys.path:
     sys.path.insert(0, str(VERIFICATION))
 
-from interactive_visionpro_ui import (
+from transport import (
     ensure_session,
     halt_session,
     parse_arguments,

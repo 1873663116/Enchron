@@ -1,0 +1,644 @@
+{
+  "schema": "enchron.console.cold-start-cases",
+  "schemaVersion": 1,
+  "contract": "Every operation:app.relaunch@1 in Regression/journeys has one entry here. An entry with requiresColdStart true keeps the relaunch in the console unit; every other entry is isolation only and the translator replaces the relaunch with resetState and the setup that state needs.",
+  "cases": [
+    {
+      "scenario": "scenario:audio-only-playback:secondary-menu-pins-audio-controls",
+      "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:01",
+      "case": "audio-menu",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:audio-only-playback:secondary-menu-pins-audio-controls",
+      "callId": "call:audio-only-playback:secondary-menu-pins-audio-controls:08",
+      "case": "speed-menu",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:docked-hlg-audio-integrity",
+      "callId": "call:dynamic-range-interpretation:docked-hlg-audio-integrity:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:01",
+      "case": "profile-8-hdr10",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:07",
+      "case": "profile-8-hlg",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-cross-compatibility-switch:13",
+      "case": "profile-5-no-fallback",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:01",
+      "case": "dv-profile-5",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:06",
+      "case": "dv-profile-7-dual",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:11",
+      "case": "dv-profile-8-hdr10",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:16",
+      "case": "dv-profile-8-hlg",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
+      "callId": "call:dynamic-range-interpretation:dolby-vision-profile-matrix:21",
+      "case": "dv-profile-10",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:hdr10-hlg-interpretation",
+      "callId": "call:dynamic-range-interpretation:hdr10-hlg-interpretation:01",
+      "case": "hdr10",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:dynamic-range-interpretation:hdr10-hlg-interpretation",
+      "callId": "call:dynamic-range-interpretation:hdr10-hlg-interpretation:06",
+      "case": "hlg",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:artwork-by-image-tag",
+      "callId": "call:emby-server-lifecycle:artwork-by-image-tag:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the case checks artwork the next launch reads"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:emby-artwork-bypasses-loopback",
+      "callId": "call:emby-server-lifecycle:emby-artwork-bypasses-loopback:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the case checks artwork the next launch reads"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:emby-resume-entry-semantics",
+      "callId": "call:emby-server-lifecycle:emby-resume-entry-semantics:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the resume entry is read after a launch"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:episode-resume-and-start-actions",
+      "callId": "call:emby-server-lifecycle:episode-resume-and-start-actions:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the detail entry is read after a launch"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:home-poster-and-next-up",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:02",
+      "case": "",
+      "requiresColdStart": true,
+      "reason": "the home rows are read after a launch"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:home-poster-and-next-up",
+      "callId": "call:emby-server-lifecycle:home-poster-and-next-up:07",
+      "case": "",
+      "requiresColdStart": true,
+      "reason": "the home rows are read after a launch"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:progress-authority-server",
+      "callId": "call:emby-server-lifecycle:progress-authority-server:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the Emby home state is read after a launch"
+    },
+    {
+      "scenario": "scenario:emby-server-lifecycle:series-season-episode-navigation",
+      "callId": "call:emby-server-lifecycle:series-season-episode-navigation:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the Emby home state is read after a launch"
+    },
+    {
+      "scenario": "scenario:format-coverage:audio-delivery-codec-matrix",
+      "callId": "call:format-coverage:audio-delivery-codec-matrix:01",
+      "case": "ac3",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:audio-delivery-codec-matrix",
+      "callId": "call:format-coverage:audio-delivery-codec-matrix:08",
+      "case": "eac3-joc",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:audio-delivery-codec-matrix",
+      "callId": "call:format-coverage:audio-delivery-codec-matrix:15",
+      "case": "dts",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:audio-delivery-codec-matrix",
+      "callId": "call:format-coverage:audio-delivery-codec-matrix:21",
+      "case": "truehd",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:audio-delivery-codec-matrix",
+      "callId": "call:format-coverage:audio-delivery-codec-matrix:26",
+      "case": "vorbis",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:audio-delivery-codec-matrix",
+      "callId": "call:format-coverage:audio-delivery-codec-matrix:32",
+      "case": "aac",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:audio-delivery-codec-matrix",
+      "callId": "call:format-coverage:audio-delivery-codec-matrix:39",
+      "case": "flac",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:signalled-media-classification",
+      "callId": "call:format-coverage:signalled-media-classification:01",
+      "case": "apple-apmp-180",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:signalled-media-classification",
+      "callId": "call:format-coverage:signalled-media-classification:06",
+      "case": "mv-hevc-stereo",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:format-coverage:unsupported-codec-guidance",
+      "callId": "call:format-coverage:unsupported-codec-guidance:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:issue-surface-behavior:source-failure-guidance-matrix",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:02",
+      "case": "credentials-rejected",
+      "requiresColdStart": false,
+      "reason": "another form case follows; resetState clears the saved source before the form runs again"
+    },
+    {
+      "scenario": "scenario:issue-surface-behavior:source-failure-guidance-matrix",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:12",
+      "case": "server-unreachable",
+      "requiresColdStart": false,
+      "reason": "another form case follows; resetState clears the saved source before the form runs again"
+    },
+    {
+      "scenario": "scenario:issue-surface-behavior:source-failure-guidance-matrix",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:22",
+      "case": "invalid-address",
+      "requiresColdStart": false,
+      "reason": "another form case follows; resetState clears the saved source before the form runs again"
+    },
+    {
+      "scenario": "scenario:issue-surface-behavior:source-failure-guidance-matrix",
+      "callId": "call:issue-surface-behavior:source-failure-guidance-matrix:32",
+      "case": "requires-https",
+      "requiresColdStart": false,
+      "reason": "another form case follows; resetState clears the saved source before the form runs again"
+    },
+    {
+      "scenario": "scenario:issue-surface-behavior:typed-single-slot-contract",
+      "callId": "call:issue-surface-behavior:typed-single-slot-contract:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:audio-track-switch-same-session",
+      "callId": "call:local-media-lifecycle:audio-track-switch-same-session:01",
+      "case": "",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:automatic-play-next-resume-policy",
+      "callId": "call:local-media-lifecycle:automatic-play-next-resume-policy:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:clean-flat-playback-main-gate",
+      "callId": "call:local-media-lifecycle:clean-flat-playback-main-gate:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the claim is the clean state of a first launch"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:clean-start-position-zero",
+      "callId": "call:local-media-lifecycle:clean-start-position-zero:02",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the claim is the zero position of a first launch"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:external-subtitle-source-matrix",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:01",
+      "case": "local-sidecar",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:external-subtitle-source-matrix",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:08",
+      "case": "webdav-sidecar",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:external-subtitle-source-matrix",
+      "callId": "call:local-media-lifecycle:external-subtitle-source-matrix:16",
+      "case": "emby-external-stream",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:injected-import-rejoins-ingest",
+      "callId": "call:local-media-lifecycle:injected-import-rejoins-ingest:03",
+      "case": "default",
+      "requiresColdStart": true,
+      "reason": "the case checks that an injected import survives a launch"
+    },
+    {
+      "scenario": "scenario:local-media-lifecycle:subtitle-switch-and-off",
+      "callId": "call:local-media-lifecycle:subtitle-switch-and-off:01",
+      "case": "",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:network-resilience:buffered-reconnect-has-no-indicator",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:01",
+      "case": "paired-control",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:network-resilience:buffered-reconnect-has-no-indicator",
+      "callId": "call:network-resilience:buffered-reconnect-has-no-indicator:13",
+      "case": "buffer-absorbed-interruption",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:network-resilience:playback-failure-category-matrix",
+      "callId": "call:network-resilience:playback-failure-category-matrix:01",
+      "case": "connection-interrupted",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:network-resilience:playback-failure-category-matrix",
+      "callId": "call:network-resilience:playback-failure-category-matrix:16",
+      "case": "file-missing",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:network-resilience:playback-failure-category-matrix",
+      "callId": "call:network-resilience:playback-failure-category-matrix:31",
+      "case": "access-refused",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:network-resilience:playback-failure-category-matrix",
+      "callId": "call:network-resilience:playback-failure-category-matrix:46",
+      "case": "data-corrupt",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:automatic-source-provenance",
+      "callId": "call:presentation-tour:automatic-source-provenance:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:docked-episode-switch-settles-and-exits",
+      "callId": "call:presentation-tour:docked-episode-switch-settles-and-exits:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:format-application-route",
+      "callId": "call:presentation-tour:format-application-route:01",
+      "case": "panoramic-to-portal",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:format-application-route",
+      "callId": "call:presentation-tour:format-application-route:09",
+      "case": "flat-to-window",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:format-editor-hosts-window-and-portal",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:01",
+      "case": "window",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:format-editor-hosts-window-and-portal",
+      "callId": "call:presentation-tour:format-editor-hosts-window-and-portal:07",
+      "case": "portal",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:initial-presentation-routing",
+      "callId": "call:presentation-tour:initial-presentation-routing:01",
+      "case": "",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:initial-presentation-routing",
+      "callId": "call:presentation-tour:initial-presentation-routing:06",
+      "case": "",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:initial-presentation-routing",
+      "callId": "call:presentation-tour:initial-presentation-routing:11",
+      "case": "",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:initial-presentation-routing",
+      "callId": "call:presentation-tour:initial-presentation-routing:17",
+      "case": "",
+      "requiresColdStart": true,
+      "reason": "the case checks a persisted flat format after a launch"
+    },
+    {
+      "scenario": "scenario:presentation-tour:initial-presentation-routing",
+      "callId": "call:presentation-tour:initial-presentation-routing:21",
+      "case": "",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:initial-presentation-routing",
+      "callId": "call:presentation-tour:initial-presentation-routing:27",
+      "case": "",
+      "requiresColdStart": true,
+      "reason": "the case checks a persisted panorama format after a launch"
+    },
+    {
+      "scenario": "scenario:presentation-tour:panorama-episode-switch-settles-with-pixels",
+      "callId": "call:presentation-tour:panorama-episode-switch-settles-with-pixels:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:panorama-to-portal-exit",
+      "callId": "call:presentation-tour:panorama-to-portal-exit:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:portal-episode-switch-lands-in-window",
+      "callId": "call:presentation-tour:portal-episode-switch-lands-in-window:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:portal-format-and-panorama-actions-coexist",
+      "callId": "call:presentation-tour:portal-format-and-panorama-actions-coexist:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:portal-to-panorama-explicit-entry",
+      "callId": "call:presentation-tour:portal-to-panorama-explicit-entry:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:spatial-controls-summon",
+      "callId": "call:presentation-tour:spatial-controls-summon:02",
+      "case": "docked-show",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:spatial-controls-summon",
+      "callId": "call:presentation-tour:spatial-controls-summon:10",
+      "case": "docked-hide",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:spatial-controls-summon",
+      "callId": "call:presentation-tour:spatial-controls-summon:19",
+      "case": "panorama-show",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:spatial-controls-summon",
+      "callId": "call:presentation-tour:spatial-controls-summon:28",
+      "case": "panorama-hide",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:track-selection-survives-seek-and-presentation",
+      "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:01",
+      "case": "seek",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:track-selection-survives-seek-and-presentation",
+      "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:10",
+      "case": "window-docked-window",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:track-selection-survives-seek-and-presentation",
+      "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:20",
+      "case": "window-portal-window",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:track-selection-survives-seek-and-presentation",
+      "callId": "call:presentation-tour:track-selection-survives-seek-and-presentation:30",
+      "case": "format-replacement",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:transition-timeout-rolls-back",
+      "callId": "call:presentation-tour:transition-timeout-rolls-back:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:window-docked-round-trip",
+      "callId": "call:presentation-tour:window-docked-round-trip:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:window-episode-switch-lands-in-portal",
+      "callId": "call:presentation-tour:window-episode-switch-lands-in-portal:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:presentation-tour:window-to-portal-format-route",
+      "callId": "call:presentation-tour:window-to-portal-format-route:01",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:projection-and-stereo:panorama-coverage-angle",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:01",
+      "case": "equirectangular-180",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:projection-and-stereo:panorama-coverage-angle",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:06",
+      "case": "equirectangular-360",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:projection-and-stereo:panorama-coverage-angle",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:11",
+      "case": "custom-angle-200",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:projection-and-stereo:panorama-coverage-angle",
+      "callId": "call:projection-and-stereo:panorama-coverage-angle:16",
+      "case": "custom-angle-240",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:projection-and-stereo:stereo-view-separation",
+      "callId": "call:projection-and-stereo:stereo-view-separation:01",
+      "case": "side-by-side",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:projection-and-stereo:stereo-view-separation",
+      "callId": "call:projection-and-stereo:stereo-view-separation:06",
+      "case": "top-bottom",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:projection-and-stereo:stereo-view-separation",
+      "callId": "call:projection-and-stereo:stereo-view-separation:11",
+      "case": "mv-hevc-two-view",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    },
+    {
+      "scenario": "scenario:smb-source-lifecycle:smb-browse-shares-and-directories",
+      "callId": "call:smb-source-lifecycle:smb-browse-shares-and-directories:02",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another remote source case is the only state the case needs; resetState and the direct connect command establish it"
+    },
+    {
+      "scenario": "scenario:webdav-source-lifecycle:certificate-trust-boundary",
+      "callId": "call:webdav-source-lifecycle:certificate-trust-boundary:04",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another remote source case is the only state the case needs; resetState and the direct connect command establish it"
+    },
+    {
+      "scenario": "scenario:webdav-source-lifecycle:webdav-add-source",
+      "callId": "call:webdav-source-lifecycle:webdav-add-source:03",
+      "case": "default",
+      "requiresColdStart": false,
+      "reason": "another remote source case is the only state the case needs; resetState and the direct connect command establish it"
+    },
+    {
+      "scenario": "scenario:window-spatial-input:window-surface-controls-toggle-and-autohide",
+      "callId": "call:window-spatial-input:window-surface-controls-toggle-and-autohide:01",
+      "case": "three-toggle-sequence-and-autohide",
+      "requiresColdStart": false,
+      "reason": "another local media item is the only state the case needs; resetState and playMedia establish it"
+    }
+  ]
+}

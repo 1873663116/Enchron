@@ -369,11 +369,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:MediaLibrary-Manage-addPhotos",
-      "verdict": "reachable"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:MediaLibrary-Manage-newFolder",
       "verdict": "reachable"
     },
@@ -1249,11 +1244,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Stream-AddHost-back",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:Stream-AddHost-discover-entry",
       "verdict": "known-defect"
     },
@@ -1289,21 +1279,6 @@
     },
     {
       "context": "main-window-browser",
-      "operation": "accessibility:Stream-HostDetail-address",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:Stream-HostDetail-pairButton",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
-      "operation": "accessibility:Stream-HostDetail-removeButton",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "main-window-browser",
       "operation": "accessibility:Stream-HostSidebar-addButton",
       "verdict": "known-defect"
     },
@@ -1328,33 +1303,8 @@
       "verdict": "known-defect"
     },
     {
-      "context": "main-window-browser",
-      "operation": "accessibility:Stream-Pairing-retry",
-      "verdict": "known-defect"
-    },
-    {
       "context": "window",
       "operation": "accessibility:Stream-Session-back",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "window",
-      "operation": "accessibility:Stream-Session-connecting",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "window",
-      "operation": "accessibility:Stream-Session-degrade",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "window",
-      "operation": "accessibility:Stream-Session-degrade-explain",
-      "verdict": "known-defect"
-    },
-    {
-      "context": "window",
-      "operation": "accessibility:Stream-Session-dock",
       "verdict": "known-defect"
     },
     {
@@ -1365,6 +1315,31 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-Streaming-requested",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Settings-toggle-moonlight-enabled",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AddHost-cancel",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-AppCard-remove-{application.id.rawValue}",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-name",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-Sidebar-Toggle",
       "verdict": "known-defect"
     }
   ],

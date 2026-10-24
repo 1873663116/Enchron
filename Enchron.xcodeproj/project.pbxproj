@@ -154,7 +154,6 @@
 				GameStreaming/Views/StreamSessionContentView.swift,
 				GameStreaming/Views/StreamSettingsSection.swift,
 				GameStreaming/Views/StreamingHomeView.swift,
-				MediaLibrary/AppManagedMediaImportStore.swift,
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,
 				MediaLibrary/MediaLibraryViewModel.swift,
@@ -486,6 +485,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = C3B0F9992F5726B40064596E /* Build configuration list for PBXNativeTarget "Enchron" */;
 			buildPhases = (
+				E30000C42FA4000100E1C001 /* Console Static Gate */,
 				E30000022FA3000100E1C001 /* Design Source Architecture */,
 				C3B0F97C2F5726B30064596E /* Sources */,
 				C3B0F97D2F5726B30064596E /* Frameworks */,
@@ -714,7 +714,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --working-directory \"$SRCROOT\" --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed, run 'brew install swiftlint'\"\nfi\n";
+			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\nif command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --working-directory \"$SRCROOT\" --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed, run 'brew install swiftlint'\"\nfi\n";
 		};
 		E30000022FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -744,7 +744,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/rules/verify_design_source_architecture.py\" --xcode-inputs\n";
+			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\npython3 \"$SRCROOT/Scripts/rules/verify_design_source_architecture.py\" --xcode-inputs\n";
+		};
+		E30000C42FA4000100E1C001 /* Console Static Gate */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Console Static Gate";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "eval \"$(/bin/bash \"$SRCROOT/Scripts/ci/prepare.sh\" shell --emit)\"\npython3 \"$SRCROOT/Scripts/console/cli.py\" tier static --code-only --gate\n";
 		};
 		E30000032FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;

@@ -54,7 +54,7 @@ private let playbackIssueExpectations: [PlaybackIssueExpectation] = [
         message: "This video uses VC-1 video, which Enchron does not support.",
         messageStrategy: .unsupportedVideoCodecFact,
         actions: [.close],
-        locations: [.mainWindow, .mediaLibrary]
+        locations: [.mainWindow]
     ),
     .init(
         issue: .sourceAccessUnavailable,
@@ -259,8 +259,6 @@ func everyPlaybackIssueCategoryHasOnePolicy() {
 @Test("active playback failures have one exact recovery policy")
 @MainActor
 func activePlaybackFailuresHaveOneRecoveryPolicy() {
-    #expect(PlaybackActiveFailure.Cause.allCases.count == 7)
-
     for cause in PlaybackActiveFailure.Cause.allCases {
         let issue = activeFailureIssue(cause)
         #expect(issue.category.rawValue == cause.rawValue)

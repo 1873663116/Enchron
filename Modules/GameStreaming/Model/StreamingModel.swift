@@ -112,8 +112,8 @@ public final class StreamingModel {
 
     public func selectHost(_ hostID: HostID?) {
         selectedHostID = hostID
-        if hostID != nil, selectedHost?.applications.applications == nil {
-            loadApplications(hostID: hostID!)
+        if let hostID, selectedHost?.applications.applications == nil {
+            loadApplications(hostID: hostID)
         }
     }
 
@@ -158,7 +158,7 @@ public final class StreamingModel {
             : "\(info.uniqueID)@\(address.portBase)"
         let stored = StoredHost(
             id: hostID,
-            name: userProvidedName ? name! : info.name,
+            name: userProvidedName ? (name ?? info.name) : info.name,
             address: address,
             serverCert: nil,
             preferredAppID: nil,
@@ -192,7 +192,9 @@ public final class StreamingModel {
 
     public func refreshReachability(hostID: HostID? = nil) {
         reachabilityTask?.cancel()
-        let targets = storedHosts.filter { hostID == nil || $0.hostID == hostID! }
+        let targets = storedHosts.filter { requested in
+            hostID.map { $0 == requested.hostID } ?? true
+        }
         reachabilityTask = Task { [backend] in
             for target in targets {
                 let credentials = BackendCredentials(address: target.address, serverCert: target.serverCert)

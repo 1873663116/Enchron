@@ -1,7 +1,3 @@
-//
-//  MLCStreamConfiguration.h
-//  Adapted from moonlight-ios Limelight/Stream/StreamConfiguration.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 

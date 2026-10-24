@@ -10,6 +10,16 @@
     }
   ],
   "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "OS_ACTIVITY_MODE",
+        "value" : "disable"
+      },
+      {
+        "key" : "BD_DEBUG_MASK",
+        "value" : "0"
+      }
+    ],
     "targetForVariableExpansion" : {
       "containerPath" : "container:Enchron.xcodeproj",
       "identifier" : "F300000E2FA5000100E1C001",

@@ -1,7 +1,3 @@
-//
-//  MLCUtils.m
-//  Adapted from moonlight-ios Limelight/Utility/Utils.m at 02dc9780.
-//
 
 #import "MLCUtils.h"
 

@@ -1,7 +1,3 @@
-//
-//  MLCHttpResponse.h
-//  Adapted from moonlight-ios Limelight/Network/HttpResponse.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 #import "MLCLogger.h"

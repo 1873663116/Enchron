@@ -1,7 +1,7 @@
 import Foundation
-import PlaybackCore
-import Testing
 @testable import Playback
+@testable import PlaybackCore
+import Testing
 
 @MainActor
 struct PlaybackSurfaceGestureControllerTests {
@@ -165,7 +165,7 @@ struct PlaybackSurfaceGestureControllerTests {
 
     @Test("cancelled preview delivers the natural end action once")
     func cancellingPreviewRestoresNaturalEnd() async throws {
-        let runtime = try await nearEndRuntime()
+        let (runtime, core) = try await nearEndRuntime()
         defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
         let session = PlaybackSessionModel()
         let controller = runtime.surfaceGestureController(session: session)
@@ -175,7 +175,7 @@ struct PlaybackSurfaceGestureControllerTests {
         #expect(controller.begin(owner: owner))
         controller.update(horizontalTranslation: -100, owner: owner)
         #expect(controller.phase == .seeking)
-        try await waitUntil { runtime.productLifecycle == .ended }
+        try await deliverNaturalEnd(to: runtime, through: core)
         #expect(endedActions == 0)
         controller.cancel(owner: owner)
         #expect(endedActions == 1)
@@ -185,7 +185,7 @@ struct PlaybackSurfaceGestureControllerTests {
 
     @Test("leaving during a preview discards the old natural end action")
     func leavingDiscardsDeferredNaturalEnd() async throws {
-        let runtime = try await nearEndRuntime()
+        let (runtime, core) = try await nearEndRuntime()
         let session = PlaybackSessionModel()
         let controller = runtime.surfaceGestureController(session: session)
         var endedActions = 0
@@ -194,24 +194,37 @@ struct PlaybackSurfaceGestureControllerTests {
         #expect(controller.begin(owner: owner))
         controller.update(horizontalTranslation: -100, owner: owner)
         #expect(controller.phase == .seeking)
-        try await waitUntil { runtime.productLifecycle == .ended }
+        try await deliverNaturalEnd(to: runtime, through: core)
         #expect(endedActions == 0)
         await runtime.leavePlaybackAndWait(reason: .backButton)
         #expect(endedActions == 0)
         #expect(controller.phase == .idle)
     }
 
-    private func nearEndRuntime() async throws -> PlaybackRuntime {
-        let runtime = PlaybackRuntime(controller: PlaybackCoreController())
+    private func nearEndRuntime() async throws -> (PlaybackRuntime, PlaybackCoreController) {
+        let core = PlaybackCoreController()
+        let runtime = PlaybackRuntime(controller: core)
         let request = PlaybackLaunchRequest(source: try PlaybackAddress(localFileURL: audioFixture()), displayName: "gesture-end")
         runtime.prepareForPlayback(request)
         try await runtime.open(request, startTimeSeconds: 0, initialSpeed: .default, initialFormat: nil)
         try await waitUntil { runtime.playbackPosition.duration > 1 }
         runtime.seek(to: runtime.playbackPosition.duration - 1)
         try await waitUntil { !runtime.seekIsInProgress }
-        runtime.resume()
-        try await waitUntil { runtime.productLifecycle == .playing }
-        return runtime
+        return (runtime, core)
+    }
+
+    private func deliverNaturalEnd(
+        to runtime: PlaybackRuntime,
+        through core: PlaybackCoreController
+    ) async throws {
+        let duration = runtime.playbackPosition.duration
+        let receipt = try #require(PlaybackEndReceipt.completion(
+            reason: .naturalCompletion,
+            deliveredEndSeconds: duration,
+            declaredDurationSeconds: duration
+        ))
+        core.onStatusChange?(.ended(receipt))
+        try await waitUntil { runtime.productLifecycle == .ended }
     }
 
     private func waitUntil(_ condition: () -> Bool) async throws {

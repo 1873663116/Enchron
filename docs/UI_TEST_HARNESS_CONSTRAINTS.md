@@ -7,6 +7,7 @@
 - **测试宿主的 stdout 既不进 xcodebuild 日志，也不进设备上的 result bundle**。app 容器进得去（经 devicectl），所以测量报告写进容器而不是打印出来。解码能力矩阵就落在容器里的 `video-decoder-matrix.tsv`。
 - **`XCUIScreen.main` 在当前 visionOS 构建上返回 1×1 图像**，读起来像一张黑帧而不是一次抓取失败。application element 仍然能抓，所以退化的屏幕图像要回退到它。
 - **模拟器截图 lane 没有点进模拟器的通道**，想看的那一屏必须在启动时就可达；启动参数因此是到达某一屏的唯一途径。
+- **测试通道下探针日志 4 MB，正式构建 192 KB**。192 KB 只够真机短会话；自动化一整轮会跑几十个单元，192 KB 会在中途溢出并丢证据（实测峰值 196532 字节即触发 `evidenceOverflowed`）。
 - **探针日志 192 KB，Dock 里曾几十秒就把因果链冲掉**（2026-09-08 真机：docked 的 `settlement` 每秒约 10 行、每行 1.5 KB，选集失败的错误类别与音频重开的触发点都只剩证据行）。原因是结算签名没把淡入期间每帧变化的 `surfaceOpacity` 排除，两侧宿主各维护一份排除列表且沉浸侧漏了它；现在两侧共用 `PlaybackSettlementProbeSignature`。压缩策略改为：证据超过压缩目标时按最新保留（LRU）并置 `evidenceOverflowed`，不再整本清空；诊断行在证据之外保有 `compactionTarget / 4` 的保底额度。渲染器所有权（`rendererOwnership.*`）、离场实体释放、空间拓扑写入、attachment 放置、`conversionFailed` 都改为证据级，真机回捞时这些跃迁必在。
 - **应答里的元素读数取两次，因为被作用的那个元素在应答写出来之前就可能已经不在层级里了**。`matchedElement` 是动作之前那一次读数，`elementAfterAction` 是动作之后那一次，元素离开层级时后者为 null。`snapshot` 只读不改，它的 `matchedElement` 直接用动作之后那一次，两次读的是同一个状态。这样一次点掉自己目标的 tap 仍然说得出它点的是什么。判定「该元素当时在不在」看 `matchedElement`，判定「这次动作把它变成了什么」看 `elementAfterAction`。`tapSequence` 按同一条规则处理路径，每一步在 `element.tap()` 之前把该步解析到的元素记进 `routeElements`，否则应答里只剩下标识符字符串，路径上每个元素的 label 无处可取。三个字段都由 `Scripts/verification/regression_operation_adapter.py` 消费。
 - **`matchedElement.frame` 的单位是点，截图是像素，应答里没有任何字段记录屏幕的点尺寸**。帧直接来自 `XCUIElementSnapshot.frame`（`Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift:765`），点到像素的比例因此推不出来，按 `matchedElement` 在截图上裁出对应区域这件事做不了。异常包逐条说明为什么产不出裁切图，而不是按猜的比例裁一块出来配上裁决文字——错的区域配上区域观察文字比不裁更糟。
@@ -23,17 +24,25 @@
 - **渲染器预读只能在真机上量**。DEBUG 测试通道的 `app-command --verb setRendererLeadFrames --arg frames=N` 把 `RendererLeadBudget` 钉在 N 帧，不带 `frames` 回到爬坡；`seekNormalized --arg position=P` 按时长比例 seek。`Scripts/verification/renderer_lead_sweep.py` 按预算序列钉住、保持、seek，再把这段探针里的 `windowSettlement` 行归约成每个预算一格：显示计数速率、最小送帧领先、最大送帧间隔、footprint 与每次 seek 的冲刷时间；显示计数是采样值，只在同一台机器的预算之间比较。
 - **慢速远程后端只能在应用内模拟**。真实网盘的高峰期无法按需复现，DEBUG 测试通道的 `app-command --verb setSourceReadDelay --arg ms=N` 让回环服务器在把每次读取转发给 WebDAV／SMB／Emby 来源之前先等 N 毫秒，不带 `ms` 清除；`Scripts/verification/source_read_delay.py` 是它的宿主。容器索引缓存命中的读取不经过这段延迟，所以已经打开过的条目会立刻打开、几秒后才停住。
 - **精确时间轴由 scrubber 的双击打开**，合成的单次 tap 打不开它。runner 的 `doubleTap` 动词发出 `XCUIElement.doubleTap()`，`Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift` 以它断言时间轴展开；`Scripts/verification/reachability_matrix.py` 的 `precision_timeline_scenario` 走同一条路径，在四个呈现上到达展开后的 `PlayerPanel-precision-timeline-back` 并按 `precisionTimeline.close` 探针判定。逐帧步进按钮不带 accessibility identifier，仍然只能走测试通道的 `frameStep`。
-- **真机的进程表按可执行文件路径列出进程，bundle id 不出现在其中**。`…/Enchron.app/Enchron` 与 `…/EnchronAppUITests-Runner.app/…` 都含有 `Enchron`，所以 `Scripts/verification/interactive_visionpro_ui.py` 用这一个 marker 同时匹配 app 与 runner。
-- **模拟器上 `launchctl list` 按 bundle id 标注 app，而不是按可执行文件路径**，同一次进程观察的 marker 集合因此随 transport 变化。`Scripts/verification/interactive_visionpro_ui.py` 在模拟器上要在路径 marker 之外再加上 app 与 runner 的 bundle id。
+- **真机的进程表按可执行文件路径列出进程，bundle id 不出现在其中**。`…/Enchron.app/Enchron` 与 `…/EnchronAppUITests-Runner.app/…` 都含有 `Enchron`，所以 `Scripts/console/transport.py` 用这一个 marker 同时匹配 app 与 runner。
+- **模拟器上 `launchctl list` 按 bundle id 标注 app，而不是按可执行文件路径**，同一次进程观察的 marker 集合因此随 transport 变化。`Scripts/console/transport.py` 在模拟器上要在路径 marker 之外再加上 app 与 runner 的 bundle id。
 - **`xcrun` 是 exec，进程表里不再有 `xcrun`**。`xcrun simctl spawn <udid> <binary> …` 起的持位进程在 `pgrep` 里以 `<binary>` 的 basename 出现（2026-10-18 实测：`pgrep -fl MoonlightSessionProbe` 同时命中 `simctl spawn …` 与被 spawn 的探针，`pgrep -fl xcrun` 返回 1）。进程存活判定因此取被 spawn 的可执行文件名，不取 argv[0]；`Scripts/verification/moonlight_acceptance.py` 的 `launched_executable` 承担这条换算。
 - **`devicectl device copy` 以目录为单位整体复制**，而 deferred 应答批次就是一个目录。`Scripts/verification/enchron_target.py` 的模拟器分支必须整树复制来对齐这一行为；只复制文件会把每一条批量应答留在模拟器容器里。
+- **本机常连一台真实 Apple Vision Pro，随时可控制，不需要密码**。2026-10-23 实测：`xcrun devicectl list devices` 列出 `小坏滴柳橙红茶的Apple Vision Pro`，visionOS 27.0.1，`available (paired)`，连接经 localNetwork；`xcrun devicectl device info details --device <该机 UDID>` 返回 `Device State: connected`、`Pairing State: paired`、`Device Reality: physical`。UDID 从 `devicectl list devices` 现取，不入库——设备标识禁止出现在受版本控制的文本里。`xcrun xctrace list devices` 把它列在 Devices Offline，那是隧道未在拉取时的状态，不代表不可用。因此"本机只有模拟器"是错的：真机单元、`reachability_matrix.py` 的设备判定、以及只能在真机上量的项都可跑。控制台机器档案探测它：`Scripts/console/machine.py` 的 `probe()` 增加 `physical-device` 能力与 `physical` 字段，`cli.py doctor` 打印 `physical <UDID>`；`target` 仍是 `ENCHRON_TARGET_DEVICE`、再退到已启动模拟器、再退到真机。
+- **沉浸空间在进入后没有主窗口控制面**。`enterSpatial`/`exitSpatial` 这两个通道动词完成进出，进入后 `PlayerUI-window-control-plane` 消失，落点判据改为沉浸面板里的 `PlayerPanel-button-exit-spatial` 出现；退出后再等主窗口控制面回报 `portal` 或 `window`。停靠式的目标是 `docked`，进入时必须带 `environment`（`quiet-room`、`ocean`、`tidal`），不带会得到 `dockedPresentationRequiresEnvironment`；全景式的目标不带环境。
+- **菜单项与标签的顺序由 `labelsAfterIdentifiers` 声明**。声明为真时先点菜单标识（更多 → 字幕/音轨），再等标签出现、再点标签；顺序反过来会在菜单打开前等一个不存在的标签。
+- **空间手势走 Device Hub 与 computer use**。XCUITest 无法为 Immersive Space 与 RealityView 的空间表面推导激活坐标，也无法合成注视与捏合。空间端到端操作经由 Device Hub，用 computer use 合成鼠标事件完成；这一通路也覆盖 Files 选择器、Home 主菜单与控制中心这类不在 App Accessibility 树里的系统目标，到达与否用后继系统界面与产品证据确认。需要这类动作的场景登记在 `Config/console/skipped-scenarios.json`，不生成端到端单元。
+- **结构检查跑的是仓库命令，不是设备动作**。`evidence.structural-test` 的检查名对应宿主命令（规则脚本或 `swift test --package-path Packages/PlaybackCore --filter …`），控制台按同一张表执行并留下退出码与输出尾部；这类单元只为 `swift test` 声明 `xcode` 能力。
+- **观看存储探针的摘要取自整份快照**。通道的 `viewingStorageProbe` 返回观看状态、容器索引、封面与设置的快照；`snapshotDigest` 是整份快照按键排序、紧凑编码后的 sha256，会随播放位置变化，前后对比只看受保护状态摘要与各类计数。控制台的 `device.viewing-storage` 动词把它归一成快照摘要、观看记录数、容器索引条目数与两个受保护摘要。
+- **设置页的清理项标识是 `Settings-action-clear-<target>`**。清理动作先进 `Navigation-Ornament-tab-settings`，再点 `Settings-category-storagePrivacy`，最后点对应清除按钮；容器索引清除是带数值动作的那一格。清理后回到文件页要点 `Navigation-Ornament-tab-files` 再点来源侧栏。
+- **产品表单添加 WebDAV 来源与通道直连走不同的凭据路径**。2026-10-23 模拟器实测：同一地址、同一账号口令，通道 `connectWebDAV` 连得上（夹具日志里 PROPFIND `/dav/regression/` 状态 207），产品表单（`FileBrowsing-SourceConnection-webDAV-*` 填表后点 Connect）报 `Credentials rejected`。夹具请求日志里对应那一次只有一条 PROPFIND，被夹具判为 `served-collection-path`、路径 `<outside-collection>`、状态 404；直接用 `curl` 复现该夹具行为，`/dav/regression/` 为 207，去掉尾部斜杠的 `/dav/regression` 正是 404。因此表单场景（`scenario:webdav-source-lifecycle:webdav-add-source` 与 `certificate-trust-boundary`）暂停生成，先查产品表单连接的地址归一化。控制台侧已备好 `device.source-facts`（取夹具地址、账号、口令并把证书指纹写进默认值）与填表翻译。
 - **哪一台头显由环境变量指认，仓库里没有核对它们的机制**。`ENCHRON_TARGET_DEVICE` 选 xcodebuild destination，`ENCHRON_CORE_DEVICE` 选 `devicectl` 用的 CoreDevice，两者都经 `Scripts/verification/enchron_target.py` 读取。这两个值是否仍然指向在场的那台设备，仓库无从判断；一次跑通的真机运行是它们当时仍然正确的唯一证据。头显更换后以 `xcrun devicectl list devices` 为事实来源重新取值。
 - **ffmpeg 把纯文本 demux 成 ANSI art 视频，并报出可信的时长与帧率**。暂存的 xcresult 把 runner 的 stdout 与附件放在一起，Staging 扫描会把两者一并递给探针，所以 `Scripts/verification/extract_visionpro_ui_recording.py` 不检查容器格式就会把 app 自己的日志当成录屏取回。
 - **xcresult 里的录屏是 anamorphic 的：2732x2048 像素承载一幅 16:9 画面，且不带 aspect 元数据**，方形像素的查看器会把它纵向拉伸。`Scripts/verification/extract_visionpro_ui_recording.py` 抽帧时归一到 XCUIScreen 截图通道交付的同一 16:9 几何。
 - **麦克风放在头显扬声器一小段距离外时，一次音调清晰可辨的采集落在 -55 dBFS 附近**，把静音阈值设在该电平会把真实采集报成静音。`Scripts/verification/journey_audio_probe.py` 取 -75 dBFS，低于仍然带 25 倍峰值的最安静一次采集；真正把音调与本底分开的是 `dominantPeakRatio`。
 - **200 Hz 以下的房间噪声可以压过被测音调**，此时 band 内最响的 bin 指认的是房间而不是音轨。`Scripts/verification/journey_audio_probe.py` 因此把 fixture 的四个脉冲频率互相排序，而不取 band 内的全局最大值。
-- **播放问题弹窗是系统场景，不在 app 自己的视图树里，截图与像素门都不把它当作失败**。弹窗在 `app.debugDescription` 的层级文本里以 `Alert` 子树出现，`Scripts/verification/interactive_visionpro_ui.py` 从每条应答的 `hierarchy` 解析出 `alerts`（标题、正文行、按钮标识符），任何读应答 JSON 的脚本或 agent 都能直接判定。runner 里多加一次 `app.alerts.allElementsBoundByIndex` 查询被否决：模拟器 relaunch 后那次查询把 runner 挂住超过 70 s（2026-09-06 探测段 `probe-main-window-browser` 连续两次 response-timeout），真机 lane 的 tap 均值也从 2 s 升到 9 s；`Scripts/verification/playback_mode_matrix.py` 的落点等待另读控制面 `error` 字段与探针 journal 的 `conversionFailed` 行，命中即判 `PRODUCT_ERROR`，落点正确也不放行。2026-09-06 的 Dock 返回失败就是弹窗被人眼看到、脚本按 tap 成功放行的案例。
-- **播放窗口比模拟器抓得到的画面大，镜头又不能动，所以 chrome 摆在哪里在模拟器里看不见**——截图通道对控件位移这一类回归是瞎的，2026-09-10 之前它只能靠佩戴者在真机上用眼睛发现。帧树是唯一能看见它的通道：`app.debugDescription` 给每个元素带上 `{{x, y}, {w, h}}`，而这些坐标是窗口局部的——每个 `Window` 子树从自己的原点开一套新坐标系，ornament（`PlayerPanel-controls`）是与 `Window (Main)` 平级的独立 `Window`，所以包含判定只能对最近的 `Window` 祖先做，对场景容器做会错：2026-09-10 模拟器 docked 时场景容器仍报 1280×720，其中的 `Window (Main)` 已经是 360×315。`Scripts/verification/interactive_visionpro_ui.py` 的 `chrome_containment_violations` 按这条规则解析每一条应答，结果以 `chromeContainment` 挂在应答上，`operation:` 系列的 post-action 状态缺这个字段就拒收（`_post_action_state`，`Scripts/verification/regression_operation_adapter.py`）。判定只覆盖产品自己命名的元素：匿名的框架内部件自带帧，浏览器 tab bar 被隐藏后会塌成 0×0 并在窗口原点上方 10 pt 处留下一个 68×20 的残件（2026-09-10 模拟器），那是框架的摆放不是产品的。容差 0.5 pt——这条检查存在的位移都是几十 pt 量级（内容矩形 1278×844 撑在 905×1018 的窗口里）。一次控制器往返约 1 s，几何变更中间那一两帧的溢出抓不到，判定的是稳定下来之后的摆放。
+- **播放问题弹窗是系统场景，不在 app 自己的视图树里，截图与像素门都不把它当作失败**。弹窗在 `app.debugDescription` 的层级文本里以 `Alert` 子树出现，`Scripts/console/transport.py` 从每条应答的 `hierarchy` 解析出 `alerts`（标题、正文行、按钮标识符），任何读应答 JSON 的脚本或 agent 都能直接判定。runner 里多加一次 `app.alerts.allElementsBoundByIndex` 查询被否决：模拟器 relaunch 后那次查询把 runner 挂住超过 70 s（2026-09-06 探测段 `probe-main-window-browser` 连续两次 response-timeout），真机 lane 的 tap 均值也从 2 s 升到 9 s；`Scripts/verification/playback_mode_matrix.py` 的落点等待另读控制面 `error` 字段与探针 journal 的 `conversionFailed` 行，命中即判 `PRODUCT_ERROR`，落点正确也不放行。2026-09-06 的 Dock 返回失败就是弹窗被人眼看到、脚本按 tap 成功放行的案例。
+- **播放窗口比模拟器抓得到的画面大，镜头又不能动，所以 chrome 摆在哪里在模拟器里看不见**——截图通道对控件位移这一类回归是瞎的，2026-09-10 之前它只能靠佩戴者在真机上用眼睛发现。帧树是唯一能看见它的通道：`app.debugDescription` 给每个元素带上 `{{x, y}, {w, h}}`，而这些坐标是窗口局部的——每个 `Window` 子树从自己的原点开一套新坐标系，ornament（`PlayerPanel-controls`）是与 `Window (Main)` 平级的独立 `Window`，所以包含判定只能对最近的 `Window` 祖先做，对场景容器做会错：2026-09-10 模拟器 docked 时场景容器仍报 1280×720，其中的 `Window (Main)` 已经是 360×315。`Scripts/console/transport.py` 的 `chrome_containment_violations` 按这条规则解析每一条应答，结果以 `chromeContainment` 挂在应答上，`operation:` 系列的 post-action 状态缺这个字段就拒收（`_post_action_state`，`Scripts/verification/regression_operation_adapter.py`）。判定只覆盖产品自己命名的元素：匿名的框架内部件自带帧，浏览器 tab bar 被隐藏后会塌成 0×0 并在窗口原点上方 10 pt 处留下一个 68×20 的残件（2026-09-10 模拟器），那是框架的摆放不是产品的。容差 0.5 pt——这条检查存在的位移都是几十 pt 量级（内容矩形 1278×844 撑在 905×1018 的窗口里）。一次控制器往返约 1 s，几何变更中间那一两帧的溢出抓不到，判定的是稳定下来之后的摆放。
 - **ornament 从后台回来之后可能整个不出现在可访问性树里，屏幕上却在**。2026-09-10 模拟器：从播放返回浏览器后，四个 `Navigation-Ornament-tab-*`／`Emby-Navigation-Tab` 按钮连续四轮都不在 `app.debugDescription` 里，浏览内容（`FileBrowsing-FilesScreen`、侧栏、12 个格子）全在；佩戴者看屏幕确认 tab bar 是回来了。`6cce03fb` 与 `bc342b01` 表现一致，与产品改动无关。所以 ornament 的"在不在"不能用帧树判定，`chrome_containment_violations` 也只对树里有、却跑出窗口的元素说话——ornament 整个消失它不会报，也报不了。
 - **控制面读不到就是沉浸式落点的签名**。沉浸式呈现清空主窗口，控制面随之消失，落点判定只能改读容器里的探针文件。见 `Scripts/verification/playback_open_sweep.py`。
 - **docked 与 panorama 内可以驱动剧集切换，但走的是与 window 不同的一套标识符**。deck ornament（`PlaybackPanel.swift`）用 `PlayerPanel-menu-more`／`PlayerPanel-menu-episodes` 打开 More 菜单，window host（`WindowPlayerDeck.swift`）用 `PlayerUI-TopAction-more`／`PlayerUI-menu-episodes`；两者的剧集条目标识符都以 `{category}-{item.id}` 收尾，`item.id` 是运行期 UUID，无法预先寻址，只能改用 `operation:accessibility.activate@2` 的 `labels`（配 `labelsAfterIdentifiers: true`）按可见文本命中。`operation:accessibility.activate@2`／`accessibility.inspect@2`／`evidence.capture-frames@1` 的 `context` 允许值集合（`CONTEXTS`，`Scripts/verification/regression_operation_adapter.py`）本就包含 `docked` 与 `panorama`，因此可以在这两种呈现内选中菜单项、读 `PlayerUI-spatial-state`、并抓帧取像素证据。**Scenario 里每一次剧集切换之后都必须有 `evidence.capture-frames`**：2026-09-08 docked 内选 180_3D.mp4 黑屏有声，可访问性树与窗口控制面都照样通过，只有像素能拒绝它；`Scripts/rules/check_episode_switch_captures_frames.py` 对蓝图强制这条规则。
@@ -43,6 +52,17 @@
 - **Settings 里的菜单格子改的是持久化偏好，跑完必须恢复**。`reachability_matrix.py` 的 `settings_menu_scenario` 为了证明投递会给每个 Settings 菜单选一个非当前项（默认倍速选 0.5），这些值写进 `UserDefaults`（`PreferencesStore.swift`），真机上一直留到下一次人手改回；2026-09-08 佩戴者发现每次播放都是 0.5 倍速。现在每个格子在投递证明之后用 `selected_menu_item` 读到的原选项调 `selectMenuItem` 恢复，结果记在结果文档的 `settingsRestorations`。
 - **`The runner did not answer tap within 30 seconds.` 不等于 tap 没落**。2026-09-12 真机上 AX 传输在播放中反复卡住，超时的 tap 有时延迟落到了目标上（`snapshot` 超时同理）。判动作是否生效要看控制面——探针里的 `lifecycle`、PTS 推进、`testcmd` 行——不能只凭 runner 回的错误文本。
 - **探针日志的写入不经过 AX**。`Documents/surface-tap-probe.log` 的控制面行由 app 自己写，AX 卡死期间照常推进，经 `devicectl` 拷容器即可读——2026-09-12 的整轮内存采样就是在 AX 不通的窗口里由它完成的。
+
+## 命令通道的唤醒
+
+- **runner 在自己的 ready 状态里声明轮询粒度，控制端据此决定要不要发 Darwin 通知**。`commandPollMillis` 由 `Tests/EnchronAppUI/Interactive/InteractiveDeviceUITests.swift` 的 `publishReadyState` 写出，取 `commandPollInterval` 的毫秒值（20）。`Scripts/console/transport.py` 读到该字段就不调 `wake_runner`，把命令文件写进去后直接等应答；读不到才发通知。旧 runner 不声明这个字段，因此仍然走通知，两端不会失配。
+- **跳过通知的代价是每次动作多等最多一个轮询周期**。省下的正是 `xcrun simctl spawn <udid> notifyutil -p` 那一次进程创建，约 240 毫秒。轮询本身每 20 毫秒一次 `fileExists`，开销低于一次通知。
+- **通道的一次快照在模拟器上约 330 毫秒，其中可及性工作本身约 260 毫秒**。其余是进程表、容器路径与应答轮询，三者都已压到很小：曾占大头的是 `xcrun simctl get_app_container`（每次约 111 毫秒）与整张进程表（每次约 46 毫秒），两者每条命令各要花一到两次。
+- **轮询在两条 lane 上都成立，因为轮询发生在 runner 自己的容器里**。`simctl` 与 `devicectl` 的分支只影响命令文件的搬运气道，不影响 runner 看自己目录的开销。通知因此保留给不声明 `commandPollMillis` 的 runner，不是给真机留的例外。
+
+- **容器路径与进程表按时间窗复用，不能每次命令都查**。`simulator_container` 的结果按设备与包标识符缓存，命中前校验目录仍在，重装后自动重新解析；`scoped_processes` 按 1 秒窗口缓存，容器路径按 5 秒窗口复核。这两次查询分别是约 111 毫秒与约 46 毫秒，而它们决定的状态在秒级尺度上不会变。
+
+- **`activate` 动作把应用拉到前台，不动元素**。`InteractiveDeviceUITests.swift` 的 `.activate` 分支只调 `app.activate()`，标识符参数被忽略，应答是「Application activated.」。它的 1.23 到 1.43 秒是前台化成本，不能当作元素激活使用；要操作元素只能用 `tap` 一类动作。
 
 ## XCUITest 与 visionOS 的场景
 
@@ -54,8 +74,8 @@
 - **沉浸空间关闭之后场景输入所有权会丢**，需要显式恢复，而不是靠重启 app——重启会把当前状态一起丢掉。
 - **自动隐藏的 chrome 熬得过一次控制器往返，熬不过四次**，所以菜单序列必须落在同一条命令里。
 - **`tapSequence` 先点 `label`，再按顺序点 `identifiers`**，所以一条以可见文本收尾的路径要用 `trailingLabel` 而不是 `label`。嵌套菜单的叶子行没有标识符，只能按 label 命中，而它要等上面几步标识符把子菜单打开之后才存在。`trailingLabel` 在 identifiers 全部点完之后再按 `label == %@` 找一次，把这一步留在同一条命令里；拆成第二条命令时菜单撑不到那时候。适配器一侧的入口是 `operation:accessibility.activate@2` 的 `labelsAfterIdentifiers: true`（`Scripts/verification/regression_operation_adapter.py:4279`），它要求恰好一个 label、至少一个 identifier，且 gesture 是 tap。
-- **runner 对 stop 的反应是结束自己的测试，而不是写一条应答**，所以一次超时的 stop 应答不表示 stop 被忽略。等 `xcodebuild` 退出是唯一能区分两者的观察，那次退出也正是 result bundle 与录屏写完的时刻，`Scripts/verification/interactive_visionpro_ui.py` 的 halt 以它为准。
-- **runner 在 XCTest 拆掉测试之前就应答 stop**，带录屏的会话把这段拆解时间用于把视频从头显上拉下来并写 result bundle。在此期间杀掉 `xcodebuild` 会留下一个没有 Info.plist 的 bundle 和一段没有 moov atom 的录像；没有录屏的会话远在这段时间之内就自己退出。`Scripts/verification/interactive_visionpro_ui.py` 的 `resultBundleWritten` 报告的是 xcodebuild 有没有自己退出。
+- **runner 对 stop 的反应是结束自己的测试，而不是写一条应答**，所以一次超时的 stop 应答不表示 stop 被忽略。等 `xcodebuild` 退出是唯一能区分两者的观察，那次退出也正是 result bundle 与录屏写完的时刻，`Scripts/console/transport.py` 的 halt 以它为准。
+- **runner 在 XCTest 拆掉测试之前就应答 stop**，带录屏的会话把这段拆解时间用于把视频从头显上拉下来并写 result bundle。在此期间杀掉 `xcodebuild` 会留下一个没有 Info.plist 的 bundle 和一段没有 moov atom 的录像；没有录屏的会话远在这段时间之内就自己退出。`Scripts/console/transport.py` 的 `resultBundleWritten` 报告的是 xcodebuild 有没有自己退出。
 
 ## Harness 的失败模型与原语边界
 
@@ -65,7 +85,7 @@
 
 - **人类层的入口条件只认三种超时 kind**：`transport-timeout`、`response-timeout`、`wait-expired`（`Scripts/regression/core/runview.py:112-118` 的 `HARNESS_TIMEOUT_KINDS`）。同一节点连续两次 attempt 都落在这三种之内才允许推迟给人。产品慢不在其中，产品慢是 `Violated`。
 
-- **超时预算一律由测量导出，禁止手写字面量**。这条由 `Scripts/rules/harness_primitives_gate.py` 强制：它扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 五个记号。豁免只有三类——`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`——以及 `Config/harness_primitives_allowlist.json` 里逐条列出的既有违例文件。每完成一次迁移删一行，清空后这道门即为无例外强制。清单本身就是迁移进度表，不是永久豁免。
+- **超时预算一律由测量导出，禁止手写字面量**。这条由 `Scripts/rules/harness_primitives_gate.py` 强制：它扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 五个记号。豁免只有三类——`harness/` 包自身、`transport.py`、`enchron_target.py`——以及 `Config/harness_primitives_allowlist.json` 里逐条列出的既有违例文件。每完成一次迁移删一行，清空后这道门即为无例外强制。清单本身就是迁移进度表，不是永久豁免。
 
 - **`harness/` 包内不写注释**。14 个 Python 文件当前注释行为零。无法用代码表达的约束写进本文，断言信息与日志字符串承担行内文档职责。这与 `Scripts/rules/verify_product_source_comments.py` 对全仓 Swift 与 Python 的要求是同一条规则，此处记录的是它对 harness 的具体含义：读者要找"为什么"，只能来本文，不要指望源文件。
 
@@ -75,10 +95,11 @@
 
 - **XCUITest 的 `tap()` 在合成事件前等待 app 静默，等待上限约 60 秒**。导入媒体后的缩略图与库落盘工作让 app 长时间不静默，所以任何由空闲期样本推出的 p95 预算都会结构性地卡在这个窗口里、把一次正常的慢 tap 杀成 transport-timeout。合成输入类动词的预算地板由 `provisional_budgets.json` 的 `floorSeconds` 承载（当前 75 秒），高于该上限。
 - **样本不足 5 条时等待动词的临时预算取 60 秒上限，而不是猜测值**。`identifier-appearance`／`any-identifier-appearance`／`identifier-absence`／`identifier-value`／`probe-needle`／`presentation-settle` 曾是 8–45 秒的猜测，落在 tap 静默窗口之内，一次正常的慢出现会被杀成 wait-expired；上限 60 秒与 tap 的静默等待对齐，元素真的不出现时仍然以上限失败。`Budget.provenance` 里以 `provisional ceiling 60s` 标出未实测的上限，与合成输入等非等待动词的 `provisional <n>s` 猜测区分。
+- **计时样本库只由 `transport.py` 作为命令行进程运行时写入**。`record_timing` 的调用点在 `main()` 里，一个进程只记顶层动作一条；进程内直接调 `send_command` 的路径（守护进程、重启后的层级轮询）不经过它。harness 的样本另有来源：`fold_timing_samples.py` 从证据目录的 `controller_timings` 文件折入。两条入口都只反映完整的一次命令，不含进程内的中间探测。
 - **提交凭据的场景只能在真机 lane 跑**。模拟器里的 app 对 `Mac-mini.local:445` 报 Server unreachable，而宿主上 `nc` 能连通该端口；连接成功后系统的 Save-Password 面板在真机上能按 label 点掉，在模拟器上按钮出现在 `debugDescription` 里却查询不到（2026-09-06 `probe-main-window-browser` 段）。`harness/scenario_lanes.py` 把代码里能到达 `FileBrowsing-SourceConnection-*-connect` 字面量的场景划到真机，与打开播放的场景同一规则。侧栏删除只在有可删远程源时出现在调试菜单里，所以 `source-sidebar` 场景在删除一步之前自己连一个 WebDAV 源，并因此落在真机 lane。
 - **视图模式由控件自述**。`FileBrowsing-FilesScreen-viewMode` 的 accessibility value 为 `grid` 或 `list`，`reachability_matrix.require_library_grid_mode` 以它为准；控件不在层级里时才退回按卡片、列表容器与空态（`FileBrowsing-FilesScreen-emptyState`，空文件夹或远端列举为空时都会显示）推断。2026-09-03 的 fail-closed 版本只看卡片，在新建文件夹后一进去就报错；空态与列举失败在内容层面无法区分，所以推断只是退路。
 - **`reachability_matrix.py` 不带 `--emby-credentials` 时视为已登录并跳过 Emby 场景**，13 个 Emby cell 因此静默变成 unmeasured。参数默认指向 `Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json`（存在时）；该文件不入版本控制，没有它时 `ensure_emby_sign_in` 记一条 `embySignIn` 拒绝事件并给连接 cell 写明理由，Emby 场景以可见的失败收场而不是静默跳过。
-- **`run_verification.py` 的 Tree hygiene 层要求整轮运行不改动受版本控制的文件**。此前 `test_reachability_matrix.py` 与 `test_seed_source_connection.py` 用默认 `BudgetProvider()` 把 wait 样本写进 `controller_timings.*.json`，预推送门每跑一次就让工作树偏离冻结摘要，之后所有冻结会话在 ensure-session 被拒。门把 `ENCHRON_TIMINGS_DIRECTORY` 指向本次运行目录，`BudgetProvider` 与 `interactive_visionpro_ui.py` 的默认 timings 目录都跟随它，门内任何测试或工具写的样本都落在运行目录里。
+- **`run_verification.py` 的 Tree hygiene 层要求整轮运行不改动受版本控制的文件**。此前 `test_reachability_matrix.py` 与 `test_seed_source_connection.py` 用默认 `BudgetProvider()` 把 wait 样本写进 `controller_timings.*.json`，预推送门每跑一次就让工作树偏离冻结摘要，之后所有冻结会话在 ensure-session 被拒。门把 `ENCHRON_TIMINGS_DIRECTORY` 指向本次运行目录，`BudgetProvider` 与 `transport.py` 的默认 timings 目录都跟随它，门内任何测试或工具写的样本都落在运行目录里。
 - **段尾整树拷贝 `Documents/test-responses` 不能共用探针小文件的 `probe-copy` 预算**。探针文件的实测样本把预算压到 5 s，而一个 800 步的真机段在段尾要一次拷回全部延迟应答，2026-09-06 window／portal／docked 三段因此在最后一步 transport-timeout、整段证据作废。批量应答拷贝走自己的 verb `app-responses-copy`（临时预算 300 s，下限 120 s），样本按 verb 分开累积。
 - **冻结运行的等待样本落在当次输出目录的 `timing-samples.jsonl`**，每行一个 `{"verb", "lane", "seconds", "censored", "at"}`，`results.json` 以 `timingSamples: {"path", "count"}` 指认它。冻结运行不写 `controller_timings.<lane>.json`（受版本控制，写它会破坏冻结），样本归属由构造 `BudgetProvider` 的一方注入输出目录；非冻结运行仍直接写 `controller_timings.<lane>.json`。
 - **冻结样本由 `Scripts/verification/fold_timing_samples.py` 按 lane 折回 `controller_timings.<lane>.json`**，按 `(verb, at)` 去重、每动词保留最近 `SAMPLE_LIMIT`（40）条。同一输入跑两次第二次无改动；某动词折入 5 条以上后 `budget()` 即按 p95 × 1.5 给出实测预算，不再走临时上限。
@@ -88,7 +109,7 @@
 - **撤销一个窗口可能把整个 app 送进 background 并被系统挂起**（进程存活、命令通道与 AX 全部无响应），即便另一个窗口刚刚 appeared。播放→主窗交还因此把撤销延迟到主窗布防后的下一次 active 转换；等不到就保留双窗，绝不冒挂起风险。
 - **段间复用常驻 runner 省去每段 `ensure-session` 的 115–286 秒建会话与 30–56 秒 `halt`，四段合计 10–20 分钟（device lane 关键路径约 57 分钟的 20–35%）**，段证据对齐由 runner `sessionID`（`ready.json`）改为每段新建的 `evidenceSession`（`evidenceSession=<uuid>`，`reachability evidence session=<uuid>`）。
 - **模拟器 lane 的 `ensure-session` 约 24 秒到 `stage: ready`**，与真机 lane 每段 115–286 秒的建会话不是一个量级。判据是返回的 stage 而不是耗时；`halt` 返回空 `remaining` 才算停净。
-- **一次普通命令往返在设备繁忙时的实测中位数是 2.6 秒**，所以 5 秒的 stop 应答死线会在一个只是正在播放的会话上过期，并让 halt 整个跳过 graceful 路径。`Scripts/verification/interactive_visionpro_ui.py` 取 30 秒，这条死线只有在 runner 真的不应答时才会走完。
+- **一次普通命令往返在设备繁忙时的实测中位数是 2.6 秒**，所以 5 秒的 stop 应答死线会在一个只是正在播放的会话上过期，并让 halt 整个跳过 graceful 路径。`Scripts/console/transport.py` 取 30 秒，这条死线只有在 runner 真的不应答时才会走完。
 
 ## xcodebuild 的测试选择与执行计数
 
@@ -106,6 +127,7 @@
 - **`.alert` 的 `message` 里的 `Text` 丢掉 `.accessibilityIdentifier` 与 `accessibilityValue`**（模拟器 2026-09-06 实测：`PlayerUI-presentation-conversion-diagnostic` 读回空标识符、无 value），按钮保留。弹窗正文只能按 alert 标题与 label 匹配，诊断值要从探针 journal 的 `conversionFailed` 行读。
 - **SwiftUI `Menu` 在真机 visionOS 上可能报 `isHittable == false`，却仍然接受语义 tap**。可观察的契约是"菜单可用 → 公共选项可用 → 设置标题变了"，`isHittable` 单独不足以否决这个系统控件。
 - 系统 `Menu` 里只有 `Button` 行保留标识符、`Section` 会吞掉内部每一行的标识符——两条见 `docs/DESIGN_SYSTEM_CONSTRAINTS.md`。
+- **播放器菜单展开时，窗口层的元素整体从可及性树里消失**（模拟器 2026-10-22 实测：`PlayerUI-TopAction-more` 展开后，屏上只剩 `PlayerUI-menu-*` 四行，`PlayerUI-window-control-plane` 读不到）。因此控制面状态只能在菜单展开前读，或在菜单收起后读；菜单展开期间只能截屏，不能断言窗口元素。
 
 ## 时序容差的来由
 
@@ -120,7 +142,7 @@
 
 - **常驻 runner 以 300 s 的控件自动隐藏启动 app**。Preparation 不覆盖它时，任何"菜单打开时控件仍在"的读数都由 harness 保证，成对的 controls=hidden 判据永远不会触发。见 `Scripts/verification/regression_preparation_adapter.py`。
 - **secondary-menu-pins-audio-controls 在 9000 ms settle 之后探测 controls=shown**，audio-only Preparation 因此把自动隐藏窗口压到 8 s。见 `Scripts/verification/regression_preparation_adapter.py`。
-- **window-surface-controls-toggle-and-autohide 从三次 Device Hub 捏合读出 shown-hidden-shown**。一次捏合是一次 `device_hub_canvas.py` 往返加一次控制器快照，各需数秒；8 s 的空闲窗口会在两次捏合之间触发，25 s 覆盖整段序列，并且短于该 Scenario 收尾的 30000 ms 探测 settle（适配器上限）。见 `Scripts/verification/regression_preparation_adapter.py`。
+- **window-surface-controls-toggle-and-autohide 依赖三次空间捏合**。它读的是 shown-hidden-shown 三段，捏合之间还有 8 s 空闲窗口；这条场景按空间手势跳过，不生成端到端单元。
 - **audio-only 集合里的 FATE 片长在 0.107 s 到 11.9 s 之间**，撑不到 tap 之后三次控制器往返的那次控制面读数；181 s 的生成资产是集合里唯一能撑到的。见 `Scripts/rules/tests/test_fixture_registry.py`。
 
 ## 可达性清单的字符串扫描
@@ -190,3 +212,27 @@ xctrace 与 devicectl 走的是**两条不同的设备通道**：devicectl 是�
 - **`freeze` 同时核对 app 与 UI 测试包的内嵌来源**。2026-09-07 两次 UI 测试 target 编译失败后，`Enchron.debug.dylib` 因产品代码未变而带着当前树摘要，旧的 `EnchronAppUITests.xctest` 却没有任何来源标记，冻结照样通过，两段真机回归跑在旧 runner 上。`EnchronAppUITests` target 现在也链接 `$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)`，`_bind_lane` 解析 `EnchronAppUITests.xctest/EnchronAppUITests` 的 `__TEXT,__enchsrc`，与当前树摘要不一致即拒绝冻结（`test_bootstrap_freeze.test_a_stale_ui_test_bundle_refuses_to_freeze`）。编译失败的产物从此冻不进去。
 - **段在场景阶段一旦通道丢失就结束当前场景**。原先 `run_segment` 只在场景之间检查 `channel_failures`，场景内部的每一步都还会得到"already failed"的拒绝文档并继续走完；runner 在第 31 步消失，段又发了二十多条注定失败的命令。现在 `controller` 在场景阶段（`scenario_phase`）遇到通道拒绝时抛 `SegmentChannelLost`，场景循环捕获后直接进入收尾；收尾阶段（probeStatus、拷贝、健康检查）不受影响。
 - **每一步之后写 `progress.json`**。段输出目录下的这份文件只有几行：步数、最近一步与其成败、通道失败数、是否已停、结束状态。盯段的人读它，不读层级树。
+
+## 端到端档的设备状态与夹具约束
+
+- **证书指纹由 app 命令 `trustCertificate` 在进程内写入**。`resetState` 清空 `server-certificate-fingerprint.*` 默认值，产品没有忘记入口，所以每个单元连接来源前都要重新注入信任。只写用户默认值时 app 进程读不到新值，必须 relaunch 并等 3 秒；进程内命令把一次连接压到 1 秒级。`connectWebDAV` 与 `device.source-facts` 的信任写入共用这个命令。
+- **帧证据用宿主 `simctl io` 截取**。runner 的 burst 截图要经 XCUITest 通道拷回附件，每帧约 4–5 秒；宿主截图约 0.3 秒。模拟器进程不能直接写外部卷上的证据目录（`NSCocoaErrorDomain 513`），所以先落到 `/tmp` 再移动进 `steps/`。截图失败时回退到 runner burst，证据格式不变。
+- **WebDAV 夹具绑定所有本机地址**。`Mac-mini.local` 的 mDNS 应答同时含回环与 LAN 地址，解析器可能先返回 `127.0.0.1`；夹具只绑 LAN 地址时，主机名一旦解析到回环，所有远程来源单元在连接图上失败。`ServiceConfiguration.bindWildcard` 让服务监听 `0.0.0.0` 而仍以主机名作为服务地址，证书 SAN 与地址语义不变。
+- **连接来源后浏览器回到 Files 根**。`connectWebDAV` 完成连接后调用 `useDefaultFolder()`。来源已经处于打开状态时再点同一来源行会换出第二个窗口，XCUITest 随后绑在旧场景上，层级只剩面包屑与系统服务；单元之后的所有元素等待都会落空。单元自己点来源行完成唯一的打开动作。
+- **失败残留的 recipe 在下一次激活前恢复**。`device.fault-source` 激活前无条件尝试恢复当前 generation 的 receipt；只按 `status.recipe == healthy` 跳过会漏掉「health recipe 仍持有一张未恢复的 receipt」的状态，下一次激活被服务拒绝。
+- **服务 receipt 与来源 receipt 跨进程缓存 180 秒**。每个单元是独立进程，`ensure_test_services` 的启动探测按 provider 缓存在 `.scratch/console/service-cache/`，TTL 内命中直接复用地址与指纹。来源目录内容与证书变化仍由每单元重新读取 runtime 文件与 `device.connect-source` 的食谱恢复覆盖。
+- **结构检查在单元启动时预取**。`static.structural-test` 与设备步骤无数据依赖，`run_plan` 在清状态前就以子进程启动它们，步骤执行时取回结果；网络单元 13.7 秒的结构检查因此与设备步骤重叠。
+- **设置菜单用 `selectMenuItem` 选择**。设置页的菜单行支持 `DebugMenuSelectionFamily`（`resume-strategy`、`end-behavior`、`default-speed`、`hold-speed`、`controls-auto-hide`），翻译器把 `Settings-menu-*` 的 tapEach 链换成 `host=settings` 的调试命令，省去每次 3.7 秒的菜单动画与元素查询。
+
+## 全量端到端档的实测耗时与偏差
+
+82 个单元的模拟器全量档在 2026-10-24 实测：墙钟 2277 s（37.9 分钟），79 个通过、3 个失败；单元耗时中位 22.6 s、p90 50.1 s、最大 66.4 s；目录单元 69 个，中位 24.0 s、p90 52.0 s、最大 66.4 s，80 s 以上与 90 s 以上都是 0 个。三个试点：DV 24.6 s、audio 28.5 s、storage rows 57.1 s。
+
+目标与实际：p90 ≤50 s 的目标以 50.1 s 擦线；max ≤70 s、目录中位 ≤28 s、0 个 ≥80/90 s 达成；墙钟 ≤30 分钟未达成。剩余成本的构成：
+
+- 每个单元固定开销约 2–3 s：清播放/沉浸/媒体导航状态、连接会话、teardown 删库。82 个单元合计约 200 s。
+- 远程来源单元每单元 1–2 次连接，每次约 1 s；媒体打开与远程字幕发现仍要 3–5 s 起步。
+- 播放断言要观测真实位置、cue 与转场落点；Emby 生命周期单元要等服务器会话，整档排在最后。
+- 3 个失败单元各付一次会话重启（约 16 s）。失败是间歇的场景/呈现状态问题：presentation 两个单元连续单独重跑 2/2 通过，webdav-add-source 单独重跑 1/2 通过；失败点都在播放窗口或网格元素的等待，不是断言判错。
+
+默认端到端档 12 个单元实测 77 s，全部通过。其余三档在模拟器关闭后的空闲宿主上实测：CI 快档 5.8 s（只有产品路径，跳过 144 个工具自检），慢档 27.7 s，PR 事件 27.5 s，push 事件 27.2 s；构建档增量 26.1 s（touch 产品源文件后），冷构建 93.6 s，无改动复用 0 ms；单元档在构建复用下 58.9 s，冷构建后首跑 161.0 s。模拟器与会话占着宿主时，同一命令的 CI 慢档可到 50.8 s、构建冷档可到 204.0 s，文档的记录以空闲值作为档位耗时。

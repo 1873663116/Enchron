@@ -524,29 +524,6 @@ public struct FilesScreen: View {
         }
     }
 
-    private func requestPhotosImport() {
-        inputs.requestProductEntry(.photos) { result in
-            switch result {
-            case .success(let urls):
-#if DEBUG
-                let referenceIDsBeforeImport = Set(mediaLibrary.references.map(\.id))
-#endif
-                mediaLibrary.addFiles(urls)
-#if DEBUG
-                SystemImportDeliveryDiagnostics.recordPersistentLibraryDelivery(
-                    deliveredURLs: urls,
-                    newReferences: mediaLibrary.references.filter {
-                        referenceIDsBeforeImport.contains($0.id) == false
-                    },
-                    errorDescription: mediaLibrary.lastErrorMessage
-                )
-#endif
-            case .failure(let error):
-                mediaLibrary.lastErrorMessage = error.localizedDescription
-            }
-        }
-    }
-
     private func dismissSourceConnection() {
         presentedSourceConnection = nil
     }
@@ -828,12 +805,6 @@ public struct FilesScreen: View {
                     Label("Add Files", systemImage: "doc.badge.plus")
                 }
                 .accessibilityIdentifier("MediaLibrary-Manage-addFiles")
-                Button {
-                    performManageAction(.addPhotos)
-                } label: {
-                    Label("Add from Photos", systemImage: "photo.badge.plus")
-                }
-                .accessibilityIdentifier("MediaLibrary-Manage-addPhotos")
                 Button {
                     performManageAction(.addFolder)
                 } label: {
@@ -1412,8 +1383,6 @@ public struct FilesScreen: View {
         switch action {
         case .addFiles:
             requestFileImport(.mediaFiles)
-        case .addPhotos:
-            requestPhotosImport()
         case .addFolder:
             presentFolderImporter()
         case .newFolder:

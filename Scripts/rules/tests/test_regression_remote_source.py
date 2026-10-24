@@ -73,6 +73,11 @@ class RemoteSourceTestCase(unittest.TestCase):
             ),
             encoding="utf-8",
         )
+        self.environment_file = self.root / "env"
+        self.environment_file.write_text(
+            "WEBDAV_USER=runtime-user\nWEBDAV_PASSWORD=runtime-password-9g\n",
+            encoding="utf-8",
+        )
         self.configuration = remote.ServiceConfiguration(
             runtime_root=self.root / "runtime",
             registry_path=self.registry,
@@ -80,6 +85,7 @@ class RemoteSourceTestCase(unittest.TestCase):
             bind_host="127.0.0.1",
             port=0,
             allow_loopback=True,
+            environment_file=self.environment_file,
         )
         self.controller = remote.RemoteSourceController(self.configuration)
         self.identity = self.controller.ensure()

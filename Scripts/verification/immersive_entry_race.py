@@ -26,7 +26,7 @@ import sys
 import time
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
+CONTROLLER = REPOSITORY_ROOT / "Scripts/console/transport.py"
 PROBE_RELATIVE_PATH = "Documents/surface-tap-probe.log"
 BUNDLE = "com.xiongzhipeng.Enchron"
 SEQUENCE = re.compile(r"probeSequence=(\d+)")

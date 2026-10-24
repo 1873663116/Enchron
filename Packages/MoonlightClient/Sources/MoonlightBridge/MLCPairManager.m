@@ -1,7 +1,3 @@
-//
-//  MLCPairManager.m
-//  Adapted from moonlight-ios Limelight/Network/PairManager.m at 02dc9780.
-//
 
 #import "MLCPairManager.h"
 #import "MLCCryptoManager.h"
@@ -32,7 +28,6 @@
 }
 
 - (void)main {
-    // We have to call startPairing before calling any other _callback functions
     NSString* PIN = _pin ?: [self generatePIN];
     [_callback startPairing:PIN];
 
@@ -60,7 +55,6 @@
     [_httpManager executeRequestSynchronously:[MLCHttpRequest requestWithUrlRequest:[_httpManager newUnpairRequest]]];
 
     if (![resp isStatusOk]) {
-        // Use the response error if the request failed
         errorMsg = resp.statusMessage;
     }
 
@@ -71,7 +65,6 @@
     [_callback pairSuccessful:derCertBytes];
 }
 
-// All codepaths must call finishPairing exactly once before returning!
 - (void)initiatePairWithPin:(NSString*)PIN forServerMajorVersion:(int)serverMajorVersion withState:(NSString*)state {
     Log(LOG_I, @"Pairing with generation %d server in state %@", serverMajorVersion, state);
 
@@ -83,7 +76,6 @@
     MLCHttpResponse* pairResp = [[MLCHttpResponse alloc] init];
     [_httpManager executeRequestSynchronously:[MLCHttpRequest requestForResponse:pairResp withUrlRequest:[_httpManager newPairRequest:salt clientCert:_clientCert]]];
     if (![self verifyResponseStatus:pairResp]) {
-        // GFE does not allow pairing while a server is busy, but Sunshine does. We give it a try and display the busy error if it fails.
         if ([state hasSuffix:@"_SERVER_BUSY"]) {
             [self finishPairingForResponse:pairResp withFallbackError:@"You cannot pair while a previous session is still running on the host PC. Quit any running games or reboot the host PC, then try pairing again."];
         }
@@ -99,14 +91,12 @@
         return;
     }
 
-    // Pin the cert for TLS usage on this host
     NSData* derCertBytes = [MLCCryptoManager pemToDer:[MLCUtils hexToBytes:plainCert]];
     [_httpManager setServerCert:derCertBytes];
 
     MLCCryptoManager* cryptoMan = [[MLCCryptoManager alloc] init];
     NSData* aesKey;
 
-    // Gen 7 servers use SHA256 to get the key
     int hashLength;
     if (serverMajorVersion >= 7) {
         aesKey = [cryptoMan createAESKeyFromSaltSHA256:saltedPIN];
@@ -196,7 +186,6 @@
     [self finishPairingWithSuccess:derCertBytes];
 }
 
-// Caller calls finishPairing for us on failure
 - (BOOL)verifyResponseStatus:(MLCHttpResponse*)resp {
     if (![resp isStatusOk]) {
         return false;

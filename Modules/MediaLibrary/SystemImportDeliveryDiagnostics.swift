@@ -6,12 +6,10 @@ import Foundation
 public enum SystemImportDeliveryDiagnostics {
     public enum DeliveryDomain: String, Encodable, Equatable, Sendable {
         case filesProviderSecurityScope = "files-provider-security-scope"
-        case appManagedPhotoTransfer = "app-managed-photo-transfer"
     }
 
     public enum ReturnedIdentityKind: String, Encodable, Equatable, Sendable {
         case filesProviderURL = "files-provider-url"
-        case photosAsset = "photos-asset"
     }
 
     public enum PersistenceOutcome: String, Encodable, Equatable, Sendable {
@@ -145,29 +143,6 @@ public enum SystemImportDeliveryDiagnostics {
                         returnedIdentity: $0.standardizedFileURL.path
                     )
                 }
-            )
-        )
-    }
-
-    public static func recordPhotosTransferCompletion(
-        requestID: UUID,
-        assetIdentifier: String?,
-        deliveredURL: URL
-    ) {
-        guard requestedDomains.removeValue(forKey: requestID)
-                == .appManagedPhotoTransfer else { return }
-        pendingDeliveries.append(
-            PendingDelivery(
-                requestID: requestID,
-                deliveryDomain: .appManagedPhotoTransfer,
-                deliveredURLs: [deliveredURL],
-                items: [
-                    deliveredItem(
-                        at: deliveredURL,
-                        identityKind: .photosAsset,
-                        returnedIdentity: assetIdentifier
-                    )
-                ]
             )
         )
     }

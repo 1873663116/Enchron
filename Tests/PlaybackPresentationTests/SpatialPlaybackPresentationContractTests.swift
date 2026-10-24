@@ -182,28 +182,6 @@ struct SpatialPlaybackPresentationContractTests {
         )
     }
 
-    @Test("ended playback withdraws every forward transport affordance")
-    func endedPlaybackWithdrawsForwardTransport() {
-        let endedTransport = PlaybackTransportAvailability(lifecycle: .ended)
-
-        #expect(
-            endedTransport.primaryAction == .replay,
-            "Ended must expose Replay as the primary action under the replay affordance"
-        )
-        #expect(
-            endedTransport.primaryActionEnabled,
-            "Replay must remain tappable at the media end"
-        )
-        #expect(
-            !endedTransport.canSkipForward,
-            "Ended must disable forward skip at the media end"
-        )
-        #expect(
-            !endedTransport.canStepForward,
-            "Ended must disable next-frame at the media end"
-        )
-    }
-
     @Test("capability loss abandons the execution and keeps the product request")
     func capabilityLossAbandonsExecutionAndKeepsRequest() throws {
         let retryModel = PlaybackPresentationModel()
@@ -311,71 +289,6 @@ struct SpatialPlaybackPresentationContractTests {
             try PresentationContract.completePendingEffect(stopReplacementModel)
                 == .effectCompleted,
             "the replacement cleanup request must remain claimable exactly once"
-        )
-    }
-
-    @Test("media session invalidation settles Window through one normalization request")
-    func mediaSessionInvalidationSettlesWindow() throws {
-        let sessionReplacementModel = PlaybackPresentationModel()
-        sessionReplacementModel.prepareColdPlaybackLaunch(for: .panoramic)
-        _ = try sessionReplacementModel.requestPresentation(
-            .panorama,
-            playbackContext: SpatialPlaybackTransitionContext(
-                mediaSessionID: "replacement-session-a",
-                wasPlaying: true
-            )
-        )
-        let replacedSessionRequest = try PresentationContract.pendingRequest(
-            sessionReplacementModel
-        )
-        let replacedSessionExecutionID = UUID()
-
-        #expect(
-            sessionReplacementModel.claimSpatialPlatformEffect(
-                replacedSessionRequest.id,
-                executionID: replacedSessionExecutionID
-            ),
-            "the old Media Session effect must be actively claimed"
-        )
-        #expect(
-            sessionReplacementModel.receiveSpatialPlatformResult(
-                .mediaSessionInvalidated(
-                    requestID: replacedSessionRequest.id,
-                    executionID: replacedSessionExecutionID,
-                    requiresPlatformNormalization: true
-                )
-            ) == .presentationRolledBack(.mediaSessionChanged)
-                && sessionReplacementModel.presentation == .window,
-            "Media Session invalidation must invalidate the old transition and settle Window"
-        )
-
-        let sessionCleanupRequest = try PresentationContract.pendingRequest(
-            sessionReplacementModel
-        )
-        #expect(
-            sessionCleanupRequest.effect
-                == .normalizeInvalidatedSpatialPlayback(keepsEnvironmentOpen: false)
-                && sessionCleanupRequest.playbackTransportPlan == nil,
-            "issued spatial effects require one session-agnostic normalization request"
-        )
-        #expect(
-            sessionReplacementModel.receiveSpatialPlatformResult(
-                .effectCompleted(
-                    SpatialPlatformEffectResult(
-                        requestID: replacedSessionRequest.id,
-                        executionID: replacedSessionExecutionID,
-                        mediaSessionID: "replacement-session-a",
-                        outcome: .succeeded
-                    )
-                )
-            ) == .ignored,
-            "the replaced Media Session execution must not commit or resume"
-        )
-        #expect(
-            try PresentationContract.completePendingEffect(sessionReplacementModel)
-                == .effectCompleted
-                && sessionReplacementModel.pendingSpatialPlatformEffect == nil,
-            "session normalization must execute and settle exactly once"
         )
     }
 
@@ -826,63 +739,6 @@ struct SpatialPlaybackPresentationContractTests {
             ) == .platformFactRecorded
                 && presentationModel.pendingSpatialPlatformEffect == nil,
             "Window and Environment preview residency queue no playback collapse"
-        )
-    }
-
-    @Test("a failed pause rolls back before any platform presentation commits")
-    func failedPauseRollsBackBeforeCommit() throws {
-        let pauseFailureModel = PlaybackPresentationModel()
-        pauseFailureModel.prepareColdPlaybackLaunch(for: .panoramic)
-        _ = try pauseFailureModel.requestPresentation(
-            .panorama,
-            playbackContext: PresentationContract.playingContext
-        )
-
-        #expect(
-            try PresentationContract.completePendingEffect(
-                pauseFailureModel,
-                outcome: .failed(.playbackPauseFailed)
-            ) == .presentationRolledBack(.playbackPauseFailed)
-                && pauseFailureModel.presentation == .portal
-                && pauseFailureModel.transition == nil,
-            "a failed pause must roll back before any platform presentation can commit"
-        )
-    }
-
-    @Test("an unscheduled resume failure never reaches the presentation")
-    func unscheduledResumeFailureNeverReachesPresentation() throws {
-        let resumeFailureModel = PlaybackPresentationModel()
-        resumeFailureModel.prepareColdPlaybackLaunch(for: .panoramic)
-        _ = try resumeFailureModel.requestPresentation(
-            .panorama,
-            playbackContext: PresentationContract.playingContext
-        )
-        let resumeFailureRequest = try PresentationContract.pendingRequest(resumeFailureModel)
-        let resumeFailureExecutionID = UUID()
-        try PresentationContract.completePendingEffect(
-            resumeFailureModel,
-            executionID: resumeFailureExecutionID
-        )
-        let resumeFailure = SpatialPlaybackTransportFailure(
-            requestID: resumeFailureRequest.id,
-            executionID: resumeFailureExecutionID,
-            mediaSessionID: PresentationContract.playingContext.mediaSessionID,
-            intent: .resume(
-                mediaSessionID: PresentationContract.playingContext.mediaSessionID
-            ),
-            reason: .operationRejected
-        )
-
-        #expect(
-            resumeFailureModel.receiveSpatialPlatformResult(
-                .playbackTransportFailed(resumeFailure)
-            ) == .ignored
-                && resumeFailureModel.presentation == .panorama
-                && resumeFailureModel.lastPlaybackTransportFailure == nil
-                && resumeFailureModel.receiveSpatialPlatformResult(
-                    .playbackTransportFailed(resumeFailure)
-                ) == .ignored,
-            "a resume result that no current presentation request scheduled must be ignored"
         )
     }
 

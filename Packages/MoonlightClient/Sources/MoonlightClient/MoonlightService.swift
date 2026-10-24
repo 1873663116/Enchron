@@ -137,10 +137,6 @@ public final class MoonlightService: @unchecked Sendable {
                 resume = true
             case .automatic:
                 if busy {
-                    // The host runs somebody's app. Resuming it would stream a
-                    // different app than the one asked for, so only the running
-                    // app itself is resumed; anything else is a conflict the
-                    // caller reports without quitting the other session.
                     let running = summary.info.currentGame ?? ""
                     guard !running.isEmpty, running == request.appID else {
                         throw MoonlightClientError.hostOccupied(
@@ -217,7 +213,6 @@ public final class MoonlightService: @unchecked Sendable {
         }
     }
 
-    // MARK: - internals
 
     private func run<T>(_ body: @escaping () throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in

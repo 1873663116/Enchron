@@ -103,6 +103,17 @@ nonisolated extension FileBrowsingDomain {
     }
 }
 
+public enum MediaLibraryImportError: LocalizedError, Equatable, Sendable {
+    case unsupportedMedia(filename: String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .unsupportedMedia(let filename):
+            "\(filename) is not a supported video."
+        }
+    }
+}
+
 nonisolated extension FileBrowsingDomain {
     public struct SortKeyAvailability: Sendable, Equatable {
         public let orderableByDate: Bool

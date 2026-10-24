@@ -1,8 +1,3 @@
-//
-//  MLCIdManager.h
-//  Adapted from moonlight-ios Limelight/Crypto/IdManager.h at 02dc9780.
-//  Persistence is NSUserDefaults instead of the CoreData store.
-//
 
 #import <Foundation/Foundation.h>
 

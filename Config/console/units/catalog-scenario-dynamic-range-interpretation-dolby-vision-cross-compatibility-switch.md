@@ -1,0 +1,369 @@
+---
+{
+  "schema": "enchron.console.unit",
+  "schemaVersion": 1,
+  "id": "unit:catalog.scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch@1",
+  "layer": 3,
+  "role": "verification",
+  "pace": "catalog",
+  "requires": [
+    "mac",
+    "device",
+    "daemon"
+  ],
+  "isolation": "clean-library",
+  "preconditions": [
+    {
+      "kind": "media-server",
+      "provider": "emby"
+    }
+  ],
+  "actions": [
+    {
+      "verb": "device.session.ensure",
+      "args": {
+        "lane": "simulator"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.stage-media",
+      "args": {
+        "source": [
+          "test-media:Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+          "test-media:Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+          "test-media:Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
+        ],
+        "target": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch"
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch",
+          "entry": "root"
+        }
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "playMedia",
+        "arguments": {
+          "name": "Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "reapplyFormat",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.capture-frames",
+      "args": {
+        "count": 1,
+        "intervalMs": 1000
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch",
+          "entry": "root"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "playMedia",
+        "arguments": {
+          "name": "Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "reapplyFormat",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.capture-frames",
+      "args": {
+        "count": 1,
+        "intervalMs": 1000
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "resetState",
+        "arguments": {
+          "keepSession": "true"
+        }
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "importStagedFolder",
+        "arguments": {
+          "directory": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch",
+          "entry": "root"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "Navigation-Ornament-tab-files",
+        "timeoutMs": 15000,
+        "intervalMs": 300
+      }
+    },
+    {
+      "verb": "device.command",
+      "args": {
+        "action": "tap",
+        "identifier": "Navigation-Ornament-tab-files"
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "FileBrowsing-FilesScreen",
+        "timeoutMs": 20000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "element",
+        "field": "identifier",
+        "equals": "PlayerUI-window-control-plane",
+        "mode": "absent",
+        "timeoutMs": 15000,
+        "intervalMs": 200
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "playMedia",
+        "arguments": {
+          "name": "Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
+        }
+      }
+    },
+    {
+      "verb": "device.await",
+      "args": {
+        "probe": "PlayerUI-window-control-plane",
+        "equals": {
+          "presentation": "window",
+          "mediaName": "Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4"
+        },
+        "timeoutMs": 45000,
+        "intervalMs": 400
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "reapplyFormat",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.capture-frames",
+      "args": {
+        "count": 1,
+        "intervalMs": 1000
+      }
+    }
+  ],
+  "teardown": [
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "leavePlayback",
+        "arguments": {}
+      }
+    },
+    {
+      "verb": "device.app-command",
+      "args": {
+        "verb": "deleteLibraryFolder",
+        "arguments": {
+          "name": "scenario-dynamic-range-interpretation-dolby-vision-cross-compatibility-switch"
+        }
+      }
+    }
+  ],
+  "terminal": {
+    "kind": "artifact",
+    "path": "frames.json",
+    "schema": "enchron.console.frames@1"
+  },
+  "cases": [
+    {
+      "key": "profile-8-hdr10",
+      "start": 5
+    },
+    {
+      "key": "profile-8-hlg",
+      "start": 13
+    },
+    {
+      "key": "profile-5-no-fallback",
+      "start": 24
+    }
+  ]
+}
+---
+
+兼容 Dolby Vision 在 HDR10 或 HLG 解释间切换
+
+Generated from `Regression/journeys/dynamic-range-interpretation/scenarios/dolby-vision-cross-compatibility-switch.md`.

@@ -38,7 +38,7 @@ from regression.execution_identity import (
     repository_source_digest,
     write_execution_input,
 )
-from regression.runctl import _prepared_build_payload
+from regression.execution_plan import _prepared_build_payload
 
 
 TOOLCHAIN = ToolchainIdentity(

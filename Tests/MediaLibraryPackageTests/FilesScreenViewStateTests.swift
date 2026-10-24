@@ -25,23 +25,6 @@ struct FilesScreenViewStateTests {
         #expect(state.renamedFolderName.isEmpty)
     }
 
-    @Test("product entry keeps Photos distinct from file imports")
-    func productEntryDomainIncludesPhotosWithoutConflatingFileImports() {
-        #expect(
-            FilesScreenProductEntry.fileImporter(.mediaFiles)
-                != .fileImporter(.folder)
-        )
-        #expect(
-            FilesScreenProductEntry.photos
-                != .fileImporter(.mediaFiles)
-        )
-        #expect(FilesScreenManageAction.addPhotos.title == "Add from Photos")
-        #expect(
-            FilesScreenReachabilityAction.manage(.addPhotos).probeName
-                == "manage.addPhotos"
-        )
-    }
-
     @Test("file imports preserve the addFiles and addFolder domain boundary")
     func fileImportActionsRemainCausal() {
         let first = URL(fileURLWithPath: "/tmp/first.mkv")

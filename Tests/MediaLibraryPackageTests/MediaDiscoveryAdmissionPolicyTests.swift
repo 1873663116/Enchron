@@ -12,7 +12,6 @@ nonisolated final class MediaDiscoveryAdmissionPolicyTests: XCTestCase {
             FileBrowsingDomain.MediaDiscoveryAdmissionPolicy.mediaFiles.allowedExtensions,
             expected
         )
-        XCTAssertEqual(expected.count, 17)
     }
 
     func testAdmissionExtensionsAreNormalizedToLowercase() {

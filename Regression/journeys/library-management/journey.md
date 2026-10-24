@@ -6,7 +6,6 @@
   "title": "系统导入入口与库管理",
   "scenarioRefs": [
     "scenario:library-management:files-picker-import-route",
-    "scenario:library-management:photo-picker-import-route",
     "scenario:library-management:folder-naming",
     "scenario:library-management:folder-delete-rehomes-references",
     "scenario:library-management:move-references",

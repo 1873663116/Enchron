@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from functools import lru_cache
 import json
 from pathlib import Path
 import re
@@ -152,7 +153,6 @@ DEBUG_MENU_EQUIVALENTS: dict[str, dict[str, object]] = {
 
 for identifier, family, target in (
     ("MediaLibrary-Manage-addFiles", "manage", "addFiles"),
-    ("MediaLibrary-Manage-addPhotos", "manage", "addPhotos"),
     ("MediaLibrary-Manage-addFolder", "manage", "addFolder"),
     ("MediaLibrary-Manage-newFolder", "manage", "newFolder"),
     ("MediaLibrary-Manage-selectMultiple", "manage", "selectMultiple"),
@@ -386,6 +386,9 @@ def source_without_preview_blocks(text: str) -> str:
     return "".join(characters)
 
 
+CONSTRUCTION = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*(?:\(|\{)")
+
+
 def uninstantiated_view_identifier_owners(
     documents: dict[str, str],
     identifiers: dict[str, list[SourceLocation]],
@@ -405,14 +408,10 @@ def uninstantiated_view_identifier_owners(
         path: source_without_preview_blocks(text)
         for path, text in documents.items()
     }
-    constructed = {
-        component.name
-        for component in structs
-        if any(
-            re.search(rf"\b{re.escape(component.name)}\s*(?:\(|\{{)", text)
-            for text in production_documents.values()
-        )
-    }
+    constructed_names: set[str] = set()
+    for text in production_documents.values():
+        constructed_names.update(CONSTRUCTION.findall(text))
+    constructed = {component.name for component in structs if component.name in constructed_names}
 
     archived: dict[str, SwiftStruct] = {}
     for template, locations in identifiers.items():
@@ -860,7 +859,6 @@ def identifier_role(template: str) -> tuple[str, str | None]:
             "overview-expand",
             "-create",
             "-addfiles",
-            "-addphotos",
             "-addfolder",
             "-newfolder",
             "-selectmultiple",
@@ -901,6 +899,9 @@ REVIEWED_OBSERVATIONS: dict[str, str] = {
     "to the separate search-error branch.",
     "Emby-Connection-Error": "Error text. The retry button beside it has its own "
     "identifier.",
+    "Stream-Pairing-start": "Pairing needs a Moonlight host that the harness cannot "
+    "supply, so this button can never become a driven matrix cell; the pairing screen "
+    "keeps its own identifier for the manual route.",
     "FileBrowsing-error": "The dialog prefix is not an element. Its primary and "
     "secondary buttons have separate action identifiers.",
     "FileBrowsing-FilesScreen-itemCount": "A count label in a toolbar full of "
@@ -1074,8 +1075,8 @@ def presentation_derivation(
         if template.startswith("Stream-Session"):
             source = required_source_location(
                 documents,
-                "Modules/GameStreaming/Views/StreamWindowView.swift",
-                "Stream-Session-controls",
+                "Apps/Enchron/PlayerView.swift",
+                "StreamSessionContentView()",
             )
             return ["window"], {
                 "host": "streamWindowSurface",
@@ -1490,7 +1491,25 @@ def unacknowledged_retired_reachable(
     ]
 
 
+_INVENTORY: dict[str, object] | None = None
+_INVENTORY_ERROR: Exception | None = None
+
+
 def build_inventory() -> dict[str, object]:
+    global _INVENTORY, _INVENTORY_ERROR
+    if _INVENTORY is not None:
+        return _INVENTORY
+    if _INVENTORY_ERROR is not None:
+        raise _INVENTORY_ERROR
+    try:
+        _INVENTORY = _compute_inventory()
+    except Exception as error:
+        _INVENTORY_ERROR = error
+        raise
+    return _INVENTORY
+
+
+def _compute_inventory() -> dict[str, object]:
     identifiers: dict[str, list[SourceLocation]] = {}
     documents: dict[str, str] = {}
     for root in SOURCE_ROOTS:
@@ -1731,6 +1750,32 @@ def encoded_inventory() -> str:
     for record in inventory["identifiers"]:
         record.pop("interactiveEvidence", None)
     return json.dumps(inventory, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+
+
+def retire_vanished_cells(
+    baseline: dict[str, object],
+    inventory: dict[str, object],
+) -> tuple[dict[str, object], list[tuple[str, str]]]:
+    """Drops decisions whose operation the inventory no longer carries.
+
+    A device run retires them the same way: the matrix merges over the cells it
+    derives, so an operation that left the product leaves no cell behind.
+    """
+    carried = {str(operation["id"]) for operation in inventory["operations"]}
+    cells = baseline.get("cells", [])
+    if not isinstance(cells, list):
+        raise ValueError("reachability matrix baseline cells must be a list")
+    retired: list[tuple[str, str]] = []
+    kept: list[dict[str, object]] = []
+    for cell in cells:
+        if not isinstance(cell, dict):
+            raise ValueError("reachability matrix baseline cells must be objects")
+        key = (str(cell.get("context")), str(cell.get("operation")))
+        if key[1] in carried:
+            kept.append(dict(cell))
+        else:
+            retired.append(key)
+    return {**baseline, "cells": kept}, retired
 
 
 def extend_matrix_baseline(
@@ -2029,6 +2074,14 @@ def main() -> int:
         help="Replace the version-controlled inventory with the current source result.",
     )
     parser.add_argument(
+        "--retire-vanished-cells",
+        action="store_true",
+        help=(
+            "Drop matrix decisions whose operation the inventory no longer carries. "
+            "A device run retires them the same way."
+        ),
+    )
+    parser.add_argument(
         "--extend-baseline-known-defects",
         action="store_true",
         help=(
@@ -2050,6 +2103,21 @@ def main() -> int:
     if arguments.write:
         OUTPUT.write_text(generated, encoding="utf-8")
         print(f"wrote {OUTPUT.relative_to(REPOSITORY_ROOT)}")
+    if arguments.retire_vanished_cells:
+        if not MATRIX_BASELINE.is_file():
+            print(
+                f"missing {MATRIX_BASELINE.relative_to(REPOSITORY_ROOT)}",
+                file=sys.stderr,
+            )
+            return 1
+        baseline = json.loads(MATRIX_BASELINE.read_text(encoding="utf-8"))
+        retired_baseline, retired = retire_vanished_cells(baseline, inventory)
+        MATRIX_BASELINE.write_text(
+            json.dumps(retired_baseline, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        for context, operation in retired:
+            print(f"retired {context} {operation}")
     if arguments.extend_baseline_known_defects:
         if not MATRIX_BASELINE.is_file():
             print(

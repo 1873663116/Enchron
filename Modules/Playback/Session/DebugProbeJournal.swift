@@ -54,10 +54,14 @@ public final class DebugProbeJournal {
             self.retainsLoadedEvidence = retainsLoadedEvidence
         }
 
+        private static var underTestChannel: Bool {
+            ProcessInfo.processInfo.environment["ENCHRON_TEST_CHANNEL"] == "1"
+        }
+
         static let product = Configuration(
             url: URL.documentsDirectory.appending(path: "surface-tap-probe.log"),
-            byteLimit: 192 * 1_024,
-            compactionTarget: 128 * 1_024,
+            byteLimit: underTestChannel ? 4 * 1_024 * 1_024 : 192 * 1_024,
+            compactionTarget: underTestChannel ? 3 * 1_024 * 1_024 : 128 * 1_024,
             now: Date.init,
             retainsLoadedEvidence:
                 ProcessInfo.processInfo.environment["ENCHRON_TEST_CHANNEL"] == "1"

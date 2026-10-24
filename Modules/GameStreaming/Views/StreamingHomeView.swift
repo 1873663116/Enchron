@@ -46,7 +46,7 @@ public struct StreamingHomeView: View {
                 }
             ),
             presenting: launchFailure
-        ) { item in
+        ) { _ in
             Button("确认") { dismissLaunchFailure() }
         } message: { item in
             Text(item.failure.message)
@@ -142,12 +142,14 @@ public struct StreamingHomeView: View {
                 artworkURL: { appID in
                     model.artworkCache["\(host.id.rawValue)-\(appID.rawValue)"]
                 },
-                hiddenAppIDs: model.hiddenApplicationIDs(hostID: host.id)
-            ) { application in
-                launch(host, application)
-            } onRemove: { application in
-                model.hideApplication(hostID: host.id, appID: application.id)
-            }
+                hiddenAppIDs: model.hiddenApplicationIDs(hostID: host.id),
+                onLaunch: { application in
+                    launch(host, application)
+                },
+                onRemove: { application in
+                    model.hideApplication(hostID: host.id, appID: application.id)
+                }
+            )
             .task(id: host.applications) {
                 for application in host.applications.applications ?? [] {
                     _ = await model.artworkFileURL(hostID: host.id, appID: application.id)

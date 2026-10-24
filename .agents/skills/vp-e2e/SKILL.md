@@ -25,14 +25,14 @@ E2E 测试默认在 visionOS 模拟器 lane 执行。只有以下两类内容必
 建立会话（模拟器 UDID 取自 `xcrun simctl list devices` 中的 Apple Vision Pro 条目）：
 
 ```sh
-python3 Scripts/verification/interactive_visionpro_ui.py \
+python3 Scripts/console/transport.py \
   --device <UDID> --developer-dir "$(xcode-select -p)" \
   --execution-input .scratch/<日期>-<主题>/execution-input.json \
   --output-directory .scratch/<日期>-<主题>/evidence \
   ensure-session
 ```
 
-只有返回 `stage: ready` 才算建立成功。实测耗时随会话状态大幅波动，不构成稳定预算：模拟器 lane 23 个样本落在 1 到 263 秒，真机 lane 27 个样本落在 4 到 268 秒（`Scripts/verification/controller_timings.simulator.json` 与 `controller_timings.device.json` 的 `ensure-session` 键）。该命令走 `test-without-building` 并复用 DerivedData；源码有改动时先自行 `build-for-testing`。执行输入由 `python3 Scripts/regression/runctl.py freeze` 冻结，也可以改用 `ENCHRON_EXECUTION_INPUT` 环境变量给出同一份文件。`ensure-session` 的返回 stage 有五种：`adopted`、`ready`、`halt`、`firstCommand`、`readyTimeout`。
+只有返回 `stage: ready` 才算建立成功。实测耗时随会话状态大幅波动，不构成稳定预算：模拟器 lane 23 个样本落在 1 到 263 秒，真机 lane 27 个样本落在 4 到 268 秒（`Scripts/verification/controller_timings.simulator.json` 与 `controller_timings.device.json` 的 `ensure-session` 键）。该命令走 `test-without-building` 并复用 DerivedData；源码有改动时先自行 `build-for-testing`。执行输入由 `ENCHRON_EXECUTION_INPUT` 环境变量给出。`ensure-session` 的返回 stage 有五种：`adopted`、`ready`、`halt`、`firstCommand`、`readyTimeout`。
 
 如果只需要做注入式前置或状态读取，可以跳过 runner，直接以测试通道冷启 App（约 2 秒，仅模拟器有此捷径）：
 
@@ -69,7 +69,7 @@ Bug 复现与回归测试应当模拟真实用户操作，默认走产品自己�
 
 ### 每个节点都要有终态
 
-每个节点必须写入 `passed`、`failed`、`failed(known)`、`blockedBy`、`indeterminate` 或 `deferred(human)` 的机器终态及其证据绑定。存在未结节点时 `Scripts/regression/tools/server.py --once receipt` 拒绝出收据，并列出未关闭的节点。循环由交互中的 Agent 驱动，一次一个 Operation Call；冻结输入与编译规则以 `Scripts/regression/runctl.py --help` 及 `Regression/execution-protocol.md` 为准。
+每个节点必须写入 `passed`、`failed`、`failed(known)`、`blockedBy`、`indeterminate` 或 `deferred(human)` 的机器终态及其证据绑定。存在未结节点时收据不出。循环由交互中的 Agent 驱动，一次一个 Operation Call；编译规则以 `Regression/execution-protocol.md` 为准。
 
 ### 佩戴者边界
 
@@ -79,7 +79,7 @@ Bug 复现与回归测试应当模拟真实用户操作，默认走产品自己�
 - 真机的物理输入本身，例如 Digital Crown 的旋转与按压。模拟器 lane 不继承这条限制：Device Hub 的工具栏可以用 Mac 合成鼠标事件点击 Home 等价按钮、视角控制和其他系统控件，画布内的系统 Scene 也可以用同一输入通路操作。
 - HDR 亮度、画面舒适度、眩晕、音质等主观感受。
 
-“XCTest 触达不到”不等于“Agent 无法测试”。权限对话框、Files／Photos 选择器、Home 主菜单、控制中心等系统 Scene 在模拟器 lane 可由 Device Hub 驱动。Device Hub 默认窗口很小，任何定位或点击之前必须先放大窗口并将画布切到 fit；完整操作边界见[模拟器 lane](references/simulator.md)。
+“XCTest 触达不到”不等于“Agent 无法测试”。权限对话框、Files 选择器、Home 主菜单、控制中心等系统 Scene 在模拟器 lane 由 Device Hub 与 computer use 合成鼠标事件驱动；完整操作边界见[模拟器 lane](references/simulator.md)。
 
 投影与立体布局不在此列：mono、SBS、TB 在 2D 截图上各自不同，结合结构化字段就可以判断输出是否正确。
 
@@ -99,7 +99,7 @@ Bug 复现与回归测试应当模拟真实用户操作，默认走产品自己�
 结束测试、排查挂起会话或启动新一轮之前，执行控制器的 `halt` 子命令：
 
 ```sh
-python3 Scripts/verification/interactive_visionpro_ui.py --device <UDID> halt
+python3 Scripts/console/transport.py --device <UDID> halt
 ```
 
 返回的 `remaining` 列表为空才算停净。进程解析严格限定在本仓库作用域内，同项目的其它 checkout 不受波及；自行拼写的 `pkill` 会按进程名误伤范围之外的构建，不要使用。停止时序的细节见[故障分流](references/diagnostics.md)的干净停止一节。
@@ -113,6 +113,6 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <UDID> halt
 - `Scripts/verification/reachability_matrix.py` 是物理可达性基线。操作单元问的是「产品做对了没有」，可达性基线问的是「操作送不送得到」。它与操作单元共用同一份源码派生清单作为轴。
 - `Scripts/verification/playback_mode_matrix.py` 是播放模式矩阵，轴是片源 × 呈现路径，回答「某种媒体在某条路径上放不放得出来」。它与具体操作无关。
 
-回归工具集入口是 `Scripts/regression/tools/server.py`，以 MCP 暴露 session、op、bundle、ledger、receipt 五个工具，也可以用 `--once <工具>` 单次调用。
+回归入口是 `Scripts/console/cli.py`。
 
 其余工装：`playback_open_sweep.py` 做宽度优先的多片源扫描；`extract_visionpro_ui_recording.py` 从 `.xcresult` 或一个模拟器分段提取录屏；Catalog 由 `Config/regression/catalog-v2.json` 经 `Scripts/regression/materialize_catalog_v2.py` 生成。

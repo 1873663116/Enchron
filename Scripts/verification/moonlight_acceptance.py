@@ -62,7 +62,9 @@ for import_root in (str(VERIFICATION_ROOT), str(SCRIPTS_ROOT / "Scripts")):
         sys.path.insert(0, import_root)
 
 import enchron_target
-import interactive_visionpro_ui
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "console"))
+import transport
 from harness import (
     Budget,
     BudgetProvider,
@@ -75,10 +77,10 @@ from harness import (
 from regression.tools.pixel_heuristics import region_rgb, region_rgb_matches
 from regression.tools.raster import RasterError, decode_png
 
-RUNNER_PATH = VERIFICATION_ROOT / "interactive_visionpro_ui.py"
+RUNNER_PATH = VERIFICATION_ROOT.parent / "console" / "transport.py"
 PROXY_PATH = VERIFICATION_ROOT / "moonlight_loopback_proxy.py"
 AUDIO_CAPTURE_SOURCE = VERIFICATION_ROOT / "audio_capture.swift"
-APP_BUNDLE_ID = interactive_visionpro_ui.APP_BUNDLE_ID
+APP_BUNDLE_ID = transport.APP_BUNDLE_ID
 PROBE_REMOTE_PATH = "Documents/stream-session-probe.log"
 PROBE_STATUS_VERB = "probeStatus"
 
@@ -892,7 +894,7 @@ def hierarchy_value(hierarchy: str, identifier: str) -> str | None:
     for line in hierarchy.splitlines():
         if f"identifier: '{identifier}'" not in line:
             continue
-        attributes = interactive_visionpro_ui.hierarchy_attributes(line)
+        attributes = transport.hierarchy_attributes(line)
         return attributes.get("value")
     return None
 

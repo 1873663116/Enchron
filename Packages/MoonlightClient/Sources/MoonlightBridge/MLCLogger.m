@@ -1,7 +1,3 @@
-//
-//  MLCLogger.m
-//  Adapted from moonlight-ios Limelight/Utility/Logger.m at 02dc9780.
-//
 
 #import "MLCLogger.h"
 

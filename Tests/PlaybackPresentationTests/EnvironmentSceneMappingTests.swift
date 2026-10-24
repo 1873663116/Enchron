@@ -250,7 +250,7 @@ struct PlaybackRefreshRateTests {
     }
 }
 
-#if os(visionOS)
+#if os(visionOS) && !targetEnvironment(simulator)
 @MainActor
 struct PlaybackDisplayCriteriaLifecycleTests {
     @Test("display preference follows host handoff, opt-out, and playback exit")

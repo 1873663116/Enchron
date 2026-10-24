@@ -20,13 +20,14 @@
 
 ## Driving it with computer use
 
+用 computer use 在模拟器窗口的对应位置点一下；坐标取自 `simctl io <UDID> screenshot` 的原图。
+
 Preconditions: 会话在 streaming 状态。
 
 键入必须走真实按键。模拟器接受的合成键盘事件与真实键入走同一条产品管线：
 
 ```sh
 # 先点一下会话窗口，确认它拿到焦点
-python3 Scripts/verification/device_hub_canvas.py --device <UDID> pinch \
   --shot-x <x> --shot-y <y> --shot-width 3840 --shot-height 2160
 osascript -e 'tell application "System Events" to keystroke "hello"'
 ```

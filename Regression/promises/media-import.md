@@ -14,14 +14,6 @@
       }
     },
     {
-      "id": "promise:media-import:c02",
-      "title": "通过相册选择器导入。",
-      "statement": "通过相册选择器导入。",
-      "automation": {
-        "scope": "included"
-      }
-    },
-    {
       "id": "promise:media-import:c03",
       "title": "验证用的注入路径：位于 TestMediaInbox 内的文件经由通道命令 `importMedia` 导入，走的是同一个 addFiles 入口。",
       "statement": "验证用的注入路径：位于 TestMediaInbox 内的文件经由通道命令 `importMedia` 导入，走的是同一个 addFiles 入口。",
@@ -44,11 +36,6 @@ Proposal `PR-MI-C01` comes from `.agents/skills/vp-e2e/features/media-import.md`
 
 The Promise covers only the commitment stated in front matter. Scenario evidence for another commitment cannot substitute for it.
 
-### `promise:media-import:c02`
-
-Proposal `PR-MI-C02` comes from `.agents/skills/vp-e2e/features/media-import.md` at line 8, section Sub-features, source ordinal 2.
-
-The Promise covers only the commitment stated in front matter. Scenario evidence for another commitment cannot substitute for it.
 
 ### `promise:media-import:c03`
 

@@ -223,6 +223,7 @@ class ServiceConfiguration:
     port: int
     allow_loopback: bool = False
     environment_file: Path = DEFAULT_ENVIRONMENT_FILE
+    bind_wildcard: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "runtime_root", Path(self.runtime_root).resolve())
@@ -257,6 +258,7 @@ class ServiceConfiguration:
             "bindHost": self.bind_host,
             "port": self.port,
             "allowLoopback": self.allow_loopback,
+            "bindWildcard": self.bind_wildcard,
         }
 
     @classmethod
@@ -268,6 +270,7 @@ class ServiceConfiguration:
             bind_host = value["bindHost"]
             port = value["port"]
             allow_loopback = value["allowLoopback"]
+            bind_wildcard = value.get("bindWildcard", False)
         except KeyError as error:
             raise RemoteSourceConfigurationError(
                 f"service configuration is missing {error.args[0]}"
@@ -281,6 +284,8 @@ class ServiceConfiguration:
             raise RemoteSourceConfigurationError("service port must be an integer")
         if not isinstance(allow_loopback, bool):
             raise RemoteSourceConfigurationError("allowLoopback must be boolean")
+        if not isinstance(bind_wildcard, bool):
+            raise RemoteSourceConfigurationError("bindWildcard must be boolean")
         return cls(
             Path(runtime_root),
             Path(registry_path),
@@ -288,6 +293,7 @@ class ServiceConfiguration:
             bind_host,
             port,
             allow_loopback,
+            bind_wildcard=bind_wildcard,
         )
 
     @property
@@ -305,6 +311,10 @@ class ServiceConfiguration:
             raise RemoteSourceConfigurationError("only a literal IPv4 LAN address is supported")
         if address.is_unspecified or address.is_multicast:
             raise RemoteSourceConfigurationError("bind host cannot be wildcard or multicast")
+        if self.bind_wildcard and (address.is_loopback or address.is_unspecified):
+            raise RemoteSourceConfigurationError(
+                "bindWildcard requires a literal LAN bind host"
+            )
         if address.is_loopback and not self.allow_loopback:
             raise RemoteSourceConfigurationError(
                 "loopback endpoints are test-only; choose a literal LAN address"
@@ -575,8 +585,13 @@ class RemoteSourceService:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
             context.load_cert_chain(certificate, key)
+            bind_address = (
+                "0.0.0.0"
+                if self.configuration.bind_wildcard
+                else self.configuration.bind_host
+            )
             server = _WebDAVServer(
-                (self.configuration.bind_host, self.configuration.port), self
+                (bind_address, self.configuration.port), self
             )
             server.socket = context.wrap_socket(server.socket, server_side=True)
             self._context = context

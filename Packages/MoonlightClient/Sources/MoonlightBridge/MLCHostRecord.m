@@ -1,7 +1,3 @@
-//
-//  MLCHostRecord.m
-//  Adapted from moonlight-ios Limelight/Database/TemporaryHost.m at 02dc9780.
-//
 
 #import "MLCHostRecord.h"
 

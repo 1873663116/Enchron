@@ -1,7 +1,4 @@
 #!/bin/zsh
-# Ten-minute loop copies of the spatial clips, for the transition paths that
-# need playback to keep running while the presentation changes underneath it.
-# The originals end after about a minute, which ends the session mid-cycle.
 set -euo pipefail
 
 repository_root=${0:a:h:h:h}

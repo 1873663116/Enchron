@@ -79,6 +79,16 @@ class CatalogV2MaterializerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.blueprint = _load_blueprint(BLUEPRINT)
 
+    def _declared_promises(self) -> dict[str, str]:
+        statements = {
+            item["id"]: item["statement"] for item in self.blueprint["promises"]
+        }
+        for path in sorted((LIVE_CATALOG_ROOT.parent / "Config/regression/catalog-root/promises").glob("*.md")):
+            metadata = json.loads(path.read_text(encoding="utf-8").split("---")[1])
+            for item in metadata.get("promises") or []:
+                statements[item["id"]] = item["statement"]
+        return statements
+
     def _write_blueprint(self, directory: Path, value: dict) -> Path:
         directory.mkdir(parents=True, exist_ok=True)
         value = copy.deepcopy(value)
@@ -341,17 +351,17 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(
             report["counts"],
             {
-                "promises": 65,
+                "promises": 64,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 107,
+                "rubrics": 106,
                 "preparations": 18,
                 "journeys": 14,
-                "scenarios": 70,
-                "staticCases": 119,
+                "scenarios": 69,
+                "staticCases": 118,
             },
         )
-        self.assertEqual(report["obligationCount"], 158)
+        self.assertEqual(report["obligationCount"], 157)
         expected_call_count = sum(
             len(
                 preparation_adapter.build_plan(
@@ -368,7 +378,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(report["callCount"], expected_call_count)
         self.assertEqual(
             report["scenarioReadiness"],
-            {"ready": 70},
+            {"ready": 69},
         )
         self.assertEqual(
             report["preparationReadiness"],
@@ -382,7 +392,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             },
         )
         self.assertEqual(report["coreAnalysis"]["status"], "loaded-and-analyzed")
-        self.assertEqual(report["coreAnalysis"]["selectedScenarios"], 70)
+        self.assertEqual(report["coreAnalysis"]["selectedScenarios"], 69)
 
         self.assertEqual(
             {
@@ -424,7 +434,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             )
         )
 
-    def test_rejects_internally_consistent_157_obligation_blueprint(self) -> None:
+    def test_rejects_internally_consistent_156_obligation_blueprint(self) -> None:
         tampered = copy.deepcopy(self.blueprint)
         scenario = next(
             item
@@ -440,7 +450,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(len(item["obligations"]) for item in tampered["scenarios"]),
-            157,
+            156,
         )
         self.assertEqual(
             {term["observation"] for term in scenario["success"]["all"]},
@@ -452,7 +462,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             blueprint_path = self._write_blueprint(root, tampered)
             with self.assertRaisesRegex(
                 MaterializationError,
-                "Catalog must contain exactly 158 globally unique obligations",
+                "Catalog must contain exactly 157 globally unique obligations",
             ):
                 materialize(
                     blueprint_path,
@@ -466,7 +476,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             {"status": "unavailable", "reason": "missing compiler"},
             {
                 "status": "loaded-and-analyzed",
-                "selectedScenarios": 65,
+                "selectedScenarios": 64,
                 "scenarioReadiness": {"implementation-gap": 21, "ready": 44},
                 "preparationReadiness": {"implementation-gap": 6, "ready": 11},
             },
@@ -559,7 +569,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 mock.patch.object(materializer, "CATALOG_SOURCE_ROOT", source_root),
                 self.assertRaisesRegex(
                     MaterializationError,
-                    "blueprint count mismatch:.*'promises': 66",
+                    "blueprint count mismatch:.*'promises': 65",
                 ),
             ):
                 _validate_blueprint(self.blueprint)
@@ -577,7 +587,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             self.assertTrue(STATIC_ROOT_PATHS <= set(report["expectedPaths"]))
             self.assertFalse(any(path.startswith("reviews/") for path in report["expectedPaths"]))
             self.assertNotIn("human-coverage-questions.md", report["expectedPaths"])
-            self.assertEqual(len(load_catalog(catalog).scenarios), 70)
+            self.assertEqual(len(load_catalog(catalog).scenarios), 69)
             self.assertIsNotNone(load_review_policy(catalog / "review-policy.md"))
 
             authority_payload = json.loads(
@@ -1631,20 +1641,13 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             self.assertIn(field, dynamic)
 
     def test_semantic_authority_corrections_are_literal_contract_data(self) -> None:
-        promises = {item["id"]: item["statement"] for item in self.blueprint["promises"]}
+        promises = self._declared_promises()
         self.assertIn("without an Ask Every Time resume prompt", promises["promise:playback-queue:c01"])
         self.assertIn("rehomes contained media references to its parent", promises["promise:library-management:c02"])
         self.assertIn("typed, codec-specific guidance", promises["promise:format-support:c01"])
 
-        scenario_by_id = {item["id"]: item for item in self.blueprint["scenarios"]}
-        self.assertIn("scenario:library-management:photo-picker-import-route", scenario_by_id)
-        photo = scenario_by_id["scenario:library-management:photo-picker-import-route"]
-        self.assertEqual(photo["readiness"], "ready")
-        self.assertFalse(photo["blockers"])
-        self.assertIn(
-            "operation:input.device-hub-pinch@2",
-            {item["operation"] for item in photo["operations"]},
-        )
+        scenario_ids = {item["id"] for item in self.blueprint["scenarios"]}
+        self.assertNotIn("scenario:library-management:photo-picker-import-route", scenario_ids)
 
         rubric_text = "\n".join(
             text
@@ -1657,19 +1660,17 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertIn("generic playbackFailed", rubric_text)
 
     def test_exact_eight_reviewed_additions_are_present(self) -> None:
-        self.assertEqual(
-            {item["id"] for item in self.blueprint["promises"]},
-            {
-                "promise:format-support:c01",
-                "promise:issue-surface:c01",
-                "promise:library-management:c01",
-                "promise:library-management:c02",
-                "promise:library-management:c03",
-                "promise:library-management:c04",
-                "promise:library-management:c05",
-                "promise:playback-queue:c01",
-            },
-        )
+        expected = {
+            "promise:format-support:c01",
+            "promise:issue-surface:c01",
+            "promise:library-management:c01",
+            "promise:library-management:c02",
+            "promise:library-management:c03",
+            "promise:library-management:c04",
+            "promise:library-management:c05",
+            "promise:playback-queue:c01",
+        }
+        self.assertEqual(set(self._declared_promises()) & expected, expected)
         scenario_ids = {item["id"] for item in self.blueprint["scenarios"]}
         self.assertTrue(
             {
@@ -1796,7 +1797,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             if item["readiness"] == "implementation-gap"
         }
         self.assertEqual(gaps, set(GAP_SCENARIO_CAPABILITIES))
-        self.assertEqual(len(ready), 70)
+        self.assertEqual(len(ready), 69)
         operation_shapes = {
             item["id"]: item for item in operation_adapter.catalog_operation_shapes()
         }

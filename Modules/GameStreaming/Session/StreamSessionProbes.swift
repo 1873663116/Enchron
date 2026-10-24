@@ -20,12 +20,16 @@ public enum StreamSessionProbes {
         journal.status
     }
 
+    private static var underTestChannel: Bool {
+        ProcessInfo.processInfo.environment["ENCHRON_TEST_CHANNEL"] == "1"
+    }
+
     @MainActor
     private static let journal = DebugProbeJournal(
         configuration: DebugProbeJournal.Configuration(
             url: URL.documentsDirectory.appending(path: "stream-session-probe.log"),
-            byteLimit: 192 * 1_024,
-            compactionTarget: 128 * 1_024,
+            byteLimit: underTestChannel ? 4 * 1_024 * 1_024 : 192 * 1_024,
+            compactionTarget: underTestChannel ? 3 * 1_024 * 1_024 : 128 * 1_024,
             now: Date.init,
             retainsLoadedEvidence:
                 ProcessInfo.processInfo.environment["ENCHRON_TEST_CHANNEL"] == "1"

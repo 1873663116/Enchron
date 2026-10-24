@@ -14,7 +14,7 @@
 ## 目录与所有权
 
 - `Scripts/verification/harness/`：本包，唯一的等待策略、预算、失败分类、恢复策略归属地。
-- `Scripts/verification/interactive_visionpro_ui.py`：唯一 runner，进程级动作执行者。
+- `Scripts/console/transport.py`：唯一 runner，进程级动作执行者。
 - 五个驱动器已迁移为本包的调用方：`Scripts/verification/reachability_matrix.py`、`Scripts/verification/playback_mode_matrix.py`、`Scripts/verification/measure_controls_flash.py`、`Scripts/verification/regression_operation_adapter.py` 与 `Scripts/regression/tools/op_tool.py`，它们经本包取预算、发动作、判失败。
 
 ## 失败领域模型（harness/failures.py）
@@ -39,7 +39,7 @@ class InstrumentFault(Exception):
 
 `ControllerClient` 原样转抛 runner 给出的 kind，因此 runner 端新增的 kind 会在不进入 `INSTRUMENT_KINDS` 的情况下到达调用方；`runner-gone` 目前就是这样一项（runner 在 `stage == "runnerGone"` 时发出，class 为 instrument，清单里没有它）。按 kind 分支的调用方按此实际取值对账，不要以清单为穷举。
 
-## Runner 结构化失败输出（interactive_visionpro_ui.py）
+## Runner 结构化失败输出（transport.py）
 
 runner 输出的 JSON 文档在失败时必须携带：
 
@@ -110,7 +110,7 @@ def wait_for(label, probe, budget, observe) -> Evidence
 检查器 `Scripts/rules/harness_primitives_gate.py`：
 
 - 扫描 `Scripts/verification` 与 `Scripts/regression` 下的 Python 文件，禁止出现 `subprocess`、`timeout=`、`time.sleep`、`time.monotonic`、`devicectl` 字样。
-- 豁免：`harness/` 包自身、`interactive_visionpro_ui.py`、`enchron_target.py`，以及允许清单 `Config/harness_primitives_allowlist.json` 中列出的文件。清单内容是仍直接持有原语的现存文件；每完成一个迁移就删一行，清单清空后检查器即为无例外强制。
+- 豁免：`harness/` 包自身、`transport.py`、`enchron_target.py`，以及允许清单 `Config/harness_primitives_allowlist.json` 中列出的文件。清单内容是仍直接持有原语的现存文件；每完成一个迁移就删一行，清单清空后检查器即为无例外强制。
 - 检查器风格、注册方式与测试跟随 `Scripts/rules` 现有惯例；必须自带能证明「会拒绝坏输入」的测试。
 
 ## 通用要求

@@ -5,9 +5,6 @@
     "EnchronAppTests": { "kind": "xcode", "host": "Enchron" },
     "EnchronAppUITests": { "kind": "xcode", "host": "Enchron" },
     "EnchronDomainTests": { "kind": "xcode", "host": "Enchron" },
-    "MediaLibraryTests": { "kind": "swiftpm", "package": "EnchronModules" },
-    "EmbyTests": { "kind": "swiftpm", "package": "EnchronModules" },
-    "PlaybackFeatureTests": { "kind": "swiftpm", "package": "EnchronModules" },
     "PlaybackCoreTests": { "kind": "swiftpm", "package": "PlaybackCore" },
     "BluRayDiscTests": { "kind": "swiftpm", "package": "PlaybackCore" },
     "PlaybackCoreStandaloneTests": { "kind": "swiftpm", "package": "PlaybackCore" },
@@ -33,13 +30,13 @@
       "role": "support"
     },
     "Tests/MediaLibraryPackageTests": {
-      "harnesses": ["EnchronDomainTests", "MediaLibraryTests"]
+      "harnesses": ["EnchronDomainTests"]
     },
     "Tests/EmbyPackageTests": {
-      "harnesses": ["EnchronDomainTests", "EmbyTests"]
+      "harnesses": ["EnchronDomainTests"]
     },
     "Tests/PlaybackFeaturePackageTests": {
-      "harnesses": ["EnchronDomainTests", "PlaybackFeatureTests"]
+      "harnesses": ["EnchronDomainTests"]
     },
     "Tests/PlaybackPresentationTests": {
       "harnesses": ["EnchronDomainTests"]

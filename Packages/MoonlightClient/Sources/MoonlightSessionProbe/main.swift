@@ -4,7 +4,6 @@ import VideoToolbox
 import CMoonlightCore
 import MoonlightBridge
 
-// MARK: - Output helpers
 
 func logLine(_ message: String) {
     print(message)
@@ -16,7 +15,6 @@ func failLine(_ message: String) -> Never {
     exit(2)
 }
 
-// MARK: - Options
 
 struct Options {
     var host = "127.0.0.1:47989"
@@ -58,10 +56,7 @@ func parseOptions(_ arguments: [String]) -> Options {
     return options
 }
 
-// MARK: - Control plane (MoonlightBridge HTTP/crypto stack)
 
-// The control probe's work directory holds the pinned server certificate and the
-// client identity that pairing produced.
 let defaultWorkDir = "/tmp/mlc-control-probe"
 
 struct HostSessionInfo {
@@ -187,7 +182,6 @@ final class ControlPlane {
     }
 }
 
-// MARK: - Session consumer
 
 struct SessionSnapshot {
     var samples = 0
@@ -223,7 +217,6 @@ final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuil
         super.init()
     }
 
-    // MARK: MLCConnectionDelegate
 
     func connectionStarted() {
         logLine("stage=connectionStarted")
@@ -265,7 +258,6 @@ final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuil
         logLine("stage=videoContentShown")
     }
 
-    // MARK: MLCVideoSampleBuilderDelegate
 
     func videoSampleBuilder(_ builder: MLCVideoSampleBuilder,
                             didProduceSample sampleBuffer: CMSampleBuffer,
@@ -341,7 +333,6 @@ final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuil
         }
     }
 
-    // MARK: Audio
 
     func attachAudio(to connection: MLCConnection) {
         connection.audioStarted = {
@@ -361,7 +352,6 @@ final class SessionConsumer: NSObject, MLCConnectionDelegate, MLCVideoSampleBuil
         }
     }
 
-    // MARK: Snapshot
 
     func snapshot() -> SessionSnapshot {
         lock.lock()
@@ -383,9 +373,7 @@ func fourCCString(_ code: FourCharCode) -> String {
     return String(bytes: bytes, encoding: .ascii) ?? "????"
 }
 
-// MARK: - Session driving
 
-// SURROUNDAUDIOINFO_FROM_AUDIO_CONFIGURATION for stereo: channel mask 0x3, 2 channels.
 let stereoAudioConfiguration: Int32 = (0x3 << 16) | (2 << 8) | 0xCA
 
 func supportedVideoFormat(for codec: String) -> Int32 {
@@ -532,7 +520,6 @@ func quitAppUnlessKeptRunning(options: Options, control: ControlPlane) {
     }
 }
 
-// MARK: - Verbs
 
 func runStream(options: Options, control: ControlPlane) throws -> Int32 {
     let handle = try startSession(options: options, control: control)

@@ -129,7 +129,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
             throw WebDAVError.notConnected
         }
 
-        let targetURL = try buildRequestURL(baseURL: baseURL, path: path)
+        let targetURL = try buildRequestURL(baseURL: baseURL, path: path, asCollection: true)
         let responses = try await performPROPFIND(url: targetURL)
         let normalizedTargetPath = normalizedComparablePath(targetURL.path)
 
@@ -166,7 +166,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
             throw WebDAVError.notConnected
         }
 
-        let targetURL = try buildRequestURL(baseURL: baseURL, path: path)
+        let targetURL = try buildRequestURL(baseURL: baseURL, path: path, asCollection: true)
         let responses = try await performPROPFIND(url: targetURL)
         let normalizedTargetPath = normalizedComparablePath(targetURL.path)
 
@@ -369,7 +369,11 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         return "Basic \(token)"
     }
 
-    private func buildRequestURL(baseURL: URL, path: String) throws -> URL {
+    private func buildRequestURL(
+        baseURL: URL,
+        path: String,
+        asCollection: Bool = false
+    ) throws -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
         let basePath = components?.path ?? baseURL.path
         let requestedPath = normalizedPath(path)
@@ -379,11 +383,16 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         if requestedPath == "/" {
             components?.path = normalizedPath(basePath)
         } else if requestedComparablePath == baseComparablePath {
-            components?.path = requestedPath
+            components?.path = normalizedPath(basePath)
         } else if baseComparablePath == "/" || requestedComparablePath.hasPrefix(baseComparablePath + "/") {
             components?.path = requestedPath
         } else {
             components?.path = joinPath(base: baseComparablePath, relativePath: requestedPath)
+        }
+        if asCollection,
+           let collectionPath = components?.path,
+           collectionPath.hasSuffix("/") == false {
+            components?.path = collectionPath + "/"
         }
 
         guard let resolved = components?.url else {

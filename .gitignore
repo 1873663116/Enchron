@@ -57,3 +57,9 @@ TestEvidence/
 **/.claude/state/
 **/.claude/hooks-off
 **/.claude/loop-off
+
+.console/
+
+# Downloaded by Scripts/console/formal/run.sh
+Scripts/console/formal/tla2tools.jar
+Scripts/console/formal/states/

@@ -381,7 +381,7 @@ public final class PlaybackSessionModel {
             return
         }
         let environment = centeredCardEnvironment
-        EnvironmentSceneMapping.prefetch([environment])
+        EnvironmentSceneMapping.prefetch([environment], owner: .session)
         try requestEnvironmentPreview(
             environment: environment,
             effect: environment.supportsDarkAppearance ? currentEnvironmentEffect : nil

@@ -1,0 +1,8 @@
+[
+  "scenario:dynamic-range-interpretation:dolby-vision-profile-matrix",
+  "scenario:dynamic-range-interpretation:hdr10-hlg-interpretation",
+  "scenario:emby-server-lifecycle:artwork-by-image-tag",
+  "scenario:emby-server-lifecycle:emby-artwork-bypasses-loopback",
+  "scenario:format-coverage:signalled-media-classification",
+  "scenario:smb-source-lifecycle:smb-browse-shares-and-directories"
+]

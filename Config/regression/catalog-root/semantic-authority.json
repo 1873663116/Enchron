@@ -5,7 +5,7 @@
     "equivalentDerivedHumanCoverageAuthorized": true,
     "runtimeHumanActorAllowed": false,
     "source": "Config/regression/semantic-authority-decisions.tsv",
-    "sourceDigest": "sha256:0be2b0605cfb8484eb1f3d0a39ac01e0293e02895bcb7097089b68cfd339da3e"
+    "sourceDigest": "sha256:c5fb5bdfb8f6a1d7160b4cdea8959f9cfc9f093b7e9fb03188a541a8f1133f19"
   },
   "decisions": [
     {
@@ -25,15 +25,14 @@
     {
       "id": "HC-001",
       "status": "decided",
-      "policy": "Drive the real Files and Photos system pickers. Preauthorize persistent system permissions before an unattended run; a missing grant is a typed infrastructure interruption, never a product verdict or human prompt.",
-      "applicability": "Files, Photos, local-network, hand-input, and world-sensing authorization at lane bootstrap.",
+      "policy": "Drive the real Files system picker. Preauthorize persistent system permissions before an unattended run; a missing grant is a typed infrastructure interruption, never a product verdict or human prompt.",
+      "applicability": "Files, local-network, hand-input, and world-sensing authorization at lane bootstrap.",
       "evidence": [
         "Modules/MediaLibrary/Views/FilesScreen.swift#requestProductEntry",
         "Config/Enchron-Info.plist",
         ".agents/skills/vp-e2e/references/device.md#首次安装顺序"
       ],
       "requiredWork": [
-        "implement-photos-picker",
         "permission-state-producer"
       ]
     },

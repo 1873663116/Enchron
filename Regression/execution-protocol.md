@@ -16,9 +16,9 @@ Read [the vp-e2e skill](../.agents/skills/vp-e2e/SKILL.md) before execution. Use
 - [Simulator lane](../.agents/skills/vp-e2e/references/simulator.md) defines Simulator transport and Device Hub spatial input.
 - [Device lane](../.agents/skills/vp-e2e/references/device.md) defines device transport, capture limits, and authorization failures.
 - [Feature map](../.agents/skills/vp-e2e/features/README.md) routes product actions to the feature-specific drive and evidence sequence.
-- `Scripts/verification/interactive_visionpro_ui.py` owns the shared session, accessibility actions, application commands, snapshots, and capture output.
-- `Scripts/regression/tools/server.py` exposes the harness as MCP tools and runs one of them at a time under `--once`: `session` brings a device session up or takes it down, `op` runs one authorized Operation call, `bundle` assembles the anomaly bundle, `ledger` writes a verdict and reads the run, and `receipt` closes the run.
-- `Scripts/verification/device_hub_canvas.py` owns Simulator gaze-and-pinch delivery.
+- `Scripts/console/transport.py` owns the shared session, accessibility actions, application commands, snapshots, and capture output.
+- `Scripts/console/cli.py` is the single entry. `run`, `tier`, `plan` and `daemon` cover what the retired MCP surface and its CLI wrapper used to expose.
+- Simulator gaze-and-pinch delivery runs through Device Hub with computer-use mouse events; XCUITest cannot synthesize it, so those Scenarios carry no end-to-end unit.
 - `Scripts/verification/journey_preflight.py` and the source-specific probes under `Scripts/verification/` own read-only fixture and remote-source checks.
 
 ## Name the lease holder, the session mode, and the known-defect ledger
@@ -41,7 +41,7 @@ For `diagnostic-bypass`, read or verify infrastructure state without assigning p
 
 ## Map namespaces to drivers
 
-`harness` and `app` calls use the shared controller lifecycle and application command channel. `navigation`, `accessibility`, `menu`, `media`, `playback`, `presentation`, `format`, `tracks`, `library`, `settings`, `cache`, and `issue` calls use the matching feature sequence and controller action. `input.device-hub-pinch` uses the Simulator Device Hub driver. `diagnostics` and `evidence` calls use the state and capture channels in the vp-e2e references. `host` calls use the named preflight or source probe and must return a receipt before any restore call. `source` calls combine the product browse route with the matching source preflight.
+`harness` and `app` calls use the shared controller lifecycle and application command channel. `navigation`, `accessibility`, `menu`, `media`, `playback`, `presentation`, `format`, `tracks`, `library`, `settings`, `cache`, and `issue` calls use the matching feature sequence and controller action. `input.device-hub-pinch` and `input.device-hub-prepare` deliver Simulator Device Hub gaze and pinch; the XCUITest lane cannot synthesize it, so those Scenarios carry no end-to-end unit. `diagnostics` and `evidence` calls use the state and capture channels in the vp-e2e references. `host` calls use the named preflight or source probe and must return a receipt before any restore call. `source` calls combine the product browse route with the matching source preflight.
 
 ## Preserve the evidence boundary
 

@@ -432,6 +432,7 @@ def start_webdav() -> Started | None:
         source_root=remote.DEFAULT_SOURCE_ROOT,
         bind_host=host,
         port=WEBDAV_PORT,
+        bind_wildcard=True,
     )
     try:
         identity = remote.RemoteSourceController(configuration).ensure()

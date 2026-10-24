@@ -30,7 +30,7 @@ from harness import (
 APP_BUNDLE_ID = "com.xiongzhipeng.Enchron"
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
+CONTROLLER = REPOSITORY_ROOT / "Scripts/console/transport.py"
 EXTRACTOR = REPOSITORY_ROOT / "Scripts/verification/extract_visionpro_ui_recording.py"
 PROBE_TIMESTAMP = re.compile(r"^(\S+)\s+(.*)$")
 PANORAMA_SETTLE_PATTERN = "presentation portal -> panorama"

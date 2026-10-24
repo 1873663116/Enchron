@@ -11,6 +11,7 @@ exempt the file.
 from __future__ import annotations
 import subprocess
 import sys
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -47,6 +48,9 @@ class NoLiteralRFC1918Tests(unittest.TestCase):
         patcher = patch.object(checker, "REPOSITORY_ROOT", self.repository)
         patcher.start()
         self.addCleanup(patcher.stop)
+        environment = patch.dict(os.environ, {"EMBY_USER": ACCOUNT_NAME})
+        environment.start()
+        self.addCleanup(environment.stop)
         (self.repository / "Scripts/verification").mkdir(parents=True, exist_ok=True)
         (self.repository / "Scripts/regression").mkdir(parents=True, exist_ok=True)
         (self.repository / "Config").mkdir(parents=True, exist_ok=True)
@@ -124,6 +128,9 @@ class IdentityScopeTests(unittest.TestCase):
         patcher = patch.object(checker, "REPOSITORY_ROOT", self.repository)
         patcher.start()
         self.addCleanup(patcher.stop)
+        environment = patch.dict(os.environ, {"EMBY_USER": ACCOUNT_NAME})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def write(self, relative: str, contents: str) -> Path:
         path = self.repository / relative
@@ -331,6 +338,9 @@ class CoreDeviceIdentifierTests(unittest.TestCase):
         patcher = patch.object(checker, "REPOSITORY_ROOT", self.repository)
         patcher.start()
         self.addCleanup(patcher.stop)
+        environment = patch.dict(os.environ, {"EMBY_USER": ACCOUNT_NAME})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def write(self, relative: str, contents: str) -> Path:
         path = self.repository / relative
@@ -472,6 +482,9 @@ class EmbyIdentityTests(unittest.TestCase):
         patcher = patch.object(checker, "REPOSITORY_ROOT", self.repository)
         patcher.start()
         self.addCleanup(patcher.stop)
+        environment = patch.dict(os.environ, {"EMBY_USER": ACCOUNT_NAME})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def write(self, relative: str, contents: str) -> Path:
         path = self.repository / relative
@@ -486,7 +499,7 @@ class EmbyIdentityTests(unittest.TestCase):
         )
         found = checker.failures()
         self.assertTrue(any("Emby server or user identifier" in line for line in found))
-        self.assertTrue(any("Emby account name" in line for line in found))
+        self.assertTrue(any("test service account name" in line for line in found))
 
     def test_a_server_identifier_beside_its_key_is_reported(self) -> None:
         self.write(
@@ -504,7 +517,7 @@ class EmbyIdentityTests(unittest.TestCase):
         )
         found = checker.failures()
         self.assertEqual(len(found), 1)
-        self.assertIn("Emby account name", found[0])
+        self.assertIn("test service account name", found[0])
 
     def test_the_account_name_in_backticks_behind_a_credential_word_is_reported(self) -> None:
         """The rule wanted a quote around the name, and the leftover was in backticks.
@@ -522,7 +535,7 @@ class EmbyIdentityTests(unittest.TestCase):
         )
         found = checker.failures()
         self.assertEqual(len(found), 1)
-        self.assertIn("Emby account name", found[0])
+        self.assertIn("test service account name", found[0])
 
     def test_the_unquoted_name_no_credential_word_introduces_is_still_a_volume(self) -> None:
         """Dropping the quote leaves the proximity window carrying the distinction.
@@ -612,7 +625,7 @@ class EmbyIdentityTests(unittest.TestCase):
         self.write(relative, line + "\n")
         found = checker.failures()
         self.assertEqual(len(found), 1, line)
-        self.assertIn("Emby account name", found[0])
+        self.assertIn("test service account name", found[0])
         start = line.index(ACCOUNT_NAME)
         stop = start + len(ACCOUNT_NAME)
         window = line[max(start - checker.CONTEXT_WINDOW, 0): stop + checker.CONTEXT_WINDOW]
@@ -670,7 +683,7 @@ class EmbyIdentityTests(unittest.TestCase):
         )
         self.write("Scripts/verification/probe_remote_media_reads.sh", line + "\n")
         self.assertTrue(
-            any("Emby account name" in entry for entry in checker.failures())
+            any("test service account name" in entry for entry in checker.failures())
         )
 
     def test_a_volume_path_on_a_line_that_carries_a_url_is_still_a_path(self) -> None:
@@ -709,6 +722,9 @@ class GitDecidesWhatIsOutOfVersionControlTests(unittest.TestCase):
         patcher = patch.object(checker, "REPOSITORY_ROOT", self.repository)
         patcher.start()
         self.addCleanup(patcher.stop)
+        environment = patch.dict(os.environ, {"EMBY_USER": ACCOUNT_NAME})
+        environment.start()
+        self.addCleanup(environment.stop)
         self.git("init", "-q")
         self.git("config", "user.email", "guard@example.test")
         self.git("config", "user.name", "guard")
@@ -757,6 +773,9 @@ class SuffixScopeTests(unittest.TestCase):
         patcher = patch.object(checker, "REPOSITORY_ROOT", self.repository)
         patcher.start()
         self.addCleanup(patcher.stop)
+        environment = patch.dict(os.environ, {"EMBY_USER": ACCOUNT_NAME})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def write(self, relative: str, contents: str) -> Path:
         path = self.repository / relative

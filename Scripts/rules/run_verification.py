@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 import errno
 import fcntl
@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import selectors
 import shlex
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import shutil
 import signal
 import subprocess
@@ -63,7 +64,15 @@ class StructureCheck:
     identifier: str
     filename: str
     runs_in_quick_mode: bool = True
+    environment: str = ""
+    authority: str = ""
+    attribution: str = ""
 
+
+ENVIRONMENTS = frozenset({"text", "toolchain", "simulator", "services"})
+AUTHORITIES = frozenset({"blocking", "reporting", "precondition"})
+ATTRIBUTIONS = frozenset({"product", "infrastructure", "release"})
+DISCOVERED_TAGS = ("text", "blocking", "infrastructure")
 
 SCRIPT_DIRECTORIES = ("Scripts/rules", "Scripts/verification")
 MINIMUM_PYTHON = (3, 10)
@@ -113,6 +122,10 @@ STRUCTURE_CHECKS = (
     StructureCheck(
         "product-source-comments",
         "verify_product_source_comments.py",
+    ),
+    StructureCheck(
+        "test-service-identities",
+        "verify_test_service_identities.py",
     ),
     StructureCheck(
         "release-test-channel-absent",
@@ -215,10 +228,6 @@ STRUCTURE_CHECKS = (
     ),
     StructureCheck("swiftlint", "verify_swiftlint.py"),
     StructureCheck("unittest-main-guard", "verify_unittest_main_guard.py"),
-    StructureCheck(
-        "bootstrap-freeze",
-        "verify_bootstrap_freeze.py",
-    ),
     StructureCheck("harness-primitives-gate", "harness_primitives_gate.py"),
     StructureCheck("no-literal-rfc1918", "check_no_literal_rfc1918.py"),
     StructureCheck("one-verb-one-action", "check_one_verb_one_action.py"),
@@ -228,6 +237,103 @@ STRUCTURE_CHECKS = (
     StructureCheck("preparation-no-judgement", "check_preparation_no_judgement.py"),
     StructureCheck("readiness-gate-hidden-coverage", "check_readiness_gate_hidden_coverage.py"),
 )
+
+
+CHECK_TAGS: dict[str, tuple[str, str, str]] = {
+    "rubric-predicate-coverage": ("text", "blocking", "infrastructure"),
+    "design-source-architecture": ("text", "blocking", "product"),
+    "package-membership": ("toolchain", "blocking", "product"),
+    "playback-surface-structure": ("text", "blocking", "product"),
+    "browser-surface-structure": ("text", "blocking", "product"),
+    "browser-window-visibility": ("text", "blocking", "product"),
+    "format-description-ownership": ("simulator", "blocking", "product"),
+    "format-description-identity": ("simulator", "blocking", "product"),
+    "media-byte-stream": ("simulator", "blocking", "product"),
+    "demux-buffer-policy": ("simulator", "blocking", "product"),
+    "subtitle-reads-interruptible": ("simulator", "blocking", "product"),
+    "media-byte-stream-conformance": ("toolchain", "blocking", "product"),
+    "media-discovery-admission": ("text", "blocking", "product"),
+    "glass-usage": ("text", "blocking", "product"),
+    "documentation-references": ("text", "blocking", "infrastructure"),
+    "regression-core-layering": ("text", "blocking", "infrastructure"),
+    "recording-extractor": ("simulator", "blocking", "product"),
+    "memory-region-walk": ("toolchain", "blocking", "product"),
+    "playback-issue-ownership": ("text", "blocking", "product"),
+    "product-source-comments": ("text", "blocking", "infrastructure"),
+    "test-service-identities": ("text", "blocking", "release"),
+    "release-test-channel-absent": ("text", "blocking", "release"),
+    "release-surface": ("toolchain", "blocking", "release"),
+    "debug-boundary": ("text", "blocking", "product"),
+    "test-target-membership": ("toolchain", "blocking", "infrastructure"),
+    "regression-fact-provenance": ("text", "blocking", "infrastructure"),
+    "playback-runtime-ownership": ("text", "blocking", "product"),
+    "regression-oracle-producers": ("text", "blocking", "infrastructure"),
+    "controller-invocations": ("toolchain", "blocking", "infrastructure"),
+    "regression-element-targeting": ("text", "blocking", "infrastructure"),
+    "regression-related-results-arity": ("text", "blocking", "infrastructure"),
+    "operation-evidence-payloads": ("text", "blocking", "infrastructure"),
+    "hover-region-clipping": ("text", "blocking", "product"),
+    "ats-cleartext-policy": ("text", "blocking", "product"),
+    "reachability-inventory": ("text", "blocking", "infrastructure"),
+    "reachability-cell-access": ("text", "blocking", "infrastructure"),
+    "visionpro-core-regression-plan": ("toolchain", "blocking", "infrastructure"),
+    "xcodebuild-test-selection": ("toolchain", "blocking", "infrastructure"),
+    "vision-test-suite-coverage": ("text", "blocking", "infrastructure"),
+    "merge-evidence-tier": ("text", "blocking", "infrastructure"),
+    "scripts-inventory": ("text", "blocking", "infrastructure"),
+    "ensure-test-services": ("services", "precondition", "infrastructure"),
+    "disc-image-format": ("toolchain", "blocking", "product"),
+    "bluray-corpus": ("toolchain", "reporting", "product"),
+    "dolby-vision-premises": ("toolchain", "blocking", "product"),
+    "interactive-halt-wake": ("text", "blocking", "infrastructure"),
+    "media-byte-stream-foundation": ("toolchain", "blocking", "product"),
+    "organic-architecture-xcode": ("toolchain", "blocking", "product"),
+    "swiftlint": ("toolchain", "blocking", "product"),
+    "unittest-main-guard": ("text", "blocking", "infrastructure"),
+    "harness-primitives-gate": ("text", "blocking", "infrastructure"),
+    "no-literal-rfc1918": ("text", "blocking", "release"),
+    "one-verb-one-action": ("text", "blocking", "product"),
+    "precondition-contract-alignment": ("text", "blocking", "infrastructure"),
+    "orphan-verbs": ("text", "blocking", "product"),
+    "episode-switch-captures-frames": ("simulator", "blocking", "product"),
+    "preparation-no-judgement": ("text", "blocking", "infrastructure"),
+    "readiness-gate-hidden-coverage": ("text", "blocking", "infrastructure"),
+}
+
+DISCOVERED_TAGS_OVERRIDES: dict[str, tuple[str, str, str]] = {
+    "test-regression-environment-preflight": ("services", "precondition", "infrastructure"),
+    "test-regression-human-session": ("services", "blocking", "infrastructure"),
+    "test-regression-remote-faults": ("services", "blocking", "infrastructure"),
+    "test-webdav-regression": ("services", "blocking", "infrastructure"),
+    "test-regression-smb-source": ("services", "blocking", "infrastructure"),
+}
+
+
+def tagged(check: StructureCheck) -> StructureCheck:
+    triple = CHECK_TAGS.get(check.identifier)
+    if check.environment:
+        return check
+    if triple is None:
+        return check
+    return replace(
+        check,
+        environment=triple[0],
+        authority=triple[1],
+        attribution=triple[2],
+    )
+
+
+def untagged(checks: tuple[StructureCheck, ...]) -> list[str]:
+    return [
+        check.identifier
+        for check in checks
+        if check.environment not in ENVIRONMENTS
+        or check.authority not in AUTHORITIES
+        or check.attribution not in ATTRIBUTIONS
+    ]
+
+
+STRUCTURE_CHECKS = tuple(tagged(check) for check in STRUCTURE_CHECKS)
 
 
 def load_baseline(path: Path = BASELINE_PATH) -> dict[str, object]:
@@ -393,48 +499,389 @@ def structure_check_command(filename: str) -> list[str]:
     return [sys.executable, str(path)]
 
 
+def discovered_check(identifier: str, filename: str) -> StructureCheck:
+    triple = DISCOVERED_TAGS_OVERRIDES.get(identifier, DISCOVERED_TAGS)
+    return StructureCheck(
+        identifier,
+        filename,
+        environment=triple[0],
+        authority=triple[1],
+        attribution=triple[2],
+    )
+
+
 def discovered_test_checks() -> tuple[StructureCheck, ...]:
     tests_root = REPOSITORY_ROOT / "Scripts/rules/tests"
     verification_tests = REPOSITORY_ROOT / "Scripts/verification/tests"
+    console_tests = REPOSITORY_ROOT / "Scripts/console/tests"
     discovered = [
-        StructureCheck(
-            path.stem.replace("_", "-"),
-            f"tests/{path.name}",
-        )
+        discovered_check(path.stem.replace("_", "-"), f"tests/{path.name}")
         for path in sorted(tests_root.glob("test_*.py"))
     ]
     discovered.extend(
-        StructureCheck(path.stem.replace("_", "-"), f"../verification/tests/{path.name}")
+        discovered_check(path.stem.replace("_", "-"), f"../verification/tests/{path.name}")
         for path in sorted(verification_tests.glob("test_*.py"))
+    )
+    discovered.extend(
+        discovered_check(path.stem.replace("_", "-"), f"../console/tests/{path.name}")
+        for path in sorted(console_tests.glob("test_*.py"))
     )
     if not discovered:
         raise ValueError(f"no self-tests found under {tests_root}")
     return tuple(discovered)
 
 
+def structure_worker_count(total: int) -> int:
+    configured = os.environ.get("ENCHRON_STRUCTURE_WORKERS", "").strip()
+    if configured.isdigit():
+        return max(1, min(int(configured), total))
+    available = os.cpu_count() or 8
+    return max(1, min(max(8, available), total))
+
+
+def services_available() -> bool:
+    return os.environ.get("ENCHRON_TEST_SERVICES", "").strip() == "1"
+
+
+def run_one_check(
+    check: StructureCheck,
+    run_directory: Path,
+    environment: dict[str, str],
+) -> tuple[StructureCheck, int, float, Path]:
+    log = run_directory / "structure" / f"{check.identifier}.log"
+    log.parent.mkdir(parents=True, exist_ok=True)
+    command = structure_check_command(check.filename)
+    started = time.monotonic()
+    with log.open("w", encoding="utf-8") as sink:
+        sink.write("$ " + shlex.join(command) + "\n")
+        sink.flush()
+        code = subprocess.run(
+            command,
+            cwd=REPOSITORY_ROOT,
+            env=environment,
+            stdout=sink,
+            stderr=subprocess.STDOUT,
+        ).returncode
+    return check, code, time.monotonic() - started, log
+
+
+INFRASTRUCTURE_PREFIXES = (
+    ".github/",
+    ".githooks/",
+    "Config/",
+    "Regression/",
+    "Scripts/",
+)
+INFRASTRUCTURE_FILES = frozenset({".swiftlint.yml"})
+
+
+def infrastructure_changed(changed: frozenset[str]) -> bool:
+    return any(
+        path in INFRASTRUCTURE_FILES or path.startswith(INFRASTRUCTURE_PREFIXES)
+        for path in changed
+    )
+
+
+def git_output(
+    arguments: list[str],
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> str | None:
+    completed = subprocess.run(
+        ["git", *arguments],
+        cwd=repository or REPOSITORY_ROOT,
+        env=environment,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return None
+    return completed.stdout
+
+
+def git_changed_paths(
+    arguments: list[str],
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> frozenset[str] | None:
+    output = git_output(arguments, environment, repository)
+    if output is None:
+        return None
+    return frozenset(line for line in output.splitlines() if line)
+
+
+def changed_paths(
+    since: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> frozenset[str] | None:
+    if not since:
+        return None
+    return git_changed_paths(
+        ["diff", "--name-only", f"{since}...HEAD"], environment, repository
+    )
+
+
+def git_merge_base(
+    first: str,
+    second: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> str | None:
+    output = git_output(["merge-base", first, second], environment, repository)
+    if output is None or not output.strip():
+        return None
+    return output.strip()
+
+
+def git_root_commit(
+    revision: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+) -> str | None:
+    output = git_output(["rev-list", "--max-parents=0", revision], environment, repository)
+    roots = [line for line in (output or "").splitlines() if line]
+    return roots[-1] if roots else None
+
+
+def staged_changed_paths(
+    environment: dict[str, str], repository: Path | None = None
+) -> frozenset[str] | None:
+    return git_changed_paths(
+        ["diff", "--cached", "--name-only"], environment, repository
+    )
+
+
+def event_changed_paths(
+    event: str,
+    environment: dict[str, str],
+    repository: Path | None = None,
+    remote_oid: str = "",
+    base_ref: str = "main",
+    local_oid: str = "HEAD",
+) -> frozenset[str] | None:
+    root = repository or REPOSITORY_ROOT
+    if event == "commit":
+        return staged_changed_paths(environment, root)
+    if event == "push":
+        remote_oid = remote_oid.strip()
+        base = remote_oid if remote_oid.strip("0") else ""
+        if not base:
+            base = git_merge_base(
+                "refs/remotes/origin/main", local_oid, environment, root
+            ) or git_root_commit(local_oid, environment, root) or ""
+        if not base:
+            return None
+        return git_changed_paths(
+            ["diff", "--name-only", base, local_oid], environment, root
+        )
+    if event == "pr":
+        base = git_merge_base(
+            f"refs/remotes/origin/{base_ref}", local_oid, environment, root
+        )
+        if not base:
+            return None
+        return git_changed_paths(
+            ["diff", "--name-only", base, local_oid], environment, root
+        )
+    if event == "merge":
+        return git_changed_paths(
+            ["diff", "--name-only", "HEAD", "MERGE_HEAD"], environment, root
+        )
+    return None
+
+
+def listed_changed_paths(path: str) -> frozenset[str] | None:
+    if not path:
+        return None
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return None
+    return frozenset(line.strip() for line in text.splitlines() if line.strip())
+
+
+def self_test_target(check: StructureCheck) -> str | None:
+    if not check.identifier.startswith("test-"):
+        return None
+    name = Path(check.filename).name
+    if not name.startswith("test_"):
+        return None
+    stem = name[len("test_") : -len(".py")]
+    if check.filename.startswith("tests/"):
+        return f"Scripts/rules/{stem}.py"
+    if check.filename.startswith("../verification/tests/"):
+        return f"Scripts/verification/{stem}.py"
+    if check.filename.startswith("../console/tests/"):
+        return f"Scripts/console/{stem}.py"
+    return None
+
+
+def is_self_test(check: StructureCheck) -> bool:
+    return self_test_target(check) is not None
+
+
+def skipped_tooling_self_tests(
+    checks: tuple[StructureCheck, ...], changed: frozenset[str] | None
+) -> frozenset[str]:
+    if changed is None or infrastructure_changed(changed):
+        return frozenset()
+    return frozenset(
+        check.identifier for check in checks if is_self_test(check)
+    )
+
+
+SHARED_LEXER_GROUPS = (
+    ("media-discovery-admission", "playback-issue-ownership"),
+)
+
+
+UNBATCHED_CHECKS = frozenset({"vision-test-suite-coverage", "no-literal-rfc1918"})
+
+
+def structure_groups(
+    checks: tuple[StructureCheck, ...], workers: int
+) -> list[tuple[StructureCheck, ...]]:
+    batched = tuple(check for check in checks if bundled(check))
+    groups: list[tuple[StructureCheck, ...]] = [
+        tuple(batched[index::workers])
+        for index in range(workers)
+        if batched[index::workers]
+    ]
+    for partners in SHARED_LEXER_GROUPS:
+        holders = [
+            group for group in groups if any(check.identifier in partners for check in group)
+        ]
+        if len(holders) < 2:
+            continue
+        gathered = tuple(
+            check for group in holders for check in group if check.identifier in partners
+        )
+        others = tuple(
+            check for group in holders for check in group if check.identifier not in partners
+        )
+        groups = [group for group in groups if group not in holders]
+        groups.append(gathered + others)
+    return groups
+
+
+def bundled(check: StructureCheck) -> bool:
+    if check.identifier in UNBATCHED_CHECKS:
+        return False
+    return not check.filename.startswith(
+        ("tests/", "../verification/tests/", "../console/tests/")
+    )
+
+
+def run_batch(
+    checks: tuple[StructureCheck, ...],
+    run_directory: Path,
+    environment: dict[str, str],
+) -> dict[str, tuple[int, float, Path]]:
+    if not checks:
+        return {}
+    log_root = run_directory / "structure"
+    log_root.mkdir(parents=True, exist_ok=True)
+    report = log_root / f"batch-{checks[0].identifier}.json"
+    scripts = [str(structure_check_path(check.filename)) for check in checks]
+    command = [
+        sys.executable,
+        str(REPOSITORY_ROOT / "Scripts/rules/batch_runner.py"),
+        str(log_root),
+        str(report),
+        *scripts,
+    ]
+    started = time.monotonic()
+    subprocess.run(
+        command,
+        cwd=REPOSITORY_ROOT,
+        env=environment,
+        capture_output=True,
+    )
+    elapsed = time.monotonic() - started
+    try:
+        outcomes = json.loads(report.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        outcomes = {}
+    found: dict[str, tuple[int, float, Path]] = {}
+    for check in checks:
+        name = Path(check.filename).name
+        code = outcomes.get(name, 1)
+        found[check.identifier] = (code, elapsed, log_root / f"{Path(name).stem}.log")
+    return found
+
+
 def run_structure_checks(
     run_directory: Path,
     environment: dict[str, str],
     quick: bool,
+    text_only: bool = False,
+    changed: frozenset[str] | None = None,
 ) -> LayerResult:
     failures: list[str] = []
     logs: list[str] = []
+    everything = STRUCTURE_CHECKS + discovered_test_checks()
+    reachable = tuple(
+        check for check in everything if not quick or check.runs_in_quick_mode
+    )
+    portable = services_available()
     checks = tuple(
         check
-        for check in STRUCTURE_CHECKS + discovered_test_checks()
-        if not quick or check.runs_in_quick_mode
+        for check in reachable
+        if (portable or check.environment != "services")
+        and (not text_only or check.environment == "text")
     )
-    for check in checks:
-        log = run_directory / "structure" / f"{check.identifier}.log"
-        code, _ = run_logged(
-            f"structure: {check.identifier}",
-            structure_check_command(check.filename),
-            log,
-            environment,
+    skipped_tooling = skipped_tooling_self_tests(checks, changed)
+    if skipped_tooling:
+        checks = tuple(
+            check for check in checks if check.identifier not in skipped_tooling
         )
-        logs.append(relative_log(log, run_directory))
-        if code != 0:
-            failures.append(f"{check.identifier} exited {code}")
+    unevaluated = tuple(check for check in everything if check not in checks)
+    workers = structure_worker_count(len(checks))
+    separate = tuple(check for check in checks if not bundled(check))
+    groups = structure_groups(checks, workers)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = [pool.submit(run_batch, group, run_directory, environment) for group in groups]
+        futures.extend(
+            pool.submit(run_one_check, check, run_directory, environment)
+            for check in separate
+        )
+        outcomes: list[tuple[StructureCheck, int, float, Path]] = []
+        for future in as_completed(futures):
+            result = future.result()
+            if isinstance(result, dict):
+                for check in checks:
+                    if check.identifier in result:
+                        code, seconds, log = result[check.identifier]
+                        outcomes.append((check, code, seconds, log))
+            else:
+                outcomes.append(result)
+        for check, code, seconds, log in outcomes:
+            logs.append(relative_log(log, run_directory))
+            mark = "ok  " if code == 0 else "FAIL"
+            print(f"  {mark} {check.identifier} {seconds:.1f}s", flush=True)
+            if code != 0:
+                failures.append(
+                    f"{check.attribution}/{check.environment}: {check.identifier} exited {code}"
+                )
+    order = {name: index for index, name in enumerate(sorted(ATTRIBUTIONS))}
+    failures.sort(key=lambda item: order.get(item.split("/", 1)[0], len(order)))
+    mode_filtered = frozenset(
+        check
+        for check in unevaluated
+        if (quick and not check.runs_in_quick_mode)
+        or (text_only and check.environment != "text")
+        or check.identifier in skipped_tooling
+    )
+    skipped_by_request = tuple(
+        check
+        for check in unevaluated
+        if check in mode_filtered and check.identifier not in skipped_tooling
+    )
+    deferred_checks = tuple(check for check in unevaluated if check not in mode_filtered)
+    if deferred_checks:
+        deferred = ", ".join(check.identifier for check in deferred_checks)
+        failures.append(f"unevaluated: {deferred}")
     if failures:
         return LayerResult(
             "Structure checks",
@@ -442,10 +889,24 @@ def run_structure_checks(
             "; ".join(failures),
             tuple(logs),
         )
+    note = (
+        ", ".join(check.identifier for check in skipped_by_request)
+        if skipped_by_request
+        else ""
+    )
+    detail = f"all {len(checks)} {'quick ' if quick else ''}checks passed"
+    if note:
+        detail = f"{detail}; outside this mode ({len(skipped_by_request)}): {note}"
+    if skipped_tooling:
+        detail = (
+            f"{detail}; tooling self-tests skipped, CI and test infrastructure "
+            f"unchanged ({len(skipped_tooling)}): "
+            + ", ".join(sorted(skipped_tooling))
+        )
     return LayerResult(
         "Structure checks",
         "PASS",
-        f"all {len(checks)} {'quick ' if quick else ''}checks passed",
+        detail,
         tuple(logs),
     )
 
@@ -1067,6 +1528,24 @@ def print_summary(results: list[LayerResult], run_directory: Path) -> bool:
     return not failed
 
 
+def requested_changes(
+    arguments: argparse.Namespace, environment: dict[str, str]
+) -> frozenset[str] | None:
+    if arguments.changed_list:
+        return listed_changed_paths(arguments.changed_list)
+    if arguments.event:
+        return event_changed_paths(
+            arguments.event,
+            environment,
+            remote_oid=arguments.remote_oid,
+            base_ref=arguments.base_ref,
+            local_oid=arguments.local_oid,
+        )
+    if arguments.changed_staged:
+        return staged_changed_paths(environment)
+    return changed_paths(arguments.changed_since, environment)
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run Enchron's layered local verification gate."
@@ -1079,6 +1558,38 @@ def parse_arguments() -> argparse.Namespace:
             "the media-corpus format identity check runs only in full mode"
         ),
     )
+    parser.add_argument(
+        "--text-only",
+        action="store_true",
+        help="run only the checks that need nothing but the repository text",
+    )
+    parser.add_argument(
+        "--changed-since",
+        default="",
+        help=(
+            "a revision to diff against; the tooling self-tests run only when "
+            "CI or test infrastructure paths changed"
+        ),
+    )
+    parser.add_argument(
+        "--changed-staged",
+        action="store_true",
+        help="take the changed paths from the index; used by the commit hook",
+    )
+    parser.add_argument(
+        "--changed-list",
+        default="",
+        help="a file listing changed repository paths; used by the push hook",
+    )
+    parser.add_argument(
+        "--event",
+        choices=("commit", "push", "pr", "merge"),
+        default="",
+        help="take the changed paths from a CI event and its comparison base",
+    )
+    parser.add_argument("--remote-oid", default="", help="the remote tip for a push")
+    parser.add_argument("--base-ref", default="main", help="the PR target branch name")
+    parser.add_argument("--local-oid", default="HEAD", help="the pushed or head revision")
     parser.add_argument("--log-root", type=Path, default=DEFAULT_LOG_ROOT)
     parser.add_argument("--retain-runs", type=int, default=14)
     arguments = parser.parse_args()
@@ -1177,8 +1688,24 @@ def main() -> int:
         tree_before = tracked_tree_fingerprint(environment)
         results = [install_git_hooks(environment)]
         results.append(
-            run_structure_checks(run_directory, environment, arguments.quick)
+            run_structure_checks(
+                run_directory,
+                environment,
+                arguments.quick,
+                arguments.text_only,
+                requested_changes(arguments, environment),
+            )
         )
+        if arguments.text_only:
+            write_summary(
+                run_directory,
+                started.isoformat(),
+                arguments.quick,
+                {"DEVELOPER_DIR": environment.get("DEVELOPER_DIR", "unknown")},
+                results,
+            )
+            print_summary(results, run_directory)
+            return 0 if all(result.state != "FAIL" for result in results) else 1
         try:
             results.append(
                 run_playback_core_tests(run_directory, environment, baseline)

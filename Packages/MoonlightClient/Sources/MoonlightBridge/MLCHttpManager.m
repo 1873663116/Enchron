@@ -1,7 +1,3 @@
-//
-//  MLCHttpManager.m
-//  Adapted from moonlight-ios Limelight/Network/HttpManager.m at 02dc9780.
-//
 
 #import "MLCHttpManager.h"
 #import "MLCCryptoManager.h"
@@ -24,7 +20,7 @@
     NSString* _deviceName;
     NSData* _serverCert;
 
-    MLCHostRecord* _host; // May be nil
+    MLCHostRecord* _host;
     NSString* _baseHTTPSURL;
 }
 
@@ -47,8 +43,6 @@
 
 - (id)initWithAddress:(NSString*)hostAddressPortString httpsPort:(unsigned short)httpsPort serverCert:(NSData*)serverCert {
     self = [super init];
-    // Use the same UID for all Moonlight clients to allow them
-    // quit games started on another Moonlight client.
     _uniqueId = @"0123456789ABCDEF";
     _deviceName = MLCDeviceName();
     _serverCert = serverCert;
@@ -56,7 +50,6 @@
     NSString* address = [MLCUtils addressPortStringToAddress:hostAddressPortString];
     unsigned short port = [MLCUtils addressPortStringToPort:hostAddressPortString];
 
-    // If this is an IPv6 literal, we must properly enclose it in brackets
     if ([address containsString:@":"]) {
         _urlSafeHostName = [NSString stringWithFormat:@"[%@]", address];
     } else {
@@ -74,12 +67,10 @@
 
 - (BOOL)ensureHttpsUrlPopulated:(bool)fastFail {
     if (!_baseHTTPSURL) {
-        // Use the caller's provided port if one was specified
         if (_host && _host.httpsPort != 0) {
             _baseHTTPSURL = [NSString stringWithFormat:@"https://%@:%u", _urlSafeHostName, _host.httpsPort];
         }
         else {
-            // Query the host to retrieve the HTTPS port
             MLCServerInfoResponse* serverInfoResponse = [[MLCServerInfoResponse alloc] init];
             [self executeRequestSynchronously:[MLCHttpRequest requestForResponse:serverInfoResponse withUrlRequest:[self newHttpServerInfoRequest:false]]];
             MLCHostRecord* dummyHost = [[MLCHostRecord alloc] init];
@@ -88,7 +79,6 @@
             }
             [serverInfoResponse populateHost:dummyHost];
 
-            // Pass the port back if the caller provided storage for it
             if (_host) {
                 _host.httpsPort = dummyHost.httpsPort;
             }
@@ -101,7 +91,6 @@
 }
 
 - (void)executeRequestSynchronously:(MLCHttpRequest*)request {
-    // This is a special case to handle failure of HTTPS port fetching
     if (!request.request) {
         if (request.response) {
             request.response.statusCode = EHOSTDOWN;
@@ -145,7 +134,6 @@
     if (!respError && request.response) {
         [request.response populateWithData:requestResp];
 
-        // If the fallback error code was detected, issue the fallback request
         if (request.response.statusCode == request.fallbackError && request.fallbackRequest != NULL) {
             Log(LOG_D, @"Request failed with fallback error code: %d", request.fallbackError);
             request.request = request.fallbackRequest;
@@ -155,11 +143,7 @@
         }
     }
     else if (respError && [respError code] == NSURLErrorServerCertificateUntrusted) {
-        // The handshake was refused: either the pinned cert did not match, or
-        // no cert is pinned yet over HTTPS.
         if (request.fallbackRequest) {
-            // This will fall back to HTTP on serverinfo queries to allow us to pair again
-            // and get the server cert updated.
             Log(LOG_D, @"Attempting fallback request after certificate trust failure");
             request.request = request.fallbackRequest;
             request.fallbackError = 0;
@@ -183,7 +167,6 @@
 - (NSURLRequest*)newPairRequest:(NSData*)salt clientCert:(NSData*)clientCert {
     NSString* urlString = [NSString stringWithFormat:@"%@/pair?uniqueid=%@&devicename=%@&updateState=1&phrase=getservercert&salt=%@&clientcert=%@",
                            _baseHTTPURL, _uniqueId, _deviceName, [self bytesToHex:salt], [self bytesToHex:clientCert]];
-    // This call blocks while waiting for the user to input the PIN on the PC
     return [self createRequestFromString:urlString timeout:EXTRA_LONG_TIMEOUT_SEC];
 }
 
@@ -229,7 +212,6 @@
 
 - (NSURLRequest*)newServerInfoRequest:(bool)fastFail {
     if (_serverCert == nil) {
-        // Use HTTP if the cert is not pinned yet
         return [self newHttpServerInfoRequest:fastFail];
     }
 
@@ -255,11 +237,6 @@
         return nil;
     }
 
-    // Using an FPS value over 60 causes SOPS to default to 720p60,
-    // so force it to 0 to ensure the correct resolution is set. We
-    // used to use 60 here but that locked the frame rate to 60 FPS
-    // on GFE 3.20.3. We do not do this hack for Sunshine (which is
-    // indicated by a negative version in the last field.
     int fps = (config.frameRate > 60 && ![config.appVersion containsString:@".-"]) ? 0 : config.frameRate;
 
     NSString* urlString = [NSString stringWithFormat:@"%@/%@?uniqueid=%@&appid=%@&mode=%dx%dx%d&additionalStates=1&sops=%d&rikey=%@&rikeyid=%d%@&localAudioPlayMode=%d&surroundAudioInfo=%d&remoteControllersBitmap=%d&gcmap=%d&gcpersist=%d%s",
@@ -275,7 +252,6 @@
                            !config.multiController ? 1 : 0,
                            LiGetLaunchUrlQueryParameters()];
     Log(LOG_I, @"Requesting: %@", urlString);
-    // This blocks while the app is launching
     return [self createRequestFromString:urlString timeout:LONG_TIMEOUT_SEC];
 }
 
@@ -306,7 +282,6 @@
     return hex;
 }
 
-// Returns an array containing the certificate
 - (NSArray*)getCertificate:(SecIdentityRef)identity {
     SecCertificateRef certificate = nil;
 
@@ -315,7 +290,6 @@
     return [[NSArray alloc] initWithObjects:(__bridge_transfer id)certificate, nil];
 }
 
-// Returns the identity
 - (SecIdentityRef)getClientCertificate {
     SecIdentityRef identityApp = nil;
     NSData* p12Bytes = [MLCCryptoManager readP12FromFile];
@@ -333,7 +307,6 @@
     OSStatus securityError = SecPKCS12Import(p12Data, options, &items);
 
     if (securityError == errSecSuccess) {
-        //Log(LOG_D, @"Success opening p12 certificate. Items: %ld", CFArrayGetCount(items));
         CFDictionaryRef identityDict = CFArrayGetValueAtIndex(items, 0);
         identityApp = (SecIdentityRef)CFRetain(CFDictionaryGetValue(identityDict, kSecImportItemIdentity));
         CFRelease(items);
@@ -348,7 +321,6 @@
 }
 
 - (void)URLSession:(NSURLSession*)session didReceiveChallenge:(NSURLAuthenticationChallenge*)challenge completionHandler:(nonnull void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential* __nullable))completionHandler {
-    // Allow untrusted server certificates
     if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust])
     {
         if (SecTrustGetCertificateCount(challenge.protectionSpace.serverTrust) != 1) {
@@ -371,8 +343,6 @@
             return;
         }
 
-        // Without a pinned certificate the stream is not trusted yet: refuse the
-        // handshake so the request fails as untrusted instead of crashing.
         if (_serverCert == nil) {
             Log(LOG_E, @"HTTPS request without a pinned server certificate");
             CFRelease(actualCertData);
@@ -389,11 +359,9 @@
 
         CFRelease(actualCertData);
 
-        // Allow TLS handshake to proceed
         completionHandler(NSURLSessionAuthChallengeUseCredential,
                           [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust]);
     }
-    // Respond to client certificate challenge with our certificate
     else if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodClientCertificate])
     {
         SecIdentityRef identity = [self getClientCertificate];

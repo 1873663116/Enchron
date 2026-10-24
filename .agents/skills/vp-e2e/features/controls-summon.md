@@ -20,7 +20,7 @@ Preconditions: 会话已经建立，且正处于播放中。要驱动沉浸态�
 真机 lane 只在调查产品状态时使用以下等价动作；该动作不证明真机物理输入。
 
 ```sh
-python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
+python3 Scripts/console/transport.py --device <id> \
   --output-directory <dir> app-command --verb toggleControls
 ```
 
@@ -41,7 +41,7 @@ python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
 
 ## Simulator 验收步骤
 
-开始前，确认启动环境没有设置 `ENCHRON_HEAD_INPUT_PROBE=1` 或 `ENCHRON_DOCKED_HIT_TEST_PROBES=1`。清空 `surface-tap-probe.log`，把控件置为隐藏状态，并运行 Device Hub `enlarge` 预检。预检只有在返回当前 Simulator 的 `targetBinding`、宽度不少于 1200 点的 16:9 画布，以及 Pointer 模式位置时才完成。
+开始前，确认启动环境没有设置 `ENCHRON_HEAD_INPUT_PROBE=1` 或 `ENCHRON_DOCKED_HIT_TEST_PROBES=1`。清空 `surface-tap-probe.log`，把控件置为隐藏状态。打开 Device Hub，放大窗口并把画布缩放挡位切到 fit，再用 computer use 在画布上合成鼠标事件。
 
 ### Docked
 

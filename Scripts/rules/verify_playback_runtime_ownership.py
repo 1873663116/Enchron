@@ -66,7 +66,7 @@ PUSHED_WINDOW_DECISION = re.compile(
     r"\s*switch\s+residency\s*\{",
 )
 RESIDENCY_HANDOFF = re.compile(
-    r"\.onChange\(of:\s*playbackRuntime\.residency[^\n]*\)\s*\{[^}]*?"
+    r"\.onChange\(of:\s*playbackRuntime\.residency[^\n]*\)\s*\{.{0,260}?"
     r"applyPlaybackResidency\(residency\)",
     re.DOTALL,
 )

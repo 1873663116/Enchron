@@ -11,7 +11,7 @@ from typing import Callable, Sequence
 from harness.budgets import Budget, BudgetProvider
 from harness.failures import InstrumentFault, ProductFailure
 
-RUNNER_PATH = Path(__file__).resolve().parent.parent / "interactive_visionpro_ui.py"
+RUNNER_PATH = Path(__file__).resolve().parents[2] / "console" / "transport.py"
 EXIT_SUCCESS = 0
 EXIT_UNCAUGHT_EXCEPTION = 1
 EXIT_REPORTED_FAILURE = 2

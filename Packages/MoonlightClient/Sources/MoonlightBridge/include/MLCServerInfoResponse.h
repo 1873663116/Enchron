@@ -1,7 +1,3 @@
-//
-//  MLCServerInfoResponse.h
-//  Adapted from moonlight-ios Limelight/Network/ServerInfoResponse.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 #import "MLCHttpResponse.h"
@@ -20,7 +16,6 @@
 #define MLCTAG_STATE @"state"
 #define MLCTAG_CURRENT_GAME @"currentgame"
 
-// Sunshine extension
 #define MLCTAG_EXTERNAL_PORT @"ExternalPort"
 
 @interface MLCServerInfoResponse : MLCHttpResponse <MLCResponse>

@@ -601,6 +601,7 @@ final class TestCommandChannel {
         var errorDescription: String? { message }
     }
 
+    private let appModel: AppModel
     private let mediaLibrary: MediaLibraryViewModel
     private let mediaLibraryUIState: MediaLibraryUIState
     private let fileBrowser: FileBrowsingViewModel
@@ -626,6 +627,7 @@ final class TestCommandChannel {
     private var pollingTask: Task<Void, Never>?
 
     init(
+        appModel: AppModel,
         mediaLibrary: MediaLibraryViewModel,
         mediaLibraryUIState: MediaLibraryUIState,
         fileBrowser: FileBrowsingViewModel,
@@ -638,6 +640,7 @@ final class TestCommandChannel {
         fileManager: FileManager = .default,
         defaults: UserDefaults = .standard
     ) throws {
+        self.appModel = appModel
         self.mediaLibrary = mediaLibrary
         self.mediaLibraryUIState = mediaLibraryUIState
         self.fileBrowser = fileBrowser
@@ -1434,6 +1437,24 @@ final class TestCommandChannel {
                 ]
             )
 #endif
+        case "trustCertificate":
+            guard let addresses = request.args["addresses"], addresses.isEmpty == false,
+                  let fingerprint = request.args["fingerprint"], fingerprint.isEmpty == false
+            else {
+                throw CommandError(
+                    message: "trustCertificate requires addresses and fingerprint."
+                )
+            }
+            let trusted = addresses.split(separator: ",").map(String.init)
+            for address in trusted {
+                defaults.set(fingerprint, forKey: "server-certificate-fingerprint.\(address)")
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: trusted.map { "trusted=\($0)" }
+            )
         case "toggleControls":
             let requestedVisibility = request.args["visible"].flatMap(Bool.init)
             if requestedVisibility == nil || requestedVisibility != playbackSession.showControls {
@@ -1590,7 +1611,22 @@ final class TestCommandChannel {
                 connectionInfo: connectionInfo
             )
             fileBrowser.addDataSource(dataSource)
-            let result = await fileBrowser.connectToDataSource(dataSource)
+            let credential: StorageCredential?
+            if let user = request.args["username"], let secret = request.args["password"],
+               user.isEmpty == false, secret.isEmpty == false {
+                credential = StorageCredential(username: user, password: secret)
+            } else {
+                credential = nil
+            }
+            if let credential {
+                try? fileBrowser.saveCredential(
+                    for: dataSource,
+                    username: credential.username,
+                    password: credential.password
+                )
+            }
+            let result = await fileBrowser.connectToDataSource(dataSource, credential: credential)
+            await fileBrowser.useDefaultFolder()
             SurfaceInputProbes.record(
                 "testcmd connectWebDAV url=\(address) result=\(String(describing: result))",
                 retention: .evidence
@@ -1624,6 +1660,14 @@ final class TestCommandChannel {
             return try setDockedPlacement(request)
         case "listMenuItems":
             return try performMenuSelection(request, operation: .list)
+        case "resetMediaNavigation":
+            embySession.debugResetNavigation()
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["destination=home", "pathDepth=0"]
+            )
         case "selectMenuItem":
             guard let target = request.args["target"], target.isEmpty == false else {
                 throw CommandError(
@@ -1686,8 +1730,181 @@ final class TestCommandChannel {
                 detail: "Left playback without a product gesture.",
                 payload: nil
             )
+        case "clearMediaLibrary":
+            let removedReferences = allReferences
+            for reference in removedReferences {
+                mediaLibrary.remove(reference)
+            }
+            mediaLibrary.navigateToRoot()
+            let removedFolders = mediaLibrary.allFolders
+            for folder in removedFolders.reversed() {
+                mediaLibrary.remove(folder)
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "removedReferences=\(removedReferences.count)",
+                    "removedFolders=\(removedFolders.count)",
+                    "remainingReferences=\(allReferences.count)"
+                ]
+            )
+        case "returnHome":
+            if playbackRuntime.activeSessionID != nil {
+                await playbackLauncher.stopPlaybackAndWait(reason: .backButton)
+            }
+            appModel.selectedTab = .files
+            mediaLibrary.navigateToRoot()
+            mediaLibraryUIState.viewMode = .grid
+            fileBrowser.searchText = ""
+            var summary = ["tab=files", "viewMode=grid"]
+            if request.args["clear"] == "true" {
+                let removedReferences = allReferences
+                for reference in removedReferences {
+                    mediaLibrary.remove(reference)
+                }
+                mediaLibrary.navigateToRoot()
+                let removedFolders = mediaLibrary.allFolders
+                for folder in removedFolders.reversed() {
+                    mediaLibrary.remove(folder)
+                }
+                summary.append("removedReferences=\(removedReferences.count)")
+                summary.append("removedFolders=\(removedFolders.count)")
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: "Returned to the library home without a product gesture.",
+                payload: summary
+            )
+        case "setStereoLayout":
+            guard let raw = request.args["layout"],
+                  let layout = PlaybackModel.StereoLayout(rawValue: raw) else {
+                throw CommandError(
+                    message: "setStereoLayout requires layout of mono, sideBySide, or topBottom."
+                )
+            }
+            guard playbackRuntime.activeSessionID != nil else {
+                throw CommandError(message: "setStereoLayout requires an open playback session.")
+            }
+            try await playbackLauncher.applyFormat(
+                projection: playbackRuntime.effectiveProjectionType,
+                stereo: layout
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["stereoLayout=\(layout.rawValue)"]
+            )
+        case "resolveResumePrompt":
+            let requested = request.args["action"] ?? "resume"
+            guard ["resume", "startOver", "cancel"].contains(requested) else {
+                throw CommandError(
+                    message: "resolveResumePrompt requires action of resume, startOver, or cancel."
+                )
+            }
+            let pending = playbackLauncher.pendingResumeDecision != nil
+            if pending {
+                switch requested {
+                case "startOver":
+                    playbackLauncher.startPendingPlaybackFromBeginning()
+                case "cancel":
+                    playbackLauncher.cancelPendingResumeDecision()
+                default:
+                    playbackLauncher.resumePendingPlayback()
+                }
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["action=\(requested)", "pending=\(pending)"]
+            )
+        case "reapplyFormat":
+            guard playbackRuntime.activeSessionID != nil else {
+                throw CommandError(message: "reapplyFormat requires an open playback session.")
+            }
+            try await playbackLauncher.applyFormat(
+                projection: playbackRuntime.effectiveProjectionType,
+                stereo: playbackRuntime.effectiveStereoLayout
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "projection=\(playbackRuntime.effectiveProjectionType.rawValue)",
+                    "stereo=\(playbackRuntime.effectiveStereoLayout.rawValue)"
+                ]
+            )
+        case "applyFormat":
+            guard let rawProjection = request.args["projection"],
+                  let projection = PlaybackModel.ProjectionType(rawValue: rawProjection) else {
+                throw CommandError(
+                    message: "applyFormat requires projection of flat, equirectangular180, equirectangular360, or customAngle."
+                )
+            }
+            guard let rawStereo = request.args["stereo"],
+                  let stereo = PlaybackModel.StereoLayout(rawValue: rawStereo) else {
+                throw CommandError(
+                    message: "applyFormat requires stereo of mono, sideBySide, or topBottom."
+                )
+            }
+            guard playbackRuntime.activeSessionID != nil else {
+                throw CommandError(message: "applyFormat requires an open playback session.")
+            }
+            let fieldOfView = request.args["horizontalFieldOfViewDegrees"].flatMap { Int($0) }
+            try await playbackLauncher.applyFormat(
+                projection: projection,
+                horizontalFieldOfViewDegrees: fieldOfView,
+                stereo: stereo
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["projection=\(projection.rawValue)", "stereo=\(stereo.rawValue)"]
+            )
+        case "batch":
+            guard let raw = request.args["calls"],
+                  let data = raw.data(using: .utf8),
+                  let calls = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+                throw CommandError(message: "batch requires calls as a JSON array.")
+            }
+            var summary: [String] = []
+            for call in calls {
+                guard let verb = call["verb"] as? String else { continue }
+                let rawArguments = call["arguments"] as? [String: Any] ?? [:]
+                let arguments = rawArguments.mapValues { value in
+                    if let text = value as? String { return text }
+                    return String(describing: value)
+                }
+                let outcome = try await execute(
+                    Request(id: request.id, verb: verb, args: arguments)
+                )
+                guard outcome.ok else {
+                    throw CommandError(
+                        message: "batch stopped at \(verb): \(outcome.detail ?? "no detail")"
+                    )
+                }
+                summary.append("\(verb)=ok")
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: summary)
+        case "clearPlaybackIssue":
+            let category = playbackRuntime.userVisibleIssue?.category.rawValue ?? "none"
+            playbackRuntime.setUserVisibleIssue(nil)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["category=\(category)"]
+            )
         case "resetState":
-            await embySession.signOut()
+            if request.args["keepSession"] != "true" {
+                await embySession.signOut()
+            }
             let references = allReferences
             for reference in references {
                 mediaLibrary.remove(reference)
@@ -1707,6 +1924,7 @@ final class TestCommandChannel {
                 defaults.removeObject(forKey: key)
             }
             mediaLibraryUIState.viewMode = .grid
+            fileBrowser.searchText = ""
             var createdFolderNames: [String] = []
             if let folderName = request.args["libraryFolder"],
                folderName.isEmpty == false {
@@ -1779,12 +1997,47 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: allReferenceNames
             )
+        case "deleteLibraryFolder":
+            guard let name = request.args["name"], name.isEmpty == false else {
+                throw CommandError(
+                    message: "deleteLibraryFolder requires a folder name."
+                )
+            }
+            guard let folder = mediaLibrary.allFolders.first(where: {
+                $0.name == name
+            }) else {
+                return Response(
+                    id: request.id,
+                    ok: true,
+                    detail: nil,
+                    payload: mediaLibrary.allFolders.map(\.name)
+                )
+            }
+            mediaLibrary.remove(folder)
+            if let detail = mediaLibrary.lastErrorMessage {
+                throw CommandError(message: detail)
+            }
+            guard mediaLibrary.allFolders.contains(where: { $0.id == folder.id })
+                == false else {
+                throw CommandError(
+                    message: "The production folder deletion left \(name) in the library."
+                )
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: mediaLibrary.allFolders.map(\.name)
+            )
         case "importStagedFolder":
             guard let directory = request.args["directory"],
                   let entry = StagedMediaFolder.Entry(rawValue: request.args["entry"] ?? "root") else {
                 throw CommandError(message: "importStagedFolder requires directory and a root or bdmv entry.")
             }
             let folder = try StagedMediaFolder(inbox: inboxURL, directory: directory, entry: entry)
+            if let existing = mediaLibrary.allFolders.first(where: { $0.name == directory }) {
+                mediaLibrary.remove(existing)
+            }
             let before = Set(allReferences.map(\.id))
             await mediaLibrary.addFolder(folder.url)
             if let detail = mediaLibrary.lastErrorMessage {
@@ -1792,6 +2045,36 @@ final class TestCommandChannel {
             }
             guard allReferences.contains(where: { before.contains($0.id) == false }) else {
                 throw CommandError(message: "The production folder import pipeline added no media.")
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: allReferenceNames)
+        case "importStagedFiles":
+            guard let directory = request.args["directory"], directory.isEmpty == false else {
+                throw CommandError(message: "importStagedFiles requires a directory.")
+            }
+            let root = inboxURL.appending(path: directory, directoryHint: .isDirectory)
+            let candidates = (try? FileManager.default.contentsOfDirectory(
+                at: root,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )) ?? []
+            let files = candidates.filter { url in
+                let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]))?
+                    .isDirectory ?? false
+                return isDirectory == false
+                    && FileBrowsingDomain.FileFilter.playable.matches(fileURL: url)
+            }
+            guard files.isEmpty == false else {
+                throw CommandError(
+                    message: "importStagedFiles found no playable file in \(directory)."
+                )
+            }
+            let before = Set(allReferences.map(\.id))
+            mediaLibrary.addFiles(files.sorted { $0.lastPathComponent < $1.lastPathComponent })
+            if let detail = mediaLibrary.lastErrorMessage {
+                throw CommandError(message: detail)
+            }
+            guard allReferences.contains(where: { before.contains($0.id) == false }) else {
+                throw CommandError(message: "The production file import added no media.")
             }
             return Response(id: request.id, ok: true, detail: nil, payload: allReferenceNames)
         case "importMediaDirectory":
@@ -2434,8 +2717,10 @@ private enum TestCommandChannelBootstrap {
         application: EnchronApplication
     ) {
         guard environment["ENCHRON_TEST_CHANNEL"] == "1" else { return }
+        UIView.setAnimationsEnabled(false)
         do {
             let channel = try TestCommandChannel(
+                appModel: application.appModel,
                 mediaLibrary: application.mediaLibraryViewModel,
                 mediaLibraryUIState: application.mediaLibraryUIState,
                 fileBrowser: application.fileBrowsingViewModel,

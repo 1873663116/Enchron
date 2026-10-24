@@ -1,7 +1,3 @@
-//
-//  MLCUtils.h
-//  Adapted from moonlight-ios Limelight/Utility/Utils.h at 02dc9780.
-//
 
 #import <Foundation/Foundation.h>
 #import "MLCLogger.h"

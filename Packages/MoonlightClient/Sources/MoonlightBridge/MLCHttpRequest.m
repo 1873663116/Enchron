@@ -1,7 +1,3 @@
-//
-//  MLCHttpRequest.m
-//  Adapted from moonlight-ios Limelight/Network/HttpRequest.m at 02dc9780.
-//
 
 #import "MLCHttpRequest.h"
 

@@ -3,35 +3,42 @@
 set -euo pipefail
 
 repository_root=$(git rev-parse --show-toplevel)
+cd "$repository_root"
 
 push_updates=$(cat)
 [[ -n "$push_updates" ]] || exit 0
 
-requires_verification=0
+local_oids=()
+remote_oids=()
 while read -r local_ref local_oid remote_ref remote_oid; do
-    if [[ "$local_ref" != "(delete)" || -n "${local_oid//0/}" ]]; then
-        requires_verification=1
-    fi
+    [[ -n "$local_ref" ]] || continue
+    [[ "$local_ref" == "(delete)" ]] && continue
+    local_oids+=("$local_oid")
+    remote_oids+=("$remote_oid")
 done <<< "$push_updates"
 
-(( requires_verification )) || exit 0
+empty_list=$(mktemp "${TMPDIR:-/tmp}/enchron-changed.XXXXXX")
+trap 'rm -f "$empty_list"' EXIT
 
-# git exports GIT_DIR to its hooks, naming this worktree's admin directory with
-# no GIT_WORK_TREE beside it, and every git command the verification run makes
-# inherits it. Two structure checks build fixtures by running `git init` inside
-# a temporary directory: init ignores its cwd, re-initialises the repository
-# GIT_DIR names, and writes core.bare = true onto the shared config because that
-# view has no work tree. Every worktree then refuses to work, those two checks
-# fail because their fixtures were never created, and the report blames the
-# checks rather than the push that had just broken the repository underneath
-# them. Pushing from a linked worktree is what makes GIT_DIR point somewhere the
-# run should not follow.
 (
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY \
       GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX \
       GIT_QUARANTINE_PATH
 
-"$repository_root/Scripts/rules/run_verification.py" --quick
+eval "$(bash "$repository_root/Scripts/ci/prepare.sh" shell --emit)"
+python3 "$repository_root/Scripts/console/cli.py" plan check
+if (( ${#local_oids} == 0 )); then
+    python3 "$repository_root/Scripts/console/cli.py" tier static --changed-list "$empty_list"
+else
+    index=1
+    while (( index <= ${#local_oids} )); do
+        python3 "$repository_root/Scripts/console/cli.py" tier static \
+            --event push \
+            --remote-oid "${remote_oids[$index]}" \
+            --local-oid "${local_oids[$index]}"
+        (( index++ ))
+    done
+fi
 )
 
 git lfs pre-push "$@" <<< "$push_updates"

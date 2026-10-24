@@ -13,7 +13,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "verification"))
 
 import reachability_matrix as matrix
-import interactive_visionpro_ui as controller
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[2] / "console"))
+import transport as controller
 
 
 def immediate_tools(seconds: float = 120.0) -> SimpleNamespace:
@@ -3553,12 +3554,14 @@ class SimulatorLaneFixesTests(unittest.TestCase):
             run.probe_markers = {0: matrix.utc_now()}
             run.next_probe_marker = 1
 
-    def test_manage_add_covers_photos(self) -> None:
-        self.assertIn("addPhotos", [a for a, _ in [
-            ("addFiles", "manage.addFiles"),
-            ("addFolder", "manage.addFolder"),
-            ("addPhotos", "manage.addPhotos"),
-        ]])
+    def test_manage_add_covers_files_and_folder(self) -> None:
+        self.assertEqual(
+            [action for action, _ in (
+                ("addFiles", "manage.addFiles"),
+                ("addFolder", "manage.addFolder"),
+            )],
+            ["addFiles", "addFolder"],
+        )
 
     def test_settings_action_selects_storage_privacy_first(self) -> None:
         run = matrix.ReachabilityRun.__new__(matrix.ReachabilityRun)
