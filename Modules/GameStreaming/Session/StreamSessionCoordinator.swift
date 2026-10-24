@@ -219,7 +219,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
         publishActivity(.launching)
         StreamSessionProbes.record(
-            "session start session=\(sessionID.rawValue) host=\(hostName) app=\(appName)",
+            "session start session=\(sessionID.rawValue) host=\(hostName) app=\(appName)"
+                + " disabled=\(StreamDebugSwitches.disabled.sorted().joined(separator: ","))",
             retention: .evidence
         )
         StreamSessionProbes.record(
@@ -239,12 +240,16 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         stateLock.withLock {
             snapshotStorage.diagnostics.hostAudioPlaying = options.playAudioOnPC
         }
-        activateAudioSession()
-        gamepadInput.start(
-            onState: { [weak self] state in self?.sendGamepad(state) },
-            onPresence: { [weak self] connected in self?.handleControllerPresence(connected) }
-        )
-        if options.bluetoothMouseEnabled {
+        if !StreamDebugSwitches.isDisabled("audio") {
+            activateAudioSession()
+        }
+        if !StreamDebugSwitches.isDisabled("gamepad") {
+            gamepadInput.start(
+                onState: { [weak self] state in self?.sendGamepad(state) },
+                onPresence: { [weak self] connected in self?.handleControllerPresence(connected) }
+            )
+        }
+        if options.bluetoothMouseEnabled, !StreamDebugSwitches.isDisabled("mouse") {
             mouseInput.start(
                 onMove: { [weak self] dx, dy in self?.sendMouseMove(dx: dx, dy: dy) },
                 onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) },
@@ -1047,6 +1052,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     private func handleAudioFrame(_ frame: BackendAudioFrame) {
+        if StreamDebugSwitches.isDisabled("audio") { return }
         rearmSynchronizerIfStalled()
         let received: Int64 = stateLock.withLock {
             counters.audioFramesReceived += 1
@@ -1480,7 +1486,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private func sampleDiagnostics() {
         let diagnosticStartedAt = DispatchTime.now().uptimeNanoseconds
         let stats = backend.videoStats()
-        let rtt = backend.estimatedRTT()
+        let rtt = StreamDebugSwitches.isDisabled("rtt") ? nil : backend.estimatedRTT()
         let pendingDepth = videoQueueLock.withLock { pendingVideo.count }
         let readyForMore = videoRenderer.isReadyForMoreMediaData
         let presentedNow = stateLock.withLock { counters.presented }
@@ -1650,8 +1656,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " driftFix=\(governorDriftFixes)"
                 + " hostLatMs=\(String(format: "%.1f", stats?.averageHostProcessingLatencyMs ?? 0))"
                 + " hostLatFrames=\(stats?.framesWithHostProcessingLatency ?? 0)"
-                + " rttMs=\(backend.estimatedRTT()?.milliseconds ?? 0)"
-                + " rttVar=\(backend.estimatedRTT()?.variance ?? 0)"
+                + " rttMs=\(rtt?.milliseconds ?? 0)"
+                + " rttVar=\(rtt?.variance ?? 0)"
                 + " reqFps=\(requestedFrameRate)"
                 + " gotFps=\(String(format: "%.1f", deliveredFps))"
             maxPumpGapMilliseconds = 0
