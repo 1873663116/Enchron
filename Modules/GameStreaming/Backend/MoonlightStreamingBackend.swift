@@ -434,7 +434,11 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
             submitGapCount: stats.submitGapCount,
             submitGapMaxMs: stats.submitGapMaxMs,
             zeroCopyFrames: stats.zeroCopyFrames,
-            zeroCopyFallbacks: stats.zeroCopyFallbacks
+            zeroCopyFallbacks: stats.zeroCopyFallbacks,
+            assembleMaxMs: stats.assembleMaxMs,
+            queueWaitMaxMs: stats.queueWaitMaxMs,
+            callbackMaxMs: stats.callbackMaxMs,
+            pendingMax: stats.pendingMax
         )
     }
 

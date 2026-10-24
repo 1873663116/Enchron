@@ -61,9 +61,38 @@ int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void*
     return 0;
 }
 
+static int DrSubmitDecodeUnitBody(PDECODE_UNIT decodeUnit);
+
+static void recordDecodeUnitTiming(PDECODE_UNIT decodeUnit, uint64_t entryUs, uint64_t exitUs, int pending)
+{
+    int64_t assembleUs = (int64_t)decodeUnit->enqueueTimeUs - (int64_t)decodeUnit->receiveTimeUs;
+    int64_t queueWaitUs = (int64_t)entryUs - (int64_t)decodeUnit->enqueueTimeUs;
+    int callbackMs = (int)((exitUs - entryUs) / 1000);
+    if (decodeUnit->receiveTimeUs != 0 && assembleUs > 0 && (int)(assembleUs / 1000) > currentVideoStats.assembleMaxMs) {
+        currentVideoStats.assembleMaxMs = (int)(assembleUs / 1000);
+    }
+    if (decodeUnit->enqueueTimeUs != 0 && queueWaitUs > 0 && (int)(queueWaitUs / 1000) > currentVideoStats.queueWaitMaxMs) {
+        currentVideoStats.queueWaitMaxMs = (int)(queueWaitUs / 1000);
+    }
+    if (callbackMs > currentVideoStats.callbackMaxMs) {
+        currentVideoStats.callbackMaxMs = callbackMs;
+    }
+    if (pending > currentVideoStats.pendingMax) {
+        currentVideoStats.pendingMax = pending;
+    }
+}
+
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 {
-    int offset = 0;
+    uint64_t entryUs = LiGetMicroseconds();
+    int pending = LiGetPendingVideoFrames();
+    int ret = DrSubmitDecodeUnitBody(decodeUnit);
+    recordDecodeUnitTiming(decodeUnit, entryUs, LiGetMicroseconds(), pending);
+    return ret;
+}
+
+static int DrSubmitDecodeUnitBody(PDECODE_UNIT decodeUnit)
+{    int offset = 0;
     int ret;
     unsigned char* data = (unsigned char*) malloc(decodeUnit->fullLength);
     if (data == NULL) {

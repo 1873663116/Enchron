@@ -19,6 +19,10 @@ typedef struct {
     int submitGapMaxMs;
     int zeroCopyFrames;
     int zeroCopyFallbacks;
+    int assembleMaxMs;
+    int queueWaitMaxMs;
+    int callbackMaxMs;
+    int pendingMax;
 } video_stats_t;
 
 @interface MLCConnection : NSOperation

@@ -177,7 +177,11 @@ public final class MoonlightStreamSession: NSObject, @unchecked Sendable {
             submitGapCount: Int(stats.submitGapCount),
             submitGapMaxMs: Int(stats.submitGapMaxMs),
             zeroCopyFrames: Int(stats.zeroCopyFrames),
-            zeroCopyFallbacks: Int(stats.zeroCopyFallbacks)
+            zeroCopyFallbacks: Int(stats.zeroCopyFallbacks),
+            assembleMaxMs: Int(stats.assembleMaxMs),
+            queueWaitMaxMs: Int(stats.queueWaitMaxMs),
+            callbackMaxMs: Int(stats.callbackMaxMs),
+            pendingMax: Int(stats.pendingMax)
         )
     }
 }
