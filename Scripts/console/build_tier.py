@@ -12,7 +12,7 @@ from typing import Any
 from report import EXIT_OK, EXIT_TERMINAL, write_json
 
 
-DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer"
+DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode27.2RC.app/Contents/Developer"
 DERIVED_DATA = Path(".scratch/build")
 
 
@@ -125,6 +125,12 @@ def unit_build_fingerprint(root: Path) -> str:
         capture_output=True,
     )
     digest = hashlib.sha256()
+    developer_dir = _environment()["DEVELOPER_DIR"]
+    try:
+        toolchain = (Path(developer_dir).parent / "version.plist").read_bytes()
+    except OSError:
+        toolchain = b"absent"
+    digest.update(developer_dir.encode() + b"\0" + toolchain + b"\n")
     for name in sorted(entry for entry in listing.stdout.decode().split("\0") if entry):
         if not name.endswith(UNIT_SOURCE_SUFFIXES):
             continue

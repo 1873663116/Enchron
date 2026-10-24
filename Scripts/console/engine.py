@@ -1313,7 +1313,7 @@ def _prefetch_structural(
     commands = _structural_commands()
     environment = dict(os.environ)
     environment.setdefault(
-        "DEVELOPER_DIR", "/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer"
+        "DEVELOPER_DIR", "/Volumes/Cortisol/Applications/Xcode27.2RC.app/Contents/Developer"
     )
     started: dict[tuple[str, int], subprocess.Popen[str]] = {}
     for step in plan.steps:
@@ -1359,7 +1359,7 @@ def _run_structural_test(
         return {"check": check}, False, f"{check} is not a known structural check"
     environment = dict(os.environ)
     environment.setdefault(
-        "DEVELOPER_DIR", "/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer"
+        "DEVELOPER_DIR", "/Volumes/Cortisol/Applications/Xcode27.2RC.app/Contents/Developer"
     )
     process = None
     if plan is not None:

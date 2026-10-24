@@ -9,7 +9,7 @@ DEVICE_UDID="${ENCHRON_DEVICE_UDID:-}"
 CONFIGURATION="${ENCHRON_CONFIGURATION:-Debug}"
 XCODE_BIN="${XCODEBIN:-}"
 if [[ -z "$XCODE_BIN" ]]; then
-  XCODE_BIN="/Volumes/Cortisol/Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild"
+  XCODE_BIN="/Volumes/Cortisol/Applications/Xcode27.2RC.app/Contents/Developer/usr/bin/xcodebuild"
 fi
 
 if [[ -z "$DEVICE_UDID" ]]; then

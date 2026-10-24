@@ -24,7 +24,7 @@ Enchron은 TestFlight 공개 베타 테스트를 진행 중입니다. Apple Visi
 
 ## 빌드
 
-프로젝트에는 Xcode 27.0과 visionOS SDK가 필요합니다. 클론한 뒤 저장소 루트에서 다음 명령을 실행해 `Packages/PlaybackCore`에 필요한 Git 미포함 바이너리 의존성을 준비하세요.
+프로젝트에는 Xcode 27.2 RC과 visionOS SDK가 필요합니다. 클론한 뒤 저장소 루트에서 다음 명령을 실행해 `Packages/PlaybackCore`에 필요한 Git 미포함 바이너리 의존성을 준비하세요.
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh
