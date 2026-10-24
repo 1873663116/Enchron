@@ -73,6 +73,8 @@ A generated catalog unit establishes each case with product commands instead of 
 
 `device.connect-source` re-injects the fixture certificate inside the app process and ends at the Files root; the unit then taps the source row exactly once. Settings menus use `selectMenuItem` with `host=settings` instead of a menu tap chain.
 
+Translator ownership facts and regeneration rules: [../test-maintain/references/translation.md](../test-maintain/references/translation.md).
+
 ## Debugging
 
 `console op VERB --args '{...}'` runs one operation and prints its result, duration and a short state summary. `--session NAME` records the operation, with its payload, under `.scratch/console/debug/NAME/`. A debugging operation never writes under `TestEvidence` and never enters the reuse index.
@@ -85,7 +87,7 @@ A failed `console run` prints the failing step, the planned expectation, the act
 
 `console daemon start` brings the resident process up and adopts a live runner if one exists. `console daemon status` answers. `console daemon stop` halts the session and removes the socket.
 
-The daemon holds the session, serialises the command channel, and recovers a dead runner. It does not make session bring-up faster: that 59 seconds is spent in `halt`, `xcodebuild` and waiting for the runner to publish, none of which the process model touches. Keeping the daemon up means paying it once.
+The daemon holds the session, serialises the command channel, and recovers a dead runner. It does not make session bring-up faster: that time is spent in `halt`, `xcodebuild` and waiting for the runner to publish, none of which the process model touches. Keeping the daemon up means paying it once.
 
 The command channel has no cross-process lock. Two concurrent writers corrupt each other. That is why serialisation lives in the daemon and why units run one at a time.
 
@@ -109,29 +111,19 @@ A unit without `terminal` is refused at load. The guardrails cannot tell an expe
 
 `requires` names the capabilities the unit needs. Missing it means no special requirement. `role` defaults to `unstated`.
 
-## Commands
+Action options and field semantics: [references/unit-actions.md](references/unit-actions.md).
 
-`console doctor` prints the capabilities of this machine and the tiers it can run.
+## Commands not covered above
 
-`console list` lists units with their layer and requirements.
+`console doctor` prints the capabilities of this machine and the tiers it can run. `console list` lists units with their layer, requirements and case count.
 
-`console plan check --tier static` compiles every unit without touching a device or a build. This is the whole offline gate.
-
-`console plan show UNIT --tier e2e` prints one compiled plan with its digest.
-
-`console run UNIT --tier e2e` runs one unit and writes evidence. `console run UNIT --case KEY --tier e2e` keeps the unit setup and runs one recorded case; `console list` prints the case count of each unit.
-
-`console tier static` runs the checkers. `--event commit|push|pr|merge` selects the comparison base for that CI trigger; `--changed-staged`, `--changed-since` and `--changed-list` accept a scope directly.
-
-`console merge check` runs the merge gate: CI, build and unit, aggregated to green, yellow, override or red.
-
-`console op VERB --args '{...}'` runs one operation against the live session. `console replay NAME` runs a recorded sequence again. `console unit scaffold NAME` writes a unit draft from that sequence.
+`console plan show UNIT --tier e2e` prints one compiled plan with its digest. `console run UNIT --case KEY --tier e2e` runs one recorded case.
 
 ## One unit per call
 
 `run` accepts exactly one unit. A second unit is a usage error. There is no `--all` on `run`. Batches exist only in `plan check --all`, which compiles and reports without executing.
 
-Do not write a script that loops `console run` over many units to get one long pass. Each call is a step you read before the next, and a failure inside a unit is a bug to fix, not something to retry past.
+Run one unit per call, read the result before the next call, and fix the bug a failing unit exposes.
 
 ## Refusals
 

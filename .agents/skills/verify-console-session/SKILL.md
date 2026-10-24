@@ -100,18 +100,17 @@ The same works for the second promise: in `Spawn`, replace the conditional with
 
 ## Keeping it in step
 
-Covered files:
+Covered files: `Scripts/console/daemon.py` (`ensure_running`, `Server.serve`,
+`Channel.alive`, `Channel.ensure_session`, `Channel.halt`, `Channel.invoke`),
+`Scripts/console/transport.py` (`scoped_processes`, `send_command`), the record
+file `.console/session-<target>.json` written by `Channel._remember`, and the
+socket path rule in `daemon.socket_path`.
 
-- `Scripts/console/daemon.py`: `ensure_running`, `Server.serve`, `Channel.alive`,
-  `Channel.ensure_session`, `Channel.halt`, `Channel.invoke`
-- `Scripts/console/transport.py`: `scoped_processes`, `send_command`
-- the record file `.console/session-<target>.json`, written by `Channel._remember`
-- the socket path rule in `daemon.socket_path`, which keeps each target on its own lane
-
-Last confirmed to describe the code at commit `6dae9759`.
-
-Move that commit forward only after checking that the model still names the same
-actions and that `run.sh` passes. When the code gains a new way to reach a
-session — a second daemon mode, a second runner launch path, a shared device —
-add the action to `ConsoleSession.tla` first, then run it; a model without the new
-path silently reports success.
+The model does not cover the command-time recovery in `Channel.invoke`, which
+re-ensures a session the runner reports gone. Run `Scripts/console/formal/run.sh`
+after any change to these files; a green run means the three invariants still
+hold for the modeled machine, not that a new code path is modeled. When the code
+gains a new way to reach a session — a second daemon mode, a second runner launch
+path, a shared device, or a new recovery path — add the action to
+`ConsoleSession.tla` first, then run it; a model without the new path silently
+reports success.
