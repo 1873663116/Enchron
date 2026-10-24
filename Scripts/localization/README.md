@@ -32,13 +32,33 @@ python3 Scripts/localization/extract_strings.py
 
 编译器为 DerivedData 下的生成源同样产出 stringsdata，其中带着 `InfoPlist` 的键；那些键属于 `InfoPlist.xcstrings`，脚本按来源前缀剔除。
 
-`--check` 不写文件，表与源码不一致时退出码为 1，可挂进 CI。
+`--check` 不写文件，表与源码不一致时退出码为 1。构建档在构建完成后用同一份 `.stringsdata` 跑这个检查：源码里有、表里没有的 key 直接让构建档失败。
 
 ## 为什么不用 Xcode 自带的导出
 
 Xcode 的自动抽取只覆盖设置了 `SWIFT_EMIT_LOC_STRINGS` 的 target，工程里只有 App target 开了；`Modules/` 下的五个 SPM 包需要命令行传这个设置才会产出（脚本已传）。
 
 `xcstringstool extract` 可用但不够：它把所有插值记成 `%arg`，而 `%arg` 不是合法的格式符，构建的符号生成阶段会直接报错；它也不理解传给自定义组件参数的字面量。编译器产出的键是类型正确的（`%lld`、`%@`），且能认出传给 `LocalizedStringKey` 参数的字面量。
+
+## 专有名词
+
+整条文案就是产品名、协议名或库名时，条目标 `shouldTranslate: false`。译文检查跳过它，编译器抽取仍然要求它存在于表里。用一条命令标记：
+
+```bash
+python3 Scripts/localization/translations.py dont-translate --key "Moonlight" --reason "product name"
+```
+
+名字出现在句子里时，整句照常翻译，名字本身保持原文（`Connect to Plex`、`Search Emby`）。这类句子不需要标记；约束由 `glossary.md` 承担。
+
+不建独立品牌表。是否可翻译的决定跟着条目走，在 PR diff 里可见。
+
+## CI 检查
+
+`static` 档跑 `localization-coverage`：`rules.json` 的 `languages` 列出全部目标语言，每个可翻译条目在每种语言都必须有非空译文，占位符与复数形式一致。整语言删除会失败，因为语言集合来自配置而不是表内实际出现的语言。
+
+`build` 档用编译器产出的 `.stringsdata` 跑 `extract_strings.py --no-build --check`：源码里的 key 不在表里就失败。这一步和构建共用 `.scratch/build`，不额外编译。
+
+两处失败都给出 key、语言或源码位置，以及修复命令：补译文，或用 `dont-translate` 标记专名。
 
 ## 文案怎么写才进表
 
@@ -78,15 +98,17 @@ python3 Scripts/localization/locale_coverage.py --app <built .app>
 
 ## 规则
 
-`rules.json` 两项：
+`rules.json` 四项：
 
-- `excludedKeys`：开发者诊断界面和纯数值常量，这些键不出现在表里。
+- `languages`：全部目标语言。语言集合以它为准，不从表内条目推导。
+- `pluralKeys`：需要按语言写复数 variations 的键。
+- `excludedKeys`：开发者诊断界面、无障碍自动化值和纯数值常量，这些键不进表。
 - `excludedFiles`：整个文件排除。
 
-`#Preview` 块内的文案和去掉格式符后不含字母的键，脚本自动排除。
+`#Preview` 块内的文案和去掉格式符后不含字母的键，脚本自动排除。用户可见的专名留在表里，标 `shouldTranslate: false`。
 
 ## 已知边界
 
 - 复数：`%lld items`、`%lld selected` 在法语、德语、俄语按各自的复数规则写 variations；俄语需要 one/few/many/other 四档。编译后复数键落进 `stringsdict` 而不是 `strings` 表，`locale_coverage.py` 比对前把两者合并。
 - 表按源码原文作键，一处英文改动等于新增一个键，已有译文需要重新绑定。
-- 视图之外产生的字符串如果忘了 `String(localized:)`，不会被抽到，也没有检查能发现。
+- 视图之外产生的字符串如果忘了 `String(localized:)`，不会被抽到，也没有检查能发现。CI 的保证范围是编译器抽取到的 key；它不能证明所有运行时文字都经过了本地化 API。

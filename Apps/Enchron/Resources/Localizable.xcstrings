@@ -1,315 +1,9 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "Minimize environments": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Umgebungen minimieren"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Réduire les environnements"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "環境を最小化"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "환경 최소화"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Свернуть окружения"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "收起环境主页"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "收合環境主頁"}}
-      }
-    },
-    "Restore environments": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Umgebungen wiederherstellen"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Rétablir les environnements"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "環境を復元"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "환경 복원"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Развернуть окружения"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "恢复环境主页"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "恢復環境主頁"}}
-      }
-    },
-    "License text is unavailable.": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Der Lizenztext ist nicht verfügbar."}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Le texte de la licence est indisponible."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "ライセンスの本文を表示できません。"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "라이선스 내용을 사용할 수 없습니다."}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Текст лицензии недоступен."}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "许可证文本暂不可用。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "授權條款文字暫時無法使用。"}}
-      }
-    },
-    "Email": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "E-Mail"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "E-mail"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "メール"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "이메일"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Электронная почта"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "电子邮箱"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "電子郵件"}}
-      }
-    },
-    "Expanded": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Ausgeklappt"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Développé"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "展開中"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "펼쳐짐"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Развернуто"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已展开"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已展開"}}
-      }
-    },
-    "Collapsed": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Eingeklappt"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Réduit"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "折りたたみ"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "접힘"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Свернуто"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已收起"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已收合"}}
-      }
-    },
-    "Playback shortcuts": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Wiedergabe-Kurzbefehle"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Raccourcis de lecture"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "再生ショートカット"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "재생 바로 가기"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Быстрые действия воспроизведения"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "播放快捷操作"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "播放快捷操作"}}
-      }
-    },
-    "Hold playback speed": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Wiedergabetempo beim Halten"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Vitesse de lecture en maintenant le pincement"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "ピンチ保持中の再生速度"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "길게 집는 동안의 재생 속도"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Скорость при удержании"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "按住时的播放速度"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "按住時的播放速度"}}
-      }
-    },
-    "Unconscious pinches may be recognized as playback commands.": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Unbewusste Pinch-Gesten können als Wiedergabebefehle erkannt werden."}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Un pincement inconscient peut être reconnu comme une commande de lecture."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "無意識のピンチ動作も再生操作として認識されることがあります。"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "무의식적인 집기 동작도 재생 조작으로 인식될 수 있습니다."}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Неосознанный жест сведения пальцев может быть распознан как команда воспроизведения."}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "无意识的捏合动作也可能被识别为播放操作。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "無意識的捏合動作也可能被識別為播放操作。"}}
-      }
-    },
-    "Double-tap the video": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Video doppelt antippen"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Toucher deux fois la vidéo"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "再生画面をダブルタップ"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "영상 두 번 탭"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Дважды коснуться видео"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "双击播放画面"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點兩下播放畫面"}}
-      }
-    },
-    "Play or pause": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Wiedergabe oder Pause"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Lire ou mettre en pause"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "再生／一時停止"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "재생 또는 일시 정지"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Воспроизведение или пауза"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "播放或暂停"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "播放或暫停"}}
-      }
-    },
-    "Pinch and hold": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Pinch-Geste halten"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Pincer et maintenir"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "ピンチしたまま保持"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "집고 유지"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Свести пальцы и удерживать"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "捏合并保持"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "捏合並保持"}}
-      }
-    },
-    "Play at the set speed": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Mit eingestelltem Tempo abspielen"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Lire à la vitesse définie"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "設定した速度で再生"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "설정한 속도로 재생"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Заданная скорость"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "设定速度播放"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "設定速度播放"}}
-      }
-    },
-    "Pinch and drag left or right": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Pinch-Geste nach links oder rechts ziehen"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Pincer et glisser à gauche ou à droite"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "ピンチして左右にドラッグ"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "집고 좌우로 드래그"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Свести пальцы и перетащить влево или вправо"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "捏合并左右拖动"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "捏合並左右拖動"}}
-      }
-    },
-    "Adjust playback position": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Wiedergabeposition ändern"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Ajuster la position de lecture"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "再生位置を調整"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "재생 위치 조절"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Изменить позицию"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "调整播放位置"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "調整播放位置"}}
-      }
-    },
-    "Double-tap the playback progress bar": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Fortschrittsbalken doppelt antippen"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Toucher deux fois la barre de progression"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "再生コントロールのプログレスバーをダブルタップ"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "재생 진행 막대 두 번 탭"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Дважды коснуться полосы прогресса"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "双击播放控件的进度条"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "點兩下播放控制項的進度條"}}
-      }
-    },
-    "Open the precise timeline": {
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Präzise Zeitleiste öffnen"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Ouvrir la timeline précise"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "精密タイムラインを開く"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "정밀 타임라인 열기"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Открыть точную шкалу времени"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开精确时间轴"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟精確時間軸"}}
-      }
-    },
-    "Media library tabs": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Mediathek-Tabs"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Onglets des bibliothèques multimédias"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "メディアライブラリのタブ"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "미디어 라이브러리 탭"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Вкладки медиатек"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "媒体库标签"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "媒體庫標籤"}}
-      }
-    },
-    "Select the remote media libraries to show in the tab bar. Changes take effect immediately.": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Wähle die entfernten Mediatheken aus, die in der Tab-Leiste angezeigt werden sollen. Änderungen werden sofort übernommen."}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Sélectionnez les bibliothèques multimédias distantes à afficher dans la barre d’onglets. Les modifications prennent effet immédiatement."}},
-        "ja": {"stringUnit": {"state": "translated", "value": "タブバーに表示するリモートメディアライブラリを選択してください。変更はすぐに反映されます。"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "탭 막대에 표시할 원격 미디어 라이브러리를 선택하세요. 변경 사항은 즉시 적용됩니다."}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Выберите удалённые медиатеки для отображения на панели вкладок. Изменения вступают в силу немедленно."}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "选择要在标签栏显示的远程媒体库，立即生效。"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "選擇要在標籤列顯示的遠端媒體庫，立即生效。"}}
-      }
-    },
-    "Save": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Speichern"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Enregistrer"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "保存"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "저장"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Сохранить"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "保存"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "儲存"}}
-      }
-    },
-    "Saved": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Gespeichert"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Enregistré"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "保存済み"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "저장됨"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Сохранено"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "已保存"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "已儲存"}}
-      }
-    },
-    "Plex": {
-      "comment": "Apps/Enchron/MainView.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Plex"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Plex"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "Plex"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "Plex"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Plex"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Plex"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "Plex"}}
-      }
-    },
-    "Jellyfin": {
-      "comment": "Apps/Enchron/MainView.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Jellyfin"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Jellyfin"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "Jellyfin"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "Jellyfin"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Jellyfin"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Jellyfin"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "Jellyfin"}}
-      }
-    },
-    "Additional content": {
-      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Zusätzliche Inhalte"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Contenu supplémentaire"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "追加コンテンツ"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "추가 콘텐츠"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Дополнительные материалы"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "附加内容"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "附加內容"}}
-      }
-    },
-    "Blu-ray disc": {
-      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Blu-ray-Disc"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Disque Blu-ray"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "ブルーレイディスク"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "블루레이 디스크"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Диск Blu-ray"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "蓝光光盘"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "藍光光碟"}}
-      }
-    },
-    "Sequences": {
-      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Sequenzen"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Séquences"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "シーケンス"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "시퀀스"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Последовательности"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "连续序列"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "連續序列"}}
-      }
-    },
-    "Still images": {
-      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
-      "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "Standbilder"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "Images fixes"}},
-        "ja": {"stringUnit": {"state": "translated", "value": "静止画"}},
-        "ko": {"stringUnit": {"state": "translated", "value": "정지 이미지"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "Статичные изображения"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "静态画面"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "靜態畫面"}}
-      }
-    },
     "\"Open water under a slow sky, the screen mirrored in the swell.\"": {
       "comment": "Modules/Playback/Views/EnvironmentComponents.swift:38",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -403,7 +97,7 @@
       }
     },
     "%@ of %@": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1587",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:2039",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -450,7 +144,7 @@
       }
     },
     "%@ → Media Library": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1220",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1445",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -498,6 +192,7 @@
     },
     "%@, folder": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:100",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -544,7 +239,7 @@
       }
     },
     "%@, show more": {
-      "comment": "Modules/Emby/CollapsibleBlock.swift:29",
+      "comment": "Modules/MediaServer/CollapsibleBlock.swift:29",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -591,7 +286,7 @@
       }
     },
     "%lld items": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:862",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:888",
       "localizations": {
         "de": {
           "variations": {
@@ -686,7 +381,7 @@
       }
     },
     "%lld selected": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:822",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:848",
       "localizations": {
         "de": {
           "variations": {
@@ -781,8 +476,7 @@
       }
     },
     "15 Seconds": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:263",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:351",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -829,8 +523,7 @@
       }
     },
     "5 Seconds": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:261",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:349",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -877,8 +570,7 @@
       }
     },
     "8 Seconds": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:262",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:350",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -925,7 +617,7 @@
       }
     },
     "AD": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:132",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:132",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -972,7 +664,7 @@
       }
     },
     "About": {
-      "comment": "Modules/Emby/EmbyScreens.swift:1611",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1743",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1066,7 +758,7 @@
       }
     },
     "Add Files": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:773",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:805",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1113,7 +805,7 @@
       }
     },
     "Add Folder": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:785",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:811",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1160,7 +852,7 @@
       }
     },
     "Add One": {
-      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:246",
+      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:249",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1208,6 +900,7 @@
     },
     "Add from Photos": {
       "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:779",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1254,7 +947,7 @@
       }
     },
     "Add to Media Library": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1323",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1548",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1296,6 +989,53 @@
           "stringUnit": {
             "state": "translated",
             "value": "加入媒體庫"
+          }
+        }
+      }
+    },
+    "Additional content": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zusätzliche Inhalte"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contenu supplémentaire"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "追加コンテンツ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "추가 콘텐츠"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дополнительные материалы"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加内容"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "附加內容"
           }
         }
       }
@@ -1347,9 +1087,54 @@
         }
       }
     },
+    "Adjust playback position": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabeposition ändern"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajuster la position de lecture"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生位置を調整"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생 위치 조절"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Изменить позицию"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "调整播放位置"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "調整播放位置"
+          }
+        }
+      }
+    },
     "Always Resume": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:229",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:317",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1396,8 +1181,7 @@
       }
     },
     "Always Start Over": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:230",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:318",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1444,7 +1228,7 @@
       }
     },
     "App performance": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:165",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:237",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1491,7 +1275,7 @@
       }
     },
     "Apply": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:271",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:280",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1538,7 +1322,7 @@
       }
     },
     "Artwork Cache": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:288",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:442",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1632,8 +1416,7 @@
       }
     },
     "Ask Every Time": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:228",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:316",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1681,6 +1464,7 @@
     },
     "Atmosphere: %@": {
       "comment": "Modules/Playback/Views/EnvironmentComponents.swift:217",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1727,7 +1511,7 @@
       }
     },
     "Audio": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:113",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:113",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1774,7 +1558,7 @@
       }
     },
     "Audio Error": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:358",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:353",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1821,7 +1605,7 @@
       }
     },
     "Audio Track": {
-      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:425",
+      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:455",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1915,8 +1699,7 @@
       }
     },
     "Auto-Hide Playback Controls": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:258",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:346",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -1963,7 +1746,7 @@
       }
     },
     "Automatic": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:228",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:237",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2010,7 +1793,7 @@
       }
     },
     "Back": {
-      "comment": "Modules/Playback/Views/PlayerInfoBarView.swift:26",
+      "comment": "Modules/Playback/Views/PlayerInfoBarView.swift:27",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2056,8 +1839,101 @@
         }
       }
     },
+    "Blu-ray disc": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blu-ray-Disc"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disque Blu-ray"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ブルーレイディスク"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "블루레이 디스크"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Диск Blu-ray"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "蓝光光盘"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "藍光光碟"
+          }
+        }
+      }
+    },
+    "Browse Files": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien durchsuchen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parcourir les fichiers"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイルを閲覧"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일 탐색"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Просмотр файлов"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "浏览文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "瀏覽檔案"
+          }
+        }
+      }
+    },
     "Cancel": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:266",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:275",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2151,7 +2027,7 @@
       }
     },
     "Cast & Crew": {
-      "comment": "Modules/Emby/EmbyScreens.swift:1582",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1714",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2198,7 +2074,7 @@
       }
     },
     "Choose Enchron's language in Settings.": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:69",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:92",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2244,8 +2120,54 @@
         }
       }
     },
+    "Choose a server": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Server auswählen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choisir un serveur"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "サーバーを選択"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "서버 선택"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите сервер"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择服务器"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇伺服器"
+          }
+        }
+      }
+    },
     "Clear": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:306",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:460",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2292,7 +2214,7 @@
       }
     },
     "Clear All": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:316",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:470",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2338,8 +2260,54 @@
         }
       }
     },
+    "Clear search": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche löschen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer la recherche"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索を消去"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검색 지우기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Очистить поиск"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜索"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "清除搜尋"
+          }
+        }
+      }
+    },
     "Cleared": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:317",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:471",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2386,7 +2354,7 @@
       }
     },
     "Close": {
-      "comment": "Apps/Enchron/MainView.swift:357",
+      "comment": "Apps/Enchron/MainView.swift:578",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2433,7 +2401,7 @@
       }
     },
     "Close Advanced Settings": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:690",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1010",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2480,7 +2448,7 @@
       }
     },
     "Close Timeline": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:660",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:980",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2526,8 +2494,101 @@
         }
       }
     },
+    "Close environment": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umgebung schließen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermer l'environnement"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "環境を閉じる"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 닫기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть среду"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭环境"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉環境"
+          }
+        }
+      }
+    },
+    "Collapsed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eingeklappt"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réduit"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "折りたたみ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "접힘"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свернуто"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已收起"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已收合"
+          }
+        }
+      }
+    },
     "Completed": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:138",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2574,7 +2635,7 @@
       }
     },
     "Connect": {
-      "comment": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift:316",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:739",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2621,7 +2682,7 @@
       }
     },
     "Connect Anyway": {
-      "comment": "Apps/Enchron/MainView.swift:74",
+      "comment": "Apps/Enchron/MainView.swift:136",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2715,7 +2776,7 @@
       }
     },
     "Connect to %@": {
-      "comment": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift:157",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:708",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2763,6 +2824,7 @@
     },
     "Connect to Emby": {
       "comment": "Modules/Emby/EmbyScreens.swift:596",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2808,8 +2870,55 @@
         }
       }
     },
+    "Connect to Plex": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Plex verbinden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter à Plex"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex に接続"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex에 연결"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подключиться к Plex"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连接到 Plex"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連接到 Plex"
+          }
+        }
+      }
+    },
     "Connected": {
       "comment": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift:105",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2856,7 +2965,7 @@
       }
     },
     "Connecting…": {
-      "comment": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift:263",
+      "comment": "Modules/MediaServer/PlexAccount.swift:200",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2903,7 +3012,7 @@
       }
     },
     "Connection Failed": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:300",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:295",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2950,7 +3059,7 @@
       }
     },
     "Container": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:181",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:181",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2997,7 +3106,7 @@
       }
     },
     "Container Index Cache": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:299",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:453",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3044,7 +3153,7 @@
       }
     },
     "Continue Watching": {
-      "comment": "Modules/Emby/EmbyScreenViewModels.swift:109",
+      "comment": "Modules/MediaServer/MediaServerScreenViewModels.swift:117",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3091,7 +3200,7 @@
       }
     },
     "Continue from %@ or start from the beginning.": {
-      "comment": "Apps/Enchron/MainView.swift:167",
+      "comment": "Apps/Enchron/MainView.swift:258",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3138,7 +3247,7 @@
       }
     },
     "Conversion Failed": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:390",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:377",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3185,7 +3294,7 @@
       }
     },
     "Copied": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:348",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:545",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3232,7 +3341,7 @@
       }
     },
     "Copy": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:348",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:544",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3279,7 +3388,7 @@
       }
     },
     "Create": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:282",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:317",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3326,7 +3435,7 @@
       }
     },
     "Custom Angle": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:314",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:323",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3373,7 +3482,7 @@
       }
     },
     "Dark Mode": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:679",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:805",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3420,8 +3529,7 @@
       }
     },
     "Darken the room around the player window and around environments that request it, without touching the video.": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:271",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:359",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3468,7 +3576,7 @@
       }
     },
     "Default": {
-      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:224",
+      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:189",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3515,7 +3623,7 @@
       }
     },
     "Default Speed": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:244",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:332",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3562,7 +3670,7 @@
       }
     },
     "Delete": {
-      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:226",
+      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:228",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3609,7 +3717,7 @@
       }
     },
     "Delete %@": {
-      "comment": "Modules/DesignSystem/Components/SidebarRow.swift:315",
+      "comment": "Modules/DesignSystem/Components/SidebarRow.swift:323",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3656,7 +3764,7 @@
       }
     },
     "Delete Selected": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:333",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:368",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3703,7 +3811,7 @@
       }
     },
     "Delete selected sources": {
-      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:338",
+      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:342",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3797,7 +3905,7 @@
       }
     },
     "Detailed Metrics": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:193",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:274",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3844,7 +3952,7 @@
       }
     },
     "Developer": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:29",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:39",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3892,6 +4000,7 @@
     },
     "Disconnected": {
       "comment": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift:105",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3933,6 +4042,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "已中斷連線"
+          }
+        }
+      }
+    },
+    "Dismiss menu": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menü schließen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fermer le menu"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メニューを閉じる"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메뉴 닫기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Закрыть меню"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "关闭菜单"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "關閉選單"
           }
         }
       }
@@ -3985,7 +4140,7 @@
       }
     },
     "Distance": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:764",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1084",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4032,7 +4187,7 @@
       }
     },
     "Dock": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:550",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:869",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4079,7 +4234,7 @@
       }
     },
     "Done": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:851",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:877",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4125,8 +4280,146 @@
         }
       }
     },
+    "Double-tap the playback progress bar": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortschrittsbalken doppelt antippen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toucher deux fois la barre de progression"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生コントロールのプログレスバーをダブルタップ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생 진행 막대 두 번 탭"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дважды коснуться полосы прогресса"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击播放控件的进度条"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點兩下播放控制項的進度條"
+          }
+        }
+      }
+    },
+    "Double-tap the video": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video doppelt antippen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toucher deux fois la vidéo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生画面をダブルタップ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "영상 두 번 탭"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дважды коснуться видео"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "双击播放画面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "點兩下播放畫面"
+          }
+        }
+      }
+    },
+    "Editing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bearbeitung"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modification"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編集中"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "편집 중"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Редактирование"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "编辑中"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "編輯中"
+          }
+        }
+      }
+    },
     "Elevation": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:778",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1098",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4172,8 +4465,54 @@
         }
       }
     },
+    "Email": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-Mail"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E-mail"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メール"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이메일"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Электронная почта"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电子邮箱"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "電子郵件"
+          }
+        }
+      }
+    },
     "Emby": {
-      "comment": "Apps/Enchron/MainView.swift:181",
+      "comment": "Apps/Enchron/MainView.swift:289",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4221,6 +4560,7 @@
     },
     "Enqueued counts video samples sent to the renderer each second. Dropped is the current video renderer’s cumulative count; replacing the renderer can reset it. Buffer is queued source data.": {
       "comment": "Apps/Enchron/Screens/SettingsScreen.swift:164",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4267,7 +4607,7 @@
       }
     },
     "Enter Panorama": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:540",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:564",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4314,7 +4654,7 @@
       }
     },
     "Enter the address and account for your media server.": {
-      "comment": "Modules/Emby/EmbyScreens.swift:598",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:710",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4362,6 +4702,7 @@
     },
     "Environment": {
       "comment": "Apps/Enchron/EnchronApp.swift:119",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4409,6 +4750,7 @@
     },
     "Environment 01": {
       "comment": "Modules/Playback/Views/EnvironmentComponents.swift:37",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4455,7 +4797,7 @@
       }
     },
     "Environment carousel": {
-      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:381",
+      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:354",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4549,7 +4891,7 @@
       }
     },
     "Episodes": {
-      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:435",
+      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:465",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4595,8 +4937,54 @@
         }
       }
     },
+    "Expanded": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ausgeklappt"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Développé"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "展開中"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "펼쳐짐"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Развернуто"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已展开"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已展開"
+          }
+        }
+      }
+    },
     "Failed to Load": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:284",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:279",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4643,7 +5031,7 @@
       }
     },
     "Featured environment card, %@": {
-      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:111",
+      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:80",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4690,7 +5078,7 @@
       }
     },
     "Files": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:184",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:184",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4737,7 +5125,7 @@
       }
     },
     "Finish selecting": {
-      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:346",
+      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:350",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4784,7 +5172,7 @@
       }
     },
     "Folder name": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:295",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:330",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4832,6 +5220,7 @@
     },
     "Folders": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:69",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4877,8 +5266,54 @@
         }
       }
     },
+    "Format unknown": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format unbekannt"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format inconnu"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "フォーマット不明"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "포맷 알 수 없음"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Формат неизвестен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格式未知"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格式未知"
+          }
+        }
+      }
+    },
     "Forward": {
-      "comment": "Modules/MediaLibrary/Views/LibraryViewControls.swift:54",
+      "comment": "Modules/MediaLibrary/Views/LibraryViewControls.swift:62",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4925,7 +5360,7 @@
       }
     },
     "General": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:26",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:34",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4971,8 +5406,54 @@
         }
       }
     },
+    "Grid view": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rasteransicht"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vue grille"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "グリッド表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "그리드 보기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сетка"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "网格视图"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "格狀檢視"
+          }
+        }
+      }
+    },
     "Height": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:750",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1070",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5018,8 +5499,54 @@
         }
       }
     },
+    "Hold playback speed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabetempo beim Halten"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vitesse de lecture en maintenant le pincement"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピンチ保持中の再生速度"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "길게 집는 동안의 재생 속도"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Скорость при удержании"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住时的播放速度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "按住時的播放速度"
+          }
+        }
+      }
+    },
     "Home": {
-      "comment": "Modules/Emby/EmbyScreens.swift:711",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:669",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5066,7 +5593,7 @@
       }
     },
     "In This Collection": {
-      "comment": "Modules/Emby/EmbyScreens.swift:1437",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1549",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5160,8 +5687,7 @@
       }
     },
     "Include memory categories and queued video frames.": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:195",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:276",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5207,8 +5733,101 @@
         }
       }
     },
+    "Item": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Objekt"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Élément"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "項目"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "항목"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Элемент"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "项目"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "項目"
+          }
+        }
+      }
+    },
+    "Jellyfin": {
+      "comment": "Apps/Enchron/MainView.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jellyfin"
+          }
+        }
+      }
+    },
     "Language": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:67",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:90",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5255,7 +5874,7 @@
       }
     },
     "Language and app-wide preferences": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:37",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:48",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5302,7 +5921,7 @@
       }
     },
     "Library Unavailable": {
-      "comment": "Modules/Emby/EmbyScreens.swift:580",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:671",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5348,8 +5967,54 @@
         }
       }
     },
+    "License text is unavailable.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Lizenztext ist nicht verfügbar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le texte de la licence est indisponible."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライセンスの本文を表示できません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "라이선스 내용을 사용할 수 없습니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Текст лицензии недоступен."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "许可证文本暂不可用。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "授權條款文字暫時無法使用。"
+          }
+        }
+      }
+    },
     "Light Mode": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:679",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:805",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5397,6 +6062,7 @@
     },
     "Light Mode / Dark Mode": {
       "comment": "Modules/Playback/Views/EnvironmentComponents.swift:40",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5443,7 +6109,7 @@
       }
     },
     "Linked Into The App": {
-      "comment": "Apps/Enchron/Screens/OpenSourceLicenses.swift:124",
+      "comment": "Apps/Enchron/Screens/OpenSourceLicenses.swift:131",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5489,8 +6155,54 @@
         }
       }
     },
+    "List view": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listenansicht"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vue liste"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リスト表示"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "목록 보기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Список"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表视图"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "列表檢視"
+          }
+        }
+      }
+    },
     "Loading": {
-      "comment": "Modules/Playback/Scenes/ImmersiveSpaceView.swift:770",
+      "comment": "Modules/Playback/Scenes/ImmersiveSpaceView.swift:733",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5538,6 +6250,7 @@
     },
     "Loading files...": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:49",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5584,7 +6297,7 @@
       }
     },
     "Local Files": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1254",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1479",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5632,6 +6345,7 @@
     },
     "Local Storage": {
       "comment": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift:85",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5678,8 +6392,7 @@
       }
     },
     "Lower Ambient Brightness": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:269",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:357",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5725,8 +6438,54 @@
         }
       }
     },
+    "Main": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hauptfilm"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Principal"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メイン"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "메인"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Основной"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主影片"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主影片"
+          }
+        }
+      }
+    },
     "Manage media library": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:810",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:836",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5773,7 +6532,7 @@
       }
     },
     "Media Library": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:382",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:417",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5820,7 +6579,7 @@
       }
     },
     "Media Library Error": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:360",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:395",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5866,8 +6625,56 @@
         }
       }
     },
+    "Media library tabs": {
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mediathek-Tabs"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Onglets des bibliothèques multimédias"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "メディアライブラリのタブ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미디어 라이브러리 탭"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вкладки медиатек"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "媒体库标签"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "媒體庫標籤"
+          }
+        }
+      }
+    },
     "Memory is the app footprint. Scene updates measures RealityKit updates. Main-thread stall is the longest delay in the sampling interval. Detailed metrics add memory categories and queued video frames.": {
       "comment": "Apps/Enchron/Screens/SettingsScreen.swift:167",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5913,8 +6720,55 @@
         }
       }
     },
+    "Minimize environments": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umgebungen minimieren"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Réduire les environnements"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "環境を最小化"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 최소화"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свернуть окружения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收起环境主页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "收合環境主頁"
+          }
+        }
+      }
+    },
     "Mode: %@": {
       "comment": "Modules/Playback/Views/EnvironmentComponents.swift:216",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -5960,8 +6814,12 @@
         }
       }
     },
+    "Moonlight": {
+      "comment": "product name",
+      "shouldTranslate": false
+    },
     "More": {
-      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:407",
+      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:437",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6008,7 +6866,7 @@
       }
     },
     "More playback settings": {
-      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:446",
+      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:476",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6055,7 +6913,7 @@
       }
     },
     "More source actions": {
-      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:212",
+      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:214",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6102,7 +6960,7 @@
       }
     },
     "Move To": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:837",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:863",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6149,7 +7007,7 @@
       }
     },
     "Move to": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1253",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1478",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6196,7 +7054,7 @@
       }
     },
     "Move to %@": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1304",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1529",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6243,7 +7101,7 @@
       }
     },
     "Move to Media Library": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1298",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1523",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6291,6 +7149,7 @@
     },
     "Navigates to %@": {
       "comment": "Modules/MediaLibrary/Views/BreadcrumbView.swift:40",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6337,8 +7196,7 @@
       }
     },
     "Never": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:264",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:352",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6385,7 +7243,7 @@
       }
     },
     "New Library Folder": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:792",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:818",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6432,7 +7290,7 @@
       }
     },
     "Next Up": {
-      "comment": "Modules/Emby/EmbyScreenViewModels.swift:116",
+      "comment": "Modules/MediaServer/MediaServerScreenViewModels.swift:124",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6480,6 +7338,7 @@
     },
     "No Emby titles": {
       "comment": "Modules/Emby/EmbyScreens.swift:686",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6526,7 +7385,7 @@
       }
     },
     "No Options": {
-      "comment": "Modules/DesignSystem/Components/SettingsComponents.swift:1033",
+      "comment": "Modules/DesignSystem/Components/SettingsComponents.swift:1114",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6572,8 +7431,55 @@
         }
       }
     },
+    "No Plex media servers are available for this account.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Für dieses Konto sind keine Plex-Medienserver verfügbar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun serveur multimédia Plex n'est disponible pour ce compte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "このアカウントで利用できる Plex メディアサーバーはありません。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 계정에서 사용할 수 있는 Plex 미디어 서버가 없습니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Для этой учётной записи нет доступных медиасерверов Plex."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此账户没有可用的 Plex 媒体服务器。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此帳號沒有可用的 Plex 媒體伺服器。"
+          }
+        }
+      }
+    },
     "No folders or playable videos found.": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:56",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6620,7 +7526,7 @@
       }
     },
     "No media": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:672",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:690",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6667,7 +7573,7 @@
       }
     },
     "No media here yet": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:665",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:683",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6713,8 +7619,54 @@
         }
       }
     },
+    "No titles": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keine Titel"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun titre"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タイトルなし"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "제목 없음"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет названий"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无标题"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無標題"
+          }
+        }
+      }
+    },
     "Not selected": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:421",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:430",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6761,7 +7713,7 @@
       }
     },
     "OK": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:366",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:401",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6808,7 +7760,7 @@
       }
     },
     "Ocean": {
-      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:36",
+      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:33",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6855,7 +7807,7 @@
       }
     },
     "Off": {
-      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:559",
+      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:592",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6901,8 +7853,54 @@
         }
       }
     },
+    "Open Plex sign-in": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex-Anmeldung öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la connexion Plex"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex のサインインを開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex 로그인 열기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть вход Plex"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开 Plex 登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟 Plex 登入"
+          }
+        }
+      }
+    },
     "Open Settings": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:71",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:94",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6948,8 +7946,55 @@
         }
       }
     },
+    "Open environment": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umgebung öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir l'environnement"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "環境を開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 열기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть среду"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开环境"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟環境"
+          }
+        }
+      }
+    },
     "Open folder": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:85",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -6995,8 +8040,55 @@
         }
       }
     },
+    "Open the precise timeline": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Präzise Zeitleiste öffnen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ouvrir la timeline précise"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "精密タイムラインを開く"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "정밀 타임라인 열기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Открыть точную шкалу времени"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "打开精确时间轴"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "開啟精確時間軸"
+          }
+        }
+      }
+    },
     "Open water": {
       "comment": "Modules/Playback/Views/EnvironmentComponents.swift:39",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7043,7 +8135,7 @@
       }
     },
     "Open-source Licenses": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:352",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:500",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7091,6 +8183,7 @@
     },
     "Opens folder contents": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:101",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7138,6 +8231,7 @@
     },
     "Opens video details": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:156",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7231,7 +8325,7 @@
       }
     },
     "Original Audio": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:109",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:109",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7278,7 +8372,7 @@
       }
     },
     "Password": {
-      "comment": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift:217",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:720",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7325,7 +8419,7 @@
       }
     },
     "Performance Overlay": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:206",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:290",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7372,7 +8466,7 @@
       }
     },
     "Performance readout in every window and space": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:40",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:53",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7418,9 +8512,100 @@
         }
       }
     },
+    "Pinch and drag left or right": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinch-Geste nach links oder rechts ziehen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pincer et glisser à gauche ou à droite"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピンチして左右にドラッグ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "집고 좌우로 드래그"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свести пальцы и перетащить влево или вправо"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捏合并左右拖动"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捏合並左右拖動"
+          }
+        }
+      }
+    },
+    "Pinch and hold": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinch-Geste halten"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pincer et maintenir"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ピンチしたまま保持"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "집고 유지"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Свести пальцы и удерживать"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捏合并保持"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "捏合並保持"
+          }
+        }
+      }
+    },
     "Play Next": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:239",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:327",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7466,8 +8651,54 @@
         }
       }
     },
+    "Play at the set speed": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit eingestelltem Tempo abspielen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire à la vitesse définie"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定した速度で再生"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "설정한 속도로 재생"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Заданная скорость"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设定速度播放"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "設定速度播放"
+          }
+        }
+      }
+    },
     "Play from Start": {
-      "comment": "Apps/Enchron/MainView.swift:156",
+      "comment": "Apps/Enchron/MainView.swift:247",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7513,8 +8744,54 @@
         }
       }
     },
+    "Play or pause": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe oder Pause"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lire ou mettre en pause"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生／一時停止"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생 또는 일시 정지"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Воспроизведение или пауза"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放或暂停"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放或暫停"
+          }
+        }
+      }
+    },
     "Playback": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:162",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:232",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7561,8 +8838,7 @@
       }
     },
     "Playback Behavior": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:27",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:35",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7609,7 +8885,7 @@
       }
     },
     "Playback Error": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:406",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:393",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7656,7 +8932,7 @@
       }
     },
     "Playback Progress": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:313",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:467",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7703,7 +8979,7 @@
       }
     },
     "Playback Settings": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1356",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1794",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7750,7 +9026,7 @@
       }
     },
     "Playback Speed": {
-      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:430",
+      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:460",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7797,7 +9073,7 @@
       }
     },
     "Playback position": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1586",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:2038",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7844,7 +9120,7 @@
       }
     },
     "Playback position thumb": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1690",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:2139",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7886,6 +9162,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "播放位置滑塊"
+          }
+        }
+      }
+    },
+    "Playback shortcuts": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiedergabe-Kurzbefehle"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Raccourcis de lecture"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "再生ショートカット"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "재생 바로 가기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Быстрые действия воспроизведения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放快捷操作"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "播放快捷操作"
           }
         }
       }
@@ -7938,7 +9260,7 @@
       }
     },
     "Player": {
-      "comment": "Apps/Enchron/EnchronApp.swift:84",
+      "comment": "Apps/Enchron/EnchronApp.swift:104",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -7984,8 +9306,55 @@
         }
       }
     },
+    "Plex": {
+      "comment": "Apps/Enchron/MainView.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex"
+          }
+        }
+      }
+    },
     "Precision timeline": {
-      "comment": "Modules/Playback/Views/PlaybackTimeline.swift:229",
+      "comment": "Modules/Playback/Views/PlaybackTimeline.swift:317",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8079,7 +9448,7 @@
       }
     },
     "Privacy Notice": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:325",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:479",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8126,7 +9495,7 @@
       }
     },
     "Projection": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:245",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:254",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8220,7 +9589,7 @@
       }
     },
     "Rated": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:88",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:88",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8267,7 +9636,7 @@
       }
     },
     "Rebuildable cache, playback history, and data handling": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:39",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:51",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8314,7 +9683,7 @@
       }
     },
     "Recently Added in %@": {
-      "comment": "Modules/Emby/EmbyScreenViewModels.swift:129",
+      "comment": "Modules/MediaServer/MediaServerScreenViewModels.swift:137",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8361,7 +9730,7 @@
       }
     },
     "Reconnecting…": {
-      "comment": "Modules/DesignSystem/Components/LoadingSpinner.swift:178",
+      "comment": "Modules/DesignSystem/Components/LoadingSpinner.swift:183",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8408,7 +9777,7 @@
       }
     },
     "Refresh": {
-      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:220",
+      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:222",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8455,7 +9824,7 @@
       }
     },
     "Region": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:97",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:97",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8502,7 +9871,7 @@
       }
     },
     "Related": {
-      "comment": "Modules/Emby/EmbyScreens.swift:997",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1081",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8549,7 +9918,7 @@
       }
     },
     "Released": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:85",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:85",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8596,7 +9965,7 @@
       }
     },
     "Remove %lld selected items from the Media Library? Original media will not be changed.": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:329",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:364",
       "localizations": {
         "de": {
           "variations": {
@@ -8691,7 +10060,7 @@
       }
     },
     "Remove from Library": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1310",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1535",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8738,7 +10107,7 @@
       }
     },
     "Rename": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1284",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:1509",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8785,7 +10154,7 @@
       }
     },
     "Rename Library Folder": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:289",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:324",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8832,8 +10201,7 @@
       }
     },
     "Replay": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:238",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:326",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8880,7 +10248,7 @@
       }
     },
     "Request Video Refresh Rate": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:180",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:258",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8927,8 +10295,7 @@
       }
     },
     "Request a display mode matching the video. Disable to compare system defaults.": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:182",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:260",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -8975,7 +10342,7 @@
       }
     },
     "Restore Defaults": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:699",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1019",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9021,8 +10388,54 @@
         }
       }
     },
+    "Restore environments": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Umgebungen wiederherstellen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rétablir les environnements"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "環境を復元"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "환경 복원"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Развернуть окружения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复环境主页"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢復環境主頁"
+          }
+        }
+      }
+    },
     "Resume": {
-      "comment": "Apps/Enchron/MainView.swift:146",
+      "comment": "Apps/Enchron/MainView.swift:237",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9069,7 +10482,7 @@
       }
     },
     "Resume Playback": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:225",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:313",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9116,7 +10529,7 @@
       }
     },
     "Resume Playback?": {
-      "comment": "Apps/Enchron/MainView.swift:139",
+      "comment": "Apps/Enchron/MainView.swift:230",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9164,6 +10577,7 @@
     },
     "Resume at %@": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:138",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9210,7 +10624,7 @@
       }
     },
     "Retry": {
-      "comment": "Apps/Enchron/MainView.swift:347",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:891",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9257,7 +10671,7 @@
       }
     },
     "Return to Portal": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1129",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1548",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9304,7 +10718,7 @@
       }
     },
     "Return to Window": {
-      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1136",
+      "comment": "Modules/Playback/Views/PlaybackPanel.swift:1555",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9351,7 +10765,7 @@
       }
     },
     "SDH": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:126",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:126",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9397,8 +10811,104 @@
         }
       }
     },
+    "Save": {
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speichern"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存"
+          }
+        }
+      }
+    },
+    "Saved": {
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
+      "extractionState": "stale",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gespeichert"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistré"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存済み"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장됨"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранено"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已保存"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已儲存"
+          }
+        }
+      }
+    },
     "Search": {
-      "comment": "Modules/Emby/EmbyScreens.swift:820",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:646",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9446,6 +10956,7 @@
     },
     "Search Emby": {
       "comment": "Modules/Emby/EmbyScreens.swift:823",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9491,8 +11002,100 @@
         }
       }
     },
+    "Search active": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche aktiv"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche active"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索アクティブ"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검색 활성"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск активен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索已激活"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋已啟用"
+          }
+        }
+      }
+    },
+    "Search library": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mediathek durchsuchen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechercher dans la médiathèque"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ライブラリを検索"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "미디어 라이브러리 검색"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск в медиатеке"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索媒体库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋媒體庫"
+          }
+        }
+      }
+    },
     "Search media...": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:730",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:750",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9538,8 +11141,54 @@
         }
       }
     },
+    "Search unavailable": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suche nicht verfügbar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recherche indisponible"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "検索を利用できません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "검색을 사용할 수 없음"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поиск недоступен"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜索不可用"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "搜尋無法使用"
+          }
+        }
+      }
+    },
     "Season": {
-      "comment": "Modules/Emby/EmbyScreens.swift:1443",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1555",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9585,8 +11234,54 @@
         }
       }
     },
+    "Seek preview": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suchvorschau"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aperçu du déplacement"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シークプレビュー"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "탐색 미리보기"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предпросмотр перемотки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳转预览"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跳轉預覽"
+          }
+        }
+      }
+    },
     "Select Multiple": {
-      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:800",
+      "comment": "Modules/MediaLibrary/Views/FilesScreen.swift:826",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9632,8 +11327,55 @@
         }
       }
     },
+    "Select the remote media libraries to show in the tab bar. Changes take effect immediately.": {
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wähle die entfernten Mediatheken aus, die in der Tab-Leiste angezeigt werden sollen. Änderungen werden sofort übernommen."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sélectionnez les bibliothèques multimédias distantes à afficher dans la barre d’onglets. Les modifications prennent effet immédiatement."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "タブバーに表示するリモートメディアライブラリを選択してください。変更はすぐに反映されます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "탭 막대에 표시할 원격 미디어 라이브러리를 선택하세요. 변경 사항은 즉시 적용됩니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выберите удалённые медиатеки для отображения на панели вкладок. Изменения вступают в силу немедленно."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "选择要在标签栏显示的远程媒体库，立即生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "選擇要在標籤列顯示的遠端媒體庫，立即生效。"
+          }
+        }
+      }
+    },
     "Selected": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:421",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:430",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9679,8 +11421,55 @@
         }
       }
     },
+    "Sequences": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sequenzen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Séquences"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "シーケンス"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "시퀀스"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последовательности"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连续序列"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "連續序列"
+          }
+        }
+      }
+    },
     "Server Certificate Changed": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:324",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:319",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9727,7 +11516,7 @@
       }
     },
     "Server address": {
-      "comment": "Modules/Emby/EmbyScreens.swift:602",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:714",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9774,7 +11563,7 @@
       }
     },
     "Set as default": {
-      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:224",
+      "comment": "Modules/Playback/Views/EnvironmentComponents.swift:189",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9821,7 +11610,7 @@
       }
     },
     "Settings": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:91",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:134",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9868,7 +11657,7 @@
       }
     },
     "Show Less": {
-      "comment": "Modules/Emby/EmbyScreens.swift:1251",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1362",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9915,7 +11704,7 @@
       }
     },
     "Show More": {
-      "comment": "Modules/Emby/EmbyScreens.swift:1251",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1362",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -9962,7 +11751,7 @@
       }
     },
     "Sign Out": {
-      "comment": "Modules/Emby/EmbyScreens.swift:506",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:555",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10008,8 +11797,54 @@
         }
       }
     },
+    "Sign in with Plex": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mit Plex anmelden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter avec Plex"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex でサインイン"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex로 로그인"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Войти через Plex"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Plex 登录"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用 Plex 登入"
+          }
+        }
+      }
+    },
     "Size": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:188",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:188",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10056,7 +11891,7 @@
       }
     },
     "Sort": {
-      "comment": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift:58",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:677",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10104,6 +11939,7 @@
     },
     "Sources": {
       "comment": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift:43",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10150,7 +11986,7 @@
       }
     },
     "Special Features": {
-      "comment": "Modules/Emby/EmbyScreens.swift:995",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1079",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10197,7 +12033,7 @@
       }
     },
     "Stereo Layout": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:258",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:267",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10243,8 +12079,55 @@
         }
       }
     },
+    "Still images": {
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Standbilder"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Images fixes"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静止画"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "정지 이미지"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Статичные изображения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "静态画面"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "靜態畫面"
+          }
+        }
+      }
+    },
     "Stops playback and returns to browser": {
-      "comment": "Modules/Playback/Views/PlayerInfoBarView.swift:39",
+      "comment": "Modules/Playback/Views/PlayerInfoBarView.swift:40",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10291,7 +12174,7 @@
       }
     },
     "Storage": {
-      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:188",
+      "comment": "Modules/MediaLibrary/Views/SourceSidebar.swift:190",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10338,7 +12221,7 @@
       }
     },
     "Storage & Privacy": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:28",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:37",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10385,7 +12268,7 @@
       }
     },
     "Studios": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:92",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:92",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10432,7 +12315,7 @@
       }
     },
     "Subtitle Error": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:374",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:361",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10479,7 +12362,7 @@
       }
     },
     "Subtitles": {
-      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:412",
+      "comment": "Modules/Playback/Views/WindowPlayerDeck.swift:442",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10526,7 +12409,7 @@
       }
     },
     "Support & Feedback": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:346",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:520",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10573,7 +12456,7 @@
       }
     },
     "Tap left half for grid, right half for list": {
-      "comment": "Modules/MediaLibrary/Views/LibraryViewControls.swift:124",
+      "comment": "Modules/DesignSystem/Components/ViewModeCapsuleControl.swift:44",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10667,7 +12550,7 @@
       }
     },
     "This App": {
-      "comment": "Apps/Enchron/Screens/OpenSourceLicenses.swift:109",
+      "comment": "Apps/Enchron/Screens/OpenSourceLicenses.swift:116",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10762,6 +12645,7 @@
     },
     "This location does not currently expose any browsable folders or supported video files.": {
       "comment": "Modules/MediaLibrary/Views/FolderListView.swift:58",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10854,7 +12738,7 @@
       }
     },
     "Timeline zoom": {
-      "comment": "Modules/Playback/Views/PlaybackTimeline.swift:118",
+      "comment": "Modules/Playback/Views/PlaybackTimeline.swift:122",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10901,7 +12785,7 @@
       }
     },
     "Total Bitrate": {
-      "comment": "Modules/Emby/EmbyItemPresentation.swift:191",
+      "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:191",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10948,7 +12832,7 @@
       }
     },
     "Trust": {
-      "comment": "Apps/Enchron/MainView.swift:83",
+      "comment": "Apps/Enchron/MainView.swift:145",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -10995,7 +12879,7 @@
       }
     },
     "Unable to Change Display": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:382",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:369",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11042,7 +12926,7 @@
       }
     },
     "Unable to Change Format": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:350",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:345",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11089,7 +12973,7 @@
       }
     },
     "Unable to Play": {
-      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:414",
+      "comment": "Modules/Playback/Domain/PlaybackUserVisibleIssue.swift:401",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11131,6 +13015,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "無法播放"
+          }
+        }
+      }
+    },
+    "Unconscious pinches may be recognized as playback commands.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unbewusste Pinch-Gesten können als Wiedergabebefehle erkannt werden."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un pincement inconscient peut être reconnu comme une commande de lecture."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無意識のピンチ動作も再生操作として認識されることがあります。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무의식적인 집기 동작도 재생 조작으로 인식될 수 있습니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Неосознанный жест сведения пальцев может быть распознан как команда воспроизведения."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无意识的捏合动作也可能被识别为播放操作。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無意識的捏合動作也可能被識別為播放操作。"
           }
         }
       }
@@ -11182,8 +13112,54 @@
         }
       }
     },
+    "Use another account": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anderes Konto verwenden"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Utiliser un autre compte"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "別のアカウントを使用"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "다른 계정 사용"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Использовать другую учётную запись"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用其他账户"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "使用其他帳號"
+          }
+        }
+      }
+    },
     "Used While Building": {
-      "comment": "Apps/Enchron/Screens/OpenSourceLicenses.swift:211",
+      "comment": "Apps/Enchron/Screens/OpenSourceLicenses.swift:250",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11230,7 +13206,7 @@
       }
     },
     "Username": {
-      "comment": "Modules/MediaLibrary/Views/ConnectionFormPanel.swift:208",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:717",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11277,7 +13253,7 @@
       }
     },
     "Version": {
-      "comment": "Modules/Emby/EmbyScreens.swift:1304",
+      "comment": "Modules/MediaServer/MediaServerScreens.swift:1415",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11324,7 +13300,7 @@
       }
     },
     "Version & Build": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:340",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:494",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11371,7 +13347,7 @@
       }
     },
     "Version, support, and feedback": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:41",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:55",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11418,7 +13394,7 @@
       }
     },
     "Video Format": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:569",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:594",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11465,7 +13441,7 @@
       }
     },
     "Video and display": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:159",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:225",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11512,8 +13488,7 @@
       }
     },
     "Video and display, playback, and app performance in separate rows.": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:208",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:292",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11559,8 +13534,55 @@
         }
       }
     },
+    "Video format %u": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Videoformat %u"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format vidéo %u"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ビデオフォーマット %u"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "비디오 포맷 %u"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Формат видео %u"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "视频格式 %u"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "影片格式 %u"
+          }
+        }
+      }
+    },
     "Video is the source frame rate. Requested is a preference submitted to the system, not confirmation of a mode switch. DisplayLink measures app display updates, not the physical panel refresh rate. Verify the panel’s current refresh rate using the Display timeline in Apple Instruments; DisplayLink alone does not confirm whether the requested display mode was applied.": {
       "comment": "Apps/Enchron/Screens/SettingsScreen.swift:161",
+      "extractionState": "stale",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11607,7 +13629,7 @@
       }
     },
     "Videos": {
-      "comment": "Modules/MediaLibrary/Views/FolderListView.swift:108",
+      "comment": "Modules/MediaLibrary/Model/BluRayDiscContent.swift:23",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11654,7 +13676,7 @@
       }
     },
     "View": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:355",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:503",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11701,7 +13723,7 @@
       }
     },
     "View in an environment": {
-      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:593",
+      "comment": "Modules/Playback/Views/PlaybackTopActions.swift:738",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11747,9 +13769,54 @@
         }
       }
     },
+    "Waiting for Plex sign-in…": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Warten auf Plex-Anmeldung…"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En attente de la connexion Plex…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex のサインインを待機中…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plex 로그인 대기 중…"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ожидание входа в Plex…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待 Plex 登录…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待 Plex 登入…"
+          }
+        }
+      }
+    },
     "When Playback Ends": {
-      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:235",
-      "extractionState": "extracted",
+      "comment": "Apps/Enchron/Screens/SettingsScreen.swift:323",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11843,7 +13910,7 @@
       }
     },
     "grid": {
-      "comment": "Modules/MediaLibrary/Views/LibraryViewControls.swift:123",
+      "comment": "Modules/DesignSystem/Components/ViewModeCapsuleControl.swift:43",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11890,7 +13957,7 @@
       }
     },
     "list": {
-      "comment": "Modules/MediaLibrary/Views/LibraryViewControls.swift:123",
+      "comment": "Modules/DesignSystem/Components/ViewModeCapsuleControl.swift:43",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -11932,6 +13999,236 @@
           "stringUnit": {
             "state": "translated",
             "value": "列表"
+          }
+        }
+      }
+    },
+    "主机与 Enchron 在同一网络时可自动发现；也可以直接输入主机地址。": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hosts im selben Netzwerk wie Enchron werden automatisch erkannt. Sie können auch die Adresse eines Hosts direkt eingeben."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Les hôtes sur le même réseau qu'Enchron sont détectés automatiquement. Vous pouvez aussi saisir directement l'adresse d'un hôte."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホストと Enchron が同じネットワークにある場合は自動的に検出されます。ホストのアドレスを直接入力することもできます。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "호스트와 Enchron이 같은 네트워크에 있으면 자동으로 검색됩니다. 호스트 주소를 직접 입력할 수도 있습니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хосты в той же сети, что и Enchron, обнаруживаются автоматически. Можно также ввести адрес хоста вручную."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主机与 Enchron 在同一网络时可自动发现；也可以直接输入主机地址。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "主機與 Enchron 在同一網路時可自動探索；也可以直接輸入主機位址。"
+          }
+        }
+      }
+    },
+    "在主机端的配对页面输入该 PIN 并确认，例如 Sunshine 的 Web UI。": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geben Sie diese PIN auf der Kopplungsseite des Hosts ein, zum Beispiel in der Web-Oberfläche von Sunshine, und bestätigen Sie sie."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Saisissez ce code PIN dans la page d'appairage de l'hôte, par exemple l'interface web de Sunshine, puis confirmez."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホスト側のペアリング画面でこの PIN を入力して確認します（例：Sunshine の Web UI）。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "호스트 쪽 페어링 화면에서 이 PIN을 입력하고 확인하십시오(예: Sunshine의 웹 UI)."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Введите этот PIN-код на странице сопряжения хоста, например в веб-интерфейсе Sunshine, и подтвердите."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在主机端的配对页面输入该 PIN 并确认，例如 Sunshine 的 Web UI。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在主機端的配對頁面輸入該 PIN 並確認，例如 Sunshine 的 Web UI。"
+          }
+        }
+      }
+    },
+    "实验性功能。需要 Sunshine 或兼容的 GameStream 服务端。": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Experimentelle Funktion. Erfordert Sunshine oder einen kompatiblen GameStream-Server."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fonctionnalité expérimentale. Nécessite Sunshine ou un serveur GameStream compatible."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "実験的な機能です。Sunshine または互換性のある GameStream サーバーが必要です。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "실험적 기능입니다. Sunshine 또는 호환되는 GameStream 서버가 필요합니다."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экспериментальная функция. Требуется Sunshine или совместимый сервер GameStream."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "实验性功能。需要 Sunshine 或兼容的 GameStream 服务端。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "實驗性功能。需要 Sunshine 或相容的 GameStream 伺服器。"
+          }
+        }
+      }
+    },
+    "没有发现主机。确认主机与 Enchron 在同一网络，或改用手动添加。": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kein Host gefunden. Prüfen Sie, ob der Host im selben Netzwerk wie Enchron ist, oder fügen Sie ihn manuell hinzu."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun hôte trouvé. Vérifiez que l'hôte est sur le même réseau qu'Enchron ou ajoutez-le manuellement."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ホストが見つかりません。ホストと Enchron が同じネットワークにあることを確認するか、手動で追加してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "호스트를 찾을 수 없습니다. 호스트와 Enchron이 같은 네트워크에 있는지 확인하거나 직접 추가하십시오."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хост не найден. Убедитесь, что хост находится в той же сети, что и Enchron, или добавьте его вручную."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "没有发现主机。确认主机与 Enchron 在同一网络，或改用手动添加。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "沒有發現主機。確認主機與 Enchron 在同一網路，或改用手動新增。"
+          }
+        }
+      }
+    },
+    "配对 PIN": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopplungs-PIN"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PIN d'appairage"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ペアリング PIN"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "페어링 PIN"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PIN-код сопряжения"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配对 PIN"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "配對 PIN"
           }
         }
       }

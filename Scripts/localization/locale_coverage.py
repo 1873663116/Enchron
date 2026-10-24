@@ -6,6 +6,10 @@ added after a translation pass leaves that one string English, and a catalog
 language that never made it into the bundle leaves the whole language English.
 Both are silent at runtime, so they are asserted here.
 
+The language set comes from rules.json, not from the keys currently present:
+deleting one language from every entry must fail instead of shrinking the check.
+Entries marked shouldTranslate=false are product names and stay untranslated.
+
 usage:
     locale_coverage.py                       check the catalog only
     locale_coverage.py --app path/to/Enchron.app    also check the built bundle
@@ -25,8 +29,9 @@ CATALOGS = (
     "Apps/Enchron/Resources/Localizable.xcstrings",
     "Apps/Enchron/Resources/InfoPlist.xcstrings",
 )
+RULES_PATH = "Scripts/localization/rules.json"
 SOURCE_LANGUAGE = "en"
-_SPECIFIER = re.compile(r"%(?:\d+\$)?(?:@|lld|ld|d|f|s)")
+_SPECIFIER = re.compile(r"%(?:\d+\$)?(?:@|lld|ld|lu|llu|d|f|s|u|%)")
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,6 +41,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--allow-missing", nargs="*", default=[],
                         help="keys knowingly left untranslated")
     return parser.parse_args()
+
+
+def load_rules(root: Path) -> dict:
+    return json.loads((root / RULES_PATH).read_text(encoding="utf-8"))
+
+
+def target_languages(rules: dict) -> list[str]:
+    languages = list(rules.get("languages") or [])
+    if not languages:
+        raise SystemExit(f"{RULES_PATH} declares no target languages")
+    if SOURCE_LANGUAGE in languages:
+        raise SystemExit(f"{RULES_PATH} must not list the source language {SOURCE_LANGUAGE}")
+    return languages
+
+
+def translatable(entry: dict) -> bool:
+    return entry.get("shouldTranslate") is not False
 
 
 def translated(entry: dict, language: str) -> bool:
@@ -69,7 +91,16 @@ def placeholders(text: str) -> dict[str, int]:
     return Counter(_SPECIFIER.findall(text))
 
 
-def check_catalog(root: Path, allow_missing: set[str]) -> int:
+def fix_hint(key: str) -> str:
+    return (
+        f"  {key[:90]}\n"
+        f"    translate it, or mark it as a product name:\n"
+        f"    python3 Scripts/localization/translations.py dont-translate"
+        f' --key {json.dumps(key, ensure_ascii=False)} --reason "product name"'
+    )
+
+
+def check_catalog(root: Path, allow_missing: set[str], languages: list[str]) -> int:
     failures = 0
     for relative in CATALOGS:
         path = root / relative
@@ -79,25 +110,38 @@ def check_catalog(root: Path, allow_missing: set[str]) -> int:
             continue
         catalog = json.loads(path.read_text(encoding="utf-8"))
         strings = catalog["strings"]
-        languages = sorted({
+        declared = {
             language
             for entry in strings.values()
             for language in entry.get("localizations", {})
             if language != SOURCE_LANGUAGE
-        })
-        print(f"{relative}: {len(strings)} keys, languages {languages or '(none)'}")
+        }
+        unsupported = sorted(declared - set(languages))
+        if unsupported:
+            failures += 1
+            print(
+                f"{relative}: languages missing from {RULES_PATH}: {', '.join(unsupported)}",
+                file=sys.stderr,
+            )
+        fixed = sum(1 for entry in strings.values() if not translatable(entry))
+        print(f"{relative}: {len(strings)} keys, {fixed} not translated, languages {languages}")
         for language in languages:
             missing = [
-                key for key, entry in strings.items()
-                if not translated(entry, language) and key not in allow_missing
+                key
+                for key, entry in strings.items()
+                if translatable(entry)
+                and not translated(entry, language)
+                and key not in allow_missing
             ]
             if missing:
                 failures += 1
                 print(f"  {language}: {len(missing)} untranslated", file=sys.stderr)
-                for key in missing[:10]:
-                    print(f"    {key[:90]}", file=sys.stderr)
+                for key in missing[:20]:
+                    print(fix_hint(key), file=sys.stderr)
+                if len(missing) > 20:
+                    print(f"  ... {len(missing) - 20} more", file=sys.stderr)
             for key, entry in strings.items():
-                if key in allow_missing:
+                if not translatable(entry) or key in allow_missing:
                     continue
                 expected = placeholders(key)
                 for value in values(entry, language):
@@ -111,22 +155,15 @@ def check_catalog(root: Path, allow_missing: set[str]) -> int:
     return failures
 
 
-def check_bundle(app: Path, root: Path, allow_missing: set[str]) -> int:
+def check_bundle(app: Path, root: Path, allow_missing: set[str], languages: list[str]) -> int:
     failures = 0
-    expected: dict[str, set[str]] = {}
+    catalogs: dict[str, dict] = {}
     for relative in CATALOGS:
         catalog = json.loads((root / relative).read_text(encoding="utf-8"))
-        table = Path(relative).name.replace(".xcstrings", ".strings")
-        for language in {
-            language
-            for entry in catalog["strings"].values()
-            for language in entry.get("localizations", {})
-            if language != SOURCE_LANGUAGE
-        }:
-            expected.setdefault(language, set()).add(table)
-    for language, tables in sorted(expected.items()):
+        catalogs[Path(relative).name.replace(".xcstrings", ".strings")] = catalog
+    for language in languages:
         directory = app / f"{language}.lproj"
-        for table in sorted(tables):
+        for table, catalog in sorted(catalogs.items()):
             path = directory / table
             if not path.exists():
                 print(f"not shipped: {language}.lproj/{table}", file=sys.stderr)
@@ -136,13 +173,10 @@ def check_bundle(app: Path, root: Path, allow_missing: set[str]) -> int:
             dictionary = path.with_suffix(".stringsdict")
             if dictionary.exists():
                 shipped.update(plistlib.loads(dictionary.read_bytes()))
-            catalog = json.loads(
-                (root / next(r for r in CATALOGS if Path(r).name.replace(".xcstrings", ".strings") == table))
-                .read_text(encoding="utf-8")
-            )
             wanted = {
-                key for key, entry in catalog["strings"].items()
-                if translated(entry, language) and key not in allow_missing
+                key
+                for key, entry in catalog["strings"].items()
+                if translatable(entry) and translated(entry, language) and key not in allow_missing
             }
             absent = wanted - set(shipped)
             if absent:
@@ -158,12 +192,20 @@ def check_bundle(app: Path, root: Path, allow_missing: set[str]) -> int:
 def main() -> int:
     args = parse_args()
     root = args.root.resolve()
+    rules = load_rules(root)
+    languages = target_languages(rules)
     allow_missing = set(args.allow_missing)
-    failures = check_catalog(root, allow_missing)
+    failures = check_catalog(root, allow_missing, languages)
     if args.app:
-        failures += check_bundle(args.app, root, allow_missing)
+        failures += check_bundle(args.app, root, allow_missing, languages)
     if failures:
         print(f"\n{failures} problem(s)", file=sys.stderr)
+        print(
+            "Translations enter the catalog through "
+            "Scripts/localization/translations.py. "
+            "Product names stay as they are with shouldTranslate=false.",
+            file=sys.stderr,
+        )
         return 1
     print("\nall languages complete")
     return 0

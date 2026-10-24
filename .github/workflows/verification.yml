@@ -59,3 +59,22 @@ jobs:
                 tier static
               ;;
           esac
+          SIMULATOR=$(xcrun simctl list devices available --json | python3 -c 'import json, sys
+          devices = [
+              device
+              for runtime, items in json.load(sys.stdin)["devices"].items()
+              if "visionOS" in runtime or "xrOS" in runtime
+              for device in items
+              if device.get("isAvailable") and "Apple Vision Pro" in device.get("name", "")
+          ]
+          print(devices[0]["udid"] if devices else "")')
+          if [ -z "$SIMULATOR" ]; then
+            echo "no available visionOS simulator on this runner" >&2
+            exit 1
+          fi
+          xcrun simctl boot "$SIMULATOR" 2>/dev/null || true
+          xcrun simctl bootstatus "$SIMULATOR" -b
+          export DEVELOPER_DIR="$(xcode-select -p)"
+          export ENCHRON_TARGET_DEVICE="$SIMULATOR"
+          python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" tier build
+          python3 "$ENCHRON_REPO/Scripts/console/cli.py" --root "$ENCHRON_REPO" tier unit

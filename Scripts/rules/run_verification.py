@@ -109,6 +109,7 @@ STRUCTURE_CHECKS = (
     StructureCheck("media-discovery-admission", "verify_media_discovery_admission.py"),
     StructureCheck("glass-usage", "verify_glass_usage.py"),
     StructureCheck("documentation-references", "verify_documentation_references.py"),
+    StructureCheck("localization-coverage", "verify_localizations.py"),
     StructureCheck(
         "regression-core-layering",
         "verify_regression_core_layering.py",
@@ -255,6 +256,7 @@ CHECK_TAGS: dict[str, tuple[str, str, str]] = {
     "media-discovery-admission": ("text", "blocking", "product"),
     "glass-usage": ("text", "blocking", "product"),
     "documentation-references": ("text", "blocking", "infrastructure"),
+    "localization-coverage": ("text", "blocking", "infrastructure"),
     "regression-core-layering": ("text", "blocking", "infrastructure"),
     "recording-extractor": ("simulator", "blocking", "product"),
     "memory-region-walk": ("toolchain", "blocking", "product"),
