@@ -142,7 +142,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var audioFramesLong: Int64 = 0
         var audioFramesOther: Int64 = 0
         var videoFramesDecoded: Int64 = 0
-        var videoDroppedStale: Int64 = 0
         var videoGapCount: Int64 = 0
         var videoGapMaxMilliseconds: Double = 0
         var videoLateFrames: Int64 = 0
@@ -387,23 +386,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
         let ptsUs = max(0, Int64((pts.seconds * 1_000_000).rounded()))
 
-        if streamingDisplaysImmediately {
-            let droppedForQueue = videoQueueLock.withLock { () -> Int in
-                var dropped = 0
-                while pendingVideo.count >= 2 {
-                    pendingVideo.removeFirst()
-                    dropped += 1
-                }
-                pendingVideo.append((sample, ptsUs))
-                return dropped
-            }
-            if droppedForQueue > 0 {
-                stateLock.withLock { counters.videoDroppedStale += Int64(droppedForQueue) }
-            }
-        } else {
-            videoQueueLock.withLock {
-                pendingVideo.append((sample, ptsUs))
-            }
+        videoQueueLock.withLock {
+            pendingVideo.append((sample, ptsUs))
         }
         let sampleTime = DispatchTime.now().uptimeNanoseconds
         stateLock.withLock {
@@ -649,12 +633,14 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 continue
             }
 
-            let lateMilliseconds = (synchronizer.currentTime().seconds * 1_000_000 - Double(head.presentationTimeUs)) / 1000
-            if lateMilliseconds > 4 {
-                stateLock.withLock {
-                    counters.videoLateFrames += 1
-                    if lateMilliseconds > counters.videoLateMaxMilliseconds {
-                        counters.videoLateMaxMilliseconds = lateMilliseconds
+            if !streamingDisplaysImmediately {
+                let lateMilliseconds = (synchronizer.currentTime().seconds * 1_000_000 - Double(head.presentationTimeUs)) / 1000
+                if lateMilliseconds > 4 {
+                    stateLock.withLock {
+                        counters.videoLateFrames += 1
+                        if lateMilliseconds > counters.videoLateMaxMilliseconds {
+                            counters.videoLateMaxMilliseconds = lateMilliseconds
+                        }
                     }
                 }
             }
@@ -805,14 +791,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let lead = ptsSeconds - clockSeconds
         if streamingDisplaysImmediately {
             governorState = .running
-            governorSecondLeads.append(lead * 1000)
-            if governorSecondLeads.count > 400 {
-                governorSecondLeads.removeFirst(governorSecondLeads.count - 400)
-            }
-            governorSecondTotal += 1
-            if lead < 0 {
-                governorSecondLate += 1
-            }
             return true
         }
 
@@ -1669,7 +1647,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " hostLatFrames=\(stats?.framesWithHostProcessingLatency ?? 0)"
                 + " rttMs=\(backend.estimatedRTT()?.milliseconds ?? 0)"
                 + " rttVar=\(backend.estimatedRTT()?.variance ?? 0)"
-                + " staleDrop=\(counters.videoDroppedStale)"
                 + " reqFps=\(requestedFrameRate)"
                 + " gotFps=\(String(format: "%.1f", deliveredFps))"
             maxPumpGapMilliseconds = 0
