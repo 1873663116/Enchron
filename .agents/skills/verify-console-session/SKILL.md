@@ -100,13 +100,11 @@ The same works for the second promise: in `Spawn`, replace the conditional with
 
 ## Keeping it in step
 
-Covered files:
-
-- `Scripts/console/daemon.py`: `ensure_running`, `Server.serve`, `Channel.alive`,
-  `Channel.ensure_session`, `Channel.halt`, `Channel.invoke`
-- `Scripts/console/transport.py`: `scoped_processes`, `send_command`
-- the record file `.console/session-<target>.json`, written by `Channel._remember`
-- the socket path rule in `daemon.socket_path`, which keeps each target on its own lane
+Covered files: `Scripts/console/daemon.py` (`ensure_running`, `Server.serve`,
+`Channel.alive`, `Channel.ensure_session`, `Channel.halt`, `Channel.invoke`),
+`Scripts/console/transport.py` (`scoped_processes`, `send_command`), the record
+file `.console/session-<target>.json` written by `Channel._remember`, and the
+socket path rule in `daemon.socket_path`.
 
 The model does not cover the command-time recovery in `Channel.invoke`, which
 re-ensures a session the runner reports gone. Run `Scripts/console/formal/run.sh`
