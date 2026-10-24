@@ -1,6 +1,6 @@
 ---
 name: vp-e2e
-description: 适用于根据运行时现场进行端到端调试、读取 App 公开的诊断状态与 Accessibility 层级、埋设备内探针、截图和录屏。
+description: 适用于 console 端到端档覆盖不到的手工运行时调试：真机或模拟器 lane 的会话建立、App 诊断状态与 Accessibility 层级读取、设备内探针、截图与录屏、Device Hub 手势。
 ---
 
 # Vision Pro 端到端调试与回归
