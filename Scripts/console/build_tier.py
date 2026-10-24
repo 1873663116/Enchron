@@ -5,6 +5,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -18,7 +19,7 @@ DERIVED_DATA = Path(".scratch/build")
 
 def _environment() -> dict[str, str]:
     environment = dict(os.environ)
-    environment["DEVELOPER_DIR"] = DEVELOPER_DIR
+    environment.setdefault("DEVELOPER_DIR", DEVELOPER_DIR)
     return environment
 
 
@@ -49,6 +50,22 @@ def _run(command: list[str], root: Path, evidence_root: Path, name: str) -> dict
 BUILD_GATE_STAMP = Path(".scratch/console/build-gate.json")
 
 
+def run_localization_check(root: Path, evidence_root: Path) -> dict[str, Any]:
+    return _run(
+        [
+            sys.executable,
+            "Scripts/localization/extract_strings.py",
+            "--derived-data",
+            str(DERIVED_DATA),
+            "--no-build",
+            "--check",
+        ],
+        root,
+        evidence_root,
+        "localization",
+    )
+
+
 def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
     products = root / DERIVED_DATA / "Build" / "Products"
     fingerprint = unit_build_fingerprint(root)
@@ -64,6 +81,9 @@ def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
                     "reused": True,
                 }
                 payload["xctestrun"] = [path.name for path in sorted(products.glob("*.xctestrun"))]
+                localization = run_localization_check(root, evidence_root)
+                payload["localization"] = localization
+                payload["exitCode"] = localization["exitCode"]
                 write_json(evidence_root / "build.json", payload)
                 return payload
         except (OSError, json.JSONDecodeError):
@@ -80,6 +100,7 @@ def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
             "-derivedDataPath",
             str(DERIVED_DATA),
             "-disableAutomaticPackageResolution",
+            "SWIFT_EMIT_LOC_STRINGS=YES",
             "build-for-testing",
         ],
         root,
@@ -88,6 +109,10 @@ def run_build(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
     )
     specs = sorted(products.glob("*.xctestrun"))
     payload["xctestrun"] = [path.name for path in specs]
+    if payload["exitCode"] == EXIT_OK:
+        localization = run_localization_check(root, evidence_root)
+        payload["localization"] = localization
+        payload["exitCode"] = localization["exitCode"]
     if payload["exitCode"] == EXIT_OK:
         stamp.parent.mkdir(parents=True, exist_ok=True)
         stamp.write_text(json.dumps({"fingerprint": fingerprint}), encoding="utf-8")
@@ -133,6 +158,7 @@ def unit_build_fingerprint(root: Path) -> str:
         except OSError:
             continue
         digest.update(f"{name}\0{info.st_mtime_ns}\0{info.st_size}\n".encode())
+    digest.update(b"localization-strings=1\n")
     for name in FINGERPRINT_EXTRA_INPUTS:
         try:
             info = (root / name).lstat()
@@ -217,6 +243,12 @@ def run_unit(root: Path, target: str, evidence_root: Path) -> dict[str, Any]:
 def summarize(name: str, payload: dict[str, Any]) -> str:
     state = "passed" if payload["exitCode"] == 0 else "failed"
     line = f"{name} {state} in {payload['durationMs']} ms"
+    localization = payload.get("localization") or {}
+    if localization.get("exitCode"):
+        line += (
+            f"; localization drift, see {localization.get('log')}"
+            " (add the missing keys to the catalog)"
+        )
     verb = "reused" if payload.get("reused") else "written"
     if payload.get("xctestrun"):
         line += f", {len(payload['xctestrun'])} spec(s) {verb}"

@@ -10,9 +10,9 @@ the export lines they eval.
 The workflows own the four git commands that produce the tree — worktree, fetch,
 checkout — because the script cannot exist before the tree does. Everything
 after that comes from the script at the revision under test: the empty virtual
-environment under the workspace, the clean that keeps `.build`,
-`.scratch/DerivedData` and `.scratch/SourcePackages`, the vendored binary links,
-and the `.env` copy the full tier needs.
+environment under the workspace, the clean that keeps `.build`, `.scratch/build`,
+`.scratch/console`, `.scratch/DerivedData` and `.scratch/SourcePackages`, the
+vendored binary links, and the `.env` copy the full tier needs.
 
 Four details are load-bearing and look removable:
 
@@ -21,8 +21,10 @@ Four details are load-bearing and look removable:
   `~/Documents`, and every interpreter start blocked there for the whole job
   budget. `PYTHONPATH` still reaches numpy and Pillow without making that
   directory a site directory, which is what would execute the `.pth` again.
-- The three build directories survive the clean because deleting the 3.3 GB
-  tree costs more than the job's time budget on this volume.
+- The build directories survive the clean because deleting the multi-gigabyte
+  tree costs more than the job's time budget on this volume. `.scratch/build`
+  also keeps the build-tier fingerprint and the compiler stringsdata, so the
+  localization check reuses the build instead of compiling again.
 - `.env` is copied only for the full tier, with traps for `EXIT`, `INT` and
   `TERM`, so a cancelled job still removes it. Only a `SIGKILL` escapes, and the
   next run's clean is the backstop.
