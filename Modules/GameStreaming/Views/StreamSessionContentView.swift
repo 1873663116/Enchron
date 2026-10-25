@@ -10,7 +10,6 @@ public struct StreamSessionContentView: View {
 
     public var body: some View {
         ZStack {
-            if !StreamDebugSwitches.isDisabled("pointer") {
             StreamPointerInputLayer(
                 videoAspectRatio: model.videoAspectRatio,
                 onMove: { x, y in model.sendPointerMove(normalizedX: x, normalizedY: y) },
@@ -22,8 +21,6 @@ public struct StreamSessionContentView: View {
                     )
                 }
             )
-            }
-            if !StreamDebugSwitches.isDisabled("keyboard") {
             StreamKeyboardCapture(
                 onKey: { usage, down, flags in
                     model.sendKey(
@@ -38,7 +35,6 @@ public struct StreamSessionContentView: View {
                     }
                 }
             )
-            }
         }
         .overlay(alignment: .bottomTrailing) {
             Text(model.session?.state.readableValue ?? "unavailable")

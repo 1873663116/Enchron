@@ -47,7 +47,6 @@ $(SRCROOT)/Modules/GameStreaming/Domain/StreamSessionState.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSettings.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingModel.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingPlaybackInformation+Session.swift
-$(SRCROOT)/Modules/GameStreaming/Session/DebugSupport/StreamDebugSwitches.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamGamepadInput.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamMouseInput.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamRenderBinding.swift
