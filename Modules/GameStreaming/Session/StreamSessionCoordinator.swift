@@ -121,6 +121,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var videoGapCount: Int64 = 0
         var videoGapMaxMilliseconds: Double = 0
         var staleFramesDropped: Int64 = 0
+        var framesHeldByBuffer: Int64 = 0
+        var bufferHoldMaxMilliseconds: Double = 0
         var videoPTSGapCount: Int64 = 0
         var videoPTSGapMaxMilliseconds: Double = 0
         var audioGapCount: Int64 = 0
@@ -540,6 +542,13 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                pendingVideo.count <= 1,
                Date().timeIntervalSince(head.arrivalDate) < frameBufferHoldSeconds {
                 videoQueueLock.unlock()
+                stateLock.withLock {
+                    counters.framesHeldByBuffer += 1
+                    let held = Date().timeIntervalSince(head.arrivalDate) * 1000
+                    if held > counters.bufferHoldMaxMilliseconds {
+                        counters.bufferHoldMaxMilliseconds = held
+                    }
+                }
                 ensurePumpScheduled()
                 return
             }
@@ -1084,6 +1093,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             let videoGapMax = counters.videoGapMaxMilliseconds
             let videoPTSGapMax = counters.videoPTSGapMaxMilliseconds
             counters.videoPTSGapMaxMilliseconds = 0
+            let bufferHoldMax = counters.bufferHoldMaxMilliseconds
+            counters.bufferHoldMaxMilliseconds = 0
             let audioGapMax = counters.audioGapMaxMilliseconds
             counters.videoGapMaxMilliseconds = 0
             counters.audioGapMaxMilliseconds = 0
@@ -1115,6 +1126,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " ptsGap=\(gapDelta.ptsGap)"
                 + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
                 + " shed=\(counters.staleFramesDropped)"
+                + " held=\(counters.framesHeldByBuffer)"
+                + " holdMaxMs=\(String(format: "%.1f", bufferHoldMax))"
                 + " hostLatMs=\(String(format: "%.1f", stats?.averageHostProcessingLatencyMs ?? 0))"
                 + " hostLatFrames=\(stats?.framesWithHostProcessingLatency ?? 0)"
                 + " rttMs=\(backend.estimatedRTT()?.milliseconds ?? 0)"
