@@ -1223,6 +1223,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             + " bufferedMs=\(String(format: "%.1f", audioStats.bufferedMilliseconds))"
             + " underruns=\(audioStats.underruns)"
             + " overflowFrames=\(audioStats.overflowFrames)"
+            + " trimmedFrames=\(audioStats.trimmedFrames)"
             + " engine=\(audioStats.engineRunning)"
             + " engineStarts=\(audioStats.engineStarts)"
             + " syncRate=\(syncRate)"

@@ -7,12 +7,15 @@ final class StreamAudioOutput: @unchecked Sendable {
         var bufferedMilliseconds: Double
         var underruns: Int64
         var overflowFrames: Int64
+        var trimmedFrames: Int64
         var engineRunning: Bool
         var engineStarts: Int64
     }
 
     private static let capacitySeconds = 0.100
     private static let primeSeconds = 0.020
+    private static let trimAboveSeconds = 0.060
+    private static let trimToSeconds = 0.030
 
     private let ring = StreamAudioRing()
     private let queue = DispatchQueue(label: "app.enchron.stream-session.audio-output")
@@ -34,7 +37,9 @@ final class StreamAudioOutput: @unchecked Sendable {
                 sampleRate: sampleRate,
                 channels: channels,
                 capacityFrames: Int(Double(sampleRate) * Self.capacitySeconds),
-                primeFrames: Int(Double(sampleRate) * Self.primeSeconds)
+                primeFrames: Int(Double(sampleRate) * Self.primeSeconds),
+                trimAboveFrames: Int(Double(sampleRate) * Self.trimAboveSeconds),
+                trimToFrames: Int(Double(sampleRate) * Self.trimToSeconds)
             )
             queue.async { [weak self] in
                 self?.configureEngine(sampleRate: sampleRate, channels: channels)
@@ -51,6 +56,7 @@ final class StreamAudioOutput: @unchecked Sendable {
             bufferedMilliseconds: snapshot.bufferedMilliseconds,
             underruns: snapshot.underruns,
             overflowFrames: snapshot.overflowFrames,
+            trimmedFrames: snapshot.trimmedFrames,
             engineRunning: engineRunning.load(ordering: .relaxed),
             engineStarts: engineStarts.load(ordering: .relaxed)
         )
@@ -178,6 +184,7 @@ final class StreamAudioRing: @unchecked Sendable {
         var bufferedMilliseconds: Double
         var underruns: Int64
         var overflowFrames: Int64
+        var trimmedFrames: Int64
     }
 
     private struct State {
@@ -189,8 +196,11 @@ final class StreamAudioRing: @unchecked Sendable {
         var readFrame = 0
         var bufferedFrames = 0
         var priming = true
+        var trimAboveFrames = 0
+        var trimToFrames = 0
         var underruns: Int64 = 0
         var overflowFrames: Int64 = 0
+        var trimmedFrames: Int64 = 0
     }
 
     private let state = Mutex(State())
@@ -199,13 +209,22 @@ final class StreamAudioRing: @unchecked Sendable {
         state.withLock { ($0.sampleRate, $0.channels) }
     }
 
-    func configure(sampleRate: Int, channels: Int, capacityFrames: Int, primeFrames: Int) {
+    func configure(
+        sampleRate: Int,
+        channels: Int,
+        capacityFrames: Int,
+        primeFrames: Int,
+        trimAboveFrames: Int,
+        trimToFrames: Int
+    ) {
         state.withLock { value in
             value = State()
             value.sampleRate = sampleRate
             value.channels = channels
             value.capacityFrames = max(capacityFrames, 1)
             value.primeFrames = min(primeFrames, value.capacityFrames)
+            value.trimAboveFrames = min(trimAboveFrames, value.capacityFrames)
+            value.trimToFrames = min(trimToFrames, value.trimAboveFrames)
             value.storage = [Float](repeating: 0, count: value.capacityFrames * channels)
         }
     }
@@ -233,6 +252,12 @@ final class StreamAudioRing: @unchecked Sendable {
                 }
             }
             value.bufferedFrames += accepted
+            if value.bufferedFrames > value.trimAboveFrames {
+                let excess = value.bufferedFrames - value.trimToFrames
+                value.readFrame = (value.readFrame + excess) % value.capacityFrames
+                value.bufferedFrames = value.trimToFrames
+                value.trimmedFrames += Int64(excess)
+            }
             if value.priming, value.bufferedFrames >= value.primeFrames {
                 value.priming = false
             }
@@ -281,7 +306,8 @@ final class StreamAudioRing: @unchecked Sendable {
                     ? Double(value.bufferedFrames) * 1000 / Double(value.sampleRate)
                     : 0,
                 underruns: value.underruns,
-                overflowFrames: value.overflowFrames
+                overflowFrames: value.overflowFrames,
+                trimmedFrames: value.trimmedFrames
             )
         }
     }
