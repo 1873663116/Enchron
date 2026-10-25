@@ -131,11 +131,11 @@ public struct StreamSettingsSection: View {
                 accessory: .menu(title: frameRateLabel, options: frameRateOptions)
             ),
             SettingListGroup.Item(
-                id: "Streaming-framePacing",
-                title: "帧调度",
+                id: "Streaming-frameBuffer",
+                title: "一帧缓冲",
                 systemName: "metronome",
-                supportingText: "按显示刷新节奏安排帧呈现。",
-                accessory: .menu(title: framePacingLabel, options: framePacingOptions)
+                supportingText: "多留一帧吸收网络抖动，代价是最多一帧的延迟。",
+                accessory: .boundToggle(isOn: frameBufferBinding, isEnabled: true, marker: nil)
             )
         ]
     }
@@ -410,19 +410,11 @@ public struct StreamSettingsSection: View {
         )
     }
 
-    private var framePacingLabel: String {
-        model.settings.framePacing ? "最平滑" : "最低延迟"
-    }
-
-    private var framePacingOptions: [SettingListGroup.MenuOption] {
-        [
-            SettingListGroup.MenuOption("最平滑", id: "smooth") { applyFramePacing(true) },
-            SettingListGroup.MenuOption("最低延迟", id: "latency") { applyFramePacing(false) }
-        ]
-    }
-
-    private func applyFramePacing(_ smooth: Bool) {
-        model.updateSettings { $0.framePacing = smooth }
+    private var frameBufferBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.frameBuffer },
+            set: { value in model.updateSettings { $0.frameBuffer = value } }
+        )
     }
 
     private func applyBitrateFollowing(_ mutate: (inout StreamOptions) -> Void) {

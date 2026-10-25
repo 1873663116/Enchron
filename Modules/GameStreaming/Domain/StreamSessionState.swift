@@ -23,7 +23,6 @@ public enum StreamSessionActivity: String, Sendable, Equatable {
     case launching
     case waitingForVideo
     case requestingKeyframe
-    case aligningClock
     case buffering
     case streaming
 
@@ -33,7 +32,6 @@ public enum StreamSessionActivity: String, Sendable, Equatable {
         case .launching: "Launching app"
         case .waitingForVideo: "Waiting for video"
         case .requestingKeyframe: "Requesting keyframe"
-        case .aligningClock: "Aligning clock"
         case .buffering: "Buffering"
         case .streaming: "Streaming"
         }

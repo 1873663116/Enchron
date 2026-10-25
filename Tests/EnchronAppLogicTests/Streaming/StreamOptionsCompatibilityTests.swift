@@ -15,12 +15,32 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         XCTAssertEqual(options.bitrateKbps, 20000)
         XCTAssertEqual(options.codec, .hevc)
         XCTAssertTrue(options.hdrEnabled)
-        XCTAssertFalse(options.framePacing)
+        XCTAssertFalse(options.frameBuffer)
         XCTAssertTrue(options.customBitrateEnabled)
         XCTAssertFalse(options.swapABXYButtons)
         XCTAssertFalse(options.playAudioOnPC)
         XCTAssertTrue(options.bluetoothMouseEnabled)
         XCTAssertFalse(options.optimizeGameSettings)
+    }
+
+    func testStoredFramePacingPreferenceBecomesTheFrameBufferPreference() throws {
+        let stored = Data("""
+        {"framePacing":true}
+        """.utf8)
+
+        let options = try JSONDecoder().decode(StreamOptions.self, from: stored)
+
+        XCTAssertTrue(options.frameBuffer)
+    }
+
+    func testStoredFrameBufferPreferenceWins() throws {
+        let stored = Data("""
+        {"framePacing":true,"frameBuffer":false}
+        """.utf8)
+
+        let options = try JSONDecoder().decode(StreamOptions.self, from: stored)
+
+        XCTAssertFalse(options.frameBuffer)
     }
 
     func testExternalMouseForwardingDefaultsOn() {

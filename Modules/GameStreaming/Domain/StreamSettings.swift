@@ -103,7 +103,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var bitrateKbps: Int
     public var codec: StreamCodecPreference
     public var hdrEnabled: Bool
-    public var framePacing: Bool
+    public var frameBuffer: Bool
     public var customBitrateEnabled: Bool
     public var swapABXYButtons: Bool
     public var playAudioOnPC: Bool
@@ -130,7 +130,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         bitrateKbps: Int = 40_000,
         codec: StreamCodecPreference = .auto,
         hdrEnabled: Bool = false,
-        framePacing: Bool = true,
+        frameBuffer: Bool = false,
         customBitrateEnabled: Bool = false,
         swapABXYButtons: Bool = false,
         playAudioOnPC: Bool = false,
@@ -144,7 +144,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.bitrateKbps = bitrateKbps
         self.codec = codec
         self.hdrEnabled = hdrEnabled
-        self.framePacing = framePacing
+        self.frameBuffer = frameBuffer
         self.customBitrateEnabled = customBitrateEnabled
         self.swapABXYButtons = swapABXYButtons
         self.playAudioOnPC = playAudioOnPC
@@ -162,8 +162,12 @@ public struct StreamOptions: Sendable, Equatable, Codable {
 
     private enum CodingKeys: String, CodingKey {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
-        case codec, hdrEnabled, framePacing, customBitrateEnabled
+        case codec, hdrEnabled, frameBuffer, customBitrateEnabled
         case swapABXYButtons, playAudioOnPC, bluetoothMouseEnabled, optimizeGameSettings
+    }
+
+    private enum LegacyCodingKeys: String, CodingKey {
+        case framePacing
     }
 
     /// Older stored settings predate custom resolutions, so a missing pair
@@ -177,7 +181,12 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         bitrateKbps = try container.decodeIfPresent(Int.self, forKey: .bitrateKbps) ?? 40_000
         codec = try container.decodeIfPresent(StreamCodecPreference.self, forKey: .codec) ?? .auto
         hdrEnabled = try container.decodeIfPresent(Bool.self, forKey: .hdrEnabled) ?? false
-        framePacing = try container.decodeIfPresent(Bool.self, forKey: .framePacing) ?? true
+        if let stored = try container.decodeIfPresent(Bool.self, forKey: .frameBuffer) {
+            frameBuffer = stored
+        } else {
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            frameBuffer = try legacy.decodeIfPresent(Bool.self, forKey: .framePacing) ?? false
+        }
         customBitrateEnabled = try container.decodeIfPresent(Bool.self, forKey: .customBitrateEnabled) ?? false
         swapABXYButtons = try container.decodeIfPresent(Bool.self, forKey: .swapABXYButtons) ?? false
         playAudioOnPC = try container.decodeIfPresent(Bool.self, forKey: .playAudioOnPC) ?? false
@@ -192,7 +201,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("bitrate=\(bitrateKbps)")
         parts.append("codec=\(codec.rawValue)")
         parts.append("hdr=\(hdrEnabled)")
-        parts.append("framePacing=\(framePacing)")
+        parts.append("frameBuffer=\(frameBuffer)")
         parts.append("customBitrate=\(customBitrateEnabled)")
         parts.append("swapABXY=\(swapABXYButtons)")
         parts.append("audioOnPC=\(playAudioOnPC)")

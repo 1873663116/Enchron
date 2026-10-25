@@ -1140,8 +1140,9 @@ final class TestCommandChannel {
                 if let hdr = flagValue(request.args["hdr"]) {
                     options.hdrEnabled = hdr
                 }
-                if let pacing = flagValue(request.args["framePacing"]) {
-                    options.framePacing = pacing
+                if let buffer = flagValue(request.args["frameBuffer"])
+                    ?? flagValue(request.args["framePacing"]) {
+                    options.frameBuffer = buffer
                 }
                 if let custom = flagValue(request.args["customBitrate"]) {
                     options.customBitrateEnabled = custom
