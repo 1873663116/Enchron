@@ -24,7 +24,7 @@ CATALOG_PATH = "Apps/Enchron/Resources/Localizable.xcstrings"
 INFO_PLIST_CATALOG_PATH = "Apps/Enchron/Resources/InfoPlist.xcstrings"
 RULES_PATH = "Scripts/localization/rules.json"
 GLOSSARY_PATH = "Scripts/localization/glossary.md"
-_SPECIFIER = re.compile(r"%(?:\d+\$)?(?:@|lld|ld|d|f|s)")
+_SPECIFIER = re.compile(r"%(?:\d+\$)?(?:@|lld|ld|lu|llu|d|f|s|u|%)")
 
 
 def parse_args() -> argparse.Namespace:
@@ -44,6 +44,13 @@ def parse_args() -> argparse.Namespace:
     import_ = sub.add_parser("import", help="merge translated values back in")
     import_.add_argument("--language", required=True)
     import_.add_argument("--input", type=Path, required=True)
+
+    mark = sub.add_parser(
+        "dont-translate",
+        help="mark a user-visible product name so every language keeps the source",
+    )
+    mark.add_argument("--key", required=True)
+    mark.add_argument("--reason", default="product name")
 
     sub.add_parser("status", help="report how complete each language is")
     return parser.parse_args()
@@ -87,6 +94,8 @@ def export(root: Path, language: str, output: Path, include_translated: bool) ->
     for path in catalogs(root):
         catalog = load(path)
         for key, entry in catalog["strings"].items():
+            if entry.get("shouldTranslate") is False:
+                continue
             existing = entry.get("localizations", {}).get(language)
             if existing and not include_translated:
                 continue
@@ -114,7 +123,7 @@ def export(root: Path, language: str, output: Path, include_translated: bool) ->
                 "Translate every entry. Return the same JSON shape with a top-level 'translations' object mapping key to the translated string.",
                 "Keep every placeholder (%@, %lld) verbatim and in the same order.",
                 "An entry marked \"plural\": true takes a count. Languages with number agreement (French, German) return {\"one\": \"…\", \"other\": \"…\"} for it; Chinese, Japanese and Korean return a plain string.",
-                "Keys that are bare product names or protocol names stay as they are.",
+                "Keys marked shouldTranslate=false in the catalog stay as they are.",
                 "An entry with a \"current\" field already has a translation; return it unchanged unless it is wrong.",
             ],
             "entries": entries,
@@ -141,6 +150,8 @@ def import_(root: Path, language: str, input_: Path) -> None:
         for key, value in translations.items():
             entry = catalog["strings"].get(key)
             if entry is None:
+                continue
+            if entry.get("shouldTranslate") is False:
                 continue
             if isinstance(value, dict):
                 entry.setdefault("localizations", {})[language] = {
@@ -173,18 +184,47 @@ def import_(root: Path, language: str, input_: Path) -> None:
             print(f"  {key}", file=sys.stderr)
 
 
+def dont_translate(root: Path, key: str, reason: str) -> int:
+    for path in catalogs(root):
+        catalog = load(path)
+        entry = catalog["strings"].get(key)
+        if entry is None:
+            continue
+        entry["shouldTranslate"] = False
+        if reason:
+            entry["comment"] = reason
+        write(path, catalog)
+        print(f"{path.name}: {key} stays untranslated ({reason})")
+        return 0
+    print(
+        f"{key} is not in a catalog; run python3 Scripts/localization/extract_strings.py "
+        "to add it first",
+        file=sys.stderr,
+    )
+    return 1
+
+
 def status(root: Path) -> None:
-    languages: dict[str, int] = {}
+    rules = load(root / RULES_PATH)
+    languages = list(rules.get("languages") or [])
     total = 0
+    fixed = 0
+    translated_counts: dict[str, int] = {language: 0 for language in languages}
     for path in catalogs(root):
         catalog = load(path)
         for entry in catalog["strings"].values():
             total += 1
-            for language in entry.get("localizations", {}):
-                languages[language] = languages.get(language, 0) + 1
-    print(f"{total} keys across {len(catalogs(root))} catalogs")
-    for language, count in sorted(languages.items()):
-        print(f"  {language}: {count}")
+            if entry.get("shouldTranslate") is False:
+                fixed += 1
+                continue
+            for language in languages:
+                localization = entry.get("localizations", {}).get(language)
+                if localization:
+                    translated_counts[language] += 1
+    translatable = total - fixed
+    print(f"{total} keys across {len(catalogs(root))} catalogs, {fixed} not translated")
+    for language in languages:
+        print(f"  {language}: {translated_counts[language]}/{translatable}")
 
 
 def main() -> int:
@@ -194,6 +234,8 @@ def main() -> int:
         export(root, args.language, args.output, args.include_translated)
     elif args.command == "import":
         import_(root, args.language, args.input)
+    elif args.command == "dont-translate":
+        return dont_translate(root, args.key, args.reason)
     else:
         status(root)
     return 0

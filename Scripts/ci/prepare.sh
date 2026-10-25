@@ -29,7 +29,8 @@ prepare_tree() {
   local repo="$1"
   local main="$2"
   git -C "$repo" clean -ffdx \
-    -e .build -e .scratch/DerivedData -e .scratch/SourcePackages
+    -e .build -e .scratch/build -e .scratch/console \
+    -e .scratch/DerivedData -e .scratch/SourcePackages
   "$repo/Scripts/provision_vendored_ffmpeg.sh" "$main"
   "$repo/Scripts/provision_vendored_bluray.sh" "$main"
   "$repo/Scripts/provision_vendored_moonlight.sh" "$main"

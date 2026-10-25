@@ -11,7 +11,7 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 ## Four tiers
 
-`static` reads source text. Any machine. Seconds. This is the whole of CI.
+`static` reads source text. Any machine. Seconds. CI runs this tier, the build tier and the unit tier.
 
 `build` compiles the app. Mac with Xcode. Minutes.
 
@@ -19,7 +19,7 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 `e2e` drives the interface. Mac with a simulator or a device.
 
-`console tier static` runs every existing checker. `console tier static --code-only` runs the eight text-only ones in about five seconds.
+`console tier static` runs every existing checker. `console tier static --code-only` runs the nine text-only ones in about five seconds.
 
 `console tier build` compiles for testing. `console tier unit` runs the unit tests. Both name the missing capability on a machine that cannot run them, instead of pretending to work.
 
@@ -27,7 +27,11 @@ description: Use when verifying a change end to end, reviewing a unit or feature
 
 ## Where the gate fires
 
-Every commit runs `console plan check` and `console tier static --changed-staged` through the `pre-commit` hook. Every push runs them through the `pre-push` hook against the pushed range. The `verification` workflow runs them for `push` and `pull_request`. CI runs on every event; no event is skipped for having no interesting diff.
+Every commit runs `console plan check` and `console tier static --changed-staged` through the `pre-commit` hook. Every push runs them through the `pre-push` hook against the pushed range.
+
+The `verification` workflow runs on `push`, `pull_request` and `workflow_dispatch` at the pushed revision: `plan check`, the static tier, the build tier and the unit tier. It boots the first available Apple Vision Pro simulator and exports its UDID as `ENCHRON_TARGET_DEVICE`. All three tiers are one required check; a pull request merges only when they pass. The workflow runs on every event; no event is skipped for having no interesting diff.
+
+The static tier includes `localization-coverage`: every catalog key has a non-empty translation in every language declared by `Scripts/localization/rules.json`, or is marked `shouldTranslate: false` as a product name. The build tier includes the compiler extraction check: every string the compiler extracts exists in the catalog. Both fail with the key, the language or the source location, and the command that fixes it.
 
 Each event supplies its changed paths: the index against `HEAD` for a commit, the remote tip recorded by the pre-push hook for a push, `merge-base(base, head)` for a pull request, `HEAD` against `MERGE_HEAD` for a merge.
 
@@ -52,7 +56,9 @@ The code-only phase covers text rules. CI covers the full text layer. A build th
 
 ## Merge gate
 
-A merge into main runs `console merge check` from the `pre-merge-commit` hook. Merges into other branches do not run it. Merge into main with `git merge --no-ff`: a fast-forward creates no merge commit, so the hook never fires.
+A local merge into main runs `console merge check` from the `pre-merge-commit` hook. Merges into other branches do not run it. Merge into main with `git merge --no-ff`: a fast-forward creates no merge commit, so the hook never fires.
+
+GitHub pull requests merge as squash commits. They run the `verification` workflow instead and never fire the local hook, so on that path the required check is the merge gate.
 
 The gate runs CI, the build tier and the unit tier, writes `TestEvidence/console/merges/<stamp>/summary.json`, and appends one status line to the merge commit message.
 

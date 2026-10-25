@@ -1,8 +1,10 @@
 {
   "_note": [
+    "languages: the target languages every catalog key must cover.",
     "excludedFiles: whole files whose strings never reach users.",
-    "excludedKeys: individual keys that are developer diagnostics or bare numeric constants.",
-    "Strings inside #Preview blocks and keys carrying no letters are dropped automatically."
+    "excludedKeys: individual keys that are developer diagnostics, automation values or bare numeric constants.",
+    "Strings inside #Preview blocks and keys carrying no letters are dropped automatically.",
+    "A user-visible product name stays in the catalog with shouldTranslate: false."
   ],
   "excludedFiles": [],
   "pluralKeys": [
@@ -34,6 +36,18 @@
     "Spatial playback state",
     "Start Calibration",
     "Tone manifest",
-    "WebDAV"
+    "WebDAV",
+    "empty",
+    "missing",
+    "pairing=%@"
+  ],
+  "languages": [
+    "de",
+    "fr",
+    "ja",
+    "ko",
+    "ru",
+    "zh-Hans",
+    "zh-Hant"
   ]
 }

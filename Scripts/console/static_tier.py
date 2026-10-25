@@ -23,6 +23,7 @@ CODE_ONLY_CHECKERS = (
     "verify_release_test_channel_absent.py",
     "verify_debug_boundary.py",
     "verify_unittest_main_guard.py",
+    "verify_localizations.py",
     "harness_primitives_gate.py",
     "check_no_literal_rfc1918.py",
     "check_ats_cleartext_policy.py",

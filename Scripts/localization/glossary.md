@@ -41,7 +41,9 @@
 
 ## 不翻译
 
-`Emby` 是产品名，所有语言保持原样。出现它的句子（`Connect to Emby`、`No Emby titles`、`Search Emby`）只翻译句子的其余部分。
+整条文案就是产品名时，catalog 条目标 `shouldTranslate: false`；不另建品牌表。
+
+`Emby` 是产品名，所有语言保持原样。出现它的句子（`Connect to Emby`、`No Emby titles`、`Search Emby`）只翻译句子的其余部分，名字本身不翻译。
 
 `SMB`、`WebDAV`、`FFmpeg` 是协议与库名，保持原样，且不进翻译表。
 
