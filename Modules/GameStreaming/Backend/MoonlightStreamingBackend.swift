@@ -422,8 +422,8 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
         session.estimatedRTT()
     }
 
-    func audioDecodeStats() -> (skipped: Int, pendingPeakMs: Int) {
-        session.audioDecodeStats()
+    func audioPendingPeakMs() -> Int {
+        session.audioPendingPeakMs()
     }
 
     func videoStats() -> BackendVideoStats? {

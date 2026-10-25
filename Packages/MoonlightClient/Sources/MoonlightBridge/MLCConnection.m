@@ -47,7 +47,6 @@ static volatile BOOL pullThreadRunning = NO;
 
 static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
 static void* audioBuffer;
-static atomic_int audioDecodeSkips;
 static atomic_int audioPendingPeakMs;
 
 static MLCVideoSampleBuilder* sampleBuilder;
@@ -233,10 +232,6 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
     int pending = LiGetPendingAudioDuration();
     int peak = atomic_load(&audioPendingPeakMs);
     while (pending > peak && !atomic_compare_exchange_weak(&audioPendingPeakMs, &peak, pending)) {
-    }
-    if (pending > 30) {
-        atomic_fetch_add(&audioDecodeSkips, 1);
-        return;
     }
 
     decodeLen = opus_multistream_decode(opusDecoder, (unsigned char *)sampleData, sampleLength,
@@ -438,10 +433,9 @@ void ClSetHdrMode(bool enabled)
     return NO;
 }
 
-- (void)takeAudioDecodeSkips:(int*)skips pendingPeakMs:(int*)pendingPeakMs
+- (int)takeAudioPendingPeakMs
 {
-    *skips = atomic_exchange(&audioDecodeSkips, 0);
-    *pendingPeakMs = atomic_exchange(&audioPendingPeakMs, 0);
+    return atomic_exchange(&audioPendingPeakMs, 0);
 }
 
 - (NSString*)getActiveCodecName

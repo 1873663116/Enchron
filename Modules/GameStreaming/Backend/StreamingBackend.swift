@@ -198,7 +198,7 @@ public protocol BackendSession: AnyObject, Sendable {
 
     func estimatedRTT() -> (milliseconds: UInt32, variance: UInt32)?
     func videoStats() -> BackendVideoStats?
-    func audioDecodeStats() -> (skipped: Int, pendingPeakMs: Int)
+    func audioPendingPeakMs() -> Int
     func activeCodecName() -> String?
 }
 

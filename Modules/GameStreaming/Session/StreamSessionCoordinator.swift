@@ -1480,7 +1480,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private func sampleDiagnostics() {
         let diagnosticStartedAt = DispatchTime.now().uptimeNanoseconds
         let stats = backend.videoStats()
-        let audioDecode = backend.audioDecodeStats()
+        let audioPendingPeakMs = backend.audioPendingPeakMs()
         let rtt = backend.estimatedRTT()
         let pendingDepth = videoQueueLock.withLock { pendingVideo.count }
         let readyForMore = videoRenderer.isReadyForMoreMediaData
@@ -1702,8 +1702,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " fOther=\(audioDelta.7)"
                 + " agap=\(gapDelta.audioGap)"
                 + " agapMaxMs=\(String(format: "%.0f", audioGapMax))"
-                + " decodeSkip=\(audioDecode.skipped)"
-                + " pendingPeakMs=\(audioDecode.pendingPeakMs)"
+                + " pendingPeakMs=\(audioPendingPeakMs)"
             return (videoText, audioText)
         }
         StreamSessionProbes.record(details.video, retention: .evidence)
