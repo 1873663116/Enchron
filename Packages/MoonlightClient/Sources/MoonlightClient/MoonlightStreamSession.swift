@@ -158,6 +158,13 @@ public final class MoonlightStreamSession: NSObject, @unchecked Sendable {
         return (rtt, variance)
     }
 
+    public func audioDecodeStats() -> (skipped: Int, pendingPeakMs: Int) {
+        var skipped: Int32 = 0
+        var pendingPeakMs: Int32 = 0
+        connection.takeAudioDecodeSkips(&skipped, pendingPeakMs: &pendingPeakMs)
+        return (Int(skipped), Int(pendingPeakMs))
+    }
+
     public func videoStats() -> MoonlightVideoStats? {
         var stats = video_stats_t()
         guard connection.getVideoStats(&stats) else {

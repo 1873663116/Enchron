@@ -12,6 +12,7 @@
 #import <opus/opus_multistream.h>
 
 #include <pthread/qos.h>
+#include <stdatomic.h>
 
 void ArCleanup(void);
 
@@ -46,6 +47,8 @@ static volatile BOOL pullThreadRunning = NO;
 
 static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
 static void* audioBuffer;
+static atomic_int audioDecodeSkips;
+static atomic_int audioPendingPeakMs;
 
 static MLCVideoSampleBuilder* sampleBuilder;
 static __weak MLCConnection* activeConnection;
@@ -227,7 +230,12 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
 {
     int decodeLen;
 
-    if (LiGetPendingAudioDuration() > 30) {
+    int pending = LiGetPendingAudioDuration();
+    int peak = atomic_load(&audioPendingPeakMs);
+    while (pending > peak && !atomic_compare_exchange_weak(&audioPendingPeakMs, &peak, pending)) {
+    }
+    if (pending > 30) {
+        atomic_fetch_add(&audioDecodeSkips, 1);
         return;
     }
 
@@ -428,6 +436,12 @@ void ClSetHdrMode(bool enabled)
 
     [videoStatsLock unlock];
     return NO;
+}
+
+- (void)takeAudioDecodeSkips:(int*)skips pendingPeakMs:(int*)pendingPeakMs
+{
+    *skips = atomic_exchange(&audioDecodeSkips, 0);
+    *pendingPeakMs = atomic_exchange(&audioPendingPeakMs, 0);
 }
 
 - (NSString*)getActiveCodecName

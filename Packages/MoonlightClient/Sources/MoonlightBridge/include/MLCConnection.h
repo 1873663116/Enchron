@@ -37,6 +37,7 @@ typedef struct {
 - (instancetype)initWithConfig:(MLCStreamConfiguration*)config delegate:(id<MLCConnectionDelegate>)delegate;
 - (void)terminate;
 - (BOOL)getVideoStats:(video_stats_t*)stats;
+- (void)takeAudioDecodeSkips:(int*)skips pendingPeakMs:(int*)pendingPeakMs;
 - (NSString*)getActiveCodecName;
 
 - (void)videoDecoderDidFail;

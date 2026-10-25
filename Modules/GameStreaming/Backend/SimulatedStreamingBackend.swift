@@ -151,6 +151,7 @@ private final class SimulatedSession: BackendSession, @unchecked Sendable {
     func releaseAllInput() {}
     func requestIdrFrame() {}
     func estimatedRTT() -> (milliseconds: UInt32, variance: UInt32)? { (2, 1) }
+    func audioDecodeStats() -> (skipped: Int, pendingPeakMs: Int) { (0, 0) }
 
     func videoStats() -> BackendVideoStats? {
         BackendVideoStats(
