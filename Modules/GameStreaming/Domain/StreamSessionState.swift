@@ -202,11 +202,13 @@ public struct StreamDiagnostics: Sendable, Equatable {
     public var audioFramesReceived: Int64 = 0
     public var audioFramesEnqueued: Int64 = 0
     public var audioFramesDropped: Int64 = 0
+    public var connectionQuality: Int32 = 0
 
     public init() {}
 
     public var readableSummary: String {
         var parts: [String] = []
+        parts.append("quality=\(connectionQuality)")
         parts.append("packets=\(packetsReceived)")
         parts.append("presented=\(framesPresented)")
         if let framesDecoded {

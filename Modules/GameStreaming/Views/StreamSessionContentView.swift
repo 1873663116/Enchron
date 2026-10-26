@@ -8,6 +8,16 @@ public struct StreamSessionContentView: View {
 
     public init() {}
 
+    private var showsWeakNetworkHint: Bool {
+        guard let session = model.session else { return false }
+        return session.state == .streaming && session.diagnostics.connectionQuality == 1
+    }
+
+    private var interruptedFailure: StreamFailure? {
+        guard let session = model.session, case .interrupted = session.state else { return nil }
+        return session.failure
+    }
+
     public var body: some View {
         ZStack {
             StreamPointerInputLayer(
@@ -63,6 +73,39 @@ public struct StreamSessionContentView: View {
                 .accessibilityIdentifier("Stream-Session-snapshot")
                 .accessibilityValue(model.session?.readableValue ?? "unavailable")
                 .allowsHitTesting(false)
+        }
+        .overlay(alignment: .top) {
+            if showsWeakNetworkHint {
+                Text(verbatim: "网络不稳：画面与操作可能延迟")
+                    .font(DesignTokens.Typography.monospacedDetail)
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, DesignTokens.Spacing.md)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("Stream-Session-networkHint")
+            }
+        }
+        .overlay {
+            if let failure = interruptedFailure {
+                VStack(spacing: DesignTokens.Spacing.sm) {
+                    Text(failure.message)
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                    if failure.recovery == .reconnect || failure.recovery == .retry {
+                        Button {
+                            Task { try? await model.reconnect() }
+                        } label: {
+                            Text(verbatim: "重新连接")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+                .padding(DesignTokens.Spacing.xl)
+                .background(.regularMaterial, in: DesignTokens.ShapeToken.element)
+                .padding(DesignTokens.Spacing.xxl)
+                .accessibilityIdentifier("Stream-Session-failure")
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             StreamSessionProbes.record(

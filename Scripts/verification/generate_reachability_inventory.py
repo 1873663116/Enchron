@@ -908,6 +908,7 @@ REVIEWED_OBSERVATIONS: dict[str, str] = {
     "buttons.",
     "MediaLibrary-MultiSelect-count": "A count label beside the multi-select "
     "buttons.",
+    "Stream-Session-failure": "An interruption panel. The reconnect button inside it has no identifier of its own, so any nearby-control hit refers to that panel child; the panel itself is not an element.",
     "FileBrowsing-SourcesSidebar-sidebarSelectionActions": "The HStack that holds "
     "the selection buttons; each button carries its own identifier. Its source "
     "location is the derived prefix in FilesScreen, whose neighbours belong to "

@@ -81,6 +81,8 @@ public final class StreamingModel {
     private var suspendedStream: (hostID: HostID, appID: AppID, appName: String)?
     public var hostQuitFailureMessage: String?
     private var reachabilityTask: Task<Void, Never>?
+    private var reachabilityPollTask: Task<Void, Never>?
+    private var pairingBackgroundTasks: [HostID: UIBackgroundTaskIdentifier] = [:]
 
     public init(
         backend: any StreamingBackend,
@@ -194,31 +196,56 @@ public final class StreamingModel {
 
     public func refreshReachability(hostID: HostID? = nil) {
         reachabilityTask?.cancel()
-        let targets = storedHosts.filter { requested in
-            hostID.map { $0 == requested.hostID } ?? true
+        reachabilityTask = Task { [weak self] in
+            await self?.reachabilityPass(hostID: hostID)
         }
-        reachabilityTask = Task { [backend] in
-            for target in targets {
-                let credentials = BackendCredentials(address: target.address, serverCert: target.serverCert)
-                do {
-                    let info = try await backend.fetchServerInfo(credentials)
-                    guard !Task.isCancelled else { return }
-                    self.applyServerInfo(
-                        info,
-                        hostID: target.hostID,
-                        authoritativePairing: target.serverCert != nil
-                    )
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    self.applyReachability(.offline, hostID: target.hostID)
-                }
+    }
+
+    /// Keeps the host list honest while it is the visible surface. The pass is
+    /// serialized with itself, so a slow host delays the next round instead of
+    /// piling up.
+    public func startReachabilityPolling() {
+        guard reachabilityPollTask == nil else { return }
+        reachabilityPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.reachabilityPass(hostID: nil)
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: Self.reachabilityPollInterval)
             }
         }
     }
 
-    /// Applies a server info reply. `authoritativePairing` says the query proved
-    /// this client's certificate: PairStatus can only name this client then, and
-    /// an unpinned reply says nothing about the stored pairing.
+    public func stopReachabilityPolling() {
+        reachabilityPollTask?.cancel()
+        reachabilityPollTask = nil
+    }
+
+    public func startHomePresence() {
+        startDiscovery()
+        startReachabilityPolling()
+    }
+
+    public func stopHomePresence() {
+        stopDiscovery()
+        stopReachabilityPolling()
+    }
+
+    /// Pairing runs on the host's clock and can outlive the foreground moment
+    /// that started it, so the app asks for background time until the outcome
+    /// arrives or the pairing is abandoned.
+    private func beginPairingBackgroundTask(hostID: HostID) {
+        guard pairingBackgroundTasks[hostID] == nil else { return }
+        let identifier = UIApplication.shared.beginBackgroundTask(withName: "stream-pairing") { [weak self] in
+            self?.endPairingBackgroundTask(hostID: hostID)
+        }
+        pairingBackgroundTasks[hostID] = identifier
+    }
+
+    private func endPairingBackgroundTask(hostID: HostID) {
+        guard let identifier = pairingBackgroundTasks.removeValue(forKey: hostID) else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+    }
+
     private func applyServerInfo(
         _ info: BackendServerInfo,
         hostID: HostID,
@@ -254,17 +281,49 @@ public final class StreamingModel {
         hosts[index].reachability = reachability
     }
 
+    private func reachabilityPass(hostID: HostID?) async {
+        let targets = storedHosts.filter { requested in
+            hostID.map { $0 == requested.hostID } ?? true
+        }
+        for target in targets {
+            guard !Task.isCancelled else { return }
+            let credentials = BackendCredentials(address: target.address, serverCert: target.serverCert)
+            do {
+                let info = try await backend.fetchServerInfo(credentials)
+                guard !Task.isCancelled else { return }
+                applyServerInfo(
+                    info,
+                    hostID: target.hostID,
+                    authoritativePairing: target.serverCert != nil
+                )
+            } catch {
+                guard !Task.isCancelled else { return }
+                applyReachability(.offline, hostID: target.hostID)
+            }
+        }
+    }
+
     public func startDiscovery() {
         guard discoveryTask == nil else { return }
         isDiscovering = true
         discoveryTask = Task { [backend] in
-            for await batch in backend.discoverHosts() {
+            while !Task.isCancelled {
+                for await batch in backend.discoverHosts() {
+                    guard !Task.isCancelled else { return }
+                    self.discoveredHosts = batch
+                }
                 guard !Task.isCancelled else { return }
-                self.discoveredHosts = batch
+                try? await Task.sleep(for: .seconds(Self.discoveryRestartInterval))
             }
             self.isDiscovering = false
         }
     }
+
+    /// The browse session is long lived, but a browser that stopped delivering
+    /// would otherwise stay silent until the user opens the add-host sheet, so
+    /// the stream is restarted whenever it finishes.
+    private static let discoveryRestartInterval = 5
+    private static let reachabilityPollInterval: Duration = .seconds(5)
 
     public func stopDiscovery() {
         discoveryTask?.cancel()
@@ -289,6 +348,7 @@ public final class StreamingModel {
             retention: .evidence
         )
 
+        beginPairingBackgroundTask(hostID: hostID)
         pairingTasks[hostID] = Task { [weak self] in
             do {
                 let outcome = try await backendPairing.waitForOutcome()
@@ -327,6 +387,7 @@ public final class StreamingModel {
         }
         activePairingSessions[hostID] = nil
         pairingTasks[hostID] = nil
+        endPairingBackgroundTask(hostID: hostID)
     }
 
     private func pairingFailed(hostID: HostID, message: String) {
@@ -344,6 +405,7 @@ public final class StreamingModel {
         )
         activePairingSessions[hostID] = nil
         pairingTasks[hostID] = nil
+        endPairingBackgroundTask(hostID: hostID)
     }
 
     public func cancelPairing(hostID: HostID) {
@@ -353,6 +415,7 @@ public final class StreamingModel {
         activePairingSessions[hostID] = nil
         pairings[hostID] = nil
         failures[hostID] = nil
+        endPairingBackgroundTask(hostID: hostID)
     }
 
     public func loadApplications(hostID: HostID) {

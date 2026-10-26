@@ -4348,6 +4348,30 @@
           "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
         }
       ],
+      "template": "Stream-Session-failure"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
+        }
+      ],
+      "template": "Stream-Session-networkHint"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
+        }
+      ],
       "template": "Stream-Session-snapshot"
     },
     {

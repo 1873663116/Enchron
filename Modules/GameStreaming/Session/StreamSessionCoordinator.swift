@@ -933,7 +933,14 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         case .audioStopped:
             StreamSessionProbes.record("audio stop session=\(sessionID.rawValue)", retention: .evidence)
             publishSnapshot()
-        case .statusUpdate:
+        case .statusUpdate(let status):
+            stateLock.withLock {
+                snapshotStorage.diagnostics.connectionQuality = status
+            }
+            StreamSessionProbes.record(
+                "connection quality status=\(status)",
+                retention: .evidence
+            )
             publishSnapshot()
         case .launchFailed(let message):
             fail(stage: .launch, kind: .applicationLaunchFailed, message: message, recovery: .retry)
@@ -944,10 +951,24 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 fail(
                     stage: .network,
                     kind: .connectionLost,
-                    message: "连接中断（代码 \(errorCode)）",
-                    recovery: .reconnect
+                    message: Self.disconnectReason(for: errorCode),
+                    recovery: .reconnect,
+                    upstreamDetail: "termination code \(errorCode)"
                 )
             }
+        }
+    }
+
+    /// The host closes the session with one of the protocol's termination codes.
+    /// Naming the cause turns a bare number into something a player can act on.
+    private static func disconnectReason(for errorCode: Int32) -> String {
+        switch errorCode {
+        case -100: "主机不再发送画面数据"
+        case -101: "主机长时间没有新画面"
+        case -102: "连接被提前关闭"
+        case -103: "受保护内容无法解码"
+        case -104: "画面格式转换失败"
+        default: "连接中断（代码 \(errorCode)）"
         }
     }
 

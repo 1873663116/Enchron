@@ -51,7 +51,8 @@ public struct StreamingHomeView: View {
         } message: { item in
             Text(item.failure.message)
         }
-        .onAppear { model.refreshReachability() }
+        .onAppear { model.startHomePresence() }
+        .onDisappear { model.stopHomePresence() }
         .task {
             if model.selectedHostID == nil, let firstHostID = model.hosts.first?.id {
                 model.selectHost(firstHostID)
