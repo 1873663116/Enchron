@@ -143,6 +143,7 @@
 				GameStreaming/Domain/StreamSettings.swift,
 				GameStreaming/Model/StreamingModel.swift,
 				"GameStreaming/Model/StreamingPlaybackInformation+Session.swift",
+				GameStreaming/Network/StreamWakeOnLan.swift,
 				GameStreaming/Session/StreamAudioOutput.swift,
 				GameStreaming/Session/StreamControllerFeedbackRouter.swift,
 				GameStreaming/Session/StreamControllerHaptics.swift,

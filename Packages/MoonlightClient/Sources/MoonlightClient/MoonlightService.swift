@@ -32,6 +32,14 @@ public final class MoonlightService: @unchecked Sendable {
         }
     }
 
+    /// Asks the STUN server Moonlight uses which address the internet sees this
+    /// device on. The answer is what lets a host be reached from outside the LAN.
+    public func externalIPv4Address() async throws -> String? {
+        try await run {
+            MLCUtils.externalIPv4Address()
+        }
+    }
+
     public func fetchApplications(
         address: MoonlightHostAddress,
         serverCert: Data?
@@ -310,7 +318,9 @@ public final class MoonlightService: @unchecked Sendable {
             gfeVersion: response.getStringTag("GfeVersion"),
             serverCodecModeSupport: UInt32(bitPattern: record.serverCodecModeSupport),
             state: response.getStringTag("state") ?? "",
-            currentGame: record.currentGame
+            currentGame: record.currentGame,
+            localAddress: record.localAddress,
+            externalAddress: record.externalAddress
         )
         return ServerInfoSummary(info: info, hostRecord: record)
     }

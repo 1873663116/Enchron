@@ -1,6 +1,9 @@
 
 #import "MLCUtils.h"
 
+#include <arpa/inet.h>
+#include <Limelight.h>
+
 static NSString* deviceName = @"Enchron";
 
 NSString* MLCDeviceName(void) {
@@ -12,6 +15,21 @@ void MLCSetDeviceName(NSString* name) {
 }
 
 @implementation MLCUtils
+
++ (NSString*)externalIPv4Address {
+    unsigned int wanAddr = 0;
+    int result = LiFindExternalAddressIP4("stun.moonlight-stream.org", 3478, &wanAddr);
+    if (result != 0) {
+        return nil;
+    }
+    struct in_addr address;
+    address.s_addr = wanAddr;
+    const char* dotted = inet_ntoa(address);
+    if (dotted == NULL) {
+        return nil;
+    }
+    return [NSString stringWithUTF8String:dotted];
+}
 
 + (NSData*)randomBytes:(NSInteger)length {
     char* bytes = malloc((size_t)length);

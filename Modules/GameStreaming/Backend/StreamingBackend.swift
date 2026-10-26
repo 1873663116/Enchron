@@ -4,10 +4,12 @@ import Foundation
 public struct DiscoveredHost: Sendable, Equatable {
     public var instanceName: String
     public var address: HostAddress
+    public var mac: String?
 
-    public init(instanceName: String, address: HostAddress) {
+    public init(instanceName: String, address: HostAddress, mac: String? = nil) {
         self.instanceName = instanceName
         self.address = address
+        self.mac = mac
     }
 }
 
@@ -31,6 +33,8 @@ public struct BackendServerInfo: Sendable {
     public var serverCodecModeSupport: UInt32
     public var state: String
     public var currentGame: String?
+    public var localAddress: String?
+    public var externalAddress: String?
 
     public init(
         name: String,
@@ -41,7 +45,9 @@ public struct BackendServerInfo: Sendable {
         gfeVersion: String?,
         serverCodecModeSupport: UInt32,
         state: String,
-        currentGame: String?
+        currentGame: String?,
+        localAddress: String? = nil,
+        externalAddress: String? = nil
     ) {
         self.name = name
         self.uniqueID = uniqueID
@@ -52,6 +58,8 @@ public struct BackendServerInfo: Sendable {
         self.serverCodecModeSupport = serverCodecModeSupport
         self.state = state
         self.currentGame = currentGame
+        self.localAddress = localAddress
+        self.externalAddress = externalAddress
     }
 }
 
@@ -230,4 +238,5 @@ public protocol StreamingBackend: Sendable {
     func launchSession(_ request: BackendSessionRequest) async throws -> any BackendSession
     func resumeSession(_ request: BackendSessionRequest) async throws -> any BackendSession
     func quitApplication(_ credentials: BackendCredentials) async throws
+    func externalIPv4Address() async throws -> String?
 }

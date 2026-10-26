@@ -83,6 +83,8 @@ public final class StreamingModel {
     private var reachabilityTask: Task<Void, Never>?
     private var reachabilityPollTask: Task<Void, Never>?
     private var pairingBackgroundTasks: [HostID: UIBackgroundTaskIdentifier] = [:]
+    private var publicIPv4: String?
+    private var publicIPv4Task: Task<Void, Never>?
 
     public init(
         backend: any StreamingBackend,
@@ -124,7 +126,7 @@ public final class StreamingModel {
     /// Adds a host and returns the identity key it is stored under. The same
     /// physical host reached through a different port route (for example a
     /// loopback proxy) is a distinct entry with its own pairing.
-    public func addHost(addressString: String, name: String?) async throws -> HostID {
+    public func addHost(addressString: String, name: String?, mac: String? = nil) async throws -> HostID {
         guard let address = HostAddress(parsing: addressString) else {
             throw StreamFailure(
                 stage: .connect,
@@ -160,14 +162,42 @@ public final class StreamingModel {
         let hostID = address.portBase == HostAddress.defaultPortBase
             ? info.uniqueID
             : "\(info.uniqueID)@\(address.portBase)"
-        let stored = StoredHost(
+
+        if let existing = storedHosts.first(where: { $0.hostID == HostID(rawValue: hostID) }) {
+            var alternates = existing.alternateAddresses ?? []
+            if existing.address != address, !alternates.contains(address) {
+                alternates.append(address)
+            }
+            _ = hostStore.update(id: existing.id) { record in
+                record.alternateAddresses = alternates.isEmpty ? nil : alternates
+                if record.localAddress == nil {
+                    record.localAddress = info.localAddress.flatMap { HostAddress(parsing: $0) }
+                }
+                if record.externalAddress == nil {
+                    record.externalAddress = info.externalAddress.flatMap { HostAddress(parsing: $0) }
+                }
+                if let mac, record.macAddress == nil {
+                    record.macAddress = mac
+                }
+            }
+            reloadHosts()
+            refreshReachability(hostID: existing.hostID)
+            return existing.hostID
+        }
+
+        var stored = StoredHost(
             id: hostID,
             name: userProvidedName ? (name ?? info.name) : info.name,
             address: address,
             serverCert: nil,
             preferredAppID: nil,
+            hiddenAppIDs: nil,
             hasPairingRecord: info.pairStatus == 1,
-            nameIsUserProvided: userProvidedName
+            nameIsUserProvided: userProvidedName,
+            alternateAddresses: nil,
+            localAddress: info.localAddress.flatMap { HostAddress(parsing: $0) },
+            externalAddress: info.externalAddress.flatMap { HostAddress(parsing: $0) },
+            macAddress: mac
         )
         _ = hostStore.upsert(stored)
         reloadHosts()
@@ -223,6 +253,39 @@ public final class StreamingModel {
     public func startHomePresence() {
         startDiscovery()
         startReachabilityPolling()
+        refreshPublicAddressIfNeeded()
+    }
+
+    /// One lookup per launch is enough: the public address only changes when the
+    /// network does, and asking every poll would put a STUN round trip in the
+    /// path that keeps the host list fresh.
+    private func refreshPublicAddressIfNeeded() {
+        guard publicIPv4 == nil, publicIPv4Task == nil else { return }
+        guard storedHosts.contains(where: { $0.externalAddress == nil }) else { return }
+        publicIPv4Task = Task { [weak self, backend] in
+            let address = try? await backend.externalIPv4Address()
+            guard let self else { return }
+            self.publicIPv4Task = nil
+            guard let address, !address.isEmpty else { return }
+            self.publicIPv4 = address
+            self.applyPublicAddress(address)
+        }
+    }
+
+    private func applyPublicAddress(_ address: String) {
+        var changed = false
+        for host in storedHosts where host.externalAddress == nil {
+            _ = hostStore.update(id: host.id) { record in
+                record.externalAddress = HostAddress(
+                    host: address,
+                    portBase: HostAddress.defaultPortBase
+                )
+            }
+            changed = true
+        }
+        if changed {
+            reloadHosts()
+        }
     }
 
     public func stopHomePresence() {
@@ -281,28 +344,94 @@ public final class StreamingModel {
         hosts[index].reachability = reachability
     }
 
+    /// Wakes a suspended host and rechecks it straight away. The host needs a
+    /// while to answer, so the list will still read offline until the next poll
+    /// or the next explicit refresh.
+    public func wake(hostID: HostID) {
+        guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return }
+        guard let mac = stored.macAddress else {
+            StreamSessionProbes.record(
+                "wake-on-lan host=\(stored.name) skipped=no-mac",
+                retention: .evidence
+            )
+            return
+        }
+        var targets = stored.candidateAddresses.map(\.host)
+        if !targets.contains("255.255.255.255") {
+            targets.append("255.255.255.255")
+        }
+        let delivered = StreamWakeOnLan.send(to: targets, mac: mac)
+        StreamSessionProbes.record(
+            "wake-on-lan host=\(stored.name) delivered=\(delivered)",
+            retention: .evidence
+        )
+        refreshReachability(hostID: hostID)
+    }
+
     private func reachabilityPass(hostID: HostID?) async {
+        refreshPublicAddressIfNeeded()
         let targets = storedHosts.filter { requested in
             hostID.map { $0 == requested.hostID } ?? true
         }
         for target in targets {
             guard !Task.isCancelled else { return }
-            let credentials = BackendCredentials(address: target.address, serverCert: target.serverCert)
-            do {
-                let info = try await backend.fetchServerInfo(credentials)
+            var reached = false
+            for candidate in target.candidateAddresses {
                 guard !Task.isCancelled else { return }
-                applyServerInfo(
-                    info,
-                    hostID: target.hostID,
-                    authoritativePairing: target.serverCert != nil
+                let credentials = BackendCredentials(
+                    address: candidate,
+                    serverCert: target.serverCert
                 )
-            } catch {
-                guard !Task.isCancelled else { return }
+                do {
+                    let info = try await backend.fetchServerInfo(credentials)
+                    guard !Task.isCancelled else { return }
+                    promoteAddress(candidate, for: target, info: info)
+                    applyServerInfo(
+                        info,
+                        hostID: target.hostID,
+                        authoritativePairing: target.serverCert != nil
+                    )
+                    reached = true
+                    break
+                } catch {
+                    continue
+                }
+            }
+            guard !Task.isCancelled else { return }
+            if !reached {
                 applyReachability(.offline, hostID: target.hostID)
             }
         }
     }
 
+    /// Remembers the address that answered and keeps the rest as alternatives,
+    /// so the next launch dials the path that just worked rather than the first
+    /// one ever stored.
+    private func promoteAddress(
+        _ address: HostAddress,
+        for target: StoredHost,
+        info: BackendServerInfo
+    ) {
+        let local = info.localAddress.flatMap { HostAddress(parsing: $0) }
+        let external = info.externalAddress.flatMap { HostAddress(parsing: $0) }
+        _ = hostStore.update(id: target.id) { stored in
+            if stored.address != address {
+                var alternates = stored.alternateAddresses ?? []
+                if !alternates.contains(stored.address) {
+                    alternates.append(stored.address)
+                }
+                stored.alternateAddresses = alternates.filter { $0 != address }
+                stored.address = address
+            }
+            if let local {
+                stored.localAddress = local
+            }
+            if let external {
+                stored.externalAddress = external
+            }
+        }
+        reloadHosts()
+    }
     public func startDiscovery() {
         guard discoveryTask == nil else { return }
         isDiscovering = true

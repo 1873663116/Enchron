@@ -35,6 +35,8 @@ public struct MoonlightServerInfo: Sendable {
     public var serverCodecModeSupport: UInt32
     public var state: String
     public var currentGame: String?
+    public var localAddress: String?
+    public var externalAddress: String?
 }
 
 public struct MoonlightApplication: Sendable, Identifiable {

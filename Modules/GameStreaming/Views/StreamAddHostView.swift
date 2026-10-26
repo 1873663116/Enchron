@@ -220,17 +220,18 @@ struct StreamAddHostView: View {
             dismiss()
             return
         }
-        Task { await submit(address: host.address.displayString, name: host.instanceName) }
+        Task { await submit(address: host.address.displayString, name: host.instanceName, mac: host.mac) }
     }
 
-    private func submit(address: String, name: String) async {
+    private func submit(address: String, name: String, mac: String? = nil) async {
         isSubmitting = true
         failure = nil
         defer { isSubmitting = false }
         do {
             let hostID = try await model.addHost(
                 addressString: address,
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : name
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : name,
+                mac: mac
             )
             model.selectHost(hostID)
             dismiss()

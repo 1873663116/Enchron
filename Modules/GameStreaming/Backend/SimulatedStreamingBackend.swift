@@ -60,6 +60,10 @@ public final class SimulatedStreamingBackend: StreamingBackend, @unchecked Senda
         return SimulatedSession(request: request)
     }
 
+    public func externalIPv4Address() async throws -> String? {
+        nil
+    }
+
     public func quitApplication(_ credentials: BackendCredentials) async throws {
         try await Task.sleep(for: .milliseconds(100))
     }

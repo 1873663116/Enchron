@@ -34,7 +34,8 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                             address: HostAddress(
                                 host: host.host,
                                 portBase: host.port == 0 ? HostAddress.defaultPortBase : host.port
-                            )
+                            ),
+                            mac: host.mac
                         )
                     })
                 }
@@ -61,7 +62,9 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                 gfeVersion: info.gfeVersion,
                 serverCodecModeSupport: info.serverCodecModeSupport,
                 state: info.state,
-                currentGame: info.currentGame
+                currentGame: info.currentGame,
+                localAddress: info.localAddress,
+                externalAddress: info.externalAddress
             )
         } catch let error as MoonlightClientError {
             throw Self.failure(from: error, stage: .connect)
@@ -186,6 +189,12 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                 upstreamDetail: String(describing: error)
             )
         }
+    }
+
+    /// Public address is best effort: a network without STUN reachability is
+    /// not an error, it only means the WAN path stays unknown.
+    public func externalIPv4Address() async throws -> String? {
+        try? await service.externalIPv4Address()
     }
 
     public func quitApplication(_ credentials: BackendCredentials) async throws {

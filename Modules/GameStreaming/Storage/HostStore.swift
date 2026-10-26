@@ -9,6 +9,10 @@ public struct StoredHost: Codable, Equatable {
     public var hiddenAppIDs: [String]?
     public var hasPairingRecord: Bool
     public var nameIsUserProvided: Bool?
+    public var alternateAddresses: [HostAddress]?
+    public var localAddress: HostAddress?
+    public var externalAddress: HostAddress?
+    public var macAddress: String?
 
     public var hasUserProvidedName: Bool {
         nameIsUserProvided ?? false
@@ -86,4 +90,35 @@ public final class HostStore: @unchecked Sendable {
 
 extension StoredHost {
     public var hostID: HostID { HostID(rawValue: id) }
+
+    /// Everything worth probing for this host, most local first. A machine that
+    /// is reachable on the LAN should not be reached over its WAN address, and
+    /// an address discovered later should not displace the one that worked.
+    public var candidateAddresses: [HostAddress] {
+        StreamAddressPlan.candidates(
+            primary: address,
+            local: localAddress,
+            alternates: alternateAddresses,
+            external: externalAddress
+        )
+    }
+}
+
+/// The order addresses are dialed in, kept separate from the record so it can be
+/// checked without building a host.
+public enum StreamAddressPlan {
+    public static func candidates(
+        primary: HostAddress,
+        local: HostAddress?,
+        alternates: [HostAddress]?,
+        external: HostAddress?
+    ) -> [HostAddress] {
+        var seen = Set<HostAddress>()
+        var ordered: [HostAddress] = []
+        let seeds = [local, primary] + (alternates ?? []) + [external]
+        for address in seeds.compactMap({ $0 }) where seen.insert(address).inserted {
+            ordered.append(address)
+        }
+        return ordered
+    }
 }

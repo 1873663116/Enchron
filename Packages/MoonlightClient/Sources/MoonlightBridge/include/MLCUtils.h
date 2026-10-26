@@ -23,6 +23,7 @@ typedef NS_ENUM(int, HostState) {
 + (NSString*)addressPortStringToAddress:(NSString*)addressPort;
 + (unsigned short)addressPortStringToPort:(NSString*)addressPort;
 + (NSString*)addressAndPortToAddressPortString:(NSString*)address port:(unsigned short)port;
++ (nullable NSString*)externalIPv4Address;
 
 @end
 

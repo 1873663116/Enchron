@@ -1376,6 +1376,11 @@
       "context": "docked",
       "operation": "accessibility:PlayerUI-StreamingCapsule-close",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-WakeButton",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

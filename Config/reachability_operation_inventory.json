@@ -4159,6 +4159,18 @@
       "template": "Stream-HostDetail"
     },
     {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-WakeButton"
+    },
+    {
       "action": null,
       "family": "Stream",
       "role": "observation",
@@ -8069,6 +8081,24 @@
     {
       "id": "accessibility:Stream-Discovery-row-{host.instanceName}",
       "identifierTemplate": "Stream-Discovery-row-{host.instanceName}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-WakeButton",
+      "identifierTemplate": "Stream-HostDetail-WakeButton",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",

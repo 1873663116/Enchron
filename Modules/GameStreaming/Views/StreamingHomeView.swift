@@ -134,6 +134,15 @@ public struct StreamingHomeView: View {
                     .accessibilityIdentifier("Stream-HostDetail-name")
                     .accessibilityValue(host.name)
                 Spacer(minLength: 0)
+                if host.reachability == .offline {
+                    GlassCapsuleIconLabelButton(
+                        title: "唤醒主机",
+                        systemName: "bolt.horizontal.circle",
+                        accessibilityLabel: "唤醒主机",
+                        action: { model.wake(hostID: host.id) },
+                        accessibilityIdentifier: "Stream-HostDetail-WakeButton"
+                    )
+                }
             }
 
             failureLine(host)
