@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-09T10:17:20.681871+00:00",
+  "updatedAt": "2026-10-26T05:37:26+00:00",
   "verbs": {
     "accessibility-inspect": {
       "samples": [
@@ -1721,6 +1721,16 @@
           "at": "2026-10-09T08:43:06.504490+00:00",
           "censored": false,
           "seconds": 5.957
+        },
+        {
+          "at": "2026-10-26T05:32:39+00:00",
+          "censored": false,
+          "seconds": 23.38
+        },
+        {
+          "at": "2026-10-26T05:37:26+00:00",
+          "censored": false,
+          "seconds": 5.41
         }
       ]
     },
@@ -3261,16 +3271,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-06T17:48:49.847035+00:00",
-          "censored": false,
-          "seconds": 1.474
-        },
-        {
-          "at": "2026-09-06T17:48:54.677585+00:00",
-          "censored": false,
-          "seconds": 1.446
-        },
-        {
           "at": "2026-09-06T17:49:15.355381+00:00",
           "censored": false,
           "seconds": 1.842
@@ -3459,6 +3459,16 @@
           "at": "2026-09-06T17:52:48.162861+00:00",
           "censored": false,
           "seconds": 1.258
+        },
+        {
+          "at": "2026-10-26T05:34:33+00:00",
+          "censored": false,
+          "seconds": 2.78
+        },
+        {
+          "at": "2026-10-26T05:35:20+00:00",
+          "censored": false,
+          "seconds": 1.83
         }
       ]
     },
