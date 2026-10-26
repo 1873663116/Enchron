@@ -589,12 +589,14 @@ public struct PlayerView: View {
                             .recordMainWindowPlaybackSurfaceRefreshApplied($0)
                     }
                 )
+                .scaleEffect(streamingModel.streamZoom)
                 playbackLoadingChrome
             }
             if windowPlaybackAcceptsInput {
                 StreamSessionContentView()
             }
         }
+        .clipped()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
         .accessibilityValue(playbackRuntime.lifecycle.label)

@@ -179,6 +179,13 @@ public struct StreamSettingsSection: View {
                 systemName: "computermouse",
                 supportingText: "外接鼠标直接控制主机指针：转发移动、按键与滚轮。",
                 accessory: .boundToggle(isOn: bluetoothMouseBinding, isEnabled: true, marker: nil)
+            ),
+            SettingListGroup.Item(
+                id: "Streaming-absoluteTouch",
+                title: "绝对触摸模式",
+                systemName: "hand.tap",
+                supportingText: "单指拖动直接落到手势所在位置；关闭时拖动按位移推动指针，适合射击与转视角。",
+                accessory: .boundToggle(isOn: absoluteTouchBinding, isEnabled: true, marker: nil)
             )
         ]
     }
@@ -207,6 +214,13 @@ public struct StreamSettingsSection: View {
         Binding(
             get: { model.settings.swapABXYButtons },
             set: { value in model.updateSettings { $0.swapABXYButtons = value } }
+        )
+    }
+
+    private var absoluteTouchBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.absoluteTouchMode },
+            set: { value in model.updateSettings { $0.absoluteTouchMode = value } }
         )
     }
 

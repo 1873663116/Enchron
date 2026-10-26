@@ -17,6 +17,7 @@ public final class StreamingModel {
     public private(set) var session: SessionSnapshot?
     public var onSessionChanged: ((SessionSnapshot?) -> Void)?
     public private(set) var renderBinding: StreamRenderBinding?
+    public private(set) var streamZoom: Double = 1
     public private(set) var artworkCache: [String: URL] = [:]
 
     public var settings: StreamOptions {
@@ -762,6 +763,24 @@ public final class StreamingModel {
 
     public func sendScroll(amount: Int32) {
         coordinator?.sendScroll(amount: amount)
+    }
+
+    public func sendHighResScroll(vertical: Int32, horizontal: Int32) {
+        coordinator?.sendHighResScroll(vertical: vertical, horizontal: horizontal)
+    }
+
+    public func sendRelativeMove(dx: Float, dy: Float) {
+        let roundedX = Int32(clamping: Int(dx.rounded(.towardZero)))
+        let roundedY = Int32(clamping: Int(dy.rounded(.towardZero)))
+        guard roundedX != 0 || roundedY != 0 else { return }
+        coordinator?.sendMouseMove(dx: roundedX, dy: roundedY)
+    }
+
+    /// Magnification applied to the stream picture itself, not to the pointer.
+    public func setStreamZoom(_ value: Double) {
+        let clamped = min(max(value, 1), 3)
+        guard clamped != streamZoom else { return }
+        streamZoom = clamped
     }
 
     public func sendGestureClick(normalizedX: Float, normalizedY: Float) {

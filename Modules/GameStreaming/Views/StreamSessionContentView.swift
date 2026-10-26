@@ -12,14 +12,39 @@ public struct StreamSessionContentView: View {
         ZStack {
             StreamPointerInputLayer(
                 videoAspectRatio: model.videoAspectRatio,
-                onMove: { x, y in model.sendPointerMove(normalizedX: x, normalizedY: y) },
-                onClick: { position in
-                    model.releaseInputs(cause: "pointer-control")
-                    model.sendGestureClick(
-                        normalizedX: Float(position.x),
-                        normalizedY: Float(position.y)
-                    )
-                }
+                onMove: { x, y in model.sendPointerMove(normalizedX: x, normalizedY: y) }
+            )
+            StreamTouchGestureSurface(
+                configuration: StreamTouchGestureSurface.Configuration(
+                    absoluteTouchMode: model.settings.absoluteTouchMode,
+                    videoAspectRatio: model.videoAspectRatio,
+                    currentZoom: CGFloat(model.streamZoom),
+                    onMove: { point in
+                        model.sendPointerMove(
+                            normalizedX: Float(point.x),
+                            normalizedY: Float(point.y)
+                        )
+                    },
+                    onRelativeMove: { deltaX, deltaY in
+                        model.sendRelativeMove(dx: Float(deltaX), dy: Float(deltaY))
+                    },
+                    onClick: { point in
+                        model.releaseInputs(cause: "pointer-control")
+                        model.sendGestureClick(
+                            normalizedX: Float(point.x),
+                            normalizedY: Float(point.y)
+                        )
+                    },
+                    onRightButton: { down in
+                        model.sendMouseButton(code: StreamMouseInput.rightButtonCode, down: down)
+                    },
+                    onScroll: { vertical, horizontal in
+                        model.sendHighResScroll(vertical: vertical, horizontal: horizontal)
+                    },
+                    onMagnify: { scale in
+                        model.setStreamZoom(Double(scale))
+                    }
+                )
             )
             StreamFocusedInputCapture(
                 onKey: { usage, down, flags in
@@ -61,10 +86,11 @@ public struct StreamSessionContentView: View {
     }
 }
 
+/// Moves the pointer with hover, which is what the absolute pointing path needs:
+/// the wearer's gaze lands on a point and the host receives it without a click.
 private struct StreamPointerInputLayer: View {
     let videoAspectRatio: CGFloat
     let onMove: (Float, Float) -> Void
-    let onClick: (CGPoint) -> Void
 
     var body: some View {
         GeometryReader { geometry in
@@ -72,7 +98,7 @@ private struct StreamPointerInputLayer: View {
                 .contentShape(Rectangle())
                 .onContinuousHover { phase in
                     if case .active(let location) = phase {
-                        if let normalized = Self.normalized(
+                        if let normalized = StreamVideoGeometry.normalized(
                             location: location,
                             in: geometry.size,
                             videoAspectRatio: videoAspectRatio
@@ -81,41 +107,8 @@ private struct StreamPointerInputLayer: View {
                         }
                     }
                 }
-                .gesture(
-                    SpatialTapGesture()
-                        .onEnded { value in
-                            if let normalized = Self.normalized(
-                                location: value.location,
-                                in: geometry.size,
-                                videoAspectRatio: videoAspectRatio
-                            ) {
-                                onClick(normalized)
-                            }
-                        }
-                )
         }
+        .allowsHitTesting(false)
         .accessibilityHidden(true)
-    }
-
-    private static func normalized(
-        location: CGPoint,
-        in size: CGSize,
-        videoAspectRatio: CGFloat
-    ) -> CGPoint? {
-        guard size.width > 0, size.height > 0, videoAspectRatio > 0 else { return nil }
-        let fitted: CGSize
-        if size.width / size.height > videoAspectRatio {
-            fitted = CGSize(width: size.height * videoAspectRatio, height: size.height)
-        } else {
-            fitted = CGSize(width: size.width, height: size.width / videoAspectRatio)
-        }
-        let origin = CGPoint(
-            x: (size.width - fitted.width) / 2,
-            y: (size.height - fitted.height) / 2
-        )
-        let x = (location.x - origin.x) / fitted.width
-        let y = (location.y - origin.y) / fitted.height
-        guard x >= 0, x <= 1, y >= 0, y <= 1 else { return nil }
-        return CGPoint(x: x, y: y)
     }
 }

@@ -63,6 +63,7 @@ $(SRCROOT)/Modules/GameStreaming/Views/StreamAppGridView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamPairingView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamSessionContentView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamSettingsSection.swift
+$(SRCROOT)/Modules/GameStreaming/Views/StreamTouchGestures.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamingHomeView.swift
 $(SRCROOT)/Modules/MediaLibrary/FileBrowsingViewModel.swift
 $(SRCROOT)/Modules/MediaLibrary/MediaLibraryFeature.swift

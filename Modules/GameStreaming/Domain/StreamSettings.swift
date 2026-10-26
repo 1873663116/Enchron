@@ -109,6 +109,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var playAudioOnPC: Bool
     public var bluetoothMouseEnabled: Bool
     public var optimizeGameSettings: Bool
+    public var absoluteTouchMode: Bool
 
     public static let defaultFrameRates = [30, 60, 90, 120]
 
@@ -135,7 +136,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         swapABXYButtons: Bool = false,
         playAudioOnPC: Bool = false,
         bluetoothMouseEnabled: Bool = true,
-        optimizeGameSettings: Bool = false
+        optimizeGameSettings: Bool = false,
+        absoluteTouchMode: Bool = false
     ) {
         self.resolution = resolution
         self.customWidth = customWidth
@@ -150,6 +152,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.playAudioOnPC = playAudioOnPC
         self.bluetoothMouseEnabled = bluetoothMouseEnabled
         self.optimizeGameSettings = optimizeGameSettings
+        self.absoluteTouchMode = absoluteTouchMode
     }
 
     public var streamWidth: Int {
@@ -164,6 +167,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
         case codec, hdrEnabled, frameBuffer, customBitrateEnabled
         case swapABXYButtons, playAudioOnPC, bluetoothMouseEnabled, optimizeGameSettings
+        case absoluteTouchMode
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -192,6 +196,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         playAudioOnPC = try container.decodeIfPresent(Bool.self, forKey: .playAudioOnPC) ?? false
         bluetoothMouseEnabled = try container.decodeIfPresent(Bool.self, forKey: .bluetoothMouseEnabled) ?? true
         optimizeGameSettings = try container.decodeIfPresent(Bool.self, forKey: .optimizeGameSettings) ?? false
+        absoluteTouchMode = try container.decodeIfPresent(Bool.self, forKey: .absoluteTouchMode) ?? false
     }
 
     public var readableValue: String {
@@ -207,6 +212,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("audioOnPC=\(playAudioOnPC)")
         parts.append("bluetoothMouse=\(bluetoothMouseEnabled)")
         parts.append("optimizeGameSettings=\(optimizeGameSettings)")
+        parts.append("absoluteTouch=\(absoluteTouchMode)")
         return parts.joined(separator: ";")
     }
 }

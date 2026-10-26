@@ -21,6 +21,7 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         XCTAssertFalse(options.playAudioOnPC)
         XCTAssertTrue(options.bluetoothMouseEnabled)
         XCTAssertFalse(options.optimizeGameSettings)
+        XCTAssertFalse(options.absoluteTouchMode)
     }
 
     func testStoredFramePacingPreferenceBecomesTheFrameBufferPreference() throws {
@@ -85,7 +86,18 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         options.optimizeGameSettings = true
 
         XCTAssertTrue(options.readableValue.hasSuffix(
-            "swapABXY=true;audioOnPC=true;bluetoothMouse=false;optimizeGameSettings=true"
+            "swapABXY=true;audioOnPC=true;bluetoothMouse=false;optimizeGameSettings=true;absoluteTouch=false"
         ), options.readableValue)
+    }
+
+    func testTouchModeSurvivesARoundTrip() throws {
+        var options = StreamOptions()
+        options.absoluteTouchMode = true
+
+        let encoded = try JSONEncoder().encode(options)
+        let decoded = try JSONDecoder().decode(StreamOptions.self, from: encoded)
+
+        XCTAssertTrue(decoded.absoluteTouchMode)
+        XCTAssertEqual(decoded, options)
     }
 }

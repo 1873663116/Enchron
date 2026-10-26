@@ -1331,6 +1331,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         stateLock.withLock { counters.scrollEvents += 1 }
     }
 
+    public func sendHighResScroll(vertical: Int32, horizontal: Int32) {
+        guard vertical != 0 || horizontal != 0 else { return }
+        backend.sendHighResScroll(
+            vertical: Int16(clamping: vertical),
+            horizontal: Int16(clamping: horizontal)
+        )
+        stateLock.withLock { counters.scrollEvents += 1 }
+    }
+
     @discardableResult
     public func sendGamepad(_ state: StreamGamepadState) -> Int32 {
         let flags = StreamGamepadMapping.buttonFlags(
