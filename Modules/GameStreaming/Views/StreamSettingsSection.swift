@@ -209,6 +209,17 @@ public struct StreamSettingsSection: View {
                 accessory: .menu(title: model.settings.audioLayout.label, options: audioLayoutOptions)
             ),
             SettingListGroup.Item(
+                id: "Streaming-statsOverlay",
+                title: "统计浮层",
+                systemName: "gauge.with.dots.needle.67percent",
+                supportingText: "串流时在画面角落显示帧率、码率与延迟。",
+                accessory: .boundToggle(
+                    isOn: performanceOverlayBinding,
+                    isEnabled: true,
+                    marker: nil
+                )
+            ),
+            SettingListGroup.Item(
                 id: "Streaming-optimizeSettings",
                 title: "优化游戏设置",
                 systemName: "wand.and.stars",
@@ -453,6 +464,13 @@ public struct StreamSettingsSection: View {
             return "主机未声明 HDR 支持；开启后仍可能只收到 SDR 画面。"
         }
         return "接收 HDR 视频并交由系统以 HDR 呈现。需要主机启用 HDR，并提供 HDR 视频信号。不支持 H.264 编码。"
+    }
+
+    private var performanceOverlayBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showPerformanceOverlay },
+            set: { value in model.updateSettings { $0.showPerformanceOverlay = value } }
+        )
     }
 
     private var hdrBinding: Binding<Bool> {

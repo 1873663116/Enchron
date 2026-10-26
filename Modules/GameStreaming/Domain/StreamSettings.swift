@@ -117,6 +117,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var optimizeGameSettings: Bool
     public var absoluteTouchMode: Bool
     public var audioLayout: StreamAudioLayout
+    public var showPerformanceOverlay: Bool
 
     public static let defaultFrameRates = [30, 60, 90, 120]
 
@@ -145,7 +146,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         bluetoothMouseEnabled: Bool = true,
         optimizeGameSettings: Bool = false,
         absoluteTouchMode: Bool = false,
-        audioLayout: StreamAudioLayout = .stereo
+        audioLayout: StreamAudioLayout = .stereo,
+        showPerformanceOverlay: Bool = false
     ) {
         self.resolution = resolution
         self.customWidth = customWidth
@@ -162,6 +164,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.optimizeGameSettings = optimizeGameSettings
         self.absoluteTouchMode = absoluteTouchMode
         self.audioLayout = audioLayout
+        self.showPerformanceOverlay = showPerformanceOverlay
     }
 
     public var streamWidth: Int {
@@ -176,7 +179,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
         case codec, hdrEnabled, frameBuffer, customBitrateEnabled
         case swapABXYButtons, playAudioOnPC, bluetoothMouseEnabled, optimizeGameSettings
-        case absoluteTouchMode, audioLayout
+        case absoluteTouchMode, audioLayout, showPerformanceOverlay
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -208,6 +211,10 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         absoluteTouchMode = try container.decodeIfPresent(Bool.self, forKey: .absoluteTouchMode) ?? false
         audioLayout = (try? container.decodeIfPresent(StreamAudioLayout.self, forKey: .audioLayout))
             ?? .stereo
+        showPerformanceOverlay = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .showPerformanceOverlay
+        ) ?? false
     }
 
     public var readableValue: String {
@@ -225,6 +232,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("optimizeGameSettings=\(optimizeGameSettings)")
         parts.append("absoluteTouch=\(absoluteTouchMode)")
         parts.append("audioLayout=\(audioLayout.readableValue)")
+        parts.append("statsOverlay=\(showPerformanceOverlay)")
         return parts.joined(separator: ";")
     }
 }

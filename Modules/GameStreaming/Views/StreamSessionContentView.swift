@@ -18,6 +18,54 @@ public struct StreamSessionContentView: View {
         return session.failure
     }
 
+    private var showsPerformanceOverlay: Bool {
+        guard model.settings.showPerformanceOverlay, let session = model.session else { return false }
+        return session.state == .streaming
+    }
+
+    /// The numbers the session already tracks: what was negotiated, how fast it
+    /// arrives, and how far behind the network is. Nothing here is sampled
+    /// separately, so the overlay costs no extra work.
+    private func performanceOverlay(_ session: SessionSnapshot) -> some View {
+        let negotiated = session.negotiated
+        let diagnostics = session.diagnostics
+        var lines: [String] = []
+        if let negotiated {
+            lines.append("\(negotiated.width)×\(negotiated.height)@\(negotiated.frameRate)")
+            lines.append("\(negotiated.codec.displayName) · \(negotiated.audioChannels) 声道")
+        } else {
+            lines.append("协商中")
+        }
+        var stats: [String] = []
+        if let fps = diagnostics.presentedFramesPerSecond {
+            stats.append("\(fps) fps")
+        }
+        if let bitrate = diagnostics.measuredBitrateKbps {
+            stats.append("\(bitrate) kbps")
+        }
+        if let rtt = diagnostics.estimatedRttMs {
+            stats.append("RTT \(rtt) ms")
+        }
+        if diagnostics.networkDroppedFrames > 0 {
+            stats.append("丢帧 \(diagnostics.networkDroppedFrames)")
+        }
+        if !stats.isEmpty {
+            lines.append(stats.joined(separator: " · "))
+        }
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                Text(verbatim: line)
+                    .font(DesignTokens.Typography.monospacedDetail)
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.vertical, DesignTokens.Spacing.xs)
+        .background(.regularMaterial, in: DesignTokens.ShapeToken.element)
+        .padding(DesignTokens.Spacing.md)
+        .allowsHitTesting(false)
+        .accessibilityIdentifier("Stream-Session-stats")
+    }
+
     public var body: some View {
         ZStack {
             StreamPointerInputLayer(
@@ -73,6 +121,11 @@ public struct StreamSessionContentView: View {
                 .accessibilityIdentifier("Stream-Session-snapshot")
                 .accessibilityValue(model.session?.readableValue ?? "unavailable")
                 .allowsHitTesting(false)
+        }
+        .overlay(alignment: .topLeading) {
+            if showsPerformanceOverlay, let session = model.session {
+                performanceOverlay(session)
+            }
         }
         .overlay(alignment: .top) {
             if showsWeakNetworkHint {

@@ -86,7 +86,7 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         options.optimizeGameSettings = true
 
         XCTAssertTrue(options.readableValue.hasSuffix(
-            "swapABXY=true;audioOnPC=true;bluetoothMouse=false;optimizeGameSettings=true;absoluteTouch=false;audioLayout=stereo"
+            "swapABXY=true;audioOnPC=true;bluetoothMouse=false;optimizeGameSettings=true;absoluteTouch=false;audioLayout=stereo;statsOverlay=false"
         ), options.readableValue)
     }
 
@@ -95,6 +95,18 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         XCTAssertEqual(StreamAudioLayout.stereo.channelCount, 2)
         XCTAssertEqual(StreamAudioLayout.surround51.channelCount, 6)
         XCTAssertEqual(StreamAudioLayout.surround71.channelCount, 8)
+    }
+
+    func testThePerformanceOverlayIsOffByDefaultAndSurvivesARoundTrip() throws {
+        XCTAssertFalse(StreamOptions().showPerformanceOverlay)
+
+        var options = StreamOptions()
+        options.showPerformanceOverlay = true
+        let decoded = try JSONDecoder().decode(
+            StreamOptions.self,
+            from: JSONEncoder().encode(options)
+        )
+        XCTAssertTrue(decoded.showPerformanceOverlay)
     }
 
     func testTheAudioLayoutSurvivesARoundTrip() throws {

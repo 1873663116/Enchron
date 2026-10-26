@@ -4423,6 +4423,18 @@
       "template": "Stream-Session-snapshot"
     },
     {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
+        }
+      ],
+      "template": "Stream-Session-stats"
+    },
+    {
       "action": "activate",
       "family": "Stream",
       "role": "operation",
