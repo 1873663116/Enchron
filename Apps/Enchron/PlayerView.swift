@@ -538,7 +538,8 @@ public struct PlayerView: View {
         .persistentSystemOverlays(.visible)
         .ornament(
             visibility: .visible,
-            attachmentAnchor: .scene(.bottom)
+            attachmentAnchor: .scene(.bottom),
+            contentAlignment: isStreamingDockedPresentation ? .back : .top
         ) {
             WindowPlayerDeckView(
                 presentationOverride: isStreamingDockedPresentation

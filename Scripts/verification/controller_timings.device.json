@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-26T05:37:26+00:00",
+  "updatedAt": "2026-10-26T05:48:04+00:00",
   "verbs": {
     "accessibility-inspect": {
       "samples": [
@@ -1535,16 +1535,6 @@
         {
           "at": "2026-08-26T12:20:23+00:00",
           "censored": false,
-          "seconds": 6.83
-        },
-        {
-          "at": "2026-08-26T12:20:23+00:00",
-          "censored": false,
-          "seconds": 8.01
-        },
-        {
-          "at": "2026-08-26T12:20:23+00:00",
-          "censored": false,
           "seconds": 6.57
         },
         {
@@ -1731,6 +1721,16 @@
           "at": "2026-10-26T05:37:26+00:00",
           "censored": false,
           "seconds": 5.41
+        },
+        {
+          "at": "2026-10-26T05:45:17+00:00",
+          "censored": false,
+          "seconds": 2.9
+        },
+        {
+          "at": "2026-10-26T05:48:04+00:00",
+          "censored": false,
+          "seconds": 3.83
         }
       ]
     },
@@ -3271,16 +3271,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-06T17:49:15.355381+00:00",
-          "censored": false,
-          "seconds": 1.842
-        },
-        {
-          "at": "2026-09-06T17:49:23.104198+00:00",
-          "censored": false,
-          "seconds": 1.874
-        },
-        {
           "at": "2026-09-06T17:49:32.571456+00:00",
           "censored": false,
           "seconds": 1.849
@@ -3469,6 +3459,16 @@
           "at": "2026-10-26T05:35:20+00:00",
           "censored": false,
           "seconds": 1.83
+        },
+        {
+          "at": "2026-10-26T05:46:47+00:00",
+          "censored": false,
+          "seconds": 2.33
+        },
+        {
+          "at": "2026-10-26T05:47:35+00:00",
+          "censored": false,
+          "seconds": 2.38
         }
       ]
     },
