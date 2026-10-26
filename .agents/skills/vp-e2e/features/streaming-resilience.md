@@ -59,3 +59,16 @@ grep -E "session end|input release|audio stop|stream content disappeared" "$D/st
 
 - **断连注入对「用户点返回是否有效」失明。** 用命令通道断开跳过的是按钮的命中路径，因此这条注入不能作为返回控件可用的证据。
 - **`stream content disappeared` 是窗口消失的收口行**，与 `session end` 不是同一件事，两条都要看。
+
+## 本轮补齐范围（2026-10-26 裁决）
+
+范围、阶段与验收见 `docs/reviews/streaming-port-review/plan.md`。
+
+纳入：
+
+- 断线后的重连入口与状态；当前只有注入式断开，用户侧没有恢复路径。
+- 弱网提示。
+- 失败原因分类，会话与呈现共用同一份数据源。
+- 主机多地址带来的可达性切换记在 [串流主机](streaming-hosts.md)，不在本文件展开。
+
+不做：会话内自动重启的触发面，维持现有的两类（显示模式切换、主机帧率不匹配）。

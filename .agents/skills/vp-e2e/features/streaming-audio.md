@@ -46,3 +46,14 @@ grep -E "audio (start|stop)" "$D/stream-session-probe.log" | tail
 - **模拟器的音频输出不等于真机。** 模拟器上听到的声音经由宿主 Mac 播放，不能作为真机音频链路的证据。
 - **`audio:received` 增长而 `enqueued` 不增长，是链路断开而不是没声音。**
 - **PC 端播放时本机收不到音频帧，`audio:received` 保持 0 是预期。** 判据改为启动 URL 的 `localAudioPlayMode`。
+
+## 本轮补齐范围（2026-10-26 裁决）
+
+范围、阶段与验收见 `docs/reviews/streaming-port-review/plan.md`。
+
+纳入：
+
+- 声道数按设备能力协商（立体声、六声道、八声道），主机多声道内容不再被下混成立体声。
+- 设置页出现多声道音频开关。
+
+不做：空间音频与头部追踪、音频输出设备的手动切换。设备切换出问题时按缺陷处理，不作为移植项。
