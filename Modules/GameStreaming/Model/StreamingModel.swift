@@ -77,6 +77,7 @@ public final class StreamingModel {
     private var teardownRequested = false
     private var teardownFallbackTask: Task<Void, Never>?
     private var hostQuitRetryTasks: [HostID: Task<Void, Never>] = [:]
+    private var suspendedStream: (hostID: HostID, appID: AppID, appName: String)?
     public var hostQuitFailureMessage: String?
     private var reachabilityTask: Task<Void, Never>?
 
@@ -398,10 +399,19 @@ public final class StreamingModel {
         try await startSession(hostID: hostID, appID: appID, appName: appName, preferResume: true)
     }
 
-    private func startSession(hostID: HostID, appID: AppID?, appName: String?, preferResume: Bool) async throws {
+    private func startSession(
+        hostID: HostID,
+        appID: AppID?,
+        appName: String?,
+        preferResume: Bool,
+        continuesSuspendedSession: Bool = false
+    ) async throws {
         hostQuitRetryTasks[hostID]?.cancel()
         hostQuitRetryTasks[hostID] = nil
-        if let current = session {
+        if !continuesSuspendedSession {
+            suspendedStream = nil
+        }
+        if !continuesSuspendedSession, let current = session {
             let replacesTheRunningApp = appID.map { $0 != current.appID } ?? false
             switch current.state {
             case .connecting, .streaming:
@@ -477,6 +487,9 @@ public final class StreamingModel {
             let backendSession = preferResume
                 ? try await backend.resumeSession(request)
                 : try await backend.launchSession(request)
+            if continuesSuspendedSession, session?.id != sessionID {
+                return
+            }
             let coordinator = StreamSessionCoordinator(
                 sessionID: sessionID,
                 hostID: hostID,
@@ -577,6 +590,7 @@ public final class StreamingModel {
 
     public func disconnect() {
         guard !teardownRequested else { return }
+        suspendedStream = nil
         teardownRequested = true
         let coordinator = self.coordinator
         self.coordinator = nil
@@ -597,13 +611,46 @@ public final class StreamingModel {
         startHostQuit(hostID: hostID)
     }
 
-    public func endStreamInBackground() {
-        guard !teardownRequested else { return }
-        let hostID = session?.hostID
-        releaseInputs(cause: "background")
-        disconnect()
-        guard let hostID else { return }
-        startHostQuit(hostID: hostID)
+    public func suspendForBackground() {
+        guard !teardownRequested, let current = session, let coordinator else { return }
+        switch current.state {
+        case .connecting, .streaming, .interrupted:
+            break
+        case .stopping, .ended:
+            return
+        }
+        suspendedStream = (current.hostID, current.appID, current.appName)
+        teardownFallbackTask?.cancel()
+        teardownFallbackTask = nil
+        self.coordinator = nil
+        streamingProbe.record(
+            "stream suspended for background session=\(current.id.rawValue)",
+            retention: .evidence
+        )
+        let assertion = UIApplication.shared.beginBackgroundTask(withName: "stream-suspend")
+        Task {
+            coordinator.stop(reason: "background")
+            UIApplication.shared.endBackgroundTask(assertion)
+        }
+    }
+
+    public func resumeFromBackground() {
+        guard let suspended = suspendedStream else { return }
+        suspendedStream = nil
+        guard session != nil, coordinator == nil else { return }
+        streamingProbe.record(
+            "stream resuming after background host=\(suspended.hostID.rawValue) app=\(suspended.appName)",
+            retention: .evidence
+        )
+        Task {
+            try? await startSession(
+                hostID: suspended.hostID,
+                appID: suspended.appID,
+                appName: suspended.appName,
+                preferResume: true,
+                continuesSuspendedSession: true
+            )
+        }
     }
 
     private func startHostQuit(hostID: HostID) {

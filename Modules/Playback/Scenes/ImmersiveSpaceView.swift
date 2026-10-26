@@ -1,6 +1,7 @@
 import AVFoundation
 import DesignSystem
 import EnvironmentSceneContract
+import GameController
 import OSLog
 import PlaybackCore
 import RealityKit
@@ -594,6 +595,9 @@ public struct ImmersiveSpaceView: View {
     }()
     @State private var headPoseSource = HeadPoseSource()
     @State private var seekFeedbackAttachment = PlaybackSurfaceSeekAttachment()
+    @State private var inputCaptureAttachment = PlaybackSurfaceInputCaptureAttachment()
+    @State private var dockedPlaneScreenSize: SIMD2<Float>?
+    @State private var inputCaptureGateProbe: String?
 #if DEBUG
     @State private var developerOverlayFollower = DeveloperOverlayFollower()
 #endif
@@ -648,7 +652,11 @@ public struct ImmersiveSpaceView: View {
         PlaybackRealityKitContentTypeScope(runtime: playbackRuntime)
     }
 
-    public init() {}
+    public var inputCaptureOverlay: AnyView?
+
+    public init(inputCaptureOverlay: AnyView? = nil) {
+        self.inputCaptureOverlay = inputCaptureOverlay
+    }
 
     private var requestedPresentation: PlaybackPresentation {
         guard let transition = appModel.presentationTransition else {
@@ -683,6 +691,7 @@ public struct ImmersiveSpaceView: View {
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
             installSeekFeedback(from: attachments, into: content)
+            installInputCapture(from: attachments)
 #if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
 #endif
@@ -694,6 +703,7 @@ public struct ImmersiveSpaceView: View {
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
             installSeekFeedback(from: attachments, into: content)
+            installInputCapture(from: attachments)
 #if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
 #endif
@@ -734,8 +744,17 @@ public struct ImmersiveSpaceView: View {
                     .allowsHitTesting(false)
                 }
             }
+            if let overlay = inputCaptureOverlay, let planeSize = dockedPlaneScreenSize {
+                let captureFrame = PlaybackSurfaceInputCaptureAttachment
+                    .attachmentFrame(forPlaneSize: planeSize)
+                Attachment(id: PlaybackSurfaceInputCaptureAttachment.attachmentID) {
+                    overlay
+                        .frame(width: captureFrame.width, height: captureFrame.height)
+                }
+            }
         }
         .enableRealityKitScriptingInput()
+        .handlesGameControllerEvents(matching: .gamepad)
         .modifier(
             PlaybackSurfaceGestureInput { entity in
                 playbackMenu.presentation.isActive == false
@@ -751,6 +770,7 @@ public struct ImmersiveSpaceView: View {
         .onDisappear {
             controlsAttachmentController.stop()
             seekFeedbackAttachment.stop()
+            inputCaptureAttachment.stop()
 #if DEBUG
             developerOverlayFollower.stop()
 #endif
@@ -1024,6 +1044,54 @@ public struct ImmersiveSpaceView: View {
             videoEntity: videoEntity,
             content: content,
             headPoseSource: headPoseSource
+        )
+    }
+
+    private func installInputCapture(from attachments: RealityViewAttachments) {
+        guard let overlay = inputCaptureOverlay else {
+            inputCaptureAttachment.stop()
+            recordInputCaptureGate("overlayNil")
+            return
+        }
+        let videoEntity = self.videoEntity
+        guard let screenSize = videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize,
+              screenSize.x > 0, screenSize.y > 0
+        else {
+            inputCaptureAttachment.stop()
+            recordInputCaptureGate(
+                "screenSizeMissing presentation=\(requestedPresentation.rawValue)"
+            )
+            return
+        }
+        if dockedPlaneScreenSize != screenSize {
+            dockedPlaneScreenSize = screenSize
+        }
+        guard requestedPresentation == .docked else {
+            inputCaptureAttachment.stop()
+            recordInputCaptureGate("presentation=\(requestedPresentation.rawValue)")
+            return
+        }
+        guard let entity = attachments.entity(
+            for: PlaybackSurfaceInputCaptureAttachment.attachmentID
+        ) else {
+            inputCaptureAttachment.stop()
+            recordInputCaptureGate("entityMissing")
+            return
+        }
+        inputCaptureAttachment.install(
+            entity,
+            on: videoEntity,
+            screenSize: screenSize
+        )
+        recordInputCaptureGate("installed overlay=\(overlay != nil)")
+    }
+
+    private func recordInputCaptureGate(_ reason: String) {
+        guard inputCaptureGateProbe != reason else { return }
+        inputCaptureGateProbe = reason
+        appModel.recordSurfaceInputProbe(
+            "inputCapture gate reason=\(reason)",
+            retention: .evidence
         )
     }
 

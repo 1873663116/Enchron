@@ -132,10 +132,10 @@ public struct StreamSettingsSection: View {
             ),
             SettingListGroup.Item(
                 id: "Streaming-frameBuffer",
-                title: "一帧缓冲",
+                title: "帧调度",
                 systemName: "metronome",
-                supportingText: "多留一帧吸收网络抖动，代价是最多一帧的延迟。",
-                accessory: .boundToggle(isOn: frameBufferBinding, isEnabled: true, marker: nil)
+                supportingText: "按显示刷新节奏安排帧呈现。",
+                accessory: .menu(title: framePacingLabel, options: framePacingOptions)
             )
         ]
     }
@@ -410,11 +410,19 @@ public struct StreamSettingsSection: View {
         )
     }
 
-    private var frameBufferBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.frameBuffer },
-            set: { value in model.updateSettings { $0.frameBuffer = value } }
-        )
+    private var framePacingLabel: String {
+        model.settings.frameBuffer ? "平滑优先" : "延迟优先"
+    }
+
+    private var framePacingOptions: [SettingListGroup.MenuOption] {
+        [
+            SettingListGroup.MenuOption("平滑优先", id: "smooth") {
+                model.updateSettings { $0.frameBuffer = true }
+            },
+            SettingListGroup.MenuOption("延迟优先", id: "latency") {
+                model.updateSettings { $0.frameBuffer = false }
+            }
+        ]
     }
 
     private func applyBitrateFollowing(_ mutate: (inout StreamOptions) -> Void) {

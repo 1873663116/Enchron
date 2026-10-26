@@ -49,6 +49,7 @@ $(SRCROOT)/Modules/GameStreaming/Model/StreamingModel.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingPlaybackInformation+Session.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamAudioOutput.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamGamepadInput.swift
+$(SRCROOT)/Modules/GameStreaming/Session/StreamGamepadRateProbe.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamMouseInput.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamRenderBinding.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionCoordinator.swift
@@ -189,6 +190,7 @@ $(SRCROOT)/Modules/Playback/Views/PlaybackFormatters.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackPanel.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackRealityPresenter.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceGestureInput.swift
+$(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceInputCaptureAttachment.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceSeekAttachment.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceSeekFeedback.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackTimeline.swift

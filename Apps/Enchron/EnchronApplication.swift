@@ -124,6 +124,7 @@ final class EnchronApplication {
     private let suspensionWatchdog = ApplicationSuspensionWatchdog()
     @ObservationIgnored
     private var backgroundNotificationObserver: NSObjectProtocol?
+    private var activeNotificationObserver: NSObjectProtocol?
     private var applicationBackgroundedAt: Date?
     private var suspendedPlaybackPresentation: PlaybackPresentation?
     private var suspendedPlaybackPositionSeconds: Double?
@@ -664,11 +665,19 @@ final class EnchronApplication {
             MainActor.assumeIsolated {
                 guard let self, self.streamingModel.session != nil else { return }
                 SurfaceInputProbes.record(
-                    "applicationBackgrounded endingStream",
+                    "applicationBackgrounded suspendingStream",
                     retention: .evidence
                 )
-                self.streamingModel.endStreamInBackground()
-                self.playbackRuntime.endExternalVideoSession()
+                self.streamingModel.suspendForBackground()
+            }
+        }
+        activeNotificationObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.streamingModel.resumeFromBackground()
             }
         }
     }

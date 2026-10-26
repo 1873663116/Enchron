@@ -1,6 +1,26 @@
 import Foundation
 import GameController
 
+public struct StreamMouseMotion: Equatable, Sendable {
+    private static let speedDivisor: Float = 1.25
+
+    private var pendingX: Float = 0
+    private var pendingY: Float = 0
+
+    public init() {}
+
+    public mutating func screenDelta(rawX: Float, rawY: Float) -> (x: Int32, y: Int32) {
+        pendingX += rawX / Self.speedDivisor
+        pendingY += -rawY / Self.speedDivisor
+        let x = pendingX.rounded(.towardZero)
+        let y = pendingY.rounded(.towardZero)
+        guard x != 0 || y != 0 else { return (0, 0) }
+        pendingX -= x
+        pendingY -= y
+        return (Int32(clamping: Int(x)), Int32(clamping: Int(y)))
+    }
+}
+
 public struct StreamScrollAccumulator: Equatable, Sendable {
     private var pending: Float = 0
 
@@ -31,7 +51,9 @@ public final class StreamMouseInput: NSObject {
     public static let rightButtonCode: Int32 = 0x03
 
     private var mouse: GCMouse?
+    private var motion = StreamMouseMotion()
     private var accumulator = StreamScrollAccumulator()
+    private var lastDeltaProbe = Date.distantPast
     private var onMove: (@Sendable (Int32, Int32) -> Void)?
     private var onButton: (@Sendable (Int32, Bool) -> Void)?
     private var onScrollClicks: (@Sendable (Int32) -> Void)?
@@ -103,6 +125,7 @@ public final class StreamMouseInput: NSObject {
         guard let input = candidate.mouseInput else { return }
         mouse = candidate
         accumulator = StreamScrollAccumulator()
+        motion = StreamMouseMotion()
         input.mouseMovedHandler = { [weak self] _, deltaX, deltaY in
             self?.handleMove(deltaX: deltaX, deltaY: deltaY)
         }
@@ -140,10 +163,21 @@ public final class StreamMouseInput: NSObject {
     }
 
     private func handleMove(deltaX: Float, deltaY: Float) {
-        let dx = Int32(deltaX.rounded())
-        let dy = Int32(deltaY.rounded())
-        guard dx != 0 || dy != 0 else { return }
-        onMove?(dx, dy)
+        let delta = motion.screenDelta(rawX: deltaX, rawY: deltaY)
+        recordDeltaProbe(rawX: deltaX, rawY: deltaY, sentX: delta.x, sentY: delta.y)
+        guard delta.x != 0 || delta.y != 0 else { return }
+        onMove?(delta.x, delta.y)
+    }
+
+    private func recordDeltaProbe(rawX: Float, rawY: Float, sentX: Int32, sentY: Int32) {
+        let now = Date()
+        guard now.timeIntervalSince(lastDeltaProbe) >= 0.25 else { return }
+        lastDeltaProbe = now
+        StreamSessionProbes.record(
+            "mouse delta raw=\(String(format: "%.2f", rawX)),\(String(format: "%.2f", rawY))"
+                + " sent=\(sentX),\(sentY)",
+            retention: .evidence
+        )
     }
 
     private func handleScroll(_ yValue: Float) {

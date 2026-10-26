@@ -21,18 +21,13 @@ public struct StreamSessionContentView: View {
                     )
                 }
             )
-            StreamKeyboardCapture(
+            StreamFocusedInputCapture(
                 onKey: { usage, down, flags in
                     model.sendKey(
                         hidUsage: UInt32(usage.rawValue),
                         down: down,
                         modifierFlags: UInt32(flags.rawValue)
                     )
-                },
-                onFocusChange: { focused in
-                    if !focused {
-                        model.releaseInputs(cause: "focus-lost")
-                    }
                 }
             )
         }
@@ -122,68 +117,5 @@ private struct StreamPointerInputLayer: View {
         let y = (location.y - origin.y) / fitted.height
         guard x >= 0, x <= 1, y >= 0, y <= 1 else { return nil }
         return CGPoint(x: x, y: y)
-    }
-}
-
-private struct StreamKeyboardCapture: UIViewRepresentable {
-    let onKey: (UIKeyboardHIDUsage, Bool, UIKeyModifierFlags) -> Void
-    let onFocusChange: (Bool) -> Void
-
-    func makeUIView(context: Context) -> StreamKeyboardCaptureView {
-        let view = StreamKeyboardCaptureView()
-        view.onKey = onKey
-        view.onFocusChange = onFocusChange
-        return view
-    }
-
-    func updateUIView(_ uiView: StreamKeyboardCaptureView, context: Context) {
-        uiView.onKey = onKey
-        uiView.onFocusChange = onFocusChange
-    }
-}
-
-private final class StreamKeyboardCaptureView: UIView {
-    var onKey: ((UIKeyboardHIDUsage, Bool, UIKeyModifierFlags) -> Void)?
-    var onFocusChange: ((Bool) -> Void)?
-
-    override var canBecomeFirstResponder: Bool { true }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        guard window != nil else {
-            return
-        }
-        if !isFirstResponder {
-            becomeFirstResponder()
-        }
-    }
-
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        let handled = forward(presses, down: true)
-        if !handled {
-            super.pressesBegan(presses, with: event)
-        }
-    }
-
-    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        let handled = forward(presses, down: false)
-        if !handled {
-            super.pressesEnded(presses, with: event)
-        }
-    }
-
-    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        _ = forward(presses, down: false)
-        super.pressesCancelled(presses, with: event)
-    }
-
-    private func forward(_ presses: Set<UIPress>, down: Bool) -> Bool {
-        var handled = false
-        for press in presses {
-            guard let key = press.key else { continue }
-            onKey?(key.keyCode, down, key.modifierFlags)
-            handled = true
-        }
-        return handled
     }
 }

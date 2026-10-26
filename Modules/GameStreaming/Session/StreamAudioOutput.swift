@@ -26,6 +26,7 @@ final class StreamAudioOutput: @unchecked Sendable {
     private var stopped = false
     private let engineStarts = Atomic<Int64>(0)
     private let engineRunning = Atomic<Bool>(false)
+    private let lastEngineRecoveryNanoseconds = Atomic<UInt64>(0)
 
     var onEvent: (@Sendable (String) -> Void)?
 
@@ -47,6 +48,27 @@ final class StreamAudioOutput: @unchecked Sendable {
         }
         pcm.withUnsafeBytes { raw in
             ring.write(raw.bindMemory(to: Int16.self), frames: frameCount)
+        }
+        recoverEngineIfStopped()
+    }
+
+    private func recoverEngineIfStopped() {
+        guard !engineRunning.load(ordering: .relaxed) else { return }
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard now &- lastEngineRecoveryNanoseconds.load(ordering: .relaxed) >= 1_000_000_000 else {
+            return
+        }
+        lastEngineRecoveryNanoseconds.store(now, ordering: .relaxed)
+        queue.async { [weak self] in
+            guard let self, !self.stopped, self.sourceNode != nil, !self.engine.isRunning else {
+                return
+            }
+            do {
+                try AVAudioSession.sharedInstance().setActive(true)
+            } catch {
+                self.onEvent?("audio session reactivation failed error=\(error.localizedDescription)")
+            }
+            self.startEngine(reason: "framesWithoutEngine")
         }
     }
 
@@ -155,6 +177,11 @@ final class StreamAudioOutput: @unchecked Sendable {
         ) { [weak self] notification in
             guard let self else { return }
             let rawType = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            let rawReason = notification.userInfo?["AVAudioSessionInterruptionReasonKey"] as? UInt
+            self.onEvent?(
+                "audio interruption type=\(rawType.map(String.init) ?? "none")"
+                    + " reason=\(rawReason.map(String.init) ?? "none")"
+            )
             guard rawType.flatMap(AVAudioSession.InterruptionType.init(rawValue:)) == .ended else {
                 self.engineRunning.store(false, ordering: .relaxed)
                 return
