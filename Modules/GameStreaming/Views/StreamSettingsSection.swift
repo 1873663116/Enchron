@@ -57,6 +57,7 @@ public struct StreamSettingsSection: View {
             id: "Streaming-resolution",
             title: "分辨率",
             systemName: "rectangle.on.rectangle",
+            supportingText: resolutionSupportingText,
             accessory: .menu(title: resolutionMenuTitle, options: resolutionOptions)
         )
         if model.settings.resolution == .custom {
@@ -157,7 +158,8 @@ public struct StreamSettingsSection: View {
                 supportingTextLineLimit: nil,
                 accessory: .boundToggle(
                     isOn: hdrBinding,
-                    isEnabled: model.settings.codec != .h264,
+                    isEnabled: model.settings.codec != .h264
+                        && StreamCodecAvailability.hdrOutputSupported,
                     marker: nil
                 )
             )
@@ -198,6 +200,13 @@ public struct StreamSettingsSection: View {
                 systemName: "hifispeaker",
                 supportingText: "声音留在主机扬声器，不串流到本机。",
                 accessory: .boundToggle(isOn: audioOnPCBinding, isEnabled: true, marker: nil)
+            ),
+            SettingListGroup.Item(
+                id: "Streaming-audioLayout",
+                title: "声道",
+                systemName: "speaker.wave.3",
+                supportingText: "请求主机按多声道编码；主机没有对应的扬声器配置时仍然是立体声。",
+                accessory: .menu(title: model.settings.audioLayout.label, options: audioLayoutOptions)
             ),
             SettingListGroup.Item(
                 id: "Streaming-optimizeSettings",
@@ -361,6 +370,13 @@ public struct StreamSettingsSection: View {
         }
     }
 
+    private var resolutionSupportingText: String? {
+        guard StreamCodecAvailability.maximumStreamPixelCount < StreamResolution.maximumPixelCount else {
+            return nil
+        }
+        return "本机硬件解码上限为 1080p，更高的分辨率不会出现在列表中。"
+    }
+
     private var resolutionMenuTitle: String {
         guard model.settings.resolution == .custom else {
             return model.settings.resolution.label
@@ -369,7 +385,12 @@ public struct StreamSettingsSection: View {
     }
 
     private var resolutionOptions: [SettingListGroup.MenuOption] {
-        StreamResolution.allCases.map { resolution in
+        StreamResolution.allCases
+            .filter {
+                $0.fits(pixelBudget: StreamCodecAvailability.maximumStreamPixelCount)
+                    || $0 == model.settings.resolution
+            }
+            .map { resolution in
             SettingListGroup.MenuOption(resolution.label, id: resolution.rawValue) {
                 applyBitrateFollowing { $0.resolution = resolution }
             }
@@ -399,9 +420,18 @@ public struct StreamSettingsSection: View {
         )
     }
 
+    private var audioLayoutOptions: [SettingListGroup.MenuOption] {
+        StreamAudioLayout.allCases.map { layout in
+            SettingListGroup.MenuOption(layout.label, id: layout.rawValue) {
+                model.updateSettings { $0.audioLayout = layout }
+            }
+        }
+    }
+
     private var codecOptions: [SettingListGroup.MenuOption] {
         StreamCodecPreference.allCases
             .filter { $0 != .av1 || av1DecodeAvailable }
+            .filter { $0 != .hevc || StreamCodecAvailability.hevcDecodeSupported }
             .map { codec in
                 SettingListGroup.MenuOption(codec.label, id: codec.rawValue) {
                     model.updateSettings { $0.codec = codec }
@@ -414,7 +444,15 @@ public struct StreamSettingsSection: View {
     }
 
     private var hdrExplanation: String {
-        "接收 HDR 视频并交由系统以 HDR 呈现。需要主机启用 HDR，并提供 HDR 视频信号。不支持 H.264 编码。"
+        guard StreamCodecAvailability.hdrOutputSupported else {
+            return "本机没有 HDR 解码能力，HDR 不可用。"
+        }
+        if let host = model.selectedHost,
+           model.hostCapabilities(hostID: host.id).hasAnyDeclaration,
+           !model.hostCapabilities(hostID: host.id).declaresHDR {
+            return "主机未声明 HDR 支持；开启后仍可能只收到 SDR 画面。"
+        }
+        return "接收 HDR 视频并交由系统以 HDR 呈现。需要主机启用 HDR，并提供 HDR 视频信号。不支持 H.264 编码。"
     }
 
     private var hdrBinding: Binding<Bool> {

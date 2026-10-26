@@ -66,6 +66,9 @@ public struct MoonlightStreamRequest: Sendable {
     public var playAudioOnPC: Bool
     public var optimizeGameSettings: Bool
     public var gamepadMask: Int
+    public var audioChannelCount: Int
+    public var packetSize: Int
+    public var streamingRemotely: Int
 
     public init(
         address: MoonlightHostAddress,
@@ -80,7 +83,10 @@ public struct MoonlightStreamRequest: Sendable {
         hdrEnabled: Bool,
         playAudioOnPC: Bool = false,
         optimizeGameSettings: Bool = false,
-        gamepadMask: Int = 0
+        gamepadMask: Int = 0,
+        audioChannelCount: Int = 2,
+        packetSize: Int = 1392,
+        streamingRemotely: Int = -1
     ) {
         self.address = address
         self.serverCert = serverCert
@@ -95,6 +101,9 @@ public struct MoonlightStreamRequest: Sendable {
         self.playAudioOnPC = playAudioOnPC
         self.optimizeGameSettings = optimizeGameSettings
         self.gamepadMask = gamepadMask
+        self.audioChannelCount = audioChannelCount
+        self.packetSize = packetSize
+        self.streamingRemotely = streamingRemotely
     }
 }
 

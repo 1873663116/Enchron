@@ -83,6 +83,21 @@ public final class StreamingModel {
     private var reachabilityTask: Task<Void, Never>?
     private var reachabilityPollTask: Task<Void, Never>?
     private var pairingBackgroundTasks: [HostID: UIBackgroundTaskIdentifier] = [:]
+    public struct BlockedApplication: Sendable, Equatable {
+        public var appID: AppID
+        public var appName: String
+    }
+
+    public struct LaunchIntent: Sendable, Equatable {
+        public var hostID: HostID
+        public var appID: AppID
+        public var appName: String
+    }
+
+    public private(set) var blockedApplications: [HostID: BlockedApplication] = [:]
+    public private(set) var lastLaunchIntent: LaunchIntent?
+    private let applicationCache = ApplicationCacheStore()
+    private let artworkLimiter = ArtworkFetchLimiter()
     private var publicIPv4: String?
     private var publicIPv4Task: Task<Void, Never>?
 
@@ -111,8 +126,14 @@ public final class StreamingModel {
             id: stored.hostID,
             name: stored.name,
             address: stored.address,
-            reachability: .unknown,
-            pairing: stored.hasPairingRecord ? .paired : .unpaired
+            reachability: stored.lastReachability ?? .unknown,
+            pairing: stored.hasPairingRecord ? .paired : .unpaired,
+            remoteSession: stored.lastRemoteState == nil && stored.lastCurrentGame == nil
+                ? nil
+                : RemoteSessionInfo(
+                    currentGame: stored.lastCurrentGame,
+                    rawState: stored.lastRemoteState
+                )
         )
     }
 
@@ -197,7 +218,12 @@ public final class StreamingModel {
             alternateAddresses: nil,
             localAddress: info.localAddress.flatMap { HostAddress(parsing: $0) },
             externalAddress: info.externalAddress.flatMap { HostAddress(parsing: $0) },
-            macAddress: mac
+            macAddress: mac,
+            lastReachability: .online,
+            lastRemoteState: info.state,
+            lastCurrentGame: info.currentGame,
+            lastSeenAt: Date(),
+            serverCodecModeSupport: info.serverCodecModeSupport
         )
         _ = hostStore.upsert(stored)
         reloadHosts()
@@ -329,6 +355,20 @@ public final class StreamingModel {
             currentGame: info.currentGame,
             rawState: info.state
         )
+        if let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }) {
+            storedHosts[storedIndex].lastReachability = .online
+            storedHosts[storedIndex].lastRemoteState = info.state
+            storedHosts[storedIndex].lastCurrentGame = info.currentGame
+            storedHosts[storedIndex].lastSeenAt = Date()
+            storedHosts[storedIndex].serverCodecModeSupport = info.serverCodecModeSupport
+            _ = hostStore.update(id: storedHosts[storedIndex].id) { record in
+                record.lastReachability = .online
+                record.lastRemoteState = info.state
+                record.lastCurrentGame = info.currentGame
+                record.lastSeenAt = Date()
+                record.serverCodecModeSupport = info.serverCodecModeSupport
+            }
+        }
         if authoritativePairing, let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }) {
             storedHosts[storedIndex].hasPairingRecord = info.pairStatus == 1
             if !storedHosts[storedIndex].hasUserProvidedName,
@@ -342,6 +382,13 @@ public final class StreamingModel {
     private func applyReachability(_ reachability: HostReachability, hostID: HostID) {
         guard let index = hosts.firstIndex(where: { $0.id == hostID }) else { return }
         hosts[index].reachability = reachability
+        if let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }),
+           storedHosts[storedIndex].lastReachability != reachability {
+            storedHosts[storedIndex].lastReachability = reachability
+            _ = hostStore.update(id: storedHosts[storedIndex].id) { record in
+                record.lastReachability = reachability
+            }
+        }
     }
 
     /// Wakes a suspended host and rechecks it straight away. The host needs a
@@ -549,24 +596,68 @@ public final class StreamingModel {
 
     public func loadApplications(hostID: HostID) {
         guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return }
-        if let index = hosts.firstIndex(where: { $0.id == hostID }) {
-            hosts[index].applications = .unknown
+        let cached = applicationCache.load(hostID: hostID.rawValue)?.map { entry in
+            HostApplication(
+                id: AppID(rawValue: entry.id),
+                name: entry.name,
+                hdrSupported: entry.hdrSupported
+            )
+        }
+        if let index = hosts.firstIndex(where: { $0.id == hostID }),
+           hosts[index].applications.applications == nil {
+            hosts[index].applications = cached.map { .loaded($0) } ?? .unknown
         }
         Task { [backend] in
             do {
-                let applications = try await backend.applications(
-                    BackendCredentials(address: stored.address, serverCert: stored.serverCert)
-                )
+                let applications = try await Self.retrying {
+                    try await backend.applications(
+                        BackendCredentials(address: stored.address, serverCert: stored.serverCert)
+                    )
+                }
                 guard let index = self.hosts.firstIndex(where: { $0.id == hostID }) else { return }
                 self.hosts[index].applications = .loaded(applications)
+                self.applicationCache.save(
+                    hostID: hostID.rawValue,
+                    applications: applications.map {
+                        ApplicationCacheStore.Application(
+                            id: $0.id.rawValue,
+                            name: $0.name,
+                            hdrSupported: $0.hdrSupported
+                        )
+                    }
+                )
             } catch {
                 guard let index = self.hosts.firstIndex(where: { $0.id == hostID }) else { return }
-                self.hosts[index].applications = .failed(String(describing: error))
+                if self.hosts[index].applications.applications == nil {
+                    self.hosts[index].applications = .failed(String(describing: error))
+                }
             }
         }
     }
 
+    /// One retry covers the case where the host woke up between the request and
+    /// its first answer; anything longer belongs to the reachability poll.
+    private static func retrying<T>(
+        attempts: Int = 2,
+        delay: Duration = .seconds(1),
+        _ body: () async throws -> T
+    ) async throws -> T {
+        var lastError: (any Error)?
+        for attempt in 0..<attempts {
+            do {
+                return try await body()
+            } catch {
+                lastError = error
+                if attempt + 1 < attempts {
+                    try? await Task.sleep(for: delay)
+                }
+            }
+        }
+        throw lastError ?? CancellationError()
+    }
+
     public func launch(hostID: HostID, appID: AppID, appName: String) async throws {
+        lastLaunchIntent = LaunchIntent(hostID: hostID, appID: appID, appName: appName)
         try await startSession(hostID: hostID, appID: appID, appName: appName, preferResume: false)
     }
 
@@ -650,11 +741,16 @@ public final class StreamingModel {
             resolvedAppName = application.name
         }
 
+        let networkPlan = StreamNetworkCondition.plan(for: stored.address)
+        StreamSessionProbes.record(
+            "network path host=\(stored.name) \(networkPlan.readableValue)",
+            retention: .evidence
+        )
         let request = BackendSessionRequest(
             credentials: BackendCredentials(address: stored.address, serverCert: stored.serverCert),
             appID: resolvedAppID,
             appName: resolvedAppName,
-            options: settings
+            options: adjustedOptionsForThisDevice()
         )
 
         let sessionID = SessionID()
@@ -941,6 +1037,99 @@ public final class StreamingModel {
         )
     }
 
+    /// Drops what this device cannot present instead of asking for a stream the
+    /// decoder will refuse: HDR needs HEVC Main10 hardware decode, and above
+    /// 1080p needs a hardware decoder that can keep up.
+    private func adjustedOptionsForThisDevice() -> StreamOptions {
+        var options = settings
+        if options.hdrEnabled && !StreamCodecAvailability.hdrOutputSupported {
+            options.hdrEnabled = false
+            StreamSessionProbes.record("hdr requested disabled reason=no-hdr-decode", retention: .evidence)
+        }
+        let pixels = options.streamWidth * options.streamHeight
+        if pixels > StreamCodecAvailability.maximumStreamPixelCount {
+            let previous = "\(options.streamWidth)x\(options.streamHeight)"
+            options.resolution = .r1920x1080
+            StreamSessionProbes.record(
+                "resolution clamped from=\(previous) to=1920x1080 reason=decode-budget",
+                retention: .evidence
+            )
+        }
+        return options
+    }
+
+    /// Repeats the last launch from the failure alert, so a transient failure
+    /// costs one tap instead of a trip back to the grid.
+    public func retryLastLaunch() async throws {
+        guard let intent = lastLaunchIntent else {
+            throw StreamFailure(
+                stage: .launch,
+                kind: .applicationMissing,
+                message: "没有可重试的启动请求",
+                recovery: .repickApplication
+            )
+        }
+        failures[intent.hostID] = nil
+        try await launch(hostID: intent.hostID, appID: intent.appID, appName: intent.appName)
+    }
+
+    public func hostCapabilities(hostID: HostID) -> StreamHostCapabilities {
+        let support = storedHosts.first(where: { $0.hostID == hostID })?.serverCodecModeSupport ?? 0
+        return StreamHostCapabilities(serverCodecModeSupport: support)
+    }
+
+    /// Remembers what the user tried to start when the host refused because it
+    /// was busy, so the switch action can resume that exact intent.
+    public func rememberBlockedApplication(hostID: HostID, appID: AppID, appName: String) {
+        blockedApplications[hostID] = BlockedApplication(appID: appID, appName: appName)
+    }
+
+    public func clearBlockedApplication(hostID: HostID) {
+        blockedApplications[hostID] = nil
+    }
+
+    /// Ends whatever occupies the host, then starts the application the user had
+    /// asked for. The host refuses a launch while another session runs, so the
+    /// quit has to land first.
+    public func replaceBlockedApplication(hostID: HostID) async throws {
+        guard let blocked = blockedApplications[hostID] else {
+            throw StreamFailure(
+                stage: .launch,
+                kind: .applicationMissing,
+                message: "没有待启动的应用",
+                recovery: .repickApplication
+            )
+        }
+        try? await quitApplication(hostID: hostID)
+        blockedApplications[hostID] = nil
+        failures[hostID] = nil
+        try await launch(hostID: hostID, appID: blocked.appID, appName: blocked.appName)
+    }
+
+    /// Reattaches to the application the host reports as running, without asking
+    /// the user to pick it from the grid.
+    public func resumeRunningApplication(hostID: HostID) async throws {
+        guard let running = hosts.first(where: { $0.id == hostID })?.remoteSession?.currentGame,
+              !running.isEmpty, running != "0"
+        else {
+            throw StreamFailure(
+                stage: .launch,
+                kind: .applicationMissing,
+                message: "主机没有正在运行的应用",
+                recovery: .repickApplication
+            )
+        }
+        failures[hostID] = nil
+        try await resume(hostID: hostID, appID: AppID(rawValue: running), appName: nil)
+    }
+
+    public func canResumeRunningApplication(hostID: HostID) -> Bool {
+        guard let running = hosts.first(where: { $0.id == hostID })?.remoteSession?.currentGame else {
+            return false
+        }
+        return !running.isEmpty && running != "0"
+    }
+
     public func sendPointerMove(normalizedX: Float, normalizedY: Float) {
         coordinator?.sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
     }
@@ -1047,15 +1236,26 @@ public final class StreamingModel {
 
     public func artworkFileURL(hostID: HostID, appID: AppID) async -> URL? {
         let key = "\(hostID.rawValue)-\(appID.rawValue)"
-        if let cached = artworkCache[key] {
-            return cached
-        }
-        guard let data = await artwork(hostID: hostID, appID: appID) else { return nil }
         let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory
         let directory = base.appendingPathComponent("enchron-app-artwork", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let file = directory.appendingPathComponent("app-\(key).png")
+        if let cached = artworkCache[key], FileManager.default.fileExists(atPath: cached.path) {
+            return cached
+        }
+        if FileManager.default.fileExists(atPath: file.path) {
+            artworkCache[key] = file
+            return file
+        }
+        guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return nil }
+        let credentials = BackendCredentials(address: stored.address, serverCert: stored.serverCert)
+        await artworkLimiter.acquire()
+        let data = try? await Self.retrying {
+            try await backend.artwork(credentials, appID: appID)
+        }
+        await artworkLimiter.release()
+        guard let data else { return nil }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         guard (try? data.write(to: file, options: .atomic)) != nil else { return nil }
         artworkCache[key] = file
         return file

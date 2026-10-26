@@ -48,6 +48,16 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
         }
     }
 
+    /// Pixels a preset asks the decoder for. `custom` reports its maximum so it
+    /// is only offered when the device budget covers anything it could request.
+    public var pixelCount: Int {
+        self == .custom ? Self.maximumPixelCount : width * height
+    }
+
+    public func fits(pixelBudget: Int) -> Bool {
+        pixelCount <= pixelBudget
+    }
+
     public var height: Int {
         switch self {
         case .r1280x720: 720
@@ -65,10 +75,6 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
             return "自定义"
         }
         return "\(width) × \(height)"
-    }
-
-    public var pixelCount: Int {
-        width * height
     }
 
     public static func isCustomDimensionsValid(width: Int, height: Int) -> Bool {
@@ -110,6 +116,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var bluetoothMouseEnabled: Bool
     public var optimizeGameSettings: Bool
     public var absoluteTouchMode: Bool
+    public var audioLayout: StreamAudioLayout
 
     public static let defaultFrameRates = [30, 60, 90, 120]
 
@@ -137,7 +144,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         playAudioOnPC: Bool = false,
         bluetoothMouseEnabled: Bool = true,
         optimizeGameSettings: Bool = false,
-        absoluteTouchMode: Bool = false
+        absoluteTouchMode: Bool = false,
+        audioLayout: StreamAudioLayout = .stereo
     ) {
         self.resolution = resolution
         self.customWidth = customWidth
@@ -153,6 +161,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.bluetoothMouseEnabled = bluetoothMouseEnabled
         self.optimizeGameSettings = optimizeGameSettings
         self.absoluteTouchMode = absoluteTouchMode
+        self.audioLayout = audioLayout
     }
 
     public var streamWidth: Int {
@@ -167,7 +176,7 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
         case codec, hdrEnabled, frameBuffer, customBitrateEnabled
         case swapABXYButtons, playAudioOnPC, bluetoothMouseEnabled, optimizeGameSettings
-        case absoluteTouchMode
+        case absoluteTouchMode, audioLayout
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -197,6 +206,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         bluetoothMouseEnabled = try container.decodeIfPresent(Bool.self, forKey: .bluetoothMouseEnabled) ?? true
         optimizeGameSettings = try container.decodeIfPresent(Bool.self, forKey: .optimizeGameSettings) ?? false
         absoluteTouchMode = try container.decodeIfPresent(Bool.self, forKey: .absoluteTouchMode) ?? false
+        audioLayout = (try? container.decodeIfPresent(StreamAudioLayout.self, forKey: .audioLayout))
+            ?? .stereo
     }
 
     public var readableValue: String {
@@ -213,8 +224,35 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("bluetoothMouse=\(bluetoothMouseEnabled)")
         parts.append("optimizeGameSettings=\(optimizeGameSettings)")
         parts.append("absoluteTouch=\(absoluteTouchMode)")
+        parts.append("audioLayout=\(audioLayout.readableValue)")
         return parts.joined(separator: ";")
     }
+}
+
+/// What the host is asked to encode. The count has to match the Windows channel
+/// mask, so the layouts are fixed rather than free-form numbers.
+public enum StreamAudioLayout: String, Sendable, CaseIterable, Codable {
+    case stereo
+    case surround51
+    case surround71
+
+    public var channelCount: Int {
+        switch self {
+        case .stereo: 2
+        case .surround51: 6
+        case .surround71: 8
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .stereo: "立体声"
+        case .surround51: "5.1 环绕"
+        case .surround71: "7.1 环绕"
+        }
+    }
+
+    public var readableValue: String { rawValue }
 }
 
 public enum StreamCodecAvailability {
@@ -226,6 +264,45 @@ public enum StreamCodecAvailability {
     public static var av1DecodeSupported: Bool {
         MoonlightService.isAV1PlaybackSupported
             && VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+    }
+
+    /// HDR travels as HEVC Main10, so a device that cannot decode HEVC in
+    /// hardware cannot show an HDR stream whatever the host offers.
+    public static var hdrOutputSupported: Bool {
+        VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
+    }
+
+    public static var hevcDecodeSupported: Bool {
+        VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
+    }
+
+    /// Above 1080p the stream needs a hardware decoder that can keep up; without
+    /// one the choice is hidden instead of producing a session that stutters.
+    public static var maximumStreamPixelCount: Int {
+        hevcDecodeSupported || av1DecodeSupported
+            ? StreamResolution.maximumPixelCount
+            : 1920 * 1080
+    }
+}
+
+/// What the host itself reports about its encoders.
+///
+/// The bits follow the value Sunshine and GFE send as `ServerCodecModeSupport`.
+/// A host that leaves it at zero has said nothing, so nothing is hidden on that
+/// basis; the value is a hint for the settings copy, not a gate.
+public struct StreamHostCapabilities: Sendable, Equatable {
+    public var declaresHEVC: Bool
+    public var declaresHDR: Bool
+    public var declaresAV1: Bool
+
+    public init(serverCodecModeSupport: UInt32) {
+        declaresHEVC = serverCodecModeSupport & 0x01 != 0
+        declaresHDR = serverCodecModeSupport & 0x02 != 0
+        declaresAV1 = serverCodecModeSupport & 0x04 != 0
+    }
+
+    public var hasAnyDeclaration: Bool {
+        declaresHEVC || declaresHDR || declaresAV1
     }
 }
 

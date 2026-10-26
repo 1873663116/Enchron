@@ -4168,6 +4168,30 @@
           "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
         }
       ],
+      "template": "Stream-HostDetail-ResumeButton"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-SwitchButton"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
       "template": "Stream-HostDetail-WakeButton"
     },
     {
@@ -4181,6 +4205,18 @@
         }
       ],
       "template": "Stream-HostDetail-error"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-help"
     },
     {
       "action": "typeText",
@@ -8081,6 +8117,42 @@
     {
       "id": "accessibility:Stream-Discovery-row-{host.instanceName}",
       "identifierTemplate": "Stream-Discovery-row-{host.instanceName}",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-ResumeButton",
+      "identifierTemplate": "Stream-HostDetail-ResumeButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-SwitchButton",
+      "identifierTemplate": "Stream-HostDetail-SwitchButton",
       "kind": "activate",
       "proofContextDerivation": {
         "host": "browserWindowSurface",

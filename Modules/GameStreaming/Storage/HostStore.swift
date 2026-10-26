@@ -13,6 +13,11 @@ public struct StoredHost: Codable, Equatable {
     public var localAddress: HostAddress?
     public var externalAddress: HostAddress?
     public var macAddress: String?
+    public var lastReachability: HostReachability?
+    public var lastRemoteState: String?
+    public var lastCurrentGame: String?
+    public var lastSeenAt: Date?
+    public var serverCodecModeSupport: UInt32?
 
     public var hasUserProvidedName: Bool {
         nameIsUserProvided ?? false

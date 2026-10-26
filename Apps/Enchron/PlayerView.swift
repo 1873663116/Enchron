@@ -152,6 +152,9 @@ public struct PlayerView: View {
                 guard streamingModel.session == nil else { return }
                 spatialPlatformEffectCoordinator.applyPlaybackResidency(residency)
             }
+            .onChange(of: streamingModel.session?.state) { _, state in
+                applyStreamDisplayCriteria(for: state)
+            }
             .overlay {
 #if DEBUG
                 if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
@@ -169,6 +172,23 @@ public struct PlayerView: View {
                 }
 #endif
             }
+    }
+
+    /// The stream's own display mode request: it carries the frame rate and the
+    /// HDR colour space the session negotiated, and is released when the stream
+    /// is gone.
+    private func applyStreamDisplayCriteria(for state: StreamSessionState?) {
+        guard state == .streaming, let session = streamingModel.session else {
+            playbackRuntime.clearStreamDisplayCriteria()
+            return
+        }
+        let negotiated = session.negotiated
+        playbackRuntime.requestStreamDisplayCriteria(
+            frameRate: Double(negotiated?.frameRate ?? session.requested.frameRate),
+            hdr: session.hdrModeReported,
+            width: negotiated?.width ?? session.requested.streamWidth,
+            height: negotiated?.height ?? session.requested.streamHeight
+        )
     }
 
     private var hostsPlaybackOrnament: Bool {

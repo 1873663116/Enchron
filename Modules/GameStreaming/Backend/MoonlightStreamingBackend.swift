@@ -159,6 +159,7 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
         preference: MoonlightLaunchPreference
     ) async throws -> any BackendSession {
         do {
+            let networkPlan = StreamNetworkCondition.plan(for: request.credentials.address)
             let session = try await service.startSession(
                 MoonlightStreamRequest(
                     address: request.credentials.address.moonlightAddress,
@@ -173,7 +174,10 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                     hdrEnabled: request.options.hdrEnabled && request.options.codec != .h264,
                     playAudioOnPC: request.options.playAudioOnPC,
                     optimizeGameSettings: request.options.optimizeGameSettings,
-                    gamepadMask: StreamGamepadInput.connectedMask()
+                    gamepadMask: StreamGamepadInput.connectedMask(),
+                    audioChannelCount: request.options.audioLayout.channelCount,
+                    packetSize: networkPlan.packetSize,
+                    streamingRemotely: networkPlan.streamingRemotely ? 1 : 0
                 ),
                 preference: preference
             )

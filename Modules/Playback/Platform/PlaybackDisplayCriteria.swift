@@ -49,6 +49,39 @@ public final class PlaybackDisplayCriteria {
 
     public init() {}
 
+    /// A streaming session has no decoded format of its own to hand over, so
+    /// the profile it negotiated stands in for one. The display only needs to
+    /// know which frame rate and colour space the content carries.
+    func updateStream(frameRate: Double, hdr: Bool, width: Int, height: Int) {
+        update(
+            frameRate: frameRate,
+            format: Self.streamFormat(hdr: hdr, width: width, height: height),
+            host: .window
+        )
+    }
+
+    private static func streamFormat(hdr: Bool, width: Int, height: Int) -> CMFormatDescription? {
+        var extensions: [String: Any] = [:]
+        if hdr {
+            extensions[kCMFormatDescriptionExtension_ColorPrimaries as String] =
+                kCMFormatDescriptionColorPrimaries_ITU_R_2020
+            extensions[kCMFormatDescriptionExtension_TransferFunction as String] =
+                kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+            extensions[kCMFormatDescriptionExtension_YCbCrMatrix as String] =
+                kCMFormatDescriptionYCbCrMatrix_ITU_R_2020
+        }
+        var format: CMFormatDescription?
+        let status = CMVideoFormatDescriptionCreate(
+            allocator: kCFAllocatorDefault,
+            codecType: kCMVideoCodecType_HEVC,
+            width: Int32(max(width, 2)),
+            height: Int32(max(height, 2)),
+            extensions: extensions.isEmpty ? nil : extensions as CFDictionary,
+            formatDescriptionOut: &format
+        )
+        return status == noErr ? format : nil
+    }
+
     func update(
         frameRate: Double, format: CMFormatDescription?, host: PlaybackHost = .window
     ) {

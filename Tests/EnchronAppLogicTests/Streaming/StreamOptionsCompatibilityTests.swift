@@ -86,8 +86,33 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         options.optimizeGameSettings = true
 
         XCTAssertTrue(options.readableValue.hasSuffix(
-            "swapABXY=true;audioOnPC=true;bluetoothMouse=false;optimizeGameSettings=true;absoluteTouch=false"
+            "swapABXY=true;audioOnPC=true;bluetoothMouse=false;optimizeGameSettings=true;absoluteTouch=false;audioLayout=stereo"
         ), options.readableValue)
+    }
+
+    func testTheDefaultAudioLayoutIsStereo() {
+        XCTAssertEqual(StreamOptions().audioLayout, .stereo)
+        XCTAssertEqual(StreamAudioLayout.stereo.channelCount, 2)
+        XCTAssertEqual(StreamAudioLayout.surround51.channelCount, 6)
+        XCTAssertEqual(StreamAudioLayout.surround71.channelCount, 8)
+    }
+
+    func testTheAudioLayoutSurvivesARoundTrip() throws {
+        var options = StreamOptions()
+        options.audioLayout = .surround51
+
+        let decoded = try JSONDecoder().decode(
+            StreamOptions.self,
+            from: JSONEncoder().encode(options)
+        )
+
+        XCTAssertEqual(decoded.audioLayout, .surround51)
+    }
+
+    func testAnOlderStoredRecordWithoutAnAudioLayoutDecodesAsStereo() throws {
+        let legacy = Data("{}".utf8)
+        let decoded = try JSONDecoder().decode(StreamOptions.self, from: legacy)
+        XCTAssertEqual(decoded.audioLayout, .stereo)
     }
 
     func testTouchModeSurvivesARoundTrip() throws {

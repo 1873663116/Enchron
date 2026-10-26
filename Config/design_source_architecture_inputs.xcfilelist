@@ -44,6 +44,7 @@ $(SRCROOT)/Modules/GameStreaming/Backend/SimulatedStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/StreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamControllerProfile.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamIdentity.swift
+$(SRCROOT)/Modules/GameStreaming/Domain/StreamNetworkCondition.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSessionState.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSettings.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingModel.swift
@@ -58,6 +59,7 @@ $(SRCROOT)/Modules/GameStreaming/Session/StreamMouseInput.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamRenderBinding.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionCoordinator.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionProbes.swift
+$(SRCROOT)/Modules/GameStreaming/Storage/ApplicationCache.swift
 $(SRCROOT)/Modules/GameStreaming/Storage/HostStore.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamAddHostView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamAppGridView.swift

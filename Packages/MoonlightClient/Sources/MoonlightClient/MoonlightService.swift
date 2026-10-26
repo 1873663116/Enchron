@@ -173,7 +173,9 @@ public final class MoonlightService: @unchecked Sendable {
             config.height = Int32(request.height)
             config.frameRate = Int32(request.frameRate)
             config.bitRate = Int32(request.bitrateKbps)
-            config.audioConfiguration = Self.stereoAudioConfiguration
+            config.audioConfiguration = Self.audioConfiguration(
+                channelCount: request.audioChannelCount
+            )
             config.supportedVideoFormats = Self.supportedVideoFormats(
                 codec: request.codec,
                 hdrEnabled: request.hdrEnabled
@@ -187,6 +189,8 @@ public final class MoonlightService: @unchecked Sendable {
             config.multiController = false
             config.useFramePacing = false
             config.serverCert = request.serverCert
+            config.packetSize = Int32(request.packetSize)
+            config.streamingRemotely = Int32(request.streamingRemotely)
 
             let verb = resume ? "resume" : "launch"
             let response = MLCHttpResponse()
@@ -235,6 +239,19 @@ public final class MoonlightService: @unchecked Sendable {
     }
 
     static let stereoAudioConfiguration: Int32 = (0x3 << 16) | (2 << 8) | 0xCA
+
+    /// The host encodes what the client asks for: channel count and the Windows
+    /// channel mask travel in one field, with the fixed marker byte at the end.
+    static func audioConfiguration(channelCount: Int) -> Int32 {
+        switch channelCount {
+        case 6:
+            return (0x3F << 16) | (6 << 8) | 0xCA
+        case 8:
+            return (0x63F << 16) | (8 << 8) | 0xCA
+        default:
+            return stereoAudioConfiguration
+        }
+    }
 
     static func supportedVideoFormats(codec: MoonlightVideoCodec, hdrEnabled: Bool) -> Int32 {
         let h264 = Int32(VIDEO_FORMAT_H264)

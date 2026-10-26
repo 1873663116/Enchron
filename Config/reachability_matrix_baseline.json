@@ -1381,6 +1381,16 @@
       "context": "main-window-browser",
       "operation": "accessibility:Stream-HostDetail-WakeButton",
       "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-ResumeButton",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-SwitchButton",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

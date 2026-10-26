@@ -413,8 +413,10 @@ void ClControllerLed(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t b)
 
     _streamConfig.encryptionFlags = ENCFLG_ALL;
 
-    _streamConfig.streamingRemotely = STREAM_CFG_AUTO;
-    _streamConfig.packetSize = 1392;
+    _streamConfig.streamingRemotely = config.streamingRemotely >= 0
+        ? config.streamingRemotely
+        : STREAM_CFG_AUTO;
+    _streamConfig.packetSize = config.packetSize > 0 ? config.packetSize : 1392;
 
     memcpy(_streamConfig.remoteInputAesKey, [config.riKey bytes], [config.riKey length]);
     memset(_streamConfig.remoteInputAesIv, 0, 16);
