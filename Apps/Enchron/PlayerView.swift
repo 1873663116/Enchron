@@ -183,6 +183,13 @@ public struct PlayerView: View {
             return
         }
         let negotiated = session.negotiated
+        StreamSessionProbes.record(
+            "display criteria frameRate=\(negotiated?.frameRate ?? session.requested.frameRate)"
+                + " hdr=\(session.hdrModeReported)"
+                + " size=\(negotiated?.width ?? session.requested.streamWidth)"
+                + "x\(negotiated?.height ?? session.requested.streamHeight)",
+            retention: .evidence
+        )
         playbackRuntime.requestStreamDisplayCriteria(
             frameRate: Double(negotiated?.frameRate ?? session.requested.frameRate),
             hdr: session.hdrModeReported,

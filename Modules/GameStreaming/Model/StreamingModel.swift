@@ -676,6 +676,7 @@ public final class StreamingModel {
 
     public func reconnect() async throws {
         guard let current = session else { return }
+        StreamSessionProbes.record("reconnect reason=user", retention: .evidence)
         let hostID = current.hostID
         let appID = current.appID
         let appName = current.appName
@@ -743,7 +744,10 @@ public final class StreamingModel {
 
         let networkPlan = StreamNetworkCondition.plan(for: stored.address)
         StreamSessionProbes.record(
-            "network path host=\(stored.name) \(networkPlan.readableValue)",
+            "transport remote=\(networkPlan.streamingRemotely)"
+                + " packet=\(networkPlan.packetSize)"
+                + " vpn=\(networkPlan.vpnDetected)"
+                + " host=\(stored.name)",
             retention: .evidence
         )
         let request = BackendSessionRequest(

@@ -1398,10 +1398,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             return
         }
         backend.sendControllerArrival(arrival)
+        let afterConnection = stateLock.withLock { snapshotStorage.state == .streaming }
         StreamSessionProbes.record(
-            "controller arrival kind=\(arrival.kind.rawValue)"
-                + " capabilities=0x\(String(arrival.capabilities.rawValue, radix: 16))"
+            "gamepad arrival type=\(arrival.kind.rawValue)"
+                + " caps=0x\(String(arrival.capabilities.rawValue, radix: 16))"
                 + " buttons=0x\(String(arrival.supportedButtons, radix: 16))",
+            retention: .evidence
+        )
+        StreamSessionProbes.record(
+            "gamepad arrival sent afterConnection=\(afterConnection)",
             retention: .evidence
         )
     }

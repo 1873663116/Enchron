@@ -93,6 +93,10 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
     }
 
     private func applyMotionRequest(motionType: UInt8, reportRateHz: UInt16) {
+        StreamSessionProbes.record(
+            "gamepad motion request type=\(motionType) rate=\(reportRateHz)",
+            retention: .evidence
+        )
         switch motionType {
         case MotionType.acceleration:
             accelerationTimer?.invalidate()
@@ -194,7 +198,7 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
             blue: Float(blue) / 255.0
         )
         StreamSessionProbes.record(
-            "gamepad indicator light applied rgb=\(red),\(green),\(blue)",
+            "gamepad led r=\(red) g=\(green) b=\(blue)",
             retention: .evidence
         )
     }

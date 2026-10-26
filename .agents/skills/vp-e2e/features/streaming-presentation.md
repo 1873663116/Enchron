@@ -79,7 +79,7 @@ tail -20 "$D/stream-session-probe.log"
 
 纳入：
 
-- 串流会话向系统申请显示模式：用协商到的帧率与 HDR 色彩空间构造显示判据，经文件播放同一条 `AVDisplayManager` 通道提交，结束时释放；探针 `displayCriteria requestedHz=…`。
+- 串流会话向系统申请显示模式：用协商到的帧率与 HDR 色彩空间构造显示判据，经文件播放同一条 `AVDisplayManager` 通道提交，结束时释放；播放器侧探针 `displayCriteria requestedHz=…`，会话侧探针 `display criteria frameRate=… hdr=…`。
 - 失败态的呈现：分类标题、恢复建议、重试入口；启动失败弹窗，串流中失败走窗口内浮层。
 - 串流相关文案进入本地化目录：138 条文案按中文原文为键，补齐七种语言；设置行、菜单项与动态失败文案都走目录查表。
 - 会话统计浮层在画面左上角，identifier `Stream-Session-stats`。

@@ -60,7 +60,7 @@ Preconditions: 同[串流呈现](streaming-presentation.md)。测试通道已建
 | 物理 | 应用卡片显示主机提供的图标而非占位图形 | Agent 读截图 + 缓存目录存在对应文件 |
 | 物理 | 左滑侧栏行露出移除，确认后行消失 | Agent 读截图 + `streaming-hosts.json` 少一条 |
 | 物理 | 长按应用卡片移除后卡片消失，`hiddenAppIDs` 记下该 ID | Agent 读截图 + 容器文件读取 |
-| 物理 | 同一主机在本地与外网都可达时，两轮检查都连得上 | 真机**待做**；探针 `network path remote=` 与主机侧连接日志 |
+| 物理 | 同一主机在本地与外网都可达时，两轮检查都连得上 | 真机**待做**；探针 `transport remote=` 与主机侧连接日志 |
 | 物理 | 离线主机的「唤醒主机」把魔术包发出 | 真机**待做**；探针 `wake-on-lan host=… delivered=`，主机侧开机 |
 | 结构 | 多地址顺序与去重：本地在前、外网在后、重复地址只留第一次 | `StreamAddressPlanTests` 单测 |
 | 结构 | 应用清单缓存文件在清单刷新成功后写入，读取时优先于空状态 | `ApplicationCache` 行为 + 容器文件读取 |

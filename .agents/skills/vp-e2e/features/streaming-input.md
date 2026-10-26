@@ -12,7 +12,7 @@
 - 外接手柄的按键、扳机与摇杆按 Moonlight 的报文字段转发；A/B/X/Y 各占一个位，方向键、肩键、摇杆按键、菜单键同样有位。
 - 会话期间，窗口场景的每个窗口根视图挂一枚手柄事件独占，A/B/X/Y 与方向键全部只进主机。
 - `StreamFocusedInputCapture` 只在窗口模式挂载：它是 `GCEventViewController` 的根视图、`UIKeyInput` 第一响应者（进场即抢、每 0.5 s 夺回、触摸时也抢），自身挂一枚手柄独占，并把键盘按键转发给主机。Dock 模式不挂载它，窗口内容整体卸载，手柄由沉浸空间的 `.handlesGameControllerEvents(matching: .gamepad)` 接收。串流画面不装输入目标与碰撞体，捏合不触发任何控件。
-- 会话期间请求指针锁定：沉浸场景直接请求；窗口场景经 `prefersPointerLocked` 的窗口路由请求，只有携带会话 claim 的窗口场景满足条件。探针 `pointer lock requested` 记录请求，`none/locked/unlocked` 记录系统是否兑现。
+- 会话期间请求指针锁定：沉浸场景直接请求；窗口场景经 `prefersPointerLocked` 的窗口路由请求，只有携带会话 claim 的窗口场景满足条件。探针 `pointer lock window=` 记录请求与窗口角色，`none/locked/unlocked` 记录系统是否兑现。
 - 手柄能力按设备实际探查后握手：控制器类型与能力位（震动、扳机震动、触摸板、加速度、陀螺仪、灯、电量）随设备变化，连接建立后重发一次到达报文。
 - 回传链路：震动与扳机震动写入本机的触觉引擎，体感按主机请求的采样率上报，电量按三态与百分比每 30 秒上报一次，灯效写入控制器的指示灯。
 - 手柄按键覆盖 Home、四个背键、分享键与 DualShock 触摸板按下；触摸板坐标按按下、移动、抬起三段发送，坐标按 SDL 约定归一化。
@@ -85,13 +85,13 @@ grep "input release" "$D/stream-session-probe.log" | tail
 | 结构 | 会话期间窗口根视图各有一枚手柄事件独占，沉浸空间由铺满视频平面的附件宿主视图补挂 | 探针 `gamepad claim origin=…`、`input surface firstResponder` |
 | 物理 | 窗口模式下按 A/B/X/Y，主机收到对应按键，播放控件不出现 | 探针 `controller flags=`（真机已证 A=0x1000 送达） |
 | 物理 | 从窗口切到 dock 后不捏合直接按 A/B，主机立即收到，`controller flags=` 出现 4096/8192 | 真机**待做**；探针 `gamepad claim origin=surface role=UIWindowSceneSessionRoleApplication` 出现在 dock 期间即主窗口捕获已挂 |
-| 结构 | 握手声明的控制器类型与能力位等于设备实际探查结果 | 探针 `gamepad arrival kind=… caps=… buttons=…` |
-| 物理 | 主机侧触发震动后本机手柄震动，松手后停止 | 真机**待做**；探针 `gamepad rumble recv=` → `gamepad rumble applied`、`trigger rumble` |
-| 物理 | 主机请求体感后按请求频率上报 | 探针 `motion request rate=`、`motion sampling` |
-| 物理 | 电量随主机回传的周期上报 | 探针 `battery reported` |
-| 物理 | 触摸板按下、移动、抬起各产生一条坐标报文 | 探针 `touchpad index event=down/move/up` |
+| 结构 | 握手声明的控制器类型与能力位等于设备实际探查结果 | 探针 `gamepad arrival type=… caps=… buttons=…` 与 `gamepad arrival sent afterConnection=…` |
+| 物理 | 主机侧触发震动后本机手柄震动，松手后停止 | 真机**待做**；探针 `gamepad rumble recv low=… high=…` → `gamepad rumble applied`、`gamepad trigger rumble applied` |
+| 物理 | 主机请求体感后按请求频率上报 | 探针 `gamepad motion request type=… rate=…`、`gamepad motion sampling` |
+| 物理 | 电量随主机回传的周期上报 | 探针 `gamepad battery level=… state=…` |
+| 物理 | 触摸板按下、移动、抬起各产生一条坐标报文 | 探针 `gamepad touchpad x=… y=… down=true/false` |
 | 结构 | 老 MFi 手柄无 Home 键时，MENU 按住 100 ms 报为 Home | `StreamGamepadMappingTests` 组合补偿用例 |
-| 物理 | 会话期间系统光标不画在画面上 | **待做**；依赖指针锁定兑现，探针 `pointer lock requested` |
+| 物理 | 会话期间系统光标不画在画面上 | **待做**；依赖指针锁定兑现，探针 `pointer lock window=` |
 | 感知 | 系统随航关闭时，窗口模式推摇杆与 dock 一样跟手 | 真机已证 |
 | 物理 | 真实蓝牙鼠标的方向与主机指针一致 | 真机已证 |
 | 感知 | 真实蓝牙鼠标在真机上驱动主机指针、左键单击不重复 | **待做**（当前环境无 GCMouse 硬件） |

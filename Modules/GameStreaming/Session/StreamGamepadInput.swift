@@ -264,14 +264,14 @@ public final class StreamGamepadInput: NSObject, @unchecked Sendable {
         if (state.x != 0 || state.y != 0) && x == 0 && y == 0 {
             onTouch?(Self.touchEventUp, pointerId, normalizedX, normalizedY, 1)
             StreamSessionProbes.record(
-                "gamepad touchpad index=\(index) event=up",
+                "gamepad touchpad x=\(normalizedX) y=\(normalizedY) down=false index=\(index)",
                 retention: .evidence
             )
         } else if x != 0 || y != 0 {
             if state.x == 0 && state.y == 0 {
                 onTouch?(Self.touchEventDown, pointerId, normalizedX, normalizedY, 1)
                 StreamSessionProbes.record(
-                    "gamepad touchpad index=\(index) event=down",
+                    "gamepad touchpad x=\(normalizedX) y=\(normalizedY) down=true index=\(index)",
                     retention: .evidence
                 )
             } else if state.x != x || state.y != y {
@@ -858,9 +858,9 @@ public final class StreamInputCapture {
         })
     }
 
-    /// Only a full-screen scene can ever honor the lock, and on visionOS that
-    /// means the immersive space. Window scenes are never asked, so the lock
-    /// subsystem is left untouched while the wearer streams in a window.
+    /// Both scene roles ask for the lock. The window route only answers true for
+    /// a window that carries the session claim, and whether the system honors
+    /// the request is read back from the scene, not assumed.
     private func requestPointerLock() {
         var states: [String] = []
         for scene in UIApplication.shared.connectedScenes {
@@ -884,7 +884,7 @@ public final class StreamInputCapture {
         }
         guard isActive, states.isEmpty == false else { return }
         StreamSessionProbes.record(
-            "pointer lock requested \(states.joined(separator: ","))",
+            "pointer lock window=\(states.joined(separator: ","))",
             retention: .evidence
         )
     }
