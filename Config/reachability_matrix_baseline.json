@@ -1341,6 +1341,26 @@
       "context": "main-window-browser",
       "operation": "accessibility:Stream-Sidebar-Toggle",
       "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-dock",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-information",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-settings",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-close",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

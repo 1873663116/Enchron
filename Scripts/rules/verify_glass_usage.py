@@ -50,6 +50,11 @@ ALLOWED_WRAPPER_CALLS = Counter(
             callee="enchronGlassBackground",
         ): 3,
         WrapperCallIdentity(
+            path=Path("Modules/Playback/Views/StreamingCapsule.swift"),
+            enclosing_type="StreamingCapsule",
+            callee="enchronGlassBackground",
+        ): 1,
+        WrapperCallIdentity(
             path=Path("Apps/Enchron/MainView.swift"),
             enclosing_type="MainView",
             callee="enchronGlassBackground",

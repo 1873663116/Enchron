@@ -22,31 +22,8 @@ public struct WindowPlayerDeckView: View {
     @ViewBuilder
     public var body: some View {
         Group {
-            if let information = streamingInformation {
-                if usesWindowPlaybackControls {
-                    StreamingWindowPlaybackControls(
-                        live: live,
-                        information: information,
-                        onInteraction: register,
-                        controlsVisible: appModel.showControls
-                    )
-                    .onHover { appModel.setControlsFocused($0) }
-                } else {
-                    StreamingDockPlaybackControls(
-                        live: live,
-                        information: information,
-                        onInteraction: register,
-                        controlsVisible: appModel.showControls
-                    )
-                    .onHover { appModel.setControlsFocused($0) }
-                }
-            } else if usesWindowPlaybackControls {
-                WindowPlaybackControls(
-                    live: live,
-                    onInteraction: register,
-                    controlsVisible: appModel.showControls
-                )
-                .onHover { appModel.setControlsFocused($0) }
+            if usesWindowPlaybackControls {
+                windowDeck
             } else {
                 PlayerControlDock(
                     live: live,
@@ -58,9 +35,21 @@ public struct WindowPlayerDeckView: View {
         }
     }
 
-    private var streamingInformation: StreamingPlaybackInformation? {
-        guard playbackRuntime.isStreamingPlayback else { return nil }
-        return playbackRuntime.externalVideoInformation
+    @ViewBuilder
+    private var windowDeck: some View {
+        if playbackRuntime.isStreamingPlayback {
+            StreamingCapsuleDeck(
+                information: playbackRuntime.externalVideoInformation,
+                onInteraction: register
+            )
+        } else {
+            WindowPlaybackControls(
+                live: live,
+                onInteraction: register,
+                controlsVisible: appModel.showControls
+            )
+            .onHover { appModel.setControlsFocused($0) }
+        }
     }
 
     private func register() {

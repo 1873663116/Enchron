@@ -515,66 +515,6 @@ public struct PlayerControlDock: View {
     }
 }
 
-public struct StreamingWindowPlaybackControls: View {
-    let live: FusedPlayerPanelLive
-    let information: StreamingPlaybackInformation
-    var onInteraction: () -> Void = {}
-    var controlsVisible: Bool = true
-
-    public var body: some View {
-        FusedPlayerPanel(
-            live: live,
-            onInteraction: onInteraction,
-            surface: .windowOrnament,
-            initialExpansion: .collapsed,
-            controlsVisible: controlsVisible,
-            streamingInformation: information
-        )
-    }
-
-    public init(
-        live: FusedPlayerPanelLive,
-        information: StreamingPlaybackInformation,
-        onInteraction: @escaping () -> Void = {},
-        controlsVisible: Bool = true
-    ) {
-        self.live = live
-        self.information = information
-        self.onInteraction = onInteraction
-        self.controlsVisible = controlsVisible
-    }
-}
-
-public struct StreamingDockPlaybackControls: View {
-    let live: FusedPlayerPanelLive
-    let information: StreamingPlaybackInformation
-    var onInteraction: () -> Void = {}
-    var controlsVisible: Bool = true
-
-    public var body: some View {
-        FusedPlayerPanel(
-            live: live,
-            onInteraction: onInteraction,
-            surface: .playerControlDock,
-            initialExpansion: .collapsed,
-            controlsVisible: controlsVisible,
-            streamingInformation: information
-        )
-    }
-
-    public init(
-        live: FusedPlayerPanelLive,
-        information: StreamingPlaybackInformation,
-        onInteraction: @escaping () -> Void = {},
-        controlsVisible: Bool = true
-    ) {
-        self.live = live
-        self.information = information
-        self.onInteraction = onInteraction
-        self.controlsVisible = controlsVisible
-    }
-}
-
 public struct FusedPlayerPanel: View {
     @Environment(\.immersivePlaybackMenu) private var playbackMenu
     var live: FusedPlayerPanelLive?

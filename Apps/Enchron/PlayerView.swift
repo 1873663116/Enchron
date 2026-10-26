@@ -539,8 +539,8 @@ public struct PlayerView: View {
         ) {
             WindowPlayerDeckView(presentationOverride: .window)
                 .anchoredMenuDismissRegion(presentation: windowMenu)
-                .opacity(playbackSession.showControls ? 1 : 0)
-                .allowsHitTesting(playbackSession.showControls)
+                .opacity(playbackSession.presentationTransition == nil ? 1 : 0)
+                .allowsHitTesting(playbackSession.presentationTransition == nil)
                 .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
                     playbackSession.setWindowControlsOrnamentHeight($0)
                 }

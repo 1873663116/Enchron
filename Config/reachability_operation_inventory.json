@@ -2757,6 +2757,69 @@
       "template": "PlayerUI-InfoBar-button-back"
     },
     {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-button-dock"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-button-information"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-button-settings"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsule.swift"
+        },
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-close"
+    },
+    {
       "action": "activate",
       "family": "PlayerUI",
       "role": "operation",
@@ -6785,6 +6848,78 @@
       "proofContexts": [
         "window",
         "portal"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-dock",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-dock",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-information",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-information",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-settings",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-settings",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-close",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-close",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"

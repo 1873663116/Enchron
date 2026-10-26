@@ -190,12 +190,13 @@ $(SRCROOT)/Modules/Playback/Views/PlaybackFormatters.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackPanel.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackRealityPresenter.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceGestureInput.swift
-$(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceInputCaptureAttachment.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceSeekAttachment.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackSurfaceSeekFeedback.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackTimeline.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackTopActions.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackVideoSurface.swift
 $(SRCROOT)/Modules/Playback/Views/PlayerInfoBarView.swift
+$(SRCROOT)/Modules/Playback/Views/StreamingCapsule.swift
+$(SRCROOT)/Modules/Playback/Views/StreamingCapsuleDeck.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlaybackRootView.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlayerDeck.swift

@@ -545,8 +545,6 @@ public struct ImmersiveSpaceView: View {
 #if DEBUG
     private static let headInputProbeIsEnabled =
         ProcessInfo.processInfo.environment["ENCHRON_HEAD_INPUT_PROBE"] == "1"
-    private static let dockedHitTestProbesAreEnabled =
-        ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"
 #endif
 
     @Environment(PlaybackSessionModel.self) private var appModel
@@ -595,9 +593,6 @@ public struct ImmersiveSpaceView: View {
     }()
     @State private var headPoseSource = HeadPoseSource()
     @State private var seekFeedbackAttachment = PlaybackSurfaceSeekAttachment()
-    @State private var inputCaptureAttachment = PlaybackSurfaceInputCaptureAttachment()
-    @State private var dockedPlaneScreenSize: SIMD2<Float>?
-    @State private var inputCaptureGateProbe: String?
 #if DEBUG
     @State private var developerOverlayFollower = DeveloperOverlayFollower()
 #endif
@@ -612,10 +607,6 @@ public struct ImmersiveSpaceView: View {
     @State private var hasRecordedReflectionFailure = false
     @State private var hasRecordedReflectionTextureDelivery = false
     @State private var hasAppliedReflectionTexture = false
-#if DEBUG
-    @State private var dockedAnchorFrontProbe = Entity()
-    @State private var dockedChildFrontProbe = Entity()
-#endif
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
 
     private var videoEntity: Entity {
@@ -627,10 +618,6 @@ public struct ImmersiveSpaceView: View {
 
     private var panoramaInteractionSurface: Entity {
         playbackVideoEntityStore.panoramaInteractionSurface
-    }
-
-    private var dockedInteractionSurface: Entity {
-        playbackVideoEntityStore.dockedInteractionSurface
     }
 
 #if DEBUG
@@ -652,11 +639,7 @@ public struct ImmersiveSpaceView: View {
         PlaybackRealityKitContentTypeScope(runtime: playbackRuntime)
     }
 
-    public var inputCaptureOverlay: AnyView?
-
-    public init(inputCaptureOverlay: AnyView? = nil) {
-        self.inputCaptureOverlay = inputCaptureOverlay
-    }
+    public init() {}
 
     private var requestedPresentation: PlaybackPresentation {
         guard let transition = appModel.presentationTransition else {
@@ -691,7 +674,6 @@ public struct ImmersiveSpaceView: View {
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
             installSeekFeedback(from: attachments, into: content)
-            installInputCapture(from: attachments)
 #if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
 #endif
@@ -703,7 +685,6 @@ public struct ImmersiveSpaceView: View {
             installControlsAttachment(from: attachments, into: content)
             installStallIndicator(from: attachments)
             installSeekFeedback(from: attachments, into: content)
-            installInputCapture(from: attachments)
 #if DEBUG
             installDeveloperOverlay(from: attachments, into: content)
 #endif
@@ -744,14 +725,6 @@ public struct ImmersiveSpaceView: View {
                     .allowsHitTesting(false)
                 }
             }
-            if let overlay = inputCaptureOverlay, let planeSize = dockedPlaneScreenSize {
-                let captureFrame = PlaybackSurfaceInputCaptureAttachment
-                    .attachmentFrame(forPlaneSize: planeSize)
-                Attachment(id: PlaybackSurfaceInputCaptureAttachment.attachmentID) {
-                    overlay
-                        .frame(width: captureFrame.width, height: captureFrame.height)
-                }
-            }
         }
         .enableRealityKitScriptingInput()
         .handlesGameControllerEvents(matching: .gamepad)
@@ -770,7 +743,6 @@ public struct ImmersiveSpaceView: View {
         .onDisappear {
             controlsAttachmentController.stop()
             seekFeedbackAttachment.stop()
-            inputCaptureAttachment.stop()
 #if DEBUG
             developerOverlayFollower.stop()
 #endif
@@ -1044,54 +1016,6 @@ public struct ImmersiveSpaceView: View {
             videoEntity: videoEntity,
             content: content,
             headPoseSource: headPoseSource
-        )
-    }
-
-    private func installInputCapture(from attachments: RealityViewAttachments) {
-        guard let overlay = inputCaptureOverlay else {
-            inputCaptureAttachment.stop()
-            recordInputCaptureGate("overlayNil")
-            return
-        }
-        let videoEntity = self.videoEntity
-        guard let screenSize = videoEntity.components[VideoPlayerComponent.self]?.playerScreenSize,
-              screenSize.x > 0, screenSize.y > 0
-        else {
-            inputCaptureAttachment.stop()
-            recordInputCaptureGate(
-                "screenSizeMissing presentation=\(requestedPresentation.rawValue)"
-            )
-            return
-        }
-        if dockedPlaneScreenSize != screenSize {
-            dockedPlaneScreenSize = screenSize
-        }
-        guard requestedPresentation == .docked else {
-            inputCaptureAttachment.stop()
-            recordInputCaptureGate("presentation=\(requestedPresentation.rawValue)")
-            return
-        }
-        guard let entity = attachments.entity(
-            for: PlaybackSurfaceInputCaptureAttachment.attachmentID
-        ) else {
-            inputCaptureAttachment.stop()
-            recordInputCaptureGate("entityMissing")
-            return
-        }
-        inputCaptureAttachment.install(
-            entity,
-            on: videoEntity,
-            screenSize: screenSize
-        )
-        recordInputCaptureGate("installed overlay=\(overlay != nil)")
-    }
-
-    private func recordInputCaptureGate(_ reason: String) {
-        guard inputCaptureGateProbe != reason else { return }
-        inputCaptureGateProbe = reason
-        appModel.recordSurfaceInputProbe(
-            "inputCapture gate reason=\(reason)",
-            retention: .evidence
         )
     }
 
@@ -1538,10 +1462,7 @@ public struct ImmersiveSpaceView: View {
             entity,
             in: content,
             contentTypeSessionID: realityKitContentTypeScope?.technicalSessionID,
-            onChange: { change in
-                if change == .videoSize {
-                    updateDockedInteractionSurface(on: entity, in: content)
-                }
+            onChange: { _ in
                 recordSpatialPresentationState()
             },
             onContentTypeDidChange: { contentType, eventSessionID in
@@ -1629,14 +1550,6 @@ public struct ImmersiveSpaceView: View {
             presentation: presentation,
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
         )
-        if presentation == .docked {
-            updateDockedInteractionSurface(on: entity, in: content)
-        } else {
-            dockedInteractionSurface.removeFromParent()
-#if DEBUG
-            removeDockedHitTestProbes()
-#endif
-        }
         recordDisplayLinkProbe(
             event: "componentConfigured",
             entityIsInRealityView: content.entities.contains { $0 === entity }
@@ -2357,7 +2270,6 @@ public struct ImmersiveSpaceView: View {
         subtitleFollower.stop()
 #if DEBUG
         headInputProbe.removeFromParent()
-        removeDockedHitTestProbes()
 #endif
         appModel.recordSurfaceInputProbe(
             "spatialSurfaceRelease presentation=\(presentation?.rawValue ?? "none")"
@@ -2692,180 +2604,6 @@ public struct ImmersiveSpaceView: View {
                 retention: .evidence
             )
 #endif
-        }
-    }
-
-    private func updateDockedInteractionSurface(
-        on entity: Entity,
-        in content: RealityViewContent
-    ) {
-        guard requestedPresentation == .docked else {
-            recordDockedInteractionSurfaceAssemblyProbe(
-                "skipped reason=presentationNotDocked"
-                    + " requestedPresentation=\(requestedPresentation.rawValue)"
-                    + " candidate=\(ObjectIdentifier(entity))"
-            )
-            return
-        }
-        guard videoEntity === entity else {
-            recordDockedInteractionSurfaceAssemblyProbe(
-                "skipped reason=videoEntityMismatch"
-                    + " candidate=\(ObjectIdentifier(entity))"
-                    + " expected=\(ObjectIdentifier(videoEntity))"
-            )
-            return
-        }
-        guard let component = entity.components[VideoPlayerComponent.self] else {
-            recordDockedInteractionSurfaceAssemblyProbe(
-                "skipped reason=videoPlayerComponentMissing"
-                    + " entity=\(ObjectIdentifier(entity))"
-                    + " active=\(entity.isActive)"
-                    + " parent=\(entity.parent?.name ?? "none")"
-            )
-            return
-        }
-        PlaybackDockedInteractionSurface.install(
-            dockedInteractionSurface,
-            on: entity,
-            screenSize: component.playerScreenSize
-        )
-#if DEBUG
-        if Self.dockedHitTestProbesAreEnabled {
-            installDockedHitTestProbes(
-                beside: entity,
-                screenSize: component.playerScreenSize
-            )
-        } else {
-            removeDockedHitTestProbes()
-        }
-#endif
-        let collisionExtents = dockedInteractionSurface
-            .components[CollisionComponent.self]?
-            .shapes.first?
-            .bounds.extents
-        recordDockedInteractionSurfaceAssemblyProbe(
-            "installed"
-                + " name=\(dockedInteractionSurface.name)"
-                + " entity=\(ObjectIdentifier(dockedInteractionSurface))"
-                + " parent=\(dockedInteractionSurface.parent?.name ?? "none")"
-                + " parentMatchesVideo=\(dockedInteractionSurface.parent === entity)"
-                + " screenSize=\(component.playerScreenSize)"
-                + " collisionExtents=\(collisionExtents.map(String.init(describing:)) ?? "none")"
-                + " localPosition=\(dockedInteractionSurface.position)"
-                + " worldPosition=\(dockedInteractionSurface.position(relativeTo: nil))"
-                + " worldScale=\(dockedInteractionSurface.scale(relativeTo: nil))"
-                + " active=\(dockedInteractionSurface.isActive)"
-                + " inputTarget=\(dockedInteractionSurface.components[InputTargetComponent.self] != nil)"
-        )
-        recordDockedInputTargetSceneProbe(in: content)
-    }
-
-#if DEBUG
-    private func installDockedHitTestProbes(
-        beside entity: Entity,
-        screenSize: SIMD2<Float>
-    ) {
-        guard let anchor = entity.parent else { return }
-
-        PlaybackDockedInteractionSurface.install(
-            dockedChildFrontProbe,
-            on: entity,
-            screenSize: screenSize
-        )
-        dockedChildFrontProbe.name =
-            PlaybackDockedInteractionSurface.childFrontProbeName
-        dockedChildFrontProbe.position = [0, 0, -0.10]
-
-        PlaybackDockedInteractionSurface.configure(
-            dockedAnchorFrontProbe,
-            screenSize: screenSize
-        )
-        dockedAnchorFrontProbe.name =
-            PlaybackDockedInteractionSurface.anchorFrontProbeName
-        dockedAnchorFrontProbe.orientation = entity.orientation
-        dockedAnchorFrontProbe.scale = entity.scale
-        dockedAnchorFrontProbe.position = entity.position
-            + entity.orientation.act([0, 0, -0.05])
-        if dockedAnchorFrontProbe.parent !== anchor {
-            anchor.addChild(dockedAnchorFrontProbe)
-        }
-
-        let hierarchy =
-            "child=\(dockedChildFrontProbe.name)"
-                + " childWorldPosition=\(dockedChildFrontProbe.position(relativeTo: nil))"
-                + " childActive=\(dockedChildFrontProbe.isActive)"
-                + " sibling=\(dockedAnchorFrontProbe.name)"
-                + " siblingWorldPosition=\(dockedAnchorFrontProbe.position(relativeTo: nil))"
-                + " siblingActive=\(dockedAnchorFrontProbe.isActive)"
-        guard presentationObservation.shouldLogSurfaceReadiness(
-            reason: "dockedHitTestProbeHierarchy",
-            signature: hierarchy
-        ) else { return }
-        appModel.recordSurfaceInputProbe(
-            "dockedHitTestProbe hierarchy \(hierarchy)"
-        )
-    }
-
-    private func removeDockedHitTestProbes() {
-        dockedAnchorFrontProbe.removeFromParent()
-        dockedChildFrontProbe.removeFromParent()
-    }
-#endif
-
-    private func recordDockedInteractionSurfaceAssemblyProbe(_ state: String) {
-        guard presentationObservation.shouldLogSurfaceReadiness(
-            reason: "dockedInteractionSurfaceAssembly",
-            signature: state
-        ) else { return }
-        appModel.recordSurfaceInputProbe(
-            "dockedInputSurface assembly=\(state)"
-        )
-    }
-
-    private func recordDockedInputTargetSceneProbe(
-        in content: RealityViewContent
-    ) {
-        var entries: [String] = []
-        func visit(_ entity: Entity, path: String) {
-            let name = entity.name.isEmpty ? "unnamed" : entity.name
-            let nextPath = path + "/" + name
-            if entity.components[InputTargetComponent.self] != nil {
-                let collisionExtents = entity.components[CollisionComponent.self]?
-                    .shapes
-                    .map { String(describing: $0.bounds.extents) }
-                    .joined(separator: ",")
-                    ?? "none"
-                entries.append(
-                    "path=\(nextPath)"
-                        + " entity=\(ObjectIdentifier(entity))"
-                        + " active=\(entity.isActive)"
-                        + " enabled=\(entity.isEnabled)"
-                        + " worldPosition=\(entity.position(relativeTo: nil))"
-                        + " worldOrientation=\(entity.orientation(relativeTo: nil))"
-                        + " worldScale=\(entity.scale(relativeTo: nil))"
-                        + " collisionExtents=\(collisionExtents)"
-                )
-            }
-            for child in entity.children {
-                visit(child, path: nextPath)
-            }
-        }
-        for (index, root) in content.entities.enumerated() {
-            visit(root, path: "root[\(index)]")
-        }
-        entries.sort()
-        let signature = entries.joined(separator: "|")
-        guard presentationObservation.shouldLogSurfaceReadiness(
-            reason: "dockedInputTargetScene",
-            signature: signature
-        ) else { return }
-        appModel.recordSurfaceInputProbe(
-            "dockedInputTargetScene count=\(entries.count)"
-        )
-        for entry in entries {
-            appModel.recordSurfaceInputProbe(
-                "dockedInputTarget entity \(entry)"
-            )
         }
     }
 }

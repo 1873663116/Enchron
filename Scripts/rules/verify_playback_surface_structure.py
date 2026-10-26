@@ -282,7 +282,7 @@ def main() -> int:
     window_interaction_surface = region(
         reality_presenter,
         "enum PlaybackWindowInteractionSurface",
-        "enum PlaybackDockedInteractionSurface",
+        "enum PlaybackPanoramaInteractionSurface",
     )
     require(
         "entity.components.set(InputTargetComponent())" in window_interaction_surface
@@ -341,7 +341,7 @@ def main() -> int:
         " entity carries the button",
     )
     require(
-        reality_presenter.count("PlaybackSurfaceAccessibility.install(on: entity)") == 2
+        reality_presenter.count("PlaybackSurfaceAccessibility.install(on: entity)") == 1
         and "PlaybackSurfaceAccessibility.install(on: panel)" in reality_presenter
         and "entity.components.remove(AccessibilityComponent.self)" in reality_presenter
         and "accessibility.traits = [.button]" in reality_presenter,
@@ -1035,11 +1035,6 @@ def main() -> int:
         "a host acquires the shared video entity outside the surface reconciler, "
         "or releases the departing entity on its own",
     )
-    docked_interaction_surface = region(
-        reality_presenter,
-        "enum PlaybackDockedInteractionSurface",
-        "enum PlaybackPanoramaInteractionSurface",
-    )
     require(
         "let basis = simd_float3x3(pose.right, pose.up, pose.normal)"
         in playback_reality_adapter
@@ -1052,10 +1047,8 @@ def main() -> int:
         and "let bottomEdge = pivot + distance * SIMD3<Float>(0, sinE, -cosE)"
         in docked_pose_solver
         and "let center = yaw.act(bottomEdge + halfHeight * planarUp)"
-        in docked_pose_solver
-        and "entity.position = [0, 0, frontOffset]"
-        in docked_interaction_surface,
-        "the Docked video plane takes its orientation from the solved bottom-edge basis and its interaction collider sits in front of it",
+        in docked_pose_solver,
+        "the Docked video plane takes its orientation from the solved bottom-edge basis",
     )
     production_immersive = without_debug_blocks(immersive)
     require(
@@ -1065,8 +1058,6 @@ def main() -> int:
     )
     require(
         'ProcessInfo.processInfo.environment["ENCHRON_HEAD_INPUT_PROBE"] == "1"'
-        in immersive
-        and 'ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"'
         in immersive,
         "immersive diagnostic colliders are not opt-in",
     )
@@ -1080,30 +1071,16 @@ def main() -> int:
     spatial_input_ownership = region(
         reality_presenter,
         "enum PlaybackSurfaceInputOwnership",
-        "enum PlaybackDockedInteractionSurface",
+        "enum PlaybackWindowInteractionSurface",
     )
     require(
         "case .windowInteractionSurface:" in spatial_input_ownership
         and "PlaybackWindowInteractionSurface.contains(entity)"
         in spatial_input_ownership
-        and "case .dockedInteractionSurface:" in spatial_input_ownership
-        and "PlaybackDockedInteractionSurface.contains(entity)"
-        in spatial_input_ownership
         and "case .panoramaInteractionSurface:" in spatial_input_ownership
         and "PlaybackPanoramaInteractionSurface.contains(entity)"
         in spatial_input_ownership,
         "immersive spatial tap ownership is not symmetric by presentation",
-    )
-    docked_contains = region(
-        docked_interaction_surface,
-        "static func contains(_ entity: Entity)",
-        "\n    }\n}",
-    )
-    require(
-        "entity.name == entityName" in docked_contains
-        and "anchorFrontProbeName" not in docked_contains
-        and "childFrontProbeName" not in docked_contains,
-        "Docked diagnostic probes can trigger production controls",
     )
     sub_perceptual_paint = re.compile(r"\.opacity\(\s*0\.0(?:0\d+|1\d?)\s*\)")
     menu_dismiss_area = region(

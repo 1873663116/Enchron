@@ -290,6 +290,8 @@
 				Playback/Views/PlaybackTopActions.swift,
 				Playback/Views/PlaybackVideoSurface.swift,
 				Playback/Views/PlayerInfoBarView.swift,
+				Playback/Views/StreamingCapsule.swift,
+				Playback/Views/StreamingCapsuleDeck.swift,
 				Playback/Views/WindowPlaybackRootView.swift,
 				Playback/Views/WindowPlayerDeck.swift,
 			);

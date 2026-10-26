@@ -137,11 +137,7 @@ struct EnchronApp: App {
 #endif
 
         ImmersiveSpace(id: application.playbackSessionModel.immersiveSpaceID) {
-            ImmersiveSpaceView(
-                inputCaptureOverlay: application.streamingModel.session != nil
-                    ? AnyView(StreamFocusedInputCapture())
-                    : nil
-            )
+            ImmersiveSpaceView()
                 .playbackDisplayCriteriaHost(application.playbackRuntime.displayCriteria, immersive: true)
                 .background {
                     SpatialPlatformEffectExecutor()

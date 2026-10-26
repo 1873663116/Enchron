@@ -1195,6 +1195,16 @@ def presentation_derivation(
         }
 
     if operation_family == "PlayerUI":
+        if template.startswith("PlayerUI-StreamingCapsule"):
+            source = required_source_location(
+                documents,
+                "Modules/Playback/Views/WindowPlayerDeck.swift",
+                "StreamingCapsuleDeck(",
+            )
+            return ["window"], {
+                "host": "windowStreamingCapsuleDeck",
+                "sources": [serialized(source)],
+            }
         if template == "PlayerUI-surface-seek-feedback":
             window_source = required_source_location(
                 documents,
