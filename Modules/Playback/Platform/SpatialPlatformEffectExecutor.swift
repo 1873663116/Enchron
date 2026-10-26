@@ -1075,6 +1075,32 @@ public final class SpatialPlatformEffectCoordinator {
             )
             return
         }
+        if retainsPlayerWindowDuringDockEntry {
+            guard let rendererReleased = await waitUntilRendererConsumerIsReleased(
+                from: appModel.presentationTransition?.previousPresentation,
+                execution: execution
+            ) else {
+                await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+                return
+            }
+            guard rendererReleased else {
+                await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+                lastPlatformOperation = "renderer-release-failed"
+                guard setRuntimeIssue(
+                    .presentationConversionFailed,
+                    execution: execution
+                ) else { return }
+                _ = await restorePlaybackWindow(
+                    for: immersiveEntryFailureWindowTransition,
+                    execution: execution
+                )
+                _ = await complete(
+                    execution,
+                    outcome: .failed(.rendererReleaseUnavailable)
+                )
+                return
+            }
+        }
         do {
             try await playbackRuntime.activatePreparedTechnicalSessionReplacement()
         } catch {
@@ -1528,6 +1554,10 @@ public final class SpatialPlatformEffectCoordinator {
         )
     }
 
+    private var retainsPlayerWindowDuringDockEntry: Bool {
+        playbackRuntime.isStreamingPlayback
+    }
+
     private func performWindowTransition(
         _ transition: SpatialPlatformPlaybackWindowTransition,
         execution: Execution,
@@ -1535,7 +1565,8 @@ public final class SpatialPlatformEffectCoordinator {
     ) async -> Bool {
         let actions = SpatialPlatformPlaybackWindowPolicy.actions(
             for: transition,
-            playerWindowState: playerWindowState
+            playerWindowState: playerWindowState,
+            retainsPlayerWindowDuringDockEntry: retainsPlayerWindowDuringDockEntry
         )
         for action in actions {
             let performed: Bool = switch action {
@@ -1679,6 +1710,9 @@ public final class SpatialPlatformEffectCoordinator {
             transition,
             execution: execution
         ) else { return false }
+        if retainsPlayerWindowDuringDockEntry, playerWindowState == .open {
+            return true
+        }
         guard playerWindowState == .opening || playerWindowState == .open else {
             return true
         }
@@ -1691,7 +1725,9 @@ public final class SpatialPlatformEffectCoordinator {
         guard executionIsLive(execution) else { return }
         _ = await dismissImmersiveSpace(execution: execution)
         _ = await restorePlaybackWindow(
-            for: normalizeWindowTransition,
+            for: retainsPlayerWindowDuringDockEntry
+                ? immersiveEntryFailureWindowTransition
+                : normalizeWindowTransition,
             execution: execution
         )
     }

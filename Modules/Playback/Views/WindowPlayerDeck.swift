@@ -3,26 +3,36 @@ import OSLog
 import PlaybackCore
 import SwiftUI
 
+public enum WindowPlayerDeckSurface: Equatable, Sendable {
+    case windowOrnament
+    case immersiveSpace
+}
+
 public struct WindowPlayerDeckView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlayerDeck")
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var presentationOverride: PlaybackPresentation?
+    var surface: WindowPlayerDeckSurface
     var onExitPlayback: (() -> Void)?
 
     public init(
         presentationOverride: PlaybackPresentation? = nil,
+        surface: WindowPlayerDeckSurface = .windowOrnament,
         onExitPlayback: (() -> Void)? = nil
     ) {
         self.presentationOverride = presentationOverride
+        self.surface = surface
         self.onExitPlayback = onExitPlayback
     }
 
     @ViewBuilder
     public var body: some View {
         Group {
-            if usesWindowPlaybackControls {
+            if playbackRuntime.isStreamingPlayback {
+                streamingDeck
+            } else if usesWindowPlaybackControls {
                 windowDeck
             } else {
                 PlayerControlDock(
@@ -36,20 +46,40 @@ public struct WindowPlayerDeckView: View {
     }
 
     @ViewBuilder
-    private var windowDeck: some View {
-        if playbackRuntime.isStreamingPlayback {
-            StreamingCapsuleDeck(
-                information: playbackRuntime.externalVideoInformation,
-                onInteraction: register
-            )
-        } else {
-            WindowPlaybackControls(
-                live: live,
-                onInteraction: register,
-                controlsVisible: appModel.showControls
-            )
-            .onHover { appModel.setControlsFocused($0) }
+    private var streamingDeck: some View {
+        switch surface {
+        case .windowOrnament:
+            if resolvedPresentation == .docked {
+                StreamingCapsuleDeck(
+                    mode: .docked(
+                        live.dockedPlacementSettings(
+                            onInteraction: register
+                        )
+                    ),
+                    information: playbackRuntime.externalVideoInformation,
+                    onInteraction: register,
+                    onExitDock: exitImmersive
+                )
+            } else {
+                StreamingCapsuleDeck(
+                    mode: .window,
+                    information: playbackRuntime.externalVideoInformation,
+                    onInteraction: register
+                )
+            }
+        case .immersiveSpace:
+            EmptyView()
         }
+    }
+
+    @ViewBuilder
+    private var windowDeck: some View {
+        WindowPlaybackControls(
+            live: live,
+            onInteraction: register,
+            controlsVisible: appModel.showControls
+        )
+        .onHover { appModel.setControlsFocused($0) }
     }
 
     private func register() {

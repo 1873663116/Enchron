@@ -393,7 +393,8 @@ enum SpatialPlatformPlaybackWindowPolicy {
 
     static func actions(
         for transition: SpatialPlatformPlaybackWindowTransition,
-        playerWindowState: SpatialPlatformPlayerWindowState
+        playerWindowState: SpatialPlatformPlayerWindowState,
+        retainsPlayerWindowDuringDockEntry: Bool = false
     ) -> [SpatialPlatformPlaybackWindowAction] {
         switch transition {
         case .startWindowPlayback:
@@ -402,6 +403,14 @@ enum SpatialPlatformPlaybackWindowPolicy {
             isPresent(playerWindowState) ? [.dismissPlayerWindow] : []
         case .playerWindowClosedByWearer:
             []
+        case .enterImmersivePlayback(.flat):
+            [.openImmersiveSpace]
+                + (
+                    isPresent(playerWindowState)
+                        && retainsPlayerWindowDuringDockEntry == false
+                        ? [.dismissPlayerWindow]
+                        : []
+                )
         case .enterImmersivePlayback:
             [.openImmersiveSpace]
                 + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])

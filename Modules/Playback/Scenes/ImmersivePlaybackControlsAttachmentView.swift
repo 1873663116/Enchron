@@ -65,6 +65,7 @@ struct ImmersivePlaybackControlsAttachmentView: View {
     private var deck: some View {
         WindowPlayerDeckView(
             presentationOverride: presentation,
+            surface: .immersiveSpace,
             onExitPlayback: { Task { await stopSpatialPlayback() } }
         )
     }

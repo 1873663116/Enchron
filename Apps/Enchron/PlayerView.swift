@@ -511,7 +511,7 @@ public struct PlayerView: View {
             geometryPolicy: streamWindowGeometryPolicy,
             geometryRefreshRevision: spatialPlatformEffectCoordinator
                 .mainWindowPlaybackSurfaceRefreshRevision,
-            showsWindowChrome: true,
+            showsWindowChrome: isStreamingDockedPresentation == false,
             onWindowSceneChange: { windowScene in
                 spatialPlatformEffectCoordinator.recordWindowScene(windowScene, for: .player)
             },
@@ -526,30 +526,43 @@ public struct PlayerView: View {
                     .onAppear { playbackSession.registerControlsInteraction() }
             },
             topChrome: {
-                if playbackSession.showControls {
+                if playbackSession.showControls,
+                   isStreamingDockedPresentation == false {
                     streamTopChrome
                 }
             }
         )
-        .enchronWindowGlassBackground(.always)
+        .enchronWindowGlassBackground(
+            isStreamingDockedPresentation ? .never : .always
+        )
         .persistentSystemOverlays(.visible)
         .ornament(
             visibility: .visible,
             attachmentAnchor: .scene(.bottom)
         ) {
-            WindowPlayerDeckView(presentationOverride: .window)
-                .anchoredMenuDismissRegion(presentation: windowMenu)
-                .opacity(playbackSession.presentationTransition == nil ? 1 : 0)
-                .allowsHitTesting(playbackSession.presentationTransition == nil)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
-                    playbackSession.setWindowControlsOrnamentHeight($0)
-                }
+            WindowPlayerDeckView(
+                presentationOverride: isStreamingDockedPresentation
+                    ? .docked
+                    : .window
+            )
+            .anchoredMenuDismissRegion(presentation: windowMenu)
+            .opacity(playbackSession.presentationTransition == nil ? 1 : 0)
+            .allowsHitTesting(playbackSession.presentationTransition == nil)
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                playbackSession.setWindowControlsOrnamentHeight($0)
+            }
         }
         .modifier(
             windowControlPlaneState(geometryPolicy: streamWindowGeometryPolicy)
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
+    }
+
+    private var isStreamingDockedPresentation: Bool {
+        let presentation = playbackSession.presentationTransition?.targetPresentation
+            ?? playbackSession.playbackPresentation
+        return presentation == .docked
     }
 
     private var streamWindowGeometryPolicy: WindowPlaybackGeometryPolicy {
@@ -560,22 +573,30 @@ public struct PlayerView: View {
 
     private var streamCanvas: some View {
         ZStack {
-            PlaybackVideoSurface(
-                presentation: hostedPlaybackPresentation,
-                isActive: playbackRuntime.activeSessionID != nil,
-                viewportRefreshRevision: spatialPlatformEffectCoordinator
-                    .mainWindowPlaybackSurfaceRefreshRevision,
-                onViewportRefreshApplied: {
-                    spatialPlatformEffectCoordinator
-                        .recordMainWindowPlaybackSurfaceRefreshApplied($0)
-                }
-            )
-            StreamSessionContentView()
-            playbackLoadingChrome
+            if isStreamingDockedPresentation {
+                Color.clear
+            } else {
+                PlaybackVideoSurface(
+                    presentation: hostedPlaybackPresentation,
+                    isActive: windowSurfaceIsActive,
+                    viewportRefreshRevision: spatialPlatformEffectCoordinator
+                        .mainWindowPlaybackSurfaceRefreshRevision,
+                    onViewportRefreshApplied: {
+                        spatialPlatformEffectCoordinator
+                            .recordMainWindowPlaybackSurfaceRefreshApplied($0)
+                    }
+                )
+                playbackLoadingChrome
+            }
+            if windowPlaybackAcceptsInput {
+                StreamSessionContentView()
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
         .accessibilityValue(playbackRuntime.lifecycle.label)
+        .accessibilityHidden(isStreamingDockedPresentation)
+        .allowsHitTesting(isStreamingDockedPresentation == false)
     }
 
     private var streamTopChrome: some View {

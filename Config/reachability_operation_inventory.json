@@ -2790,6 +2790,18 @@
           "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
         }
       ],
+      "template": "PlayerUI-StreamingCapsule-button-exit-dock"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
       "template": "PlayerUI-StreamingCapsule-button-information"
     },
     {
@@ -6861,11 +6873,35 @@
         "sources": [
           {
             "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
           }
         ]
       },
       "proofContexts": [
         "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-exit-dock",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-exit-dock",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "docked"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"
@@ -6879,11 +6915,15 @@
         "sources": [
           {
             "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window"
+        "window",
+        "docked"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"
@@ -6897,11 +6937,15 @@
         "sources": [
           {
             "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window"
+        "window",
+        "docked"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"
@@ -6915,11 +6959,15 @@
         "sources": [
           {
             "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
           }
         ]
       },
       "proofContexts": [
-        "window"
+        "window",
+        "docked"
       ],
       "proofDomain": "playback",
       "source": "accessibilityIdentifier"

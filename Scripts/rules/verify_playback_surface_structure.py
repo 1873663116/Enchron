@@ -619,11 +619,15 @@ def main() -> int:
         "is not allowed and the browser would not come back in place",
     )
     require(
-        "        case .enterImmersivePlayback:\n"
-        "            [.openImmersiveSpace]\n"
-        "                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n"
-        in execution_lease
-        and "normalizeWindowTransition" not in platform_executor.split(
+        "case .enterImmersivePlayback(.flat):" in execution_lease
+        and "retainsPlayerWindowDuringDockEntry == false" in execution_lease
+        and "case .enterImmersivePlayback:\n" in execution_lease
+        and "normalizeWindowTransition"
+        not in platform_executor.split(
+            "private func enterImmersivePlayback("
+        )[1].split("private func ")[1]
+        and "waitUntilRendererConsumerIsReleased("
+        in platform_executor.split(
             "private func enterImmersivePlayback("
         )[1].split("private func ")[1]
         and "ImmersiveResidentWindow" not in execution_lease
@@ -631,12 +635,33 @@ def main() -> int:
             platform_executor,
             "private func performWindowTransition(",
             "let actions = SpatialPlatformPlaybackWindowPolicy.actions(",
+            "retainsPlayerWindowDuringDockEntry: retainsPlayerWindowDuringDockEntry",
             "for action in actions {",
+        )
+        and "isActive: windowSurfaceIsActive" in player_view
+        and "isActive: playbackRuntime.activeSessionID != nil" not in player_view
+        and "if isStreamingDockedPresentation {\n                Color.clear"
+        in player_view
+        and "if windowPlaybackAcceptsInput {" in player_view
+        and "showsWindowChrome: isStreamingDockedPresentation == false"
+        in player_view,
+        "a standing player window either claims the freshly minted surface "
+        "before the immersive space binds it, or remounts the stream input "
+        "capture and its gamepad claim over the space; the dock entry may keep "
+        "the window only when the source surface is released by the "
+        "presentation binding policy and the window content drops its chrome "
+        "and input capture",
+    )
+    require(
+        "immersiveEntryFailureWindowTransition"
+        in region(
+            platform_executor,
+            "private func recoverFromFailedImmersivePlaybackEntry(",
+            "\n    private func ",
         ),
-        "entering an immersive presentation leaves the player window standing, so "
-        "the window surface races the space for the freshly minted entity, or a "
-        "failed entry normalizes by the residency, which has already moved to the "
-        "space and will therefore refuse to push the player window back",
+        "a failed dock entry normalizes by the residency, which has already "
+        "moved to the space and would therefore dismiss the player window "
+        "instead of restoring it",
     )
     require(
         "playbackResidency: PlaybackResidency" in execution_lease

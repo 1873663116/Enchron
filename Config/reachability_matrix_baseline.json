@@ -1361,6 +1361,26 @@
       "context": "window",
       "operation": "accessibility:PlayerUI-StreamingCapsule-close",
       "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-exit-dock",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-information",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-settings",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-close",
+      "verdict": "known-defect"
     }
   ],
   "coordinateSystem": "proof-context-v1",

@@ -1196,15 +1196,28 @@ def presentation_derivation(
 
     if operation_family == "PlayerUI":
         if template.startswith("PlayerUI-StreamingCapsule"):
-            source = required_source_location(
+            deck_source = required_source_location(
                 documents,
                 "Modules/Playback/Views/WindowPlayerDeck.swift",
                 "StreamingCapsuleDeck(",
             )
-            return ["window"], {
+            dock_source = required_source_location(
+                documents,
+                "Apps/Enchron/PlayerView.swift",
+                "presentationOverride: isStreamingDockedPresentation",
+            )
+            derivation = {
                 "host": "windowStreamingCapsuleDeck",
-                "sources": [serialized(source)],
+                "sources": [
+                    serialized(deck_source),
+                    serialized(dock_source),
+                ],
             }
+            if template == "PlayerUI-StreamingCapsule-button-dock":
+                return ["window"], derivation
+            if template == "PlayerUI-StreamingCapsule-button-exit-dock":
+                return ["docked"], derivation
+            return ["window", "docked"], derivation
         if template == "PlayerUI-surface-seek-feedback":
             window_source = required_source_location(
                 documents,
