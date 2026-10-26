@@ -66,7 +66,7 @@ grep -E "session end|input release|audio stop|stream content disappeared" "$D/st
 
 纳入：
 
-- 断线后的重连入口与状态；当前只有注入式断开，用户侧没有恢复路径。
+- 断线后的重连入口与状态：中断态浮层给出「重新连接」，只对可重试的失败显示；用户侧恢复路径不再只有注入式断开。
 - 弱网提示。
 - 失败原因分类，会话与呈现共用同一份数据源。
 - 主机多地址带来的可达性切换记在 [串流主机](streaming-hosts.md)，不在本文件展开。
