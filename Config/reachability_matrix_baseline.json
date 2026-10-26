@@ -1303,11 +1303,6 @@
       "verdict": "known-defect"
     },
     {
-      "context": "window",
-      "operation": "accessibility:Stream-Session-back",
-      "verdict": "known-defect"
-    },
-    {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-Streaming-negotiated",
       "verdict": "known-defect"

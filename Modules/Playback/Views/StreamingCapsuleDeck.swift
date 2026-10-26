@@ -16,17 +16,20 @@ struct StreamingCapsuleDeck: View {
     private let information: StreamingPlaybackInformation?
     private let onInteraction: () -> Void
     private let onExitDock: () -> Void
+    private let dockMenuPresented: Binding<Bool>
 
     @State private var panel = Panel.information
 
     init(
         mode: Mode,
         information: StreamingPlaybackInformation?,
+        dockMenuPresented: Binding<Bool> = .constant(false),
         onInteraction: @escaping () -> Void = {},
         onExitDock: @escaping () -> Void = {}
     ) {
         self.mode = mode
         self.information = information
+        self.dockMenuPresented = dockMenuPresented
         self.onInteraction = onInteraction
         self.onExitDock = onExitDock
     }
@@ -98,17 +101,15 @@ struct StreamingCapsuleDeck: View {
     }
 
     private var dockSlot: some View {
-        PlaybackDockMenuTrigger { isMenuPresented in
-            StreamingCapsuleSlotButton(
-                accessibilityLabel: String(localized: "Dock"),
-                accessibilityIdentifier: "PlayerUI-StreamingCapsule-button-dock",
-                action: {
-                    onInteraction()
-                    isMenuPresented.wrappedValue.toggle()
-                },
-                icon: { ButtonSymbol(systemName: "mountain.2.fill") }
-            )
-        }
+        StreamingCapsuleSlotButton(
+            accessibilityLabel: String(localized: "Dock"),
+            accessibilityIdentifier: "PlayerUI-StreamingCapsule-button-dock",
+            action: {
+                onInteraction()
+                dockMenuPresented.wrappedValue.toggle()
+            },
+            icon: { ButtonSymbol(systemName: "mountain.2.fill") }
+        )
     }
 
     private var exitDockSlot: some View {

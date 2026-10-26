@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-26T05:48:04+00:00",
+  "updatedAt": "2026-10-26T06:14:37+00:00",
   "verbs": {
     "accessibility-inspect": {
       "samples": [
@@ -1535,21 +1535,6 @@
         {
           "at": "2026-08-26T12:20:23+00:00",
           "censored": false,
-          "seconds": 6.57
-        },
-        {
-          "at": "2026-08-26T12:20:23+00:00",
-          "censored": false,
-          "seconds": 6.13
-        },
-        {
-          "at": "2026-08-26T12:20:23+00:00",
-          "censored": false,
-          "seconds": 217.32
-        },
-        {
-          "at": "2026-08-26T12:20:23+00:00",
-          "censored": false,
           "seconds": 5.59
         },
         {
@@ -1731,6 +1716,21 @@
           "at": "2026-10-26T05:48:04+00:00",
           "censored": false,
           "seconds": 3.83
+        },
+        {
+          "at": "2026-10-26T06:08:25+00:00",
+          "censored": false,
+          "seconds": 31.97
+        },
+        {
+          "at": "2026-10-26T06:12:18+00:00",
+          "censored": false,
+          "seconds": 34.94
+        },
+        {
+          "at": "2026-10-26T06:14:37+00:00",
+          "censored": false,
+          "seconds": 2.72
         }
       ]
     },
@@ -3271,21 +3271,6 @@
     "snapshot": {
       "samples": [
         {
-          "at": "2026-09-06T17:49:32.571456+00:00",
-          "censored": false,
-          "seconds": 1.849
-        },
-        {
-          "at": "2026-09-06T17:49:49.217428+00:00",
-          "censored": false,
-          "seconds": 1.852
-        },
-        {
-          "at": "2026-09-06T17:49:56.885990+00:00",
-          "censored": false,
-          "seconds": 1.829
-        },
-        {
           "at": "2026-09-06T17:50:06.282279+00:00",
           "censored": false,
           "seconds": 1.777
@@ -3469,6 +3454,21 @@
           "at": "2026-10-26T05:47:35+00:00",
           "censored": false,
           "seconds": 2.38
+        },
+        {
+          "at": "2026-10-26T06:10:18+00:00",
+          "censored": false,
+          "seconds": 1.62
+        },
+        {
+          "at": "2026-10-26T06:11:16+00:00",
+          "censored": false,
+          "seconds": 13.51
+        },
+        {
+          "at": "2026-10-26T06:14:01+00:00",
+          "censored": false,
+          "seconds": 2.26
         }
       ]
     },
@@ -4190,26 +4190,6 @@
     "tap": {
       "samples": [
         {
-          "at": "2026-09-06T17:38:10.279452+00:00",
-          "censored": false,
-          "seconds": 4.251
-        },
-        {
-          "at": "2026-09-06T17:38:16.008824+00:00",
-          "censored": false,
-          "seconds": 4.339
-        },
-        {
-          "at": "2026-09-06T17:38:21.683307+00:00",
-          "censored": false,
-          "seconds": 4.298
-        },
-        {
-          "at": "2026-09-06T17:38:35.599904+00:00",
-          "censored": false,
-          "seconds": 2.351
-        },
-        {
           "at": "2026-09-06T17:38:38.422970+00:00",
           "censored": false,
           "seconds": 2.822
@@ -4388,6 +4368,26 @@
           "at": "2026-09-06T17:52:52.607399+00:00",
           "censored": false,
           "seconds": 1.441
+        },
+        {
+          "at": "2026-10-26T06:10:40+00:00",
+          "censored": false,
+          "seconds": 3.63
+        },
+        {
+          "at": "2026-10-26T06:13:26+00:00",
+          "censored": false,
+          "seconds": 1.57
+        },
+        {
+          "at": "2026-10-26T06:13:43+00:00",
+          "censored": false,
+          "seconds": 4.06
+        },
+        {
+          "at": "2026-10-26T06:14:33+00:00",
+          "censored": false,
+          "seconds": 4.93
         }
       ]
     },

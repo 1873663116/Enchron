@@ -4327,18 +4327,6 @@
       "template": "Stream-Pairing-status"
     },
     {
-      "action": "activate",
-      "family": "Stream",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Apps/Enchron/PlayerView.swift"
-        }
-      ],
-      "template": "Stream-Session-back"
-    },
-    {
       "action": null,
       "family": "Stream",
       "role": "observation",
@@ -8178,24 +8166,6 @@
         "main-window-browser"
       ],
       "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Stream-Session-back",
-      "identifierTemplate": "Stream-Session-back",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "streamWindowSurface",
-        "sources": [
-          {
-            "path": "Apps/Enchron/PlayerView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "window"
-      ],
-      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {

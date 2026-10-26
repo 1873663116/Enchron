@@ -937,3 +937,73 @@ struct PlaybackDockMenuTrigger<Label: View>: View {
         }
     }
 }
+
+/// The Dock menu trigger for a control that lives in the player window's
+/// ornament: the ornament is outside the window's coordinate space, so the
+/// menu source is the window's bottom centre instead of the measured button.
+public struct PlaybackDockMenuAnchor: View {
+    private let logger = Logger(subsystem: "app.enchron", category: "PlaybackDock")
+    @Environment(PlaybackSessionModel.self) private var appModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @Binding var isMenuPresented: Bool
+    @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment?
+    @State private var selectedEffect: SpatialSceneDomain.EnvironmentEffect?
+
+    public init(isPresented: Binding<Bool>) {
+        _isMenuPresented = isPresented
+    }
+
+    public var body: some View {
+        Color.clear
+            .frame(width: 1, height: 1)
+            .anchoredMenu(
+                isPresented: $isMenuPresented,
+                key: "playback.environment",
+                width: DesignTokens.Layout.environmentMenuWidth,
+                sourceAnchor: UnitPoint(x: 0.5, y: 1)
+            ) {
+                PlaybackDockMenuContent(
+                    cardEnvironment: cardEnvironment,
+                    selectedEnvironment: selectedEnvironment ?? cardEnvironment,
+                    selectedEffect: selectedEnvironment == nil
+                        ? appModel.currentEnvironmentEffect
+                        : selectedEffect
+                ) { environment, effect in
+                    selectedEnvironment = environment
+                    selectedEffect = effect
+                    isMenuPresented = false
+                    enterDock(environment: environment, effect: effect)
+                }
+            }
+    }
+
+    private var cardEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        let card = appModel.environmentContext.environment
+            ?? appModel.centeredCardEnvironment
+        return card.isCardEnvironment ? card : .ocean
+    }
+
+    private func enterDock(
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?
+    ) {
+        appModel.registerControlsInteraction()
+        guard playbackRuntime.canEnterSpatialPresentation,
+              let target = appModel.playbackPresentation.enterImmersiveTarget else {
+            return
+        }
+        do {
+            _ = try appModel.requestPlaybackPresentation(
+                target,
+                environment: environment,
+                effect: effect,
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+        } catch {
+            logger.error(
+                "dock request failed error=\(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+}

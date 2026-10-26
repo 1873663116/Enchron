@@ -277,8 +277,11 @@ private struct AnchoredMenuSource<MenuContent: View>: ViewModifier {
     @Binding var isPresented: Bool
     let key: String
     let width: CGFloat
+    let sourceAnchor: UnitPoint?
     let menuContent: () -> MenuContent
     @State private var source = CGRect.zero
+
+    private static var anchorSourceSize: CGFloat { 60 }
 
     func body(content: Content) -> some View {
         if let presentation {
@@ -286,12 +289,17 @@ private struct AnchoredMenuSource<MenuContent: View>: ViewModifier {
                 .onGeometryChange(for: CGRect.self) {
                     $0.frame(in: .named(presentation.coordinateSpace))
                 } action: { frame in
+                    guard sourceAnchor == nil else { return }
                     source = frame
                     if isPresented, !presentation.isActive { present(in: presentation) }
                 }
                 .onChange(of: isPresented, initial: true) { _, value in
-                    if value, !source.isEmpty {
-                        present(in: presentation)
+                    if value {
+                        if sourceAnchor != nil {
+                            presentAtAnchor(in: presentation)
+                        } else if !source.isEmpty {
+                            present(in: presentation)
+                        }
                     } else if !value, presentation.root?.key == key {
                         presentation.dismiss()
                     }
@@ -302,6 +310,21 @@ private struct AnchoredMenuSource<MenuContent: View>: ViewModifier {
     }
 
     private func present(in presentation: AnchoredMenuPresentation) {
+        presentation.present(key: key, source: source, sizing: .fixed(width: width),
+                             onDismiss: { isPresented = false }, content: menuContent)
+    }
+
+    private func presentAtAnchor(in presentation: AnchoredMenuPresentation) {
+        guard let sourceAnchor else { return }
+        let bounds = presentation.bounds
+        guard bounds.width > 0, bounds.height > 0 else { return }
+        let size = Self.anchorSourceSize
+        let source = CGRect(
+            x: sourceAnchor.x * bounds.width - size / 2,
+            y: sourceAnchor.y * bounds.height - size / 2,
+            width: size,
+            height: size
+        )
         presentation.present(key: key, source: source, sizing: .fixed(width: width),
                              onDismiss: { isPresented = false }, content: menuContent)
     }
@@ -325,6 +348,26 @@ public extension View {
         isPresented: Binding<Bool>, key: String, width: CGFloat,
         @ViewBuilder content: @escaping () -> MenuContent
     ) -> some View {
-        modifier(AnchoredMenuSource(isPresented: isPresented, key: key, width: width, menuContent: content))
+        modifier(AnchoredMenuSource(
+            isPresented: isPresented,
+            key: key,
+            width: width,
+            sourceAnchor: nil,
+            menuContent: content
+        ))
+    }
+
+    func anchoredMenu<MenuContent: View>(
+        isPresented: Binding<Bool>, key: String, width: CGFloat,
+        sourceAnchor: UnitPoint,
+        @ViewBuilder content: @escaping () -> MenuContent
+    ) -> some View {
+        modifier(AnchoredMenuSource(
+            isPresented: isPresented,
+            key: key,
+            width: width,
+            sourceAnchor: sourceAnchor,
+            menuContent: content
+        ))
     }
 }

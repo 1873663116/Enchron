@@ -94,6 +94,7 @@ public struct PlayerView: View {
     @Environment(SettingsViewModel.self) private var settingsViewModel
 #endif
 
+    @State private var streamingDockMenuPresented = false
     @State private var playbackDeckOpacity: Double = 0
     @State private var windowMenu = AnchoredMenuPresentation()
     @State private var reapplyVerificationSnapshotTick = 0
@@ -526,16 +527,16 @@ public struct PlayerView: View {
                     .onAppear { playbackSession.registerControlsInteraction() }
             },
             topChrome: {
-                if playbackSession.showControls,
-                   isStreamingDockedPresentation == false {
-                    streamTopChrome
-                }
+                EmptyView()
             }
         )
         .enchronWindowGlassBackground(
             isStreamingDockedPresentation ? .never : .always
         )
         .persistentSystemOverlays(.visible)
+        .overlay(alignment: .bottom) {
+            PlaybackDockMenuAnchor(isPresented: $streamingDockMenuPresented)
+        }
         .ornament(
             visibility: .visible,
             attachmentAnchor: .scene(.bottom),
@@ -544,7 +545,8 @@ public struct PlayerView: View {
             WindowPlayerDeckView(
                 presentationOverride: isStreamingDockedPresentation
                     ? .docked
-                    : .window
+                    : .window,
+                streamingDockMenuPresented: $streamingDockMenuPresented
             )
             .anchoredMenuDismissRegion(presentation: windowMenu)
             .opacity(playbackSession.presentationTransition == nil ? 1 : 0)
@@ -598,25 +600,6 @@ public struct PlayerView: View {
         .accessibilityValue(playbackRuntime.lifecycle.label)
         .accessibilityHidden(isStreamingDockedPresentation)
         .allowsHitTesting(isStreamingDockedPresentation == false)
-    }
-
-    private var streamTopChrome: some View {
-        WindowPlaybackTopChrome {
-            PlaybackChromeGlassButton(
-                systemName: "chevron.left",
-                accessibilityLabel: "返回",
-                action: { stopStream() },
-                accessibilityIdentifier: "Stream-Session-back"
-            )
-        } spatialActions: {
-            Spacer()
-        } moreControl: {
-            PlaybackWindowDockChip()
-        }
-    }
-
-    private func stopStream() {
-        streamingModel.endStream()
     }
 
     private var windowPlaybackLayout: WindowPlaybackLayout {

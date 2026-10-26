@@ -15,15 +15,18 @@ public struct WindowPlayerDeckView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var presentationOverride: PlaybackPresentation?
     var surface: WindowPlayerDeckSurface
+    var streamingDockMenuPresented: Binding<Bool>
     var onExitPlayback: (() -> Void)?
 
     public init(
         presentationOverride: PlaybackPresentation? = nil,
         surface: WindowPlayerDeckSurface = .windowOrnament,
+        streamingDockMenuPresented: Binding<Bool> = .constant(false),
         onExitPlayback: (() -> Void)? = nil
     ) {
         self.presentationOverride = presentationOverride
         self.surface = surface
+        self.streamingDockMenuPresented = streamingDockMenuPresented
         self.onExitPlayback = onExitPlayback
     }
 
@@ -64,6 +67,7 @@ public struct WindowPlayerDeckView: View {
                 StreamingCapsuleDeck(
                     mode: .window,
                     information: playbackRuntime.externalVideoInformation,
+                    dockMenuPresented: streamingDockMenuPresented,
                     onInteraction: register
                 )
             }
