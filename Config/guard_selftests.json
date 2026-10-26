@@ -1516,6 +1516,23 @@
           "Release"
         ]
       }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-a-display-immediately-attachment",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamSessionCoordinator.swift",
+        "find": "let sampleToEnqueue = Self.immediateTimingSample(",
+        "replaceWith": "let sampleToEnqueue = Self.markForImmediateDisplay(",
+        "introduces": "markForImmediateDisplay"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "stream frame pipeline drifted from the PR baseline"
+        ]
+      }
     }
   ],
   "externalSubject": [
