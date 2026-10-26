@@ -1530,7 +1530,58 @@
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "stream frame pipeline drifted from the PR baseline"
+          "drifted from the delivery baseline"
+        ]
+      }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-a-video-early-exit",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamSessionCoordinator.swift",
+        "find": "        let pts = CMSampleBufferGetPresentationTimeStamp(sample)",
+        "replaceWith": "        if awaitingProbe { return }\n        let pts = CMSampleBufferGetPresentationTimeStamp(sample)",
+        "introduces": "awaitingProbe"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "early exits"
+        ]
+      }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-a-pump-skip",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamSessionCoordinator.swift",
+        "find": "            let sampleToEnqueue = Self.immediateTimingSample(",
+        "replaceWith": "            if pendingProbe { continue }\n            let sampleToEnqueue = Self.immediateTimingSample(",
+        "introduces": "pendingProbe"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "early exits"
+        ]
+      }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-an-audio-skip",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamAudioOutput.swift",
+        "find": "        pcm.withUnsafeBytes { raw in",
+        "replaceWith": "        if lateAudioProbe { return }\n        pcm.withUnsafeBytes { raw in",
+        "introduces": "lateAudioProbe"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "early exits"
         ]
       }
     }
