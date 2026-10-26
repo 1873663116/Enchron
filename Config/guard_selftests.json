@@ -409,18 +409,19 @@
       }
     },
     {
-      "id": "playback-surface-structure-rejects-an-immersive-entry-that-leaves-the-player-window-standing",
+      "id": "playback-surface-structure-rejects-a-dock-entry-that-drops-the-window-retention-guard",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n",
-        "replaceWith": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n"
+        "find": "retainsPlayerWindowDuringDockEntry == false",
+        "replaceWith": "retainsPlayerWindowDuringDockEntry == true",
+        "introduces": "retainsPlayerWindowDuringDockEntry == true"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "entering an immersive presentation leaves the player window standing"
+          "a standing player window either claims the freshly minted surface"
         ]
       }
     },
@@ -1582,6 +1583,23 @@
         "exitCode": 1,
         "outputContains": [
           "early exits"
+        ]
+      }
+    },
+    {
+      "id": "localization-coverage-rejects-a-language-without-translations",
+      "guard": "Scripts/rules/verify_localizations.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/localization/rules.json",
+        "find": "  \"languages\": [\n    \"de\",",
+        "replaceWith": "  \"languages\": [\n    \"xx\",\n    \"de\",",
+        "introduces": "xx"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "untranslated"
         ]
       }
     }
