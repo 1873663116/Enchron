@@ -12267,6 +12267,53 @@
         }
       }
     },
+    "Streaming Information": {
+      "comment": "Modules/Playback/Views/StreamingCapsuleDeck.swift:78",
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Streaming-Informationen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informations de diffusion"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ストリーミング情報"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "스트리밍 정보"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сведения о трансляции"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "串流信息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "串流資訊"
+          }
+        }
+      }
+    },
     "Studios": {
       "comment": "Modules/MediaServer/MediaServerItemPresentation.swift:92",
       "localizations": {
