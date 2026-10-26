@@ -21,6 +21,23 @@ public struct StreamMouseMotion: Equatable, Sendable {
     }
 }
 
+/// Accumulates raw scroll axis values into the high resolution wheel units the
+/// host expects: one whole unit of axis travel becomes one wheel notch, which is
+/// twenty high resolution units.
+public struct StreamHighResScrollAccumulator: Equatable, Sendable {
+    private var pending: Float = 0
+
+    public init() {}
+
+    public mutating func units(for axisValue: Float) -> Int32 {
+        pending += axisValue
+        let whole = pending.rounded(.towardZero)
+        guard whole != 0 else { return 0 }
+        pending -= whole
+        return Int32(clamping: Int(whole) * 20)
+    }
+}
+
 public struct StreamScrollAccumulator: Equatable, Sendable {
     private var pending: Float = 0
 
@@ -49,14 +66,17 @@ public final class StreamMouseInput: NSObject {
     public static let leftButtonCode: Int32 = 0x01
     public static let middleButtonCode: Int32 = 0x02
     public static let rightButtonCode: Int32 = 0x03
+    public static let x1ButtonCode: Int32 = 0x04
+    public static let x2ButtonCode: Int32 = 0x05
 
     private var mouse: GCMouse?
     private var motion = StreamMouseMotion()
-    private var accumulator = StreamScrollAccumulator()
+    private var verticalScroll = StreamHighResScrollAccumulator()
+    private var horizontalScroll = StreamHighResScrollAccumulator()
     private var lastDeltaProbe = Date.distantPast
     private var onMove: (@Sendable (Int32, Int32) -> Void)?
     private var onButton: (@Sendable (Int32, Bool) -> Void)?
-    private var onScrollClicks: (@Sendable (Int32) -> Void)?
+    private var onHighResScroll: (@Sendable (Int32, Int32) -> Void)?
     private var onPresence: (@Sendable (Bool) -> Void)?
 
     public override init() {
@@ -70,13 +90,13 @@ public final class StreamMouseInput: NSObject {
     public func start(
         onMove: @escaping @Sendable (Int32, Int32) -> Void,
         onButton: @escaping @Sendable (Int32, Bool) -> Void,
-        onScrollClicks: @escaping @Sendable (Int32) -> Void,
+        onHighResScroll: @escaping @Sendable (Int32, Int32) -> Void,
         onPresence: @escaping @Sendable (Bool) -> Void
     ) {
         stop()
         self.onMove = onMove
         self.onButton = onButton
-        self.onScrollClicks = onScrollClicks
+        self.onHighResScroll = onHighResScroll
         self.onPresence = onPresence
         NotificationCenter.default.addObserver(
             self,
@@ -99,7 +119,7 @@ public final class StreamMouseInput: NSObject {
         detach(reportPresence: false)
         onMove = nil
         onButton = nil
-        onScrollClicks = nil
+        onHighResScroll = nil
         onPresence = nil
     }
 
@@ -124,7 +144,8 @@ public final class StreamMouseInput: NSObject {
     private func attach(_ candidate: GCMouse, reportPresence: Bool = true) {
         guard let input = candidate.mouseInput else { return }
         mouse = candidate
-        accumulator = StreamScrollAccumulator()
+        verticalScroll = StreamHighResScrollAccumulator()
+        horizontalScroll = StreamHighResScrollAccumulator()
         motion = StreamMouseMotion()
         input.mouseMovedHandler = { [weak self] _, deltaX, deltaY in
             self?.handleMove(deltaX: deltaX, deltaY: deltaY)
@@ -138,8 +159,23 @@ public final class StreamMouseInput: NSObject {
         input.middleButton?.pressedChangedHandler = { [weak self] _, _, pressed in
             self?.onButton?(Self.middleButtonCode, pressed)
         }
-        input.scroll.valueChangedHandler = { [weak self] _, _, yValue in
-            self?.handleScroll(yValue)
+        if let auxiliary = input.auxiliaryButtons {
+            if auxiliary.count >= 1 {
+                auxiliary[0].pressedChangedHandler = { [weak self] _, _, pressed in
+                    self?.onButton?(Self.x1ButtonCode, pressed)
+                }
+            }
+            if auxiliary.count >= 2 {
+                auxiliary[1].pressedChangedHandler = { [weak self] _, _, pressed in
+                    self?.onButton?(Self.x2ButtonCode, pressed)
+                }
+            }
+        }
+        input.scroll.yAxis.valueChangedHandler = { [weak self] _, value in
+            self?.handleScroll(vertical: value)
+        }
+        input.scroll.xAxis.valueChangedHandler = { [weak self] _, value in
+            self?.handleScroll(horizontal: value)
         }
         if reportPresence {
             onPresence?(true)
@@ -152,11 +188,16 @@ public final class StreamMouseInput: NSObject {
             input.leftButton.pressedChangedHandler = nil
             input.rightButton?.pressedChangedHandler = nil
             input.middleButton?.pressedChangedHandler = nil
-            input.scroll.valueChangedHandler = nil
+            for button in input.auxiliaryButtons ?? [] {
+                button.pressedChangedHandler = nil
+            }
+            input.scroll.yAxis.valueChangedHandler = nil
+            input.scroll.xAxis.valueChangedHandler = nil
         }
         let wasAttached = mouse != nil
         mouse = nil
-        accumulator = StreamScrollAccumulator()
+        verticalScroll = StreamHighResScrollAccumulator()
+        horizontalScroll = StreamHighResScrollAccumulator()
         if reportPresence, wasAttached {
             onPresence?(false)
         }
@@ -180,9 +221,15 @@ public final class StreamMouseInput: NSObject {
         )
     }
 
-    private func handleScroll(_ yValue: Float) {
-        let clicks = accumulator.clicks(for: yValue)
-        guard clicks != 0 else { return }
-        onScrollClicks?(clicks)
+    private func handleScroll(vertical: Float) {
+        let units = verticalScroll.units(for: vertical)
+        guard units != 0 else { return }
+        onHighResScroll?(units, 0)
+    }
+
+    private func handleScroll(horizontal: Float) {
+        let units = horizontalScroll.units(for: -horizontal)
+        guard units != 0 else { return }
+        onHighResScroll?(0, units)
     }
 }

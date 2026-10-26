@@ -170,6 +170,7 @@ public protocol BackendSession: AnyObject, Sendable {
     var videoSampleHandler: (@Sendable (CMSampleBuffer) -> Void)? { get set }
     var audioFrameHandler: (@Sendable (BackendAudioFrame) -> Void)? { get set }
     var eventHandler: (@Sendable (BackendSessionEvent) -> Void)? { get set }
+    var controllerFeedbackHandler: (@Sendable (StreamControllerFeedback) -> Void)? { get set }
 
     var streamWidth: Int { get }
     var streamHeight: Int { get }
@@ -182,6 +183,15 @@ public protocol BackendSession: AnyObject, Sendable {
     func sendMouseMove(dx: Int32, dy: Int32)
     func sendMouseButton(code: Int32, down: Bool)
     func sendScroll(amount: Int32)
+    func sendHighResScroll(vertical: Int16, horizontal: Int16)
+    func sendControllerTouch(
+        controllerNumber: UInt8,
+        eventType: UInt8,
+        pointerId: UInt32,
+        x: Float,
+        y: Float,
+        pressure: Float
+    )
     func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32)
     func sendControllerState(
         buttonFlags: Int32,
@@ -192,7 +202,16 @@ public protocol BackendSession: AnyObject, Sendable {
         rightStickX: Int16,
         rightStickY: Int16
     )
-    func sendControllerPresence(connected: Bool)
+    func sendControllerArrival(_ arrival: StreamControllerArrival)
+    func sendControllerRemoval(controllerNumber: UInt8)
+    func sendControllerMotion(
+        controllerNumber: UInt8,
+        motionType: UInt8,
+        x: Float,
+        y: Float,
+        z: Float
+    )
+    func sendControllerBattery(controllerNumber: UInt8, state: UInt8, percentage: UInt8)
     func releaseAllInput()
     func requestIdrFrame()
 

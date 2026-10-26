@@ -162,3 +162,40 @@ public enum MoonlightLaunchPreference: Sendable {
     case resumeOnly
     case launchOnly
 }
+
+public enum MoonlightControllerType: UInt8, Sendable {
+    case unknown = 0
+    case xbox = 1
+    case playStation = 2
+    case nintendo = 3
+    case steam = 4
+}
+
+public struct MoonlightControllerArrival: Sendable, Equatable {
+    public var controllerNumber: UInt8
+    public var activeGamepadMask: UInt16
+    public var type: MoonlightControllerType
+    public var supportedButtons: UInt32
+    public var capabilities: UInt16
+
+    public init(
+        controllerNumber: UInt8,
+        activeGamepadMask: UInt16,
+        type: MoonlightControllerType,
+        supportedButtons: UInt32,
+        capabilities: UInt16
+    ) {
+        self.controllerNumber = controllerNumber
+        self.activeGamepadMask = activeGamepadMask
+        self.type = type
+        self.supportedButtons = supportedButtons
+        self.capabilities = capabilities
+    }
+}
+
+public enum MoonlightControllerFeedback: Sendable, Equatable {
+    case rumble(controllerNumber: UInt16, lowFrequency: UInt16, highFrequency: UInt16)
+    case triggerRumble(controllerNumber: UInt16, leftTrigger: UInt16, rightTrigger: UInt16)
+    case motionRequest(controllerNumber: UInt16, motionType: UInt8, reportRateHz: UInt16)
+    case led(controllerNumber: UInt16, red: UInt8, green: UInt8, blue: UInt8)
+}

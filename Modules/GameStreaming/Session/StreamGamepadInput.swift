@@ -18,6 +18,13 @@ public enum StreamGamepadButton: String, CaseIterable, Sendable {
     case rightThumbstickButton
     case menu
     case options
+    case special
+    case paddle1
+    case paddle2
+    case paddle3
+    case paddle4
+    case share
+    case touchpad
 }
 
 public struct StreamGamepadSticks: Equatable, Sendable {
@@ -72,6 +79,62 @@ public enum StreamGamepadMapping {
     public static let optionsFlag: Int32 = 0x0020
     public static let leftThumbstickButtonFlag: Int32 = 0x0040
     public static let rightThumbstickButtonFlag: Int32 = 0x0080
+    public static let specialFlag: Int32 = 0x0400
+    public static let paddle1Flag: Int32 = 0x010000
+    public static let paddle2Flag: Int32 = 0x020000
+    public static let paddle3Flag: Int32 = 0x040000
+    public static let paddle4Flag: Int32 = 0x080000
+    public static let touchpadFlag: Int32 = 0x100000
+    public static let miscFlag: Int32 = 0x200000
+
+    public static let baseButtonFlags: Int32 =
+        aFlag | bFlag | xFlag | yFlag
+        | dpadUpFlag | dpadDownFlag | dpadLeftFlag | dpadRightFlag
+        | leftShoulderFlag | rightShoulderFlag
+        | leftThumbstickButtonFlag | rightThumbstickButtonFlag
+        | menuFlag | optionsFlag
+
+    /// Two base buttons a controller may lack are synthesized from combinations
+    /// so every host still sees a complete pad: LB plus Start sends Options when
+    /// no Options button exists, and RB plus Start (or Start plus Options when
+    /// Options is physical) sends Home when no Home button exists. The
+    /// combination consumes the buttons it uses, and releasing either one drops
+    /// the synthesized button because the whole state is rebuilt per call.
+    public static func combinedButtons(
+        _ buttons: Set<StreamGamepadButton>,
+        hasPhysicalOptions: Bool,
+        hasPhysicalHome: Bool
+    ) -> Set<StreamGamepadButton> {
+        guard buttons.contains(.menu) else { return buttons }
+        var combined = buttons
+        if !hasPhysicalOptions, combined.contains(.leftShoulder) {
+            combined.insert(.options)
+            combined.remove(.menu)
+            combined.remove(.leftShoulder)
+            return combined
+        }
+        guard !hasPhysicalHome else { return combined }
+        if !hasPhysicalOptions, combined.contains(.rightShoulder) {
+            combined.insert(.special)
+            combined.remove(.menu)
+            combined.remove(.rightShoulder)
+        } else if hasPhysicalOptions, combined.contains(.options) {
+            combined.insert(.special)
+            combined.remove(.menu)
+            combined.remove(.options)
+        }
+        return combined
+    }
+
+    /// Triggers travel as one byte and sticks as a signed sixteen bit value. The
+    /// host expects the upstream ranges, which the scaling below reproduces.
+    public static func triggerByte(_ value: Float) -> UInt8 {
+        UInt8(clamping: Int(value * 255))
+    }
+
+    public static func axisValue(_ value: Float) -> Int16 {
+        Int16(clamping: Int(value * 32_766))
+    }
 
     public static func buttonFlags(
         _ buttons: Set<StreamGamepadButton>,
@@ -100,16 +163,34 @@ public enum StreamGamepadMapping {
         case .rightThumbstickButton: rightThumbstickButtonFlag
         case .menu: menuFlag
         case .options: optionsFlag
+        case .special: specialFlag
+        case .paddle1: paddle1Flag
+        case .paddle2: paddle2Flag
+        case .paddle3: paddle3Flag
+        case .paddle4: paddle4Flag
+        case .share: miscFlag
+        case .touchpad: touchpadFlag
         }
     }
 }
 
 /// GameController delivers input and connection callbacks on the main queue, so
 /// start and stop are main-thread calls and this owner needs no cross-thread lock.
-public final class StreamGamepadInput: NSObject {
+public final class StreamGamepadInput: NSObject, @unchecked Sendable {
     private var controller: GCController?
+    private var controllerProfile: StreamControllerArrival?
     private var onState: (@Sendable (StreamGamepadState) -> Void)?
-    private var onPresence: (@Sendable (Bool) -> Void)?
+    private var onProfile: (@Sendable (StreamControllerArrival?) -> Void)?
+    private var onTouch: (@Sendable (UInt8, UInt32, Float, Float, Float) -> Void)?
+    private let feedback = StreamControllerFeedbackRouter()
+    private struct TouchState {
+        var x: Float = 0
+        var y: Float = 0
+    }
+
+    private var primaryTouch = TouchState()
+    private var secondaryTouch = TouchState()
+    private var legacyPauseActive = false
 #if DEBUG
     private let rateProbe = StreamGamepadRateProbe()
 #endif
@@ -118,17 +199,183 @@ public final class StreamGamepadInput: NSObject {
         super.init()
     }
 
+    public func resendProfile() {
+        guard let controllerProfile else { return }
+        onProfile?(controllerProfile)
+    }
+
+    public func configureFeedback(
+        sendMotion: @escaping @Sendable (UInt8, UInt8, Float, Float, Float) -> Void,
+        sendBattery: @escaping @Sendable (UInt8, UInt8, UInt8) -> Void
+    ) {
+        feedback.sendMotion = sendMotion
+        feedback.sendBattery = sendBattery
+    }
+
+    public func reportCurrentBattery() {
+        feedback.reportCurrentBattery()
+    }
+
+    public func handle(_ event: StreamControllerFeedback) {
+        feedback.handle(event)
+    }
+
+    private func registerTouchpadHandlers(for candidate: GCController) {
+        if let dualShock = candidate.extendedGamepad as? GCDualShockGamepad {
+            dualShock.touchpadPrimary.valueChangedHandler = { [weak self] _, x, y in
+                self?.handleTouch(index: 0, x: x, y: y)
+            }
+            dualShock.touchpadSecondary.valueChangedHandler = { [weak self] _, x, y in
+                self?.handleTouch(index: 1, x: x, y: y)
+            }
+        }
+        if let dualSense = candidate.extendedGamepad as? GCDualSenseGamepad {
+            dualSense.touchpadPrimary.valueChangedHandler = { [weak self] _, x, y in
+                self?.handleTouch(index: 0, x: x, y: y)
+            }
+            dualSense.touchpadSecondary.valueChangedHandler = { [weak self] _, x, y in
+                self?.handleTouch(index: 1, x: x, y: y)
+            }
+        }
+    }
+
+    /// Old MFi pads have no Options button and deliver Start as an instant press
+    /// through the legacy pause handler, too short for the host to register.
+    /// Holding it for a hundred milliseconds turns that into a usable press.
+    private func registerLegacyPauseHandler(for candidate: GCController) {
+        guard let gamepad = candidate.extendedGamepad, gamepad.buttonOptions == nil else { return }
+        candidate.controllerPausedHandler = { [weak self] _ in
+            guard let self else { return }
+            self.legacyPauseActive = true
+            self.emit(self.controller?.extendedGamepad)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                guard let self else { return }
+                self.legacyPauseActive = false
+                self.emit(self.controller?.extendedGamepad)
+            }
+        }
+    }
+
+    private func handleTouch(index: Int, x: Float, y: Float) {
+        let normalizedX = (1 + x) * 0.5
+        let normalizedY = 1 - (1 + y) * 0.5
+        var state = index == 0 ? primaryTouch : secondaryTouch
+        let pointerId = UInt32(index)
+        if (state.x != 0 || state.y != 0) && x == 0 && y == 0 {
+            onTouch?(Self.touchEventUp, pointerId, normalizedX, normalizedY, 1)
+            StreamSessionProbes.record(
+                "gamepad touchpad index=\(index) event=up",
+                retention: .evidence
+            )
+        } else if x != 0 || y != 0 {
+            if state.x == 0 && state.y == 0 {
+                onTouch?(Self.touchEventDown, pointerId, normalizedX, normalizedY, 1)
+                StreamSessionProbes.record(
+                    "gamepad touchpad index=\(index) event=down",
+                    retention: .evidence
+                )
+            } else if state.x != x || state.y != y {
+                onTouch?(Self.touchEventMove, pointerId, normalizedX, normalizedY, 1)
+            }
+        }
+        state.x = x
+        state.y = y
+        if index == 0 {
+            primaryTouch = state
+        } else {
+            secondaryTouch = state
+        }
+    }
+
+    private static let touchEventDown: UInt8 = 0x01
+    private static let touchEventUp: UInt8 = 0x02
+    private static let touchEventMove: UInt8 = 0x03
+
+    private static func arrival(for controller: GCController) -> StreamControllerArrival {
+        var capabilities: StreamControllerCapabilities = [.analogTriggers]
+        if let haptics = controller.haptics {
+            if haptics.supportedLocalities.contains(.handles) {
+                capabilities.insert(.rumble)
+            }
+            if haptics.supportedLocalities.contains(.triggers) {
+                capabilities.insert(.triggerRumble)
+            }
+        }
+        if let motion = controller.motion {
+            if motion.hasGravityAndUserAcceleration {
+                capabilities.insert(.accelerometer)
+            }
+            if motion.hasRotationRate {
+                capabilities.insert(.gyroscope)
+            }
+        }
+        if controller.light != nil {
+            capabilities.insert(.indicatorLight)
+        }
+        if controller.battery != nil {
+            capabilities.insert(.battery)
+        }
+        if controller.physicalInputProfile.dpads[GCInputDualShockTouchpadOne] != nil {
+            capabilities.insert(.touchpad)
+        }
+
+        var kind: StreamControllerKind = .unknown
+        if controller.extendedGamepad is GCXboxGamepad {
+            kind = .xbox
+        }
+        if controller.extendedGamepad is GCDualShockGamepad {
+            kind = .playStation
+        }
+        if controller.extendedGamepad is GCDualSenseGamepad {
+            kind = .playStation
+        }
+
+        var supportedButtons = StreamGamepadMapping.baseButtonFlags
+        let profile = controller.physicalInputProfile
+        if controller.extendedGamepad?.buttonHome != nil {
+            supportedButtons |= StreamGamepadMapping.specialFlag
+        }
+        if profile.buttons[GCInputXboxPaddleOne] != nil {
+            supportedButtons |= StreamGamepadMapping.paddle1Flag
+        }
+        if profile.buttons[GCInputXboxPaddleTwo] != nil {
+            supportedButtons |= StreamGamepadMapping.paddle2Flag
+        }
+        if profile.buttons[GCInputXboxPaddleThree] != nil {
+            supportedButtons |= StreamGamepadMapping.paddle3Flag
+        }
+        if profile.buttons[GCInputXboxPaddleFour] != nil {
+            supportedButtons |= StreamGamepadMapping.paddle4Flag
+        }
+        if profile.buttons[GCInputButtonShare] != nil {
+            supportedButtons |= StreamGamepadMapping.miscFlag
+        }
+        if profile.buttons[GCInputDualShockTouchpadButton] != nil {
+            supportedButtons |= StreamGamepadMapping.touchpadFlag
+        }
+
+        return StreamControllerArrival(
+            controllerNumber: 0,
+            activeGamepadMask: 1,
+            kind: kind,
+            supportedButtons: supportedButtons,
+            capabilities: capabilities
+        )
+    }
+
     public static func connectedMask() -> Int {
         GCController.controllers().contains { $0.extendedGamepad != nil } ? 1 : 0
     }
 
     public func start(
         onState: @escaping @Sendable (StreamGamepadState) -> Void,
-        onPresence: @escaping @Sendable (Bool) -> Void
+        onProfile: @escaping @Sendable (StreamControllerArrival?) -> Void,
+        onTouch: @escaping @Sendable (UInt8, UInt32, Float, Float, Float) -> Void
     ) {
         stop()
         self.onState = onState
-        self.onPresence = onPresence
+        self.onProfile = onProfile
+        self.onTouch = onTouch
 #if DEBUG
         rateProbe.start()
 #endif
@@ -152,7 +399,8 @@ public final class StreamGamepadInput: NSObject {
         NotificationCenter.default.removeObserver(self, name: .GCControllerDidDisconnect, object: nil)
         detachController(reportPresence: false)
         onState = nil
-        onPresence = nil
+        onProfile = nil
+        onTouch = nil
 #if DEBUG
         rateProbe.stop()
 #endif
@@ -181,6 +429,8 @@ public final class StreamGamepadInput: NSObject {
         guard let gamepad = candidate.extendedGamepad else { return }
         candidate.playerIndex = .index1
         controller = candidate
+        controllerProfile = Self.arrival(for: candidate)
+        feedback.attach(to: candidate)
         claimSystemGestures(from: candidate)
         gamepad.valueChangedHandler = { [weak self] gamepad, element in
 #if DEBUG
@@ -195,8 +445,10 @@ public final class StreamGamepadInput: NSObject {
             }
             self?.emit(gamepad)
         }
-        if reportPresence {
-            onPresence?(true)
+        registerTouchpadHandlers(for: candidate)
+        registerLegacyPauseHandler(for: candidate)
+        if reportPresence, let controllerProfile {
+            onProfile?(controllerProfile)
         }
         emit(gamepad)
     }
@@ -217,10 +469,24 @@ public final class StreamGamepadInput: NSObject {
         guard let controller else { return }
         restoreSystemGestures(controller)
         controller.extendedGamepad?.valueChangedHandler = nil
+        if let dualShock = controller.extendedGamepad as? GCDualShockGamepad {
+            dualShock.touchpadPrimary.valueChangedHandler = nil
+            dualShock.touchpadSecondary.valueChangedHandler = nil
+        }
+        if let dualSense = controller.extendedGamepad as? GCDualSenseGamepad {
+            dualSense.touchpadPrimary.valueChangedHandler = nil
+            dualSense.touchpadSecondary.valueChangedHandler = nil
+        }
+        controller.controllerPausedHandler = nil
+        primaryTouch = TouchState()
+        secondaryTouch = TouchState()
+        legacyPauseActive = false
         controller.playerIndex = .indexUnset
+        feedback.detach()
         self.controller = nil
+        self.controllerProfile = nil
         if reportPresence {
-            onPresence?(false)
+            onProfile?(nil)
             onState?(.neutral)
         }
     }
@@ -240,8 +506,28 @@ public final class StreamGamepadInput: NSObject {
         if gamepad.rightShoulder.isPressed { buttons.insert(.rightShoulder) }
         if gamepad.leftThumbstickButton?.isPressed == true { buttons.insert(.leftThumbstickButton) }
         if gamepad.rightThumbstickButton?.isPressed == true { buttons.insert(.rightThumbstickButton) }
-        if gamepad.buttonMenu.isPressed { buttons.insert(.menu) }
+        if gamepad.buttonOptions != nil, gamepad.buttonMenu.isPressed {
+            buttons.insert(.menu)
+        }
+        if legacyPauseActive {
+            buttons.insert(.menu)
+        }
         if gamepad.buttonOptions?.isPressed == true { buttons.insert(.options) }
+        if gamepad.buttonHome?.isPressed == true { buttons.insert(.special) }
+        let profile = gamepad.controller?.physicalInputProfile
+        if profile?.buttons[GCInputXboxPaddleOne]?.isPressed == true { buttons.insert(.paddle1) }
+        if profile?.buttons[GCInputXboxPaddleTwo]?.isPressed == true { buttons.insert(.paddle2) }
+        if profile?.buttons[GCInputXboxPaddleThree]?.isPressed == true { buttons.insert(.paddle3) }
+        if profile?.buttons[GCInputXboxPaddleFour]?.isPressed == true { buttons.insert(.paddle4) }
+        if profile?.buttons[GCInputButtonShare]?.isPressed == true { buttons.insert(.share) }
+        if profile?.buttons[GCInputDualShockTouchpadButton]?.isPressed == true {
+            buttons.insert(.touchpad)
+        }
+        buttons = StreamGamepadMapping.combinedButtons(
+            buttons,
+            hasPhysicalOptions: gamepad.buttonOptions != nil,
+            hasPhysicalHome: gamepad.buttonHome != nil
+        )
 
         onState(StreamGamepadState(
             buttons: buttons,
@@ -257,11 +543,11 @@ public final class StreamGamepadInput: NSObject {
     }
 
     private static func triggerValue(_ value: Float) -> UInt8 {
-        UInt8(clamping: Int((value * 255).rounded()))
+        StreamGamepadMapping.triggerByte(value)
     }
 
     private static func axisValue(_ value: Float) -> Int16 {
-        Int16(clamping: Int((value * 32_767).rounded()))
+        StreamGamepadMapping.axisValue(value)
     }
 }
 
@@ -484,6 +770,17 @@ public final class StreamInputCapture {
         }
     }
 
+    /// Reports whether this view, or the window's root view, already carries the
+    /// session's input claim. Pointer lock is only taken for those views, so the
+    /// app's own panels keep the system pointer.
+    public func holdsClaim(for view: UIView) -> Bool {
+        if claims[ObjectIdentifier(view)] != nil { return true }
+        if let root = view.window?.rootViewController?.view {
+            return claims[ObjectIdentifier(root)] != nil
+        }
+        return false
+    }
+
     /// Claims a view supplied by the scene that holds it. The immersive space
     /// renders its own scene without a window hierarchy the app can walk, so its
     /// content adds this claim through a hosted surface.
@@ -567,9 +864,13 @@ public final class StreamInputCapture {
     private func requestPointerLock() {
         var states: [String] = []
         for scene in UIApplication.shared.connectedScenes {
-            guard let windowScene = scene as? UIWindowScene,
-                  windowScene.session.role == .immersiveSpaceApplication
-            else { continue }
+            guard let windowScene = scene as? UIWindowScene else { continue }
+            switch windowScene.session.role {
+            case .immersiveSpaceApplication, .windowApplication:
+                break
+            default:
+                continue
+            }
             for window in windowScene.windows {
                 window.rootViewController?.setNeedsUpdateOfPrefersPointerLocked()
             }
@@ -604,14 +905,20 @@ public final class StreamInputCapture {
 
 extension UIViewController {
     @objc dynamic var enchron_prefersPointerLocked: Bool {
-        guard StreamInputCapture.shared.isActive,
-              isViewLoaded,
-              view.window?.windowScene?.session.role
-                  == .immersiveSpaceApplication
-        else {
+        guard StreamInputCapture.shared.isActive, isViewLoaded else {
             return self.enchron_prefersPointerLocked
         }
-        return true
+        guard let scene = view.window?.windowScene else {
+            return self.enchron_prefersPointerLocked
+        }
+        switch scene.session.role {
+        case .immersiveSpaceApplication:
+            return true
+        case .windowApplication:
+            return StreamInputCapture.shared.holdsClaim(for: view)
+        default:
+            return self.enchron_prefersPointerLocked
+        }
     }
 }
 

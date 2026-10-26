@@ -16,7 +16,8 @@ nonisolated final class StreamGamepadMappingTests: XCTestCase {
         (.menu, 0x0010),
         (.options, 0x0020),
         (.leftThumbstickButton, 0x0040),
-        (.rightThumbstickButton, 0x0080)
+        (.rightThumbstickButton, 0x0080),
+        (.special, 0x0400)
     ]
 
     func testEveryButtonCarriesItsLimelightFlag() {
@@ -63,5 +64,56 @@ nonisolated final class StreamGamepadMappingTests: XCTestCase {
     func testEmptyPressSendsNoFlagsInEitherMode() {
         XCTAssertEqual(StreamGamepadMapping.buttonFlags([], swapABXYButtons: false), 0)
         XCTAssertEqual(StreamGamepadMapping.buttonFlags([], swapABXYButtons: true), 0)
+    }
+
+    func testSticksAndTriggersUseTheUpstreamRanges() {
+        XCTAssertEqual(StreamGamepadMapping.axisValue(1), 32_766)
+        XCTAssertEqual(StreamGamepadMapping.axisValue(-1), -32_766)
+        XCTAssertEqual(StreamGamepadMapping.axisValue(0), 0)
+        XCTAssertEqual(StreamGamepadMapping.triggerByte(1), 255)
+        XCTAssertEqual(StreamGamepadMapping.triggerByte(0.5), 127)
+        XCTAssertEqual(StreamGamepadMapping.triggerByte(0), 0)
+    }
+
+    func testMissingOptionsIsEmulatedFromLeftShoulderAndStart() {
+        let combined = StreamGamepadMapping.combinedButtons(
+            [.menu, .leftShoulder],
+            hasPhysicalOptions: false,
+            hasPhysicalHome: false
+        )
+        XCTAssertEqual(combined, [.options])
+    }
+
+    func testMissingHomeIsEmulatedFromRightShoulderAndStartWhenOptionsIsMissing() {
+        let combined = StreamGamepadMapping.combinedButtons(
+            [.menu, .rightShoulder],
+            hasPhysicalOptions: false,
+            hasPhysicalHome: false
+        )
+        XCTAssertEqual(combined, [.special])
+    }
+
+    func testMissingHomeIsEmulatedFromStartAndOptionsWhenOptionsIsPhysical() {
+        let combined = StreamGamepadMapping.combinedButtons(
+            [.menu, .options],
+            hasPhysicalOptions: true,
+            hasPhysicalHome: false
+        )
+        XCTAssertEqual(combined, [.special])
+    }
+
+    func testPhysicalHomeAndOptionsLeaveTheStatesAlone() {
+        let held: Set<StreamGamepadButton> = [.menu, .options, .leftShoulder, .rightShoulder]
+        XCTAssertEqual(
+            StreamGamepadMapping.combinedButtons(held, hasPhysicalOptions: true, hasPhysicalHome: true),
+            held
+        )
+    }
+
+    func testStartAloneIsNotRewritten() {
+        XCTAssertEqual(
+            StreamGamepadMapping.combinedButtons([.menu], hasPhysicalOptions: false, hasPhysicalHome: false),
+            [.menu]
+        )
     }
 }

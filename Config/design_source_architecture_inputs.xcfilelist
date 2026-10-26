@@ -42,12 +42,15 @@ $(SRCROOT)/Modules/DesignSystem/View+PressFeedback.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/MoonlightStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/SimulatedStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/StreamingBackend.swift
+$(SRCROOT)/Modules/GameStreaming/Domain/StreamControllerProfile.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamIdentity.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSessionState.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSettings.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingModel.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingPlaybackInformation+Session.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamAudioOutput.swift
+$(SRCROOT)/Modules/GameStreaming/Session/StreamControllerFeedbackRouter.swift
+$(SRCROOT)/Modules/GameStreaming/Session/StreamControllerHaptics.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamGamepadInput.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamGamepadRateProbe.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamMouseInput.swift

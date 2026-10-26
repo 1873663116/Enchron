@@ -290,6 +290,32 @@ void ClSetHdrMode(bool enabled)
     [_callbacks setHdrMode:enabled];
 }
 
+void ClControllerRumble(unsigned short controllerNumber,
+                        unsigned short lowFrequency,
+                        unsigned short highFrequency)
+{
+    [_callbacks controllerRumble:controllerNumber lowFreq:lowFrequency highFreq:highFrequency];
+}
+
+void ClControllerRumbleTriggers(uint16_t controllerNumber,
+                                uint16_t leftTrigger,
+                                uint16_t rightTrigger)
+{
+    [_callbacks controllerRumbleTriggers:controllerNumber left:leftTrigger right:rightTrigger];
+}
+
+void ClControllerMotionState(uint16_t controllerNumber, uint8_t motionType, uint16_t reportRateHz)
+{
+    [_callbacks controllerMotionRequest:controllerNumber
+                             motionType:motionType
+                            reportRateHz:reportRateHz];
+}
+
+void ClControllerLed(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t b)
+{
+    [_callbacks controllerLed:controllerNumber r:r g:g b:b];
+}
+
 - (void)videoSampleBuilder:(MLCVideoSampleBuilder*)builder
           didProduceSample:(CMSampleBufferRef)sampleBuffer
                  frameType:(int)frameType
@@ -416,6 +442,10 @@ void ClSetHdrMode(bool enabled)
     _clCallbacks.logMessage = ClLogMessage;
     _clCallbacks.connectionStatusUpdate = ClConnectionStatusUpdate;
     _clCallbacks.setHdrMode = ClSetHdrMode;
+    _clCallbacks.rumble = ClControllerRumble;
+    _clCallbacks.rumbleTriggers = ClControllerRumbleTriggers;
+    _clCallbacks.setMotionEventState = ClControllerMotionState;
+    _clCallbacks.setControllerLED = ClControllerLed;
 
     return self;
 }

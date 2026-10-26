@@ -7,6 +7,7 @@ public final class MoonlightStreamSession: NSObject, @unchecked Sendable {
     public var onVideoSample: (@Sendable (CMSampleBuffer) -> Void)?
     public var onAudioFrame: (@Sendable (MoonlightAudioFrame) -> Void)?
     public var onEvent: (@Sendable (MoonlightSessionEvent) -> Void)?
+    public var onControllerFeedback: (@Sendable (MoonlightControllerFeedback) -> Void)?
 
     private var connection: MLCConnection!
     private let fallbackWidth: Int
@@ -137,8 +138,73 @@ public final class MoonlightStreamSession: NSObject, @unchecked Sendable {
         )
     }
 
-    public func sendControllerPresence(connected: Bool) {
-        MLCInputSender.sendControllerPresenceArrived(connected)
+    public func sendControllerArrival(_ arrival: MoonlightControllerArrival) {
+        MLCInputSender.sendControllerArrivalNumber(
+            arrival.controllerNumber,
+            gamepadMask: arrival.activeGamepadMask,
+            type: arrival.type.rawValue,
+            buttons: arrival.supportedButtons,
+            capabilities: arrival.capabilities
+        )
+    }
+
+    public func sendControllerRemoval(controllerNumber: UInt8) {
+        MLCInputSender.sendControllerRemovalNumber(controllerNumber)
+    }
+
+    public func sendHighResScroll(vertical: Int16, horizontal: Int16) {
+        if vertical != 0 {
+            MLCInputSender.sendHighResScrollVertical(vertical)
+        }
+        if horizontal != 0 {
+            MLCInputSender.sendHighResScrollHorizontal(horizontal)
+        }
+    }
+
+    public func sendControllerTouch(
+        controllerNumber: UInt8,
+        eventType: UInt8,
+        pointerId: UInt32,
+        x: Float,
+        y: Float,
+        pressure: Float
+    ) {
+        MLCInputSender.sendControllerTouchNumber(
+            controllerNumber,
+            eventType: eventType,
+            pointerId: pointerId,
+            x: x,
+            y: y,
+            pressure: pressure
+        )
+    }
+
+    public func sendControllerMotion(
+        controllerNumber: UInt8,
+        motionType: UInt8,
+        x: Float,
+        y: Float,
+        z: Float
+    ) {
+        MLCInputSender.sendControllerMotionNumber(
+            controllerNumber,
+            type: motionType,
+            x: x,
+            y: y,
+            z: z
+        )
+    }
+
+    public func sendControllerBattery(
+        controllerNumber: UInt8,
+        state: UInt8,
+        percentage: UInt8
+    ) {
+        MLCInputSender.sendControllerBatteryNumber(
+            controllerNumber,
+            state: state,
+            percentage: percentage
+        )
     }
 
     public func releaseAllInput() {
@@ -264,5 +330,55 @@ extension MoonlightStreamSession: MLCConnectionDelegate {
 
     public func videoContentShown() {
         onEvent?(.firstFramePresented)
+    }
+
+    public func controllerRumble(
+        _ controllerNumber: UInt16,
+        lowFreq lowFrequency: UInt16,
+        highFreq highFrequency: UInt16
+    ) {
+        onControllerFeedback?(.rumble(
+            controllerNumber: controllerNumber,
+            lowFrequency: lowFrequency,
+            highFrequency: highFrequency
+        ))
+    }
+
+    public func controllerRumbleTriggers(
+        _ controllerNumber: UInt16,
+        left leftTrigger: UInt16,
+        right rightTrigger: UInt16
+    ) {
+        onControllerFeedback?(.triggerRumble(
+            controllerNumber: controllerNumber,
+            leftTrigger: leftTrigger,
+            rightTrigger: rightTrigger
+        ))
+    }
+
+    public func controllerMotionRequest(
+        _ controllerNumber: UInt16,
+        motionType: UInt8,
+        reportRateHz: UInt16
+    ) {
+        onControllerFeedback?(.motionRequest(
+            controllerNumber: controllerNumber,
+            motionType: motionType,
+            reportRateHz: reportRateHz
+        ))
+    }
+
+    public func controllerLed(
+        _ controllerNumber: UInt16,
+        r red: UInt8,
+        g green: UInt8,
+        b blue: UInt8
+    ) {
+        onControllerFeedback?(.led(
+            controllerNumber: controllerNumber,
+            red: red,
+            green: green,
+            blue: blue
+        ))
     }
 }

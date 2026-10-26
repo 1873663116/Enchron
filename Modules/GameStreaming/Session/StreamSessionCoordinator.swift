@@ -217,16 +217,50 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         audioOutput.onEvent = { message in
             StreamSessionProbes.record("\(message) session=\(probeSessionID.rawValue)", retention: .evidence)
         }
+        backend.controllerFeedbackHandler = { [weak self] feedback in
+            self?.gamepadInput.handle(feedback)
+        }
+        gamepadInput.configureFeedback(
+            sendMotion: { [weak self] controllerNumber, motionType, x, y, z in
+                self?.backend.sendControllerMotion(
+                    controllerNumber: controllerNumber,
+                    motionType: motionType,
+                    x: x,
+                    y: y,
+                    z: z
+                )
+            },
+            sendBattery: { [weak self] controllerNumber, state, percentage in
+                self?.backend.sendControllerBattery(
+                    controllerNumber: controllerNumber,
+                    state: state,
+                    percentage: percentage
+                )
+            }
+        )
         gamepadInput.start(
             onState: { [weak self] state in self?.sendGamepad(state) },
-            onPresence: { [weak self] connected in self?.handleControllerPresence(connected) }
+            onProfile: { [weak self] arrival in self?.handleControllerProfile(arrival) },
+            onTouch: { [weak self] eventType, pointerId, x, y, pressure in
+                self?.backend.sendControllerTouch(
+                    controllerNumber: 0,
+                    eventType: eventType,
+                    pointerId: pointerId,
+                    x: x,
+                    y: y,
+                    pressure: pressure
+                )
+            }
         )
         Task { @MainActor in StreamInputCapture.shared.start() }
         if options.bluetoothMouseEnabled {
             mouseInput.start(
                 onMove: { [weak self] dx, dy in self?.sendMouseMove(dx: dx, dy: dy) },
                 onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) },
-                onScrollClicks: { [weak self] clicks in self?.sendScroll(amount: clicks) },
+                onHighResScroll: { [weak self] vertical, horizontal in
+                    self?.backend.sendHighResScroll(vertical: Int16(clamping: vertical),
+                                                    horizontal: Int16(clamping: horizontal))
+                },
                 onPresence: { [weak self] attached in self?.handleMousePresence(attached) }
             )
         }
@@ -838,6 +872,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             stateLock.withLock {
                 snapshotStorage.state = .connecting(stage: "connected")
             }
+            DispatchQueue.main.async { [weak self] in
+                self?.gamepadInput.resendProfile()
+                self?.gamepadInput.reportCurrentBattery()
+            }
             publishSnapshot()
         case .firstFramePresented:
             stateLock.withLock {
@@ -1323,10 +1361,17 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         return flags
     }
 
-    public func handleControllerPresence(_ connected: Bool) {
-        backend.sendControllerPresence(connected: connected)
+    public func handleControllerProfile(_ arrival: StreamControllerArrival?) {
+        guard let arrival else {
+            backend.sendControllerRemoval(controllerNumber: 0)
+            StreamSessionProbes.record("controller removed", retention: .evidence)
+            return
+        }
+        backend.sendControllerArrival(arrival)
         StreamSessionProbes.record(
-            "controller \(connected ? "arrived" : "removed")",
+            "controller arrival kind=\(arrival.kind.rawValue)"
+                + " capabilities=0x\(String(arrival.capabilities.rawValue, radix: 16))"
+                + " buttons=0x\(String(arrival.supportedButtons, radix: 16))",
             retention: .evidence
         )
     }
