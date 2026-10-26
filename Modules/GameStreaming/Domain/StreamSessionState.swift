@@ -131,11 +131,11 @@ public extension StreamRecoveryAction {
     /// reported.
     var advice: String {
         switch self {
-        case .none: "这类失败没有可用的恢复动作。"
-        case .retry: "确认主机已开机且与本机在同一网络，然后重试。"
-        case .reconnect: "网络恢复后可以重新连接，串流会重新协商。"
-        case .pairAgain: "在主机上删除本设备的配对记录，然后重新配对。"
-        case .repickApplication: "先结束主机上正在运行的会话，或改选另一个应用。"
+        case .none: String(localized: "这类失败没有可用的恢复动作。")
+        case .retry: String(localized: "确认主机已开机且与本机在同一网络，然后重试。")
+        case .reconnect: String(localized: "网络恢复后可以重新连接，串流会重新协商。")
+        case .pairAgain: String(localized: "在主机上删除本设备的配对记录，然后重新配对。")
+        case .repickApplication: String(localized: "先结束主机上正在运行的会话，或改选另一个应用。")
         }
     }
 }
@@ -143,12 +143,12 @@ public extension StreamRecoveryAction {
 public extension StreamFailure {
     var categoryTitle: String {
         switch stage {
-        case .pairing: "配对失败"
-        case .launch: "无法启动应用"
-        case .stream, .decode: "串流中断"
-        case .teardown: "串流结束异常"
-        case .discovery, .connect, .network: "无法连接主机"
-        case .applicationList: "无法读取应用列表"
+        case .pairing: String(localized: "配对失败")
+        case .launch: String(localized: "无法启动应用")
+        case .stream, .decode: String(localized: "串流中断")
+        case .teardown: String(localized: "串流结束异常")
+        case .discovery, .connect, .network: String(localized: "无法连接主机")
+        case .applicationList: String(localized: "无法读取应用列表")
         }
     }
 }

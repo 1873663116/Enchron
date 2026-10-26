@@ -552,7 +552,7 @@ public struct StreamSettingsSection: View {
 
     private func configurationRow(title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.lg) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(DesignTokens.Typography.selectionHeader)
                 .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
             Spacer(minLength: DesignTokens.Spacing.lg)

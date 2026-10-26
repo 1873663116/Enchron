@@ -72,7 +72,9 @@ public struct StreamingHomeView: View {
             }
             Button("确认", role: .cancel) { dismissLaunchFailure() }
         } message: { item in
-            Text(item.failure.message + "\n" + item.failure.recovery.advice)
+            Text(LocalizedStringKey(item.failure.message))
+                + Text("\n")
+                + Text(LocalizedStringKey(item.failure.recovery.advice))
         }
         .onAppear { model.startHomePresence() }
         .onDisappear { model.stopHomePresence() }
@@ -232,12 +234,12 @@ public struct StreamingHomeView: View {
         Group {
             if let failure = model.failure(for: host.id) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                    Text(failure.message)
+                    Text(LocalizedStringKey(failure.message))
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(DesignTokens.SourceConnection.failureColor)
                         .accessibilityIdentifier("Stream-HostDetail-error")
                         .accessibilityValue(failure.readableValue)
-                    Text(failure.recovery.advice)
+                    Text(LocalizedStringKey(failure.recovery.advice))
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(DesignTokens.Surface.supportingText)
                         .accessibilityIdentifier("Stream-HostDetail-help")
@@ -294,7 +296,9 @@ public struct StreamingHomeView: View {
     }
 
     private func occupyingApplicationName(_ hostID: HostID) -> String {
-        guard let host = model.hosts.first(where: { $0.id == hostID }) else { return "未知应用" }
+        guard let host = model.hosts.first(where: { $0.id == hostID }) else {
+            return String(localized: "未知应用")
+        }
         guard let running = host.remoteSession?.currentGame, !running.isEmpty, running != "0" else {
             return host.name
         }

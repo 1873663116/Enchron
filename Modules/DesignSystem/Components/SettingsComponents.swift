@@ -1055,7 +1055,7 @@ struct SettingListGroupRow: View {
             }
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(DesignTokens.Typography.selectionHeader)
                     .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
 
@@ -1382,7 +1382,7 @@ private struct SettingListCardSelectionGrid: View {
                     .accessibilityLabel(option.title)
                     .accessibilityValue(selectedID == option.id ? "Selected" : "Not selected")
 
-                    Text(option.title)
+                    Text(LocalizedStringKey(option.title))
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(.primary)
                         .lineLimit(1)
@@ -1424,7 +1424,7 @@ private struct SettingListCenterSliderRow: View {
 
     var body: some View {
         VStack(spacing: DesignTokens.Spacing.xs) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(DesignTokens.Typography.selectionHeader)
                 .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
                 .lineLimit(1)
@@ -1490,7 +1490,7 @@ private struct SettingListRangeSliderRow: View {
     var body: some View {
         VStack(spacing: DesignTokens.Spacing.xs) {
             HStack {
-                Text(title)
+                Text(LocalizedStringKey(title))
                     .font(DesignTokens.Typography.selectionHeader)
                     .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
                     .lineLimit(1)
@@ -1649,7 +1649,7 @@ private struct SettingListDimensionStepperRow: View {
         id: String
     ) -> some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.Surface.supportingText)
             Spacer(minLength: DesignTokens.Spacing.xs)
@@ -1747,7 +1747,7 @@ private struct SettingListActionChip: View {
                 ButtonSymbol(systemName: systemName, tier: .label)
             }
 
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .id(title)
                 .transition(.scale(scale: 0.92).combined(with: .opacity))
         }

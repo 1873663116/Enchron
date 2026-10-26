@@ -28,7 +28,7 @@ struct StreamPairingView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text(host?.name ?? "配对")
+            Text(host?.name ?? String(localized: "配对"))
                 .font(DesignTokens.Typography.title)
                 .lineLimit(1)
             if let address = host?.address.displayString {
@@ -92,7 +92,7 @@ struct StreamPairingView: View {
     @ViewBuilder
     private var failureLine: some View {
         if let failure = model.failure(for: hostID) {
-            Text(failure.message)
+            Text(LocalizedStringKey(failure.message))
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.SourceConnection.failureColor)
                 .accessibilityIdentifier("Stream-Pairing-error")
@@ -114,10 +114,10 @@ struct StreamPairingView: View {
 
     private var statusSummary: String {
         switch pairingState {
-        case .unknown: "尚未开始"
-        case .unpaired: "等待主机确认"
-        case .paired: "已配对"
-        case .failed(let message): "配对失败（\(message)）"
+        case .unknown: String(localized: "尚未开始")
+        case .unpaired: String(localized: "等待主机确认")
+        case .paired: String(localized: "已配对")
+        case .failed(let message): String(localized: "配对失败（\(message)）")
         }
     }
 

@@ -142,7 +142,7 @@ public struct StreamSessionContentView: View {
         .overlay {
             if let failure = interruptedFailure {
                 VStack(spacing: DesignTokens.Spacing.sm) {
-                    Text(failure.message)
+                    Text(LocalizedStringKey(failure.message))
                         .font(.headline)
                         .multilineTextAlignment(.center)
                     if failure.recovery == .reconnect || failure.recovery == .retry {

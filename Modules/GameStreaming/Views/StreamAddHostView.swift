@@ -181,7 +181,7 @@ struct StreamAddHostView: View {
         @ViewBuilder field: () -> some View
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(DesignTokens.Surface.supportingText)
             field()
@@ -193,7 +193,7 @@ struct StreamAddHostView: View {
     @ViewBuilder
     private var failureLine: some View {
         if let failure {
-            Text(failure.message)
+            Text(LocalizedStringKey(failure.message))
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.SourceConnection.failureColor)
                 .accessibilityIdentifier("Stream-AddHost-error")

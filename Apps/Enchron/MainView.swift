@@ -48,7 +48,7 @@ public struct MainView: View {
                 ) {
                     Button("确认") { streamingModel.hostQuitFailureMessage = nil }
                 } message: {
-                    Text(streamingModel.hostQuitFailureMessage ?? "")
+                    Text(LocalizedStringKey(streamingModel.hostQuitFailureMessage ?? ""))
                 }
             browserPrimaryContent
                 .frame(
