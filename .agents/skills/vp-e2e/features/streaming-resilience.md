@@ -10,7 +10,7 @@
 - 断连后主窗口仍可用，Moonlight 标签页的主机列表与内容列不受影响。
 - 退出 App 时会话干净收口，不留下悬挂的会话。
 - App 进入后台（按数字表冠、摘下头显）时，本地连接断开，主机上的应用继续运行，播放窗口保留；App 回到 active 时，以 resume 重连同一主机与应用。这与文件播放在后台只暂停、回来再重建的行为一致。
-- 渲染器重建、表面重新绑定、渲染器 flush 时，待发帧队列清空并向主机请求关键帧。渲染器报解码告警只累计计数，不改动交付。
+- 解码链断开（渲染器重建、表面重新绑定、渲染器 flush、帧队列丢弃了全部关键帧、渲染器报解码失败）后，交付丢弃全部非关键帧，并向主机请求关键帧，直到收到一个关键帧为止。关键帧由 `MLCConnection` 在样本的 `NotSync` 附加信息中标注。
 - 音频帧到达而音频引擎已停止（例如场景进入后台造成的打断）时，引擎每秒最多重启一次。
 
 ## How to get to it (user POV)
@@ -38,7 +38,7 @@ D="$(xcrun simctl get_app_container <UDID> com.xiongzhipeng.Enchron data)/Docume
 grep -E "session end|input release|audio stop|stream content disappeared" "$D/stream-session-probe.log" | tail
 ```
 
-后台与恢复读 `stream suspended for background`、`stream resuming after background` 与新会话的 `session start`。解码恢复读 `video surface bind`、`frame queue depth`。音频读 `audio interruption type= reason=`（visionOS 上 reason 3 表示场景进入后台）与 `audio engine start reason=framesWithoutEngine`。
+后台与恢复读 `stream suspended for background`、`stream resuming after background` 与新会话的 `session start`。解码恢复读 `video awaiting keyframe`、`frame dropped awaiting keyframe`、`frame queue shed … keptKeyframe=`。音频读 `audio interruption type= reason=`（visionOS 上 reason 3 表示场景进入后台）与 `audio engine start reason=framesWithoutEngine`。
 
 ## 证据
 

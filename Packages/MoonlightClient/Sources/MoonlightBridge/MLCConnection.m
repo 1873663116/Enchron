@@ -299,6 +299,14 @@ void ClSetHdrMode(bool enabled)
         _videoContentShown = YES;
     }
 
+    CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, YES);
+    if (attachments != NULL && CFArrayGetCount(attachments) > 0) {
+        CFMutableDictionaryRef attachment = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
+        CFDictionarySetValue(attachment,
+                             kCMSampleAttachmentKey_NotSync,
+                             frameType == FRAME_TYPE_IDR ? kCFBooleanFalse : kCFBooleanTrue);
+    }
+
     [self.videoConsumer videoSampleBuilder:builder
                           didProduceSample:sampleBuffer
                                  frameType:frameType

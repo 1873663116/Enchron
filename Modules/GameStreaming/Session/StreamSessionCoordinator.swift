@@ -44,6 +44,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let sample: CMSampleBuffer
         let presentationTimeUs: Int64
         let arrivalDate: Date
+        let isKeyframe: Bool
     }
 
     private func removePendingFrame(id: UInt64) {
@@ -57,7 +58,12 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var pendingVideo: [PendingVideoFrame] = []
     private var pendingFrameSequence: UInt64 = 0
     private static let pendingVideoLimit = 8
-    private static let pendingVideoKeep = 2
+    private static let keyframeRequestInterval: TimeInterval = 0.5
+    private static let decodeWarningGraceAfterKeyframe: TimeInterval = 0.25
+    private var awaitingKeyframe = true
+    private var lastKeyframeRequestAt = Date.distantPast
+    private var keyframeReleasedAt = Date.distantPast
+    private var lastAwaitingKeyframeReport = Date.distantPast
     private var recoveringFromRendererFailure = false
     private var lastReportedQueueDepth = 0
     private var lastSampledPresentedCount: Int64 = 0
@@ -121,6 +127,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var videoGapCount: Int64 = 0
         var videoGapMaxMilliseconds: Double = 0
         var staleFramesDropped: Int64 = 0
+        var framesDroppedAwaitingKeyframe: Int64 = 0
+        var framesHeldByBuffer: Int64 = 0
+        var bufferHoldMaxMilliseconds: Double = 0
         var videoPTSGapCount: Int64 = 0
         var videoPTSGapMaxMilliseconds: Double = 0
         var audioGapCount: Int64 = 0
@@ -334,17 +343,41 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         }
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
         let ptsUs = max(0, Int64((pts.seconds * 1_000_000).rounded()))
+        let isKeyframe = Self.isKeyframe(sample)
 
-        videoQueueLock.withLock {
+        let gate: (accepted: Bool, requestDue: Bool) = videoQueueLock.withLock {
+            let now = Date()
+            if awaitingKeyframe {
+                guard isKeyframe else {
+                    let due = now.timeIntervalSince(lastKeyframeRequestAt)
+                        >= Self.keyframeRequestInterval
+                    if due {
+                        lastKeyframeRequestAt = now
+                    }
+                    return (false, due)
+                }
+                awaitingKeyframe = false
+                keyframeReleasedAt = now
+                pendingVideo.removeAll()
+            }
             pendingFrameSequence &+= 1
             pendingVideo.append(
                 PendingVideoFrame(
                     id: pendingFrameSequence,
                     sample: sample,
                     presentationTimeUs: ptsUs,
-                    arrivalDate: Date()
+                    arrivalDate: now,
+                    isKeyframe: isKeyframe
                 )
             )
+            return (true, false)
+        }
+        guard gate.accepted else {
+            noteFrameDroppedAwaitingKeyframe()
+            if gate.requestDue {
+                requestIdrFrame(reason: "awaitingKeyframe")
+            }
+            return
         }
         let sampleTime = DispatchTime.now().uptimeNanoseconds
         stateLock.withLock {
@@ -438,6 +471,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                     self.counters.videoDecodeWarnings += 1
                     return self.counters.videoDecodeWarnings
                 }
+                self.awaitKeyframeAfterDecodeFailure()
                 if count <= 5 || count % 100 == 0 {
                     StreamSessionProbes.record(
                         "video decode warning session=\(self.sessionID.rawValue)"
@@ -501,11 +535,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                     counters.framesEnqueuedWithoutSurface
                 )
             }
-        let droppedBacklog = videoQueueLock.withLock { () -> Int in
-            let count = pendingVideo.count
-            pendingVideo.removeAll()
-            return count
-        }
+        let droppedBacklog = beginAwaitingKeyframe()
         StreamSessionProbes.record(
             "video surface bind session=\(sessionID.rawValue) revision=\(revision)"
                 + " firstBind=\(firstBind)"
@@ -516,6 +546,62 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         )
         publishActivity(.requestingKeyframe)
         requestIdrFrame(reason: "surfaceBound")
+    }
+
+    private static func isKeyframe(_ sample: CMSampleBuffer) -> Bool {
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(
+            sample,
+            createIfNecessary: false
+        ) as? [NSDictionary], let attachment = attachments.first else {
+            return true
+        }
+        return (attachment[kCMSampleAttachmentKey_NotSync] as? Bool) != true
+    }
+
+    @discardableResult
+    private func beginAwaitingKeyframe() -> Int {
+        videoQueueLock.withLock {
+            let count = pendingVideo.count
+            pendingVideo.removeAll()
+            awaitingKeyframe = true
+            lastKeyframeRequestAt = Date()
+            return count
+        }
+    }
+
+    private func awaitKeyframeAfterDecodeFailure() {
+        let begins: Bool = videoQueueLock.withLock {
+            guard !awaitingKeyframe,
+                  Date().timeIntervalSince(keyframeReleasedAt)
+                    >= Self.decodeWarningGraceAfterKeyframe else {
+                return false
+            }
+            return true
+        }
+        guard begins else { return }
+        beginAwaitingKeyframe()
+        StreamSessionProbes.record(
+            "video awaiting keyframe session=\(sessionID.rawValue) reason=decodeFailure",
+            retention: .evidence
+        )
+        requestIdrFrame(reason: "decodeFailure")
+    }
+
+    private func noteFrameDroppedAwaitingKeyframe() {
+        let report: (dropped: Int64, due: Bool) = stateLock.withLock {
+            counters.framesDroppedAwaitingKeyframe += 1
+            let now = Date()
+            let due = now.timeIntervalSince(lastAwaitingKeyframeReport) >= 1
+            if due {
+                lastAwaitingKeyframeReport = now
+            }
+            return (counters.framesDroppedAwaitingKeyframe, due)
+        }
+        guard report.due else { return }
+        StreamSessionProbes.record(
+            "frame dropped awaiting keyframe session=\(sessionID.rawValue) dropped=\(report.dropped)",
+            retention: .evidence
+        )
     }
 
     public func videoSurfaceDidUnbind(revision: Int) {
@@ -542,6 +628,13 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                pendingVideo.count <= 1,
                Date().timeIntervalSince(head.arrivalDate) < frameBufferHoldSeconds {
                 videoQueueLock.unlock()
+                stateLock.withLock {
+                    counters.framesHeldByBuffer += 1
+                    let held = Date().timeIntervalSince(head.arrivalDate) * 1000
+                    if held > counters.bufferHoldMaxMilliseconds {
+                        counters.bufferHoldMaxMilliseconds = held
+                    }
+                }
                 ensurePumpScheduled()
                 return
             }
@@ -559,6 +652,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 head.sample,
                 presentationTime: synchronizer.currentTime()
             ) ?? head.sample
+            if options.frameBuffer == false {
+                Self.markForImmediateDisplay(sampleToEnqueue)
+            }
             let outcome: RendererEnqueueOutcome
             do {
                 outcome = try videoSink.enqueueImmediately(
@@ -594,6 +690,9 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 reportQueueDepthIfNeeded()
             case .cancelledByFlush:
                 removePendingFrame(id: head.id)
+                videoQueueLock.withLock {
+                    awaitingKeyframe = true
+                }
                 let flushDrop: (count: Int64, shouldRequestIDR: Bool) = stateLock.withLock {
                     counters.videoEnqueueCancelledByFlush += 1
                     let now = Date()
@@ -646,6 +745,28 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         return copy
     }
 
+    /// The window host presents timestamped frames through a deep presentation
+    /// queue, which a live stream cannot afford. The immediate display
+    /// attachment makes each enqueued frame replace everything queued before
+    /// it, bypassing that queue entirely.
+    private static func markForImmediateDisplay(_ sample: CMSampleBuffer) {
+        guard let attachments = CMSampleBufferGetSampleAttachmentsArray(
+            sample,
+            createIfNecessary: true
+        ), CFArrayGetCount(attachments) > 0 else {
+            return
+        }
+        let attachment = unsafeBitCast(
+            CFArrayGetValueAtIndex(attachments, 0),
+            to: CFMutableDictionary.self
+        )
+        CFDictionarySetValue(
+            attachment,
+            Unmanaged.passUnretained(kCMSampleAttachmentKey_DisplayImmediately).toOpaque(),
+            Unmanaged.passUnretained(kCFBooleanTrue ?? kCFBooleanFalse).toOpaque()
+        )
+    }
+
     private func reportQueueDepthIfNeeded() {
         let depth = videoQueueLock.withLock { pendingVideo.count }
         stateLock.withLock {
@@ -657,18 +778,28 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             StreamSessionProbes.record("frame queue depth session=\(sessionID.rawValue) depth=\(depth)")
         }
         guard depth > Self.pendingVideoLimit else { return }
-        let dropped: Int = videoQueueLock.withLock {
-            let excess = pendingVideo.count - Self.pendingVideoKeep
-            guard excess > 0 else { return 0 }
-            pendingVideo.removeFirst(excess)
-            return excess
+        let shed: (dropped: Int, keptKeyframe: Bool) = videoQueueLock.withLock {
+            guard pendingVideo.count > Self.pendingVideoLimit else { return (0, false) }
+            if let keyframeIndex = pendingVideo.lastIndex(where: \.isKeyframe), keyframeIndex > 0 {
+                pendingVideo.removeFirst(keyframeIndex)
+                return (keyframeIndex, true)
+            }
+            let count = pendingVideo.count
+            pendingVideo.removeAll()
+            awaitingKeyframe = true
+            lastKeyframeRequestAt = Date()
+            return (count, false)
         }
-        guard dropped > 0 else { return }
-        stateLock.withLock { counters.staleFramesDropped += Int64(dropped) }
+        guard shed.dropped > 0 else { return }
+        stateLock.withLock { counters.staleFramesDropped += Int64(shed.dropped) }
         StreamSessionProbes.record(
-            "frame queue shed session=\(sessionID.rawValue) dropped=\(dropped) depth=\(depth)",
+            "frame queue shed session=\(sessionID.rawValue) dropped=\(shed.dropped) depth=\(depth)"
+                + " keptKeyframe=\(shed.keptKeyframe)",
             retention: .evidence
         )
+        if !shed.keptKeyframe {
+            requestIdrFrame(reason: "queueShed")
+        }
     }
 
     private func recoverFromFlushRequirement(reason: String) {
@@ -676,6 +807,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             if flushingRenderer { return true }
             flushingRenderer = true
             pendingVideo.removeAll()
+            awaitingKeyframe = true
+            lastKeyframeRequestAt = Date()
             return false
         }
         guard !alreadyFlushing else { return }
@@ -712,6 +845,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             guard recoveringFromRendererFailure == false else { return nil }
             recoveringFromRendererFailure = true
             pendingVideo.removeAll()
+            awaitingKeyframe = true
+            lastKeyframeRequestAt = Date()
             return videoRenderer
         }
         guard let departing else { return videoRenderer }
@@ -1086,6 +1221,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             let videoGapMax = counters.videoGapMaxMilliseconds
             let videoPTSGapMax = counters.videoPTSGapMaxMilliseconds
             counters.videoPTSGapMaxMilliseconds = 0
+            let bufferHoldMax = counters.bufferHoldMaxMilliseconds
+            counters.bufferHoldMaxMilliseconds = 0
             let audioGapMax = counters.audioGapMaxMilliseconds
             counters.videoGapMaxMilliseconds = 0
             counters.audioGapMaxMilliseconds = 0
@@ -1117,6 +1254,8 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " ptsGap=\(gapDelta.ptsGap)"
                 + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
                 + " shed=\(counters.staleFramesDropped)"
+                + " held=\(counters.framesHeldByBuffer)"
+                + " holdMaxMs=\(String(format: "%.1f", bufferHoldMax))"
                 + " hostLatMs=\(String(format: "%.1f", stats?.averageHostProcessingLatencyMs ?? 0))"
                 + " hostLatFrames=\(stats?.framesWithHostProcessingLatency ?? 0)"
                 + " rttMs=\(backend.estimatedRTT()?.milliseconds ?? 0)"
