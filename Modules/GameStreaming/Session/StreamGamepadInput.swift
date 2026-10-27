@@ -1104,7 +1104,6 @@ public struct StreamFocusedInputCapture: View {
             .focusable()
             .focusEffectDisabled()
             .focused($inputFocused)
-            .handlesGameControllerEvents(matching: .gamepad)
             .onAppear {
                 StreamSessionProbes.record(
                     "input capture appeared",
