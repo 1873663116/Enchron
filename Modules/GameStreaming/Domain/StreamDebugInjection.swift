@@ -104,7 +104,9 @@ public enum StreamDebugInjection {
                 rightTrigger: UInt16(clamping: right)
             )
         case "motion", "motionrequest":
-            guard let motionType = number("type"), let rate = number("rate") else { return nil }
+            guard let motionType = number("motionType") ?? number("type"),
+                  let rate = number("rate")
+            else { return nil }
             return .motionRequest(
                 controllerNumber: 0,
                 motionType: UInt8(clamping: motionType),

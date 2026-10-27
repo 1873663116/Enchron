@@ -1072,6 +1072,32 @@ final class TestCommandChannel {
         case "streamDisconnect":
             streaming.disconnect()
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
+        case "streamReconnect":
+            do {
+                try await streaming.reconnect()
+            } catch {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "reconnect failed: \(error)",
+                    payload: [streaming.session?.readableValue ?? "unavailable"]
+                )
+            }
+            return Response(id: request.id, ok: true, detail: nil, payload: [streaming.session?.readableValue ?? "unavailable"])
+        case "streamWakeHost":
+            guard let host = request.args["host"] else {
+                throw CommandError(message: "streamWakeHost requires host")
+            }
+            guard let hostID = resolveStreamHost(host) else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "streamWakeHost could not resolve host \(host)",
+                    payload: nil
+                )
+            }
+            streaming.wake(hostID: hostID)
+            return Response(id: request.id, ok: true, detail: nil, payload: ["woke"])
         case "streamReleaseInput":
             streaming.releaseInputs(cause: "control-hit")
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
@@ -1167,6 +1193,36 @@ final class TestCommandChannel {
                 }
             }
             return Response(id: request.id, ok: true, detail: nil, payload: [streaming.settings.readableValue])
+        case "streamPinHost":
+            let host = request.args["host"] ?? ""
+            let port = UInt16(clamping: Int(request.args["port"] ?? "") ?? Int(HostAddress.defaultPortBase))
+            guard !host.isEmpty else {
+                throw CommandError(message: "streamPinHost requires host")
+            }
+            streaming.pinHostAddress(host: host, portBase: port)
+            return Response(id: request.id, ok: true, detail: nil, payload: [host])
+        case "streamStartDiscovery":
+            streaming.startDiscovery()
+            return Response(id: request.id, ok: true, detail: nil, payload: ["discovering"])
+        case "streamStopDiscovery":
+            streaming.stopDiscovery()
+            return Response(id: request.id, ok: true, detail: nil, payload: ["stopped"])
+        case "streamDiscoveredHosts":
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: streaming.discoveredHosts.map { "\($0.address.host):\($0.address.portBase) \($0.instanceName)" }
+            )
+        case "streamInjectQuality":
+            let value = Int32(clamping: Int(request.args["value"] ?? "") ?? 0)
+            streaming.injectConnectionQuality(value)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [streaming.session?.readableValue ?? "unavailable"]
+            )
         case "streamSendController":
             let buttons = Set(
                 (request.args["buttons"] ?? "")
@@ -1217,8 +1273,9 @@ final class TestCommandChannel {
             streaming.injectControllerProfile(nil)
             return Response(id: request.id, ok: true, detail: nil, payload: ["removed"])
         case "streamInjectFeedback":
-            guard let type = request.args["type"],
-                  let feedback = StreamDebugInjection.feedback(type: type, args: request.args)
+            var feedbackArgs = request.args
+            guard let type = feedbackArgs.removeValue(forKey: "type"),
+                  let feedback = StreamDebugInjection.feedback(type: type, args: feedbackArgs)
             else {
                 return Response(
                     id: request.id,
@@ -1278,6 +1335,45 @@ final class TestCommandChannel {
                 streaming.sendScroll(amount: scroll)
             }
             return Response(id: request.id, ok: true, detail: nil, payload: [streaming.session?.readableValue ?? "unavailable"])
+        case "streamSendHighResScroll":
+            guard streaming.session != nil else {
+                return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)
+            }
+            let vertical = Int16(clamping: Int(request.args["vertical"] ?? "") ?? 0)
+            let horizontal = Int16(clamping: Int(request.args["horizontal"] ?? "") ?? 0)
+            streaming.sendHighResScroll(vertical: Int32(vertical), horizontal: Int32(horizontal))
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [streaming.session?.readableValue ?? "unavailable"]
+            )
+        case "streamSetSettings":
+            streaming.updateSettings { settings in
+                if let raw = request.args["audioLayout"],
+                   let layout = StreamAudioLayout(rawValue: raw) {
+                    settings.audioLayout = layout
+                }
+                if let overlay = flagValue(request.args["statsOverlay"]) {
+                    settings.showPerformanceOverlay = overlay
+                }
+                if let absolute = flagValue(request.args["absoluteTouchMode"]) {
+                    settings.absoluteTouchMode = absolute
+                }
+            }
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [streaming.settings.readableValue]
+            )
+        case "streamReadSettings":
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [streaming.settings.readableValue]
+            )
         case "probeStatus":
             let status = SurfaceInputProbes.status
             let healthy = status.fileBytes <= status.byteLimit
@@ -2240,14 +2336,14 @@ final class TestCommandChannel {
             }
             key = parsed
         } else if let currentIdentity {
-            key = ArtworkKey(mediaIdentity: currentIdentity)
+            key = ArtworkKey(mediaStorageKey: currentIdentity.storageKey)
         } else {
             throw CommandError(
                 message: "artworkProbe requires active playback or an exact key."
             )
         }
 
-        let currentKey = currentIdentity.map { ArtworkKey(mediaIdentity: $0) }
+        let currentKey = currentIdentity.map { ArtworkKey(mediaStorageKey: $0.storageKey) }
         let current: ArtworkDebugIdentity? = if currentKey == key,
                                                 let image = playbackRuntime.displayedArtworkImage() {
             try ArtworkStore.shared.debugEncodedIdentity(image, for: key)

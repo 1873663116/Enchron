@@ -2,6 +2,7 @@ import BluRayDisc
 import Foundation
 import MediaSource
 import Observation
+import DesignSystem
 import OSLog
 
 @MainActor
@@ -750,7 +751,7 @@ public final class MediaLibraryViewModel {
         var artworkURLs: [UUID: URL] = [:]
         for reference in snapshot {
             guard let identity = await mediaIdentity(for: reference) else { continue }
-            artworkURLs[reference.id] = artworkStore.fileURL(for: ArtworkKey(mediaIdentity: identity))
+            artworkURLs[reference.id] = artworkStore.fileURL(for: ArtworkKey(mediaStorageKey: identity.storageKey))
             guard let state = await viewingStateProvider(identity) else { continue }
             states[reference.id] = state
         }

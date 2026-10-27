@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import MediaSource
+import DesignSystem
 import Testing
 @testable import MediaLibrary
 
@@ -46,7 +47,7 @@ struct MediaLibraryBehaviorTests {
             )
         )
         context.fill(CGRect(x: 0, y: 0, width: 4, height: 4))
-        try artworkStore.store(try #require(context.makeImage()), for: ArtworkKey(mediaIdentity: identity))
+        try artworkStore.store(try #require(context.makeImage()), for: ArtworkKey(mediaStorageKey: identity.storageKey))
 
         let viewModel = MediaLibraryViewModel(
             store: UserDefaultsMediaLibraryStore(defaults: .standard),

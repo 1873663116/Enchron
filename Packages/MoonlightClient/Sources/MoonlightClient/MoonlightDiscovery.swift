@@ -126,8 +126,8 @@ public final class MoonlightDiscovery: @unchecked Sendable {
             guard let self else { return }
             self.lock.lock()
             self.pendingResolutions.remove(name)
+            let mac = self.discoveredMACs[name]
             if let host, let port {
-                let mac = self.lock.withLock { self.discoveredMACs[name] }
                 self.resolved[name] = MoonlightDiscoveredHost(
                     instanceName: name,
                     host: host,

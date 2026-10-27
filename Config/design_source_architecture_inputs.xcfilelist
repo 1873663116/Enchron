@@ -116,7 +116,7 @@ $(SRCROOT)/Modules/MediaServer/MediaServerShelf.swift
 $(SRCROOT)/Modules/MediaServer/MediaServerSources.swift
 $(SRCROOT)/Modules/MediaServer/PlexAccount.swift
 $(SRCROOT)/Modules/MediaServer/PlexClient.swift
-$(SRCROOT)/Modules/MediaSource/ArtworkStore.swift
+$(SRCROOT)/Modules/DesignSystem/ArtworkStore.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 $(SRCROOT)/Modules/MediaSource/MediaByteStream+Diagnostics.swift

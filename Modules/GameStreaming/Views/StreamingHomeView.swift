@@ -206,9 +206,19 @@ public struct StreamingHomeView: View {
                 }
             )
             .task(id: host.applications) {
+                StreamSessionProbes.record(
+                    "home grid task host=\(host.id.rawValue) state=\(String(describing: host.applications))",
+                    retention: .evidence
+                )
                 for application in host.applications.applications ?? [] {
                     _ = await model.artworkFileURL(hostID: host.id, appID: application.id)
                 }
+            }
+            .onChange(of: host.applications) { _, next in
+                StreamSessionProbes.record(
+                    "home grid changed host=\(host.id.rawValue) state=\(String(describing: next))",
+                    retention: .evidence
+                )
             }
         }
         .padding(DesignTokens.Spacing.xl)

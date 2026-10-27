@@ -211,7 +211,7 @@
 				MediaServer/MediaServerSources.swift,
 				MediaServer/PlexAccount.swift,
 				MediaServer/PlexClient.swift,
-				MediaSource/ArtworkStore.swift,
+				DesignSystem/ArtworkStore.swift,
 				MediaSource/KeychainStore.swift,
 				MediaSource/MediaAccessLease.swift,
 				"MediaSource/MediaByteStream+Diagnostics.swift",

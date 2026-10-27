@@ -35,6 +35,9 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
 #if DEBUG
     private var simulatedMotion = false
     private var simulatedMotionTick: UInt32 = 0
+    private var simulatedAccelerationSamples = 0
+    private var simulatedRotationSamples = 0
+    private var simulatedMotionWindowStart = Date()
     private var simulatedBattery: (state: UInt8, percentage: UInt8)?
     private var lastSimulatedBatteryState: UInt8?
     private var lastSimulatedBatteryPercentage: UInt8?
@@ -170,6 +173,8 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
 #if DEBUG
         if simulatedMotion {
             simulatedMotionTick &+= 1
+            simulatedAccelerationSamples += 1
+            logSimulatedMotionIfNeeded()
             let unit = Float(simulatedMotionTick % 100) / 100
             sendMotion?(0, MotionType.acceleration, unit, -unit, unit)
             return
@@ -197,6 +202,8 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
 #if DEBUG
         if simulatedMotion {
             simulatedMotionTick &+= 1
+            simulatedRotationSamples += 1
+            logSimulatedMotionIfNeeded()
             let unit = Float(simulatedMotionTick % 100) / 100
             sendMotion?(0, MotionType.rotation, unit, unit, -unit)
             return
@@ -220,6 +227,21 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
         )
     }
 
+#if DEBUG
+    private func logSimulatedMotionIfNeeded() {
+        let elapsed = Date().timeIntervalSince(simulatedMotionWindowStart)
+        guard elapsed >= 1 else { return }
+        StreamSessionProbes.record(
+            "gamepad motion sent acceleration=\(simulatedAccelerationSamples)"
+                + " rotation=\(simulatedRotationSamples)",
+            retention: .evidence
+        )
+        simulatedAccelerationSamples = 0
+        simulatedRotationSamples = 0
+        simulatedMotionWindowStart = Date()
+    }
+#endif
+
     private func activateMotionSensorsIfNeeded() {
         guard let motion = controller?.motion, motion.sensorsRequireManualActivation else { return }
         motion.sensorsActive = accelerationTimer != nil || rotationTimer != nil
@@ -233,7 +255,15 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
     }
 
     private func applyIndicatorLight(red: UInt8, green: UInt8, blue: UInt8) {
-        guard let light = controller?.light else { return }
+        guard let light = controller?.light else {
+#if DEBUG
+            StreamSessionProbes.record(
+                "gamepad led r=\(red) g=\(green) b=\(blue) simulated=true",
+                retention: .evidence
+            )
+#endif
+            return
+        }
         light.color = GCColor(
             red: Float(red) / 255.0,
             green: Float(green) / 255.0,
@@ -281,11 +311,6 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
     private func reportBattery() {
 #if DEBUG
         if let simulatedBattery {
-            guard simulatedBattery.state != lastSimulatedBatteryState
-                || simulatedBattery.percentage != lastSimulatedBatteryPercentage
-            else {
-                return
-            }
             lastSimulatedBatteryState = simulatedBattery.state
             lastSimulatedBatteryPercentage = simulatedBattery.percentage
             sendBattery?(0, simulatedBattery.state, simulatedBattery.percentage)
@@ -298,11 +323,6 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
         }
 #endif
         guard let battery = controller?.battery else { return }
-        guard battery.batteryState != lastBatteryState
-            || battery.batteryLevel != lastBatteryLevel
-        else {
-            return
-        }
         lastBatteryState = battery.batteryState
         lastBatteryLevel = battery.batteryLevel
         let state: UInt8 = switch battery.batteryState {

@@ -3,6 +3,7 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 import ImageIO
+import DesignSystem
 import MediaSource
 
 public struct MediaServerSignInReceipt: Codable, Equatable, Sendable {

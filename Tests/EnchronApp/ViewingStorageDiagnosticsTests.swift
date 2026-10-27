@@ -1,6 +1,7 @@
 import Foundation
 import MediaSource
 import Playback
+import DesignSystem
 import XCTest
 @testable import Enchron
 

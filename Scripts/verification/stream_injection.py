@@ -16,9 +16,20 @@ usage:
     stream_injection.py --device <UDID> profile --kind playstation --caps all --buttons a,special
     stream_injection.py --device <UDID> profile-remove
     stream_injection.py --device <UDID> feedback --type rumble --arg low=100 --arg high=200
+    stream_injection.py --device <UDID> feedback --type motion --arg motionType=1 --arg rate=60
     stream_injection.py --device <UDID> touchpad --x 0.25 --y -0.5
     stream_injection.py --device <UDID> motion --enable true
     stream_injection.py --device <UDID> battery --state 2 --percentage 55
+    stream_injection.py --device <UDID> highres-scroll --vertical 1 --horizontal 0
+    stream_injection.py --device <UDID> settings
+    stream_injection.py --device <UDID> set-settings --audio-layout surround51 --stats-overlay true
+    stream_injection.py --device <UDID> quality --value 1
+    stream_injection.py --device <UDID> discovered
+    stream_injection.py --device <UDID> start-discovery
+    stream_injection.py --device <UDID> stop-discovery
+    stream_injection.py --device <UDID> pin-host --host 127.0.0.1 --port 47989
+    stream_injection.py --device <UDID> reconnect
+    stream_injection.py --device <UDID> wake --host DESKTOP-LBIAG7N
 
 The options before the subcommand are the transport's own; ``--execution-input``
 is required whenever the console has not already frozen a launch.
@@ -119,6 +130,55 @@ def remove_profile(arguments: argparse.Namespace) -> dict:
     return app_command(arguments, "streamInjectProfileRemove", [])
 
 
+def high_res_scroll(arguments: argparse.Namespace) -> dict:
+    return app_command(
+        arguments,
+        "streamSendHighResScroll",
+        [f"vertical={arguments.vertical}", f"horizontal={arguments.horizontal}"],
+    )
+
+
+def pin_host(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamPinHost", [f"host={arguments.host}", f"port={arguments.port}"])
+
+
+def stop_discovery(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamStopDiscovery", [])
+
+
+def start_discovery(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamStartDiscovery", [])
+
+
+def discovered(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamDiscoveredHosts", [])
+
+
+def quality(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamInjectQuality", [f"value={arguments.value}"])
+
+
+def reconnect(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamReconnect", [])
+
+
+def wake(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamWakeHost", [f"host={arguments.host}"])
+
+
+def read_settings(arguments: argparse.Namespace) -> dict:
+    return app_command(arguments, "streamReadSettings", [])
+
+
+def write_settings(arguments: argparse.Namespace) -> dict:
+    pairs = [
+        f"audioLayout={arguments.audio_layout}",
+        f"statsOverlay={arguments.stats_overlay}",
+        f"absoluteTouchMode={arguments.absolute_touch_mode}",
+    ]
+    return app_command(arguments, "streamSetSettings", pairs)
+
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--device", required=True)
@@ -165,6 +225,45 @@ def parse_arguments() -> argparse.Namespace:
     battery.add_argument("--state", required=True)
     battery.add_argument("--percentage", required=True)
     battery.set_defaults(handler=inject_battery)
+
+    scroll = subparsers.add_parser("highres-scroll", help="send one high resolution scroll packet")
+    scroll.add_argument("--vertical", default="0")
+    scroll.add_argument("--horizontal", default="0")
+    scroll.set_defaults(handler=high_res_scroll)
+
+    pin_parser = subparsers.add_parser("pin-host", help="pin the stored host to one address")
+    pin_parser.add_argument("--host", required=True)
+    pin_parser.add_argument("--port", type=int, default=47989)
+    pin_parser.set_defaults(handler=pin_host)
+
+    stop_discovery_parser = subparsers.add_parser("stop-discovery", help="stop host discovery")
+    stop_discovery_parser.set_defaults(handler=stop_discovery)
+
+    start_discovery_parser = subparsers.add_parser("start-discovery", help="start host discovery")
+    start_discovery_parser.set_defaults(handler=start_discovery)
+
+    discovered_parser = subparsers.add_parser("discovered", help="list discovered hosts")
+    discovered_parser.set_defaults(handler=discovered)
+
+    quality_parser = subparsers.add_parser("quality", help="inject a connection quality status")
+    quality_parser.add_argument("--value", required=True)
+    quality_parser.set_defaults(handler=quality)
+
+    reconnect_parser = subparsers.add_parser("reconnect", help="reconnect the current session")
+    reconnect_parser.set_defaults(handler=reconnect)
+
+    wake_parser = subparsers.add_parser("wake", help="send a wake packet to a host")
+    wake_parser.add_argument("--host", required=True)
+    wake_parser.set_defaults(handler=wake)
+
+    read = subparsers.add_parser("settings", help="read the streaming settings")
+    read.set_defaults(handler=read_settings)
+
+    write = subparsers.add_parser("set-settings", help="write streaming settings")
+    write.add_argument("--audio-layout", default="")
+    write.add_argument("--stats-overlay", default="")
+    write.add_argument("--absolute-touch-mode", default="")
+    write.set_defaults(handler=write_settings)
 
     return parser.parse_args()
 

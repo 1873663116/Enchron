@@ -1,5 +1,7 @@
 import AVFoundation
+import DesignSystem
 import Foundation
+import ImageIO
 import Observation
 import UIKit
 
@@ -115,7 +117,17 @@ public final class StreamingModel {
 
     public func reloadHosts() {
         storedHosts = hostStore.load()
-        hosts = storedHosts.map(snapshot(from:))
+        let transient = Dictionary(
+            uniqueKeysWithValues: hosts.map { ($0.id, $0.applications) }
+        )
+        hosts = storedHosts.map { stored in
+            var refreshed = snapshot(from: stored)
+            if case .unknown = refreshed.applications,
+               let carried = transient[stored.hostID] {
+                refreshed.applications = carried
+            }
+            return refreshed
+        }
         if let selectedHostID, !hosts.contains(where: { $0.id == selectedHostID }) {
             self.selectedHostID = hosts.first?.id
         }
@@ -451,6 +463,29 @@ public final class StreamingModel {
         }
     }
 
+#if DEBUG
+    public private(set) var debugPinnedAddress: HostAddress?
+
+    /// Pins the stored host to one address so a loopback proxy session survives
+    /// the reachability pass that would otherwise promote the direct LAN path.
+    public func pinHostAddress(host: String, portBase: UInt16) {
+        guard let target = storedHosts.first else { return }
+        let address = HostAddress(host: host, portBase: portBase)
+        debugPinnedAddress = address
+        _ = hostStore.update(id: target.id) { stored in
+            stored.address = address
+            stored.localAddress = address
+            stored.alternateAddresses = nil
+            stored.externalAddress = nil
+        }
+        reloadHosts()
+        StreamSessionProbes.record(
+            "testcmd pin host=\(host):\(portBase)",
+            retention: .evidence
+        )
+    }
+#endif
+
     /// Remembers the address that answered and keeps the rest as alternatives,
     /// so the next launch dials the path that just worked rather than the first
     /// one ever stored.
@@ -459,6 +494,11 @@ public final class StreamingModel {
         for target: StoredHost,
         info: BackendServerInfo
     ) {
+#if DEBUG
+        if debugPinnedAddress != nil {
+            return
+        }
+#endif
         let local = info.localAddress.flatMap { HostAddress(parsing: $0) }
         let external = info.externalAddress.flatMap { HostAddress(parsing: $0) }
         _ = hostStore.update(id: target.id) { stored in
@@ -614,6 +654,10 @@ public final class StreamingModel {
                         BackendCredentials(address: stored.address, serverCert: stored.serverCert)
                     )
                 }
+                StreamSessionProbes.record(
+                    "applications loaded host=\(hostID.rawValue) count=\(applications.count)",
+                    retention: .evidence
+                )
                 guard let index = self.hosts.firstIndex(where: { $0.id == hostID }) else { return }
                 self.hosts[index].applications = .loaded(applications)
                 self.applicationCache.save(
@@ -627,6 +671,10 @@ public final class StreamingModel {
                     }
                 )
             } catch {
+                StreamSessionProbes.record(
+                    "applications load failed host=\(hostID.rawValue) detail=\(String(describing: error))",
+                    retention: .evidence
+                )
                 guard let index = self.hosts.firstIndex(where: { $0.id == hostID }) else { return }
                 if self.hosts[index].applications.applications == nil {
                     self.hosts[index].applications = .failed(String(describing: error))
@@ -1205,6 +1253,23 @@ public final class StreamingModel {
         coordinator?.sendGamepad(state)
     }
 
+#if DEBUG
+    public private(set) var debugConnectionQuality: Int32?
+
+    /// Drives the connection-quality branch of the session UI without a real
+    /// lossy network, so the hint and overlay can be checked in isolation.
+    public func injectConnectionQuality(_ status: Int32) {
+        guard var current = session else { return }
+        current.diagnostics.connectionQuality = status
+        session = current
+        debugConnectionQuality = status
+        StreamSessionProbes.record(
+            "testcmd inject quality=\(status)",
+            retention: .evidence
+        )
+    }
+#endif
+
     public func releaseInputs(cause: String) {
         coordinator?.releaseAllInput(cause: cause)
     }
@@ -1263,17 +1328,15 @@ public final class StreamingModel {
     }
 
     public func artworkFileURL(hostID: HostID, appID: AppID) async -> URL? {
-        let key = "\(hostID.rawValue)-\(appID.rawValue)"
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let directory = base.appendingPathComponent("enchron-app-artwork", isDirectory: true)
-        let file = directory.appendingPathComponent("app-\(key).png")
-        if let cached = artworkCache[key], FileManager.default.fileExists(atPath: cached.path) {
+        let identity = "\(hostID.rawValue)-\(appID.rawValue)"
+        let key = ArtworkKey(namespace: "stream-app", identity: identity)
+        if let cached = artworkCache[identity],
+           FileManager.default.fileExists(atPath: cached.path) {
             return cached
         }
-        if FileManager.default.fileExists(atPath: file.path) {
-            artworkCache[key] = file
-            return file
+        if let persisted = ArtworkStore.shared.fileURL(for: key) {
+            artworkCache[identity] = persisted
+            return persisted
         }
         guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return nil }
         let credentials = BackendCredentials(address: stored.address, serverCert: stored.serverCert)
@@ -1282,11 +1345,25 @@ public final class StreamingModel {
             try await backend.artwork(credentials, appID: appID)
         }
         await artworkLimiter.release()
-        guard let data else { return nil }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        guard (try? data.write(to: file, options: .atomic)) != nil else { return nil }
-        artworkCache[key] = file
-        return file
+        guard let data, let image = Self.decodeArtwork(data) else { return nil }
+        try? ArtworkStore.shared.store(image, for: key)
+        guard let persisted = ArtworkStore.shared.fileURL(for: key) else { return nil }
+        artworkCache[identity] = persisted
+        return persisted
+    }
+
+    /// Decodes a host cover once so the shared artwork store can re-encode and
+    /// audit it. Covers are small host assets; the same pixel ceiling as the
+    /// playback artwork loader keeps memory bounded.
+    private static func decodeArtwork(_ data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1024
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 
 }

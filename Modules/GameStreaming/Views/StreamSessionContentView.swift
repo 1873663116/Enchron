@@ -10,6 +10,11 @@ public struct StreamSessionContentView: View {
 
     private var showsWeakNetworkHint: Bool {
         guard let session = model.session else { return false }
+#if DEBUG
+        if let injected = model.debugConnectionQuality {
+            return session.state == .streaming && injected == 1
+        }
+#endif
         return session.state == .streaming && session.diagnostics.connectionQuality == 1
     }
 
@@ -60,7 +65,8 @@ public struct StreamSessionContentView: View {
         }
         .padding(.horizontal, DesignTokens.Spacing.sm)
         .padding(.vertical, DesignTokens.Spacing.xs)
-        .background(.regularMaterial, in: DesignTokens.ShapeToken.element)
+        .background(DesignTokens.Surface.hudBackdrop, in: DesignTokens.ShapeToken.element)
+        .foregroundStyle(.white)
         .padding(DesignTokens.Spacing.md)
         .allowsHitTesting(false)
         .accessibilityIdentifier("Stream-Session-stats")
@@ -133,7 +139,8 @@ public struct StreamSessionContentView: View {
                     .font(DesignTokens.Typography.monospacedDetail)
                     .padding(.horizontal, DesignTokens.Spacing.sm)
                     .padding(.vertical, DesignTokens.Spacing.xs)
-                    .background(.regularMaterial, in: Capsule())
+                    .background(DesignTokens.Surface.hudBackdrop, in: Capsule())
+                    .foregroundStyle(.white)
                     .padding(.top, DesignTokens.Spacing.md)
                     .allowsHitTesting(false)
                     .accessibilityIdentifier("Stream-Session-networkHint")
@@ -155,7 +162,7 @@ public struct StreamSessionContentView: View {
                     }
                 }
                 .padding(DesignTokens.Spacing.xl)
-                .background(.regularMaterial, in: DesignTokens.ShapeToken.element)
+                .background(.orange, in: DesignTokens.ShapeToken.element)
                 .padding(DesignTokens.Spacing.xxl)
                 .accessibilityIdentifier("Stream-Session-failure")
             }
