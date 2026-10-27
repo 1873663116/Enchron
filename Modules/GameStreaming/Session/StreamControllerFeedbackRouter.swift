@@ -32,6 +32,13 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
     private var lastRotation = GCRotationRate()
     private var lastBatteryState: GCDeviceBattery.State?
     private var lastBatteryLevel: Float?
+#if DEBUG
+    private var simulatedMotion = false
+    private var simulatedMotionTick: UInt32 = 0
+    private var simulatedBattery: (state: UInt8, percentage: UInt8)?
+    private var lastSimulatedBatteryState: UInt8?
+    private var lastSimulatedBatteryPercentage: UInt8?
+#endif
 
     func attach(to controller: GCController?) {
         detach()
@@ -53,6 +60,11 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
         controller = nil
         lastBatteryState = nil
         lastBatteryLevel = nil
+#if DEBUG
+        simulatedBattery = nil
+        lastSimulatedBatteryState = nil
+        lastSimulatedBatteryPercentage = nil
+#endif
     }
 
     func reportCurrentBattery() {
@@ -92,6 +104,20 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
         }
     }
 
+    private var canSampleAcceleration: Bool {
+#if DEBUG
+        if simulatedMotion { return true }
+#endif
+        return controller?.motion?.hasGravityAndUserAcceleration == true
+    }
+
+    private var canSampleRotation: Bool {
+#if DEBUG
+        if simulatedMotion { return true }
+#endif
+        return controller?.motion?.hasRotationRate == true
+    }
+
     private func applyMotionRequest(motionType: UInt8, reportRateHz: UInt16) {
         StreamSessionProbes.record(
             "gamepad motion request type=\(motionType) rate=\(reportRateHz)",
@@ -101,7 +127,7 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
         case MotionType.acceleration:
             accelerationTimer?.invalidate()
             accelerationTimer = nil
-            guard reportRateHz > 0, controller?.motion?.hasGravityAndUserAcceleration == true else {
+            guard reportRateHz > 0, canSampleAcceleration else {
                 deactivateMotionSensorsIfNeeded()
                 return
             }
@@ -119,7 +145,7 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
         case MotionType.rotation:
             rotationTimer?.invalidate()
             rotationTimer = nil
-            guard reportRateHz > 0, controller?.motion?.hasRotationRate == true else {
+            guard reportRateHz > 0, canSampleRotation else {
                 deactivateMotionSensorsIfNeeded()
                 return
             }
@@ -141,6 +167,14 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
     }
 
     private func sampleAcceleration() {
+#if DEBUG
+        if simulatedMotion {
+            simulatedMotionTick &+= 1
+            let unit = Float(simulatedMotionTick % 100) / 100
+            sendMotion?(0, MotionType.acceleration, unit, -unit, unit)
+            return
+        }
+#endif
         guard let motion = controller?.motion else { return }
         let sample = motion.acceleration
         guard sample.x != lastAcceleration.x
@@ -160,6 +194,14 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
     }
 
     private func sampleRotation() {
+#if DEBUG
+        if simulatedMotion {
+            simulatedMotionTick &+= 1
+            let unit = Float(simulatedMotionTick % 100) / 100
+            sendMotion?(0, MotionType.rotation, unit, unit, -unit)
+            return
+        }
+#endif
         guard let motion = controller?.motion else { return }
         let sample = motion.rotationRate
         guard sample.x != lastRotation.x
@@ -203,6 +245,31 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
         )
     }
 
+#if DEBUG
+    /// Drives the sampling path without a controller that reports motion.
+    func setSimulatedMotion(_ enabled: Bool) {
+        simulatedMotion = enabled
+        if !enabled {
+            accelerationTimer?.invalidate()
+            accelerationTimer = nil
+            rotationTimer?.invalidate()
+            rotationTimer = nil
+        }
+    }
+
+    /// Drives the battery path without a controller that reports a level. Each
+    /// call reports the new value, so a test can replay a discharge curve.
+    func simulateBattery(state: UInt8, percentage: UInt8) {
+        simulatedBattery = (state, percentage)
+        if batteryTimer == nil {
+            batteryTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+                self?.reportBattery()
+            }
+        }
+        reportBattery()
+    }
+#endif
+
     private func startBatteryReporting() {
         guard controller?.battery != nil else { return }
         batteryTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -212,6 +279,24 @@ final class StreamControllerFeedbackRouter: @unchecked Sendable {
     }
 
     private func reportBattery() {
+#if DEBUG
+        if let simulatedBattery {
+            guard simulatedBattery.state != lastSimulatedBatteryState
+                || simulatedBattery.percentage != lastSimulatedBatteryPercentage
+            else {
+                return
+            }
+            lastSimulatedBatteryState = simulatedBattery.state
+            lastSimulatedBatteryPercentage = simulatedBattery.percentage
+            sendBattery?(0, simulatedBattery.state, simulatedBattery.percentage)
+            StreamSessionProbes.record(
+                "gamepad battery level=\(simulatedBattery.percentage)"
+                    + " state=\(simulatedBattery.state) simulated=true",
+                retention: .evidence
+            )
+            return
+        }
+#endif
         guard let battery = controller?.battery else { return }
         guard battery.batteryState != lastBatteryState
             || battery.batteryLevel != lastBatteryLevel

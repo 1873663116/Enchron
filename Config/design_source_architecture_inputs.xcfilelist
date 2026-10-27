@@ -43,6 +43,7 @@ $(SRCROOT)/Modules/GameStreaming/Backend/MoonlightStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/SimulatedStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/StreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamControllerProfile.swift
+$(SRCROOT)/Modules/GameStreaming/Domain/StreamDebugInjection.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamIdentity.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamNetworkCondition.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSessionState.swift

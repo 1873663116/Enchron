@@ -1150,6 +1150,30 @@ public final class StreamingModel {
         coordinator?.sendScroll(amount: amount)
     }
 
+#if DEBUG
+    /// Test-channel entry points for a simulator with no controller and no host.
+    /// They forward to the live session and do nothing when there is none.
+    public func injectControllerProfile(_ arrival: StreamControllerArrival?) {
+        coordinator?.simulateControllerProfile(arrival)
+    }
+
+    public func injectControllerFeedback(_ feedback: StreamControllerFeedback) {
+        coordinator?.simulateControllerFeedback(feedback)
+    }
+
+    public func injectTouchpad(index: Int, x: Float, y: Float) {
+        coordinator?.simulateTouchpad(index: index, x: x, y: y)
+    }
+
+    public func setSimulatedMotion(_ enabled: Bool) {
+        coordinator?.setSimulatedMotion(enabled)
+    }
+
+    public func injectBattery(state: UInt8, percentage: UInt8) {
+        coordinator?.simulateBattery(state: state, percentage: percentage)
+    }
+#endif
+
     public func sendHighResScroll(vertical: Int32, horizontal: Int32) {
         coordinator?.sendHighResScroll(vertical: vertical, horizontal: horizontal)
     }

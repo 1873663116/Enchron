@@ -1188,6 +1188,81 @@ final class TestCommandChannel {
                 return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)
             }
             return Response(id: request.id, ok: true, detail: nil, payload: ["flags=\(flags)"])
+        case "streamInjectProfile":
+            let arrival = StreamDebugInjection.arrival(
+                controllerNumber: UInt8(clamping: Int(request.args["number"] ?? "") ?? 0),
+                activeGamepadMask: UInt16(clamping: Int(request.args["mask"] ?? "") ?? 1),
+                kind: request.args["kind"] ?? "xbox",
+                capabilities: request.args["caps"] ?? "",
+                buttons: request.args["buttons"] ?? ""
+            )
+            streaming.injectControllerProfile(arrival)
+            StreamSessionProbes.record(
+                "testcmd inject profile kind=\(arrival.kind.rawValue)"
+                    + " caps=\(arrival.capabilities.rawValue)"
+                    + " buttons=\(arrival.supportedButtons)",
+                retention: .evidence
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "kind=\(arrival.kind.rawValue)",
+                    "caps=\(arrival.capabilities.rawValue)",
+                    "buttons=\(arrival.supportedButtons)"
+                ]
+            )
+        case "streamInjectProfileRemove":
+            streaming.injectControllerProfile(nil)
+            return Response(id: request.id, ok: true, detail: nil, payload: ["removed"])
+        case "streamInjectFeedback":
+            guard let type = request.args["type"],
+                  let feedback = StreamDebugInjection.feedback(type: type, args: request.args)
+            else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "unknown feedback type or missing arguments",
+                    payload: nil
+                )
+            }
+            streaming.injectControllerFeedback(feedback)
+            return Response(id: request.id, ok: true, detail: nil, payload: ["injected=\(type)"])
+        case "streamInjectTouchpad":
+            guard let x = Float(request.args["x"] ?? ""),
+                  let y = Float(request.args["y"] ?? "")
+            else {
+                return Response(id: request.id, ok: false, detail: "x and y are required", payload: nil)
+            }
+            streaming.injectTouchpad(
+                index: Int(request.args["index"] ?? "") ?? 0,
+                x: x,
+                y: y
+            )
+            return Response(id: request.id, ok: true, detail: nil, payload: ["x=\(x)", "y=\(y)"])
+        case "streamInjectMotion":
+            let enabled = flagValue(request.args["enable"]) ?? true
+            streaming.setSimulatedMotion(enabled)
+            return Response(id: request.id, ok: true, detail: nil, payload: ["motion=\(enabled)"])
+        case "streamInjectBattery":
+            guard let state = UInt8(request.args["state"] ?? ""),
+                  let percentage = UInt8(request.args["percentage"] ?? "")
+            else {
+                return Response(
+                    id: request.id,
+                    ok: false,
+                    detail: "state and percentage are required",
+                    payload: nil
+                )
+            }
+            streaming.injectBattery(state: state, percentage: percentage)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["state=\(state)", "percentage=\(percentage)"]
+            )
         case "streamSendMouse":
             guard streaming.session != nil else {
                 return Response(id: request.id, ok: false, detail: "no active stream session", payload: nil)

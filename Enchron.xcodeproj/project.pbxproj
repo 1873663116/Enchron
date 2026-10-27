@@ -138,6 +138,7 @@
 				GameStreaming/Backend/SimulatedStreamingBackend.swift,
 				GameStreaming/Backend/StreamingBackend.swift,
 				GameStreaming/Domain/StreamControllerProfile.swift,
+				GameStreaming/Domain/StreamDebugInjection.swift,
 				GameStreaming/Domain/StreamIdentity.swift,
 				GameStreaming/Domain/StreamNetworkCondition.swift,
 				GameStreaming/Domain/StreamSessionState.swift,

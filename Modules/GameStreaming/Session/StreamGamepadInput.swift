@@ -220,6 +220,22 @@ public final class StreamGamepadInput: NSObject, @unchecked Sendable {
         feedback.handle(event)
     }
 
+#if DEBUG
+    /// Feeds the touchpad handler the same way a DualShock or DualSense would,
+    /// so the coordinate encoding can be checked without either device.
+    public func simulateTouch(index: Int, x: Float, y: Float) {
+        handleTouch(index: index, x: x, y: y)
+    }
+
+    public func setSimulatedMotion(_ enabled: Bool) {
+        feedback.setSimulatedMotion(enabled)
+    }
+
+    public func simulateBattery(state: UInt8, percentage: UInt8) {
+        feedback.simulateBattery(state: state, percentage: percentage)
+    }
+#endif
+
     private func registerTouchpadHandlers(for candidate: GCController) {
         if let dualShock = candidate.extendedGamepad as? GCDualShockGamepad {
             dualShock.touchpadPrimary.valueChangedHandler = { [weak self] _, x, y in

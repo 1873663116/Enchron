@@ -588,7 +588,17 @@ final class EnchronApplication {
         self.connectionSecurityPrompt = connectionSecurityPrompt
         self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator
+#if DEBUG
+        /// The simulation lane runs the same model and UI against a backend that
+        /// owns no socket, so the app-side behaviour can be driven with no host.
+        let streamingBackend: any StreamingBackend =
+            ProcessInfo.processInfo.environment["ENCHRON_STREAMING_BACKEND"] == "simulated"
+                ? SimulatedStreamingBackend()
+                : MoonlightStreamingBackend.shared
+        self.streamingModel = StreamingModel(backend: streamingBackend)
+#else
         self.streamingModel = StreamingModel(backend: MoonlightStreamingBackend.shared)
+#endif
         self.streamingModel.onSessionChanged = { [weak playbackRuntime] session in
             playbackRuntime?.setExternalVideoInformation(
                 session?.streamingPlaybackInformation

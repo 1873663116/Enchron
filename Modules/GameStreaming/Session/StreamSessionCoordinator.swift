@@ -1391,6 +1391,31 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         return flags
     }
 
+#if DEBUG
+    /// Test-channel hooks. Each one enters the same function the real controller
+    /// and the real host feedback enter, so a simulator exercises the production
+    /// path rather than a copy of it.
+    public func simulateControllerProfile(_ arrival: StreamControllerArrival?) {
+        handleControllerProfile(arrival)
+    }
+
+    public func simulateControllerFeedback(_ feedback: StreamControllerFeedback) {
+        gamepadInput.handle(feedback)
+    }
+
+    public func simulateTouchpad(index: Int, x: Float, y: Float) {
+        gamepadInput.simulateTouch(index: index, x: x, y: y)
+    }
+
+    public func setSimulatedMotion(_ enabled: Bool) {
+        gamepadInput.setSimulatedMotion(enabled)
+    }
+
+    public func simulateBattery(state: UInt8, percentage: UInt8) {
+        gamepadInput.simulateBattery(state: state, percentage: percentage)
+    }
+#endif
+
     public func handleControllerProfile(_ arrival: StreamControllerArrival?) {
         guard let arrival else {
             backend.sendControllerRemoval(controllerNumber: 0)
