@@ -76,6 +76,16 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var lastSampledGaps: (decoded: Int64, videoGap: Int64, audioGap: Int64, ptsGap: Int64) = (0, 0, 0, 0)
     private var flushingRenderer = false
     private var lastCancelledByFlushIdrAt = Date.distantPast
+    private var decodeFailureStreak = 0
+    private var lastDecodeFailureAt = Date.distantPast
+    private var decodeFailureIdrRequested = false
+    private var decodeFailureRebuildRequested = false
+
+    private enum DecodeFailureEscalation {
+        case none
+        case requestIdr
+        case rebuild
+    }
     private var videoDeliveryStartedAt: Date?
     private var surfaceBindingRevision: Int?
     private var surfaceHasBound = false
@@ -470,8 +480,16 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             case .failure:
                 self.recoverFromRendererFailure(reason: "renderer failure event")
             case .warning(_, let message):
+                let now = Date()
                 let count: Int64 = self.stateLock.withLock {
                     self.counters.videoDecodeWarnings += 1
+                    if now.timeIntervalSince(self.lastDecodeFailureAt) > 1 {
+                        self.decodeFailureStreak = 0
+                        self.decodeFailureIdrRequested = false
+                        self.decodeFailureRebuildRequested = false
+                    }
+                    self.lastDecodeFailureAt = now
+                    self.decodeFailureStreak += 1
                     return self.counters.videoDecodeWarnings
                 }
                 if count <= 5 || count % 100 == 0 {
@@ -1038,8 +1056,30 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         }
     }
 
+    private func recoverFromSustainedDecodeFailures() {
+        let escalation: DecodeFailureEscalation = stateLock.withLock {
+            guard decodeFailureStreak >= 12 else { return .none }
+            if !decodeFailureIdrRequested {
+                decodeFailureIdrRequested = true
+                return .requestIdr
+            }
+            guard decodeFailureStreak >= 30, !decodeFailureRebuildRequested else { return .none }
+            decodeFailureRebuildRequested = true
+            return .rebuild
+        }
+        switch escalation {
+        case .requestIdr:
+            requestIdrFrame(reason: "decodeFailures")
+        case .rebuild:
+            recoverFromRendererFailure(reason: "sustained decode failures")
+        case .none:
+            break
+        }
+    }
+
     private func sampleDiagnostics() {
         let diagnosticStartedAt = DispatchTime.now().uptimeNanoseconds
+        recoverFromSustainedDecodeFailures()
         let stats = backend.videoStats()
         let audioPendingPeakMs = backend.audioPendingPeakMs()
         let rtt = backend.estimatedRTT()
