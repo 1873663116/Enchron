@@ -17,6 +17,15 @@ final class StreamAudioOutput: @unchecked Sendable {
     private static let trimAboveSeconds = 0.060
     private static let trimToSeconds = 0.030
 
+    static func channelLayoutTag(channelCount: Int) -> AudioChannelLayoutTag {
+        switch channelCount {
+        case 2: kAudioChannelLayoutTag_Stereo
+        case 6: kAudioChannelLayoutTag_DiscreteInOrder | 6
+        case 8: kAudioChannelLayoutTag_DiscreteInOrder | 8
+        default: kAudioChannelLayoutTag_DiscreteInOrder | AudioChannelLayoutTag(channelCount)
+        }
+    }
+
     private let ring = StreamAudioRing()
     private let queue = DispatchQueue(label: "app.enchron.stream-session.audio-output")
     private let engine = AVAudioEngine()
@@ -98,9 +107,7 @@ final class StreamAudioOutput: @unchecked Sendable {
         guard !stopped else { return }
         guard configuredFormat.map({ $0 != (sampleRate, channels) }) ?? true else { return }
         let layout = AVAudioChannelLayout(
-            layoutTag: channels == 2
-                ? kAudioChannelLayoutTag_Stereo
-                : kAudioChannelLayoutTag_DiscreteInOrder | AudioChannelLayoutTag(channels)
+            layoutTag: Self.channelLayoutTag(channelCount: channels)
         )
         guard let layout else { return }
         let format = AVAudioFormat(
