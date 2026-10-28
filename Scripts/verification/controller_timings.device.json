@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-10-26T06:14:37+00:00",
+  "updatedAt": "2026-10-28T03:45:35+00:00",
   "verbs": {
     "accessibility-inspect": {
       "samples": [
@@ -1535,11 +1535,6 @@
         {
           "at": "2026-08-26T12:20:23+00:00",
           "censored": false,
-          "seconds": 5.59
-        },
-        {
-          "at": "2026-08-26T12:20:23+00:00",
-          "censored": false,
           "seconds": 4.9
         },
         {
@@ -1731,6 +1726,11 @@
           "at": "2026-10-26T06:14:37+00:00",
           "censored": false,
           "seconds": 2.72
+        },
+        {
+          "at": "2026-10-28T03:45:35+00:00",
+          "censored": false,
+          "seconds": 32.28
         }
       ]
     },
