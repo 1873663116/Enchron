@@ -236,6 +236,7 @@
 				Playback/Domain/PlaybackSeekPolicy.swift,
 				Playback/Domain/PlaybackSessionReporting.swift,
 				Playback/Domain/PlaybackSurfaceGestureState.swift,
+				Playback/Domain/PlaybackSurfaceSeekTravel.swift,
 				Playback/Domain/PlaybackUserVisibleIssue.swift,
 				Playback/Domain/TrackSelectionPreference.swift,
 				Playback/Domain/ViewingState.swift,

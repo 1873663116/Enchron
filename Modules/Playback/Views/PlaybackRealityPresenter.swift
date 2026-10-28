@@ -171,6 +171,7 @@ public struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
 public final class PlaybackVideoEntityStore {
     private(set) var entity = Entity()
     private(set) var departingEntity: Entity?
+    let dockedInteractionSurface = PlaybackDockedInteractionSurface.makeEntity()
     let panoramaInteractionSurface = PlaybackPanoramaInteractionSurface.makeEntity()
     let windowInteractionSurface = PlaybackWindowInteractionSurface.makeEntity()
     public private(set) var realityKitContentType = "unobserved"
@@ -216,6 +217,9 @@ public final class PlaybackVideoEntityStore {
         presentation: PlaybackPresentation = .window,
         videoComponentRevision: UInt64? = nil
     ) -> Entity {
+        if presentation != .docked {
+            dockedInteractionSurface.removeFromParent()
+        }
         if presentation.usesMainWindow == false {
             windowInteractionSurface.removeFromParent()
         }
@@ -282,6 +286,7 @@ public final class PlaybackVideoEntityStore {
     }
 
     func releasePlaybackComponent() {
+        dockedInteractionSurface.removeFromParent()
         windowInteractionSurface.removeFromParent()
         entity.removeFromParent()
         entity.components.remove(VideoPlayerComponent.self)
@@ -294,10 +299,14 @@ public final class PlaybackVideoEntityStore {
     }
 
     func releaseInteractionSurfacesForRealityViewTransfer() {
+        dockedInteractionSurface.removeFromParent()
         windowInteractionSurface.removeFromParent()
     }
 
     func releaseDepartingEntity() {
+        if dockedInteractionSurface.parent === departingEntity {
+            dockedInteractionSurface.removeFromParent()
+        }
         if windowInteractionSurface.parent === departingEntity {
             windowInteractionSurface.removeFromParent()
         }
@@ -394,19 +403,21 @@ public enum PlaybackSurfaceInputAction {
 @MainActor
 enum PlaybackSurfaceInputOwner: Equatable {
     case windowInteractionSurface
+    case dockedInteractionSurface
     case panoramaInteractionSurface
 }
 
 @MainActor
 enum PlaybackSurfaceInputOwnership {
     static func owner(
-        for presentation: PlaybackPresentation
+        for presentation: PlaybackPresentation,
+        isStreamingPlayback: Bool
     ) -> PlaybackSurfaceInputOwner? {
         switch presentation {
         case .window, .portal:
             .windowInteractionSurface
         case .docked:
-            nil
+            isStreamingPlayback ? nil : .dockedInteractionSurface
         case .panorama:
             .panoramaInteractionSurface
         }
@@ -414,12 +425,20 @@ enum PlaybackSurfaceInputOwnership {
 
     static func acceptsSpatialTapTarget(
         _ entity: Entity,
-        for presentation: PlaybackPresentation
+        for presentation: PlaybackPresentation,
+        isStreamingPlayback: Bool
     ) -> Bool {
-        guard let resolvedOwner = owner(for: presentation) else { return false }
+        guard let resolvedOwner = owner(
+            for: presentation,
+            isStreamingPlayback: isStreamingPlayback
+        ) else {
+            return false
+        }
         return switch resolvedOwner {
         case .windowInteractionSurface:
             PlaybackWindowInteractionSurface.contains(entity)
+        case .dockedInteractionSurface:
+            PlaybackDockedInteractionSurface.contains(entity)
         case .panoramaInteractionSurface:
             PlaybackPanoramaInteractionSurface.contains(entity)
         }
@@ -502,6 +521,55 @@ public enum PlaybackWindowInteractionSurface {
         entity.components.set(InputTargetComponent())
         entity.components.set(
             CollisionComponent(shapes: [.generateBox(size: region.size)])
+        )
+        PlaybackSurfaceAccessibility.install(on: entity)
+    }
+
+    static func contains(_ entity: Entity) -> Bool {
+        entity.name == entityName
+    }
+}
+
+@MainActor
+enum PlaybackDockedInteractionSurface {
+    static let entityName = "EnchronDockedInput.surface"
+    static let fallbackScreenSize = SIMD2<Float>(16.0 / 9.0, 1)
+    public static let thickness: Float = 0.01
+    static let frontOffset: Float = 0.01
+
+    static func makeEntity() -> Entity {
+        let entity = Entity()
+        configure(entity, screenSize: fallbackScreenSize)
+        return entity
+    }
+
+    static func install(
+        _ interactionSurface: Entity,
+        on videoEntity: Entity,
+        screenSize: SIMD2<Float>
+    ) {
+        configure(interactionSurface, screenSize: screenSize)
+        if interactionSurface.parent !== videoEntity {
+            videoEntity.addChild(interactionSurface)
+        }
+    }
+
+    static func configure(
+        _ entity: Entity,
+        screenSize: SIMD2<Float>
+    ) {
+        let size = screenSize.x > 0 && screenSize.y > 0
+            ? screenSize
+            : fallbackScreenSize
+        entity.name = entityName
+        entity.position = [0, 0, frontOffset]
+        entity.orientation = .init()
+        entity.scale = .one
+        entity.components.set(InputTargetComponent())
+        entity.components.set(
+            CollisionComponent(
+                shapes: [.generateBox(size: [size.x, size.y, thickness])]
+            )
         )
         PlaybackSurfaceAccessibility.install(on: entity)
     }

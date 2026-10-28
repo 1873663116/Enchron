@@ -220,6 +220,47 @@ struct PlaybackSurfaceGestureTests {
         #expect(intent.toggle(isPlaying: false) == true)
     }
 
+    @Test("immersive presentations take eight times the window travel")
+    func immersiveTravelIsEightTimesTheWindow() {
+        #expect(PlaybackSurfaceSeekTravel.width(for: .window) == 1_200)
+        #expect(PlaybackSurfaceSeekTravel.width(for: .portal) == 1_200)
+        #expect(PlaybackSurfaceSeekTravel.width(for: .docked) == 9_600)
+        #expect(PlaybackSurfaceSeekTravel.width(for: .panorama) == 9_600)
+    }
+
+    @Test("equal hand travel reaches the same seek offset in every presentation")
+    func equalHandTravelReachesSameOffset() {
+        let windowOffset = PlaybackSurfaceGesturePreview(
+            originSeconds: 100,
+            durationSeconds: 1_000,
+            translation: 300,
+            width: PlaybackSurfaceSeekTravel.width(for: .window)
+        )
+        let immersiveOffset = PlaybackSurfaceGesturePreview(
+            originSeconds: 100,
+            durationSeconds: 1_000,
+            translation: 2_400,
+            width: PlaybackSurfaceSeekTravel.width(for: .docked)
+        )
+        #expect(windowOffset.offsetSeconds == 21)
+        #expect(immersiveOffset.offsetSeconds == 21)
+
+        let windowCeiling = PlaybackSurfaceGesturePreview(
+            originSeconds: 100,
+            durationSeconds: 1_000,
+            translation: 600,
+            width: PlaybackSurfaceSeekTravel.width(for: .window)
+        )
+        let immersiveCeiling = PlaybackSurfaceGesturePreview(
+            originSeconds: 100,
+            durationSeconds: 1_000,
+            translation: 4_800,
+            width: PlaybackSurfaceSeekTravel.width(for: .panorama)
+        )
+        #expect(windowCeiling.offsetSeconds == 30)
+        #expect(immersiveCeiling.offsetSeconds == 30)
+    }
+
     private func context() -> PlaybackSurfaceGestureContext {
         PlaybackSurfaceGestureContext(controlsVisible: false, enabled: true, isPlaying: true, positionSeconds: 100, durationSeconds: 1_000, playbackRate: 1, holdPlaybackRate: 2)
     }

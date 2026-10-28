@@ -141,6 +141,7 @@ $(SRCROOT)/Modules/Playback/Domain/PlaybackRuntimeControlling.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSeekPolicy.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSessionReporting.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSurfaceGestureState.swift
+$(SRCROOT)/Modules/Playback/Domain/PlaybackSurfaceSeekTravel.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackUserVisibleIssue.swift
 $(SRCROOT)/Modules/Playback/Domain/TrackSelectionPreference.swift
 $(SRCROOT)/Modules/Playback/Domain/ViewingState.swift

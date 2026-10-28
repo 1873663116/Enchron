@@ -734,7 +734,8 @@ public struct ImmersiveSpaceView: View {
                     && controlsAttachmentController.contains(entity) == false
                     && PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                         entity,
-                        for: requestedPresentation
+                        for: requestedPresentation,
+                        isStreamingPlayback: playbackRuntime.isStreamingPlayback
                     )
             }
         )
@@ -1462,7 +1463,13 @@ public struct ImmersiveSpaceView: View {
             entity,
             in: content,
             contentTypeSessionID: realityKitContentTypeScope?.technicalSessionID,
-            onChange: { _ in
+            onChange: { change in
+                if change == .videoSize {
+                    updateDockedInteractionSurface(
+                        on: entity,
+                        presentation: presentation
+                    )
+                }
                 recordSpatialPresentationState()
             },
             onContentTypeDidChange: { contentType, eventSessionID in
@@ -1480,7 +1487,8 @@ public struct ImmersiveSpaceView: View {
             accepts: { candidate in
                 PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                     candidate,
-                    for: presentation
+                    for: presentation,
+                    isStreamingPlayback: playbackRuntime.isStreamingPlayback
                 )
             },
             onActivate: {
@@ -1550,6 +1558,7 @@ public struct ImmersiveSpaceView: View {
             presentation: presentation,
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
         )
+        updateDockedInteractionSurface(on: entity, presentation: presentation)
         recordDisplayLinkProbe(
             event: "componentConfigured",
             entityIsInRealityView: content.entities.contains { $0 === entity }
@@ -2252,6 +2261,26 @@ public struct ImmersiveSpaceView: View {
     }
 
     @MainActor
+    private func updateDockedInteractionSurface(
+        on entity: Entity,
+        presentation: PlaybackPresentation
+    ) {
+        let dockedInteractionSurface = playbackVideoEntityStore.dockedInteractionSurface
+        guard presentation == .docked,
+              playbackRuntime.isStreamingPlayback == false,
+              videoEntity === entity,
+              let component = entity.components[VideoPlayerComponent.self] else {
+            dockedInteractionSurface.removeFromParent()
+            return
+        }
+        PlaybackDockedInteractionSurface.install(
+            dockedInteractionSurface,
+            on: entity,
+            screenSize: component.playerScreenSize
+        )
+    }
+
+    @MainActor
     private func releaseSpatialSurface() {
         let presentation = playbackRuntime.rendererConsumerPresentation
             ?? playbackRuntime.attachedPresentation
@@ -2267,6 +2296,7 @@ public struct ImmersiveSpaceView: View {
         appModel.clearSpatialPlaybackSurfaceObservation()
 #endif
         panoramaInteractionSurface.removeFromParent()
+        playbackVideoEntityStore.dockedInteractionSurface.removeFromParent()
         subtitleFollower.stop()
 #if DEBUG
         headInputProbe.removeFromParent()

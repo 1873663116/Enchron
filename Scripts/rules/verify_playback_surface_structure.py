@@ -341,7 +341,7 @@ def main() -> int:
         " entity carries the button",
     )
     require(
-        reality_presenter.count("PlaybackSurfaceAccessibility.install(on: entity)") == 1
+        reality_presenter.count("PlaybackSurfaceAccessibility.install(on: entity)") == 2
         and "PlaybackSurfaceAccessibility.install(on: panel)" in reality_presenter
         and "entity.components.remove(AccessibilityComponent.self)" in reality_presenter
         and "accessibility.traits = [.button]" in reality_presenter,
