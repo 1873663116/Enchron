@@ -30,6 +30,18 @@ XcodeBuildMCP 工具承担 Xcode IDE 的缺口：SwiftPM、代码覆盖率、mac
 
 任何源码修改后的真机任务，完成判据是：所有测试结束后重新构建当前工作树、覆盖安装并启动该产物，且核对运行进程的安装容器与本次安装返回的容器一致；缺一项即失败。
 
+## 构建缓存
+
+- 每个目标固定一份 DerivedData，按路径复用：模拟器 `.scratch/build`（`console tier build` 与 `unit` 共用，单元档在其下 `DomainTests`），真机 `.scratch/derived-data-device`（`build_to_device.sh` 的默认值，`ENCHRON_DEVICE_DERIVED_DATA` 可覆盖）。
+- `Scripts/build/prune_build_caches.sh` 只删 DerivedData 载荷（`Build`、`CompilationCache.noindex`、`Index.noindex`、`Logs`、`SDKExplicitPrecompiledModules`、`SDKStatCaches.noindex`、`SourcePackages`），同目录下的探针、脚本与证据保留；它同时覆盖顶层目录与工作区内嵌的 DerivedData 根。
+
 ## 模拟器安装
 
-向模拟器安装 Enchron.app 必须走 `Scripts/build/install_to_simulator.sh`（用法见脚本头注释），它会先校验包带签名再 `simctl install`。禁止直接 `simctl install` 未经校验的包：模拟器构建是 ad-hoc 签名，而 `CODE_SIGNING_ALLOWED=NO` 产出的测试构建完全无签名，装上后应用丢失 keychain 身份，读写凭证报 OSStatus -34018，已存的 Emby 会话随之中断。测试产物复用于安装前，先跑 `install_to_simulator.sh --check` 确认签名。
+- 向模拟器安装 Enchron.app 必须走 `Scripts/build/install_to_simulator.sh`（用法见脚本头注释），它会先校验包带签名再 `simctl install`。
+- 禁止直接 `simctl install` 未经校验的包：模拟器构建是 ad-hoc 签名，而 `CODE_SIGNING_ALLOWED=NO` 产出的测试构建完全无签名，装上后应用丢失 keychain 身份，读写凭证报 OSStatus -34018，已存的 Emby 会话随之中断。
+- 测试产物复用于安装前，先跑 `install_to_simulator.sh --check` 确认签名。
+
+## 真机安装
+
+- 真机可用性以 Scripts/build/device_status.sh 的输出为准；它只读 devicectl，判为 installable 表示可安装，构建走 Scripts/build/build_to_device.sh（ENCHRON_DEVICE_UDID）；
+- 安装与启动分别用 xcrun devicectl device install app --device <UDID> <app>、xcrun devicectl device process launch --device <UDID> <bundle id>。

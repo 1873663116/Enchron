@@ -2,14 +2,18 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-TOPIC="${1:-device-build}"
-STAMP="$(date +%F)"
-DERIVED_DATA="$ROOT_DIR/.scratch/$STAMP-$TOPIC"
+DERIVED_DATA="${ENCHRON_DEVICE_DERIVED_DATA:-$ROOT_DIR/.scratch/derived-data-device}"
 DEVICE_UDID="${ENCHRON_DEVICE_UDID:-}"
 CONFIGURATION="${ENCHRON_CONFIGURATION:-Debug}"
 XCODE_BIN="${XCODEBIN:-}"
 if [[ -z "$XCODE_BIN" ]]; then
   XCODE_BIN="/Volumes/Cortisol/Applications/Xcode27.2RC.app/Contents/Developer/usr/bin/xcodebuild"
+fi
+
+if [[ "$#" -ne 0 ]]; then
+  echo "usage: ENCHRON_DEVICE_UDID=<udid> $0" >&2
+  echo "       ENCHRON_DEVICE_DERIVED_DATA=<path> overrides the fixed cache (default .scratch/derived-data-device)" >&2
+  exit 64
 fi
 
 if [[ -z "$DEVICE_UDID" ]]; then
