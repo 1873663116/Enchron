@@ -20,8 +20,8 @@ final class StreamAudioOutput: @unchecked Sendable {
     static func channelLayoutTag(channelCount: Int) -> AudioChannelLayoutTag {
         switch channelCount {
         case 2: kAudioChannelLayoutTag_Stereo
-        case 6: kAudioChannelLayoutTag_DiscreteInOrder | 6
-        case 8: kAudioChannelLayoutTag_DiscreteInOrder | 8
+        case 6: kAudioChannelLayoutTag_WAVE_5_1_B
+        case 8: kAudioChannelLayoutTag_WAVE_7_1
         default: kAudioChannelLayoutTag_DiscreteInOrder | AudioChannelLayoutTag(channelCount)
         }
     }
