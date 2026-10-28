@@ -24,7 +24,7 @@ Enchron は TestFlight で一般公開ベータテストを実施しています
 
 ## ビルド
 
-このプロジェクトには Xcode 27.0 と visionOS SDK が必要です。クローン後、リポジトリのルートで次のコマンドを実行し、`Packages/PlaybackCore` が必要とする Git 管理外のバイナリ依存関係を用意してください。
+このプロジェクトには Xcode 27.2 RC と visionOS SDK が必要です。クローン後、リポジトリのルートで次のコマンドを実行し、`Packages/PlaybackCore` が必要とする Git 管理外のバイナリ依存関係を用意してください。
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh

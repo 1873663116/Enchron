@@ -4,10 +4,12 @@ import Foundation
 public struct DiscoveredHost: Sendable, Equatable {
     public var instanceName: String
     public var address: HostAddress
+    public var mac: String?
 
-    public init(instanceName: String, address: HostAddress) {
+    public init(instanceName: String, address: HostAddress, mac: String? = nil) {
         self.instanceName = instanceName
         self.address = address
+        self.mac = mac
     }
 }
 
@@ -31,6 +33,8 @@ public struct BackendServerInfo: Sendable {
     public var serverCodecModeSupport: UInt32
     public var state: String
     public var currentGame: String?
+    public var localAddress: String?
+    public var externalAddress: String?
 
     public init(
         name: String,
@@ -41,7 +45,9 @@ public struct BackendServerInfo: Sendable {
         gfeVersion: String?,
         serverCodecModeSupport: UInt32,
         state: String,
-        currentGame: String?
+        currentGame: String?,
+        localAddress: String? = nil,
+        externalAddress: String? = nil
     ) {
         self.name = name
         self.uniqueID = uniqueID
@@ -52,6 +58,8 @@ public struct BackendServerInfo: Sendable {
         self.serverCodecModeSupport = serverCodecModeSupport
         self.state = state
         self.currentGame = currentGame
+        self.localAddress = localAddress
+        self.externalAddress = externalAddress
     }
 }
 
@@ -122,6 +130,11 @@ public struct BackendVideoStats: Sendable {
     public var submitGapMaxMs: Int
     public var zeroCopyFrames: Int
     public var zeroCopyFallbacks: Int
+    public var assembleMaxMs: Int
+    public var queueWaitMaxMs: Int
+    public var callbackMaxMs: Int
+    public var pendingMax: Int
+    public var decoderQos: Int
     public var framesWithHostProcessingLatency: Int
     public var averageHostProcessingLatencyMs: Double?
     public var measuredIntervalSeconds: Double
@@ -136,7 +149,12 @@ public struct BackendVideoStats: Sendable {
         submitGapCount: Int = 0,
         submitGapMaxMs: Int = 0,
         zeroCopyFrames: Int = 0,
-        zeroCopyFallbacks: Int = 0
+        zeroCopyFallbacks: Int = 0,
+        assembleMaxMs: Int = 0,
+        queueWaitMaxMs: Int = 0,
+        callbackMaxMs: Int = 0,
+        pendingMax: Int = 0,
+        decoderQos: Int = 0
     ) {
         self.receivedFrames = receivedFrames
         self.networkDroppedFrames = networkDroppedFrames
@@ -145,6 +163,11 @@ public struct BackendVideoStats: Sendable {
         self.submitGapMaxMs = submitGapMaxMs
         self.zeroCopyFrames = zeroCopyFrames
         self.zeroCopyFallbacks = zeroCopyFallbacks
+        self.assembleMaxMs = assembleMaxMs
+        self.queueWaitMaxMs = queueWaitMaxMs
+        self.callbackMaxMs = callbackMaxMs
+        self.pendingMax = pendingMax
+        self.decoderQos = decoderQos
         self.framesWithHostProcessingLatency = framesWithHostProcessingLatency
         self.averageHostProcessingLatencyMs = averageHostProcessingLatencyMs
         self.measuredIntervalSeconds = measuredIntervalSeconds
@@ -155,6 +178,7 @@ public protocol BackendSession: AnyObject, Sendable {
     var videoSampleHandler: (@Sendable (CMSampleBuffer) -> Void)? { get set }
     var audioFrameHandler: (@Sendable (BackendAudioFrame) -> Void)? { get set }
     var eventHandler: (@Sendable (BackendSessionEvent) -> Void)? { get set }
+    var controllerFeedbackHandler: (@Sendable (StreamControllerFeedback) -> Void)? { get set }
 
     var streamWidth: Int { get }
     var streamHeight: Int { get }
@@ -167,6 +191,15 @@ public protocol BackendSession: AnyObject, Sendable {
     func sendMouseMove(dx: Int32, dy: Int32)
     func sendMouseButton(code: Int32, down: Bool)
     func sendScroll(amount: Int32)
+    func sendHighResScroll(vertical: Int16, horizontal: Int16)
+    func sendControllerTouch(
+        controllerNumber: UInt8,
+        eventType: UInt8,
+        pointerId: UInt32,
+        x: Float,
+        y: Float,
+        pressure: Float
+    )
     func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32)
     func sendControllerState(
         buttonFlags: Int32,
@@ -177,12 +210,22 @@ public protocol BackendSession: AnyObject, Sendable {
         rightStickX: Int16,
         rightStickY: Int16
     )
-    func sendControllerPresence(connected: Bool)
+    func sendControllerArrival(_ arrival: StreamControllerArrival)
+    func sendControllerRemoval(controllerNumber: UInt8)
+    func sendControllerMotion(
+        controllerNumber: UInt8,
+        motionType: UInt8,
+        x: Float,
+        y: Float,
+        z: Float
+    )
+    func sendControllerBattery(controllerNumber: UInt8, state: UInt8, percentage: UInt8)
     func releaseAllInput()
     func requestIdrFrame()
 
     func estimatedRTT() -> (milliseconds: UInt32, variance: UInt32)?
     func videoStats() -> BackendVideoStats?
+    func audioPendingPeakMs() -> Int
     func activeCodecName() -> String?
 }
 
@@ -195,4 +238,5 @@ public protocol StreamingBackend: Sendable {
     func launchSession(_ request: BackendSessionRequest) async throws -> any BackendSession
     func resumeSession(_ request: BackendSessionRequest) async throws -> any BackendSession
     func quitApplication(_ credentials: BackendCredentials) async throws
+    func externalIPv4Address() async throws -> String?
 }

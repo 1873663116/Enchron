@@ -12,6 +12,7 @@
 #import <opus/opus_multistream.h>
 
 #include <pthread/qos.h>
+#include <stdatomic.h>
 
 void ArCleanup(void);
 
@@ -46,6 +47,7 @@ static volatile BOOL pullThreadRunning = NO;
 
 static OPUS_MULTISTREAM_CONFIGURATION audioConfig;
 static void* audioBuffer;
+static atomic_int audioPendingPeakMs;
 
 static MLCVideoSampleBuilder* sampleBuilder;
 static __weak MLCConnection* activeConnection;
@@ -61,9 +63,39 @@ int DrDecoderSetup(int videoFormat, int width, int height, int redrawRate, void*
     return 0;
 }
 
+static int DrSubmitDecodeUnitBody(PDECODE_UNIT decodeUnit);
+
+static void recordDecodeUnitTiming(PDECODE_UNIT decodeUnit, uint64_t entryUs, uint64_t exitUs, int pending)
+{
+    int64_t assembleUs = (int64_t)decodeUnit->enqueueTimeUs - (int64_t)decodeUnit->receiveTimeUs;
+    int64_t queueWaitUs = (int64_t)entryUs - (int64_t)decodeUnit->enqueueTimeUs;
+    int callbackMs = (int)((exitUs - entryUs) / 1000);
+    if (decodeUnit->receiveTimeUs != 0 && assembleUs > 0 && (int)(assembleUs / 1000) > currentVideoStats.assembleMaxMs) {
+        currentVideoStats.assembleMaxMs = (int)(assembleUs / 1000);
+    }
+    if (decodeUnit->enqueueTimeUs != 0 && queueWaitUs > 0 && (int)(queueWaitUs / 1000) > currentVideoStats.queueWaitMaxMs) {
+        currentVideoStats.queueWaitMaxMs = (int)(queueWaitUs / 1000);
+    }
+    if (callbackMs > currentVideoStats.callbackMaxMs) {
+        currentVideoStats.callbackMaxMs = callbackMs;
+    }
+    if (pending > currentVideoStats.pendingMax) {
+        currentVideoStats.pendingMax = pending;
+    }
+    currentVideoStats.decoderQos = (int)qos_class_self();
+}
+
 int DrSubmitDecodeUnit(PDECODE_UNIT decodeUnit)
 {
-    int offset = 0;
+    uint64_t entryUs = LiGetMicroseconds();
+    int pending = LiGetPendingVideoFrames();
+    int ret = DrSubmitDecodeUnitBody(decodeUnit);
+    recordDecodeUnitTiming(decodeUnit, entryUs, LiGetMicroseconds(), pending);
+    return ret;
+}
+
+static int DrSubmitDecodeUnitBody(PDECODE_UNIT decodeUnit)
+{    int offset = 0;
     int ret;
     unsigned char* data = (unsigned char*) malloc(decodeUnit->fullLength);
     if (data == NULL) {
@@ -197,8 +229,9 @@ void ArDecodeAndPlaySample(char* sampleData, int sampleLength)
 {
     int decodeLen;
 
-    if (LiGetPendingAudioDuration() > 30) {
-        return;
+    int pending = LiGetPendingAudioDuration();
+    int peak = atomic_load(&audioPendingPeakMs);
+    while (pending > peak && !atomic_compare_exchange_weak(&audioPendingPeakMs, &peak, pending)) {
     }
 
     decodeLen = opus_multistream_decode(opusDecoder, (unsigned char *)sampleData, sampleLength,
@@ -255,6 +288,32 @@ void ClSetHdrMode(bool enabled)
 {
     [sampleBuilder setHdrMode:enabled];
     [_callbacks setHdrMode:enabled];
+}
+
+void ClControllerRumble(unsigned short controllerNumber,
+                        unsigned short lowFrequency,
+                        unsigned short highFrequency)
+{
+    [_callbacks controllerRumble:controllerNumber lowFreq:lowFrequency highFreq:highFrequency];
+}
+
+void ClControllerRumbleTriggers(uint16_t controllerNumber,
+                                uint16_t leftTrigger,
+                                uint16_t rightTrigger)
+{
+    [_callbacks controllerRumbleTriggers:controllerNumber left:leftTrigger right:rightTrigger];
+}
+
+void ClControllerMotionState(uint16_t controllerNumber, uint8_t motionType, uint16_t reportRateHz)
+{
+    [_callbacks controllerMotionRequest:controllerNumber
+                             motionType:motionType
+                            reportRateHz:reportRateHz];
+}
+
+void ClControllerLed(uint16_t controllerNumber, uint8_t r, uint8_t g, uint8_t b)
+{
+    [_callbacks controllerLed:controllerNumber r:r g:g b:b];
 }
 
 - (void)videoSampleBuilder:(MLCVideoSampleBuilder*)builder
@@ -354,8 +413,10 @@ void ClSetHdrMode(bool enabled)
 
     _streamConfig.encryptionFlags = ENCFLG_ALL;
 
-    _streamConfig.streamingRemotely = STREAM_CFG_AUTO;
-    _streamConfig.packetSize = 1392;
+    _streamConfig.streamingRemotely = config.streamingRemotely >= 0
+        ? config.streamingRemotely
+        : STREAM_CFG_AUTO;
+    _streamConfig.packetSize = config.packetSize > 0 ? config.packetSize : 1392;
 
     memcpy(_streamConfig.remoteInputAesKey, [config.riKey bytes], [config.riKey length]);
     memset(_streamConfig.remoteInputAesIv, 0, 16);
@@ -383,6 +444,10 @@ void ClSetHdrMode(bool enabled)
     _clCallbacks.logMessage = ClLogMessage;
     _clCallbacks.connectionStatusUpdate = ClConnectionStatusUpdate;
     _clCallbacks.setHdrMode = ClSetHdrMode;
+    _clCallbacks.rumble = ClControllerRumble;
+    _clCallbacks.rumbleTriggers = ClControllerRumbleTriggers;
+    _clCallbacks.setMotionEventState = ClControllerMotionState;
+    _clCallbacks.setControllerLED = ClControllerLed;
 
     return self;
 }
@@ -398,6 +463,11 @@ void ClSetHdrMode(bool enabled)
 
     [videoStatsLock unlock];
     return NO;
+}
+
+- (int)takeAudioPendingPeakMs
+{
+    return atomic_exchange(&audioPendingPeakMs, 0);
 }
 
 - (NSString*)getActiveCodecName

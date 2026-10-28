@@ -146,8 +146,14 @@ struct EnchronApp: App {
                 .enchronEnvironment(application)
                 .onImmersionChange { _, newImmersion in
                     application.playbackSessionModel.recordImmersionAmount(newImmersion.amount)
+                    if (newImmersion.amount ?? 0) > 0 {
+                        StreamInputCapture.shared.enterImmersivePresentation()
+                    } else {
+                        StreamInputCapture.shared.leaveImmersivePresentation()
+                    }
                 }
                 .onAppear {
+                    StreamInputCapture.shared.enterImmersivePresentation()
                     application.playbackSessionModel.recordSurfaceInputProbe(
                         "immersiveSpaceAppeared"
                             + " presentation=\(application.playbackSessionModel.playbackPresentation.rawValue)"
@@ -161,6 +167,7 @@ struct EnchronApp: App {
                     Task { await application.playbackSessionModel.loadScreenPosition() }
                 }
                 .onDisappear {
+                    StreamInputCapture.shared.leaveImmersivePresentation()
                     application.playbackSessionModel.recordSurfaceInputProbe(
                         "immersiveSpaceDisappeared"
                             + " presentation=\(application.playbackSessionModel.playbackPresentation.rawValue)"

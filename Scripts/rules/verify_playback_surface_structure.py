@@ -282,7 +282,7 @@ def main() -> int:
     window_interaction_surface = region(
         reality_presenter,
         "enum PlaybackWindowInteractionSurface",
-        "enum PlaybackDockedInteractionSurface",
+        "enum PlaybackPanoramaInteractionSurface",
     )
     require(
         "entity.components.set(InputTargetComponent())" in window_interaction_surface
@@ -619,11 +619,15 @@ def main() -> int:
         "is not allowed and the browser would not come back in place",
     )
     require(
-        "        case .enterImmersivePlayback:\n"
-        "            [.openImmersiveSpace]\n"
-        "                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n"
-        in execution_lease
-        and "normalizeWindowTransition" not in platform_executor.split(
+        "case .enterImmersivePlayback(.flat):" in execution_lease
+        and "retainsPlayerWindowDuringDockEntry == false" in execution_lease
+        and "case .enterImmersivePlayback:\n" in execution_lease
+        and "normalizeWindowTransition"
+        not in platform_executor.split(
+            "private func enterImmersivePlayback("
+        )[1].split("private func ")[1]
+        and "waitUntilRendererConsumerIsReleased("
+        in platform_executor.split(
             "private func enterImmersivePlayback("
         )[1].split("private func ")[1]
         and "ImmersiveResidentWindow" not in execution_lease
@@ -631,12 +635,33 @@ def main() -> int:
             platform_executor,
             "private func performWindowTransition(",
             "let actions = SpatialPlatformPlaybackWindowPolicy.actions(",
+            "retainsPlayerWindowDuringDockEntry: retainsPlayerWindowDuringDockEntry",
             "for action in actions {",
+        )
+        and "isActive: windowSurfaceIsActive" in player_view
+        and "isActive: playbackRuntime.activeSessionID != nil" not in player_view
+        and "if isStreamingDockedPresentation {\n                Color.clear"
+        in player_view
+        and "if windowPlaybackAcceptsInput {" in player_view
+        and "showsWindowChrome: isStreamingDockedPresentation == false"
+        in player_view,
+        "a standing player window either claims the freshly minted surface "
+        "before the immersive space binds it, or remounts the stream input "
+        "capture and its gamepad claim over the space; the dock entry may keep "
+        "the window only when the source surface is released by the "
+        "presentation binding policy and the window content drops its chrome "
+        "and input capture",
+    )
+    require(
+        "immersiveEntryFailureWindowTransition"
+        in region(
+            platform_executor,
+            "private func recoverFromFailedImmersivePlaybackEntry(",
+            "\n    private func ",
         ),
-        "entering an immersive presentation leaves the player window standing, so "
-        "the window surface races the space for the freshly minted entity, or a "
-        "failed entry normalizes by the residency, which has already moved to the "
-        "space and will therefore refuse to push the player window back",
+        "a failed dock entry normalizes by the residency, which has already "
+        "moved to the space and would therefore dismiss the player window "
+        "instead of restoring it",
     )
     require(
         "playbackResidency: PlaybackResidency" in execution_lease
@@ -1035,11 +1060,6 @@ def main() -> int:
         "a host acquires the shared video entity outside the surface reconciler, "
         "or releases the departing entity on its own",
     )
-    docked_interaction_surface = region(
-        reality_presenter,
-        "enum PlaybackDockedInteractionSurface",
-        "enum PlaybackPanoramaInteractionSurface",
-    )
     require(
         "let basis = simd_float3x3(pose.right, pose.up, pose.normal)"
         in playback_reality_adapter
@@ -1052,10 +1072,8 @@ def main() -> int:
         and "let bottomEdge = pivot + distance * SIMD3<Float>(0, sinE, -cosE)"
         in docked_pose_solver
         and "let center = yaw.act(bottomEdge + halfHeight * planarUp)"
-        in docked_pose_solver
-        and "entity.position = [0, 0, frontOffset]"
-        in docked_interaction_surface,
-        "the Docked video plane takes its orientation from the solved bottom-edge basis and its interaction collider sits in front of it",
+        in docked_pose_solver,
+        "the Docked video plane takes its orientation from the solved bottom-edge basis",
     )
     production_immersive = without_debug_blocks(immersive)
     require(
@@ -1065,8 +1083,6 @@ def main() -> int:
     )
     require(
         'ProcessInfo.processInfo.environment["ENCHRON_HEAD_INPUT_PROBE"] == "1"'
-        in immersive
-        and 'ProcessInfo.processInfo.environment["ENCHRON_DOCKED_HIT_TEST_PROBES"] == "1"'
         in immersive,
         "immersive diagnostic colliders are not opt-in",
     )
@@ -1080,30 +1096,16 @@ def main() -> int:
     spatial_input_ownership = region(
         reality_presenter,
         "enum PlaybackSurfaceInputOwnership",
-        "enum PlaybackDockedInteractionSurface",
+        "enum PlaybackWindowInteractionSurface",
     )
     require(
         "case .windowInteractionSurface:" in spatial_input_ownership
         and "PlaybackWindowInteractionSurface.contains(entity)"
         in spatial_input_ownership
-        and "case .dockedInteractionSurface:" in spatial_input_ownership
-        and "PlaybackDockedInteractionSurface.contains(entity)"
-        in spatial_input_ownership
         and "case .panoramaInteractionSurface:" in spatial_input_ownership
         and "PlaybackPanoramaInteractionSurface.contains(entity)"
         in spatial_input_ownership,
         "immersive spatial tap ownership is not symmetric by presentation",
-    )
-    docked_contains = region(
-        docked_interaction_surface,
-        "static func contains(_ entity: Entity)",
-        "\n    }\n}",
-    )
-    require(
-        "entity.name == entityName" in docked_contains
-        and "anchorFrontProbeName" not in docked_contains
-        and "childFrontProbeName" not in docked_contains,
-        "Docked diagnostic probes can trigger production controls",
     )
     sub_perceptual_paint = re.compile(r"\.opacity\(\s*0\.0(?:0\d+|1\d?)\s*\)")
     menu_dismiss_area = region(

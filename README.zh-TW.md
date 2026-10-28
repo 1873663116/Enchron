@@ -24,7 +24,7 @@ Enchron 已開放 TestFlight 公開測試。請使用 Apple Vision Pro，透過�
 
 ## 建置
 
-本專案需要 Xcode 27.0 與 visionOS SDK。複製儲存庫後，請在根目錄執行以下命令，以準備 `Packages/PlaybackCore` 所需且未納入 Git 的二進位依賴項：
+本專案需要 Xcode 27.2 RC 與 visionOS SDK。複製儲存庫後，請在根目錄執行以下命令，以準備 `Packages/PlaybackCore` 所需且未納入 Git 的二進位依賴項：
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh

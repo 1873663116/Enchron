@@ -515,66 +515,6 @@ public struct PlayerControlDock: View {
     }
 }
 
-public struct StreamingWindowPlaybackControls: View {
-    let live: FusedPlayerPanelLive
-    let information: StreamingPlaybackInformation
-    var onInteraction: () -> Void = {}
-    var controlsVisible: Bool = true
-
-    public var body: some View {
-        FusedPlayerPanel(
-            live: live,
-            onInteraction: onInteraction,
-            surface: .windowOrnament,
-            initialExpansion: .collapsed,
-            controlsVisible: controlsVisible,
-            streamingInformation: information
-        )
-    }
-
-    public init(
-        live: FusedPlayerPanelLive,
-        information: StreamingPlaybackInformation,
-        onInteraction: @escaping () -> Void = {},
-        controlsVisible: Bool = true
-    ) {
-        self.live = live
-        self.information = information
-        self.onInteraction = onInteraction
-        self.controlsVisible = controlsVisible
-    }
-}
-
-public struct StreamingDockPlaybackControls: View {
-    let live: FusedPlayerPanelLive
-    let information: StreamingPlaybackInformation
-    var onInteraction: () -> Void = {}
-    var controlsVisible: Bool = true
-
-    public var body: some View {
-        FusedPlayerPanel(
-            live: live,
-            onInteraction: onInteraction,
-            surface: .playerControlDock,
-            initialExpansion: .collapsed,
-            controlsVisible: controlsVisible,
-            streamingInformation: information
-        )
-    }
-
-    public init(
-        live: FusedPlayerPanelLive,
-        information: StreamingPlaybackInformation,
-        onInteraction: @escaping () -> Void = {},
-        controlsVisible: Bool = true
-    ) {
-        self.live = live
-        self.information = information
-        self.onInteraction = onInteraction
-        self.controlsVisible = controlsVisible
-    }
-}
-
 public struct FusedPlayerPanel: View {
     @Environment(\.immersivePlaybackMenu) private var playbackMenu
     var live: FusedPlayerPanelLive?
@@ -1014,15 +954,10 @@ public struct FusedPlayerPanel: View {
                     .keyboardShortcut(.escape, modifiers: [])
                     Spacer(minLength: 0)
                     if showsPlacementControls {
-                        CircleIconButton(
-                            systemName: "arrow.counterclockwise",
-                            accessibilityLabel: String(localized: "Restore Defaults"),
-                            action: {
-                                onInteraction()
-                                live.onReachabilityAction("dockedPlacement.reset")
-                                live.onResetDockedPlacement()
-                            },
-                            accessibilityIdentifier: "PlayerPanel-DockedPlacement-reset"
+                        DockedPlacementResetAction(
+                            settings: live.dockedPlacementSettings(
+                                onInteraction: onInteraction
+                            )
                         )
                     }
                 }
@@ -1048,70 +983,13 @@ public struct FusedPlayerPanel: View {
             - DesignTokens.Spacing.sm
     }
 
-    private static let placementTitleWidth: CGFloat = 100
-    private static let placementReadoutWidth: CGFloat = 64
-    private static let placementRowSpacing: CGFloat = DesignTokens.Spacing.md
-
-    private var placementTrackWidth: CGFloat {
-        max(
-            clusterWidth
-                - Self.placementTitleWidth
-                - Self.placementReadoutWidth
-                - Self.placementRowSpacing * 2,
-            160
-        )
-    }
-
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
-        let viewerHeightRange = live.placementLimits.viewerHeightRange
-        let distanceRange = live.placementLimits.distanceRange
-        return VStack(spacing: DesignTokens.Spacing.sm) {
-            DockedPlacementSliderRow(
-                title: String(localized: "Height"),
-                liveValue: live.viewerHeight - viewerHeightRange.lowerBound,
-                range: 0...(viewerHeightRange.upperBound - viewerHeightRange.lowerBound),
-                step: PlaybackDockedPlacementLimits.viewerHeightStep,
-                trackWidth: placementTrackWidth,
-                valueLabel: { String(format: "%.1f m", $0) },
-                identifier: "Height",
-                onChange: { value in
-                    onInteraction()
-                    live.onReachabilityAction("slider.Height")
-                    live.onSetViewerHeight(value + viewerHeightRange.lowerBound)
-                }
-            )
-            DockedPlacementSliderRow(
-                title: String(localized: "Distance"),
-                liveValue: live.screenDistance - distanceRange.lowerBound,
-                range: 0...(distanceRange.upperBound - distanceRange.lowerBound),
-                step: PlaybackDockedPlacementLimits.distanceStep,
-                trackWidth: placementTrackWidth,
-                valueLabel: { String(format: "%.1f m", $0) },
-                identifier: "Distance",
-                onChange: { value in
-                    onInteraction()
-                    live.onReachabilityAction("slider.Distance")
-                    live.onSetScreenDistance(value + distanceRange.lowerBound)
-                }
-            )
-            DockedPlacementSliderRow(
-                title: String(localized: "Elevation"),
-                liveValue: live.screenElevationDegrees,
-                range: live.placementLimits.elevationRange,
-                step: PlaybackDockedPlacementLimits.elevationStep,
-                trackWidth: placementTrackWidth,
-                valueLabel: { "\(Int($0.rounded()))°" },
-                identifier: "Elevation",
-                onChange: { value in
-                    onInteraction()
-                    live.onReachabilityAction("slider.Elevation")
-                    live.onSetScreenElevation(value)
-                }
-            )
-        }
-        .frame(width: clusterWidth)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PlayerPanel-DockedPlacement")
+        DockedPlacementSliders(
+            settings: live.dockedPlacementSettings(
+                onInteraction: onInteraction
+            ),
+            contentWidth: clusterWidth
+        )
     }
 
     private func videoFormatEditor(_ live: FusedPlayerPanelLive) -> some View {
@@ -2386,6 +2264,129 @@ struct DeckMoreMenuSections: View, Equatable {
         .onAppear {
             live.onReachabilityAction("menu.\(category)")
         }
+    }
+}
+
+struct DockedPlacementSettings {
+    let viewerHeight: Double
+    let placementLimits: PlaybackDockedPlacementLimits
+    let screenDistance: Double
+    let screenElevationDegrees: Double
+    let onSetViewerHeight: @MainActor @Sendable (Double) -> Void
+    let onSetScreenDistance: @MainActor @Sendable (Double) -> Void
+    let onSetScreenElevation: @MainActor @Sendable (Double) -> Void
+    let onResetDockedPlacement: () -> Void
+    let onInteraction: () -> Void
+    let onReachabilityAction: (String) -> Void
+}
+
+extension FusedPlayerPanelLive {
+    func dockedPlacementSettings(
+        onInteraction: @escaping () -> Void
+    ) -> DockedPlacementSettings {
+        DockedPlacementSettings(
+            viewerHeight: viewerHeight,
+            placementLimits: placementLimits,
+            screenDistance: screenDistance,
+            screenElevationDegrees: screenElevationDegrees,
+            onSetViewerHeight: onSetViewerHeight,
+            onSetScreenDistance: onSetScreenDistance,
+            onSetScreenElevation: onSetScreenElevation,
+            onResetDockedPlacement: onResetDockedPlacement,
+            onInteraction: onInteraction,
+            onReachabilityAction: onReachabilityAction
+        )
+    }
+}
+
+struct DockedPlacementSliders: View {
+    let settings: DockedPlacementSettings
+    let contentWidth: CGFloat
+
+    private static let titleWidth: CGFloat = 100
+    private static let readoutWidth: CGFloat = 64
+
+    private var trackWidth: CGFloat {
+        max(
+            contentWidth
+                - Self.titleWidth
+                - Self.readoutWidth
+                - DesignTokens.Spacing.md * 2,
+            160
+        )
+    }
+
+    var body: some View {
+        let viewerHeightRange = settings.placementLimits.viewerHeightRange
+        let distanceRange = settings.placementLimits.distanceRange
+        return VStack(spacing: DesignTokens.Spacing.sm) {
+            DockedPlacementSliderRow(
+                title: String(localized: "Height"),
+                liveValue: settings.viewerHeight - viewerHeightRange.lowerBound,
+                range: 0...(viewerHeightRange.upperBound - viewerHeightRange.lowerBound),
+                step: PlaybackDockedPlacementLimits.viewerHeightStep,
+                trackWidth: trackWidth,
+                valueLabel: { String(format: "%.1f m", $0) },
+                identifier: "Height",
+                onChange: { value in
+                    settings.onInteraction()
+                    settings.onReachabilityAction("slider.Height")
+                    settings.onSetViewerHeight(
+                        value + viewerHeightRange.lowerBound
+                    )
+                }
+            )
+            DockedPlacementSliderRow(
+                title: String(localized: "Distance"),
+                liveValue: settings.screenDistance - distanceRange.lowerBound,
+                range: 0...(distanceRange.upperBound - distanceRange.lowerBound),
+                step: PlaybackDockedPlacementLimits.distanceStep,
+                trackWidth: trackWidth,
+                valueLabel: { String(format: "%.1f m", $0) },
+                identifier: "Distance",
+                onChange: { value in
+                    settings.onInteraction()
+                    settings.onReachabilityAction("slider.Distance")
+                    settings.onSetScreenDistance(
+                        value + distanceRange.lowerBound
+                    )
+                }
+            )
+            DockedPlacementSliderRow(
+                title: String(localized: "Elevation"),
+                liveValue: settings.screenElevationDegrees,
+                range: settings.placementLimits.elevationRange,
+                step: PlaybackDockedPlacementLimits.elevationStep,
+                trackWidth: trackWidth,
+                valueLabel: { "\(Int($0.rounded()))°" },
+                identifier: "Elevation",
+                onChange: { value in
+                    settings.onInteraction()
+                    settings.onReachabilityAction("slider.Elevation")
+                    settings.onSetScreenElevation(value)
+                }
+            )
+        }
+        .frame(width: contentWidth)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-DockedPlacement")
+    }
+}
+
+struct DockedPlacementResetAction: View {
+    let settings: DockedPlacementSettings
+
+    var body: some View {
+        CircleIconButton(
+            systemName: "arrow.counterclockwise",
+            accessibilityLabel: String(localized: "Restore Defaults"),
+            action: {
+                settings.onInteraction()
+                settings.onReachabilityAction("dockedPlacement.reset")
+                settings.onResetDockedPlacement()
+            },
+            accessibilityIdentifier: "PlayerPanel-DockedPlacement-reset"
+        )
     }
 }
 

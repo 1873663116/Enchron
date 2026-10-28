@@ -23,7 +23,6 @@ public enum StreamSessionActivity: String, Sendable, Equatable {
     case launching
     case waitingForVideo
     case requestingKeyframe
-    case aligningClock
     case buffering
     case streaming
 
@@ -33,7 +32,6 @@ public enum StreamSessionActivity: String, Sendable, Equatable {
         case .launching: "Launching app"
         case .waitingForVideo: "Waiting for video"
         case .requestingKeyframe: "Requesting keyframe"
-        case .aligningClock: "Aligning clock"
         case .buffering: "Buffering"
         case .streaming: "Streaming"
         }
@@ -127,6 +125,34 @@ public enum StreamRecoveryAction: String, Sendable, Equatable {
     case repickApplication
 }
 
+public extension StreamRecoveryAction {
+    /// What the user can do about this class of failure. The launch alert shows
+    /// it under the technical message so a failure is actionable, not just
+    /// reported.
+    var advice: String {
+        switch self {
+        case .none: String(localized: "这类失败没有可用的恢复动作。")
+        case .retry: String(localized: "确认主机已开机且与本机在同一网络，然后重试。")
+        case .reconnect: String(localized: "网络恢复后可以重新连接，串流会重新协商。")
+        case .pairAgain: String(localized: "在主机上删除本设备的配对记录，然后重新配对。")
+        case .repickApplication: String(localized: "先结束主机上正在运行的会话，或改选另一个应用。")
+        }
+    }
+}
+
+public extension StreamFailure {
+    var categoryTitle: String {
+        switch stage {
+        case .pairing: String(localized: "配对失败")
+        case .launch: String(localized: "无法启动应用")
+        case .stream, .decode: String(localized: "串流中断")
+        case .teardown: String(localized: "串流结束异常")
+        case .discovery, .connect, .network: String(localized: "无法连接主机")
+        case .applicationList: String(localized: "无法读取应用列表")
+        }
+    }
+}
+
 public struct StreamFailure: LocalizedError, Sendable, Equatable {
     public var stage: StreamFailureStage
     public var kind: StreamFailureKind
@@ -204,11 +230,13 @@ public struct StreamDiagnostics: Sendable, Equatable {
     public var audioFramesReceived: Int64 = 0
     public var audioFramesEnqueued: Int64 = 0
     public var audioFramesDropped: Int64 = 0
+    public var connectionQuality: Int32 = 0
 
     public init() {}
 
     public var readableSummary: String {
         var parts: [String] = []
+        parts.append("quality=\(connectionQuality)")
         parts.append("packets=\(packetsReceived)")
         parts.append("presented=\(framesPresented)")
         if let framesDecoded {

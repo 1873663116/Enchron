@@ -137,16 +137,25 @@
 				GameStreaming/Backend/MoonlightStreamingBackend.swift,
 				GameStreaming/Backend/SimulatedStreamingBackend.swift,
 				GameStreaming/Backend/StreamingBackend.swift,
+				GameStreaming/Domain/StreamControllerProfile.swift,
+				GameStreaming/Domain/StreamDebugInjection.swift,
 				GameStreaming/Domain/StreamIdentity.swift,
+				GameStreaming/Domain/StreamNetworkCondition.swift,
 				GameStreaming/Domain/StreamSessionState.swift,
 				GameStreaming/Domain/StreamSettings.swift,
 				GameStreaming/Model/StreamingModel.swift,
 				"GameStreaming/Model/StreamingPlaybackInformation+Session.swift",
+				GameStreaming/Network/StreamWakeOnLan.swift,
+				GameStreaming/Session/StreamAudioOutput.swift,
+				GameStreaming/Session/StreamControllerFeedbackRouter.swift,
+				GameStreaming/Session/StreamControllerHaptics.swift,
 				GameStreaming/Session/StreamGamepadInput.swift,
+				GameStreaming/Session/StreamGamepadRateProbe.swift,
 				GameStreaming/Session/StreamMouseInput.swift,
 				GameStreaming/Session/StreamRenderBinding.swift,
 				GameStreaming/Session/StreamSessionCoordinator.swift,
 				GameStreaming/Session/StreamSessionProbes.swift,
+				GameStreaming/Storage/ApplicationCache.swift,
 				GameStreaming/Storage/HostStore.swift,
 				GameStreaming/Views/StreamAddHostView.swift,
 				GameStreaming/Views/StreamAppGridView.swift,
@@ -201,7 +210,7 @@
 				MediaServer/MediaServerSources.swift,
 				MediaServer/PlexAccount.swift,
 				MediaServer/PlexClient.swift,
-				MediaSource/ArtworkStore.swift,
+				DesignSystem/ArtworkStore.swift,
 				MediaSource/KeychainStore.swift,
 				MediaSource/MediaAccessLease.swift,
 				"MediaSource/MediaByteStream+Diagnostics.swift",
@@ -226,6 +235,7 @@
 				Playback/Domain/PlaybackSeekPolicy.swift,
 				Playback/Domain/PlaybackSessionReporting.swift,
 				Playback/Domain/PlaybackSurfaceGestureState.swift,
+				Playback/Domain/PlaybackSurfaceSeekTravel.swift,
 				Playback/Domain/PlaybackUserVisibleIssue.swift,
 				Playback/Domain/TrackSelectionPreference.swift,
 				Playback/Domain/ViewingState.swift,
@@ -289,6 +299,8 @@
 				Playback/Views/PlaybackTopActions.swift,
 				Playback/Views/PlaybackVideoSurface.swift,
 				Playback/Views/PlayerInfoBarView.swift,
+				Playback/Views/StreamingCapsule.swift,
+				Playback/Views/StreamingCapsuleDeck.swift,
 				Playback/Views/WindowPlaybackRootView.swift,
 				Playback/Views/WindowPlayerDeck.swift,
 			);
@@ -855,6 +867,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/Enchron.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
@@ -871,6 +884,8 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"$(ENCHRON_REGRESSION_LINK_PROVENANCE_FLAG)",
+					"-framework",
+					AVKit,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron.debug;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -892,6 +907,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Config/Enchron.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 5;
@@ -905,6 +921,11 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-framework",
+					AVKit,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.Enchron;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";

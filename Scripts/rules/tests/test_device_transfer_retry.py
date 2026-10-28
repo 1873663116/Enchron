@@ -80,6 +80,18 @@ class DeviceTransferRetryTests(unittest.TestCase):
         self.assertEqual(len(scripted.calls), 1)
         self.assertEqual(self.pauses, [])
 
+    def test_runner_command_consumed_before_readback_is_delivery(self) -> None:
+        scripted = ScriptedDevicectl([1])
+        controller.run_devicectl = scripted
+        controller.copy_to_device(
+            device=DEVICE,
+            runner_bundle_id="com.example.runner",
+            local_path=self.local,
+            remote_path=f"{controller.CHANNEL_ROOT}/command.json",
+        )
+        self.assertEqual(len(scripted.calls), 1)
+        self.assertEqual(self.pauses, [])
+
 
 if __name__ == "__main__":
     unittest.main()

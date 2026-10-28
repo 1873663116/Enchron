@@ -5,6 +5,14 @@ public struct MoonlightDiscoveredHost: Sendable, Equatable {
     public var instanceName: String
     public var host: String
     public var port: UInt16
+    public var mac: String?
+
+    public init(instanceName: String, host: String, port: UInt16, mac: String? = nil) {
+        self.instanceName = instanceName
+        self.host = host
+        self.port = port
+        self.mac = mac
+    }
 }
 
 private final class ResolutionGate: @unchecked Sendable {
@@ -26,6 +34,7 @@ public final class MoonlightDiscovery: @unchecked Sendable {
     private var browser: NWBrowser?
     private var resolved: [String: MoonlightDiscoveredHost] = [:]
     private var pendingResolutions: Set<String> = []
+    private var discoveredMACs: [String: String] = [:]
     private var continuation: AsyncStream<[MoonlightDiscoveredHost]>.Continuation?
 
     public init() {}
@@ -42,7 +51,7 @@ public final class MoonlightDiscovery: @unchecked Sendable {
             let parameters = NWParameters()
             parameters.includePeerToPeer = false
             let browser = NWBrowser(
-                for: .bonjour(type: "_nvstream._tcp", domain: nil),
+                for: .bonjourWithTXTRecord(type: "_nvstream._tcp", domain: nil),
                 using: parameters
             )
             browser.browseResultsChangedHandler = { [weak self] results, _ in
@@ -66,9 +75,24 @@ public final class MoonlightDiscovery: @unchecked Sendable {
         self.continuation = nil
         resolved.removeAll()
         pendingResolutions.removeAll()
+        discoveredMACs.removeAll()
         lock.unlock()
         browser?.cancel()
         continuation?.finish()
+    }
+
+    /// Sunshine and GFE advertise the wake-on-LAN target in the Bonjour text
+    /// record, whose entries are typed rather than a plain dictionary.
+    static func textRecordValue(_ key: String, in metadata: NWBrowser.Result.Metadata) -> String? {
+        guard case .bonjour(let record) = metadata else { return nil }
+        switch record.getEntry(for: key) {
+        case .string(let value):
+            return value
+        case .data(let data):
+            return String(data: data, encoding: .utf8)
+        default:
+            return nil
+        }
     }
 
     private func handle(results: Set<NWBrowser.Result>) {
@@ -76,6 +100,9 @@ public final class MoonlightDiscovery: @unchecked Sendable {
         for result in results {
             guard case .service(let name, _, _, _) = result.endpoint else { continue }
             names.append(name)
+            if let mac = Self.textRecordValue("mac", in: result.metadata) {
+                lock.withLock { discoveredMACs[name] = mac }
+            }
             lock.lock()
             let alreadyKnown = resolved[name] != nil || pendingResolutions.contains(name)
             if !alreadyKnown {
@@ -99,8 +126,14 @@ public final class MoonlightDiscovery: @unchecked Sendable {
             guard let self else { return }
             self.lock.lock()
             self.pendingResolutions.remove(name)
+            let mac = self.discoveredMACs[name]
             if let host, let port {
-                self.resolved[name] = MoonlightDiscoveredHost(instanceName: name, host: host, port: port)
+                self.resolved[name] = MoonlightDiscoveredHost(
+                    instanceName: name,
+                    host: host,
+                    port: port,
+                    mac: mac
+                )
             }
             self.lock.unlock()
             self.publish()

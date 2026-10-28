@@ -908,6 +908,7 @@ REVIEWED_OBSERVATIONS: dict[str, str] = {
     "buttons.",
     "MediaLibrary-MultiSelect-count": "A count label beside the multi-select "
     "buttons.",
+    "Stream-Session-failure": "An interruption panel. The reconnect button inside it has no identifier of its own, so any nearby-control hit refers to that panel child; the panel itself is not an element.",
     "FileBrowsing-SourcesSidebar-sidebarSelectionActions": "The HStack that holds "
     "the selection buttons; each button carries its own identifier. Its source "
     "location is the derived prefix in FilesScreen, whose neighbours belong to "
@@ -1195,6 +1196,29 @@ def presentation_derivation(
         }
 
     if operation_family == "PlayerUI":
+        if template.startswith("PlayerUI-StreamingCapsule"):
+            deck_source = required_source_location(
+                documents,
+                "Modules/Playback/Views/WindowPlayerDeck.swift",
+                "StreamingCapsuleDeck(",
+            )
+            dock_source = required_source_location(
+                documents,
+                "Apps/Enchron/PlayerView.swift",
+                "presentationOverride: isStreamingDockedPresentation",
+            )
+            derivation = {
+                "host": "windowStreamingCapsuleDeck",
+                "sources": [
+                    serialized(deck_source),
+                    serialized(dock_source),
+                ],
+            }
+            if template == "PlayerUI-StreamingCapsule-button-dock":
+                return ["window"], derivation
+            if template == "PlayerUI-StreamingCapsule-button-exit-dock":
+                return ["docked"], derivation
+            return ["window", "docked"], derivation
         if template == "PlayerUI-surface-seek-feedback":
             window_source = required_source_location(
                 documents,

@@ -9,7 +9,7 @@ struct StreamAppGridView: View {
         var title: String {
             switch self {
             case .bigPicture: "Steam Big Picture"
-            case .desktop: "桌面"
+            case .desktop: String(localized: "桌面")
             }
         }
 

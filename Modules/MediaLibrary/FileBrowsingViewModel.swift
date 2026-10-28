@@ -2,6 +2,7 @@ import BluRayDisc
 import Foundation
 import MediaSource
 import Observation
+import DesignSystem
 import OSLog
 
 @MainActor
@@ -780,7 +781,7 @@ public final class FileBrowsingViewModel {
             identity = VersionedMediaIdentity.localIdentity(file.url)
         }
         guard let identity else { return nil }
-        return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity))
+        return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaStorageKey: identity.storageKey))
     }
 
     private static func resolvedExternalSubtitleSources(

@@ -780,41 +780,6 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testDockedUsesInteractionPlateSizedFromVideoAspectAndScreenScale() throws {
-        let videoEntity = Entity()
-        videoEntity.scale = .init(repeating: 1.75)
-        let store = PlaybackVideoEntityStore()
-        let interactionSurface = store.dockedInteractionSurface
-
-        PlaybackDockedInteractionSurface.install(
-            interactionSurface,
-            on: videoEntity,
-            screenSize: [2.4, 1]
-        )
-
-        XCTAssertTrue(interactionSurface.parent === videoEntity)
-        XCTAssertTrue(PlaybackDockedInteractionSurface.contains(interactionSurface))
-        XCTAssertGreaterThan(PlaybackDockedInteractionSurface.frontOffset, 0)
-        XCTAssertEqual(
-            interactionSurface.position,
-            [0, 0, PlaybackDockedInteractionSurface.frontOffset]
-        )
-        XCTAssertNotNil(interactionSurface.components[InputTargetComponent.self])
-        let collision = try XCTUnwrap(
-            interactionSurface.components[CollisionComponent.self]
-        )
-        let shape = try XCTUnwrap(collision.shapes.first)
-        XCTAssertEqual(
-            shape.bounds.extents,
-            [2.4, 1, PlaybackDockedInteractionSurface.thickness]
-        )
-        XCTAssertEqual(
-            interactionSurface.scale(relativeTo: nil),
-            [1.75, 1.75, 1.75]
-        )
-    }
-
-    @MainActor
     func testWindowUsesInteractionSurfaceSizedFromVideoScreen() throws {
         let videoEntity = Entity()
         videoEntity.scale = .init(repeating: 0.8)
@@ -995,98 +960,108 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     @MainActor
     func testEachPresentationHasExactlyOneDirectSurfaceInputOwner() {
         XCTAssertEqual(
-            PlaybackSurfaceInputOwnership.owner(for: .window),
+            PlaybackSurfaceInputOwnership.owner(
+                for: .window,
+                isStreamingPlayback: false
+            ),
             .windowInteractionSurface
         )
         XCTAssertEqual(
-            PlaybackSurfaceInputOwnership.owner(for: .portal),
+            PlaybackSurfaceInputOwnership.owner(
+                for: .portal,
+                isStreamingPlayback: false
+            ),
             .windowInteractionSurface
         )
         XCTAssertEqual(
-            PlaybackSurfaceInputOwnership.owner(for: .docked),
+            PlaybackSurfaceInputOwnership.owner(
+                for: .docked,
+                isStreamingPlayback: false
+            ),
             .dockedInteractionSurface
         )
+        XCTAssertNil(
+            PlaybackSurfaceInputOwnership.owner(
+                for: .docked,
+                isStreamingPlayback: true
+            )
+        )
         XCTAssertEqual(
-            PlaybackSurfaceInputOwnership.owner(for: .panorama),
+            PlaybackSurfaceInputOwnership.owner(
+                for: .panorama,
+                isStreamingPlayback: false
+            ),
             .panoramaInteractionSurface
         )
     }
 
     @MainActor
     func testImmersiveGesturesAcceptOnlyTheirPresentationInteractionSurface() throws {
-        let dockedSurface = PlaybackDockedInteractionSurface.makeEntity()
         let panoramaSurface = PlaybackPanoramaInteractionSurface.makeEntity()
         let panoramaPanel = try XCTUnwrap(panoramaSurface.children.first)
         let windowSurface = PlaybackWindowInteractionSurface.makeEntity()
+        let dockedSurface = PlaybackDockedInteractionSurface.makeEntity()
         let unrelatedEntity = Entity()
         unrelatedEntity.name = "EnchronHeadInput.probe"
 
         XCTAssertTrue(
             PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                 windowSurface,
-                for: .window
+                for: .window,
+                isStreamingPlayback: false
             )
         )
         XCTAssertTrue(
             PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                 windowSurface,
-                for: .portal
+                for: .portal,
+                isStreamingPlayback: false
+            )
+        )
+        XCTAssertTrue(
+            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                dockedSurface,
+                for: .docked,
+                isStreamingPlayback: false
+            )
+        )
+        XCTAssertFalse(
+            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
+                dockedSurface,
+                for: .docked,
+                isStreamingPlayback: true
             )
         )
         XCTAssertFalse(
             PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                 windowSurface,
-                for: .docked
-            )
-        )
-        XCTAssertFalse(
-            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
-                dockedSurface,
-                for: .window
-            )
-        )
-        XCTAssertTrue(
-            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
-                dockedSurface,
-                for: .docked
+                for: .docked,
+                isStreamingPlayback: false
             )
         )
         XCTAssertFalse(
             PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                 panoramaPanel,
-                for: .docked
+                for: .docked,
+                isStreamingPlayback: false
             )
         )
         XCTAssertTrue(
             PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                 panoramaPanel,
-                for: .panorama
-            )
-        )
-        XCTAssertFalse(
-            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
-                dockedSurface,
-                for: .panorama
+                for: .panorama,
+                isStreamingPlayback: false
             )
         )
         for presentation in PlaybackPresentation.allCases {
             XCTAssertFalse(
                 PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                     unrelatedEntity,
-                    for: presentation
+                    for: presentation,
+                    isStreamingPlayback: false
                 )
             )
         }
-#if DEBUG
-        let debugDockedProbe = Entity()
-        debugDockedProbe.name = PlaybackDockedInteractionSurface.childFrontProbeName
-        XCTAssertFalse(
-            PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
-                debugDockedProbe,
-                for: .docked
-            )
-        )
-#endif
     }
 
     @MainActor

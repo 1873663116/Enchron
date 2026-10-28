@@ -1,6 +1,7 @@
 import Foundation
 import MediaSource
 import Observation
+import DesignSystem
 import OSLog
 
 @MainActor
@@ -957,7 +958,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         guard let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity?.mediaIdentity,
               let image = playbackRuntime.displayedArtworkImage() else { return }
         do {
-            try ArtworkStore.shared.store(image, for: ArtworkKey(mediaIdentity: identity))
+            try ArtworkStore.shared.store(image, for: ArtworkKey(mediaStorageKey: identity.storageKey))
         } catch {
             logger.error("artwork write failed: \(error.localizedDescription, privacy: .public)")
         }

@@ -14,7 +14,7 @@ Modules/MediaLibrary/        feature：虚拟媒体库与来源浏览
 Modules/MediaServer/         feature：Emby、Jellyfin、Plex 媒体服务器
 Modules/Playback/            feature：播放的领域、呈现与平台代码
 Modules/GameStreaming/       feature：Moonlight 主机发现与配对、串流会话、串流呈现与输入转发
-Modules/DesignSystem/        公共名词：设计 token 与多消费者组件
+Modules/DesignSystem/        公共名词：设计 token、多消费者组件与封面位图持久化
 Packages/PlaybackCore/       播放引擎，独立 Package
 Packages/EnvironmentSceneContract/  观影环境场景的契约：协议、几何、屏幕静止位姿与屏幕状态类型
 Packages/OceanEnvironment/   Ocean 场景包：ocean.reality、海面模拟运行时与契约实现

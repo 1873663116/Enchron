@@ -48,6 +48,16 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
         }
     }
 
+    /// Pixels a preset asks the decoder for. `custom` reports its maximum so it
+    /// is only offered when the device budget covers anything it could request.
+    public var pixelCount: Int {
+        self == .custom ? Self.maximumPixelCount : width * height
+    }
+
+    public func fits(pixelBudget: Int) -> Bool {
+        pixelCount <= pixelBudget
+    }
+
     public var height: Int {
         switch self {
         case .r1280x720: 720
@@ -65,10 +75,6 @@ public enum StreamResolution: String, Sendable, Codable, CaseIterable {
             return "自定义"
         }
         return "\(width) × \(height)"
-    }
-
-    public var pixelCount: Int {
-        width * height
     }
 
     public static func isCustomDimensionsValid(width: Int, height: Int) -> Bool {
@@ -95,6 +101,25 @@ public enum StreamCodecPreference: String, Sendable, Codable, CaseIterable {
     }
 }
 
+public enum StreamMouseTrackingMode: String, Sendable, Codable, CaseIterable {
+    case relative
+    case absolute
+
+    public var label: String {
+        switch self {
+        case .relative: "相对"
+        case .absolute: "绝对"
+        }
+    }
+
+    public var explanation: String {
+        switch self {
+        case .relative: "转发鼠标的相对位移。适合射击与转视角。"
+        case .absolute: "按画面坐标发送鼠标位置。适合桌面与 RTS。"
+        }
+    }
+}
+
 public struct StreamOptions: Sendable, Equatable, Codable {
     public var resolution: StreamResolution
     public var customWidth: Int
@@ -103,12 +128,14 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var bitrateKbps: Int
     public var codec: StreamCodecPreference
     public var hdrEnabled: Bool
-    public var framePacing: Bool
+    public var frameBuffer: Bool
     public var customBitrateEnabled: Bool
     public var swapABXYButtons: Bool
     public var playAudioOnPC: Bool
-    public var bluetoothMouseEnabled: Bool
+    public var mouseTrackingMode: StreamMouseTrackingMode
     public var optimizeGameSettings: Bool
+    public var audioLayout: StreamAudioLayout
+    public var showPerformanceOverlay: Bool
 
     public static let defaultFrameRates = [30, 60, 90, 120]
 
@@ -130,12 +157,14 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         bitrateKbps: Int = 40_000,
         codec: StreamCodecPreference = .auto,
         hdrEnabled: Bool = false,
-        framePacing: Bool = true,
+        frameBuffer: Bool = false,
         customBitrateEnabled: Bool = false,
         swapABXYButtons: Bool = false,
         playAudioOnPC: Bool = false,
-        bluetoothMouseEnabled: Bool = true,
-        optimizeGameSettings: Bool = false
+        mouseTrackingMode: StreamMouseTrackingMode = .relative,
+        optimizeGameSettings: Bool = false,
+        audioLayout: StreamAudioLayout = .stereo,
+        showPerformanceOverlay: Bool = false
     ) {
         self.resolution = resolution
         self.customWidth = customWidth
@@ -144,12 +173,14 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.bitrateKbps = bitrateKbps
         self.codec = codec
         self.hdrEnabled = hdrEnabled
-        self.framePacing = framePacing
+        self.frameBuffer = frameBuffer
         self.customBitrateEnabled = customBitrateEnabled
         self.swapABXYButtons = swapABXYButtons
         self.playAudioOnPC = playAudioOnPC
-        self.bluetoothMouseEnabled = bluetoothMouseEnabled
+        self.mouseTrackingMode = mouseTrackingMode
         self.optimizeGameSettings = optimizeGameSettings
+        self.audioLayout = audioLayout
+        self.showPerformanceOverlay = showPerformanceOverlay
     }
 
     public var streamWidth: Int {
@@ -160,10 +191,19 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         resolution == .custom ? customHeight : resolution.height
     }
 
+    public var playsAudioLocally: Bool {
+        !playAudioOnPC
+    }
+
     private enum CodingKeys: String, CodingKey {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
-        case codec, hdrEnabled, framePacing, customBitrateEnabled
-        case swapABXYButtons, playAudioOnPC, bluetoothMouseEnabled, optimizeGameSettings
+        case codec, hdrEnabled, frameBuffer, customBitrateEnabled
+        case swapABXYButtons, playAudioOnPC, mouseTrackingMode, optimizeGameSettings
+        case audioLayout, showPerformanceOverlay
+    }
+
+    private enum LegacyCodingKeys: String, CodingKey {
+        case framePacing
     }
 
     /// Older stored settings predate custom resolutions, so a missing pair
@@ -177,12 +217,26 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         bitrateKbps = try container.decodeIfPresent(Int.self, forKey: .bitrateKbps) ?? 40_000
         codec = try container.decodeIfPresent(StreamCodecPreference.self, forKey: .codec) ?? .auto
         hdrEnabled = try container.decodeIfPresent(Bool.self, forKey: .hdrEnabled) ?? false
-        framePacing = try container.decodeIfPresent(Bool.self, forKey: .framePacing) ?? true
+        if let stored = try container.decodeIfPresent(Bool.self, forKey: .frameBuffer) {
+            frameBuffer = stored
+        } else {
+            let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+            frameBuffer = try legacy.decodeIfPresent(Bool.self, forKey: .framePacing) ?? false
+        }
         customBitrateEnabled = try container.decodeIfPresent(Bool.self, forKey: .customBitrateEnabled) ?? false
         swapABXYButtons = try container.decodeIfPresent(Bool.self, forKey: .swapABXYButtons) ?? false
         playAudioOnPC = try container.decodeIfPresent(Bool.self, forKey: .playAudioOnPC) ?? false
-        bluetoothMouseEnabled = try container.decodeIfPresent(Bool.self, forKey: .bluetoothMouseEnabled) ?? true
+        mouseTrackingMode = try container.decodeIfPresent(
+            StreamMouseTrackingMode.self,
+            forKey: .mouseTrackingMode
+        ) ?? .relative
         optimizeGameSettings = try container.decodeIfPresent(Bool.self, forKey: .optimizeGameSettings) ?? false
+        audioLayout = (try? container.decodeIfPresent(StreamAudioLayout.self, forKey: .audioLayout))
+            ?? .stereo
+        showPerformanceOverlay = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .showPerformanceOverlay
+        ) ?? false
     }
 
     public var readableValue: String {
@@ -192,14 +246,42 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("bitrate=\(bitrateKbps)")
         parts.append("codec=\(codec.rawValue)")
         parts.append("hdr=\(hdrEnabled)")
-        parts.append("framePacing=\(framePacing)")
+        parts.append("frameBuffer=\(frameBuffer)")
         parts.append("customBitrate=\(customBitrateEnabled)")
         parts.append("swapABXY=\(swapABXYButtons)")
         parts.append("audioOnPC=\(playAudioOnPC)")
-        parts.append("bluetoothMouse=\(bluetoothMouseEnabled)")
+        parts.append("mouseTracking=\(mouseTrackingMode.rawValue)")
         parts.append("optimizeGameSettings=\(optimizeGameSettings)")
+        parts.append("audioLayout=\(audioLayout.readableValue)")
+        parts.append("statsOverlay=\(showPerformanceOverlay)")
         return parts.joined(separator: ";")
     }
+}
+
+/// What the host is asked to encode. The count has to match the Windows channel
+/// mask, so the layouts are fixed rather than free-form numbers.
+public enum StreamAudioLayout: String, Sendable, CaseIterable, Codable {
+    case stereo
+    case surround51
+    case surround71
+
+    public var channelCount: Int {
+        switch self {
+        case .stereo: 2
+        case .surround51: 6
+        case .surround71: 8
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .stereo: "立体声"
+        case .surround51: "5.1 环绕"
+        case .surround71: "7.1 环绕"
+        }
+    }
+
+    public var readableValue: String { rawValue }
 }
 
 public enum StreamCodecAvailability {
@@ -211,6 +293,45 @@ public enum StreamCodecAvailability {
     public static var av1DecodeSupported: Bool {
         MoonlightService.isAV1PlaybackSupported
             && VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+    }
+
+    /// HDR travels as HEVC Main10, so a device that cannot decode HEVC in
+    /// hardware cannot show an HDR stream whatever the host offers.
+    public static var hdrOutputSupported: Bool {
+        VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
+    }
+
+    public static var hevcDecodeSupported: Bool {
+        VTIsHardwareDecodeSupported(kCMVideoCodecType_HEVC)
+    }
+
+    /// Above 1080p the stream needs a hardware decoder that can keep up; without
+    /// one the choice is hidden instead of producing a session that stutters.
+    public static var maximumStreamPixelCount: Int {
+        hevcDecodeSupported || av1DecodeSupported
+            ? StreamResolution.maximumPixelCount
+            : 1920 * 1080
+    }
+}
+
+/// What the host itself reports about its encoders.
+///
+/// The bits follow the value Sunshine and GFE send as `ServerCodecModeSupport`.
+/// A host that leaves it at zero has said nothing, so nothing is hidden on that
+/// basis; the value is a hint for the settings copy, not a gate.
+public struct StreamHostCapabilities: Sendable, Equatable {
+    public var declaresHEVC: Bool
+    public var declaresHDR: Bool
+    public var declaresAV1: Bool
+
+    public init(serverCodecModeSupport: UInt32) {
+        declaresHEVC = serverCodecModeSupport & 0x01 != 0
+        declaresHDR = serverCodecModeSupport & 0x02 != 0
+        declaresAV1 = serverCodecModeSupport & 0x04 != 0
+    }
+
+    public var hasAnyDeclaration: Bool {
+        declaresHEVC || declaresHDR || declaresAV1
     }
 }
 

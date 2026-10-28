@@ -37,15 +37,15 @@ struct TidalEnvironmentTests {
         memorySampler.cancel()
         weak var releasedRoot = root
         let pose = try #require(scene.restPose)
-        #expect(abs(pose.distance - 13.550063) < 0.01)
-        #expect(abs(pose.center.y - 3.572264) < 0.01)
+        #expect(abs(pose.distance - 14.450059) < 0.01)
+        #expect(abs(pose.center.y - 3.372264) < 0.01)
         #expect(pose.screenHeight == 8)
-        #expect(abs(try #require(root).position.y - 0.8) < 0.0001)
+        #expect(abs(try #require(root).position.y - 0.6) < 0.0001)
         for elevation in [0.0, 30, 90] {
             let roomOrigin = try #require(root).position
             let tilted = PlaybackDockedPoseSolver.solve(
                 transform: PlaybackSurfaceTransform(
-                    distance: 13.550063, elevationDegrees: elevation, scale: 8, viewerHeight: 0
+                    distance: 14.450059, elevationDegrees: elevation, scale: 8, viewerHeight: 0
                 ),
                 geometry: scene.descriptor.geometry, restPose: pose,
                 meshSize: [16, 9], roomOrigin: roomOrigin
@@ -58,6 +58,26 @@ struct TidalEnvironmentTests {
             let water = try #require(root?.findEntity(named: "PoolWater"))
             let clearance = pose.bottomHeight - water.visualBounds(relativeTo: nil).max.y
             #expect(clearance > 0.05 && clearance < 0.055)
+        }
+        do {
+            let glass = try #require(root?.findEntity(named: "GlassPoolFarMesh"))
+            let glassFront = glass.visualBounds(relativeTo: nil).max.z
+            let placement = PlaybackDockedPoseSolver.solve(
+                transform: PlaybackSurfaceTransform(
+                    distance: scene.descriptor.geometry.defaultDistanceMeters,
+                    elevationDegrees: scene.descriptor.geometry.elevationRangeDegrees.lowerBound,
+                    scale: scene.descriptor.geometry.defaultScreenHeightMeters,
+                    viewerHeight: scene.descriptor.geometry.defaultViewerHeightMeters
+                ),
+                geometry: scene.descriptor.geometry,
+                restPose: pose,
+                meshSize: [16, 9],
+                roomOrigin: try #require(root).position
+            )
+            #expect(
+                abs(placement.center.z - glassFront - 0.1) < 0.001,
+                "the default screen plane must rest 0.1 m in front of the far glass"
+            )
         }
         let screen = EnvironmentScreenState(
             center: pose.center, right: pose.right, up: pose.up,

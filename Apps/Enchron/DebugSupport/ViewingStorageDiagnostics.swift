@@ -3,6 +3,7 @@ import CryptoKit
 import Foundation
 import MediaLibrary
 import MediaSource
+import DesignSystem
 import Playback
 
 nonisolated struct ViewingStorageDiagnosticSnapshot: Encodable, Equatable {

@@ -758,7 +758,7 @@ REQUESTED_MEMBERS = (
     "framePacing",
     "swapABXY",
     "audioOnPC",
-    "bluetoothMouse",
+    "mouseTracking",
     "optimizeGameSettings",
 )
 NEGOTIATED_MEMBERS = ("bitrate", "codec", "hdr")
@@ -3351,7 +3351,7 @@ STREAM_OPTION_KEYS = {
     "hdr": "hdr",
     "swapABXYButtons": "swapABXY",
     "playAudioOnPC": "audioOnPC",
-    "bluetoothMouseEnabled": "bluetoothMouse",
+    "mouseTrackingMode": "mouseTracking",
     "optimizeGameSettings": "optimizeGameSettings",
 }
 

@@ -284,6 +284,7 @@ public enum DesignTokens {
         public static let artworkPlaceholderOpacity: Double = 0.58
         public static let destructiveAction: Color = .red.opacity(0.82)
         public static let menuDismissInput: Color = .black.opacity(0.001)
+        public static let hudBackdrop: Color = .black.opacity(0.62)
         public static let card: Color = .primary.opacity(0.03)
         public static let elevated: Color = .primary.opacity(0.04)
         public static let overlay: Color = .primary.opacity(0.06)

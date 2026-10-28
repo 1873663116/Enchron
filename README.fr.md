@@ -24,7 +24,7 @@ Enchron est disponible en bêta publique sur TestFlight. Rejoignez le test depui
 
 ## Compilation
 
-Le projet nécessite Xcode 27.0 et le SDK visionOS. Après le clonage, exécutez ces commandes depuis la racine du dépôt pour préparer les dépendances binaires requises par `Packages/PlaybackCore`. Elles ne sont pas stockées dans Git.
+Le projet nécessite Xcode 27.2 RC et le SDK visionOS. Après le clonage, exécutez ces commandes depuis la racine du dépôt pour préparer les dépendances binaires requises par `Packages/PlaybackCore`. Elles ne sont pas stockées dans Git.
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh

@@ -1303,11 +1303,6 @@
       "verdict": "known-defect"
     },
     {
-      "context": "window",
-      "operation": "accessibility:Stream-Session-back",
-      "verdict": "known-defect"
-    },
-    {
       "context": "main-window-browser",
       "operation": "accessibility:Settings-Streaming-negotiated",
       "verdict": "known-defect"
@@ -1340,6 +1335,61 @@
     {
       "context": "main-window-browser",
       "operation": "accessibility:Stream-Sidebar-Toggle",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-dock",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-information",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-settings",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "window",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-close",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-exit-dock",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-information",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-button-settings",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "docked",
+      "operation": "accessibility:PlayerUI-StreamingCapsule-close",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-WakeButton",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-ResumeButton",
+      "verdict": "known-defect"
+    },
+    {
+      "context": "main-window-browser",
+      "operation": "accessibility:Stream-HostDetail-SwitchButton",
       "verdict": "known-defect"
     }
   ],

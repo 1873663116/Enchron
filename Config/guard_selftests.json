@@ -409,18 +409,19 @@
       }
     },
     {
-      "id": "playback-surface-structure-rejects-an-immersive-entry-that-leaves-the-player-window-standing",
+      "id": "playback-surface-structure-rejects-a-dock-entry-that-drops-the-window-retention-guard",
       "guard": "Scripts/rules/verify_playback_surface_structure.py",
       "defect": {
         "type": "replace-text",
         "file": "Modules/Playback/Platform/SpatialPlatformExecutionLease.swift",
-        "find": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n                + (isPresent(playerWindowState) ? [.dismissPlayerWindow] : [])\n",
-        "replaceWith": "        case .enterImmersivePlayback:\n            [.openImmersiveSpace]\n"
+        "find": "retainsPlayerWindowDuringDockEntry == false",
+        "replaceWith": "retainsPlayerWindowDuringDockEntry == true",
+        "introduces": "retainsPlayerWindowDuringDockEntry == true"
       },
       "expected": {
         "exitCode": 1,
         "outputContains": [
-          "entering an immersive presentation leaves the player window standing"
+          "a standing player window either claims the freshly minted surface"
         ]
       }
     },
@@ -1514,6 +1515,91 @@
         "outputContains": [
           "@_spi(Testing)",
           "Release"
+        ]
+      }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-a-display-immediately-attachment",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamSessionCoordinator.swift",
+        "find": "let sampleToEnqueue = Self.immediateTimingSample(",
+        "replaceWith": "let sampleToEnqueue = Self.markForImmediateDisplay(",
+        "introduces": "markForImmediateDisplay"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "drifted from the delivery baseline"
+        ]
+      }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-a-video-early-exit",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamSessionCoordinator.swift",
+        "find": "        let pts = CMSampleBufferGetPresentationTimeStamp(sample)",
+        "replaceWith": "        if awaitingProbe { return }\n        let pts = CMSampleBufferGetPresentationTimeStamp(sample)",
+        "introduces": "awaitingProbe"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "early exits"
+        ]
+      }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-a-pump-skip",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamSessionCoordinator.swift",
+        "find": "            let sampleToEnqueue = Self.immediateTimingSample(",
+        "replaceWith": "            if pendingProbe { continue }\n            let sampleToEnqueue = Self.immediateTimingSample(",
+        "introduces": "pendingProbe"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "early exits"
+        ]
+      }
+    },
+    {
+      "id": "stream-frame-pipeline-rejects-an-audio-skip",
+      "guard": "Scripts/rules/verify_stream_frame_pipeline.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Modules/GameStreaming/Session/StreamAudioOutput.swift",
+        "find": "        pcm.withUnsafeBytes { raw in",
+        "replaceWith": "        if lateAudioProbe { return }\n        pcm.withUnsafeBytes { raw in",
+        "introduces": "lateAudioProbe"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "early exits"
+        ]
+      }
+    },
+    {
+      "id": "localization-coverage-rejects-a-language-without-translations",
+      "guard": "Scripts/rules/verify_localizations.py",
+      "defect": {
+        "type": "replace-text",
+        "file": "Scripts/localization/rules.json",
+        "find": "  \"languages\": [\n    \"de\",",
+        "replaceWith": "  \"languages\": [\n    \"xx\",\n    \"de\",",
+        "introduces": "xx"
+      },
+      "expected": {
+        "exitCode": 1,
+        "outputContains": [
+          "untranslated"
         ]
       }
     }

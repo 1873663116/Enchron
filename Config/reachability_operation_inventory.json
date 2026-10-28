@@ -2757,6 +2757,81 @@
       "template": "PlayerUI-InfoBar-button-back"
     },
     {
+      "action": null,
+      "family": "PlayerUI",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-button-dock"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-button-exit-dock"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-button-information"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-button-settings"
+    },
+    {
+      "action": "activate",
+      "family": "PlayerUI",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/Playback/Views/StreamingCapsule.swift"
+        },
+        {
+          "path": "Modules/Playback/Views/StreamingCapsuleDeck.swift"
+        }
+      ],
+      "template": "PlayerUI-StreamingCapsule-close"
+    },
+    {
       "action": "activate",
       "family": "PlayerUI",
       "role": "operation",
@@ -4084,6 +4159,42 @@
       "template": "Stream-HostDetail"
     },
     {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-ResumeButton"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-SwitchButton"
+    },
+    {
+      "action": "activate",
+      "family": "Stream",
+      "role": "operation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-WakeButton"
+    },
+    {
       "action": null,
       "family": "Stream",
       "role": "observation",
@@ -4094,6 +4205,18 @@
         }
       ],
       "template": "Stream-HostDetail-error"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamingHomeView.swift"
+        }
+      ],
+      "template": "Stream-HostDetail-help"
     },
     {
       "action": "typeText",
@@ -4252,18 +4375,6 @@
       "template": "Stream-Pairing-status"
     },
     {
-      "action": "activate",
-      "family": "Stream",
-      "role": "operation",
-      "scope": "product",
-      "sources": [
-        {
-          "path": "Apps/Enchron/PlayerView.swift"
-        }
-      ],
-      "template": "Stream-Session-back"
-    },
-    {
       "action": null,
       "family": "Stream",
       "role": "observation",
@@ -4285,7 +4396,43 @@
           "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
         }
       ],
+      "template": "Stream-Session-failure"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
+        }
+      ],
+      "template": "Stream-Session-networkHint"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
+        }
+      ],
       "template": "Stream-Session-snapshot"
+    },
+    {
+      "action": null,
+      "family": "Stream",
+      "role": "observation",
+      "scope": "product",
+      "sources": [
+        {
+          "path": "Modules/GameStreaming/Views/StreamSessionContentView.swift"
+        }
+      ],
+      "template": "Stream-Session-stats"
     },
     {
       "action": "activate",
@@ -6790,6 +6937,114 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-dock",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-dock",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-exit-dock",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-exit-dock",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-information",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-information",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window",
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-button-settings",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-button-settings",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window",
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:PlayerUI-StreamingCapsule-close",
+      "identifierTemplate": "PlayerUI-StreamingCapsule-close",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "windowStreamingCapsuleDeck",
+        "sources": [
+          {
+            "path": "Modules/Playback/Views/WindowPlayerDeck.swift"
+          },
+          {
+            "path": "Apps/Enchron/PlayerView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "window",
+        "docked"
+      ],
+      "proofDomain": "playback",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:PlayerUI-TopAction-dock",
       "identifierTemplate": "PlayerUI-TopAction-dock",
       "kind": "activate",
@@ -7890,6 +8145,60 @@
       "source": "accessibilityIdentifier"
     },
     {
+      "id": "accessibility:Stream-HostDetail-ResumeButton",
+      "identifierTemplate": "Stream-HostDetail-ResumeButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-SwitchButton",
+      "identifierTemplate": "Stream-HostDetail-SwitchButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
+      "id": "accessibility:Stream-HostDetail-WakeButton",
+      "identifierTemplate": "Stream-HostDetail-WakeButton",
+      "kind": "activate",
+      "proofContextDerivation": {
+        "host": "browserWindowSurface",
+        "sources": [
+          {
+            "path": "Apps/Enchron/MainView.swift"
+          }
+        ]
+      },
+      "proofContexts": [
+        "main-window-browser"
+      ],
+      "proofDomain": "browser",
+      "source": "accessibilityIdentifier"
+    },
+    {
       "id": "accessibility:Stream-HostDetail-name",
       "identifierTemplate": "Stream-HostDetail-name",
       "kind": "typeText",
@@ -7995,24 +8304,6 @@
         "main-window-browser"
       ],
       "proofDomain": "browser",
-      "source": "accessibilityIdentifier"
-    },
-    {
-      "id": "accessibility:Stream-Session-back",
-      "identifierTemplate": "Stream-Session-back",
-      "kind": "activate",
-      "proofContextDerivation": {
-        "host": "streamWindowSurface",
-        "sources": [
-          {
-            "path": "Apps/Enchron/PlayerView.swift"
-          }
-        ]
-      },
-      "proofContexts": [
-        "window"
-      ],
-      "proofDomain": "playback",
       "source": "accessibilityIdentifier"
     },
     {

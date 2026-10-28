@@ -181,7 +181,7 @@ struct StreamAddHostView: View {
         @ViewBuilder field: () -> some View
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text(label)
+            Text(LocalizedStringKey(label))
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(DesignTokens.Surface.supportingText)
             field()
@@ -193,7 +193,7 @@ struct StreamAddHostView: View {
     @ViewBuilder
     private var failureLine: some View {
         if let failure {
-            Text(failure.message)
+            Text(LocalizedStringKey(failure.message))
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(DesignTokens.SourceConnection.failureColor)
                 .accessibilityIdentifier("Stream-AddHost-error")
@@ -220,17 +220,18 @@ struct StreamAddHostView: View {
             dismiss()
             return
         }
-        Task { await submit(address: host.address.displayString, name: host.instanceName) }
+        Task { await submit(address: host.address.displayString, name: host.instanceName, mac: host.mac) }
     }
 
-    private func submit(address: String, name: String) async {
+    private func submit(address: String, name: String, mac: String? = nil) async {
         isSubmitting = true
         failure = nil
         defer { isSubmitting = false }
         do {
             let hostID = try await model.addHost(
                 addressString: address,
-                name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : name
+                name: name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : name,
+                mac: mac
             )
             model.selectHost(hostID)
             dismiss()

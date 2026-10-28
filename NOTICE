@@ -93,6 +93,18 @@ libsmb2 - GNU Lesser General Public License, version 2.1 or later
     The example programs in that source tree are 2-clause BSD and are not
     built.
 
+Moonlight 9.0.2 - GNU General Public License, version 3
+    https://github.com/moonlight-stream/moonlight-ios
+    The GameStream client protocol: host discovery, pairing, application
+    listing, application artwork, session negotiation, video and audio sample
+    handling, and input encoding. Adapted into the Swift and Objective-C
+    sources under Packages/MoonlightClient from moonlight-ios; Enchron links
+    no prebuilt Moonlight binary. The revision each bridge file derives from is
+    recorded in Config/third_party_sources.json, which pins moonlight-ios
+    02dc9780. The vendored GameStream protocol library under
+    Packages/MoonlightClient/Sources/CMoonlightCore is moonlight-common-c,
+    carried in the same tree and rebuilt from source on every build.
+
 RealityKitScripting - MIT License
     Copyright (c) 2026 Apple Inc.
     https://github.com/apple/realitykitscripting
@@ -119,10 +131,13 @@ abridged or reflowed, and this section records no departures. The byte count
 and digest refer to each source document. For embedded texts, the comparison
 appends one trailing newline. The bundled LICENSE is compared as stored.
 
-    GNU General Public License v3.0, printed for Enchron itself
+    GNU General Public License v3.0, printed for Enchron itself and for
+    Moonlight
     34674 bytes, sha256
     fb981668c18a279e285fc4d83fba1e836cc84dd4daa73c9697d3cfd2d8aca6e0
-    LICENSE at the root of this repository, bundled unchanged.
+    LICENSE at the root of this repository, bundled unchanged. The Moonlight
+    entry prints this same embedded text; moonlight-ios ships its own
+    LICENSE.txt of 35536 bytes, which the app does not read.
 
     Apache License 2.0 with the Runtime Library Exception, printed for
     swift-syntax

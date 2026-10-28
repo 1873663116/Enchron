@@ -112,21 +112,55 @@ static BOOL controllerInputActive;
                                  leftStickX, leftStickY, rightStickX, rightStickY);
 }
 
-+ (int)sendControllerPresenceArrived:(BOOL)arrived {
-    if (arrived) {
-        uint32_t supported = A_FLAG | B_FLAG | X_FLAG | Y_FLAG
-            | UP_FLAG | DOWN_FLAG | LEFT_FLAG | RIGHT_FLAG
-            | LB_FLAG | RB_FLAG | PLAY_FLAG | BACK_FLAG
-            | LS_CLK_FLAG | RS_CLK_FLAG;
-        int result = LiSendControllerArrivalEvent(0, 0x1, LI_CTYPE_XBOX, supported,
-                                                  LI_CCAP_ANALOG_TRIGGERS);
-        if (result != LI_ERR_UNSUPPORTED) {
-            return result;
-        }
-        return LiSendMultiControllerEvent(0, 0x1, 0, 0, 0, 0, 0, 0, 0);
++ (int)sendControllerArrivalNumber:(uint8_t)controllerNumber
+                     gamepadMask:(uint16_t)gamepadMask
+                            type:(uint8_t)type
+                         buttons:(uint32_t)supportedButtons
+                    capabilities:(uint16_t)capabilities {
+    controllerInputActive = YES;
+    int result = LiSendControllerArrivalEvent(controllerNumber, gamepadMask, type,
+                                              supportedButtons, capabilities);
+    if (result != LI_ERR_UNSUPPORTED) {
+        return result;
     }
+    return LiSendMultiControllerEvent((short)controllerNumber, (short)gamepadMask,
+                                      0, 0, 0, 0, 0, 0, 0);
+}
+
++ (int)sendHighResScrollVertical:(short)amount {
+    return LiSendHighResScrollEvent(amount);
+}
+
++ (int)sendHighResScrollHorizontal:(short)amount {
+    return LiSendHighResHScrollEvent(amount);
+}
+
++ (int)sendControllerTouchNumber:(uint8_t)controllerNumber
+                       eventType:(uint8_t)eventType
+                       pointerId:(uint32_t)pointerId
+                               x:(float)x
+                               y:(float)y
+                        pressure:(float)pressure {
+    return LiSendControllerTouchEvent(controllerNumber, eventType, pointerId, x, y, pressure);
+}
+
++ (int)sendControllerRemovalNumber:(uint8_t)controllerNumber {
     controllerInputActive = NO;
-    return LiSendMultiControllerEvent(0, 0, 0, 0, 0, 0, 0, 0, 0);
+    return LiSendMultiControllerEvent((short)controllerNumber, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
++ (int)sendControllerMotionNumber:(uint8_t)controllerNumber
+                             type:(uint8_t)motionType
+                                x:(float)x
+                                y:(float)y
+                                z:(float)z {
+    return LiSendControllerMotionEvent(controllerNumber, motionType, x, y, z);
+}
+
++ (int)sendControllerBatteryNumber:(uint8_t)controllerNumber
+                            state:(uint8_t)state
+                       percentage:(uint8_t)percentage {
+    return LiSendControllerBatteryEvent(controllerNumber, state, percentage);
 }
 
 + (void)requestIdrFrame {

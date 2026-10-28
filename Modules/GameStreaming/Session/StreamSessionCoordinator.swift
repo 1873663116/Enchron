@@ -30,8 +30,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var synchronizer = AVSampleBufferRenderSynchronizer()
     private var videoRenderer = AVSampleBufferVideoRenderer()
     private var videoSink: AVSampleBufferRendererInputSink
-    private var audioRenderer = AVSampleBufferAudioRenderer()
-    private var audioSink: AVSampleBufferAudioRendererInputSink
+    private let audioOutput = StreamAudioOutput()
     private var pumpTimer: DispatchSourceTimer?
     private var pumpActive = false
     private var lastPumpTickNanoseconds: UInt64 = 0
@@ -40,7 +39,25 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var graphVersion = 1
 
     private let videoQueueLock = NSLock()
-    private var pendingVideo: [(sample: CMSampleBuffer, presentationTimeUs: Int64)] = []
+    private struct PendingVideoFrame {
+        let id: UInt64
+        let sample: CMSampleBuffer
+        let presentationTimeUs: Int64
+        let arrivalDate: Date
+    }
+
+    private func removePendingFrame(id: UInt64) {
+        videoQueueLock.withLock {
+            if let index = pendingVideo.firstIndex(where: { $0.id == id }) {
+                pendingVideo.remove(at: index)
+            }
+        }
+    }
+
+    private var pendingVideo: [PendingVideoFrame] = []
+    private var pendingFrameSequence: UInt64 = 0
+    private static let pendingVideoLimit = 8
+    private static let pendingVideoKeep = 2
     private var recoveringFromRendererFailure = false
     private var lastReportedQueueDepth = 0
     private var lastSampledPresentedCount: Int64 = 0
@@ -52,56 +69,31 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private var streamingStableSeconds = 0
     private var didSignalHostFrameRateMismatch = false
     public var onHostFrameRateMismatch: (@Sendable () -> Void)?
-    private var lastSampledAudioOutcomes: (warnings: Int64, flushDrops: Int64, failed: Int64, autoFlush: Int64, config: Int64, short: Int64, long: Int64, other: Int64) = (0, 0, 0, 0, 0, 0, 0, 0)
+    private var lastSampledAudioOutcomes: (short: Int64, long: Int64, other: Int64, underruns: Int64, overflowFrames: Int64) = (0, 0, 0, 0, 0)
     private var lastVideoSampleNanoseconds: UInt64 = 0
     private var lastVideoPresentationSeconds: Double = 0
     private var lastAudioFrameNanoseconds: UInt64 = 0
-    private var lastSampledGaps: (decoded: Int64, videoGap: Int64, audioGap: Int64, late: Int64, ptsGap: Int64) = (0, 0, 0, 0, 0)
+    private var lastSampledGaps: (decoded: Int64, videoGap: Int64, audioGap: Int64, ptsGap: Int64) = (0, 0, 0, 0)
     private var flushingRenderer = false
     private var lastCancelledByFlushIdrAt = Date.distantPast
+    private var decodeFailureStreak = 0
+    private var lastDecodeFailureAt = Date.distantPast
+    private var decodeFailureIdrRequested = false
+    private var decodeFailureRebuildRequested = false
+
+    private enum DecodeFailureEscalation {
+        case none
+        case requestIdr
+        case rebuild
+    }
     private var videoDeliveryStartedAt: Date?
     private var surfaceBindingRevision: Int?
     private var surfaceHasBound = false
     private var lastAwaitingSurfaceReport = Date.distantPast
 
-    private var nextAudioPTS: CMTime = .invalid
-    private var firstVideoPTS: CMTime = .invalid
-    private var audioPTSProbeLogged = false
-    private var audioSampleProbeLogged = false
-    private var audioPTSReanchorCount = 0
-
-    private enum TimelineGovernorState {
-        case measuring
-        case running
-        case recovering
+    private var frameBufferHoldSeconds: Double {
+        1.5 / Double(max(options.frameRate, 1))
     }
-
-    private var governorState: TimelineGovernorState = .measuring
-    private let streamingDisplaysImmediately = false
-    private var governorTargetLeadSeconds = 0.016
-    private var governorLeadEmaSeconds: Double = .nan
-    private var governorSecondLeads: [Double] = []
-
-    private func governorSecondLeadP95() -> Double {
-        guard governorSecondLeads.isEmpty == false else { return 0 }
-        let ordered = governorSecondLeads.sorted()
-        let index = min(ordered.count - 1, Int(Double(ordered.count) * 0.95))
-        return ordered[index]
-    }
-    private var governorSecondLate = 0
-    private var governorSecondTotal = 0
-    private var governorResyncCount: Int64 = 0
-    private var governorResyncMaxPauseMilliseconds: Double = 0
-    private var governorPauseStartedAt: Date?
-    private var governorLastAdjustAt = Date.distantPast
-    private var governorLastRecoveryAt = Date.distantPast
-    private var governorSettleUntil = Date.distantPast
-    private var governorSevereLateSince: Date?
-    private var governorCleanSeconds = 0
-    private var governorDriftFixes: Int64 = 0
-    private var audioFormatDescription: CMAudioFormatDescription?
-    private var audioFormatKey: String?
-    private var audioFrameDurationSeconds: Double = 0
 
     private var videoStatsTimer: DispatchSourceTimer?
     private var terminatedFallback: DispatchWorkItem?
@@ -110,7 +102,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private let gamepadInput = StreamGamepadInput()
     private let mouseInput = StreamMouseInput()
     private var controllerFlags: Int32 = 0
-    private var hardwareMouseActive = false
 
     private struct Counters {
         var presented: Int64 = 0
@@ -132,21 +123,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         var videoEnqueueRequiresFlush: Int64 = 0
         var videoEnqueueFailed: Int64 = 0
         var videoDecodeWarnings: Int64 = 0
-        var audioEnqueueWarnings: Int64 = 0
-        var audioEnqueueCancelledByFlush: Int64 = 0
-        var audioEnqueueFailed: Int64 = 0
-        var audioFlushEvents: Int64 = 0
-        var audioOutputConfigurationEvents: Int64 = 0
-        var audioFailureEvents: Int64 = 0
         var audioFramesShort: Int64 = 0
         var audioFramesLong: Int64 = 0
         var audioFramesOther: Int64 = 0
         var videoFramesDecoded: Int64 = 0
-        var videoDroppedStale: Int64 = 0
         var videoGapCount: Int64 = 0
         var videoGapMaxMilliseconds: Double = 0
-        var videoLateFrames: Int64 = 0
-        var videoLateMaxMilliseconds: Double = 0
+        var staleFramesDropped: Int64 = 0
+        var framesHeldByBuffer: Int64 = 0
+        var bufferHoldMaxMilliseconds: Double = 0
         var videoPTSGapCount: Int64 = 0
         var videoPTSGapMaxMilliseconds: Double = 0
         var audioGapCount: Int64 = 0
@@ -181,9 +166,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             receiver: synchronizer.sampleBufferReceiver(adding: videoRenderer)
         )
         videoSink = sink
-        audioSink = AVSampleBufferAudioRendererInputSink(
-            receiver: synchronizer.sampleBufferReceiver(adding: audioRenderer)
-        )
 
         snapshotStorage = SessionSnapshot(
             id: sessionID,
@@ -239,20 +221,63 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
         stateLock.withLock {
             snapshotStorage.diagnostics.hostAudioPlaying = options.playAudioOnPC
+            snapshotStorage.diagnostics.clientAudioOutput = options.playsAudioLocally
         }
-        activateAudioSession()
+        let probeSessionID = sessionID
+        audioOutput.onEvent = { message in
+            StreamSessionProbes.record("\(message) session=\(probeSessionID.rawValue)", retention: .evidence)
+        }
+        backend.controllerFeedbackHandler = { [weak self] feedback in
+            self?.gamepadInput.handle(feedback)
+        }
+        gamepadInput.configureFeedback(
+            sendMotion: { [weak self] controllerNumber, motionType, x, y, z in
+                self?.backend.sendControllerMotion(
+                    controllerNumber: controllerNumber,
+                    motionType: motionType,
+                    x: x,
+                    y: y,
+                    z: z
+                )
+            },
+            sendBattery: { [weak self] controllerNumber, state, percentage in
+                self?.backend.sendControllerBattery(
+                    controllerNumber: controllerNumber,
+                    state: state,
+                    percentage: percentage
+                )
+            }
+        )
         gamepadInput.start(
             onState: { [weak self] state in self?.sendGamepad(state) },
-            onPresence: { [weak self] connected in self?.handleControllerPresence(connected) }
+            onProfile: { [weak self] arrival in self?.handleControllerProfile(arrival) },
+            onTouch: { [weak self] eventType, pointerId, x, y, pressure in
+                self?.backend.sendControllerTouch(
+                    controllerNumber: 0,
+                    eventType: eventType,
+                    pointerId: pointerId,
+                    x: x,
+                    y: y,
+                    pressure: pressure
+                )
+            }
         )
-        if options.bluetoothMouseEnabled {
-            mouseInput.start(
-                onMove: { [weak self] dx, dy in self?.sendMouseMove(dx: dx, dy: dy) },
-                onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) },
-                onScrollClicks: { [weak self] clicks in self?.sendScroll(amount: clicks) },
-                onPresence: { [weak self] attached in self?.handleMousePresence(attached) }
-            )
-        }
+        Task { @MainActor in StreamInputCapture.shared.start() }
+        mouseInput.start(
+            trackingMode: options.mouseTrackingMode,
+            streamWidth: options.streamWidth,
+            streamHeight: options.streamHeight,
+            onMove: { [weak self] dx, dy in self?.sendMouseMove(dx: dx, dy: dy) },
+            onPosition: { [weak self] x, y in
+                self?.sendMousePosition(normalizedX: x, normalizedY: y)
+            },
+            onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) },
+            onHighResScroll: { [weak self] vertical, horizontal in
+                self?.backend.sendHighResScroll(vertical: Int16(clamping: vertical),
+                                                horizontal: Int16(clamping: horizontal))
+            },
+            onPresence: { [weak self] attached in self?.handleMousePresence(attached) }
+        )
         backend.start()
     }
 
@@ -273,6 +298,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         recordSessionEnd(reason: reason)
         gamepadInput.stop()
         mouseInput.stop()
+        Task { @MainActor in StreamInputCapture.shared.stop() }
         backend.releaseAllInput()
         clearPressed()
 
@@ -287,33 +313,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         }
         terminatedFallback = fallback
         deliverQueue.asyncAfter(deadline: .now() + 5, execute: fallback)
-    }
-
-    private func activateAudioSession() {
-        Task { @MainActor in
-            let rateBefore = self.synchronizer.rate
-            do {
-                let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playback, mode: .moviePlayback)
-                try session.setActive(true)
-                let rateAfter = self.synchronizer.rate
-                if rateAfter == 0 {
-                    self.rearmSynchronizer()
-                }
-                StreamSessionProbes.record(
-                    "audio session active session=\(self.sessionID.rawValue)"
-                        + " rateBefore=\(rateBefore)"
-                        + " rateAfter=\(rateAfter)"
-                        + " rearmed=\(rateAfter == 0)",
-                    retention: .evidence
-                )
-            } catch {
-                StreamSessionProbes.record(
-                    "audio session activation failed session=\(self.sessionID.rawValue) error=\(error.localizedDescription)",
-                    retention: .evidence
-                )
-            }
-        }
     }
 
     private func isStopped(_ state: StreamSessionState) -> Bool {
@@ -337,7 +336,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         stopRenderingEventObservation()
 
         videoSink.stopRenderingEventObservation()
-        audioSink.stopRenderingEventObservation()
+        audioOutput.stop()
 
         videoQueueLock.withLock {
             pendingVideo.removeAll()
@@ -345,7 +344,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
         synchronizer.setRate(0, time: synchronizer.currentTime())
         synchronizer.removeRenderer(videoRenderer, at: synchronizer.currentTime())
-        synchronizer.removeRenderer(audioRenderer, at: synchronizer.currentTime())
 
         StreamSessionProbes.record(
             "audio stop session=\(sessionID.rawValue)",
@@ -387,29 +385,19 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let pts = CMSampleBufferGetPresentationTimeStamp(sample)
         let ptsUs = max(0, Int64((pts.seconds * 1_000_000).rounded()))
 
-        if streamingDisplaysImmediately {
-            let droppedForQueue = videoQueueLock.withLock { () -> Int in
-                var dropped = 0
-                while pendingVideo.count >= 2 {
-                    pendingVideo.removeFirst()
-                    dropped += 1
-                }
-                pendingVideo.append((sample, ptsUs))
-                return dropped
-            }
-            if droppedForQueue > 0 {
-                stateLock.withLock { counters.videoDroppedStale += Int64(droppedForQueue) }
-            }
-        } else {
-            videoQueueLock.withLock {
-                pendingVideo.append((sample, ptsUs))
-            }
+        videoQueueLock.withLock {
+            pendingFrameSequence &+= 1
+            pendingVideo.append(
+                PendingVideoFrame(
+                    id: pendingFrameSequence,
+                    sample: sample,
+                    presentationTimeUs: ptsUs,
+                    arrivalDate: Date()
+                )
+            )
         }
         let sampleTime = DispatchTime.now().uptimeNanoseconds
         stateLock.withLock {
-            if !firstVideoPTS.isValid {
-                firstVideoPTS = pts
-            }
             counters.videoFramesDecoded += 1
             let ptsSeconds = pts.seconds
             if lastVideoPresentationSeconds > 0 {
@@ -496,8 +484,16 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             case .failure:
                 self.recoverFromRendererFailure(reason: "renderer failure event")
             case .warning(_, let message):
+                let now = Date()
                 let count: Int64 = self.stateLock.withLock {
                     self.counters.videoDecodeWarnings += 1
+                    if now.timeIntervalSince(self.lastDecodeFailureAt) > 1 {
+                        self.decodeFailureStreak = 0
+                        self.decodeFailureIdrRequested = false
+                        self.decodeFailureRebuildRequested = false
+                    }
+                    self.lastDecodeFailureAt = now
+                    self.decodeFailureStreak += 1
                     return self.counters.videoDecodeWarnings
                 }
                 if count <= 5 || count % 100 == 0 {
@@ -507,30 +503,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                         retention: .evidence
                     )
                 }
-            }
-        }
-        audioSink.observeRenderingEventsAfterFinishedEnqueuing { [weak self] fact in
-            guard let self else { return }
-            switch fact {
-            case .warning(_, let message):
-                let counts: (flush: Int64, config: Int64) = self.stateLock.withLock {
-                    if message.contains("configuration") {
-                        self.counters.audioOutputConfigurationEvents += 1
-                    } else {
-                        self.counters.audioFlushEvents += 1
-                        self.nextAudioPTS = .invalid
-                    }
-                    return (self.counters.audioFlushEvents, self.counters.audioOutputConfigurationEvents)
-                }
-                if counts.flush + counts.config <= 8 || (counts.flush + counts.config) % 100 == 0 {
-                    StreamSessionProbes.record(
-                        "audio renderer warning session=\(self.sessionID.rawValue)"
-                            + " count=\(counts.flush + counts.config) message=\(message)",
-                        retention: .evidence
-                    )
-                }
-            case .failure:
-                self.stateLock.withLock { self.counters.audioFailureEvents += 1 }
             }
         }
     }
@@ -624,8 +596,18 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 videoQueueLock.unlock()
                 return
             }
-            if options.framePacing && videoSinkAcceptsHold(pendingCount: pendingVideo.count) {
+            if options.frameBuffer,
+               pendingVideo.count <= 1,
+               Date().timeIntervalSince(head.arrivalDate) < frameBufferHoldSeconds {
                 videoQueueLock.unlock()
+                stateLock.withLock {
+                    counters.framesHeldByBuffer += 1
+                    let held = Date().timeIntervalSince(head.arrivalDate) * 1000
+                    if held > counters.bufferHoldMaxMilliseconds {
+                        counters.bufferHoldMaxMilliseconds = held
+                    }
+                }
+                ensurePumpScheduled()
                 return
             }
             videoQueueLock.unlock()
@@ -638,34 +620,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 return
             }
 
-            let clockSeconds = synchronizer.currentTime().seconds
-            let ptsSeconds = Double(head.presentationTimeUs) / 1_000_000
-            if !governorRecord(ptsSeconds: ptsSeconds, clockSeconds: clockSeconds) {
-                videoQueueLock.withLock {
-                    if !pendingVideo.isEmpty {
-                        pendingVideo.removeFirst()
-                    }
-                }
-                continue
-            }
-
-            let lateMilliseconds = (synchronizer.currentTime().seconds * 1_000_000 - Double(head.presentationTimeUs)) / 1000
-            if lateMilliseconds > 4 {
-                stateLock.withLock {
-                    counters.videoLateFrames += 1
-                    if lateMilliseconds > counters.videoLateMaxMilliseconds {
-                        counters.videoLateMaxMilliseconds = lateMilliseconds
-                    }
-                }
-            }
-            var sampleToEnqueue = head.sample
-            if streamingDisplaysImmediately,
-               let immediate = Self.immediateTimingSample(
-                   head.sample,
-                   presentationTime: synchronizer.currentTime()
-               ) {
-                sampleToEnqueue = immediate
-            }
+            let sampleToEnqueue = Self.immediateTimingSample(
+                head.sample,
+                presentationTime: synchronizer.currentTime()
+            ) ?? head.sample
             let outcome: RendererEnqueueOutcome
             do {
                 outcome = try videoSink.enqueueImmediately(
@@ -678,12 +636,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
             switch outcome {
             case .accepted:
-                videoQueueLock.withLock {
-                    if !pendingVideo.isEmpty {
-                        pendingVideo.removeFirst()
-                    }
-                }
-                governorFinishRecovery()
+                removePendingFrame(id: head.id)
                 publishActivity(.streaming)
                 stateLock.withLock {
                     counters.presented += 1
@@ -697,12 +650,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 }
                 reportQueueDepthIfNeeded()
             case .acceptedWithWarnings:
-                videoQueueLock.withLock {
-                    if !pendingVideo.isEmpty {
-                        pendingVideo.removeFirst()
-                    }
-                }
-                governorFinishRecovery()
+                removePendingFrame(id: head.id)
                 stateLock.withLock {
                     counters.presented += 1
                     counters.videoEnqueueWarnings += 1
@@ -710,11 +658,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 }
                 reportQueueDepthIfNeeded()
             case .cancelledByFlush:
-                videoQueueLock.withLock {
-                    if !pendingVideo.isEmpty {
-                        pendingVideo.removeFirst()
-                    }
-                }
+                removePendingFrame(id: head.id)
                 let flushDrop: (count: Int64, shouldRequestIDR: Bool) = stateLock.withLock {
                     counters.videoEnqueueCancelledByFlush += 1
                     let now = Date()
@@ -746,10 +690,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         }
     }
 
-    private func videoSinkAcceptsHold(pendingCount: Int) -> Bool {
-        pendingCount <= 1
-    }
-
     private static func immediateTimingSample(
         _ sample: CMSampleBuffer,
         presentationTime: CMTime
@@ -771,206 +711,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         return copy
     }
 
-    private var governorFloorLeadSeconds: Double {
-        max(0.012, 1.5 / Double(max(options.frameRate, 1)))
-    }
-
-    private var governorSettling: Bool {
-        Date() < governorSettleUntil
-    }
-
-    private func governorSetClock(leadSeconds: Double, ptsSeconds: Double) {
-        synchronizer.setRate(
-            1.0,
-            time: CMTime(seconds: max(0, ptsSeconds - leadSeconds), preferredTimescale: 600),
-            atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
-        )
-        stateLock.withLock { nextAudioPTS = .invalid }
-    }
-
-    private func governorShiftClock(bySeconds seconds: Double) {
-        let time = CMTimeAdd(
-            synchronizer.currentTime(),
-            CMTime(seconds: seconds, preferredTimescale: 600)
-        )
-        synchronizer.setRate(
-            1.0,
-            time: time,
-            atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
-        )
-        stateLock.withLock { nextAudioPTS = .invalid }
-    }
-
-    private func governorRecord(ptsSeconds: Double, clockSeconds: Double) -> Bool {
-        let lead = ptsSeconds - clockSeconds
-        if streamingDisplaysImmediately {
-            governorState = .running
-            governorSecondLeads.append(lead * 1000)
-            if governorSecondLeads.count > 400 {
-                governorSecondLeads.removeFirst(governorSecondLeads.count - 400)
-            }
-            governorSecondTotal += 1
-            if lead < 0 {
-                governorSecondLate += 1
-            }
-            return true
-        }
-
-        if governorState == .measuring {
-            governorSetClock(leadSeconds: governorTargetLeadSeconds, ptsSeconds: ptsSeconds)
-            governorState = .running
-            governorSettleUntil = Date().addingTimeInterval(0.6)
-            governorLeadEmaSeconds = .nan
-            publishActivity(.aligningClock)
-            return true
-        }
-
-        if governorState == .recovering {
-            governorSetClock(leadSeconds: governorTargetLeadSeconds, ptsSeconds: ptsSeconds)
-            return true
-        }
-
-        guard !governorSettling else { return true }
-
-        governorLeadEmaSeconds = governorLeadEmaSeconds.isNaN
-            ? lead
-            : governorLeadEmaSeconds * 0.9 + lead * 0.1
-        governorSecondLeads.append(lead * 1000)
-        if governorSecondLeads.count > 400 {
-            governorSecondLeads.removeFirst(governorSecondLeads.count - 400)
-        }
-        governorSecondTotal += 1
-        if lead < 0 {
-            governorSecondLate += 1
-        }
-
-        governorTrackSevereLateness(leadSeconds: lead)
-        governorMaybeAdjustClock()
-        return true
-    }
-
-    private func governorTrackSevereLateness(leadSeconds: Double) {
-        guard leadSeconds < -0.150 else {
-            governorSevereLateSince = nil
-            return
-        }
-        let now = Date()
-        if let since = governorSevereLateSince {
-            if now.timeIntervalSince(since) > 1.0,
-               now.timeIntervalSince(governorLastRecoveryAt) > 5.0 {
-                governorBeginRecovery(reason: "severeLate")
-            }
-        } else {
-            governorSevereLateSince = now
-        }
-    }
-
-    private func governorMaybeAdjustClock() {
-        let now = Date()
-        guard now.timeIntervalSince(governorLastAdjustAt) >= 0.5 else { return }
-        let ema = governorLeadEmaSeconds
-        guard !ema.isNaN else { return }
-        let target = governorTargetLeadSeconds
-        let shortfall = target - ema
-        let excess = ema - target
-
-        if shortfall > target * 0.5 {
-            let shift = min(shortfall, 0.040)
-            governorShiftClock(bySeconds: -shift)
-            governorLeadEmaSeconds = ema + shift
-            governorLastAdjustAt = now
-            governorSettleUntil = now.addingTimeInterval(0.25)
-            governorDriftFixes += 1
-        } else if excess > target * 2.0 {
-            let shift = min(excess, 0.040)
-            governorShiftClock(bySeconds: shift)
-            governorLeadEmaSeconds = ema - shift
-            governorLastAdjustAt = now
-            governorSettleUntil = now.addingTimeInterval(0.25)
-            governorDriftFixes += 1
-        }
-    }
-
-    private func governorAdaptTargetLead(lateRate: Double) {
-        let now = Date()
-        guard now.timeIntervalSince(governorLastAdjustAt) >= 2.0 else { return }
-        if lateRate > 0.05 {
-            governorCleanSeconds = 0
-            governorTargetLeadSeconds = min(
-                governorTargetLeadSeconds + 0.008,
-                governorResyncLeadCapSeconds
-            )
-            governorLastAdjustAt = now
-        } else if lateRate == 0 {
-            governorCleanSeconds += 1
-            guard governorCleanSeconds >= 3 else { return }
-            governorTargetLeadSeconds = max(
-                governorFloorLeadSeconds,
-                governorTargetLeadSeconds - 0.004
-            )
-            governorLastAdjustAt = now
-        } else {
-            governorCleanSeconds = 0
-        }
-    }
-
-    private var governorResyncLeadCapSeconds: Double {
-        0.120
-    }
-
-    private func governorFinishRecovery() {
-        guard governorState != .measuring || governorPauseStartedAt != nil else { return }
-        guard governorPauseStartedAt != nil else { return }
-        governorState = .running
-        let pauseMilliseconds = governorPauseStartedAt.map {
-            Date().timeIntervalSince($0) * 1000
-        } ?? 0
-        governorPauseStartedAt = nil
-        governorResyncMaxPauseMilliseconds = max(
-            governorResyncMaxPauseMilliseconds,
-            pauseMilliseconds
-        )
-        governorSettleUntil = Date().addingTimeInterval(0.6)
-        governorLeadEmaSeconds = .nan
-        governorSevereLateSince = nil
-        governorSecondLeads.removeAll()
-        governorSecondLate = 0
-        governorSecondTotal = 0
-        publishActivity(.streaming)
-        StreamSessionProbes.record(
-            "video timeline resync end session=\(sessionID.rawValue)"
-                + " pauseMs=\(String(format: "%.0f", pauseMilliseconds))"
-                + " targetMs=\(String(format: "%.0f", governorTargetLeadSeconds * 1000))"
-                + " count=\(governorResyncCount)",
-            retention: .evidence
-        )
-    }
-
-    private func governorBeginRecovery(reason: String) {
-        let now = Date()
-        guard now.timeIntervalSince(governorLastRecoveryAt) > 5.0 else { return }
-        governorLastRecoveryAt = now
-        governorState = .recovering
-        publishActivity(.buffering)
-        governorPauseStartedAt = now
-        governorResyncCount += 1
-        synchronizer.setRate(0, time: synchronizer.currentTime())
-        videoQueueLock.lock()
-        pendingVideo.removeAll()
-        videoQueueLock.unlock()
-        requestIdrFrame(reason: "timelineResync")
-        Task { [weak self] in
-            await self?.videoSink.flush(removingDisplayedImage: false)
-        }
-        StreamSessionProbes.record(
-            "video timeline resync begin session=\(sessionID.rawValue)"
-                + " reason=\(reason)"
-                + " targetMs=\(String(format: "%.0f", governorTargetLeadSeconds * 1000))"
-                + " count=\(governorResyncCount)",
-            retention: .evidence
-        )
-    }
-
     private func reportQueueDepthIfNeeded() {
         let depth = videoQueueLock.withLock { pendingVideo.count }
         stateLock.withLock {
@@ -981,10 +721,19 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             lastReportedQueueDepth = depth
             StreamSessionProbes.record("frame queue depth session=\(sessionID.rawValue) depth=\(depth)")
         }
-        let overflow = depth > 48
-        if overflow {
-            recoverFromRendererFailure(reason: "frame queue overflow depth=\(depth)")
+        guard depth > Self.pendingVideoLimit else { return }
+        let dropped: Int = videoQueueLock.withLock {
+            let excess = pendingVideo.count - Self.pendingVideoKeep
+            guard excess > 0 else { return 0 }
+            pendingVideo.removeFirst(excess)
+            return excess
         }
+        guard dropped > 0 else { return }
+        stateLock.withLock { counters.staleFramesDropped += Int64(dropped) }
+        StreamSessionProbes.record(
+            "frame queue shed session=\(sessionID.rawValue) dropped=\(dropped) depth=\(depth)",
+            retention: .evidence
+        )
     }
 
     private func recoverFromFlushRequirement(reason: String) {
@@ -1064,12 +813,25 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         videoQueueLock.withLock {
             recoveringFromRendererFailure = false
         }
+        let presentedAtRebuild = stateLock.withLock { counters.presented }
+        deliverQueue.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let self else { return }
+            let presented = self.stateLock.withLock { self.counters.presented }
+            guard presented == presentedAtRebuild else { return }
+            guard self.videoSampleDeliveryIsOpen else { return }
+            StreamSessionProbes.record(
+                "renderer rebuild stalled session=\(self.sessionID.rawValue)"
+                    + " reason=\(reason)"
+                    + " presented=\(presented)",
+                retention: .evidence
+            )
+            self.requestIdrFrame(reason: "rebuildStalled")
+        }
         publishSnapshot()
         return replacement
     }
 
     private func handleAudioFrame(_ frame: BackendAudioFrame) {
-        rearmSynchronizerIfStalled()
         let received: Int64 = stateLock.withLock {
             counters.audioFramesReceived += 1
             let frameTime = DispatchTime.now().uptimeNanoseconds
@@ -1105,238 +867,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 retention: .evidence
             )
         }
-        guard audioRenderer.isReadyForMoreMediaData else {
-            let dropped: Int64 = stateLock.withLock {
-                counters.audioFramesDropped += 1
-                return counters.audioFramesDropped
-            }
-            if dropped == 25 || dropped % 500 == 0 {
-                StreamSessionProbes.record(
-                    "audio backpressure session=\(sessionID.rawValue) dropped=\(dropped) ready=false",
-                    retention: .evidence
-                )
-            }
-            return
-        }
-
-        let channels = frame.channels
-        let sampleRate = frame.sampleRate
-        let frameDuration = Double(frame.frameCount) / Double(sampleRate)
-
-        stateLock.withLock {
-            audioFrameDurationSeconds = frameDuration
-        }
-
-        let key = "\(sampleRate)/\(channels)"
-        if audioFormatKey != key || audioFormatDescription == nil {
-            audioFormatDescription = Self.makeLPCMFormatDescription(
-                sampleRate: Double(sampleRate),
-                channels: UInt32(channels)
+        if options.playsAudioLocally {
+            audioOutput.enqueue(
+                pcm: frame.pcm,
+                channels: Int(frame.channels),
+                sampleRate: Int(frame.sampleRate),
+                frameCount: Int(frame.frameCount)
             )
-            audioFormatKey = key
+            stateLock.withLock { counters.audioFramesEnqueued += 1 }
         }
-        guard let formatDescription = audioFormatDescription else { return }
-
-        let pts: CMTime
-        var resolvedPTS: CMTime = .invalid
-        stateLock.withLock {
-            let frameDurationTime = CMTimeMakeWithSeconds(frameDuration, preferredTimescale: 1_000_000)
-            let current = synchronizer.currentTime()
-            let lead = nextAudioPTS.isValid
-                ? CMTimeSubtract(nextAudioPTS, current).seconds
-                : Double.nan
-            if !nextAudioPTS.isValid || lead < -0.05 || lead > 0.35 {
-                nextAudioPTS = CMTimeAdd(
-                    current,
-                    CMTimeMakeWithSeconds(0.030, preferredTimescale: 1_000_000)
-                )
-                if !lead.isNaN {
-                    audioPTSReanchorCount += 1
-                    if audioPTSReanchorCount <= 5 || audioPTSReanchorCount % 100 == 0 {
-                        StreamSessionProbes.record(
-                            "audio pts re-anchor session=\(sessionID.rawValue)"
-                                + " count=\(audioPTSReanchorCount)"
-                                + " lead=\(lead)"
-                                + " syncTime=\(current.seconds)",
-                            retention: .diagnostic
-                        )
-                    }
-                }
-            }
-            if !audioPTSProbeLogged {
-                audioPTSProbeLogged = true
-                StreamSessionProbes.record(
-                    "audio first pts=\(nextAudioPTS.seconds)"
-                        + " syncTime=\(synchronizer.currentTime().seconds)"
-                        + " syncRate=\(synchronizer.rate)",
-                    retention: .evidence
-                )
-            }
-            resolvedPTS = nextAudioPTS
-            nextAudioPTS = CMTimeAdd(nextAudioPTS, frameDurationTime)
-        }
-
-        guard let sample = Self.makeAudioSampleBuffer(
-            frame: frame,
-            formatDescription: formatDescription,
-            presentationTime: resolvedPTS
-        ) else {
-            return
-        }
-
-        let reportFirstSample = stateLock.withLock { () -> Bool in
-            guard !audioSampleProbeLogged else { return false }
-            audioSampleProbeLogged = true
-            return true
-        }
-        if reportFirstSample {
-            let dataLength = CMSampleBufferGetDataBuffer(sample)
-                .map { CMBlockBufferGetDataLength($0) } ?? -1
-            StreamSessionProbes.record(
-                "audio first sample frames=\(CMSampleBufferGetNumSamples(sample))"
-                    + " duration=\(CMSampleBufferGetDuration(sample).seconds)"
-                    + " bytes=\(dataLength)"
-                    + " pcmBytes=\(frame.pcm.count)",
-                retention: .evidence
-            )
-        }
-
-        do {
-            let outcome = try audioSink.enqueueImmediately(RendererInputSample(sampleBuffer: sample))
-            switch outcome {
-            case .accepted:
-                let enqueued: Int64 = stateLock.withLock {
-                    counters.audioFramesEnqueued += 1
-                    return counters.audioFramesEnqueued
-                }
-                if enqueued == 1 {
-                    StreamSessionProbes.record(
-                        "audio enqueue begins session=\(sessionID.rawValue)",
-                        retention: .evidence
-                    )
-                }
-            case .acceptedWithWarnings:
-                stateLock.withLock {
-                    counters.audioFramesEnqueued += 1
-                    counters.audioEnqueueWarnings += 1
-                }
-            case .cancelledByFlush:
-                stateLock.withLock {
-                    counters.audioFramesDropped += 1
-                    counters.audioEnqueueCancelledByFlush += 1
-                }
-            case .requiresFlush:
-                stateLock.withLock {
-                    counters.audioFramesDropped += 1
-                    counters.audioEnqueueFailed += 1
-                }
-            case .failed:
-                stateLock.withLock {
-                    counters.audioFramesDropped += 1
-                    counters.audioEnqueueFailed += 1
-                }
-            }
-        } catch {
-            stateLock.withLock {
-                counters.audioFramesDropped += 1
-                counters.audioEnqueueFailed += 1
-            }
-        }
-    }
-
-    private static func makeLPCMFormatDescription(sampleRate: Double, channels: UInt32) -> CMAudioFormatDescription? {
-        var asbd = AudioStreamBasicDescription(
-            mSampleRate: sampleRate,
-            mFormatID: kAudioFormatLinearPCM,
-            mFormatFlags: kAudioFormatFlagsNativeEndian
-                | kAudioFormatFlagIsSignedInteger
-                | kAudioFormatFlagIsPacked,
-            mBytesPerPacket: channels * 2,
-            mFramesPerPacket: 1,
-            mBytesPerFrame: channels * 2,
-            mChannelsPerFrame: channels,
-            mBitsPerChannel: 16,
-            mReserved: 0
-        )
-        var formatDescription: CMAudioFormatDescription?
-        let status = CMAudioFormatDescriptionCreate(
-            allocator: kCFAllocatorDefault,
-            asbd: &asbd,
-            layoutSize: 0,
-            layout: nil,
-            magicCookieSize: 0,
-            magicCookie: nil,
-            extensions: nil,
-            formatDescriptionOut: &formatDescription
-        )
-        guard status == noErr else { return nil }
-        return formatDescription
-    }
-
-    private static func makeAudioSampleBuffer(
-        frame: BackendAudioFrame,
-        formatDescription: CMAudioFormatDescription,
-        presentationTime: CMTime
-    ) -> CMSampleBuffer? {
-        let bytesPerFrame = Int(frame.channels) * MemoryLayout<Int16>.size
-        let byteCount = frame.pcm.count
-        guard frame.sampleRate > 0,
-              frame.frameCount > 0,
-              bytesPerFrame > 0,
-              byteCount == Int(frame.frameCount) * bytesPerFrame else {
-            StreamSessionProbes.record(
-                "audio frame rejected frames=\(frame.frameCount)"
-                    + " channels=\(frame.channels)"
-                    + " rate=\(frame.sampleRate)"
-                    + " bytes=\(byteCount)",
-                retention: .evidence
-            )
-            return nil
-        }
-
-        var blockBuffer: CMBlockBuffer?
-        guard CMBlockBufferCreateWithMemoryBlock(
-            allocator: kCFAllocatorDefault,
-            memoryBlock: nil,
-            blockLength: byteCount,
-            blockAllocator: kCFAllocatorDefault,
-            customBlockSource: nil,
-            offsetToData: 0,
-            dataLength: byteCount,
-            flags: 0,
-            blockBufferOut: &blockBuffer
-        ) == noErr, let blockBuffer else { return nil }
-
-        let copied = frame.pcm.withUnsafeBytes { raw -> OSStatus in
-            guard let base = raw.baseAddress else { return kCVReturnError }
-            return CMBlockBufferReplaceDataBytes(
-                with: base,
-                blockBuffer: blockBuffer,
-                offsetIntoDestination: 0,
-                dataLength: byteCount
-            )
-        }
-        guard copied == noErr else { return nil }
-
-        var timing = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: CMTimeScale(frame.sampleRate)),
-            presentationTimeStamp: presentationTime,
-            decodeTimeStamp: .invalid
-        )
-        var sampleSize = bytesPerFrame
-        var sampleBuffer: CMSampleBuffer?
-        guard CMSampleBufferCreateReady(
-            allocator: kCFAllocatorDefault,
-            dataBuffer: blockBuffer,
-            formatDescription: formatDescription,
-            sampleCount: CMItemCount(frame.frameCount),
-            sampleTimingEntryCount: 1,
-            sampleTimingArray: &timing,
-            sampleSizeEntryCount: 1,
-            sampleSizeArray: &sampleSize,
-            sampleBufferOut: &sampleBuffer
-        ) == noErr else { return nil }
-        return sampleBuffer
     }
 
     private func handleEvent(_ event: BackendSessionEvent) {
@@ -1356,6 +895,10 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         case .connected:
             stateLock.withLock {
                 snapshotStorage.state = .connecting(stage: "connected")
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.gamepadInput.resendProfile()
+                self?.gamepadInput.reportCurrentBattery()
             }
             publishSnapshot()
         case .firstFramePresented:
@@ -1404,7 +947,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 retention: .evidence
             )
             stateLock.withLock {
-                snapshotStorage.diagnostics.clientAudioOutput = true
+                snapshotStorage.diagnostics.clientAudioOutput = options.playsAudioLocally
                 if var negotiated = snapshotStorage.negotiated {
                     negotiated.audioChannels = Int(channels)
                     snapshotStorage.negotiated = negotiated
@@ -1414,7 +957,14 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         case .audioStopped:
             StreamSessionProbes.record("audio stop session=\(sessionID.rawValue)", retention: .evidence)
             publishSnapshot()
-        case .statusUpdate:
+        case .statusUpdate(let status):
+            stateLock.withLock {
+                snapshotStorage.diagnostics.connectionQuality = status
+            }
+            StreamSessionProbes.record(
+                "connection quality status=\(status)",
+                retention: .evidence
+            )
             publishSnapshot()
         case .launchFailed(let message):
             fail(stage: .launch, kind: .applicationLaunchFailed, message: message, recovery: .retry)
@@ -1425,10 +975,24 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 fail(
                     stage: .network,
                     kind: .connectionLost,
-                    message: "连接中断（代码 \(errorCode)）",
-                    recovery: .reconnect
+                    message: Self.disconnectReason(for: errorCode),
+                    recovery: .reconnect,
+                    upstreamDetail: "termination code \(errorCode)"
                 )
             }
+        }
+    }
+
+    /// The host closes the session with one of the protocol's termination codes.
+    /// Naming the cause turns a bare number into something a player can act on.
+    private static func disconnectReason(for errorCode: Int32) -> String {
+        switch errorCode {
+        case -100: "主机不再发送画面数据"
+        case -101: "主机长时间没有新画面"
+        case -102: "连接被提前关闭"
+        case -103: "受保护内容无法解码"
+        case -104: "画面格式转换失败"
+        default: "连接中断（代码 \(errorCode)）"
         }
     }
 
@@ -1466,7 +1030,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             time: stalledTime,
             atHostTime: CMClockGetTime(CMClockGetHostTimeClock())
         )
-        stateLock.withLock { nextAudioPTS = .invalid }
         StreamSessionProbes.record(
             "synchronizer rearm session=\(sessionID.rawValue)"
                 + " stalledTime=\(stalledTime.seconds)"
@@ -1499,9 +1062,32 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         }
     }
 
+    private func recoverFromSustainedDecodeFailures() {
+        let escalation: DecodeFailureEscalation = stateLock.withLock {
+            guard decodeFailureStreak >= 12 else { return .none }
+            if !decodeFailureIdrRequested {
+                decodeFailureIdrRequested = true
+                return .requestIdr
+            }
+            guard decodeFailureStreak >= 30, !decodeFailureRebuildRequested else { return .none }
+            decodeFailureRebuildRequested = true
+            return .rebuild
+        }
+        switch escalation {
+        case .requestIdr:
+            requestIdrFrame(reason: "decodeFailures")
+        case .rebuild:
+            recoverFromRendererFailure(reason: "sustained decode failures")
+        case .none:
+            break
+        }
+    }
+
     private func sampleDiagnostics() {
         let diagnosticStartedAt = DispatchTime.now().uptimeNanoseconds
+        recoverFromSustainedDecodeFailures()
         let stats = backend.videoStats()
+        let audioPendingPeakMs = backend.audioPendingPeakMs()
         let rtt = backend.estimatedRTT()
         let pendingDepth = videoQueueLock.withLock { pendingVideo.count }
         let readyForMore = videoRenderer.isReadyForMoreMediaData
@@ -1516,41 +1102,34 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         let syncRate: Float = synchronizer.rate
         let syncSeconds: Double = synchronizer.currentTime().seconds
         let audioCounters = stateLock.withLock {
-            () -> (received: Int64, enqueued: Int64, dropped: Int64, peak: Int32, lead: Double) in
+            () -> (received: Int64, enqueued: Int64, dropped: Int64, peak: Int32) in
             let values = (
                 counters.audioFramesReceived,
                 counters.audioFramesEnqueued,
                 counters.audioFramesDropped,
-                counters.audioPeakAbs,
-                nextAudioPTS.isValid ? nextAudioPTS.seconds - syncSeconds : Double.nan
+                counters.audioPeakAbs
             )
             counters.audioPeakAbs = 0
             return values
         }
-        let tbRate: Double = audioRenderer.timebase.rate
+        let audioStats = audioOutput.stats()
         refreshAudioSessionCache()
         let audioSessionInfo = audioSessionCacheLock.withLock { audioSessionCache }
         let outVolume: Float = audioSessionInfo.volume
         let outChannels = audioSessionInfo.channels
         let routeName = audioSessionInfo.route
-        let audioReady: Bool = audioRenderer.isReadyForMoreMediaData
-        let audioStatus: Int = audioRenderer.status.rawValue
-        let rendererVolume: Float = audioRenderer.volume
-        let rendererMuted: Bool = audioRenderer.isMuted
-        let rendererError = audioRenderer.error?.localizedDescription ?? "none"
         let audioMessage = "audio pump received=\(audioCounters.received)"
             + " enqueued=\(audioCounters.enqueued)"
             + " dropped=\(audioCounters.dropped)"
             + " peak=\(audioCounters.peak)"
-            + " lead=\(audioCounters.lead)"
-            + " ready=\(audioReady)"
-            + " status=\(audioStatus)"
+            + " bufferedMs=\(String(format: "%.1f", audioStats.bufferedMilliseconds))"
+            + " underruns=\(audioStats.underruns)"
+            + " overflowFrames=\(audioStats.overflowFrames)"
+            + " trimmedFrames=\(audioStats.trimmedFrames)"
+            + " engine=\(audioStats.engineRunning)"
+            + " engineStarts=\(audioStats.engineStarts)"
             + " syncRate=\(syncRate)"
             + " syncTime=\(syncSeconds)"
-            + " tbRate=\(tbRate)"
-            + " rendererVol=\(rendererVolume)"
-            + " rendererMuted=\(rendererMuted)"
-            + " rendererError=\(rendererError)"
             + " volumeOut=\(outVolume)"
             + " outChannels=\(outChannels)"
             + " route=\(routeName)"
@@ -1561,7 +1140,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " total=\(presentedNow)"
                 + " pending=\(pendingDepth)"
                 + " ready=\(readyForMore)"
-                + " pacing=\(options.framePacing)",
+                + " buffer=\(options.frameBuffer)",
             retention: .evidence
         )
         let details = stateLock.withLock {
@@ -1582,24 +1161,18 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             )
             lastSampledVideoOutcomes = videoNow
             let audioNow = (
-                counters.audioEnqueueWarnings,
-                counters.audioEnqueueCancelledByFlush,
-                counters.audioEnqueueFailed,
-                counters.audioFlushEvents,
-                counters.audioOutputConfigurationEvents,
                 counters.audioFramesShort,
                 counters.audioFramesLong,
-                counters.audioFramesOther
+                counters.audioFramesOther,
+                audioStats.underruns,
+                audioStats.overflowFrames
             )
             let audioDelta = (
-                audioNow.0 - lastSampledAudioOutcomes.warnings,
-                audioNow.1 - lastSampledAudioOutcomes.flushDrops,
-                audioNow.2 - lastSampledAudioOutcomes.failed,
-                audioNow.3 - lastSampledAudioOutcomes.autoFlush,
-                audioNow.4 - lastSampledAudioOutcomes.config,
-                audioNow.5 - lastSampledAudioOutcomes.short,
-                audioNow.6 - lastSampledAudioOutcomes.long,
-                audioNow.7 - lastSampledAudioOutcomes.other
+                audioNow.0 - lastSampledAudioOutcomes.short,
+                audioNow.1 - lastSampledAudioOutcomes.long,
+                audioNow.2 - lastSampledAudioOutcomes.other,
+                audioNow.3 - lastSampledAudioOutcomes.underruns,
+                audioNow.4 - lastSampledAudioOutcomes.overflowFrames
             )
             lastSampledAudioOutcomes = audioNow
             let statsText: String
@@ -1615,22 +1188,20 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 decoded: counters.videoFramesDecoded,
                 videoGap: counters.videoGapCount,
                 audioGap: counters.audioGapCount,
-                late: counters.videoLateFrames,
                 ptsGap: counters.videoPTSGapCount
             )
             let gapDelta = (
                 decoded: gapTotals.decoded - lastSampledGaps.decoded,
                 videoGap: gapTotals.videoGap - lastSampledGaps.videoGap,
                 audioGap: gapTotals.audioGap - lastSampledGaps.audioGap,
-                late: gapTotals.late - lastSampledGaps.late,
                 ptsGap: gapTotals.ptsGap - lastSampledGaps.ptsGap
             )
             lastSampledGaps = gapTotals
             let videoGapMax = counters.videoGapMaxMilliseconds
-            let videoLateMax = counters.videoLateMaxMilliseconds
-            counters.videoLateMaxMilliseconds = 0
             let videoPTSGapMax = counters.videoPTSGapMaxMilliseconds
             counters.videoPTSGapMaxMilliseconds = 0
+            let bufferHoldMax = counters.bufferHoldMaxMilliseconds
+            counters.bufferHoldMaxMilliseconds = 0
             let audioGapMax = counters.audioGapMaxMilliseconds
             counters.videoGapMaxMilliseconds = 0
             counters.audioGapMaxMilliseconds = 0
@@ -1650,26 +1221,24 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 + " decoded=\(gapDelta.decoded)"
                 + " vgap=\(gapDelta.videoGap)"
                 + " vgapMaxMs=\(String(format: "%.0f", videoGapMax))"
-                + " late=\(gapDelta.late)"
-                + " lateMaxMs=\(String(format: "%.0f", videoLateMax))"
                 + " submitGap=\(stats?.submitGapCount ?? 0)"
                 + " submitGapMax=\(stats?.submitGapMaxMs ?? 0)"
                 + " zcFail=\(stats?.zeroCopyFallbacks ?? 0)"
                 + " zcFrames=\(stats?.zeroCopyFrames ?? 0)"
+                + " assembleMaxMs=\(stats?.assembleMaxMs ?? 0)"
+                + " queueWaitMaxMs=\(stats?.queueWaitMaxMs ?? 0)"
+                + " callbackMaxMs=\(stats?.callbackMaxMs ?? 0)"
+                + " pendingMax=\(stats?.pendingMax ?? 0)"
+                + " decoderQos=0x\(String(stats?.decoderQos ?? 0, radix: 16))"
                 + " ptsGap=\(gapDelta.ptsGap)"
                 + " ptsGapMaxMs=\(String(format: "%.0f", videoPTSGapMax))"
-                + " leadAvgMs=\(String(format: "%.1f", governorSecondLeads.isEmpty ? 0 : governorSecondLeads.reduce(0, +) / Double(governorSecondLeads.count)))"
-                + " leadP95Ms=\(String(format: "%.1f", governorSecondLeadP95()))"
-                + " latePct=\(String(format: "%.0f", governorSecondTotal == 0 ? 0 : Double(governorSecondLate) / Double(governorSecondTotal) * 100))"
-                + " targetMs=\(String(format: "%.0f", governorTargetLeadSeconds * 1000))"
-                + " resync=\(governorResyncCount)"
-                + " resyncMaxMs=\(String(format: "%.0f", governorResyncMaxPauseMilliseconds))"
-                + " driftFix=\(governorDriftFixes)"
+                + " shed=\(counters.staleFramesDropped)"
+                + " held=\(counters.framesHeldByBuffer)"
+                + " holdMaxMs=\(String(format: "%.1f", bufferHoldMax))"
                 + " hostLatMs=\(String(format: "%.1f", stats?.averageHostProcessingLatencyMs ?? 0))"
                 + " hostLatFrames=\(stats?.framesWithHostProcessingLatency ?? 0)"
                 + " rttMs=\(backend.estimatedRTT()?.milliseconds ?? 0)"
                 + " rttVar=\(backend.estimatedRTT()?.variance ?? 0)"
-                + " staleDrop=\(counters.videoDroppedStale)"
                 + " reqFps=\(requestedFrameRate)"
                 + " gotFps=\(String(format: "%.1f", deliveredFps))"
             maxPumpGapMilliseconds = 0
@@ -1700,25 +1269,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 )
                 onHostFrameRateMismatch?()
             }
-            let governorLateRate = governorSecondTotal == 0
-                ? 0
-                : Double(governorSecondLate) / Double(governorSecondTotal)
-            governorAdaptTargetLead(lateRate: governorLateRate)
-            governorSecondLeads.removeAll()
-            governorSecondLate = 0
-            governorSecondTotal = 0
             let audioText = "audio detail"
-                + " enqWarn=\(audioDelta.0)"
-                + " flushDrop=\(audioDelta.1)"
-                + " enqFail=\(audioDelta.2)"
-                + " autoFlush=\(audioDelta.3)"
-                + " cfgChange=\(audioDelta.4)"
-                + " evFail=\(counters.audioFailureEvents)"
-                + " f240=\(audioDelta.5)"
-                + " f480=\(audioDelta.6)"
-                + " fOther=\(audioDelta.7)"
+                + " underruns=\(audioDelta.3)"
+                + " overflowFrames=\(audioDelta.4)"
+                + " f240=\(audioDelta.0)"
+                + " f480=\(audioDelta.1)"
+                + " fOther=\(audioDelta.2)"
                 + " agap=\(gapDelta.audioGap)"
                 + " agapMaxMs=\(String(format: "%.0f", audioGapMax))"
+                + " pendingPeakMs=\(audioPendingPeakMs)"
             return (videoText, audioText)
         }
         StreamSessionProbes.record(details.video, retention: .evidence)
@@ -1784,24 +1343,12 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     public func sendMousePosition(normalizedX: Float, normalizedY: Float) {
-        guard !hardwareMouseActive else { return }
         backend.sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
         stateLock.withLock { counters.mouseEvents += 1 }
     }
 
-    /// The window's gaze and pinch layer is the pointer path for hand control.
-    /// While an external mouse drives the host, that layer must not also move
-    /// the pointer or click, or every mouse click would arrive twice.
-    public func sendGestureClick(normalizedX: Float, normalizedY: Float) {
-        guard !hardwareMouseActive else { return }
-        sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
-        sendMouseButton(code: StreamMouseInput.leftButtonCode, down: true)
-        sendMouseButton(code: StreamMouseInput.leftButtonCode, down: false)
-    }
-
     private func handleMousePresence(_ attached: Bool) {
         let released: Set<Int32> = stateLock.withLock {
-            hardwareMouseActive = attached
             snapshotStorage.input.hardwareMouse = attached
             guard !attached else { return [] }
             let pressed = pressedButtons
@@ -1839,6 +1386,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         stateLock.withLock { counters.scrollEvents += 1 }
     }
 
+    public func sendHighResScroll(vertical: Int32, horizontal: Int32) {
+        guard vertical != 0 || horizontal != 0 else { return }
+        backend.sendHighResScroll(
+            vertical: Int16(clamping: vertical),
+            horizontal: Int16(clamping: horizontal)
+        )
+        stateLock.withLock { counters.scrollEvents += 1 }
+    }
+
     @discardableResult
     public func sendGamepad(_ state: StreamGamepadState) -> Int32 {
         let flags = StreamGamepadMapping.buttonFlags(
@@ -1869,10 +1425,47 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
         return flags
     }
 
-    public func handleControllerPresence(_ connected: Bool) {
-        backend.sendControllerPresence(connected: connected)
+#if DEBUG
+    /// Test-channel hooks. Each one enters the same function the real controller
+    /// and the real host feedback enter, so a simulator exercises the production
+    /// path rather than a copy of it.
+    public func simulateControllerProfile(_ arrival: StreamControllerArrival?) {
+        handleControllerProfile(arrival)
+    }
+
+    public func simulateControllerFeedback(_ feedback: StreamControllerFeedback) {
+        gamepadInput.handle(feedback)
+    }
+
+    public func simulateTouchpad(index: Int, x: Float, y: Float) {
+        gamepadInput.simulateTouch(index: index, x: x, y: y)
+    }
+
+    public func setSimulatedMotion(_ enabled: Bool) {
+        gamepadInput.setSimulatedMotion(enabled)
+    }
+
+    public func simulateBattery(state: UInt8, percentage: UInt8) {
+        gamepadInput.simulateBattery(state: state, percentage: percentage)
+    }
+#endif
+
+    public func handleControllerProfile(_ arrival: StreamControllerArrival?) {
+        guard let arrival else {
+            backend.sendControllerRemoval(controllerNumber: 0)
+            StreamSessionProbes.record("controller removed", retention: .evidence)
+            return
+        }
+        backend.sendControllerArrival(arrival)
+        let afterConnection = stateLock.withLock { snapshotStorage.state == .streaming }
         StreamSessionProbes.record(
-            "controller \(connected ? "arrived" : "removed")",
+            "gamepad arrival type=\(arrival.kind.rawValue)"
+                + " caps=0x\(String(arrival.capabilities.rawValue, radix: 16))"
+                + " buttons=0x\(String(arrival.supportedButtons, radix: 16))",
+            retention: .evidence
+        )
+        StreamSessionProbes.record(
+            "gamepad arrival sent afterConnection=\(afterConnection)",
             retention: .evidence
         )
     }

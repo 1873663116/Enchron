@@ -8,8 +8,8 @@ public final class TidalEnvironmentScene: EnvironmentScene {
     public nonisolated static let descriptor = EnvironmentSceneDescriptor(
         identifier: "tidal",
         geometry: EnvironmentSceneGeometry(
-            defaultDistanceMeters: 13.550063,
-            distanceRangeMeters: 13.550063...13.550063,
+            defaultDistanceMeters: 14.450059,
+            distanceRangeMeters: 14.450059...14.450059,
             defaultScreenHeightMeters: 8,
             screenHeightRangeMeters: 8...8,
             viewerHeightRangeMeters: 0...0
@@ -67,6 +67,7 @@ public final class TidalEnvironmentScene: EnvironmentScene {
             throw EnvironmentSceneLoadingError.entityMissing(EnvironmentSceneEntityName.dockingRegion)
         }
         pose.center.y += 0.65
+        pose.center.z -= TidalScenePlacement.screenRecess
         func firstAtlas(in entity: Entity) -> TextureResource? {
             if let model = entity.components[ModelComponent.self] {
                 for material in model.materials {

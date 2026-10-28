@@ -4,7 +4,6 @@ import Observation
 @MainActor
 @Observable
 public final class PlaybackSurfaceGestureController {
-    public static let referenceWidth: Double = 1200
     public private(set) var preview: PlaybackSurfaceGesturePreview?
     public private(set) var phase = PlaybackSurfaceGesturePhase.idle
     public private(set) var originalPlaybackRate: Double?
@@ -35,7 +34,11 @@ public final class PlaybackSurfaceGestureController {
         if inputOwner != nil, inputOwner != owner { cancel() }
         guard phase == .idle || phase == .waitingForSecondTap, let context else { return false }
         inputOwner = owner
-        apply(state.begin(at: now, width: Self.referenceWidth, context: context))
+        apply(state.begin(
+            at: now,
+            width: PlaybackSurfaceSeekTravel.width(for: presentation),
+            context: context
+        ))
         return true
     }
 
@@ -136,6 +139,8 @@ public final class PlaybackSurfaceGestureController {
                 "gesture.phase=\(phase.rawValue) fixedOrigin=\(evidencePreview?.originSeconds ?? -1)"
                     + " offset=\(evidencePreview?.offsetSeconds ?? 0) target=\(evidencePreview?.targetSeconds ?? -1)"
                     + " originalRate=\(evidenceOriginalRate ?? -1) effectiveRate=\(runtime?.currentPlaybackSpeed.value ?? -1)"
+                    + " presentation=\(presentation.rawValue)"
+                    + " travelWidth=\(PlaybackSurfaceSeekTravel.width(for: presentation))"
                     + " effects=\(String(describing: effects))",
                 retention: .evidence
             )

@@ -9,6 +9,7 @@ public struct StreamingHomeView: View {
     @State private var isConfirmingRemoval = false
     @State private var pendingRemovalHostID: HostID?
     @State private var isSidebarVisible = true
+    @State private var pendingSwitchHostID: HostID?
 
     public init() {}
 
@@ -38,7 +39,7 @@ public struct StreamingHomeView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
         .alert(
-            "无法建立串流",
+            launchFailure?.failure.categoryTitle ?? "无法建立串流",
             isPresented: Binding(
                 get: { launchFailure != nil },
                 set: { presented in
@@ -46,12 +47,37 @@ public struct StreamingHomeView: View {
                 }
             ),
             presenting: launchFailure
-        ) { _ in
-            Button("确认") { dismissLaunchFailure() }
+        ) { item in
+            if item.failure.recovery != .none {
+                Button("重试") {
+                    dismissLaunchFailure()
+                    Task {
+                        do {
+                            try await model.retryLastLaunch()
+                        } catch let failure as StreamFailure {
+                            model.recordFailure(failure, hostID: item.hostID)
+                        } catch {
+                            model.recordFailure(
+                                StreamFailure(
+                                    stage: .launch,
+                                    kind: .unknown,
+                                    message: "重试启动失败",
+                                    recovery: .retry
+                                ),
+                                hostID: item.hostID
+                            )
+                        }
+                    }
+                }
+            }
+            Button("确认", role: .cancel) { dismissLaunchFailure() }
         } message: { item in
-            Text(item.failure.message)
+            Text(LocalizedStringKey(item.failure.message))
+                + Text("\n")
+                + Text(LocalizedStringKey(item.failure.recovery.advice))
         }
-        .onAppear { model.refreshReachability() }
+        .onAppear { model.startHomePresence() }
+        .onDisappear { model.stopHomePresence() }
         .task {
             if model.selectedHostID == nil, let firstHostID = model.hosts.first?.id {
                 model.selectHost(firstHostID)
@@ -59,6 +85,26 @@ public struct StreamingHomeView: View {
         }
         .sheet(isPresented: $isAddingHost) {
             StreamAddHostView()
+        }
+        .confirmationDialog(
+            "结束正在运行的应用？",
+            isPresented: Binding(
+                get: { pendingSwitchHostID != nil },
+                set: { presented in
+                    if presented == false { pendingSwitchHostID = nil }
+                }
+            ),
+            presenting: pendingSwitchHostID
+        ) { hostID in
+            Button("结束并启动", role: .destructive) {
+                pendingSwitchHostID = nil
+                if let host = model.hosts.first(where: { $0.id == hostID }) {
+                    performReplaceOccupyingApplication(host)
+                }
+            }
+            Button("取消", role: .cancel) { pendingSwitchHostID = nil }
+        } message: { hostID in
+            Text("将结束主机上正在运行的「\(occupyingApplicationName(hostID))」，该会话会被中断。")
         }
     }
 
@@ -133,6 +179,15 @@ public struct StreamingHomeView: View {
                     .accessibilityIdentifier("Stream-HostDetail-name")
                     .accessibilityValue(host.name)
                 Spacer(minLength: 0)
+                if host.reachability == .offline {
+                    GlassCapsuleIconLabelButton(
+                        title: "唤醒主机",
+                        systemName: "bolt.horizontal.circle",
+                        accessibilityLabel: "唤醒主机",
+                        action: { model.wake(hostID: host.id) },
+                        accessibilityIdentifier: "Stream-HostDetail-WakeButton"
+                    )
+                }
             }
 
             failureLine(host)
@@ -151,9 +206,19 @@ public struct StreamingHomeView: View {
                 }
             )
             .task(id: host.applications) {
+                StreamSessionProbes.record(
+                    "home grid task host=\(host.id.rawValue) state=\(String(describing: host.applications))",
+                    retention: .evidence
+                )
                 for application in host.applications.applications ?? [] {
                     _ = await model.artworkFileURL(hostID: host.id, appID: application.id)
                 }
+            }
+            .onChange(of: host.applications) { _, next in
+                StreamSessionProbes.record(
+                    "home grid changed host=\(host.id.rawValue) state=\(String(describing: next))",
+                    retention: .evidence
+                )
             }
         }
         .padding(DesignTokens.Spacing.xl)
@@ -178,11 +243,101 @@ public struct StreamingHomeView: View {
     private func failureLine(_ host: HostSnapshot) -> some View {
         Group {
             if let failure = model.failure(for: host.id) {
-                Text(failure.message)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.SourceConnection.failureColor)
-                    .accessibilityIdentifier("Stream-HostDetail-error")
-                    .accessibilityValue(failure.readableValue)
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    Text(LocalizedStringKey(failure.message))
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.SourceConnection.failureColor)
+                        .accessibilityIdentifier("Stream-HostDetail-error")
+                        .accessibilityValue(failure.readableValue)
+                    Text(LocalizedStringKey(failure.recovery.advice))
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                        .accessibilityIdentifier("Stream-HostDetail-help")
+                    if failure.kind == .hostBusy {
+                        hostBusyActions(host)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func hostBusyActions(_ host: HostSnapshot) -> some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            if model.canResumeRunningApplication(hostID: host.id) {
+                GlassCapsuleIconLabelButton(
+                    title: "回到运行中的应用",
+                    systemName: "arrow.uturn.backward",
+                    accessibilityLabel: "回到运行中的应用",
+                    action: { resumeRunningApplication(host) },
+                    accessibilityIdentifier: "Stream-HostDetail-ResumeButton"
+                )
+            }
+            if model.blockedApplications[host.id] != nil {
+                GlassCapsuleIconLabelButton(
+                    title: "结束占用并启动",
+                    systemName: "arrow.triangle.2.circlepath",
+                    accessibilityLabel: "结束占用并启动",
+                    action: { replaceOccupyingApplication(host) },
+                    accessibilityIdentifier: "Stream-HostDetail-SwitchButton"
+                )
+            }
+        }
+    }
+
+    private func resumeRunningApplication(_ host: HostSnapshot) {
+        Task {
+            do {
+                try await model.resumeRunningApplication(hostID: host.id)
+            } catch let failure as StreamFailure {
+                model.recordFailure(failure, hostID: host.id)
+            } catch {
+                model.recordFailure(
+                    StreamFailure(
+                        stage: .launch,
+                        kind: .unknown,
+                        message: "恢复运行中的应用失败",
+                        recovery: .retry
+                    ),
+                    hostID: host.id
+                )
+            }
+        }
+    }
+
+    private func occupyingApplicationName(_ hostID: HostID) -> String {
+        guard let host = model.hosts.first(where: { $0.id == hostID }) else {
+            return String(localized: "未知应用")
+        }
+        guard let running = host.remoteSession?.currentGame, !running.isEmpty, running != "0" else {
+            return host.name
+        }
+        if let match = host.applications.applications?.first(where: { $0.id.rawValue == running }) {
+            return match.name
+        }
+        return running
+    }
+
+    private func replaceOccupyingApplication(_ host: HostSnapshot) {
+        pendingSwitchHostID = host.id
+    }
+
+    private func performReplaceOccupyingApplication(_ host: HostSnapshot) {
+        Task {
+            do {
+                try await model.replaceBlockedApplication(hostID: host.id)
+            } catch let failure as StreamFailure {
+                model.recordFailure(failure, hostID: host.id)
+            } catch {
+                model.recordFailure(
+                    StreamFailure(
+                        stage: .launch,
+                        kind: .unknown,
+                        message: "结束占用后启动失败",
+                        recovery: .retry
+                    ),
+                    hostID: host.id
+                )
             }
         }
     }
@@ -228,6 +383,13 @@ public struct StreamingHomeView: View {
                 )
             } catch let failure as StreamFailure {
                 model.recordFailure(failure, hostID: host.id)
+                if failure.kind == .hostBusy {
+                    model.rememberBlockedApplication(
+                        hostID: host.id,
+                        appID: application.id,
+                        appName: application.name
+                    )
+                }
             } catch {
                 model.recordFailure(
                     StreamFailure(

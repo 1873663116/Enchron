@@ -26,5 +26,7 @@
 @property BOOL multiController;
 @property BOOL useFramePacing;
 @property NSData* serverCert;
+@property int packetSize;
+@property int streamingRemotely;
 
 @end

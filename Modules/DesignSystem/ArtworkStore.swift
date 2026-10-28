@@ -6,15 +6,26 @@ import ImageIO
 public struct ArtworkKey: Sendable, Equatable, Hashable {
     fileprivate let storageKey: String
 
-    public init(mediaIdentity: MediaIdentity) {
-        storageKey = "media-\(mediaIdentity.storageKey)"
-    }
-
     public init(serverID: String, itemID: String, imageTag: String) {
         let input = "emby|\(serverID)|\(itemID)|\(imageTag)"
         storageKey = SHA256.hash(data: Data(input.utf8))
             .map { String(format: "%02x", $0) }
             .joined()
+    }
+
+    /// A caller-owned asset that is not a media item, such as a remote host
+    /// application cover. The namespace keeps independent producers apart while
+    /// the identity stays stable across launches.
+    public init(namespace: String, identity: String) {
+        storageKey = SHA256.hash(data: Data("\(namespace)|\(identity)".utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+    }
+
+    /// Media items keep their historical on-disk keys so existing artwork
+    /// survives the move of the store into DesignSystem.
+    public init(mediaStorageKey: String) {
+        storageKey = "media-\(mediaStorageKey)"
     }
 
     public init(remoteImageURL: URL) {

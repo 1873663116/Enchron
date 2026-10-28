@@ -15,6 +15,7 @@ $(SRCROOT)/Apps/Enchron/Screens/OpenSourceLicenses.swift
 $(SRCROOT)/Apps/Enchron/Screens/SettingsScreen.swift
 $(SRCROOT)/Apps/Enchron/Settings/PreferencesStore.swift
 $(SRCROOT)/Apps/Enchron/Settings/SettingsModel.swift
+$(SRCROOT)/Modules/DesignSystem/ArtworkStore.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenu.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenuPlacement.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenuRow.swift
@@ -42,16 +43,25 @@ $(SRCROOT)/Modules/DesignSystem/View+PressFeedback.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/MoonlightStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/SimulatedStreamingBackend.swift
 $(SRCROOT)/Modules/GameStreaming/Backend/StreamingBackend.swift
+$(SRCROOT)/Modules/GameStreaming/Domain/StreamControllerProfile.swift
+$(SRCROOT)/Modules/GameStreaming/Domain/StreamDebugInjection.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamIdentity.swift
+$(SRCROOT)/Modules/GameStreaming/Domain/StreamNetworkCondition.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSessionState.swift
 $(SRCROOT)/Modules/GameStreaming/Domain/StreamSettings.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingModel.swift
 $(SRCROOT)/Modules/GameStreaming/Model/StreamingPlaybackInformation+Session.swift
+$(SRCROOT)/Modules/GameStreaming/Network/StreamWakeOnLan.swift
+$(SRCROOT)/Modules/GameStreaming/Session/StreamAudioOutput.swift
+$(SRCROOT)/Modules/GameStreaming/Session/StreamControllerFeedbackRouter.swift
+$(SRCROOT)/Modules/GameStreaming/Session/StreamControllerHaptics.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamGamepadInput.swift
+$(SRCROOT)/Modules/GameStreaming/Session/StreamGamepadRateProbe.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamMouseInput.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamRenderBinding.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionCoordinator.swift
 $(SRCROOT)/Modules/GameStreaming/Session/StreamSessionProbes.swift
+$(SRCROOT)/Modules/GameStreaming/Storage/ApplicationCache.swift
 $(SRCROOT)/Modules/GameStreaming/Storage/HostStore.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamAddHostView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamAppGridView.swift
@@ -106,7 +116,6 @@ $(SRCROOT)/Modules/MediaServer/MediaServerShelf.swift
 $(SRCROOT)/Modules/MediaServer/MediaServerSources.swift
 $(SRCROOT)/Modules/MediaServer/PlexAccount.swift
 $(SRCROOT)/Modules/MediaServer/PlexClient.swift
-$(SRCROOT)/Modules/MediaSource/ArtworkStore.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 $(SRCROOT)/Modules/MediaSource/MediaByteStream+Diagnostics.swift
@@ -131,6 +140,7 @@ $(SRCROOT)/Modules/Playback/Domain/PlaybackRuntimeControlling.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSeekPolicy.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSessionReporting.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSurfaceGestureState.swift
+$(SRCROOT)/Modules/Playback/Domain/PlaybackSurfaceSeekTravel.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackUserVisibleIssue.swift
 $(SRCROOT)/Modules/Playback/Domain/TrackSelectionPreference.swift
 $(SRCROOT)/Modules/Playback/Domain/ViewingState.swift
@@ -194,5 +204,7 @@ $(SRCROOT)/Modules/Playback/Views/PlaybackTimeline.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackTopActions.swift
 $(SRCROOT)/Modules/Playback/Views/PlaybackVideoSurface.swift
 $(SRCROOT)/Modules/Playback/Views/PlayerInfoBarView.swift
+$(SRCROOT)/Modules/Playback/Views/StreamingCapsule.swift
+$(SRCROOT)/Modules/Playback/Views/StreamingCapsuleDeck.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlaybackRootView.swift
 $(SRCROOT)/Modules/Playback/Views/WindowPlayerDeck.swift

@@ -1,6 +1,5 @@
 import DesignSystem
 import SwiftUI
-import UIKit
 
 public struct StreamSessionContentView: View {
     @Environment(StreamingModel.self) private var model
@@ -8,31 +7,79 @@ public struct StreamSessionContentView: View {
 
     public init() {}
 
+    private var showsWeakNetworkHint: Bool {
+        guard let session = model.session else { return false }
+#if DEBUG
+        if let injected = model.debugConnectionQuality {
+            return session.state == .streaming && injected == 1
+        }
+#endif
+        return session.state == .streaming && session.diagnostics.connectionQuality == 1
+    }
+
+    private var interruptedFailure: StreamFailure? {
+        guard let session = model.session, case .interrupted = session.state else { return nil }
+        return session.failure
+    }
+
+    private var showsPerformanceOverlay: Bool {
+        guard model.settings.showPerformanceOverlay, let session = model.session else { return false }
+        return session.state == .streaming
+    }
+
+    /// The numbers the session already tracks: what was negotiated, how fast it
+    /// arrives, and how far behind the network is. Nothing here is sampled
+    /// separately, so the overlay costs no extra work.
+    private func performanceOverlay(_ session: SessionSnapshot) -> some View {
+        let negotiated = session.negotiated
+        let diagnostics = session.diagnostics
+        var lines: [String] = []
+        if let negotiated {
+            lines.append("\(negotiated.width)×\(negotiated.height)@\(negotiated.frameRate)")
+            lines.append("\(negotiated.codec.displayName) · \(negotiated.audioChannels) 声道")
+        } else {
+            lines.append("协商中")
+        }
+        var stats: [String] = []
+        if let fps = diagnostics.presentedFramesPerSecond {
+            stats.append("\(fps) fps")
+        }
+        if let bitrate = diagnostics.measuredBitrateKbps {
+            stats.append("\(bitrate) kbps")
+        }
+        if let rtt = diagnostics.estimatedRttMs {
+            stats.append("RTT \(rtt) ms")
+        }
+        if diagnostics.networkDroppedFrames > 0 {
+            stats.append("丢帧 \(diagnostics.networkDroppedFrames)")
+        }
+        if !stats.isEmpty {
+            lines.append(stats.joined(separator: " · "))
+        }
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                Text(verbatim: line)
+                    .font(DesignTokens.Typography.monospacedDetail)
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.vertical, DesignTokens.Spacing.xs)
+        .background(DesignTokens.Surface.hudBackdrop, in: DesignTokens.ShapeToken.element)
+        .foregroundStyle(.white)
+        .padding(DesignTokens.Spacing.md)
+        .allowsHitTesting(false)
+        .accessibilityIdentifier("Stream-Session-stats")
+    }
+
     public var body: some View {
         ZStack {
-            StreamPointerInputLayer(
-                videoAspectRatio: model.videoAspectRatio,
-                onMove: { x, y in model.sendPointerMove(normalizedX: x, normalizedY: y) },
-                onClick: { position in
-                    model.releaseInputs(cause: "pointer-control")
-                    model.sendGestureClick(
-                        normalizedX: Float(position.x),
-                        normalizedY: Float(position.y)
-                    )
-                }
-            )
-            StreamKeyboardCapture(
+            StreamFocusedInputCapture(
                 onKey: { usage, down, flags in
                     model.sendKey(
                         hidUsage: UInt32(usage.rawValue),
                         down: down,
                         modifierFlags: UInt32(flags.rawValue)
                     )
-                },
-                onFocusChange: { focused in
-                    if !focused {
-                        model.releaseInputs(cause: "focus-lost")
-                    }
                 }
             )
         }
@@ -43,6 +90,45 @@ public struct StreamSessionContentView: View {
                 .accessibilityIdentifier("Stream-Session-snapshot")
                 .accessibilityValue(model.session?.readableValue ?? "unavailable")
                 .allowsHitTesting(false)
+        }
+        .overlay(alignment: .topLeading) {
+            if showsPerformanceOverlay, let session = model.session {
+                performanceOverlay(session)
+            }
+        }
+        .overlay(alignment: .top) {
+            if showsWeakNetworkHint {
+                Text(verbatim: "网络不稳：画面与操作可能延迟")
+                    .font(DesignTokens.Typography.monospacedDetail)
+                    .padding(.horizontal, DesignTokens.Spacing.sm)
+                    .padding(.vertical, DesignTokens.Spacing.xs)
+                    .background(DesignTokens.Surface.hudBackdrop, in: Capsule())
+                    .foregroundStyle(.white)
+                    .padding(.top, DesignTokens.Spacing.md)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("Stream-Session-networkHint")
+            }
+        }
+        .overlay {
+            if let failure = interruptedFailure {
+                VStack(spacing: DesignTokens.Spacing.sm) {
+                    Text(LocalizedStringKey(failure.message))
+                        .font(.headline)
+                        .multilineTextAlignment(.center)
+                    if failure.recovery == .reconnect || failure.recovery == .retry {
+                        Button {
+                            Task { try? await model.reconnect() }
+                        } label: {
+                            Text(verbatim: "重新连接")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                }
+                .padding(DesignTokens.Spacing.xl)
+                .background(.orange, in: DesignTokens.ShapeToken.element)
+                .padding(DesignTokens.Spacing.xxl)
+                .accessibilityIdentifier("Stream-Session-failure")
+            }
         }
         .onChange(of: scenePhase) { _, phase in
             StreamSessionProbes.record(
@@ -63,127 +149,5 @@ public struct StreamSessionContentView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Stream-Session-content")
-    }
-}
-
-private struct StreamPointerInputLayer: View {
-    let videoAspectRatio: CGFloat
-    let onMove: (Float, Float) -> Void
-    let onClick: (CGPoint) -> Void
-
-    var body: some View {
-        GeometryReader { geometry in
-            Color.clear
-                .contentShape(Rectangle())
-                .onContinuousHover { phase in
-                    if case .active(let location) = phase {
-                        if let normalized = Self.normalized(
-                            location: location,
-                            in: geometry.size,
-                            videoAspectRatio: videoAspectRatio
-                        ) {
-                            onMove(Float(normalized.x), Float(normalized.y))
-                        }
-                    }
-                }
-                .gesture(
-                    SpatialTapGesture()
-                        .onEnded { value in
-                            if let normalized = Self.normalized(
-                                location: value.location,
-                                in: geometry.size,
-                                videoAspectRatio: videoAspectRatio
-                            ) {
-                                onClick(normalized)
-                            }
-                        }
-                )
-        }
-        .accessibilityHidden(true)
-    }
-
-    private static func normalized(
-        location: CGPoint,
-        in size: CGSize,
-        videoAspectRatio: CGFloat
-    ) -> CGPoint? {
-        guard size.width > 0, size.height > 0, videoAspectRatio > 0 else { return nil }
-        let fitted: CGSize
-        if size.width / size.height > videoAspectRatio {
-            fitted = CGSize(width: size.height * videoAspectRatio, height: size.height)
-        } else {
-            fitted = CGSize(width: size.width, height: size.width / videoAspectRatio)
-        }
-        let origin = CGPoint(
-            x: (size.width - fitted.width) / 2,
-            y: (size.height - fitted.height) / 2
-        )
-        let x = (location.x - origin.x) / fitted.width
-        let y = (location.y - origin.y) / fitted.height
-        guard x >= 0, x <= 1, y >= 0, y <= 1 else { return nil }
-        return CGPoint(x: x, y: y)
-    }
-}
-
-private struct StreamKeyboardCapture: UIViewRepresentable {
-    let onKey: (UIKeyboardHIDUsage, Bool, UIKeyModifierFlags) -> Void
-    let onFocusChange: (Bool) -> Void
-
-    func makeUIView(context: Context) -> StreamKeyboardCaptureView {
-        let view = StreamKeyboardCaptureView()
-        view.onKey = onKey
-        view.onFocusChange = onFocusChange
-        return view
-    }
-
-    func updateUIView(_ uiView: StreamKeyboardCaptureView, context: Context) {
-        uiView.onKey = onKey
-        uiView.onFocusChange = onFocusChange
-    }
-}
-
-private final class StreamKeyboardCaptureView: UIView {
-    var onKey: ((UIKeyboardHIDUsage, Bool, UIKeyModifierFlags) -> Void)?
-    var onFocusChange: ((Bool) -> Void)?
-
-    override var canBecomeFirstResponder: Bool { true }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        guard window != nil else {
-            return
-        }
-        if !isFirstResponder {
-            becomeFirstResponder()
-        }
-    }
-
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        let handled = forward(presses, down: true)
-        if !handled {
-            super.pressesBegan(presses, with: event)
-        }
-    }
-
-    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        let handled = forward(presses, down: false)
-        if !handled {
-            super.pressesEnded(presses, with: event)
-        }
-    }
-
-    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        _ = forward(presses, down: false)
-        super.pressesCancelled(presses, with: event)
-    }
-
-    private func forward(_ presses: Set<UIPress>, down: Bool) -> Bool {
-        var handled = false
-        for press in presses {
-            guard let key = press.key else { continue }
-            onKey?(key.keyCode, down, key.modifierFlags)
-            handled = true
-        }
-        return handled
     }
 }

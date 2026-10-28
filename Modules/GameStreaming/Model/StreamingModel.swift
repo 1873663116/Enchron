@@ -1,5 +1,7 @@
 import AVFoundation
+import DesignSystem
 import Foundation
+import ImageIO
 import Observation
 import UIKit
 
@@ -77,8 +79,28 @@ public final class StreamingModel {
     private var teardownRequested = false
     private var teardownFallbackTask: Task<Void, Never>?
     private var hostQuitRetryTasks: [HostID: Task<Void, Never>] = [:]
+    private var suspendedStream: (hostID: HostID, appID: AppID, appName: String)?
     public var hostQuitFailureMessage: String?
     private var reachabilityTask: Task<Void, Never>?
+    private var reachabilityPollTask: Task<Void, Never>?
+    private var pairingBackgroundTasks: [HostID: UIBackgroundTaskIdentifier] = [:]
+    public struct BlockedApplication: Sendable, Equatable {
+        public var appID: AppID
+        public var appName: String
+    }
+
+    public struct LaunchIntent: Sendable, Equatable {
+        public var hostID: HostID
+        public var appID: AppID
+        public var appName: String
+    }
+
+    public private(set) var blockedApplications: [HostID: BlockedApplication] = [:]
+    public private(set) var lastLaunchIntent: LaunchIntent?
+    private let applicationCache = ApplicationCacheStore()
+    private let artworkLimiter = ArtworkFetchLimiter()
+    private var publicIPv4: String?
+    private var publicIPv4Task: Task<Void, Never>?
 
     public init(
         backend: any StreamingBackend,
@@ -94,7 +116,17 @@ public final class StreamingModel {
 
     public func reloadHosts() {
         storedHosts = hostStore.load()
-        hosts = storedHosts.map(snapshot(from:))
+        let transient = Dictionary(
+            uniqueKeysWithValues: hosts.map { ($0.id, $0.applications) }
+        )
+        hosts = storedHosts.map { stored in
+            var refreshed = snapshot(from: stored)
+            if case .unknown = refreshed.applications,
+               let carried = transient[stored.hostID] {
+                refreshed.applications = carried
+            }
+            return refreshed
+        }
         if let selectedHostID, !hosts.contains(where: { $0.id == selectedHostID }) {
             self.selectedHostID = hosts.first?.id
         }
@@ -105,8 +137,14 @@ public final class StreamingModel {
             id: stored.hostID,
             name: stored.name,
             address: stored.address,
-            reachability: .unknown,
-            pairing: stored.hasPairingRecord ? .paired : .unpaired
+            reachability: stored.lastReachability ?? .unknown,
+            pairing: stored.hasPairingRecord ? .paired : .unpaired,
+            remoteSession: stored.lastRemoteState == nil && stored.lastCurrentGame == nil
+                ? nil
+                : RemoteSessionInfo(
+                    currentGame: stored.lastCurrentGame,
+                    rawState: stored.lastRemoteState
+                )
         )
     }
 
@@ -120,7 +158,7 @@ public final class StreamingModel {
     /// Adds a host and returns the identity key it is stored under. The same
     /// physical host reached through a different port route (for example a
     /// loopback proxy) is a distinct entry with its own pairing.
-    public func addHost(addressString: String, name: String?) async throws -> HostID {
+    public func addHost(addressString: String, name: String?, mac: String? = nil) async throws -> HostID {
         guard let address = HostAddress(parsing: addressString) else {
             throw StreamFailure(
                 stage: .connect,
@@ -156,14 +194,47 @@ public final class StreamingModel {
         let hostID = address.portBase == HostAddress.defaultPortBase
             ? info.uniqueID
             : "\(info.uniqueID)@\(address.portBase)"
-        let stored = StoredHost(
+
+        if let existing = storedHosts.first(where: { $0.hostID == HostID(rawValue: hostID) }) {
+            var alternates = existing.alternateAddresses ?? []
+            if existing.address != address, !alternates.contains(address) {
+                alternates.append(address)
+            }
+            _ = hostStore.update(id: existing.id) { record in
+                record.alternateAddresses = alternates.isEmpty ? nil : alternates
+                if record.localAddress == nil {
+                    record.localAddress = info.localAddress.flatMap { HostAddress(parsing: $0) }
+                }
+                if record.externalAddress == nil {
+                    record.externalAddress = info.externalAddress.flatMap { HostAddress(parsing: $0) }
+                }
+                if let mac, record.macAddress == nil {
+                    record.macAddress = mac
+                }
+            }
+            reloadHosts()
+            refreshReachability(hostID: existing.hostID)
+            return existing.hostID
+        }
+
+        var stored = StoredHost(
             id: hostID,
             name: userProvidedName ? (name ?? info.name) : info.name,
             address: address,
             serverCert: nil,
             preferredAppID: nil,
+            hiddenAppIDs: nil,
             hasPairingRecord: info.pairStatus == 1,
-            nameIsUserProvided: userProvidedName
+            nameIsUserProvided: userProvidedName,
+            alternateAddresses: nil,
+            localAddress: info.localAddress.flatMap { HostAddress(parsing: $0) },
+            externalAddress: info.externalAddress.flatMap { HostAddress(parsing: $0) },
+            macAddress: mac,
+            lastReachability: .online,
+            lastRemoteState: info.state,
+            lastCurrentGame: info.currentGame,
+            lastSeenAt: Date(),
+            serverCodecModeSupport: info.serverCodecModeSupport
         )
         _ = hostStore.upsert(stored)
         reloadHosts()
@@ -192,31 +263,89 @@ public final class StreamingModel {
 
     public func refreshReachability(hostID: HostID? = nil) {
         reachabilityTask?.cancel()
-        let targets = storedHosts.filter { requested in
-            hostID.map { $0 == requested.hostID } ?? true
+        reachabilityTask = Task { [weak self] in
+            await self?.reachabilityPass(hostID: hostID)
         }
-        reachabilityTask = Task { [backend] in
-            for target in targets {
-                let credentials = BackendCredentials(address: target.address, serverCert: target.serverCert)
-                do {
-                    let info = try await backend.fetchServerInfo(credentials)
-                    guard !Task.isCancelled else { return }
-                    self.applyServerInfo(
-                        info,
-                        hostID: target.hostID,
-                        authoritativePairing: target.serverCert != nil
-                    )
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    self.applyReachability(.offline, hostID: target.hostID)
-                }
+    }
+
+    /// Keeps the host list honest while it is the visible surface. The pass is
+    /// serialized with itself, so a slow host delays the next round instead of
+    /// piling up.
+    public func startReachabilityPolling() {
+        guard reachabilityPollTask == nil else { return }
+        reachabilityPollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.reachabilityPass(hostID: nil)
+                guard !Task.isCancelled else { return }
+                try? await Task.sleep(for: Self.reachabilityPollInterval)
             }
         }
     }
 
-    /// Applies a server info reply. `authoritativePairing` says the query proved
-    /// this client's certificate: PairStatus can only name this client then, and
-    /// an unpinned reply says nothing about the stored pairing.
+    public func stopReachabilityPolling() {
+        reachabilityPollTask?.cancel()
+        reachabilityPollTask = nil
+    }
+
+    public func startHomePresence() {
+        startDiscovery()
+        startReachabilityPolling()
+        refreshPublicAddressIfNeeded()
+    }
+
+    /// One lookup per launch is enough: the public address only changes when the
+    /// network does, and asking every poll would put a STUN round trip in the
+    /// path that keeps the host list fresh.
+    private func refreshPublicAddressIfNeeded() {
+        guard publicIPv4 == nil, publicIPv4Task == nil else { return }
+        guard storedHosts.contains(where: { $0.externalAddress == nil }) else { return }
+        publicIPv4Task = Task { [weak self, backend] in
+            let address = try? await backend.externalIPv4Address()
+            guard let self else { return }
+            self.publicIPv4Task = nil
+            guard let address, !address.isEmpty else { return }
+            self.publicIPv4 = address
+            self.applyPublicAddress(address)
+        }
+    }
+
+    private func applyPublicAddress(_ address: String) {
+        var changed = false
+        for host in storedHosts where host.externalAddress == nil {
+            _ = hostStore.update(id: host.id) { record in
+                record.externalAddress = HostAddress(
+                    host: address,
+                    portBase: HostAddress.defaultPortBase
+                )
+            }
+            changed = true
+        }
+        if changed {
+            reloadHosts()
+        }
+    }
+
+    public func stopHomePresence() {
+        stopDiscovery()
+        stopReachabilityPolling()
+    }
+
+    /// Pairing runs on the host's clock and can outlive the foreground moment
+    /// that started it, so the app asks for background time until the outcome
+    /// arrives or the pairing is abandoned.
+    private func beginPairingBackgroundTask(hostID: HostID) {
+        guard pairingBackgroundTasks[hostID] == nil else { return }
+        let identifier = UIApplication.shared.beginBackgroundTask(withName: "stream-pairing") { [weak self] in
+            self?.endPairingBackgroundTask(hostID: hostID)
+        }
+        pairingBackgroundTasks[hostID] = identifier
+    }
+
+    private func endPairingBackgroundTask(hostID: HostID) {
+        guard let identifier = pairingBackgroundTasks.removeValue(forKey: hostID) else { return }
+        UIApplication.shared.endBackgroundTask(identifier)
+    }
+
     private func applyServerInfo(
         _ info: BackendServerInfo,
         hostID: HostID,
@@ -237,6 +366,20 @@ public final class StreamingModel {
             currentGame: info.currentGame,
             rawState: info.state
         )
+        if let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }) {
+            storedHosts[storedIndex].lastReachability = .online
+            storedHosts[storedIndex].lastRemoteState = info.state
+            storedHosts[storedIndex].lastCurrentGame = info.currentGame
+            storedHosts[storedIndex].lastSeenAt = Date()
+            storedHosts[storedIndex].serverCodecModeSupport = info.serverCodecModeSupport
+            _ = hostStore.update(id: storedHosts[storedIndex].id) { record in
+                record.lastReachability = .online
+                record.lastRemoteState = info.state
+                record.lastCurrentGame = info.currentGame
+                record.lastSeenAt = Date()
+                record.serverCodecModeSupport = info.serverCodecModeSupport
+            }
+        }
         if authoritativePairing, let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }) {
             storedHosts[storedIndex].hasPairingRecord = info.pairStatus == 1
             if !storedHosts[storedIndex].hasUserProvidedName,
@@ -250,19 +393,152 @@ public final class StreamingModel {
     private func applyReachability(_ reachability: HostReachability, hostID: HostID) {
         guard let index = hosts.firstIndex(where: { $0.id == hostID }) else { return }
         hosts[index].reachability = reachability
+        if let storedIndex = storedHosts.firstIndex(where: { $0.hostID == hostID }),
+           storedHosts[storedIndex].lastReachability != reachability {
+            storedHosts[storedIndex].lastReachability = reachability
+            _ = hostStore.update(id: storedHosts[storedIndex].id) { record in
+                record.lastReachability = reachability
+            }
+        }
     }
 
+    /// Wakes a suspended host and rechecks it straight away. The host needs a
+    /// while to answer, so the list will still read offline until the next poll
+    /// or the next explicit refresh.
+    public func wake(hostID: HostID) {
+        guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return }
+        guard let mac = stored.macAddress else {
+            StreamSessionProbes.record(
+                "wake-on-lan host=\(stored.name) skipped=no-mac",
+                retention: .evidence
+            )
+            return
+        }
+        var targets = stored.candidateAddresses.map(\.host)
+        if !targets.contains("255.255.255.255") {
+            targets.append("255.255.255.255")
+        }
+        let delivered = StreamWakeOnLan.send(to: targets, mac: mac)
+        StreamSessionProbes.record(
+            "wake-on-lan host=\(stored.name) delivered=\(delivered)",
+            retention: .evidence
+        )
+        refreshReachability(hostID: hostID)
+    }
+
+    private func reachabilityPass(hostID: HostID?) async {
+        refreshPublicAddressIfNeeded()
+        let targets = storedHosts.filter { requested in
+            hostID.map { $0 == requested.hostID } ?? true
+        }
+        for target in targets {
+            guard !Task.isCancelled else { return }
+            var reached = false
+            for candidate in target.candidateAddresses {
+                guard !Task.isCancelled else { return }
+                let credentials = BackendCredentials(
+                    address: candidate,
+                    serverCert: target.serverCert
+                )
+                do {
+                    let info = try await backend.fetchServerInfo(credentials)
+                    guard !Task.isCancelled else { return }
+                    promoteAddress(candidate, for: target, info: info)
+                    applyServerInfo(
+                        info,
+                        hostID: target.hostID,
+                        authoritativePairing: target.serverCert != nil
+                    )
+                    reached = true
+                    break
+                } catch {
+                    continue
+                }
+            }
+            guard !Task.isCancelled else { return }
+            if !reached {
+                applyReachability(.offline, hostID: target.hostID)
+            }
+        }
+    }
+
+#if DEBUG
+    public private(set) var debugPinnedAddress: HostAddress?
+
+    /// Pins the stored host to one address so a loopback proxy session survives
+    /// the reachability pass that would otherwise promote the direct LAN path.
+    public func pinHostAddress(host: String, portBase: UInt16) {
+        guard let target = storedHosts.first else { return }
+        let address = HostAddress(host: host, portBase: portBase)
+        debugPinnedAddress = address
+        _ = hostStore.update(id: target.id) { stored in
+            stored.address = address
+            stored.localAddress = address
+            stored.alternateAddresses = nil
+            stored.externalAddress = nil
+        }
+        reloadHosts()
+        StreamSessionProbes.record(
+            "testcmd pin host=\(host):\(portBase)",
+            retention: .evidence
+        )
+    }
+#endif
+
+    /// Remembers the address that answered and keeps the rest as alternatives,
+    /// so the next launch dials the path that just worked rather than the first
+    /// one ever stored.
+    private func promoteAddress(
+        _ address: HostAddress,
+        for target: StoredHost,
+        info: BackendServerInfo
+    ) {
+#if DEBUG
+        if debugPinnedAddress != nil {
+            return
+        }
+#endif
+        let local = info.localAddress.flatMap { HostAddress(parsing: $0) }
+        let external = info.externalAddress.flatMap { HostAddress(parsing: $0) }
+        _ = hostStore.update(id: target.id) { stored in
+            if stored.address != address {
+                var alternates = stored.alternateAddresses ?? []
+                if !alternates.contains(stored.address) {
+                    alternates.append(stored.address)
+                }
+                stored.alternateAddresses = alternates.filter { $0 != address }
+                stored.address = address
+            }
+            if let local {
+                stored.localAddress = local
+            }
+            if let external {
+                stored.externalAddress = external
+            }
+        }
+        reloadHosts()
+    }
     public func startDiscovery() {
         guard discoveryTask == nil else { return }
         isDiscovering = true
         discoveryTask = Task { [backend] in
-            for await batch in backend.discoverHosts() {
+            while !Task.isCancelled {
+                for await batch in backend.discoverHosts() {
+                    guard !Task.isCancelled else { return }
+                    self.discoveredHosts = batch
+                }
                 guard !Task.isCancelled else { return }
-                self.discoveredHosts = batch
+                try? await Task.sleep(for: .seconds(Self.discoveryRestartInterval))
             }
             self.isDiscovering = false
         }
     }
+
+    /// The browse session is long lived, but a browser that stopped delivering
+    /// would otherwise stay silent until the user opens the add-host sheet, so
+    /// the stream is restarted whenever it finishes.
+    private static let discoveryRestartInterval = 5
+    private static let reachabilityPollInterval: Duration = .seconds(5)
 
     public func stopDiscovery() {
         discoveryTask?.cancel()
@@ -287,6 +563,7 @@ public final class StreamingModel {
             retention: .evidence
         )
 
+        beginPairingBackgroundTask(hostID: hostID)
         pairingTasks[hostID] = Task { [weak self] in
             do {
                 let outcome = try await backendPairing.waitForOutcome()
@@ -325,6 +602,7 @@ public final class StreamingModel {
         }
         activePairingSessions[hostID] = nil
         pairingTasks[hostID] = nil
+        endPairingBackgroundTask(hostID: hostID)
     }
 
     private func pairingFailed(hostID: HostID, message: String) {
@@ -342,6 +620,7 @@ public final class StreamingModel {
         )
         activePairingSessions[hostID] = nil
         pairingTasks[hostID] = nil
+        endPairingBackgroundTask(hostID: hostID)
     }
 
     public func cancelPairing(hostID: HostID) {
@@ -351,28 +630,81 @@ public final class StreamingModel {
         activePairingSessions[hostID] = nil
         pairings[hostID] = nil
         failures[hostID] = nil
+        endPairingBackgroundTask(hostID: hostID)
     }
 
     public func loadApplications(hostID: HostID) {
         guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return }
-        if let index = hosts.firstIndex(where: { $0.id == hostID }) {
-            hosts[index].applications = .unknown
+        let cached = applicationCache.load(hostID: hostID.rawValue)?.map { entry in
+            HostApplication(
+                id: AppID(rawValue: entry.id),
+                name: entry.name,
+                hdrSupported: entry.hdrSupported
+            )
+        }
+        if let index = hosts.firstIndex(where: { $0.id == hostID }),
+           hosts[index].applications.applications == nil {
+            hosts[index].applications = cached.map { .loaded($0) } ?? .unknown
         }
         Task { [backend] in
             do {
-                let applications = try await backend.applications(
-                    BackendCredentials(address: stored.address, serverCert: stored.serverCert)
+                let applications = try await Self.retrying {
+                    try await backend.applications(
+                        BackendCredentials(address: stored.address, serverCert: stored.serverCert)
+                    )
+                }
+                StreamSessionProbes.record(
+                    "applications loaded host=\(hostID.rawValue) count=\(applications.count)",
+                    retention: .evidence
                 )
                 guard let index = self.hosts.firstIndex(where: { $0.id == hostID }) else { return }
                 self.hosts[index].applications = .loaded(applications)
+                self.applicationCache.save(
+                    hostID: hostID.rawValue,
+                    applications: applications.map {
+                        ApplicationCacheStore.Application(
+                            id: $0.id.rawValue,
+                            name: $0.name,
+                            hdrSupported: $0.hdrSupported
+                        )
+                    }
+                )
             } catch {
+                StreamSessionProbes.record(
+                    "applications load failed host=\(hostID.rawValue) detail=\(String(describing: error))",
+                    retention: .evidence
+                )
                 guard let index = self.hosts.firstIndex(where: { $0.id == hostID }) else { return }
-                self.hosts[index].applications = .failed(String(describing: error))
+                if self.hosts[index].applications.applications == nil {
+                    self.hosts[index].applications = .failed(String(describing: error))
+                }
             }
         }
     }
 
+    /// One retry covers the case where the host woke up between the request and
+    /// its first answer; anything longer belongs to the reachability poll.
+    private static func retrying<T>(
+        attempts: Int = 2,
+        delay: Duration = .seconds(1),
+        _ body: () async throws -> T
+    ) async throws -> T {
+        var lastError: (any Error)?
+        for attempt in 0..<attempts {
+            do {
+                return try await body()
+            } catch {
+                lastError = error
+                if attempt + 1 < attempts {
+                    try? await Task.sleep(for: delay)
+                }
+            }
+        }
+        throw lastError ?? CancellationError()
+    }
+
     public func launch(hostID: HostID, appID: AppID, appName: String) async throws {
+        lastLaunchIntent = LaunchIntent(hostID: hostID, appID: appID, appName: appName)
         try await startSession(hostID: hostID, appID: appID, appName: appName, preferResume: false)
     }
 
@@ -391,6 +723,7 @@ public final class StreamingModel {
 
     public func reconnect() async throws {
         guard let current = session else { return }
+        StreamSessionProbes.record("reconnect reason=user", retention: .evidence)
         let hostID = current.hostID
         let appID = current.appID
         let appName = current.appName
@@ -398,10 +731,19 @@ public final class StreamingModel {
         try await startSession(hostID: hostID, appID: appID, appName: appName, preferResume: true)
     }
 
-    private func startSession(hostID: HostID, appID: AppID?, appName: String?, preferResume: Bool) async throws {
+    private func startSession(
+        hostID: HostID,
+        appID: AppID?,
+        appName: String?,
+        preferResume: Bool,
+        continuesSuspendedSession: Bool = false
+    ) async throws {
         hostQuitRetryTasks[hostID]?.cancel()
         hostQuitRetryTasks[hostID] = nil
-        if let current = session {
+        if !continuesSuspendedSession {
+            suspendedStream = nil
+        }
+        if !continuesSuspendedSession, let current = session {
             let replacesTheRunningApp = appID.map { $0 != current.appID } ?? false
             switch current.state {
             case .connecting, .streaming:
@@ -447,11 +789,19 @@ public final class StreamingModel {
             resolvedAppName = application.name
         }
 
+        let networkPlan = StreamNetworkCondition.plan(for: stored.address)
+        StreamSessionProbes.record(
+            "transport remote=\(networkPlan.streamingRemotely)"
+                + " packet=\(networkPlan.packetSize)"
+                + " vpn=\(networkPlan.vpnDetected)"
+                + " host=\(stored.name)",
+            retention: .evidence
+        )
         let request = BackendSessionRequest(
             credentials: BackendCredentials(address: stored.address, serverCert: stored.serverCert),
             appID: resolvedAppID,
             appName: resolvedAppName,
-            options: settings
+            options: adjustedOptionsForThisDevice()
         )
 
         let sessionID = SessionID()
@@ -477,6 +827,9 @@ public final class StreamingModel {
             let backendSession = preferResume
                 ? try await backend.resumeSession(request)
                 : try await backend.launchSession(request)
+            if continuesSuspendedSession, session?.id != sessionID {
+                return
+            }
             let coordinator = StreamSessionCoordinator(
                 sessionID: sessionID,
                 hostID: hostID,
@@ -577,6 +930,7 @@ public final class StreamingModel {
 
     public func disconnect() {
         guard !teardownRequested else { return }
+        suspendedStream = nil
         teardownRequested = true
         let coordinator = self.coordinator
         self.coordinator = nil
@@ -597,13 +951,46 @@ public final class StreamingModel {
         startHostQuit(hostID: hostID)
     }
 
-    public func endStreamInBackground() {
-        guard !teardownRequested else { return }
-        let hostID = session?.hostID
-        releaseInputs(cause: "background")
-        disconnect()
-        guard let hostID else { return }
-        startHostQuit(hostID: hostID)
+    public func suspendForBackground() {
+        guard !teardownRequested, let current = session, let coordinator else { return }
+        switch current.state {
+        case .connecting, .streaming, .interrupted:
+            break
+        case .stopping, .ended:
+            return
+        }
+        suspendedStream = (current.hostID, current.appID, current.appName)
+        teardownFallbackTask?.cancel()
+        teardownFallbackTask = nil
+        self.coordinator = nil
+        streamingProbe.record(
+            "stream suspended for background session=\(current.id.rawValue)",
+            retention: .evidence
+        )
+        let assertion = UIApplication.shared.beginBackgroundTask(withName: "stream-suspend")
+        Task {
+            coordinator.stop(reason: "background")
+            UIApplication.shared.endBackgroundTask(assertion)
+        }
+    }
+
+    public func resumeFromBackground() {
+        guard let suspended = suspendedStream else { return }
+        suspendedStream = nil
+        guard session != nil, coordinator == nil else { return }
+        streamingProbe.record(
+            "stream resuming after background host=\(suspended.hostID.rawValue) app=\(suspended.appName)",
+            retention: .evidence
+        )
+        Task {
+            try? await startSession(
+                hostID: suspended.hostID,
+                appID: suspended.appID,
+                appName: suspended.appName,
+                preferResume: true,
+                continuesSuspendedSession: true
+            )
+        }
     }
 
     private func startHostQuit(hostID: HostID) {
@@ -701,6 +1088,99 @@ public final class StreamingModel {
         )
     }
 
+    /// Drops what this device cannot present instead of asking for a stream the
+    /// decoder will refuse: HDR needs HEVC Main10 hardware decode, and above
+    /// 1080p needs a hardware decoder that can keep up.
+    private func adjustedOptionsForThisDevice() -> StreamOptions {
+        var options = settings
+        if options.hdrEnabled && !StreamCodecAvailability.hdrOutputSupported {
+            options.hdrEnabled = false
+            StreamSessionProbes.record("hdr requested disabled reason=no-hdr-decode", retention: .evidence)
+        }
+        let pixels = options.streamWidth * options.streamHeight
+        if pixels > StreamCodecAvailability.maximumStreamPixelCount {
+            let previous = "\(options.streamWidth)x\(options.streamHeight)"
+            options.resolution = .r1920x1080
+            StreamSessionProbes.record(
+                "resolution clamped from=\(previous) to=1920x1080 reason=decode-budget",
+                retention: .evidence
+            )
+        }
+        return options
+    }
+
+    /// Repeats the last launch from the failure alert, so a transient failure
+    /// costs one tap instead of a trip back to the grid.
+    public func retryLastLaunch() async throws {
+        guard let intent = lastLaunchIntent else {
+            throw StreamFailure(
+                stage: .launch,
+                kind: .applicationMissing,
+                message: "没有可重试的启动请求",
+                recovery: .repickApplication
+            )
+        }
+        failures[intent.hostID] = nil
+        try await launch(hostID: intent.hostID, appID: intent.appID, appName: intent.appName)
+    }
+
+    public func hostCapabilities(hostID: HostID) -> StreamHostCapabilities {
+        let support = storedHosts.first(where: { $0.hostID == hostID })?.serverCodecModeSupport ?? 0
+        return StreamHostCapabilities(serverCodecModeSupport: support)
+    }
+
+    /// Remembers what the user tried to start when the host refused because it
+    /// was busy, so the switch action can resume that exact intent.
+    public func rememberBlockedApplication(hostID: HostID, appID: AppID, appName: String) {
+        blockedApplications[hostID] = BlockedApplication(appID: appID, appName: appName)
+    }
+
+    public func clearBlockedApplication(hostID: HostID) {
+        blockedApplications[hostID] = nil
+    }
+
+    /// Ends whatever occupies the host, then starts the application the user had
+    /// asked for. The host refuses a launch while another session runs, so the
+    /// quit has to land first.
+    public func replaceBlockedApplication(hostID: HostID) async throws {
+        guard let blocked = blockedApplications[hostID] else {
+            throw StreamFailure(
+                stage: .launch,
+                kind: .applicationMissing,
+                message: "没有待启动的应用",
+                recovery: .repickApplication
+            )
+        }
+        try? await quitApplication(hostID: hostID)
+        blockedApplications[hostID] = nil
+        failures[hostID] = nil
+        try await launch(hostID: hostID, appID: blocked.appID, appName: blocked.appName)
+    }
+
+    /// Reattaches to the application the host reports as running, without asking
+    /// the user to pick it from the grid.
+    public func resumeRunningApplication(hostID: HostID) async throws {
+        guard let running = hosts.first(where: { $0.id == hostID })?.remoteSession?.currentGame,
+              !running.isEmpty, running != "0"
+        else {
+            throw StreamFailure(
+                stage: .launch,
+                kind: .applicationMissing,
+                message: "主机没有正在运行的应用",
+                recovery: .repickApplication
+            )
+        }
+        failures[hostID] = nil
+        try await resume(hostID: hostID, appID: AppID(rawValue: running), appName: nil)
+    }
+
+    public func canResumeRunningApplication(hostID: HostID) -> Bool {
+        guard let running = hosts.first(where: { $0.id == hostID })?.remoteSession?.currentGame else {
+            return false
+        }
+        return !running.isEmpty && running != "0"
+    }
+
     public func sendPointerMove(normalizedX: Float, normalizedY: Float) {
         coordinator?.sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
     }
@@ -717,8 +1197,32 @@ public final class StreamingModel {
         coordinator?.sendScroll(amount: amount)
     }
 
-    public func sendGestureClick(normalizedX: Float, normalizedY: Float) {
-        coordinator?.sendGestureClick(normalizedX: normalizedX, normalizedY: normalizedY)
+#if DEBUG
+    /// Test-channel entry points for a simulator with no controller and no host.
+    /// They forward to the live session and do nothing when there is none.
+    public func injectControllerProfile(_ arrival: StreamControllerArrival?) {
+        coordinator?.simulateControllerProfile(arrival)
+    }
+
+    public func injectControllerFeedback(_ feedback: StreamControllerFeedback) {
+        coordinator?.simulateControllerFeedback(feedback)
+    }
+
+    public func injectTouchpad(index: Int, x: Float, y: Float) {
+        coordinator?.simulateTouchpad(index: index, x: x, y: y)
+    }
+
+    public func setSimulatedMotion(_ enabled: Bool) {
+        coordinator?.setSimulatedMotion(enabled)
+    }
+
+    public func injectBattery(state: UInt8, percentage: UInt8) {
+        coordinator?.simulateBattery(state: state, percentage: percentage)
+    }
+#endif
+
+    public func sendHighResScroll(vertical: Int32, horizontal: Int32) {
+        coordinator?.sendHighResScroll(vertical: vertical, horizontal: horizontal)
     }
 
     public func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32) {
@@ -729,6 +1233,23 @@ public final class StreamingModel {
     public func sendGamepad(_ state: StreamGamepadState) -> Int32? {
         coordinator?.sendGamepad(state)
     }
+
+#if DEBUG
+    public private(set) var debugConnectionQuality: Int32?
+
+    /// Drives the connection-quality branch of the session UI without a real
+    /// lossy network, so the hint and overlay can be checked in isolation.
+    public func injectConnectionQuality(_ status: Int32) {
+        guard var current = session else { return }
+        current.diagnostics.connectionQuality = status
+        session = current
+        debugConnectionQuality = status
+        StreamSessionProbes.record(
+            "testcmd inject quality=\(status)",
+            retention: .evidence
+        )
+    }
+#endif
 
     public func releaseInputs(cause: String) {
         coordinator?.releaseAllInput(cause: cause)
@@ -788,19 +1309,42 @@ public final class StreamingModel {
     }
 
     public func artworkFileURL(hostID: HostID, appID: AppID) async -> URL? {
-        let key = "\(hostID.rawValue)-\(appID.rawValue)"
-        if let cached = artworkCache[key] {
+        let identity = "\(hostID.rawValue)-\(appID.rawValue)"
+        let key = ArtworkKey(namespace: "stream-app", identity: identity)
+        if let cached = artworkCache[identity],
+           FileManager.default.fileExists(atPath: cached.path) {
             return cached
         }
-        guard let data = await artwork(hostID: hostID, appID: appID) else { return nil }
-        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let directory = base.appendingPathComponent("enchron-app-artwork", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let file = directory.appendingPathComponent("app-\(key).png")
-        guard (try? data.write(to: file, options: .atomic)) != nil else { return nil }
-        artworkCache[key] = file
-        return file
+        if let persisted = ArtworkStore.shared.fileURL(for: key) {
+            artworkCache[identity] = persisted
+            return persisted
+        }
+        guard let stored = storedHosts.first(where: { $0.hostID == hostID }) else { return nil }
+        let credentials = BackendCredentials(address: stored.address, serverCert: stored.serverCert)
+        await artworkLimiter.acquire()
+        let data = try? await Self.retrying {
+            try await backend.artwork(credentials, appID: appID)
+        }
+        await artworkLimiter.release()
+        guard let data, let image = Self.decodeArtwork(data) else { return nil }
+        try? ArtworkStore.shared.store(image, for: key)
+        guard let persisted = ArtworkStore.shared.fileURL(for: key) else { return nil }
+        artworkCache[identity] = persisted
+        return persisted
+    }
+
+    /// Decodes a host cover once so the shared artwork store can re-encode and
+    /// audit it. Covers are small host assets; the same pixel ceiling as the
+    /// playback artwork loader keeps memory bounded.
+    private static func decodeArtwork(_ data: Data) -> CGImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: 1024
+        ]
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
     }
 
 }

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>串流补齐移植 · 审查工作台</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel-2: #1c232d; --line: #2b3440;
+    --ink: #e6edf3; --ink-2: #9aa7b4; --ink-3: #6b7684;
+    --port: #3fb950; --alt: #58a6ff; --skip: #d29922; --danger: #f85149;
+    --input: #bc8cff; --session: #39c5cf; --present: #ffa657;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  a { color: var(--alt); }
+  header.top { padding: 40px 32px 24px; border-bottom: 1px solid var(--line); }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: .5px; }
+  .sub { color: var(--ink-2); font-size: 15px; max-width: 860px; }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 18px; font-size: 14px; color: var(--ink-2); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  .dot.port { background: var(--port); } .dot.alt { background: var(--alt); } .dot.skip { background: var(--skip); }
+
+  section { padding: 32px; border-bottom: 1px solid var(--line); }
+  h2 { font-size: 20px; margin: 0 0 6px; }
+  .hint { color: var(--ink-2); font-size: 14px; margin: 0 0 20px; }
+
+  .diagram { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; overflow-x: auto; }
+  .diagram svg { display: block; min-width: 900px; }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 18px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .stat b { display: block; font-size: 26px; line-height: 1.2; }
+  .stat span { color: var(--ink-2); font-size: 13px; }
+
+  .toolbar { position: sticky; top: 0; z-index: 20; background: rgba(13,17,23,.94); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); padding: 12px 32px; }
+  .toolbar .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; max-width: 1180px; margin: 0 auto; }
+  .tab { border: 1px solid var(--line); background: transparent; color: var(--ink-2); padding: 6px 14px; border-radius: 999px; cursor: pointer; font-size: 14px; }
+  .tab.active { background: var(--panel-2); color: var(--ink); border-color: #3d4a5c; }
+  .progress { flex: 1; min-width: 160px; height: 8px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+  .progress > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--port), #2ea043); transition: width .25s; }
+  .count { color: var(--ink-2); font-size: 13px; }
+
+  .group-title { display: flex; align-items: baseline; gap: 10px; margin: 26px 0 12px; }
+  .group-title h3 { font-size: 17px; margin: 0; }
+  .group-title em { color: var(--ink-3); font-style: normal; font-size: 13px; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); border-radius: 12px; padding: 18px 20px; margin-bottom: 14px; transition: opacity .2s, border-color .2s; }
+  .card.decided { opacity: .62; }
+  .card[data-domain="input"] { border-left-color: var(--input); }
+  .card[data-domain="session"] { border-left-color: var(--session); }
+  .card[data-domain="present"] { border-left-color: var(--present); }
+  .card h4 { margin: 0 0 4px; font-size: 17px; }
+  .card h4 small { color: var(--ink-3); font-weight: 400; font-size: 13px; margin-left: 8px; }
+  .tagline { color: var(--ink-2); margin: 0 0 12px; font-size: 14px; }
+  .facts { display: grid; grid-template-columns: 96px 1fr; gap: 6px 12px; font-size: 14px; margin-bottom: 12px; }
+  .facts dt { color: var(--ink-3); }
+  .facts dd { margin: 0; }
+  .rec { background: var(--panel-2); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-bottom: 12px; }
+  .rec b { color: var(--ink); }
+  .rec .why { color: var(--ink-2); }
+  .row-bottom { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .verdict { border: 1px solid var(--line); background: transparent; color: var(--ink-2); padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .verdict:hover { border-color: #3d4a5c; color: var(--ink); }
+  .verdict.on[data-v="port"] { background: rgba(63,185,80,.14); border-color: var(--port); color: #7ee787; }
+  .verdict.on[data-v="alt"] { background: rgba(88,166,255,.14); border-color: var(--alt); color: #a5d6ff; }
+  .verdict.on[data-v="skip"] { background: rgba(210,153,34,.14); border-color: var(--skip); color: #e3b341; }
+  .meta { color: var(--ink-3); font-size: 12px; margin-left: auto; }
+  details { margin-top: 10px; }
+  details summary { cursor: pointer; color: var(--ink-3); font-size: 13px; }
+  details p { color: var(--ink-2); font-size: 13px; margin: 8px 0 0; }
+
+  .excluded { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+  .ex { background: var(--panel); border: 1px dashed var(--line); border-radius: 10px; padding: 14px 16px; }
+  .ex b { display: block; margin-bottom: 4px; }
+  .ex span { color: var(--ink-2); font-size: 13px; }
+
+  .export { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn.small { padding: 6px 12px; font-size: 13px; }
+  .btn.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  .btn.primary:hover { background: #2b7cf0; border-color: #2b7cf0; }
+  .fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; border-radius: 999px; padding: 12px 20px; box-shadow: 0 8px 24px rgba(0,0,0,.45); font-size: 14px; background: #1f6feb; border: 1px solid #1f6feb; color: #fff; cursor: pointer; }
+  .fab:hover { background: #2b7cf0; }
+  .dialog-mask { position: fixed; inset: 0; z-index: 60; background: rgba(0,0,0,.65); display: none; align-items: center; justify-content: center; padding: 24px; }
+  .dialog-mask.open { display: flex; }
+  .dialog-mask[hidden] { display: none !important; }
+  .dialog { background: #161b22; border: 1px solid #2b3440; border-radius: 16px; width: min(860px, 100%); max-height: 86vh; overflow: auto; padding: 22px 24px; }
+  .dialog h3 { margin: 0 0 6px; }
+  .dialog p.hint { margin-bottom: 12px; }
+  .dialog .export { margin-bottom: 10px; }
+  .importbox { margin-top: 20px; }
+  .importbox textarea { min-height: 90px; }
+  .btn { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); padding: 9px 16px; border-radius: 10px; cursor: pointer; font-size: 14px; }
+  .btn:hover { border-color: #3d4a5c; }
+  textarea { width: 100%; min-height: 120px; margin-top: 14px; background: #0b0f14; color: var(--ink-2); border: 1px solid var(--line); border-radius: 10px; padding: 12px; font: 12px/1.5 ui-monospace, Menlo, monospace; }
+  footer { padding: 28px 32px 60px; color: var(--ink-3); font-size: 13px; }
+  @media (max-width: 720px) {
+    section, header.top, .toolbar { padding-left: 16px; padding-right: 16px; }
+    .facts { grid-template-columns: 76px 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <h1>串流手柄与外围能力 · 补齐移植审查工作台</h1>
+    <p class="sub">
+      范围：与 iOS 上游客户端全面对齐。243 条能力审计合并为 48 个审查单元；另有 17 项按口径排除，以及一组「已一致、无需改动」的条目，都列在页面末尾，确保没有东西被悄悄丢掉。
+      每张卡片给出一句用户可见后果、上游怎么做、我们现在怎样、以及一条建议；建议只是建议，取舍由你按下三个按钮决定。
+    </p>
+    <div class="legend">
+      <span class="chip"><i class="dot port"></i>移植：按上游行为补齐</span>
+      <span class="chip"><i class="dot alt"></i>移植（替代实现）：效果一致、路径不同</span>
+      <span class="chip"><i class="dot skip"></i>不移植：不做，理由写进计划</span>
+    </div>
+  </div>
+</header>
+
+<section>
+  <div class="wrap">
+    <h2>一张图看懂问题出在哪</h2>
+    <p class="hint">手柄信号要穿过四道关口才变成游戏里的动作；回程的震动、体感、灯效还要再穿回来。红色标记是我们当前断掉的地方。</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1060 320" width="100%" height="320" role="img" aria-label="手柄信号链路与断点示意">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#58a6ff"/>
+          </marker>
+          <marker id="arRed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#f85149"/>
+          </marker>
+        </defs>
+
+        <g font-size="14" fill="#e6edf3" text-anchor="middle">
+          <rect x="20" y="40" width="150" height="76" rx="12" fill="#1c232d" stroke="#2b3440"/>
+          <text x="95" y="72">手柄</text>
+          <text x="95" y="94" font-size="12" fill="#9aa7b4">按键 · 摇杆 · 扳机</text>
+
+          <rect x="230" y="40" width="170" height="76" rx="12" fill="#1c232d" stroke="#2b3440"/>
+          <text x="315" y="72">visionOS 系统</text>
+          <text x="315" y="94" font-size="12" fill="#9aa7b4">默认把动作当成手势</text>
+
+          <rect x="460" y="40" width="170" height="76" rx="12" fill="#1c232d" stroke="#2b3440"/>
+          <text x="545" y="72">我们的 App</text>
+          <text x="545" y="94" font-size="12" fill="#9aa7b4">读取 · 编码 · 上报</text>
+
+          <rect x="690" y="40" width="150" height="76" rx="12" fill="#1c232d" stroke="#2b3440"/>
+          <text x="765" y="72">网络</text>
+          <text x="765" y="94" font-size="12" fill="#9aa7b4">带重传的输入通道</text>
+
+          <rect x="890" y="40" width="150" height="76" rx="12" fill="#1c232d" stroke="#2b3440"/>
+          <text x="965" y="72">主机上的游戏</text>
+          <text x="965" y="94" font-size="12" fill="#9aa7b4">Windows 那台电脑</text>
+
+          <line x1="172" y1="78" x2="226" y2="78" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+          <line x1="402" y1="78" x2="456" y2="78" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+          <line x1="632" y1="78" x2="686" y2="78" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+          <line x1="842" y1="78" x2="886" y2="78" stroke="#58a6ff" stroke-width="2" marker-end="url(#ar)"/>
+
+          <text x="315" y="30" font-size="12" fill="#9aa7b4">① 接管</text>
+          <text x="545" y="30" font-size="12" fill="#9aa7b4">② 握手 + ③ 上报</text>
+          <text x="765" y="30" font-size="12" fill="#9aa7b4">④ 送达</text>
+          <text x="95" y="30" font-size="12" fill="#3fb950">已完成</text>
+        </g>
+
+        <g font-size="13" text-anchor="middle">
+          <rect x="460" y="180" width="170" height="70" rx="10" fill="#1c232d" stroke="#f85149" stroke-dasharray="5 4"/>
+          <text x="545" y="208" fill="#f85149">握手内容写死</text>
+          <text x="545" y="230" font-size="12" fill="#9aa7b4">主机不知道我们能震</text>
+
+          <rect x="690" y="180" width="150" height="70" rx="10" fill="#1c232d" stroke="#f85149" stroke-dasharray="5 4"/>
+          <text x="765" y="208" fill="#f85149">回程没人接</text>
+          <text x="765" y="230" font-size="12" fill="#9aa7b4">震动 / 体感 / 灯</text>
+
+          <rect x="890" y="180" width="150" height="70" rx="10" fill="#1c232d" stroke="#2b3440"/>
+          <text x="965" y="208" fill="#9aa7b4">游戏要求震动</text>
+          <text x="965" y="230" font-size="12" fill="#6b7684">请求发出后石沉大海</text>
+
+          <line x1="965" y1="180" x2="968" y2="122" stroke="#f85149" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arRed)"/>
+          <line x1="888" y1="215" x2="845" y2="215" stroke="#f85149" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arRed)"/>
+          <line x1="688" y1="215" x2="634" y2="215" stroke="#f85149" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arRed)"/>
+          <text x="545" y="282" font-size="12" fill="#9aa7b4">回程断在两处：握手没说清能力，回调没有实现</text>
+        </g>
+
+        <g font-size="12" fill="#6b7684" text-anchor="middle">
+          <text x="315" y="146">这一层我们已经做完</text>
+          <text x="315" y="164">（事件接管、焦点保持、指针锁定）</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b id="stat-total">0</b><span>审查单元</span></div>
+      <div class="stat"><b id="stat-port">0</b><span>建议移植</span></div>
+      <div class="stat"><b id="stat-alt">0</b><span>建议替代实现</span></div>
+      <div class="stat"><b id="stat-skip">0</b><span>建议不移植</span></div>
+      <div class="stat"><b id="stat-decided">0</b><span>你已裁决</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="toolbar">
+  <div class="row">
+    <button class="tab active" data-filter="all">全部</button>
+    <button class="tab" data-filter="input">输入</button>
+    <button class="tab" data-filter="session">会话与网络</button>
+    <button class="tab" data-filter="present">呈现与产品</button>
+    <button class="tab" data-filter="undecided">未裁决</button>
+    <div class="progress"><i id="progressbar"></i></div>
+    <span class="count" id="count">0 / 0</span>
+    <button class="btn small" id="btn-accept-all">全部同意建议</button>
+    <button class="btn small primary" id="btn-export">导出裁决</button>
+  </div>
+</div>
+
+<button class="fab" id="fab">导出裁决 · 0/48</button>
+
+<section>
+  <div class="wrap">
+    <div id="groups"></div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2 id="excluded-title">按口径排除的条目</h2>
+    <p class="hint">这些不是被悄悄跳过：它们要么只存在于 visionOS 社区分支而上游没有（本轮口径只对齐上游），要么属于架构不同没有对应价值，要么是上游都没做的功能。列在这里供你核对，如果你认为其中某项应该进入审查，直接说编号。</p>
+    <div class="excluded" id="excluded"></div>
+    <details style="margin-top:26px">
+      <summary style="cursor:pointer;color:#9aa7b4">另外两组：已一致无需改动（14 组）与平台限制导致的例外</summary>
+      <div style="margin-top:12px;color:#9aa7b4;font-size:14px;line-height:1.9">
+        <p><b style="color:#e6edf3">已一致、不需要改动</b>（审计时判为「有」，只作为记录保留）：手柄发现与断开清理；ABXY、方向键、双肩、摇杆按下、Menu/Options 五组基础键位；按键位宽（我们只用低位，扩展位在 U7 补）；摇杆与扳机的量化、方向、死区；只接受标准形态手柄；系统手势关闭；键盘按压通路；鼠标移动、左右中键、离散滚轮、绝对指针；swapABXY；以及 visionOS 的事件接管、焦点保持、指针锁定、系统手势关闭四项——最后这组我们比社区分支还多做了两项。</p>
+        <p><b style="color:#e6edf3">平台限制的例外</b>：系统自带的虚拟手柄接口在 visionOS 上被标注不可用，所以 U10 只能自绘；模拟器没有真实手柄、鼠标与触感，因此手柄相关验收一律要真机；主机侧没有可编程的震动对端，震动只能「探针证明收到并下发 + 一次人工确认」。</p>
+      </div>
+    </details>
+
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>把裁决交回给我</h2>
+    <p class="hint">页面是纯本地文件，不联网。你的点击只存在这台电脑的浏览器里，我一无所知。要让我拿到结果，只有两条路：点右上角或右下角的「导出裁决」，把生成的文本复制回来；或者把导出的文件直接发我。想省事的话，也可以直接告诉我「除了哪几项，其余按建议」。</p>
+    <div class="export">
+      <button class="btn primary" id="btn-export-2">导出裁决</button>
+      <button class="btn" id="btn-reset">清空本机记录</button>
+    </div>
+    <div class="importbox">
+      <p class="hint" style="margin-bottom:6px">如果你之前导出过，把那段文本贴回下面可以恢复状态（换浏览器或清了缓存之后用）。</p>
+      <textarea id="import-box" placeholder="把之前导出的文本整段粘贴到这里，然后点「恢复状态」。"></textarea>
+      <div class="export" style="margin-top:10px"><button class="btn" id="btn-import">恢复状态</button></div>
+    </div>
+  </div>
+</section>
+
+<div class="dialog-mask" id="dialog">
+  <div class="dialog">
+    <h3>裁决结果</h3>
+    <p class="hint">整段复制后发给我。第一段是可读清单，第二段是机器格式，便于我精确还原你的每一条选择。</p>
+    <div class="export">
+      <button class="btn primary" id="btn-copy">复制</button>
+      <button class="btn" id="btn-download">下载为文本文件</button>
+      <button class="btn" id="btn-close">关闭</button>
+    </div>
+    <textarea id="out" readonly style="min-height:280px"></textarea>
+  </div>
+</div>
+
+<footer class="wrap">
+  依据：三份代码审计（输入域 86 条、会话域 102 条、呈现域 55 条）合并而来。上游基准为 moonlight-ios master，visionOS 社区分支仅作平台可行性参考。
+</footer>
+
+<script src="units.js"></script>
+<script>
+(function () {
+  var KEY = "stream-port-review-v1";
+  var decisions = {};
+  try { decisions = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (e) { decisions = {}; }
+
+  var DOMAINS = {
+    input:   { name: "输入：手柄、键盘、鼠标、触摸", note: "先修门，再补能力" },
+    session: { name: "会话与网络：连接、音频、缓存、诊断", note: "用户每天都会撞到的那一层" },
+    present: { name: "呈现与产品：显示模式、面板、文案", note: "与播放器共用呈现层，做之前先想清楚归属" }
+  };
+  var VERDICTS = { port: "移植", alt: "移植（替代实现）", skip: "不移植" };
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(decisions)); } catch (e) {}
+  }
+
+  function render() {
+    var groups = document.getElementById("groups");
+    groups.innerHTML = "";
+    ["input", "session", "present"].forEach(function (domain) {
+      var units = window.REVIEW_UNITS.filter(function (u) { return u.domain === domain; });
+      var head = document.createElement("div");
+      head.className = "group-title";
+      head.innerHTML = "<h3>" + DOMAINS[domain].name + "</h3><em>" + DOMAINS[domain].note + " · " + units.length + " 项</em>";
+      head.dataset.group = domain;
+      groups.appendChild(head);
+      units.forEach(function (u) { groups.appendChild(card(u)); });
+    });
+    updateCounters();
+  }
+
+  function card(u) {
+    var el = document.createElement("div");
+    el.className = "card";
+    el.dataset.domain = u.domain;
+    el.dataset.id = u.id;
+    el.dataset.key = u.title;
+    var dep = u.deps && u.deps.length ? "依赖 " + u.deps.join("、") : "无前置依赖";
+    el.innerHTML =
+      '<h4>' + u.title + '<small>' + u.id + '</small></h4>' +
+      '<p class="tagline">' + u.tagline + '</p>' +
+      '<dl class="facts">' +
+        '<dt>用户会感觉到</dt><dd>' + u.impact + '</dd>' +
+        '<dt>上游怎么做</dt><dd>' + u.upstream + '</dd>' +
+        '<dt>我们现在</dt><dd>' + u.current + '</dd>' +
+        '<dt>验收方式</dt><dd>' + u.accept + '</dd>' +
+      '</dl>' +
+      '<div class="rec"><b>我的建议：' + VERDICTS[u.recommend] + '</b><span class="why"> ｜ ' + u.reason + '</span></div>' +
+      '<div class="row-bottom">' +
+        '<button class="verdict" data-v="port">移植</button>' +
+        '<button class="verdict" data-v="alt">移植（替代实现）</button>' +
+        '<button class="verdict" data-v="skip">不移植</button>' +
+        '<span class="meta">' + dep + ' ｜ 审计条目 ' + u.items + '</span>' +
+      '</div>' +
+      '<details><summary>技术依据</summary><p>' + u.tech + '</p></details>';
+
+    el.querySelectorAll(".verdict").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var v = btn.dataset.v;
+        if (decisions[u.id] === v) { delete decisions[u.id]; }
+        else { decisions[u.id] = v; }
+        save(); paint(el, u.id); updateCounters();
+      });
+    });
+    paint(el, u.id);
+    return el;
+  }
+
+  function paint(el, id) {
+    var v = decisions[id];
+    el.classList.toggle("decided", !!v);
+    el.querySelectorAll(".verdict").forEach(function (b) {
+      b.classList.toggle("on", b.dataset.v === v);
+    });
+  }
+
+  function updateCounters() {
+    var all = window.REVIEW_UNITS;
+    var counts = { port: 0, alt: 0, skip: 0 };
+    all.forEach(function (u) { counts[u.recommend] = (counts[u.recommend] || 0) + 1; });
+    var decided = Object.keys(decisions).length;
+    document.getElementById("stat-total").textContent = all.length;
+    document.getElementById("stat-port").textContent = counts.port;
+    document.getElementById("stat-alt").textContent = counts.alt;
+    document.getElementById("stat-skip").textContent = counts.skip;
+    document.getElementById("stat-decided").textContent = decided;
+    document.getElementById("count").textContent = decided + " / " + all.length;
+    document.getElementById("progressbar").style.width = (all.length ? (decided / all.length * 100) : 0) + "%";
+    var fab = document.getElementById("fab");
+    if (fab) fab.textContent = "导出裁决 · " + decided + "/" + all.length;
+  }
+
+  // filters
+  var currentFilter = "all";
+  document.querySelectorAll(".tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
+      tab.classList.add("active");
+      currentFilter = tab.dataset.filter;
+      applyFilter();
+    });
+  });
+
+  function applyFilter() {
+    document.querySelectorAll(".card").forEach(function (el) {
+      var domain = el.dataset.domain;
+      var id = el.dataset.id;
+      var show =
+        currentFilter === "all" ? true :
+        currentFilter === "undecided" ? !decisions[id] :
+        domain === currentFilter;
+      el.style.display = show ? "" : "none";
+    });
+    document.querySelectorAll(".group-title").forEach(function (head) {
+      var domain = head.dataset.group;
+      var any = Array.prototype.some.call(document.querySelectorAll('.card[data-domain="' + domain + '"]'), function (el) {
+        return el.style.display !== "none";
+      });
+      head.style.display = any ? "" : "none";
+    });
+  }
+
+  // excluded
+  var box = document.getElementById("excluded");
+  var exTitle = document.getElementById("excluded-title");
+  if (exTitle) { exTitle.textContent = "按口径排除的 " + (window.EXCLUDED_UNITS || []).length + " 项"; }
+  (window.EXCLUDED_UNITS || []).forEach(function (x) {
+    var d = document.createElement("div");
+    d.className = "ex";
+    d.innerHTML = "<b>" + x.title + "</b><span>" + x.why + "</span>";
+    box.appendChild(d);
+  });
+
+  // ---------- 导出 / 导入 ----------
+  function buildReport() {
+    var lines = ["串流补齐移植 · 裁决结果", "格式：编号 | 判定 | 单元（未列出的项视为未裁决，按建议处理）", ""];
+    var json = {};
+    window.REVIEW_UNITS.forEach(function (u) {
+      if (decisions[u.id]) {
+        lines.push(u.id + " | " + VERDICTS[decisions[u.id]] + " | " + u.title);
+        json[u.id] = decisions[u.id];
+      }
+    });
+    var undecided = window.REVIEW_UNITS.filter(function (u) { return !decisions[u.id]; });
+    if (undecided.length) {
+      lines.push("");
+      lines.push("未裁决 " + undecided.length + " 项：" + undecided.map(function (u) { return u.id; }).join("、"));
+    }
+    lines.push("");
+    lines.push("[[MACHINE]]");
+    lines.push(JSON.stringify({ version: 1, decisions: json }));
+    return lines.join("\n");
+  }
+
+  function openDialog() {
+    var box = document.getElementById("out");
+    try { box.removeAttribute("readonly"); box.value = buildReport(); } catch (e) { box.value = ""; }
+    var dlg = document.getElementById("dialog");
+    dlg.removeAttribute("hidden");
+    dlg.classList.add("open");
+    document.getElementById("btn-copy").textContent = "复制";
+    try { box.focus(); box.select(); } catch (e) {}
+  }
+  function closeDialog() {
+    var d = document.getElementById("dialog");
+    d.classList.remove("open");
+    d.setAttribute("hidden", "hidden");
+  }
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeDialog();
+  });
+
+  ["btn-export", "btn-export-2", "fab"].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener("click", openDialog);
+  });
+  document.getElementById("btn-close").addEventListener("click", closeDialog);
+  document.getElementById("dialog").addEventListener("click", function (e) {
+    if (e.target.id === "dialog") closeDialog();
+  });
+
+  document.getElementById("btn-copy").addEventListener("click", function () {
+    var box = document.getElementById("out");
+    box.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    if (ok) { document.getElementById("btn-copy").textContent = "已复制"; return; }
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(box.value).then(function () {
+        document.getElementById("btn-copy").textContent = "已复制";
+      }).catch(function () {
+        document.getElementById("btn-copy").textContent = "请手动复制";
+      });
+    } else {
+      document.getElementById("btn-copy").textContent = "请手动复制";
+    }
+  });
+
+  document.getElementById("btn-download").addEventListener("click", function () {
+    var blob = new Blob([document.getElementById("out").value], { type: "text/plain;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "stream-port-review-decisions.txt";
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  });
+
+  document.getElementById("btn-accept-all").addEventListener("click", function () {
+    window.REVIEW_UNITS.forEach(function (u) { if (!decisions[u.id]) decisions[u.id] = u.recommend; });
+    save();
+    document.querySelectorAll(".card").forEach(function (el) { paint(el, el.dataset.id); });
+    updateCounters(); applyFilter();
+  });
+
+  document.getElementById("btn-import").addEventListener("click", function () {
+    var raw = document.getElementById("import-box").value || "";
+    var applied = 0;
+    var m = raw.match(/\{[\s\S]*\}/);
+    if (m) {
+      try {
+        var obj = JSON.parse(m[0]);
+        var d = obj.decisions || obj;
+        Object.keys(d).forEach(function (k) {
+          if (VERDICTS[d[k]]) { decisions[k] = d[k]; applied++; }
+        });
+      } catch (e) {}
+    }
+    if (!applied) {
+      var table = { "移植": "port", "移植（替代实现）": "alt", "不移植": "skip" };
+      raw.split(/\n/).forEach(function (line) {
+        var parts = line.split("|").map(function (x) { return x.trim(); });
+        if (parts.length >= 2 && /^[USP][0-9]+$/.test(parts[0]) && table[parts[1]]) {
+          decisions[parts[0]] = table[parts[1]];
+          applied++;
+        }
+      });
+    }
+    save();
+    document.querySelectorAll(".card").forEach(function (el) { paint(el, el.dataset.id); });
+    updateCounters(); applyFilter();
+    document.getElementById("btn-import").textContent = applied ? ("已恢复 " + applied + " 条") : "没识别到内容";
+  });
+
+  document.getElementById("btn-reset").addEventListener("click", function () {
+    decisions = {};
+    save();
+    document.querySelectorAll(".card").forEach(function (el) { paint(el, el.dataset.id); });
+    updateCounters(); applyFilter();
+    document.getElementById("out").value = "";
+    closeDialog();
+  });
+
+  render();
+  applyFilter();
+})();
+</script>
+</body>
+</html>

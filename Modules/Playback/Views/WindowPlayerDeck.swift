@@ -3,50 +3,40 @@ import OSLog
 import PlaybackCore
 import SwiftUI
 
+public enum WindowPlayerDeckSurface: Equatable, Sendable {
+    case windowOrnament
+    case immersiveSpace
+}
+
 public struct WindowPlayerDeckView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "PlayerDeck")
     @Environment(PlaybackSessionModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var presentationOverride: PlaybackPresentation?
+    var surface: WindowPlayerDeckSurface
+    var streamingDockMenuPresented: Binding<Bool>
     var onExitPlayback: (() -> Void)?
 
     public init(
         presentationOverride: PlaybackPresentation? = nil,
+        surface: WindowPlayerDeckSurface = .windowOrnament,
+        streamingDockMenuPresented: Binding<Bool> = .constant(false),
         onExitPlayback: (() -> Void)? = nil
     ) {
         self.presentationOverride = presentationOverride
+        self.surface = surface
+        self.streamingDockMenuPresented = streamingDockMenuPresented
         self.onExitPlayback = onExitPlayback
     }
 
     @ViewBuilder
     public var body: some View {
         Group {
-            if let information = streamingInformation {
-                if usesWindowPlaybackControls {
-                    StreamingWindowPlaybackControls(
-                        live: live,
-                        information: information,
-                        onInteraction: register,
-                        controlsVisible: appModel.showControls
-                    )
-                    .onHover { appModel.setControlsFocused($0) }
-                } else {
-                    StreamingDockPlaybackControls(
-                        live: live,
-                        information: information,
-                        onInteraction: register,
-                        controlsVisible: appModel.showControls
-                    )
-                    .onHover { appModel.setControlsFocused($0) }
-                }
+            if playbackRuntime.isStreamingPlayback {
+                streamingDeck
             } else if usesWindowPlaybackControls {
-                WindowPlaybackControls(
-                    live: live,
-                    onInteraction: register,
-                    controlsVisible: appModel.showControls
-                )
-                .onHover { appModel.setControlsFocused($0) }
+                windowDeck
             } else {
                 PlayerControlDock(
                     live: live,
@@ -58,9 +48,42 @@ public struct WindowPlayerDeckView: View {
         }
     }
 
-    private var streamingInformation: StreamingPlaybackInformation? {
-        guard playbackRuntime.isStreamingPlayback else { return nil }
-        return playbackRuntime.externalVideoInformation
+    @ViewBuilder
+    private var streamingDeck: some View {
+        switch surface {
+        case .windowOrnament:
+            if resolvedPresentation == .docked {
+                StreamingCapsuleDeck(
+                    mode: .docked(
+                        live.dockedPlacementSettings(
+                            onInteraction: register
+                        )
+                    ),
+                    information: playbackRuntime.externalVideoInformation,
+                    onInteraction: register,
+                    onExitDock: exitImmersive
+                )
+            } else {
+                StreamingCapsuleDeck(
+                    mode: .window,
+                    information: playbackRuntime.externalVideoInformation,
+                    dockMenuPresented: streamingDockMenuPresented,
+                    onInteraction: register
+                )
+            }
+        case .immersiveSpace:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var windowDeck: some View {
+        WindowPlaybackControls(
+            live: live,
+            onInteraction: register,
+            controlsVisible: appModel.showControls
+        )
+        .onHover { appModel.setControlsFocused($0) }
     }
 
     private func register() {

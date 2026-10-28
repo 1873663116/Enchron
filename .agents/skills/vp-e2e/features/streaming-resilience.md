@@ -9,6 +9,9 @@
 - 会话结束后输入全部释放、音频停止、渲染器归还。
 - 断连后主窗口仍可用，Moonlight 标签页的主机列表与内容列不受影响。
 - 退出 App 时会话干净收口，不留下悬挂的会话。
+- App 进入后台（按数字表冠、摘下头显）时，本地连接断开，主机上的应用继续运行，播放窗口保留；App 回到 active 时，以 resume 重连同一主机与应用。这与文件播放在后台只暂停、回来再重建的行为一致。
+- 渲染器重建、表面重新绑定、渲染器 flush 时，待发帧队列清空并向主机请求关键帧。渲染器报解码告警只累计计数，不改动交付。
+- 音频帧到达而音频引擎已停止（例如场景进入后台造成的打断）时，引擎每秒最多重启一次。
 
 ## How to get to it (user POV)
 
@@ -35,6 +38,8 @@ D="$(xcrun simctl get_app_container <UDID> com.xiongzhipeng.Enchron data)/Docume
 grep -E "session end|input release|audio stop|stream content disappeared" "$D/stream-session-probe.log" | tail
 ```
 
+后台与恢复读 `stream suspended for background`、`stream resuming after background` 与新会话的 `session start`。解码恢复读 `video surface bind`、`frame queue depth`。音频读 `audio interruption type= reason=`（visionOS 上 reason 3 表示场景进入后台）与 `audio engine start reason=framesWithoutEngine`。
+
 ## 证据
 
 | 种类 | 判据 | 谁守 |
@@ -54,3 +59,16 @@ grep -E "session end|input release|audio stop|stream content disappeared" "$D/st
 
 - **断连注入对「用户点返回是否有效」失明。** 用命令通道断开跳过的是按钮的命中路径，因此这条注入不能作为返回控件可用的证据。
 - **`stream content disappeared` 是窗口消失的收口行**，与 `session end` 不是同一件事，两条都要看。
+
+## 本轮补齐范围（2026-10-26 裁决）
+
+范围、阶段与验收见 `docs/reviews/streaming-port-review/plan.md`。
+
+纳入：
+
+- 断线后的重连入口与状态：中断态浮层给出「重新连接」，只对可重试的失败显示；用户侧恢复路径不再只有注入式断开。
+- 弱网提示。
+- 失败原因分类，会话与呈现共用同一份数据源。
+- 主机多地址带来的可达性切换记在 [串流主机](streaming-hosts.md)，不在本文件展开。
+
+不做：会话内自动重启的触发面，维持现有的两类（显示模式切换、主机帧率不匹配）。

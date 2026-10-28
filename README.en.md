@@ -24,7 +24,7 @@ Enchron is available for public beta testing on TestFlight. Join on Apple Vision
 
 ## Build
 
-The project requires Xcode 27.0 and the visionOS SDK. After cloning, run these commands from the repository root to provision the binary dependencies required by `Packages/PlaybackCore`. They are not stored in Git.
+The project requires Xcode 27.2 RC and the visionOS SDK. After cloning, run these commands from the repository root to provision the binary dependencies required by `Packages/PlaybackCore`. They are not stored in Git.
 
 ```sh
 Scripts/provision_vendored_ffmpeg.sh

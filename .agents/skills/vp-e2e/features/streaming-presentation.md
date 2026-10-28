@@ -72,3 +72,16 @@ tail -20 "$D/stream-session-probe.log"
 - **启动失败不写探针。** 会话建立前的失败只把原因放进内存并渲染成窗口内的一行红字（identifier `Stream-HostDetail-error`，详情在 accessibilityValue 的 `upstreamDetail`），探针一行不增。遇到「点了没反应、探针没动静」时先区分这两种情况：事件没送达，还是送达但启动失败。
 - **应用网格可能显示模拟后端的条目。** `SimulatedStreamingBackend` 提供 `Enchron Probe` 这类名称，真实 Sunshine 不提供。点中这类卡片会启动失败，与呈现缺陷无关。
 - **空间手势经 Device Hub 确认。** 一次点击能否到达空间表面，靠动作后的画面与产品探针判定；XCUITest 目录不覆盖这一段。
+
+## 本轮补齐范围（2026-10-26 裁决）
+
+范围、阶段与验收见 `docs/reviews/streaming-port-review/plan.md`。
+
+纳入：
+
+- 串流会话向系统申请显示模式：用协商到的帧率与 HDR 色彩空间构造显示判据，经文件播放同一条 `AVDisplayManager` 通道提交，结束时释放；播放器侧探针 `displayCriteria requestedHz=…`，会话侧探针 `display criteria frameRate=… hdr=…`。
+- 失败态的呈现：分类标题、恢复建议、重试入口；启动失败弹窗，串流中失败走窗口内浮层。
+- 串流相关文案进入本地化目录：138 条文案按中文原文为键，补齐七种语言；设置行、菜单项与动态失败文案都走目录查表。
+- 会话统计浮层在画面左上角，identifier `Stream-Session-stats`。
+
+不做：串流退出按钮与退出确认（结束串流仍只有关闭窗口一条路）、控制面板增加槽位、画面缩放模式。

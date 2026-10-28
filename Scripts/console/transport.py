@@ -283,6 +283,15 @@ def copy_to_device(
     local_path: Path,
     remote_path: str,
 ) -> None:
+    """Push one command file into an app data container.
+
+    A file-node miss (CoreDeviceError 7000) on the interactive UI command
+    path is delivery, not failure: the parked runner consumes command.json
+    within one 20 ms poll, and devicectl's post-upload metadata read-back can
+    lose that race on xrOS 27.2 even though the upload itself completed.
+    Treating that as failure re-sent the command up to three times and threw
+    while the runner was already executing it. Any other miss still retries,
+    and a command that never truly landed surfaces as a response timeout."""
     if is_simulator(device):
         container = simulator_container(device, runner_bundle_id)
         if container is None:
@@ -313,6 +322,10 @@ def copy_to_device(
         if result.returncode == 0:
             return
         detail = result.stderr or result.stdout or detail
+        if remote_path == f"{CHANNEL_ROOT}/command.json" and (
+            "Failed to retrieve the file node" in detail and "error 7000" in detail
+        ):
+            return
         if attempt + 1 < DEVICE_TRANSFER_ATTEMPTS:
             device_transfer_pause(DEVICE_TRANSFER_RETRY_SECONDS)
     raise RuntimeError(

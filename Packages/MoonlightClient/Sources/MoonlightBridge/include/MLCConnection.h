@@ -19,6 +19,11 @@ typedef struct {
     int submitGapMaxMs;
     int zeroCopyFrames;
     int zeroCopyFallbacks;
+    int assembleMaxMs;
+    int queueWaitMaxMs;
+    int callbackMaxMs;
+    int pendingMax;
+    int decoderQos;
 } video_stats_t;
 
 @interface MLCConnection : NSOperation
@@ -32,6 +37,7 @@ typedef struct {
 - (instancetype)initWithConfig:(MLCStreamConfiguration*)config delegate:(id<MLCConnectionDelegate>)delegate;
 - (void)terminate;
 - (BOOL)getVideoStats:(video_stats_t*)stats;
+- (int)takeAudioPendingPeakMs;
 - (NSString*)getActiveCodecName;
 
 - (void)videoDecoderDidFail;

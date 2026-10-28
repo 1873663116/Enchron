@@ -124,6 +124,7 @@ final class EnchronApplication {
     private let suspensionWatchdog = ApplicationSuspensionWatchdog()
     @ObservationIgnored
     private var backgroundNotificationObserver: NSObjectProtocol?
+    private var activeNotificationObserver: NSObjectProtocol?
     private var applicationBackgroundedAt: Date?
     private var suspendedPlaybackPresentation: PlaybackPresentation?
     private var suspendedPlaybackPositionSeconds: Double?
@@ -587,7 +588,17 @@ final class EnchronApplication {
         self.connectionSecurityPrompt = connectionSecurityPrompt
         self.certificateChangePlaybackBoundary = certificateChangePlaybackBoundary
         self.modalPresentationCoordinator = modalPresentationCoordinator
+#if DEBUG
+        /// The simulation lane runs the same model and UI against a backend that
+        /// owns no socket, so the app-side behaviour can be driven with no host.
+        let streamingBackend: any StreamingBackend =
+            ProcessInfo.processInfo.environment["ENCHRON_STREAMING_BACKEND"] == "simulated"
+                ? SimulatedStreamingBackend()
+                : MoonlightStreamingBackend.shared
+        self.streamingModel = StreamingModel(backend: streamingBackend)
+#else
         self.streamingModel = StreamingModel(backend: MoonlightStreamingBackend.shared)
+#endif
         self.streamingModel.onSessionChanged = { [weak playbackRuntime] session in
             playbackRuntime?.setExternalVideoInformation(
                 session?.streamingPlaybackInformation
@@ -664,11 +675,19 @@ final class EnchronApplication {
             MainActor.assumeIsolated {
                 guard let self, self.streamingModel.session != nil else { return }
                 SurfaceInputProbes.record(
-                    "applicationBackgrounded endingStream",
+                    "applicationBackgrounded suspendingStream",
                     retention: .evidence
                 )
-                self.streamingModel.endStreamInBackground()
-                self.playbackRuntime.endExternalVideoSession()
+                self.streamingModel.suspendForBackground()
+            }
+        }
+        activeNotificationObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.streamingModel.resumeFromBackground()
             }
         }
     }

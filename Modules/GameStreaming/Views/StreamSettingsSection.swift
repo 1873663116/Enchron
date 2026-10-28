@@ -57,6 +57,7 @@ public struct StreamSettingsSection: View {
             id: "Streaming-resolution",
             title: "分辨率",
             systemName: "rectangle.on.rectangle",
+            supportingText: resolutionSupportingText,
             accessory: .menu(title: resolutionMenuTitle, options: resolutionOptions)
         )
         if model.settings.resolution == .custom {
@@ -131,7 +132,7 @@ public struct StreamSettingsSection: View {
                 accessory: .menu(title: frameRateLabel, options: frameRateOptions)
             ),
             SettingListGroup.Item(
-                id: "Streaming-framePacing",
+                id: "Streaming-frameBuffer",
                 title: "帧调度",
                 systemName: "metronome",
                 supportingText: "按显示刷新节奏安排帧呈现。",
@@ -157,7 +158,8 @@ public struct StreamSettingsSection: View {
                 supportingTextLineLimit: nil,
                 accessory: .boundToggle(
                     isOn: hdrBinding,
-                    isEnabled: model.settings.codec != .h264,
+                    isEnabled: model.settings.codec != .h264
+                        && StreamCodecAvailability.hdrOutputSupported,
                     marker: nil
                 )
             )
@@ -174,11 +176,14 @@ public struct StreamSettingsSection: View {
                 accessory: .boundToggle(isOn: swapABXYBinding, isEnabled: true, marker: nil)
             ),
             SettingListGroup.Item(
-                id: "Streaming-bluetoothMouse",
-                title: "蓝牙鼠标",
+                id: "Streaming-mouseTracking",
+                title: "鼠标跟踪",
                 systemName: "computermouse",
-                supportingText: "外接鼠标直接控制主机指针：转发移动、按键与滚轮。",
-                accessory: .boundToggle(isOn: bluetoothMouseBinding, isEnabled: true, marker: nil)
+                supportingText: model.settings.mouseTrackingMode.explanation,
+                accessory: .menu(
+                    title: model.settings.mouseTrackingMode.label,
+                    options: mouseTrackingOptions
+                )
             )
         ]
     }
@@ -191,6 +196,24 @@ public struct StreamSettingsSection: View {
                 systemName: "hifispeaker",
                 supportingText: "声音留在主机扬声器，不串流到本机。",
                 accessory: .boundToggle(isOn: audioOnPCBinding, isEnabled: true, marker: nil)
+            ),
+            SettingListGroup.Item(
+                id: "Streaming-audioLayout",
+                title: "声道",
+                systemName: "speaker.wave.3",
+                supportingText: "请求主机按多声道编码；主机没有对应的扬声器配置时仍然是立体声。",
+                accessory: .menu(title: model.settings.audioLayout.label, options: audioLayoutOptions)
+            ),
+            SettingListGroup.Item(
+                id: "Streaming-statsOverlay",
+                title: "统计浮层",
+                systemName: "gauge.with.dots.needle.67percent",
+                supportingText: "串流时在画面角落显示帧率、码率与延迟。",
+                accessory: .boundToggle(
+                    isOn: performanceOverlayBinding,
+                    isEnabled: true,
+                    marker: nil
+                )
             ),
             SettingListGroup.Item(
                 id: "Streaming-optimizeSettings",
@@ -210,11 +233,12 @@ public struct StreamSettingsSection: View {
         )
     }
 
-    private var bluetoothMouseBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.bluetoothMouseEnabled },
-            set: { value in model.updateSettings { $0.bluetoothMouseEnabled = value } }
-        )
+    private var mouseTrackingOptions: [SettingListGroup.MenuOption] {
+        StreamMouseTrackingMode.allCases.map { mode in
+            SettingListGroup.MenuOption(mode.label, id: mode.rawValue) {
+                model.updateSettings { $0.mouseTrackingMode = mode }
+            }
+        }
     }
 
     private var audioOnPCBinding: Binding<Bool> {
@@ -347,6 +371,13 @@ public struct StreamSettingsSection: View {
         }
     }
 
+    private var resolutionSupportingText: String? {
+        guard StreamCodecAvailability.maximumStreamPixelCount < StreamResolution.maximumPixelCount else {
+            return nil
+        }
+        return "本机硬件解码上限为 1080p，更高的分辨率不会出现在列表中。"
+    }
+
     private var resolutionMenuTitle: String {
         guard model.settings.resolution == .custom else {
             return model.settings.resolution.label
@@ -355,7 +386,12 @@ public struct StreamSettingsSection: View {
     }
 
     private var resolutionOptions: [SettingListGroup.MenuOption] {
-        StreamResolution.allCases.map { resolution in
+        StreamResolution.allCases
+            .filter {
+                $0.fits(pixelBudget: StreamCodecAvailability.maximumStreamPixelCount)
+                    || $0 == model.settings.resolution
+            }
+            .map { resolution in
             SettingListGroup.MenuOption(resolution.label, id: resolution.rawValue) {
                 applyBitrateFollowing { $0.resolution = resolution }
             }
@@ -385,9 +421,18 @@ public struct StreamSettingsSection: View {
         )
     }
 
+    private var audioLayoutOptions: [SettingListGroup.MenuOption] {
+        StreamAudioLayout.allCases.map { layout in
+            SettingListGroup.MenuOption(layout.label, id: layout.rawValue) {
+                model.updateSettings { $0.audioLayout = layout }
+            }
+        }
+    }
+
     private var codecOptions: [SettingListGroup.MenuOption] {
         StreamCodecPreference.allCases
             .filter { $0 != .av1 || av1DecodeAvailable }
+            .filter { $0 != .hevc || StreamCodecAvailability.hevcDecodeSupported }
             .map { codec in
                 SettingListGroup.MenuOption(codec.label, id: codec.rawValue) {
                     model.updateSettings { $0.codec = codec }
@@ -400,7 +445,22 @@ public struct StreamSettingsSection: View {
     }
 
     private var hdrExplanation: String {
-        "接收 HDR 视频并交由系统以 HDR 呈现。需要主机启用 HDR，并提供 HDR 视频信号。不支持 H.264 编码。"
+        guard StreamCodecAvailability.hdrOutputSupported else {
+            return "本机没有 HDR 解码能力，HDR 不可用。"
+        }
+        if let host = model.selectedHost,
+           model.hostCapabilities(hostID: host.id).hasAnyDeclaration,
+           !model.hostCapabilities(hostID: host.id).declaresHDR {
+            return "主机未声明 HDR 支持；开启后仍可能只收到 SDR 画面。"
+        }
+        return "接收 HDR 视频并交由系统以 HDR 呈现。需要主机启用 HDR，并提供 HDR 视频信号。不支持 H.264 编码。"
+    }
+
+    private var performanceOverlayBinding: Binding<Bool> {
+        Binding(
+            get: { model.settings.showPerformanceOverlay },
+            set: { value in model.updateSettings { $0.showPerformanceOverlay = value } }
+        )
     }
 
     private var hdrBinding: Binding<Bool> {
@@ -411,18 +471,18 @@ public struct StreamSettingsSection: View {
     }
 
     private var framePacingLabel: String {
-        model.settings.framePacing ? "最平滑" : "最低延迟"
+        model.settings.frameBuffer ? "平滑优先" : "延迟优先"
     }
 
     private var framePacingOptions: [SettingListGroup.MenuOption] {
         [
-            SettingListGroup.MenuOption("最平滑", id: "smooth") { applyFramePacing(true) },
-            SettingListGroup.MenuOption("最低延迟", id: "latency") { applyFramePacing(false) }
+            SettingListGroup.MenuOption("平滑优先", id: "smooth") {
+                model.updateSettings { $0.frameBuffer = true }
+            },
+            SettingListGroup.MenuOption("延迟优先", id: "latency") {
+                model.updateSettings { $0.frameBuffer = false }
+            }
         ]
-    }
-
-    private func applyFramePacing(_ smooth: Bool) {
-        model.updateSettings { $0.framePacing = smooth }
     }
 
     private func applyBitrateFollowing(_ mutate: (inout StreamOptions) -> Void) {
@@ -482,7 +542,7 @@ public struct StreamSettingsSection: View {
 
     private func configurationRow(title: String, value: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.lg) {
-            Text(title)
+            Text(LocalizedStringKey(title))
                 .font(DesignTokens.Typography.selectionHeader)
                 .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
             Spacer(minLength: DesignTokens.Spacing.lg)

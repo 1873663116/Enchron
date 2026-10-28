@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import MediaSource
+import DesignSystem
 import Testing
 
 struct MediaSourceDomainContractTests {
@@ -14,7 +15,9 @@ struct MediaSourceDomainContractTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = ArtworkStore(debugRootURL: root)
         let key = ArtworkKey(
-            mediaIdentity: .localPathFallback(canonicalPath: "/regression/artwork.mkv")
+            mediaStorageKey: MediaIdentity.localPathFallback(
+                canonicalPath: "/regression/artwork.mkv"
+            ).storageKey
         )
         let space = CGColorSpaceCreateDeviceRGB()
         let context = try #require(
@@ -147,7 +150,9 @@ struct MediaSourceDomainContractTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let store = ArtworkStore(debugRootURL: root)
         let key = ArtworkKey(
-            mediaIdentity: .localPathFallback(canonicalPath: "/regression/rewritten.mkv")
+            mediaStorageKey: MediaIdentity.localPathFallback(
+                canonicalPath: "/regression/rewritten.mkv"
+            ).storageKey
         )
         #expect(store.fileURL(for: key) == nil)
 

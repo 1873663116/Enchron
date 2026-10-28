@@ -35,6 +35,8 @@ public struct MoonlightServerInfo: Sendable {
     public var serverCodecModeSupport: UInt32
     public var state: String
     public var currentGame: String?
+    public var localAddress: String?
+    public var externalAddress: String?
 }
 
 public struct MoonlightApplication: Sendable, Identifiable {
@@ -64,6 +66,9 @@ public struct MoonlightStreamRequest: Sendable {
     public var playAudioOnPC: Bool
     public var optimizeGameSettings: Bool
     public var gamepadMask: Int
+    public var audioChannelCount: Int
+    public var packetSize: Int
+    public var streamingRemotely: Int
 
     public init(
         address: MoonlightHostAddress,
@@ -78,7 +83,10 @@ public struct MoonlightStreamRequest: Sendable {
         hdrEnabled: Bool,
         playAudioOnPC: Bool = false,
         optimizeGameSettings: Bool = false,
-        gamepadMask: Int = 0
+        gamepadMask: Int = 0,
+        audioChannelCount: Int = 2,
+        packetSize: Int = 1392,
+        streamingRemotely: Int = -1
     ) {
         self.address = address
         self.serverCert = serverCert
@@ -93,6 +101,9 @@ public struct MoonlightStreamRequest: Sendable {
         self.playAudioOnPC = playAudioOnPC
         self.optimizeGameSettings = optimizeGameSettings
         self.gamepadMask = gamepadMask
+        self.audioChannelCount = audioChannelCount
+        self.packetSize = packetSize
+        self.streamingRemotely = streamingRemotely
     }
 }
 
@@ -139,6 +150,11 @@ public struct MoonlightVideoStats: Sendable {
     public var submitGapMaxMs: Int
     public var zeroCopyFrames: Int
     public var zeroCopyFallbacks: Int
+    public var assembleMaxMs: Int
+    public var queueWaitMaxMs: Int
+    public var callbackMaxMs: Int
+    public var pendingMax: Int
+    public var decoderQos: Int
 }
 
 public enum MoonlightClientError: Error, Sendable {
@@ -156,4 +172,41 @@ public enum MoonlightLaunchPreference: Sendable {
     case automatic
     case resumeOnly
     case launchOnly
+}
+
+public enum MoonlightControllerType: UInt8, Sendable {
+    case unknown = 0
+    case xbox = 1
+    case playStation = 2
+    case nintendo = 3
+    case steam = 4
+}
+
+public struct MoonlightControllerArrival: Sendable, Equatable {
+    public var controllerNumber: UInt8
+    public var activeGamepadMask: UInt16
+    public var type: MoonlightControllerType
+    public var supportedButtons: UInt32
+    public var capabilities: UInt16
+
+    public init(
+        controllerNumber: UInt8,
+        activeGamepadMask: UInt16,
+        type: MoonlightControllerType,
+        supportedButtons: UInt32,
+        capabilities: UInt16
+    ) {
+        self.controllerNumber = controllerNumber
+        self.activeGamepadMask = activeGamepadMask
+        self.type = type
+        self.supportedButtons = supportedButtons
+        self.capabilities = capabilities
+    }
+}
+
+public enum MoonlightControllerFeedback: Sendable, Equatable {
+    case rumble(controllerNumber: UInt16, lowFrequency: UInt16, highFrequency: UInt16)
+    case triggerRumble(controllerNumber: UInt16, leftTrigger: UInt16, rightTrigger: UInt16)
+    case motionRequest(controllerNumber: UInt16, motionType: UInt8, reportRateHz: UInt16)
+    case led(controllerNumber: UInt16, red: UInt8, green: UInt8, blue: UInt8)
 }

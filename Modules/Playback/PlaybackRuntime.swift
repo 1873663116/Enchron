@@ -185,6 +185,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var presentationState: PresentationState = .hidden
     public private(set) var loadingState = PlaybackLoadingState.none
     public let displayCriteria = PlaybackDisplayCriteria()
+
+    /// Streaming sessions present their own frames, so they feed display mode
+    /// requests through the same channel the media player uses.
+    public func requestStreamDisplayCriteria(
+        frameRate: Double,
+        hdr: Bool,
+        width: Int,
+        height: Int
+    ) {
+        displayCriteria.updateStream(frameRate: frameRate, hdr: hdr, width: width, height: height)
+    }
+
+    public func clearStreamDisplayCriteria() {
+        displayCriteria.clear()
+    }
     public private(set) var diagnostics = PlaybackDiagnostics()
     public private(set) var availableAudioTracks: [PlaybackModel.AudioTrack] = []
     public private(set) var currentAudioTrackID: String?

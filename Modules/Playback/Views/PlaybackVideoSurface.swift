@@ -291,7 +291,8 @@ public struct PlaybackVideoSurface: View {
                 PlaybackSurfaceGestureInput { entity in
                     PlaybackSurfaceInputOwnership.acceptsSpatialTapTarget(
                         entity,
-                        for: presentation
+                        for: presentation,
+                        isStreamingPlayback: playbackRuntime.isStreamingPlayback
                     )
                 }
             )

@@ -34,7 +34,8 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                             address: HostAddress(
                                 host: host.host,
                                 portBase: host.port == 0 ? HostAddress.defaultPortBase : host.port
-                            )
+                            ),
+                            mac: host.mac
                         )
                     })
                 }
@@ -61,7 +62,9 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                 gfeVersion: info.gfeVersion,
                 serverCodecModeSupport: info.serverCodecModeSupport,
                 state: info.state,
-                currentGame: info.currentGame
+                currentGame: info.currentGame,
+                localAddress: info.localAddress,
+                externalAddress: info.externalAddress
             )
         } catch let error as MoonlightClientError {
             throw Self.failure(from: error, stage: .connect)
@@ -156,6 +159,7 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
         preference: MoonlightLaunchPreference
     ) async throws -> any BackendSession {
         do {
+            let networkPlan = StreamNetworkCondition.plan(for: request.credentials.address)
             let session = try await service.startSession(
                 MoonlightStreamRequest(
                     address: request.credentials.address.moonlightAddress,
@@ -170,7 +174,10 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                     hdrEnabled: request.options.hdrEnabled && request.options.codec != .h264,
                     playAudioOnPC: request.options.playAudioOnPC,
                     optimizeGameSettings: request.options.optimizeGameSettings,
-                    gamepadMask: StreamGamepadInput.connectedMask()
+                    gamepadMask: StreamGamepadInput.connectedMask(),
+                    audioChannelCount: request.options.audioLayout.channelCount,
+                    packetSize: networkPlan.packetSize,
+                    streamingRemotely: networkPlan.streamingRemotely ? 1 : 0
                 ),
                 preference: preference
             )
@@ -186,6 +193,12 @@ public final class MoonlightStreamingBackend: StreamingBackend, @unchecked Senda
                 upstreamDetail: String(describing: error)
             )
         }
+    }
+
+    /// Public address is best effort: a network without STUN reachability is
+    /// not an error, it only means the WAN path stays unknown.
+    public func externalIPv4Address() async throws -> String? {
+        try? await service.externalIPv4Address()
     }
 
     public func quitApplication(_ credentials: BackendCredentials) async throws {
@@ -333,6 +346,7 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
     var videoSampleHandler: (@Sendable (CMSampleBuffer) -> Void)?
     var audioFrameHandler: (@Sendable (BackendAudioFrame) -> Void)?
     var eventHandler: (@Sendable (BackendSessionEvent) -> Void)?
+    var controllerFeedbackHandler: (@Sendable (StreamControllerFeedback) -> Void)?
 
     private let session: MoonlightStreamSession
 
@@ -351,6 +365,9 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
         }
         session.onEvent = { [weak self] event in
             self?.eventHandler?(Self.map(event))
+        }
+        session.onControllerFeedback = { [weak self] feedback in
+            self?.controllerFeedbackHandler?(Self.map(feedback))
         }
     }
 
@@ -382,6 +399,28 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
         session.sendScroll(amount: amount)
     }
 
+    func sendHighResScroll(vertical: Int16, horizontal: Int16) {
+        session.sendHighResScroll(vertical: vertical, horizontal: horizontal)
+    }
+
+    func sendControllerTouch(
+        controllerNumber: UInt8,
+        eventType: UInt8,
+        pointerId: UInt32,
+        x: Float,
+        y: Float,
+        pressure: Float
+    ) {
+        session.sendControllerTouch(
+            controllerNumber: controllerNumber,
+            eventType: eventType,
+            pointerId: pointerId,
+            x: x,
+            y: y,
+            pressure: pressure
+        )
+    }
+
     func sendKey(hidUsage: UInt32, down: Bool, modifierFlags: UInt32) {
         session.sendKey(hidUsage: hidUsage, down: down, modifierFlags: modifierFlags)
     }
@@ -406,8 +445,42 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
         )
     }
 
-    func sendControllerPresence(connected: Bool) {
-        session.sendControllerPresence(connected: connected)
+    func sendControllerArrival(_ arrival: StreamControllerArrival) {
+        session.sendControllerArrival(MoonlightControllerArrival(
+            controllerNumber: arrival.controllerNumber,
+            activeGamepadMask: arrival.activeGamepadMask,
+            type: Self.map(arrival.kind),
+            supportedButtons: UInt32(bitPattern: arrival.supportedButtons),
+            capabilities: arrival.capabilities.rawValue
+        ))
+    }
+
+    func sendControllerRemoval(controllerNumber: UInt8) {
+        session.sendControllerRemoval(controllerNumber: controllerNumber)
+    }
+
+    func sendControllerMotion(
+        controllerNumber: UInt8,
+        motionType: UInt8,
+        x: Float,
+        y: Float,
+        z: Float
+    ) {
+        session.sendControllerMotion(
+            controllerNumber: controllerNumber,
+            motionType: motionType,
+            x: x,
+            y: y,
+            z: z
+        )
+    }
+
+    func sendControllerBattery(controllerNumber: UInt8, state: UInt8, percentage: UInt8) {
+        session.sendControllerBattery(
+            controllerNumber: controllerNumber,
+            state: state,
+            percentage: percentage
+        )
     }
 
     func releaseAllInput() {
@@ -422,6 +495,10 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
         session.estimatedRTT()
     }
 
+    func audioPendingPeakMs() -> Int {
+        session.audioPendingPeakMs()
+    }
+
     func videoStats() -> BackendVideoStats? {
         guard let stats = session.videoStats() else { return nil }
         return BackendVideoStats(
@@ -434,7 +511,12 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
             submitGapCount: stats.submitGapCount,
             submitGapMaxMs: stats.submitGapMaxMs,
             zeroCopyFrames: stats.zeroCopyFrames,
-            zeroCopyFallbacks: stats.zeroCopyFallbacks
+            zeroCopyFallbacks: stats.zeroCopyFallbacks,
+            assembleMaxMs: stats.assembleMaxMs,
+            queueWaitMaxMs: stats.queueWaitMaxMs,
+            callbackMaxMs: stats.callbackMaxMs,
+            pendingMax: stats.pendingMax,
+            decoderQos: stats.decoderQos
         )
     }
 
@@ -467,6 +549,38 @@ private final class MoonlightSessionAdapter: BackendSession, @unchecked Sendable
             .audioStarted(sampleRate: sampleRate, channels: channelCount, samplesPerFrame: samplesPerFrame)
         case .audioStopped:
             .audioStopped
+        }
+    }
+
+    private static func map(_ kind: StreamControllerKind) -> MoonlightControllerType {
+        switch kind {
+        case .unknown: .unknown
+        case .xbox: .xbox
+        case .playStation: .playStation
+        case .nintendo: .nintendo
+        case .steam: .steam
+        }
+    }
+
+    private static func map(_ feedback: MoonlightControllerFeedback) -> StreamControllerFeedback {
+        switch feedback {
+        case .rumble(let controllerNumber, let low, let high):
+            .rumble(controllerNumber: controllerNumber, lowFrequency: low, highFrequency: high)
+        case .triggerRumble(let controllerNumber, let left, let right):
+            .triggerRumble(controllerNumber: controllerNumber, leftTrigger: left, rightTrigger: right)
+        case .motionRequest(let controllerNumber, let motionType, let reportRateHz):
+            .motionRequest(
+                controllerNumber: controllerNumber,
+                motionType: motionType,
+                reportRateHz: reportRateHz
+            )
+        case .led(let controllerNumber, let red, let green, let blue):
+            .indicatorLight(
+                controllerNumber: controllerNumber,
+                red: red,
+                green: green,
+                blue: blue
+            )
         }
     }
 }

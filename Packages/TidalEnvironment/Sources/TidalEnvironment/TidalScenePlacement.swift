@@ -1,7 +1,8 @@
 import simd
 
 nonisolated enum TidalScenePlacement {
-    static let rootHeight: Float = 0.8
+    static let rootHeight: Float = 0.6
+    static let screenRecess: Float = 0.9
     static let debrisOffsets: [(String, SIMD3<Float>)] = [
         ("BrokenRoad01", [0, 0, -2]),
         ("BuildingFragment02", [0, 10, 0])

@@ -3,6 +3,7 @@ import Foundation
 import ImageIO
 import MediaSource
 import Synchronization
+import DesignSystem
 import Testing
 @testable import MediaServer
 

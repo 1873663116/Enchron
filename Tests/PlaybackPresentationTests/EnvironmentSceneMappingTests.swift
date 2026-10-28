@@ -48,8 +48,8 @@ struct EnvironmentSceneMappingTests {
         #expect(ocean.ceilingHeightMeters == nil)
 
         let tidal = EnvironmentSceneMapping.geometry(for: .tidal)
-        #expect(tidal.distanceRangeMeters == 13.550063...13.550063)
-        #expect(tidal.defaultDistanceMeters == 13.550063)
+        #expect(tidal.distanceRangeMeters == 14.450059...14.450059)
+        #expect(tidal.defaultDistanceMeters == 14.450059)
         #expect(tidal.elevationRangeDegrees == 0...90)
         #expect(tidal.screenHeightRangeMeters == 8...8)
         #expect(tidal.defaultScreenHeightMeters == 8)
@@ -98,21 +98,21 @@ struct EnvironmentSceneMappingTests {
         let model = PlaybackPresentationModel(screenPositionStore: store, environmentDefaults: defaults)
         try model.activateEnvironment(.tidal, effect: .light)
         await model.loadDockedPlacement()
-        #expect(model.dockedPlacement.distanceMeters == 13.550063)
+        #expect(model.dockedPlacement.distanceMeters == 14.450059)
         #expect(model.dockedPlacement.viewerHeightMeters == 0)
         #expect(model.dockedPlacement.elevationDegrees == 25)
-        #expect(model.dockedPlacement.limits.distanceRange == 13.550063...13.550063)
+        #expect(model.dockedPlacement.limits.distanceRange == 14.450059...14.450059)
         #expect(model.dockedPlacement.limits.viewerHeightRange == 0...0)
 
         model.setScreenDistance(6)
         model.setViewerHeight(-2)
         model.setScreenElevation(35)
-        #expect(model.dockedPlacement.distanceMeters == 13.550063)
+        #expect(model.dockedPlacement.distanceMeters == 14.450059)
         #expect(model.dockedPlacement.viewerHeightMeters == 0)
         #expect(model.dockedPlacement.elevationDegrees == 35)
 
         model.resetDockedPlacement()
-        #expect(model.dockedPlacement.distanceMeters == 13.550063)
+        #expect(model.dockedPlacement.distanceMeters == 14.450059)
         #expect(model.dockedPlacement.viewerHeightMeters == 0)
         #expect(model.dockedPlacement.elevationDegrees == 0)
     }
@@ -304,6 +304,47 @@ struct PlaybackDisplayCriteriaLifecycleTests {
         #expect(immersiveHost.avDisplayManager.preferredDisplayCriteria == nil)
         criteria.isEnabled = false
         criteria.isEnabled = true
+        #expect(criteria.requestedHz == nil)
+    }
+}
+#endif
+
+#if os(visionOS)
+@MainActor
+struct PlaybackDisplayCriteriaUnavailableWindowTests {
+    private final class WindowWithoutDisplayManager: UIWindow {
+        override func responds(to selector: Selector!) -> Bool {
+            if selector != nil, NSStringFromSelector(selector) == "avDisplayManager" {
+                return false
+            }
+            return super.responds(to: selector)
+        }
+    }
+
+    @Test("a window without a display manager keeps the criteria unrequested")
+    func missingDisplayManagerDegrades() throws {
+        var description: CMVideoFormatDescription?
+        let status = CMVideoFormatDescriptionCreate(
+            allocator: kCFAllocatorDefault,
+            codecType: kCMVideoCodecType_H264, width: 1920, height: 1080,
+            extensions: nil, formatDescriptionOut: &description
+        )
+        #expect(status == noErr)
+        let format = try #require(description)
+        let scene = try #require(
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .first
+        )
+        let window = WindowWithoutDisplayManager(windowScene: scene)
+        let criteria = PlaybackDisplayCriteria()
+        criteria.update(frameRate: 23.976, format: format)
+        #expect(criteria.statusText == "Waiting for window")
+        criteria.setWindow(window, id: UUID(), immersive: false)
+        #expect(criteria.statusText == "Unavailable")
+        #expect(criteria.requestedHz == nil)
+        criteria.update(frameRate: 59.94, format: format)
+        #expect(criteria.statusText == "Unavailable")
         #expect(criteria.requestedHz == nil)
     }
 }

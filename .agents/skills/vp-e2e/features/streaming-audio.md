@@ -46,3 +46,14 @@ grep -E "audio (start|stop)" "$D/stream-session-probe.log" | tail
 - **模拟器的音频输出不等于真机。** 模拟器上听到的声音经由宿主 Mac 播放，不能作为真机音频链路的证据。
 - **`audio:received` 增长而 `enqueued` 不增长，是链路断开而不是没声音。**
 - **PC 端播放时本机收不到音频帧，`audio:received` 保持 0 是预期。** 判据改为启动 URL 的 `localAudioPlayMode`。
+
+## 本轮补齐范围（2026-10-26 裁决）
+
+范围、阶段与验收见 `docs/reviews/streaming-port-review/plan.md`。
+
+纳入：
+
+- 声道数可请求（立体声、5.1、7.1）：设置页的「声道」菜单选择后编入启动参数的 Windows 声道掩码，主机按请求编码；主机没有对应扬声器配置时仍然是立体声。
+- 会话输出按协商到的声道数配置 AVAudioEngine 格式，不再固定为立体声。
+
+不做：空间音频与头部追踪、音频输出设备的手动切换。设备切换出问题时按缺陷处理，不作为移植项。

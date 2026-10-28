@@ -410,13 +410,14 @@ enum PlaybackSurfaceInputOwner: Equatable {
 @MainActor
 enum PlaybackSurfaceInputOwnership {
     static func owner(
-        for presentation: PlaybackPresentation
-    ) -> PlaybackSurfaceInputOwner {
+        for presentation: PlaybackPresentation,
+        isStreamingPlayback: Bool
+    ) -> PlaybackSurfaceInputOwner? {
         switch presentation {
         case .window, .portal:
             .windowInteractionSurface
         case .docked:
-            .dockedInteractionSurface
+            isStreamingPlayback ? nil : .dockedInteractionSurface
         case .panorama:
             .panoramaInteractionSurface
         }
@@ -424,9 +425,16 @@ enum PlaybackSurfaceInputOwnership {
 
     static func acceptsSpatialTapTarget(
         _ entity: Entity,
-        for presentation: PlaybackPresentation
+        for presentation: PlaybackPresentation,
+        isStreamingPlayback: Bool
     ) -> Bool {
-        switch owner(for: presentation) {
+        guard let resolvedOwner = owner(
+            for: presentation,
+            isStreamingPlayback: isStreamingPlayback
+        ) else {
+            return false
+        }
+        return switch resolvedOwner {
         case .windowInteractionSurface:
             PlaybackWindowInteractionSurface.contains(entity)
         case .dockedInteractionSurface:
@@ -525,12 +533,8 @@ public enum PlaybackWindowInteractionSurface {
 @MainActor
 enum PlaybackDockedInteractionSurface {
     static let entityName = "EnchronDockedInput.surface"
-#if DEBUG
-    static let anchorFrontProbeName = "EnchronDockedInput.probeFront"
-    static let childFrontProbeName = "EnchronDockedInput.probeChildFront"
-#endif
     static let fallbackScreenSize = SIMD2<Float>(16.0 / 9.0, 1)
-    static let thickness: Float = 0.01
+    public static let thickness: Float = 0.01
     static let frontOffset: Float = 0.01
 
     static func makeEntity() -> Entity {
