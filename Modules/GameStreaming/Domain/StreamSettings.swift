@@ -191,6 +191,10 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         resolution == .custom ? customHeight : resolution.height
     }
 
+    public var playsAudioLocally: Bool {
+        !playAudioOnPC
+    }
+
     private enum CodingKeys: String, CodingKey {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
         case codec, hdrEnabled, frameBuffer, customBitrateEnabled

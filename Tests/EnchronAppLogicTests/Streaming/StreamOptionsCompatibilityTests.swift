@@ -106,6 +106,11 @@ nonisolated final class StreamOptionsCompatibilityTests: XCTestCase {
         XCTAssertEqual(StreamAudioLayout.surround71.channelCount, 8)
     }
 
+    func testHostAudioPlaybackTurnsLocalPlaybackOff() {
+        XCTAssertTrue(StreamOptions().playsAudioLocally)
+        XCTAssertFalse(StreamOptions(playAudioOnPC: true).playsAudioLocally)
+    }
+
     func testThePerformanceOverlayIsOffByDefaultAndSurvivesARoundTrip() throws {
         XCTAssertFalse(StreamOptions().showPerformanceOverlay)
 

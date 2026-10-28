@@ -221,6 +221,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
 
         stateLock.withLock {
             snapshotStorage.diagnostics.hostAudioPlaying = options.playAudioOnPC
+            snapshotStorage.diagnostics.clientAudioOutput = options.playsAudioLocally
         }
         let probeSessionID = sessionID
         audioOutput.onEvent = { message in
@@ -866,13 +867,15 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 retention: .evidence
             )
         }
-        audioOutput.enqueue(
-            pcm: frame.pcm,
-            channels: Int(frame.channels),
-            sampleRate: Int(frame.sampleRate),
-            frameCount: Int(frame.frameCount)
-        )
-        stateLock.withLock { counters.audioFramesEnqueued += 1 }
+        if options.playsAudioLocally {
+            audioOutput.enqueue(
+                pcm: frame.pcm,
+                channels: Int(frame.channels),
+                sampleRate: Int(frame.sampleRate),
+                frameCount: Int(frame.frameCount)
+            )
+            stateLock.withLock { counters.audioFramesEnqueued += 1 }
+        }
     }
 
     private func handleEvent(_ event: BackendSessionEvent) {
@@ -944,7 +947,7 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
                 retention: .evidence
             )
             stateLock.withLock {
-                snapshotStorage.diagnostics.clientAudioOutput = true
+                snapshotStorage.diagnostics.clientAudioOutput = options.playsAudioLocally
                 if var negotiated = snapshotStorage.negotiated {
                     negotiated.audioChannels = Int(channels)
                     snapshotStorage.negotiated = negotiated
