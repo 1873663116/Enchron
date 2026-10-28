@@ -162,7 +162,6 @@
 				GameStreaming/Views/StreamPairingView.swift,
 				GameStreaming/Views/StreamSessionContentView.swift,
 				GameStreaming/Views/StreamSettingsSection.swift,
-				GameStreaming/Views/StreamTouchGestures.swift,
 				GameStreaming/Views/StreamingHomeView.swift,
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,

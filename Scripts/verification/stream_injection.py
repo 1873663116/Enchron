@@ -22,7 +22,7 @@ usage:
     stream_injection.py --device <UDID> battery --state 2 --percentage 55
     stream_injection.py --device <UDID> highres-scroll --vertical 1 --horizontal 0
     stream_injection.py --device <UDID> settings
-    stream_injection.py --device <UDID> set-settings --audio-layout surround51 --stats-overlay true
+    stream_injection.py --device <UDID> set-settings --audio-layout surround51 --stats-overlay true --mouse-tracking absolute
     stream_injection.py --device <UDID> quality --value 1
     stream_injection.py --device <UDID> discovered
     stream_injection.py --device <UDID> start-discovery
@@ -174,7 +174,7 @@ def write_settings(arguments: argparse.Namespace) -> dict:
     pairs = [
         f"audioLayout={arguments.audio_layout}",
         f"statsOverlay={arguments.stats_overlay}",
-        f"absoluteTouchMode={arguments.absolute_touch_mode}",
+        f"mouseTracking={arguments.mouse_tracking}",
     ]
     return app_command(arguments, "streamSetSettings", pairs)
 
@@ -262,7 +262,7 @@ def parse_arguments() -> argparse.Namespace:
     write = subparsers.add_parser("set-settings", help="write streaming settings")
     write.add_argument("--audio-layout", default="")
     write.add_argument("--stats-overlay", default="")
-    write.add_argument("--absolute-touch-mode", default="")
+    write.add_argument("--mouse-tracking", default="")
     write.set_defaults(handler=write_settings)
 
     return parser.parse_args()

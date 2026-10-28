@@ -15,10 +15,10 @@
 - HDR 标注 Beta，默认关闭。编码选择 H.264 时 HDR 显示为关并灰显。
 - 帧调度是「平滑优先」与「延迟优先」二选一，默认延迟优先；平滑优先让视频多留一帧吸收网络抖动，延迟优先按到达时间立即安排呈现。
 - 交换 ABXY 默认关闭；打开后 A 与 B、X 与 Y 的报文位互换，方向键、肩键与摇杆不变。
-- 蓝牙鼠标默认打开；打开时外接鼠标的移动、按键与滚轮转发到主机，关闭后交互回到注视与捏合。
+- 鼠标跟踪是回落菜单：相对与绝对二选一，默认相对。相对转发设备位移并锁定指针；绝对把设备位移积分成画面上的位置再发绝对指针报文。
 - PC 端播放音频默认关闭；打开后主机在本地播放声音，本机不再解码音频。
 - 优化游戏设置默认关闭；打开后向主机请求调整游戏内设置，仅 GeForce Experience 主机响应。
-- 上述五项与分辨率、帧率一样，只影响下一次启动，不改变进行中的会话。
+- 上述四项与分辨率、帧率一样，只影响下一次启动，不改变进行中的会话。
 
 ## How to get to it (user POV)
 
@@ -40,10 +40,10 @@ Preconditions: 标签页已由 General 分区的 Moonlight 开关打开。
 
 ```sh
 ./.scratch/stream-cmd.sh streamSetOptions \
-  '{"swapABXY":"true","audioOnPC":"true","bluetoothMouse":"true","optimizeGameSettings":"true"}'
+  '{"swapABXY":"true","audioOnPC":"true","mouseTracking":"absolute","optimizeGameSettings":"true"}'
 ```
 
-`swapABXY`、`audioOnPC`、`bluetoothMouse`、`optimizeGameSettings` 的读写都走同一条通道。`audioOnPC` 与 `optimizeGameSettings` 的生效位置是启动请求，判据见下表；`swapABXY` 的生效位置是会话内的手柄报文；`bluetoothMouse` 的生效位置是会话内 GCMouse 转发。
+`swapABXY`、`audioOnPC`、`mouseTracking`、`optimizeGameSettings` 的读写都走同一条通道。`audioOnPC` 与 `optimizeGameSettings` 的生效位置是启动请求，判据见下表；`swapABXY` 的生效位置是会话内的手柄报文；`mouseTracking` 的生效位置是会话内 GCMouse 到主机指针的换算。
 
 分辨率的像素量排序、码率与分辨率和帧率的对应、自定义码率的上下限，都能由这条通道直接断言，不需要点开菜单。
 
@@ -64,8 +64,9 @@ Preconditions: 标签页已由 General 分区的 Moonlight 开关打开。
 | 物理 | 打开「PC 端播放音频」后启动 URL 带 `localAudioPlayMode=1` | 模拟器日志 + 命令通道 |
 | 物理 | 打开「交换 ABXY」后 A 报文的 flags 从 `0x1000` 变 `0x2000` | 命令通道 + 会话探针 `controller flags=` |
 | 物理 | 设置写入后冷启动重读仍是写入值 | 命令通道往返 |
-| 结构 | 旧记录缺五个新字段时解码为默认值，且编码往返不丢字段 | `StreamOptionsCompatibilityTests` 单测 |
-| 感知 | 滑杆拖动的手感、下拉菜单的排布、五个开关的排布 | **待做** |
+| 物理 | 鼠标跟踪写入后读出同值，重连后仍然生效 | 命令通道往返 + 会话探针 `mouse delta … mode=` |
+| 结构 | 旧记录缺新字段时解码为默认值，且编码往返不丢字段；已删除的旧字段不影响解码 | `StreamOptionsCompatibilityTests` 单测 |
+| 感知 | 滑杆拖动的手感、下拉菜单的排布、四个开关与一个菜单的排布 | **待做** |
 
 ## 证明的终态
 
@@ -86,7 +87,7 @@ Preconditions: 标签页已由 General 分区的 Moonlight 开关打开。
 
 纳入：
 
-- 三类新设置：触摸模式（绝对/相对拖动）、统计浮层开关、声道菜单（立体声／5.1／7.1）。
+- 三类新设置：鼠标跟踪（相对/绝对）、统计浮层开关、声道菜单（立体声／5.1／7.1）。画面区域不提供手部手势设置。
 - 本机能力约束选项可用性：没有 HEVC Main10 硬件解码时 HDR 开关不可用；没有 HEVC/AV1 硬件解码时分辨率菜单不列出高于 1080p 的档位。存着的设置超出设备预算时，启动前钳制到 1080p 并留探针 `resolution clamped`。
 - 主机声明的编解码能力只影响 HDR 文案的措辞，不禁用开关：主机报 0 表示它没有声明，不能据此判断它做不到。
 - 新增设置项对旧记录有默认值，旧设置文件解码后不会失败。

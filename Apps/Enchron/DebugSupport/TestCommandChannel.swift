@@ -1185,8 +1185,9 @@ final class TestCommandChannel {
                 if let audio = flagValue(request.args["audioOnPC"]) {
                     options.playAudioOnPC = audio
                 }
-                if let mouse = flagValue(request.args["bluetoothMouse"]) {
-                    options.bluetoothMouseEnabled = mouse
+                if let mouse = request.args["mouseTracking"],
+                   let mode = StreamMouseTrackingMode(rawValue: mouse) {
+                    options.mouseTrackingMode = mode
                 }
                 if let optimize = flagValue(request.args["optimizeGameSettings"]) {
                     options.optimizeGameSettings = optimize
@@ -1356,9 +1357,6 @@ final class TestCommandChannel {
                 }
                 if let overlay = flagValue(request.args["statsOverlay"]) {
                     settings.showPerformanceOverlay = overlay
-                }
-                if let absolute = flagValue(request.args["absoluteTouchMode"]) {
-                    settings.absoluteTouchMode = absolute
                 }
             }
             return Response(

@@ -616,7 +616,6 @@ public struct PlayerView: View {
                             .recordMainWindowPlaybackSurfaceRefreshApplied($0)
                     }
                 )
-                .scaleEffect(streamingModel.streamZoom)
                 playbackLoadingChrome
             }
             if windowPlaybackAcceptsInput {

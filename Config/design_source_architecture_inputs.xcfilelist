@@ -15,6 +15,7 @@ $(SRCROOT)/Apps/Enchron/Screens/OpenSourceLicenses.swift
 $(SRCROOT)/Apps/Enchron/Screens/SettingsScreen.swift
 $(SRCROOT)/Apps/Enchron/Settings/PreferencesStore.swift
 $(SRCROOT)/Apps/Enchron/Settings/SettingsModel.swift
+$(SRCROOT)/Modules/DesignSystem/ArtworkStore.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenu.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenuPlacement.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AnchoredMenuRow.swift
@@ -67,7 +68,6 @@ $(SRCROOT)/Modules/GameStreaming/Views/StreamAppGridView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamPairingView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamSessionContentView.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamSettingsSection.swift
-$(SRCROOT)/Modules/GameStreaming/Views/StreamTouchGestures.swift
 $(SRCROOT)/Modules/GameStreaming/Views/StreamingHomeView.swift
 $(SRCROOT)/Modules/MediaLibrary/FileBrowsingViewModel.swift
 $(SRCROOT)/Modules/MediaLibrary/MediaLibraryFeature.swift
@@ -116,7 +116,6 @@ $(SRCROOT)/Modules/MediaServer/MediaServerShelf.swift
 $(SRCROOT)/Modules/MediaServer/MediaServerSources.swift
 $(SRCROOT)/Modules/MediaServer/PlexAccount.swift
 $(SRCROOT)/Modules/MediaServer/PlexClient.swift
-$(SRCROOT)/Modules/DesignSystem/ArtworkStore.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 $(SRCROOT)/Modules/MediaSource/MediaByteStream+Diagnostics.swift

@@ -18558,6 +18558,52 @@
         }
       }
     },
+    "相对": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relativ"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relatif"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相対"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "상대"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Относительный"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相对"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相對"
+          }
+        }
+      }
+    },
     "码率": {
       "localizations": {
         "de": {
@@ -19202,48 +19248,48 @@
         }
       }
     },
-    "绝对触摸模式": {
+    "绝对": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Absoluter Touch-Modus"
+            "value": "Absolut"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mode tactile absolu"
+            "value": "Absolu"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "絶対タッチモード"
+            "value": "絶対"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "절대 터치 모드"
+            "value": "절대"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Режим абсолютного касания"
+            "value": "Абсолютный"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "绝对触摸模式"
+            "value": "绝对"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "絕對觸控模式"
+            "value": "絕對"
           }
         }
       }
@@ -19566,52 +19612,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "自訂位元率"
-          }
-        }
-      }
-    },
-    "蓝牙鼠标": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bluetooth-Maus"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Souris Bluetooth"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bluetooth マウス"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "블루투스 마우스"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Мышь Bluetooth"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "蓝牙鼠标"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "藍牙滑鼠"
           }
         }
       }
@@ -20624,6 +20624,52 @@
           "stringUnit": {
             "state": "translated",
             "value": "高位元率會讓主機編碼與頭顯解碼更吃力，可能造成卡頓與發熱。"
+          }
+        }
+      }
+    },
+    "鼠标跟踪": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mausverfolgung"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suivi de la souris"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "マウストラッキング"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "마우스 추적"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отслеживание мыши"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鼠标跟踪"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "滑鼠追蹤"
           }
         }
       }

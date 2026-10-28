@@ -52,13 +52,58 @@ public struct StreamScrollAccumulator: Equatable, Sendable {
     }
 }
 
+/// Turns device deltas into a position on the host picture. The device reports
+/// movement only, so the client keeps the cursor itself: whole points move the
+/// position by one stream pixel and the remainder carries to the next event, so
+/// small movements are not dropped. The position is normalized to the stream
+/// picture and clamped to it.
+public struct StreamAbsoluteCursor: Equatable, Sendable {
+    private static let speedDivisor: Float = 1.25
+
+    private var pendingX: Float = 0
+    private var pendingY: Float = 0
+    private var x: Float = 0.5
+    private var y: Float = 0.5
+
+    public init() {}
+
+    public mutating func reset() {
+        pendingX = 0
+        pendingY = 0
+        x = 0.5
+        y = 0.5
+    }
+
+    public mutating func position(
+        rawDeltaX: Float,
+        rawDeltaY: Float,
+        width: Int,
+        height: Int
+    ) -> (x: Float, y: Float)? {
+        guard width > 0, height > 0 else { return nil }
+        pendingX += rawDeltaX / Self.speedDivisor
+        pendingY += rawDeltaY / Self.speedDivisor
+        let wholeX = pendingX.rounded(.towardZero)
+        let wholeY = pendingY.rounded(.towardZero)
+        guard wholeX != 0 || wholeY != 0 else { return nil }
+        pendingX -= wholeX
+        pendingY -= wholeY
+        x = min(max(x + wholeX / Float(width), 0), 1)
+        y = min(max(y + wholeY / Float(height), 0), 1)
+        return (x, y)
+    }
+}
+
 /// Owns the external mouse while a session is active.
 ///
-/// A connected mouse normally drives the system pointer, so the window's gaze
-/// layer never sees it as a pointer position. GameController still delivers the
-/// raw deltas and button states, and those are what the host needs: the session
-/// forwards movement, buttons and the wheel from here instead of asking the
-/// gesture layer for an absolute position.
+/// A connected mouse normally drives the system pointer, so the window never
+/// sees it as a pointer position. GameController still delivers the raw deltas
+/// and button states, and those are what the host needs: the session forwards
+/// movement, buttons and the wheel from here.
+///
+/// The relative mode sends the deltas themselves. The absolute mode integrates
+/// them into a position on the stream picture, because that mode asks the host
+/// for a pointer position rather than movement.
 ///
 /// GameController delivers these callbacks on the main queue, so start and stop
 /// are main-thread calls and this owner needs no cross-thread lock.
@@ -71,10 +116,15 @@ public final class StreamMouseInput: NSObject {
 
     private var mouse: GCMouse?
     private var motion = StreamMouseMotion()
+    private var absoluteCursor = StreamAbsoluteCursor()
+    private var trackingMode: StreamMouseTrackingMode = .relative
+    private var streamWidth = 1920
+    private var streamHeight = 1080
     private var verticalScroll = StreamHighResScrollAccumulator()
     private var horizontalScroll = StreamHighResScrollAccumulator()
     private var lastDeltaProbe = Date.distantPast
     private var onMove: (@Sendable (Int32, Int32) -> Void)?
+    private var onPosition: (@Sendable (Float, Float) -> Void)?
     private var onButton: (@Sendable (Int32, Bool) -> Void)?
     private var onHighResScroll: (@Sendable (Int32, Int32) -> Void)?
     private var onPresence: (@Sendable (Bool) -> Void)?
@@ -88,13 +138,21 @@ public final class StreamMouseInput: NSObject {
     }
 
     public func start(
+        trackingMode: StreamMouseTrackingMode,
+        streamWidth: Int,
+        streamHeight: Int,
         onMove: @escaping @Sendable (Int32, Int32) -> Void,
+        onPosition: @escaping @Sendable (Float, Float) -> Void,
         onButton: @escaping @Sendable (Int32, Bool) -> Void,
         onHighResScroll: @escaping @Sendable (Int32, Int32) -> Void,
         onPresence: @escaping @Sendable (Bool) -> Void
     ) {
         stop()
+        self.trackingMode = trackingMode
+        self.streamWidth = streamWidth
+        self.streamHeight = streamHeight
         self.onMove = onMove
+        self.onPosition = onPosition
         self.onButton = onButton
         self.onHighResScroll = onHighResScroll
         self.onPresence = onPresence
@@ -118,6 +176,7 @@ public final class StreamMouseInput: NSObject {
         NotificationCenter.default.removeObserver(self, name: .GCMouseDidDisconnect, object: nil)
         detach(reportPresence: false)
         onMove = nil
+        onPosition = nil
         onButton = nil
         onHighResScroll = nil
         onPresence = nil
@@ -147,6 +206,7 @@ public final class StreamMouseInput: NSObject {
         verticalScroll = StreamHighResScrollAccumulator()
         horizontalScroll = StreamHighResScrollAccumulator()
         motion = StreamMouseMotion()
+        absoluteCursor.reset()
         input.mouseMovedHandler = { [weak self] _, deltaX, deltaY in
             self?.handleMove(deltaX: deltaX, deltaY: deltaY)
         }
@@ -204,19 +264,37 @@ public final class StreamMouseInput: NSObject {
     }
 
     private func handleMove(deltaX: Float, deltaY: Float) {
-        let delta = motion.screenDelta(rawX: deltaX, rawY: deltaY)
-        recordDeltaProbe(rawX: deltaX, rawY: deltaY, sentX: delta.x, sentY: delta.y)
-        guard delta.x != 0 || delta.y != 0 else { return }
-        onMove?(delta.x, delta.y)
+        switch trackingMode {
+        case .relative:
+            let delta = motion.screenDelta(rawX: deltaX, rawY: deltaY)
+            recordDeltaProbe(rawX: deltaX, rawY: deltaY, sent: "\(delta.x),\(delta.y)")
+            guard delta.x != 0 || delta.y != 0 else { return }
+            onMove?(delta.x, delta.y)
+        case .absolute:
+            guard let position = absoluteCursor.position(
+                rawDeltaX: deltaX,
+                rawDeltaY: deltaY,
+                width: streamWidth,
+                height: streamHeight
+            ) else {
+                return
+            }
+            recordDeltaProbe(
+                rawX: deltaX,
+                rawY: deltaY,
+                sent: String(format: "%.4f,%.4f", position.x, position.y)
+            )
+            onPosition?(position.x, position.y)
+        }
     }
 
-    private func recordDeltaProbe(rawX: Float, rawY: Float, sentX: Int32, sentY: Int32) {
+    private func recordDeltaProbe(rawX: Float, rawY: Float, sent: String) {
         let now = Date()
         guard now.timeIntervalSince(lastDeltaProbe) >= 0.25 else { return }
         lastDeltaProbe = now
         StreamSessionProbes.record(
             "mouse delta raw=\(String(format: "%.2f", rawX)),\(String(format: "%.2f", rawY))"
-                + " sent=\(sentX),\(sentY)",
+                + " sent=\(sent) mode=\(trackingMode.rawValue)",
             retention: .evidence
         )
     }

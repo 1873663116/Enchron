@@ -176,18 +176,14 @@ public struct StreamSettingsSection: View {
                 accessory: .boundToggle(isOn: swapABXYBinding, isEnabled: true, marker: nil)
             ),
             SettingListGroup.Item(
-                id: "Streaming-bluetoothMouse",
-                title: "蓝牙鼠标",
+                id: "Streaming-mouseTracking",
+                title: "鼠标跟踪",
                 systemName: "computermouse",
-                supportingText: "外接鼠标直接控制主机指针：转发移动、按键与滚轮。",
-                accessory: .boundToggle(isOn: bluetoothMouseBinding, isEnabled: true, marker: nil)
-            ),
-            SettingListGroup.Item(
-                id: "Streaming-absoluteTouch",
-                title: "绝对触摸模式",
-                systemName: "hand.tap",
-                supportingText: "单指拖动直接落到手势所在位置；关闭时拖动按位移推动指针，适合射击与转视角。",
-                accessory: .boundToggle(isOn: absoluteTouchBinding, isEnabled: true, marker: nil)
+                supportingText: model.settings.mouseTrackingMode.explanation,
+                accessory: .menu(
+                    title: model.settings.mouseTrackingMode.label,
+                    options: mouseTrackingOptions
+                )
             )
         ]
     }
@@ -237,18 +233,12 @@ public struct StreamSettingsSection: View {
         )
     }
 
-    private var absoluteTouchBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.absoluteTouchMode },
-            set: { value in model.updateSettings { $0.absoluteTouchMode = value } }
-        )
-    }
-
-    private var bluetoothMouseBinding: Binding<Bool> {
-        Binding(
-            get: { model.settings.bluetoothMouseEnabled },
-            set: { value in model.updateSettings { $0.bluetoothMouseEnabled = value } }
-        )
+    private var mouseTrackingOptions: [SettingListGroup.MenuOption] {
+        StreamMouseTrackingMode.allCases.map { mode in
+            SettingListGroup.MenuOption(mode.label, id: mode.rawValue) {
+                model.updateSettings { $0.mouseTrackingMode = mode }
+            }
+        }
     }
 
     private var audioOnPCBinding: Binding<Bool> {

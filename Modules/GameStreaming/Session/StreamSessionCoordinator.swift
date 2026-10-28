@@ -102,7 +102,6 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     private let gamepadInput = StreamGamepadInput()
     private let mouseInput = StreamMouseInput()
     private var controllerFlags: Int32 = 0
-    private var hardwareMouseActive = false
 
     private struct Counters {
         var presented: Int64 = 0
@@ -263,17 +262,21 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
             }
         )
         Task { @MainActor in StreamInputCapture.shared.start() }
-        if options.bluetoothMouseEnabled {
-            mouseInput.start(
-                onMove: { [weak self] dx, dy in self?.sendMouseMove(dx: dx, dy: dy) },
-                onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) },
-                onHighResScroll: { [weak self] vertical, horizontal in
-                    self?.backend.sendHighResScroll(vertical: Int16(clamping: vertical),
-                                                    horizontal: Int16(clamping: horizontal))
-                },
-                onPresence: { [weak self] attached in self?.handleMousePresence(attached) }
-            )
-        }
+        mouseInput.start(
+            trackingMode: options.mouseTrackingMode,
+            streamWidth: options.streamWidth,
+            streamHeight: options.streamHeight,
+            onMove: { [weak self] dx, dy in self?.sendMouseMove(dx: dx, dy: dy) },
+            onPosition: { [weak self] x, y in
+                self?.sendMousePosition(normalizedX: x, normalizedY: y)
+            },
+            onButton: { [weak self] code, down in self?.sendMouseButton(code: code, down: down) },
+            onHighResScroll: { [weak self] vertical, horizontal in
+                self?.backend.sendHighResScroll(vertical: Int16(clamping: vertical),
+                                                horizontal: Int16(clamping: horizontal))
+            },
+            onPresence: { [weak self] attached in self?.handleMousePresence(attached) }
+        )
         backend.start()
     }
 
@@ -1337,24 +1340,12 @@ public final class StreamSessionCoordinator: @unchecked Sendable {
     }
 
     public func sendMousePosition(normalizedX: Float, normalizedY: Float) {
-        guard !hardwareMouseActive else { return }
         backend.sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
         stateLock.withLock { counters.mouseEvents += 1 }
     }
 
-    /// The window's gaze and pinch layer is the pointer path for hand control.
-    /// While an external mouse drives the host, that layer must not also move
-    /// the pointer or click, or every mouse click would arrive twice.
-    public func sendGestureClick(normalizedX: Float, normalizedY: Float) {
-        guard !hardwareMouseActive else { return }
-        sendMousePosition(normalizedX: normalizedX, normalizedY: normalizedY)
-        sendMouseButton(code: StreamMouseInput.leftButtonCode, down: true)
-        sendMouseButton(code: StreamMouseInput.leftButtonCode, down: false)
-    }
-
     private func handleMousePresence(_ attached: Bool) {
         let released: Set<Int32> = stateLock.withLock {
-            hardwareMouseActive = attached
             snapshotStorage.input.hardwareMouse = attached
             guard !attached else { return [] }
             let pressed = pressedButtons

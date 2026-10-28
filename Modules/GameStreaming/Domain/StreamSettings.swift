@@ -101,6 +101,25 @@ public enum StreamCodecPreference: String, Sendable, Codable, CaseIterable {
     }
 }
 
+public enum StreamMouseTrackingMode: String, Sendable, Codable, CaseIterable {
+    case relative
+    case absolute
+
+    public var label: String {
+        switch self {
+        case .relative: "相对"
+        case .absolute: "绝对"
+        }
+    }
+
+    public var explanation: String {
+        switch self {
+        case .relative: "转发鼠标的相对位移。适合射击与转视角。"
+        case .absolute: "按画面坐标发送鼠标位置。适合桌面与 RTS。"
+        }
+    }
+}
+
 public struct StreamOptions: Sendable, Equatable, Codable {
     public var resolution: StreamResolution
     public var customWidth: Int
@@ -113,9 +132,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     public var customBitrateEnabled: Bool
     public var swapABXYButtons: Bool
     public var playAudioOnPC: Bool
-    public var bluetoothMouseEnabled: Bool
+    public var mouseTrackingMode: StreamMouseTrackingMode
     public var optimizeGameSettings: Bool
-    public var absoluteTouchMode: Bool
     public var audioLayout: StreamAudioLayout
     public var showPerformanceOverlay: Bool
 
@@ -143,9 +161,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         customBitrateEnabled: Bool = false,
         swapABXYButtons: Bool = false,
         playAudioOnPC: Bool = false,
-        bluetoothMouseEnabled: Bool = true,
+        mouseTrackingMode: StreamMouseTrackingMode = .relative,
         optimizeGameSettings: Bool = false,
-        absoluteTouchMode: Bool = false,
         audioLayout: StreamAudioLayout = .stereo,
         showPerformanceOverlay: Bool = false
     ) {
@@ -160,9 +177,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         self.customBitrateEnabled = customBitrateEnabled
         self.swapABXYButtons = swapABXYButtons
         self.playAudioOnPC = playAudioOnPC
-        self.bluetoothMouseEnabled = bluetoothMouseEnabled
+        self.mouseTrackingMode = mouseTrackingMode
         self.optimizeGameSettings = optimizeGameSettings
-        self.absoluteTouchMode = absoluteTouchMode
         self.audioLayout = audioLayout
         self.showPerformanceOverlay = showPerformanceOverlay
     }
@@ -178,8 +194,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
     private enum CodingKeys: String, CodingKey {
         case resolution, customWidth, customHeight, frameRate, bitrateKbps
         case codec, hdrEnabled, frameBuffer, customBitrateEnabled
-        case swapABXYButtons, playAudioOnPC, bluetoothMouseEnabled, optimizeGameSettings
-        case absoluteTouchMode, audioLayout, showPerformanceOverlay
+        case swapABXYButtons, playAudioOnPC, mouseTrackingMode, optimizeGameSettings
+        case audioLayout, showPerformanceOverlay
     }
 
     private enum LegacyCodingKeys: String, CodingKey {
@@ -206,9 +222,11 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         customBitrateEnabled = try container.decodeIfPresent(Bool.self, forKey: .customBitrateEnabled) ?? false
         swapABXYButtons = try container.decodeIfPresent(Bool.self, forKey: .swapABXYButtons) ?? false
         playAudioOnPC = try container.decodeIfPresent(Bool.self, forKey: .playAudioOnPC) ?? false
-        bluetoothMouseEnabled = try container.decodeIfPresent(Bool.self, forKey: .bluetoothMouseEnabled) ?? true
+        mouseTrackingMode = try container.decodeIfPresent(
+            StreamMouseTrackingMode.self,
+            forKey: .mouseTrackingMode
+        ) ?? .relative
         optimizeGameSettings = try container.decodeIfPresent(Bool.self, forKey: .optimizeGameSettings) ?? false
-        absoluteTouchMode = try container.decodeIfPresent(Bool.self, forKey: .absoluteTouchMode) ?? false
         audioLayout = (try? container.decodeIfPresent(StreamAudioLayout.self, forKey: .audioLayout))
             ?? .stereo
         showPerformanceOverlay = try container.decodeIfPresent(
@@ -228,9 +246,8 @@ public struct StreamOptions: Sendable, Equatable, Codable {
         parts.append("customBitrate=\(customBitrateEnabled)")
         parts.append("swapABXY=\(swapABXYButtons)")
         parts.append("audioOnPC=\(playAudioOnPC)")
-        parts.append("bluetoothMouse=\(bluetoothMouseEnabled)")
+        parts.append("mouseTracking=\(mouseTrackingMode.rawValue)")
         parts.append("optimizeGameSettings=\(optimizeGameSettings)")
-        parts.append("absoluteTouch=\(absoluteTouchMode)")
         parts.append("audioLayout=\(audioLayout.readableValue)")
         parts.append("statsOverlay=\(showPerformanceOverlay)")
         return parts.joined(separator: ";")
