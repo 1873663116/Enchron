@@ -5,6 +5,8 @@ import simd
 
 @MainActor
 public enum ImmersivePlaybackControlsAttachmentPolicy {
+    static let breakthroughEffect: BreakthroughEffect = .prominent
+
     static func isVisible(
         presentation: PlaybackPresentation,
         controlsVisible: Bool,
