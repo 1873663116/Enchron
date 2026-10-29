@@ -1083,6 +1083,7 @@ private extension MediaPlaybackItem {
             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),
             collectionOrigin: playbackOrigin,
             versionedIdentity: versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
             sourceAccess: accessLease,
             externalSubtitleSources: externalSubtitleSources,
             externalSubtitleDiscovery: externalSubtitleDiscovery

@@ -523,14 +523,14 @@ struct TrackSelectionPreferenceTests {
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
         let request = Self.request(revision: "revision-a")
         let preferredTrack = PlaybackModel.AudioTrack(
-            id: "audio.commentary",
+            id: "2",
             languageCode: "en",
             displayName: "English Commentary"
         )
 
         let firstRuntime = TrackSelectionRuntime(
             audioTracks: [
-                .init(id: "audio.main", languageCode: "en", displayName: "English", isDefault: true),
+                .init(id: "1", languageCode: "en", displayName: "English", isDefault: true),
                 preferredTrack
             ]
         )
@@ -1082,13 +1082,13 @@ struct TrackSelectionPreferenceTests {
 
     private static let audioTracks = [
         PlaybackModel.AudioTrack(
-            id: "audio.main",
+            id: "1",
             languageCode: "en",
             displayName: "English",
             isDefault: true
         ),
         PlaybackModel.AudioTrack(
-            id: "audio.commentary",
+            id: "2",
             languageCode: "en",
             displayName: "English Commentary"
         )
@@ -1124,16 +1124,23 @@ struct TrackSelectionPreferenceTests {
         authority: ViewingStateAuthority = .enchronPersistence,
         startPositionSeconds: Double? = nil,
         initialTrackSelection: TrackSelectionPreference? = nil,
-        reporter: (any PlaybackSessionReporting)? = nil
+        reporter: (any PlaybackSessionReporting)? = nil,
+        scope: TrackPreferenceScope? = nil,
+        path: String = "/Movie.mkv",
+        displayName: String = "Movie.mkv"
     ) -> PlaybackLaunchRequest {
         let identity = VersionedMediaIdentity(
-            mediaIdentity: .remote(sourceKey: "test-source", canonicalPath: "/Movie.mkv"),
+            mediaIdentity: .remote(sourceKey: "test-source", canonicalPath: path),
             contentRevision: .remote(entityTag: revision, sizeInBytes: 1_024)
         )
+        guard let url = URL(string: "https://example.invalid\(path)") else {
+            preconditionFailure("A test request path must form a valid URL.")
+        }
         return PlaybackLaunchRequest(
-            url: URL(string: "https://example.invalid/Movie.mkv")!,
-            displayName: "Movie.mkv",
+            url: url,
+            displayName: displayName,
             versionedIdentity: identity,
+            trackPreferenceScope: scope,
             viewingStateAuthority: authority,
             startPositionSeconds: startPositionSeconds,
             initialTrackSelection: initialTrackSelection,
@@ -1394,6 +1401,7 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         startsPaused: Bool
     ) async throws {
         currentLaunchRequest = request
+        applyInitialAudioSelection(from: request)
         if suspendsNextOpen {
             suspendsNextOpen = false
             await withCheckedContinuation { continuation in
@@ -1409,6 +1417,63 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
             formatApplicationCount += 1
         }
         openCount += 1
+    }
+
+    private func applyInitialAudioSelection(from request: PlaybackLaunchRequest) {
+        guard let selection = request.initialAudioSelection else { return }
+        switch selection {
+        case .streamIndex(let index):
+            guard let track = availableAudioTracks.first(where: { $0.id == String(index) })
+            else { return }
+            currentAudioTrackID = track.id
+        case .preference(let preference):
+            guard let track = Self.matchedAudioTrack(preference, in: availableAudioTracks)
+            else { return }
+            currentAudioTrackID = track.id
+        }
+    }
+
+    private static func matchedAudioTrack(
+        _ preference: PlaybackAudioTrackPreference,
+        in tracks: [PlaybackModel.AudioTrack]
+    ) -> PlaybackModel.AudioTrack? {
+        let language = normalized(preference.languageCode)
+        let name = normalized(preference.displayName)
+        guard language != nil || name != nil else { return nil }
+        var candidates = tracks
+        if let language {
+            let matches = tracks.filter { normalized($0.languageCode) == language }
+            if matches.isEmpty == false {
+                candidates = matches
+            } else if let name {
+                candidates = tracks.filter { normalized($0.displayName) == name }
+            } else {
+                return nil
+            }
+        } else if let name {
+            candidates = tracks.filter { normalized($0.displayName) == name }
+        }
+        guard candidates.isEmpty == false else { return nil }
+        let codec = normalized(preference.codecName)
+        let channels = preference.channelCount
+        return candidates.enumerated().map { offset, track in
+            var score = 0
+            if let name, normalized(track.displayName) == name { score += 8 }
+            if let channels, track.channelCount == channels { score += 4 }
+            if let codec, normalized(track.codecName) == codec { score += 2 }
+            return (score, -offset, track)
+        }
+        .max { ($0.0, $0.1) < ($1.0, $1.1) }?
+        .2
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard trimmed.isEmpty == false, trimmed != "und", trimmed != "unknown" else {
+            return nil
+        }
+        return trimmed
     }
 
     func setFormat(
@@ -1718,5 +1783,330 @@ private extension TrackSelectionRuntime {
     func emitSubtitleSelectionChange(id: String?, generation: UInt64? = nil) {
         currentSubtitleTrackID = id
         emit(.subtitleSelectionChanged, generation: generation)
+    }
+}
+
+extension TrackSelectionPreferenceTests {
+    private static let episodeOneAudio = [
+        PlaybackModel.AudioTrack(
+            id: "0",
+            languageCode: "jpn",
+            displayName: "Japanese",
+            isDefault: true,
+            codecName: "aac",
+            channelCount: 2
+        ),
+        PlaybackModel.AudioTrack(
+            id: "1",
+            languageCode: "eng",
+            displayName: "English",
+            codecName: "ac3",
+            channelCount: 6
+        )
+    ]
+
+    private static let episodeOneSubtitles = [
+        PlaybackModel.SubtitleTrack(
+            id: "2",
+            languageCode: "zh-Hans",
+            displayName: "简体中文",
+            isDefault: true,
+            codecName: "subrip"
+        ),
+        PlaybackModel.SubtitleTrack(
+            id: "3",
+            languageCode: "en",
+            displayName: "English",
+            codecName: "subrip"
+        )
+    ]
+
+    private static let episodeTwoAudio = [
+        PlaybackModel.AudioTrack(
+            id: "0",
+            languageCode: "jpn",
+            displayName: "Japanese",
+            isDefault: true,
+            codecName: "aac",
+            channelCount: 2
+        ),
+        PlaybackModel.AudioTrack(
+            id: "2",
+            languageCode: "eng",
+            displayName: "English",
+            codecName: "eac3",
+            channelCount: 6
+        ),
+        PlaybackModel.AudioTrack(
+            id: "3",
+            languageCode: "eng",
+            displayName: "English Commentary",
+            codecName: "aac",
+            channelCount: 2
+        )
+    ]
+
+    private static let episodeTwoSubtitles = [
+        PlaybackModel.SubtitleTrack(
+            id: "1",
+            languageCode: "en",
+            displayName: "English",
+            isDefault: true,
+            codecName: "subrip"
+        ),
+        PlaybackModel.SubtitleTrack(
+            id: "4",
+            languageCode: "zh-Hans",
+            displayName: "简体中文",
+            codecName: "ass"
+        )
+    ]
+
+    private static func directoryScope(
+        fileName: String = "Paper.S01E01.mkv"
+    ) throws -> TrackPreferenceScope {
+        try #require(TrackPreferenceScope.file(
+            sourceKey: "local",
+            directoryPath: "/Shows/Paper",
+            fileName: fileName,
+            itemIdentity: nil
+        ))
+    }
+
+    @Test("the next episode in one directory inherits the choice by track meaning")
+    func nextEpisodeInheritsSelectionByTrackMeaning() async throws {
+        let suiteName = "app.enchron.tests.episode-scope.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let scope = try Self.directoryScope()
+
+        let firstRuntime = TrackSelectionRuntime(
+            audioTracks: Self.episodeOneAudio,
+            subtitleTracks: Self.episodeOneSubtitles
+        )
+        let first = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        first.beginPlayback(Self.request(
+            revision: "episode-one",
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E01.mkv",
+            displayName: "Paper.S01E01.mkv"
+        ))
+        try await firstRuntime.waitUntilConfigured()
+        try await first.selectAudioTrack(Self.episodeOneAudio[1])
+        try await first.selectSubtitleTrack(Self.episodeOneSubtitles[0])
+
+        let secondRuntime = TrackSelectionRuntime(
+            audioTracks: Self.episodeTwoAudio,
+            subtitleTracks: Self.episodeTwoSubtitles
+        )
+        let second = Self.coordinator(runtime: secondRuntime, suiteName: suiteName)
+        second.beginPlayback(Self.request(
+            revision: "episode-two",
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E02.mkv",
+            displayName: "Paper.S01E02.mkv"
+        ))
+        try await secondRuntime.waitUntilConfigured()
+
+        #expect(secondRuntime.currentAudioTrackID == "2")
+        #expect(secondRuntime.currentSubtitleTrackID == "4")
+    }
+
+    @Test("subtitles turned off on one episode stay off on the next")
+    func subtitlesOffCarriesToTheNextEpisode() async throws {
+        let suiteName = "app.enchron.tests.episode-off.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let scope = try Self.directoryScope()
+
+        let firstRuntime = TrackSelectionRuntime(
+            audioTracks: Self.episodeOneAudio,
+            subtitleTracks: Self.episodeOneSubtitles
+        )
+        let first = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        first.beginPlayback(Self.request(
+            revision: "off-one",
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E01.mkv",
+            displayName: "Paper.S01E01.mkv"
+        ))
+        try await firstRuntime.waitUntilConfigured()
+        try await first.selectAudioTrack(Self.episodeOneAudio[1])
+        try await first.selectSubtitleTrack(nil)
+
+        let secondRuntime = TrackSelectionRuntime(
+            audioTracks: Self.episodeTwoAudio,
+            subtitleTracks: Self.episodeTwoSubtitles
+        )
+        let second = Self.coordinator(runtime: secondRuntime, suiteName: suiteName)
+        second.beginPlayback(Self.request(
+            revision: "off-two",
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E02.mkv",
+            displayName: "Paper.S01E02.mkv"
+        ))
+        try await secondRuntime.waitUntilConfigured()
+
+        #expect(secondRuntime.currentAudioTrackID == "2")
+        #expect(secondRuntime.currentSubtitleTrackID == nil)
+    }
+
+    @Test("a choice the next episode cannot match keeps that episode's own default")
+    func unmatchedSelectionKeepsSourceDefault() async throws {
+        let suiteName = "app.enchron.tests.episode-unmatched.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let scope = try Self.directoryScope()
+
+        let firstRuntime = TrackSelectionRuntime(
+            audioTracks: Self.episodeOneAudio,
+            subtitleTracks: Self.episodeOneSubtitles
+        )
+        let first = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        first.beginPlayback(Self.request(
+            revision: "unmatched-one",
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E01.mkv",
+            displayName: "Paper.S01E01.mkv"
+        ))
+        try await firstRuntime.waitUntilConfigured()
+        try await first.selectAudioTrack(Self.episodeOneAudio[1])
+        try await first.selectSubtitleTrack(Self.episodeOneSubtitles[0])
+
+        let thirdAudio = [
+            PlaybackModel.AudioTrack(
+                id: "0",
+                languageCode: "jpn",
+                displayName: "Japanese",
+                isDefault: true,
+                codecName: "aac",
+                channelCount: 2
+            )
+        ]
+        let thirdSubtitles = [
+            PlaybackModel.SubtitleTrack(
+                id: "5",
+                languageCode: "en",
+                displayName: "English",
+                isDefault: true,
+                codecName: "subrip"
+            )
+        ]
+        let thirdRuntime = TrackSelectionRuntime(
+            audioTracks: thirdAudio,
+            subtitleTracks: thirdSubtitles
+        )
+        let third = Self.coordinator(runtime: thirdRuntime, suiteName: suiteName)
+        third.beginPlayback(Self.request(
+            revision: "unmatched-three",
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E03.mkv",
+            displayName: "Paper.S01E03.mkv"
+        ))
+        try await thirdRuntime.waitUntilConfigured()
+
+        #expect(thirdRuntime.currentAudioTrackID == "0")
+        #expect(thirdRuntime.currentSubtitleTrackID == "5")
+    }
+
+    @Test("media server episodes share one selection within their series")
+    func mediaServerEpisodesShareSelectionWithinSeries() async throws {
+        let suiteName = "app.enchron.tests.series-scope.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let scope = TrackPreferenceScope.mediaServer(
+            provider: "emby",
+            serverID: "server-1",
+            seriesID: "series-7"
+        )
+
+        let firstRuntime = TrackSelectionRuntime(
+            audioTracks: Self.episodeOneAudio,
+            subtitleTracks: Self.episodeOneSubtitles
+        )
+        let first = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        first.beginPlayback(Self.request(
+            revision: "server-one",
+            authority: .mediaServer,
+            initialTrackSelection: TrackSelectionPreference(
+                audioTrackID: "0",
+                subtitleTrack: .track(id: "2")
+            ),
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E01.mkv",
+            displayName: "Paper.S01E01.mkv"
+        ))
+        try await firstRuntime.waitUntilConfigured()
+        try await first.selectAudioTrack(Self.episodeOneAudio[1])
+        try await first.selectSubtitleTrack(Self.episodeOneSubtitles[0])
+
+        let secondRuntime = TrackSelectionRuntime(
+            audioTracks: Self.episodeTwoAudio,
+            subtitleTracks: Self.episodeTwoSubtitles
+        )
+        let second = Self.coordinator(runtime: secondRuntime, suiteName: suiteName)
+        second.beginPlayback(Self.request(
+            revision: "server-two",
+            authority: .mediaServer,
+            initialTrackSelection: TrackSelectionPreference(
+                audioTrackID: "0",
+                subtitleTrack: .off
+            ),
+            scope: scope,
+            path: "/Shows/Paper/Paper.S01E02.mkv",
+            displayName: "Paper.S01E02.mkv"
+        ))
+        try await secondRuntime.waitUntilConfigured()
+
+        #expect(secondRuntime.currentAudioTrackID == "2")
+        #expect(secondRuntime.currentSubtitleTrackID == "4")
+    }
+
+    @Test("a track descriptor resolves to the same language in a different layout")
+    func descriptorResolvesByLanguage() {
+        let descriptor = TrackPreferenceDescriptor.audio(Self.episodeOneAudio[1])
+        #expect(
+            TrackPreferenceResolver.audioTrackID(
+                descriptor,
+                in: Self.episodeTwoAudio
+            ) == "2"
+        )
+        #expect(
+            TrackPreferenceResolver.audioTrackID(
+                TrackPreferenceDescriptor.audio(Self.episodeOneAudio[0]),
+                in: [Self.episodeTwoAudio[1], Self.episodeTwoAudio[2]]
+            ) == nil
+        )
+    }
+
+    @Test("a subtitle descriptor separates embedded and external tracks")
+    func subtitleDescriptorSeparatesSources() {
+        let embedded = TrackPreferenceDescriptor.subtitle(Self.episodeOneSubtitles[1])
+        #expect(
+            TrackPreferenceResolver.subtitleSelection(
+                embedded,
+                in: Self.episodeTwoSubtitles
+            ) == .track(id: "1")
+        )
+        let external = TrackPreferenceDescriptor.subtitle(PlaybackModel.SubtitleTrack(
+            id: "external.subtitle.delayed.0",
+            languageCode: "zh-Hans",
+            displayName: "简体中文",
+            isExternal: true
+        ))
+        let externalTracks = [PlaybackModel.SubtitleTrack(
+            id: "external.subtitle.delayed.0",
+            languageCode: "zh-Hans",
+            displayName: "简体中文",
+            isExternal: true
+        )]
+        #expect(
+            TrackPreferenceResolver.subtitleSelection(
+                external,
+                in: externalTracks
+            ) == .externalSource(id: "delayed")
+        )
+        #expect(
+            TrackPreferenceResolver.subtitleSelection(
+                external,
+                in: Self.episodeTwoSubtitles
+            ) == nil
+        )
     }
 }

@@ -24,6 +24,7 @@ class PlaybackMediaSessionDriver {
         let startTime: CMTime
         let startsPaused: Bool
         let initialRate: Float?
+        let initialAudioSelection: PlaybackInitialAudioSelection?
         let sourceTransport: PlaybackSourceTransport
         let stereoOverride: PlaybackModel.StereoLayout?
         let projectionOverride: MediaFormatInterpreter.Projection?
@@ -38,6 +39,7 @@ class PlaybackMediaSessionDriver {
             startTime: CMTime = .zero,
             startsPaused: Bool = false,
             initialRate: Float? = nil,
+            initialAudioSelection: PlaybackInitialAudioSelection? = nil,
             sourceTransport: PlaybackSourceTransport = .localFile,
             stereoOverride: PlaybackModel.StereoLayout? = nil,
             projectionOverride: MediaFormatInterpreter.Projection? = nil,
@@ -51,6 +53,7 @@ class PlaybackMediaSessionDriver {
             self.startTime = startTime
             self.startsPaused = startsPaused
             self.initialRate = initialRate
+            self.initialAudioSelection = initialAudioSelection
             self.sourceTransport = sourceTransport
             self.stereoOverride = stereoOverride
             self.projectionOverride = projectionOverride
@@ -205,6 +208,7 @@ class PlaybackMediaSessionDriver {
             startTime: request.startTime,
             startsPaused: request.startsPaused,
             initialRate: request.initialRate,
+            initialAudioSelection: request.initialAudioSelection,
             sourceTransport: request.sourceTransport,
             initialStereoLayout: Self.engineStereoLayout(for: request.stereoOverride),
             initialProjectionOverride: request.projectionOverride.map {

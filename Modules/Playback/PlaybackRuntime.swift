@@ -880,6 +880,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                         ),
                         startsPaused: startsPaused,
                         initialRate: Float(initialSpeed.value),
+                        initialAudioSelection: request.initialAudioSelection,
                         sourceTransport: request.source.playbackCoreTransport,
                         stereoOverride: initialFormat.map {
                             MediaFormatInterpreter.playbackStereoLayout(
@@ -3463,7 +3464,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         PlaybackModel.SubtitleTrack(
             id: track.id,
             languageCode: track.language,
-            displayName: track.label
+            displayName: track.label,
+            codecName: track.codecName,
+            isExternal: track.id.hasPrefix("external.subtitle.")
         )
     }
 
@@ -4028,7 +4031,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             id: String(track.streamIndex),
             languageCode: track.language,
             displayName: track.label,
-            isDefault: isDefault
+            isDefault: isDefault,
+            codecName: track.codecName,
+            channelCount: track.channelCount
         )
     }
 }

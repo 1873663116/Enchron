@@ -722,6 +722,24 @@ public final class MediaLibraryViewModel {
                 modifiedAt: reference.modifiedAt
             )
         }
+        let trackPreferenceScope: TrackPreferenceScope?
+        switch reference.locator {
+        case .file:
+            trackPreferenceScope = TrackPreferenceScope.file(
+                sourceKey: "local",
+                directoryPath: source.url.deletingLastPathComponent().path,
+                fileName: reference.name,
+                itemIdentity: versionedIdentity?.mediaIdentity
+            )
+        case .sourceItem(let dataSourceID, let path):
+            trackPreferenceScope = TrackPreferenceScope.file(
+                sourceKey: reference.remoteSourceKey
+                    ?? "legacy:\(dataSourceID.uuidString.lowercased())",
+                directoryPath: (path as NSString).deletingLastPathComponent,
+                fileName: reference.name,
+                itemIdentity: versionedIdentity?.mediaIdentity
+            )
+        }
         let stableIdentifier = "media-library/\(reference.id.uuidString)|\(reference.sizeInBytes)|local"
         return MediaPlaybackItem(
             id: reference.id,
@@ -731,6 +749,7 @@ public final class MediaLibraryViewModel {
             sizeInBytes: reference.sizeInBytes,
             collectionOrigin: .mediaLibrary,
             versionedIdentity: versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
             accessLease: source.accessLease,
             byteStreamHandle: source.byteStreamHandle,
             externalSubtitleDiscovery: discovery

@@ -21,6 +21,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let sizeInBytes: Int64?
     public let collectionOrigin: MediaCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
+    public let trackPreferenceScope: TrackPreferenceScope?
     public let accessLease: MediaAccessLease?
     public let byteStreamHandle: MediaByteStreamHandle?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
@@ -35,6 +36,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         sizeInBytes: Int64? = nil,
         collectionOrigin: MediaCollectionOrigin,
         versionedIdentity: VersionedMediaIdentity? = nil,
+        trackPreferenceScope: TrackPreferenceScope? = nil,
         accessLease: MediaAccessLease? = nil,
         byteStreamHandle: MediaByteStreamHandle? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
@@ -48,6 +50,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         self.sizeInBytes = sizeInBytes
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
+        self.trackPreferenceScope = trackPreferenceScope
         self.accessLease = accessLease
         self.byteStreamHandle = byteStreamHandle
         self.externalSubtitleSources = externalSubtitleSources
@@ -63,6 +66,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
             && lhs.sizeInBytes == rhs.sizeInBytes
             && lhs.collectionOrigin == rhs.collectionOrigin
             && lhs.versionedIdentity == rhs.versionedIdentity
+            && lhs.trackPreferenceScope == rhs.trackPreferenceScope
             && lhs.externalSubtitleSources == rhs.externalSubtitleSources
             && lhs.externalSubtitleDiscovery == rhs.externalSubtitleDiscovery
             && lhs.selection == rhs.selection

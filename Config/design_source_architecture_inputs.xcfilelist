@@ -129,6 +129,7 @@ $(SRCROOT)/Modules/MediaSource/RemoteConnectionFailureDiagnoser.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedExternalSubtitleSource.swift
 $(SRCROOT)/Modules/MediaSource/ResolvedMediaSource.swift
 $(SRCROOT)/Modules/MediaSource/ServerTrustPolicy.swift
+$(SRCROOT)/Modules/MediaSource/TrackPreferenceScope.swift
 $(SRCROOT)/Modules/MediaSource/VersionedMediaIdentity.swift
 $(SRCROOT)/Modules/Playback/Domain/MediaFormat.swift
 $(SRCROOT)/Modules/Playback/Domain/MediaFormatInterpreter.swift
@@ -142,6 +143,7 @@ $(SRCROOT)/Modules/Playback/Domain/PlaybackSessionReporting.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSurfaceGestureState.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackSurfaceSeekTravel.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackUserVisibleIssue.swift
+$(SRCROOT)/Modules/Playback/Domain/TrackPreferenceRecord.swift
 $(SRCROOT)/Modules/Playback/Domain/TrackSelectionPreference.swift
 $(SRCROOT)/Modules/Playback/Domain/ViewingState.swift
 $(SRCROOT)/Modules/Playback/Model/CinemaEnvironment.swift
