@@ -2,6 +2,7 @@ import AVFoundation
 import CoreGraphics
 import CoreMedia
 import Foundation
+import OSLog
 import MediaSource
 import PlaybackCore
 
@@ -289,10 +290,24 @@ class PlaybackMediaSessionDriver {
         try await seek(by: offset, after: Self.engineAfterSeekBehavior(for: intent))
     }
 
+    private static let seekLogger = Logger(
+        subsystem: "app.enchron",
+        category: "Seek"
+    )
+
     func seek(
         to time: CMTime,
         after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState
     ) async throws {
+        let startedAt = Date()
+        Self.seekLogger.info(
+            "driver.seek.start target=\(time.seconds, privacy: .public)"
+        )
+        defer {
+            Self.seekLogger.info(
+                "driver.seek.ready ms=\(Int(Date().timeIntervalSince(startedAt) * 1000), privacy: .public)"
+            )
+        }
         try await controller.seek(to: time, after: behavior)
     }
 

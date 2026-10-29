@@ -86,7 +86,7 @@ public enum MediaSourceReadFailure: Error, Sendable, Equatable {
             self = .accessDenied
         case 404, 410:
             self = .resourceMissing
-        case 408, 502, 503, 504:
+        case 408, 429, 500, 502, 503, 504:
             self = .transportInterrupted
         case 416:
             self = .invalidData
@@ -215,6 +215,7 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
     public let preferredBufferDepth: MediaByteBufferDepth
 
     private var serverStorage: MediaByteStreamServer?
+    private var retainCount = 1
     private var server: MediaByteStreamServer? { lock.withLock { serverStorage } }
     private let token: String
     private let readFailureState: MediaSourceReadFailureState
@@ -256,6 +257,31 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
         return result
     }
 
+    public func measureLatency() async -> Double? {
+        guard let server else { return nil }
+        return await server.measureLatency(token: token)
+    }
+
+    public func measureCapacity(blocks: Int) async -> Double? {
+        guard let server else { return nil }
+        return await server.measureCapacity(token: token, blocks: blocks)
+    }
+
+    public func setSpeculativePrefetch(enabled: Bool) async {
+        guard let server else { return }
+        await server.setSpeculativePrefetch(token: token, enabled: enabled)
+    }
+
+    public func prefetchBlockSize() async -> Int64 {
+        guard let server else { return 0 }
+        return await server.prefetchBlockSize(token: token)
+    }
+
+    public func prewarm(byteCount: Int64) async throws {
+        guard let server else { throw MediaByteStreamServer.ServerError.listenerStopped }
+        try await server.prewarm(token: token, byteCount: byteCount)
+    }
+
     public func useContainerIndex(for revision: ContentRevision?) {
         server?.configureContainerIndex(token: token, revision: revision)
     }
@@ -274,8 +300,17 @@ public final class MediaByteStreamHandle: @unchecked Sendable {
         }
     #endif
 
+    public func retain() {
+        lock.withLock {
+            guard serverStorage != nil else { return }
+            retainCount += 1
+        }
+    }
+
     public func release() {
-        let owner = lock.withLock {
+        let owner: MediaByteStreamServer? = lock.withLock {
+            retainCount -= 1
+            guard retainCount <= 0 else { return nil }
             let owner = serverStorage
             serverStorage = nil
             return owner
@@ -578,6 +613,22 @@ private final class ContainerIndexSession: @unchecked Sendable {
     }
 }
 
+#if DEBUG
+public final class DebugThrottle: @unchecked Sendable {
+    public static let shared = DebugThrottle()
+    private let lock = NSLock()
+    private var rate: Double = 0
+
+    public func set(_ bytesPerSecond: Double) {
+        lock.withLock { rate = max(0, bytesPerSecond) }
+    }
+
+    public func current() -> Double {
+        lock.withLock { rate }
+    }
+}
+#endif
+
 public final class MediaByteStreamServer: @unchecked Sendable {
     public enum ServerError: LocalizedError {
         case listenerFailed(String)
@@ -593,6 +644,78 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     }
 
+    #if DEBUG
+        private static let debugStatisticsLock = NSLock()
+        nonisolated(unsafe) private static var debugTotalBytes: Int64 = 0
+        nonisolated(unsafe) private static var debugTotalRequests: Int = 0
+        nonisolated(unsafe) private static var debugLastBlockSize: Int64 = 0
+
+        private final class WeakPipeline {
+            weak var value: MediaReadPipeline?
+
+            init(_ value: MediaReadPipeline) {
+                self.value = value
+            }
+        }
+
+        nonisolated(unsafe) private static var debugPipelines: [WeakPipeline] = []
+
+        fileprivate static func recordDebugPipeline(_ pipeline: MediaReadPipeline) {
+            debugStatisticsLock.withLock {
+                debugPipelines.removeAll { $0.value == nil }
+                debugPipelines.append(WeakPipeline(pipeline))
+            }
+        }
+
+        public static func debugProbeSamples() async -> [String] {
+            let pipelines = debugStatisticsLock.withLock {
+                debugPipelines.compactMap(\.value)
+            }
+            var rows: [String] = []
+            for pipeline in pipelines {
+                rows.append(contentsOf: await pipeline.debugProbeSamples())
+            }
+            return rows
+        }
+
+        public static func debugPipelineSnapshots() async -> [String] {
+            let pipelines = debugStatisticsLock.withLock {
+                debugPipelines.compactMap(\.value)
+            }
+            var rows: [String] = []
+            for pipeline in pipelines {
+                let snapshot = await pipeline.snapshot()
+                rows.append(
+                    "block=\(snapshot.blockSize) latency=\(snapshot.latencySeconds)"
+                        + " throughput=\(snapshot.throughputBytesPerSecond)"
+                        + " recent=\(snapshot.recentBytesPerSecond)"
+                        + " burst=\(snapshot.burstBytesPerSecond)"
+                        + " demand=\(snapshot.demandBytes)"
+                        + " speculative=\(snapshot.prefetchBytes)"
+                        + " prefetch=\(snapshot.prefetchBlocks) concurrency=\(snapshot.concurrency)"
+                        + " cached=\(snapshot.cachedBytes) active=\(snapshot.activeReads)"
+                )
+            }
+            return rows
+        }
+
+        public static func debugStatisticsSnapshot() -> (bytes: Int64, requests: Int, block: Int64) {
+            debugStatisticsLock.withLock { (debugTotalBytes, debugTotalRequests, debugLastBlockSize) }
+        }
+
+        fileprivate static func recordDebugBytes(_ count: Int) {
+            debugStatisticsLock.withLock { debugTotalBytes += Int64(count) }
+        }
+
+        fileprivate static func recordDebugRequest() {
+            debugStatisticsLock.withLock { debugTotalRequests += 1 }
+        }
+
+        fileprivate static func recordDebugBlockSize(_ size: Int64) {
+            debugStatisticsLock.withLock { debugLastBlockSize = size }
+        }
+    #endif
+
     public struct Statistics: Sendable, Equatable {
         public var acceptedConnectionCount = 0
         public var requestCount = 0
@@ -600,30 +723,115 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         public var largestRequest: Int64 = 0
     }
 
+    #if DEBUG
+    final class SourceThrottle: @unchecked Sendable {
+        private let lock = NSLock()
+        private var rate: Double = 0
+        private var capacity: Double = 0
+        private var tokens: Double = 0
+        private var last = Date().timeIntervalSinceReferenceDate
+
+        func configure(bytesPerSecond: Double) {
+            lock.withLock {
+                rate = max(0, bytesPerSecond)
+                capacity = max(rate, 1)
+                tokens = capacity
+                last = Date().timeIntervalSinceReferenceDate
+            }
+        }
+
+        var isActive: Bool {
+            lock.withLock { rate > 0 }
+        }
+
+        func configureIfNeeded(_ bytesPerSecond: Double) {
+            let differs = lock.withLock { abs(rate - bytesPerSecond) > 0.5 }
+            if differs {
+                configure(bytesPerSecond: bytesPerSecond)
+            }
+        }
+
+        func consume(_ bytes: Int) async {
+            guard bytes > 0 else { return }
+            while true {
+                let wait: Double? = lock.withLock {
+                    let live = DebugThrottle.shared.current()
+                    guard live > 0 else { return nil }
+                    let now = Date().timeIntervalSinceReferenceDate
+                    let cap = Double(max(bytes, Int(live)))
+                    tokens = min(cap, tokens + (now - last) * live)
+                    last = now
+                    if tokens >= Double(bytes) {
+                        tokens -= Double(bytes)
+                        return nil
+                    }
+                    return (Double(bytes) - tokens) / live
+                }
+                guard let wait else { return }
+                let slice = min(max(wait, 0.001), 0.05)
+                try? await Task.sleep(nanoseconds: UInt64(slice * 1_000_000_000))
+            }
+        }
+    }
+
+    #endif
+
     private final class Registration: @unchecked Sendable {
         let source: any MediaByteRangeSource
         let filename: String
         let token: String
         let preferredBufferDepth: MediaByteBufferDepth
+        var readChunkSize: Int64
+        var pipeline: MediaReadPipeline?
         let readFailureState = MediaSourceReadFailureState()
+        #if DEBUG
+        let throttle = SourceThrottle()
+        #endif
         let lock = NSLock()
         var indexSession: ContainerIndexSession?
+        private var failureStreak = 0
+        private var breakerOpenUntil: UInt64 = 0
         var authoritativeContentLength: Int64?
         var degradedReadMode = false
         #if DEBUG
             var containerIndexDebugState: MediaByteStreamContainerIndexDebugState
         #endif
 
+        private static let breakerThreshold = 3
+
+        func breakerAllows(now: UInt64) -> Bool {
+            lock.withLock { breakerOpenUntil <= now }
+        }
+
+        func breakerSucceeded() {
+            lock.withLock {
+                failureStreak = 0
+                breakerOpenUntil = 0
+            }
+        }
+
+        func breakerFailed(cooldown: Double) {
+            lock.withLock {
+                failureStreak += 1
+                guard failureStreak >= Self.breakerThreshold else { return }
+                let nanos = UInt64(max(cooldown, 0.01) * 1_000_000_000)
+                breakerOpenUntil = DispatchTime.now().uptimeNanoseconds + nanos
+                failureStreak = 0
+            }
+        }
+
         init(
             source: any MediaByteRangeSource,
             filename: String,
             token: String,
-            preferredBufferDepth: MediaByteBufferDepth
+            preferredBufferDepth: MediaByteBufferDepth,
+            readChunkSize: Int64
         ) {
             self.source = source
             self.filename = filename
             self.token = token
             self.preferredBufferDepth = preferredBufferDepth
+            self.readChunkSize = max(1, readChunkSize)
             #if DEBUG
                 containerIndexDebugState = MediaByteStreamContainerIndexDebugState(
                     scope: "media-byte-stream:\(token.lowercased())"
@@ -828,9 +1036,24 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             source: source,
             filename: filename,
             token: token,
-            preferredBufferDepth: preferredBufferDepth
+            preferredBufferDepth: preferredBufferDepth,
+            readChunkSize: readChunkSize
         )
+        attachPipeline(to: registration)
         lock.withLock { registrations[token] = registration }
+        await registration.pipeline?.setSpeculativePrefetch(enabled: false)
+        await registration.pipeline?.primeProbe()
+        if let pipeline = registration.pipeline {
+            let block = await pipeline.snapshot().blockSize
+            if block > 0 {
+                registration.readChunkSize = block
+            }
+        }
+        #if DEBUG
+        if let pipeline = registration.pipeline {
+            MediaByteStreamServer.recordDebugPipeline(pipeline)
+        }
+        #endif
         MediaSourceDebugTrace.event("bytestream.register token=\(token.prefix(8)) name=\(filename)")
         let escapedName = filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? "media"
         guard let url = URL(string: "http://127.0.0.1:\(port.rawValue)/\(token)/\(escapedName)") else {
@@ -848,6 +1071,76 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         return handle
     }
 
+    public func measureLatency(token: String) async -> Double? {
+        let registration = lock.withLock { registrations[token] }
+        guard let pipeline = registration?.pipeline else { return nil }
+        return await pipeline.measureLatency()
+    }
+
+    public func measureCapacity(token: String, blocks: Int) async -> Double? {
+        let registration = lock.withLock { registrations[token] }
+        guard let pipeline = registration?.pipeline else { return nil }
+        return await pipeline.measureCapacity(blocks: blocks)
+    }
+
+    #if DEBUG
+    public static func debugMeasureLatency() async -> Double? {
+        let pipelines = debugStatisticsLock.withLock { debugPipelines.compactMap(\.value) }
+        guard let pipeline = pipelines.last else { return nil }
+        return await pipeline.measureLatency()
+    }
+
+    public static func debugMeasureCapacity(blocks: Int) async -> Double? {
+        let pipelines = debugStatisticsLock.withLock { debugPipelines.compactMap(\.value) }
+        guard let pipeline = pipelines.last else { return nil }
+        return await pipeline.measureCapacity(blocks: blocks)
+    }
+    #endif
+
+    public func setSpeculativePrefetch(token: String, enabled: Bool) async {
+        let registration = lock.withLock { registrations[token] }
+        await registration?.pipeline?.setSpeculativePrefetch(enabled: enabled)
+    }
+
+    public func prefetchBlockSize(token: String) async -> Int64 {
+        let registration = lock.withLock { registrations[token] }
+        guard let pipeline = registration?.pipeline else { return 0 }
+        return await pipeline.snapshot().blockSize
+    }
+
+    public func prewarm(token: String, byteCount: Int64) async throws {
+        let registration = lock.withLock { registrations[token] }
+        guard let registration, let pipeline = registration.pipeline else {
+            throw ServerError.unknownRegistration
+        }
+        let length = registration.source.byteStreamAttributes.contentLength ?? byteCount
+        let end = min(max(0, byteCount), length)
+        guard end > 0 else { return }
+        await pipeline.preload(0..<end)
+    }
+
+    private func attachPipeline(to registration: Registration) {
+        registration.pipeline = MediaReadPipeline(
+            contentLength: registration.source.byteStreamAttributes.contentLength,
+            backendRead: { [weak self, weak registration] range in
+                guard let self, let registration else {
+                    throw ServerError.unknownRegistration
+                }
+                return try await self.read(range, registration: registration)
+            }
+        )
+    }
+
+    private func pipelineRead(
+        _ range: Range<Int64>,
+        registration: Registration
+    ) async throws -> MediaByteRangeRead {
+        guard let pipeline = registration.pipeline else {
+            throw ServerError.unknownRegistration
+        }
+        return try await pipeline.read(range)
+    }
+
     public func snapshot() -> Statistics {
         lock.withLock { statistics }
     }
@@ -862,8 +1155,10 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             source: registration.source,
             filename: registration.filename,
             token: refreshedToken,
-            preferredBufferDepth: registration.preferredBufferDepth
+            preferredBufferDepth: registration.preferredBufferDepth,
+            readChunkSize: registration.readChunkSize
         )
+        attachPipeline(to: refreshed)
         lock.withLock { registrations[refreshedToken] = refreshed }
         MediaSourceDebugTrace.event(
             "bytestream.register refreshed token=\(refreshedToken.prefix(8))"
@@ -1011,8 +1306,11 @@ public final class MediaByteStreamServer: @unchecked Sendable {
     #endif
 
     fileprivate func unregister(token: String) {
+        let removed = lock.withLock { registrations.removeValue(forKey: token) }
+        if let pipeline = removed?.pipeline {
+            Task { await pipeline.cancelAll() }
+        }
         let orphans = lock.withLock { () -> [(Task<Void, Never>?, NWConnection?)] in
-            registrations.removeValue(forKey: token)
             let ids = transferTokens.filter { $0.value == token }.map(\.key)
             return ids.map { id in
                 transferTokens.removeValue(forKey: id)
@@ -1273,10 +1571,14 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 sendRangeNotSatisfiable(length: knownLength, on: connection)
                 return
             }
-            initialRange = requestedRange.prefix(upToCount: readChunkSize)
+            let initialChunk = min(Int64(requestedRange.count), 2_097_152)
+            initialRange = requestedRange.lowerBound..<min(
+                requestedRange.upperBound,
+                requestedRange.lowerBound + initialChunk
+            )
         } else {
             guard let discoveryRange = request.discoveryRange(
-                chunkSize: readChunkSize,
+                chunkSize: registration.readChunkSize,
                 lengthHint: attributes.contentLength
             ) else {
                 sendRangeNotSatisfiable(length: nil, on: connection)
@@ -1287,7 +1589,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
 
         let first: MediaByteRangeRead
         do {
-            first = try await read(initialRange, registration: registration)
+            first = try await pipelineRead(initialRange, registration: registration)
         } catch {
             sendError(502, message: "Bad Gateway", on: connection)
             return
@@ -1317,6 +1619,9 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             let responseLength = Int64(requestedRange.count)
             lock.withLock {
                 statistics.requestCount += 1
+                #if DEBUG
+                    Self.recordDebugRequest()
+                #endif
                 statistics.largestRequest = max(statistics.largestRequest, responseLength)
             }
             #if DEBUG
@@ -1324,8 +1629,14 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                     counters.requestCount &+= 1
                 }
             #endif
+            let snapshot = await registration.pipeline?.snapshot()
+            let readAhead = max(
+                262_144,
+                min(16_777_216, Int64(snapshot?.prefetchBlocks ?? 4) * (snapshot?.blockSize ?? 262_144))
+            )
             var response = "HTTP/1.1 \(request.isPartial ? "206 Partial Content" : "200 OK")\r\n"
             response += "Accept-Ranges: bytes\r\nContent-Type: application/octet-stream\r\n"
+            response += "X-Enchron-Read-Ahead: \(readAhead)\r\n"
             response += "Content-Length: \(responseLength)\r\n"
             if request.isPartial {
                 response += "Content-Range: bytes \(requestedRange.lowerBound)-\(requestedRange.upperBound - 1)/\(actualLength)\r\n"
@@ -1339,27 +1650,46 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 try await send(Data(payload), on: connection)
                 offset += Int64(payload.count)
                 lock.withLock { statistics.bytesRead += Int64(payload.count) }
+                #if DEBUG
+                    Self.recordDebugBytes(payload.count)
+                #endif
             }
-            while offset < requestedRange.upperBound {
-                try Task.checkCancellation()
-                let end = min(offset + readChunkSize, requestedRange.upperBound)
-                let readStartedAt = Date()
-                let result = try await read(offset..<end, registration: registration)
-                MediaSourceDebugTrace.event(
-                    "bytestream.read token=\(registration.token.prefix(8)) offset=\(offset)"
-                        + " bytes=\(result.data.count)"
-                        + " ms=\(Int(Date().timeIntervalSince(readStartedAt) * 1000))"
-                )
-                guard result.data.isEmpty == false,
-                      result.supportsSeeking,
-                      result.contentLength == nil || result.contentLength == actualLength else {
-                    connection.cancel()
-                    return
+            #if DEBUG
+                Self.recordDebugBlockSize(registration.readChunkSize)
+            #endif
+            do {
+                while offset < requestedRange.upperBound {
+                    try Task.checkCancellation()
+                    let chunkEnd = min(offset + registration.readChunkSize, requestedRange.upperBound)
+                    let readStartedAt = Date()
+                    let result = try await pipelineRead(
+                        offset..<chunkEnd,
+                        registration: registration
+                    )
+                    MediaSourceDebugTrace.event(
+                        "bytestream.read token=\(registration.token.prefix(8)) offset=\(offset)"
+                            + " bytes=\(result.data.count)"
+                            + " ms=\(Int(Date().timeIntervalSince(readStartedAt) * 1000))"
+                    )
+                    guard result.data.isEmpty == false,
+                          result.supportsSeeking,
+                          result.contentLength == nil || result.contentLength == actualLength else {
+                        connection.cancel()
+                        return
+                    }
+                    let payload = result.data.prefix(
+                        Int(min(Int64(result.data.count), requestedRange.upperBound - offset))
+                    )
+                    try await send(Data(payload), on: connection)
+                    offset += Int64(payload.count)
+                    lock.withLock { statistics.bytesRead += Int64(payload.count) }
+                    #if DEBUG
+                        Self.recordDebugBytes(payload.count)
+                    #endif
                 }
-                let payload = result.data.prefix(Int(min(Int64(result.data.count), requestedRange.upperBound - offset)))
-                try await send(Data(payload), on: connection)
-                offset += Int64(payload.count)
-                lock.withLock { statistics.bytesRead += Int64(payload.count) }
+            } catch {
+                connection.cancel()
+                return
             }
             receiveRequest(on: connection, accumulated: Data())
         } catch {
@@ -1396,7 +1726,14 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                     try await Task.sleep(for: .milliseconds(delay))
                 }
             #endif
-            result = try await readSourceWithSilenceRetry(range, registration: registration)
+            #if DEBUG
+            let debugRate = DebugThrottle.shared.current()
+            registration.throttle.configureIfNeeded(debugRate)
+            if debugRate > 0 {
+                await registration.throttle.consume(range.count)
+            }
+            #endif
+            result = try await readSourceWithTransientRetry(range, registration: registration)
         } catch {
             if let failure = MediaSourceReadFailure(classifying: error) {
                 registration.readFailureState.record(failure)
@@ -1484,12 +1821,108 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     }
 
+    private struct SilenceReadExhausted: Error {}
+
+    private func readSourceWithTransientRetry(
+        _ range: Range<Int64>,
+        registration: Registration
+    ) async throws -> MediaByteRangeRead {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard registration.breakerAllows(now: now) else {
+            throw MediaSourceReadFailure.transportInterrupted
+        }
+        var attempt = 0
+        while true {
+            do {
+                let result = try await readSourceWithHedge(range, registration: registration)
+                registration.breakerSucceeded()
+                return result
+            } catch is SilenceReadExhausted {
+                registration.breakerFailed(cooldown: await cooldownSeconds(registration: registration))
+                throw MediaSourceReadFailure.transportInterrupted
+            } catch {
+                guard MediaSourceReadFailure(classifying: error) == .transportInterrupted else {
+                    throw error
+                }
+                registration.breakerFailed(cooldown: await cooldownSeconds(registration: registration))
+                guard attempt < 2 else { throw error }
+                attempt += 1
+                let latency = await registration.pipeline?.snapshot().latencySeconds ?? 0.1
+                let backoff = min(latency * pow(2, Double(attempt - 1)), 5)
+                try await Task.sleep(
+                    nanoseconds: UInt64(max(backoff, 0.001) * 1_000_000_000)
+                )
+            }
+        }
+    }
+
+    private func cooldownSeconds(registration: Registration) async -> Double {
+        let latency = await registration.pipeline?.snapshot().latencySeconds ?? 0.1
+        return max(0.25, latency * 10)
+    }
+
+    private func readSourceWithHedge(
+        _ range: Range<Int64>,
+        registration: Registration
+    ) async throws -> MediaByteRangeRead {
+        let degraded = registration.lock.withLock { registration.degradedReadMode }
+        if degraded {
+            return try await readSourceWithSilenceRetry(range, registration: registration)
+        }
+        guard await registration.pipeline?.hasMeasuredLatency() == true else {
+            return try await readSourceWithSilenceRetry(range, registration: registration)
+        }
+        let latency = await registration.pipeline?.snapshot().latencySeconds ?? 0.1
+        let hedgeDelay = max(latency * 2, 0.001)
+        return try await withThrowingTaskGroup(of: MediaByteRangeRead.self) { group in
+            group.addTask {
+                try await self.readSourceWithSilenceRetry(range, registration: registration)
+            }
+            group.addTask {
+                try await Task.sleep(
+                    nanoseconds: UInt64(hedgeDelay * 1_000_000_000)
+                )
+                return try await self.readSourceWithSilenceRetry(
+                    range,
+                    registration: registration
+                )
+            }
+            defer { group.cancelAll() }
+            var lastError: Error = MediaSourceReadFailure.transportInterrupted
+            while true {
+                do {
+                    guard let value = try await group.next() else { break }
+                    return value
+                } catch is SilenceReadExhausted {
+                    lastError = MediaSourceReadFailure.transportInterrupted
+                } catch is CancellationError {
+                    continue
+                } catch {
+                    if MediaSourceReadFailure(classifying: error) != .transportInterrupted {
+                        throw error
+                    }
+                    lastError = error
+                }
+            }
+            throw lastError
+        }
+    }
+
     private func readSourceWithSilenceRetry(
         _ range: Range<Int64>,
         registration: Registration
     ) async throws -> MediaByteRangeRead {
         let degraded = registration.lock.withLock { registration.degradedReadMode }
-        let timeout = degraded ? degradedReadTimeout : silentReadTimeout
+        let timeout: Duration
+        if degraded {
+            timeout = degradedReadTimeout
+        } else {
+            let components = silentReadTimeout.components
+            let base = Double(components.seconds)
+                + Double(components.attoseconds) / 1_000_000_000_000_000_000
+            let latency = await registration.pipeline?.snapshot().latencySeconds ?? base
+            timeout = .seconds(max(base, latency * 3))
+        }
         let retryLimit = degraded ? 0 : silentReadRetryLimit
         var attempt = 0
         while true {
@@ -1512,7 +1945,7 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                             + " token=\(registration.token.prefix(8))"
                             + " offset=\(range.lowerBound)"
                     )
-                    throw MediaSourceReadFailure.transportInterrupted
+                    throw SilenceReadExhausted()
                 }
                 MediaSourceDebugTrace.event(
                     "bytestream.read.retry"
@@ -1578,8 +2011,8 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             }
             while true {
                 try Task.checkCancellation()
-                let result = try await read(
-                    offset..<(offset + readChunkSize),
+                let result = try await pipelineRead(
+                    offset..<(offset + registration.readChunkSize),
                     registration: registration
                 )
                 guard result.data.isEmpty == false else { break }
@@ -1648,5 +2081,640 @@ extension Range where Bound == Int64 {
         let candidate = lowerBound.addingReportingOverflow(count)
         let end = candidate.overflow ? upperBound : Swift.min(upperBound, candidate.partialValue)
         return lowerBound..<end
+    }
+}
+
+public actor MediaReadPipeline {
+    public struct Configuration: Sendable {
+        public var blockSize: Int64
+        public var maxConcurrentReads: Int
+        public var maxPrefetchBlocks: Int
+        public var prefetchTargetSeconds: Double
+        public var cacheCapacityBytes: Int
+        public var initialThroughputBytesPerSecond: Double
+
+        public init(
+            blockSize: Int64 = 262_144,
+            maxConcurrentReads: Int = 8,
+            maxPrefetchBlocks: Int = 16,
+            prefetchTargetSeconds: Double = 1.0,
+            cacheCapacityBytes: Int = 64 * 1_024 * 1_024,
+            initialThroughputBytesPerSecond: Double = 10_000_000
+        ) {
+            self.blockSize = max(1, blockSize)
+            self.maxConcurrentReads = max(1, maxConcurrentReads)
+            self.maxPrefetchBlocks = max(1, maxPrefetchBlocks)
+            self.prefetchTargetSeconds = max(0.05, prefetchTargetSeconds)
+            self.cacheCapacityBytes = max(Int(self.blockSize), cacheCapacityBytes)
+            self.initialThroughputBytesPerSecond = max(1, initialThroughputBytesPerSecond)
+        }
+    }
+
+    public struct Snapshot: Sendable {
+        public let blockSize: Int64
+        public let cachedBlocks: Int
+        public let cachedBytes: Int
+        public let activeReads: Int
+        public let latencySeconds: Double
+        public let throughputBytesPerSecond: Double
+        public let recentBytesPerSecond: Double
+        public let burstBytesPerSecond: Double
+        public let demandBytes: Int64
+        public let prefetchBytes: Int64
+        public let prefetchBlocks: Int
+        public let concurrency: Int
+    }
+
+    public typealias BackendRead = @Sendable (Range<Int64>) async throws -> MediaByteRangeRead
+
+    struct SourceProbe: Sendable {
+        struct Sample: Sendable {
+            let bytes: Double
+            let seconds: Double
+            let start: Double
+            let end: Double
+        }
+
+        struct Estimate: Sendable {
+            let latencySeconds: Double
+            let throughputBytesPerSecond: Double
+            let jitterSeconds: Double
+            let errorRate: Double
+            let sampleCount: Int
+        }
+
+        private var samples: [Sample] = []
+        private var attempts = 0
+        private var failures = 0
+        private let capacity = 64
+
+        mutating func record(bytes: Int, seconds: Double) {
+            let end = Date().timeIntervalSinceReferenceDate
+            record(bytes: bytes, start: end - seconds, end: end)
+        }
+
+        mutating func record(bytes: Int, start: Double, end: Double) {
+            attempts += 1
+            guard bytes > 0, end > start else { return }
+            samples.append(
+                Sample(bytes: Double(bytes), seconds: end - start, start: start, end: end)
+            )
+            if samples.count > capacity {
+                samples.removeFirst(samples.count - capacity)
+            }
+        }
+
+        mutating func recordFailure() {
+            attempts += 1
+            failures += 1
+        }
+
+        #if DEBUG
+        var debugSamples: [String] {
+            let intervals = samples.map { ($0.start, $0.end) }
+            return samples.map { sample in
+                let concurrency = intervals.filter { $0.0 < sample.end && sample.start < $0.1 }.count
+                return "bytes=\(Int(sample.bytes)) seconds=\(sample.seconds)"
+                    + " start=\(sample.start) end=\(sample.end) concurrency=\(concurrency)"
+            }
+        }
+        #endif
+
+        func ratePercentile(window: Double, percentile: Double, now: Double) -> Double? {
+            guard let anchor = samples.map(\.end).max() else { return nil }
+            guard now - anchor <= window * 2 else { return nil }
+            let cutoff = anchor - window
+            let rates = samples
+                .filter { $0.end > cutoff && $0.seconds > 0 }
+                .map { $0.bytes / $0.seconds }
+                .sorted()
+            guard rates.isEmpty == false else { return nil }
+            let clamped = min(max(percentile, 0), 1)
+            let index = Int((Double(rates.count - 1) * clamped).rounded())
+            return rates[index]
+        }
+
+        func recentRate(window: Double, now: Double) -> Double? {
+            guard let anchor = samples.map(\.end).max() else { return nil }
+            guard now - anchor <= window * 2 else { return nil }
+            let cutoff = anchor - window
+            let recent = samples.filter { $0.end > cutoff }
+            guard recent.isEmpty == false else { return nil }
+            let starts = recent.map(\.start).min() ?? 0
+            let ends = recent.map(\.end).max() ?? 0
+            let span = ends - starts
+            guard span > 0 else { return nil }
+            return recent.reduce(0) { $0 + $1.bytes } / span
+        }
+
+        var estimate: Estimate? {
+            guard samples.count >= 2 else { return nil }
+            let points = samples.map {
+                (bytes: $0.bytes, seconds: $0.seconds, start: $0.start, end: $0.end)
+            }
+            let concurrency = points.map { point in
+                points.filter { $0.start < point.end && point.start < $0.end }.count
+            }
+            let xs = points.enumerated().map { index, point in
+                point.bytes * Double(max(concurrency[index], 1))
+            }
+            let ys = points.map(\.seconds)
+            let count = Double(points.count)
+            let maxX = xs.max() ?? 0
+            var slopes: [Double] = []
+            for left in points.indices {
+                for right in points.indices where right > left {
+                    let deltaX = xs[right] - xs[left]
+                    guard abs(deltaX) >= maxX * 0.5 else { continue }
+                    let deltaY = ys[right] - ys[left]
+                    guard deltaX != 0 else { continue }
+                    let slope = deltaY / deltaX
+                    if slope > 0 {
+                        slopes.append(slope)
+                    }
+                }
+            }
+            let sortedSlopes = slopes.sorted()
+            let middleSlope = sortedSlopes.isEmpty ? 0 : sortedSlopes[sortedSlopes.count / 2]
+            let throughput: Double
+            let latency: Double
+            if middleSlope > 0 {
+                throughput = 1 / middleSlope
+                let latencies = zip(xs, ys).map { max(0, $1 - middleSlope * $0) }.sorted()
+                latency = latencies.isEmpty ? 0 : latencies[latencies.count / 2]
+            } else {
+                let mergedBytes = points.reduce(0) { $0 + $1.bytes }
+                let starts = points.map(\.start).min() ?? 0
+                let ends = points.map(\.end).max() ?? 0
+                guard ends > starts else { return nil }
+                throughput = mergedBytes / (ends - starts)
+                latency = 0
+            }
+            let residuals = zip(xs, ys).map { x, y in y - (latency + x / throughput) }
+            let meanResidual = residuals.reduce(0) { $0 + $1 * $1 } / count
+            let relativeError = meanResidual.squareRoot() / max(ys.reduce(0, +) / count, 1e-9)
+            guard relativeError <= 0.2 else { return nil }
+            let mean = residuals.reduce(0, +) / count
+            let variance = residuals.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / count
+            let errorRate = attempts > 0 ? Double(failures) / Double(attempts) : 0
+            return Estimate(
+                latencySeconds: latency,
+                throughputBytesPerSecond: throughput,
+                jitterSeconds: variance.squareRoot(),
+                errorRate: errorRate,
+                sampleCount: points.count
+            )
+        }
+    }
+
+    private let clock: @Sendable () -> Double
+    private let backendRead: BackendRead
+    private let configuration: Configuration
+    private var effectiveBlockSize: Int64
+    private let cachesBlocks: Bool
+    private var cache: [Int64: Data] = [:]
+    private var recency: [Int64] = []
+    private var cachedBytes = 0
+    private var speculativePrefetchEnabled = true
+    private var demandReadDurations: [Double] = []
+
+    private func recordDemandDuration(_ seconds: Double) {
+        demandReadDurations.append(seconds)
+        if demandReadDurations.count > 8 {
+            demandReadDurations.removeFirst(demandReadDurations.count - 8)
+        }
+    }
+
+    private var sourceCongested: Bool {
+        let samples = demandReadDurations.suffix(4)
+        guard samples.count >= 2 else { return false }
+        let sorted = samples.sorted()
+        let median = sorted[sorted.count / 2]
+        guard let latency = measuredLatency, latency > 0 else { return false }
+        return median > latency * 4
+    }
+    private var demandBytes: Int64 = 0
+    private var prefetchBytes: Int64 = 0
+    private var inFlight: [Int64: Task<MediaByteRangeRead, any Error>] = [:]
+    private var prefetchTasks: [Int64: Task<Void, Never>] = [:]
+    private var activeReads = 0
+    private var observedContentLength: Int64?
+    private var streaming = false
+    private var probe = SourceProbe()
+
+    public init(
+        configuration: Configuration = Configuration(),
+        contentLength: Int64? = nil,
+        clock: @escaping @Sendable () -> Double = {
+            Date().timeIntervalSinceReferenceDate
+        },
+        backendRead: @escaping BackendRead
+    ) {
+        self.configuration = configuration
+        self.clock = clock
+        self.backendRead = backendRead
+        if let contentLength, contentLength > 0 {
+            let chosen: Int64 = contentLength >= 32 * 1_024 * 1_024
+                ? 4 * 1_024 * 1_024
+                : configuration.blockSize
+            effectiveBlockSize = min(chosen, contentLength)
+            cachesBlocks = true
+            observedContentLength = contentLength
+        } else {
+            effectiveBlockSize = configuration.blockSize
+            cachesBlocks = false
+        }
+    }
+
+    public func read(_ range: Range<Int64>) async throws -> MediaByteRangeRead {
+        guard range.isEmpty == false else {
+            return MediaByteRangeRead(
+                data: Data(),
+                contentLength: observedContentLength,
+                supportsSeeking: true
+            )
+        }
+        if cachesBlocks == false {
+            let read = try await backendRead(range)
+            return MediaByteRangeRead(
+                data: read.data,
+                contentLength: read.contentLength,
+                supportsSeeking: true
+            )
+        }
+        if observedContentLength == nil, Int64(range.count) < effectiveBlockSize {
+            let read = try await backendRead(range)
+            if let length = read.contentLength, length >= 0 {
+                observedContentLength = length
+            }
+            return MediaByteRangeRead(
+                data: read.data,
+                contentLength: observedContentLength,
+                supportsSeeking: true
+            )
+        }
+        if Int64(range.count) >= 1_048_576 {
+            streaming = true
+        }
+        var result = Data()
+        var block = blockIndex(for: range.lowerBound)
+        let lastBlock = blockIndex(for: range.upperBound - 1)
+        while block <= lastBlock {
+            let read = try await fetch(block, demand: true)
+            if let length = read.contentLength, length >= 0 {
+                if let known = observedContentLength, known != length {
+                    invalidateCache()
+                }
+                observedContentLength = length
+            }
+            let blockStart = block * effectiveBlockSize
+            let start = max(range.lowerBound, blockStart) - blockStart
+            let end = min(range.upperBound, blockStart + Int64(read.data.count)) - blockStart
+            if start < end, let slice = read.data.nonEmptySlice(from: start, to: end) {
+                result.append(slice)
+            }
+            if read.data.count < effectiveBlockSize { break }
+            block += 1
+        }
+        return MediaByteRangeRead(
+            data: result,
+            contentLength: observedContentLength,
+            supportsSeeking: true
+        )
+    }
+
+    public func preload(_ range: Range<Int64>) async {
+        guard cachesBlocks, range.isEmpty == false else { return }
+        var blocks: [Int64] = []
+        var block = blockIndex(for: range.lowerBound)
+        let last = blockIndex(for: range.upperBound - 1)
+        while block <= last {
+            blocks.append(block)
+            block += 1
+        }
+        await withTaskGroup(of: Void.self) { group in
+            for block in blocks {
+                group.addTask { [weak self] in
+                    _ = try? await self?.fetch(block, demand: false)
+                }
+            }
+        }
+    }
+
+    public func contentLength() -> Int64? {
+        observedContentLength
+    }
+
+    #if DEBUG
+    #if DEBUG
+    public func debugRecentRate(window: Double) -> Double? {
+        probe.recentRate(window: window, now: Date().timeIntervalSinceReferenceDate)
+    }
+    #endif
+
+    public func debugProbeSamples() -> [String] {
+        probe.debugSamples
+    }
+    #endif
+
+    private var measuredLatency: Double?
+    private var measuredThroughput: Double?
+    private var capacityFloor: Double?
+    private var capacityCeiling: Double?
+    private var capacityLatest: Double?
+    private var lastCapacityProbeAt: Double = -.infinity
+
+    public func hasMeasuredLatency() -> Bool {
+        measuredLatency != nil
+    }
+
+    public func primeProbe() async {
+        guard cachesBlocks, cache.isEmpty else { return }
+        guard let length = observedContentLength, length > 32 * 1_024 * 1_024 else { return }
+        guard measuredLatency == nil else { return }
+        _ = await measureLatency()
+    }
+
+    public func measureLatency() async -> Double? {
+        let offset = (observedContentLength ?? 0) / 2
+        let range = offset..<(offset + 4_096)
+        let startedAt = clock()
+        _ = try? await backendRead(range)
+        let seconds = clock() - startedAt
+        guard seconds > 0 else { return nil }
+        measuredLatency = seconds
+        refreshBlockSize()
+        return seconds
+    }
+
+    public func measureCapacity(blocks: Int) async -> Double? {
+        guard cachesBlocks else { return nil }
+        guard activeReads == 0, inFlight.isEmpty else { return nil }
+        let count = max(1, min(blocks, configuration.maxConcurrentReads))
+        var rates: [Double] = []
+        for _ in 0 ..< 2 {
+            let base = max(0, (cache.keys.max() ?? 0) + 1)
+            let startedAt = clock()
+            var bytes = 0
+            await withTaskGroup(of: Int.self) { group in
+                for index in 0..<count {
+                    group.addTask { [weak self] in
+                        guard let self else { return 0 }
+                        guard let read = try? await self.fetch(base + Int64(index), demand: false) else {
+                            return 0
+                        }
+                        return read.data.count
+                    }
+                }
+                for await value in group {
+                    bytes += value
+                }
+            }
+            let seconds = clock() - startedAt
+            guard seconds > 0, bytes > 0 else { return nil }
+            rates.append(Double(bytes) / seconds)
+        }
+        guard let rate = rates.min() else { return nil }
+        lastCapacityProbeAt = Date().timeIntervalSinceReferenceDate
+        measuredThroughput = rate
+        capacityLatest = rate
+        capacityFloor = min(capacityFloor ?? rate, rate)
+        capacityCeiling = max(capacityCeiling ?? rate, rate)
+        refreshBlockSize()
+        return rate
+    }
+
+    public func snapshot() -> Snapshot {
+        Snapshot(
+            blockSize: effectiveBlockSize,
+            cachedBlocks: cache.count,
+            cachedBytes: cachedBytes,
+            activeReads: activeReads,
+            latencySeconds: measuredLatency ?? probe.estimate?.latencySeconds ?? 0.1,
+            throughputBytesPerSecond: probeThroughput,
+            recentBytesPerSecond: probe.recentRate(
+                window: 5,
+                now: Date().timeIntervalSinceReferenceDate
+            ) ?? 0,
+            burstBytesPerSecond: probe.recentRate(
+                window: 1,
+                now: Date().timeIntervalSinceReferenceDate
+            ) ?? 0,
+            demandBytes: demandBytes,
+            prefetchBytes: prefetchBytes,
+            prefetchBlocks: prefetchBlockCount,
+            concurrency: concurrencyLimit
+        )
+    }
+
+    public func cancelAll() {
+        for task in inFlight.values {
+            task.cancel()
+        }
+        for task in prefetchTasks.values {
+            task.cancel()
+        }
+        inFlight.removeAll()
+        prefetchTasks.removeAll()
+    }
+
+    private func invalidateCache() {
+        cache.removeAll()
+        recency.removeAll()
+        cachedBytes = 0
+    }
+
+    private func refreshBlockSize() {
+        guard cachesBlocks, cache.isEmpty, inFlight.isEmpty else { return }
+        guard let latency = measuredLatency, latency > 0 else { return }
+        let observed = probeThroughput
+        let bandwidth = observed > 0 ? observed : configuration.initialThroughputBytesPerSecond
+        guard bandwidth > 0 else { return }
+        let upper = Double(configuration.cacheCapacityBytes) / 8
+        let target = min(max(bandwidth * latency, 64 * 1_024), upper)
+        let length = observedContentLength ?? Int64(target)
+        effectiveBlockSize = max(1, min(Int64(target), length))
+    }
+
+    private var probeThroughput: Double {
+        let now = Date().timeIntervalSinceReferenceDate
+        let planned = capacityLatest ?? capacityFloor ?? measuredThroughput
+            ?? probe.ratePercentile(window: 30, percentile: 0.25, now: now)
+            ?? probe.recentRate(window: 5, now: now)
+            ?? probe.estimate?.throughputBytesPerSecond ?? 0
+        guard now - lastCapacityProbeAt > 5 else { return planned }
+        guard planned > 0,
+              let recent = probe.recentRate(window: 5, now: now),
+              recent > 0,
+              abs(recent - planned) / planned > 0.2 else {
+            return planned
+        }
+        return recent
+    }
+
+    private var probeLatency: Double {
+        measuredLatency ?? probe.estimate?.latencySeconds ?? 0.1
+    }
+
+    private func ceiling(_ value: Double) -> Int {
+        let rounded = value.rounded()
+        if abs(value - rounded) < 1e-6 {
+            return Int(rounded)
+        }
+        return Int(value.rounded(.up))
+    }
+
+    private var prefetchBlockCount: Int {
+        let throughput = probeThroughput
+        guard throughput > 0 else {
+            return min(4, configuration.maxPrefetchBlocks)
+        }
+        let blockSeconds = Double(effectiveBlockSize) / throughput
+        let targetSeconds = max(probeLatency, blockSeconds) * configuration.prefetchTargetSeconds
+        let blocks = throughput * targetSeconds / Double(effectiveBlockSize)
+        let cacheBound = max(1, Int(configuration.cacheCapacityBytes) / Int(effectiveBlockSize))
+        let limit = min(configuration.maxPrefetchBlocks, cacheBound)
+        let floor = concurrencyLimit + 1
+        return min(max(ceiling(blocks), floor), max(limit, floor))
+    }
+
+    private var concurrencyLimit: Int {
+        let throughput = probeThroughput
+        let latency = probeLatency
+        guard throughput > 0 else {
+            return min(4, configuration.maxConcurrentReads)
+        }
+        let blockSeconds = Double(effectiveBlockSize) / throughput
+        let required = 1 + latency / max(blockSeconds, 0.001)
+        return min(max(ceiling(required), 2), configuration.maxConcurrentReads)
+    }
+
+    private func blockIndex(for offset: Int64) -> Int64 {
+        offset / effectiveBlockSize
+    }
+
+    private func blockRange(_ index: Int64) -> Range<Int64> {
+        let start = index * effectiveBlockSize
+        return start..<(start + effectiveBlockSize)
+    }
+
+    private func fetch(_ block: Int64, demand: Bool) async throws -> MediaByteRangeRead {
+        if let cached = cache[block] {
+            touch(block)
+            return MediaByteRangeRead(
+                data: cached,
+                contentLength: observedContentLength,
+                supportsSeeking: true
+            )
+        }
+        if let pending = inFlight[block] {
+            return try await pending.value
+        }
+        if demand == false, activeReads >= configuration.maxConcurrentReads {
+            throw CancellationError()
+        }
+        let range = blockRange(block)
+        activeReads += 1
+        let startedAt = Date()
+        let task = Task { [backendRead] in
+            try await backendRead(range)
+        }
+        inFlight[block] = task
+        defer {
+            activeReads = max(0, activeReads - 1)
+            inFlight[block] = nil
+        }
+        do {
+            let read = try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
+            if let length = read.contentLength, length >= 0 {
+                if let known = observedContentLength, known != length {
+                    invalidateCache()
+                }
+                observedContentLength = length
+            }
+            probe.record(
+                bytes: read.data.count,
+                start: startedAt.timeIntervalSinceReferenceDate,
+                end: Date().timeIntervalSinceReferenceDate
+            )
+            if demand {
+                demandBytes += Int64(read.data.count)
+                recordDemandDuration(Date().timeIntervalSince(startedAt))
+            } else {
+                prefetchBytes += Int64(read.data.count)
+            }
+            store(read.data, at: block)
+            if demand {
+                schedulePrefetch(after: block)
+            }
+            return read
+        } catch {
+            activeReads = max(0, activeReads - 1)
+            inFlight[block] = nil
+            probe.recordFailure()
+            throw error
+        }
+    }
+
+    private func store(_ data: Data, at block: Int64) {
+        guard data.isEmpty == false else { return }
+        cache[block] = data
+        cachedBytes += data.count
+        touch(block)
+        while cachedBytes > configuration.cacheCapacityBytes, let oldest = recency.first {
+            recency.removeFirst()
+            if let evicted = cache.removeValue(forKey: oldest) {
+                cachedBytes -= evicted.count
+            }
+        }
+    }
+
+    private func touch(_ block: Int64) {
+        if let index = recency.firstIndex(of: block) {
+            recency.remove(at: index)
+        }
+        recency.append(block)
+    }
+
+    public func setSpeculativePrefetch(enabled: Bool) {
+        speculativePrefetchEnabled = enabled
+    }
+
+    private func schedulePrefetch(after block: Int64) {
+        guard speculativePrefetchEnabled, sourceCongested == false else { return }
+        guard speculativePrefetchEnabled else { return }
+        guard let length = observedContentLength, length > 1_048_576 else { return }
+        let count = prefetchBlockCount
+        guard count > 0 else { return }
+        for offset in 1...count {
+            let next = block + Int64(offset)
+            if let length = observedContentLength, next * effectiveBlockSize >= length {
+                break
+            }
+            if cache[next] != nil || inFlight[next] != nil || prefetchTasks[next] != nil {
+                continue
+            }
+            prefetchTasks[next] = Task { [weak self] in
+                await self?.runPrefetch(next)
+            }
+        }
+    }
+
+    private func runPrefetch(_ block: Int64) async {
+        defer { prefetchTasks[block] = nil }
+        guard cache[block] == nil, inFlight[block] == nil else { return }
+        guard activeReads < configuration.maxConcurrentReads else { return }
+        _ = try? await fetch(block, demand: false)
+    }
+}
+
+extension Data {
+    fileprivate func nonEmptySlice(from start: Int64, to end: Int64) -> Data? {
+        guard start >= 0, end > start, end <= Int64(count) else { return nil }
+        return self[Int(start)..<Int(end)]
     }
 }

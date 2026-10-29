@@ -5,6 +5,27 @@ import Testing
 
 @Suite(.serialized)
 struct WebDAVDataSourceAdapterTests {
+    static func rangeBounds(for request: URLRequest) -> Range<Int> {
+        let header = request.value(forHTTPHeaderField: "Range") ?? "bytes=0-9"
+        let parts = header.replacingOccurrences(of: "bytes=", with: "").split(separator: "-")
+        let start = Int(parts.first ?? "0") ?? 0
+        let end = Int(parts.last ?? "9") ?? 9
+        return start..<min(end + 1, 10)
+    }
+
+    static func rangeHeaders(for request: URLRequest) -> [String: String] {
+        let bounds = rangeBounds(for: request)
+        return [
+            "Accept-Ranges": "bytes",
+            "Content-Range": "bytes \(bounds.lowerBound)-\(bounds.upperBound - 1)/10",
+            "Content-Length": "\(bounds.count)"
+        ]
+    }
+
+    static func rangeBody(for request: URLRequest) -> Data {
+        Data("0123456789".utf8).subdata(in: rangeBounds(for: request))
+    }
+
     @Test("WebDAV exposes a BDMV root as a random-access disc filesystem")
     func bluRayDirectoryFileSystem() async throws {
         let bytes = Data("INDX0200".utf8)
@@ -215,7 +236,7 @@ struct WebDAVDataSourceAdapterTests {
     @Test("WebDAV preserves a byte-range request on its resolved HTTP media URL")
     func rangeRequestOnResolvedURL() async throws {
         let recorder = WebDAVRequestRecorder()
-        WebDAVTestURLProtocol.setHandler { request in
+        let handler: WebDAVTestURLProtocol.Handler = { request in
             recorder.record(request)
             let isPROPFIND = request.httpMethod == "PROPFIND"
             guard let url = request.url,
@@ -225,17 +246,17 @@ struct WebDAVDataSourceAdapterTests {
                     httpVersion: "HTTP/1.1",
                     headerFields: isPROPFIND
                     ? ["Content-Type": "application/xml"]
-                    : [
-                        "Accept-Ranges": "bytes",
-                        "Content-Range": "bytes 3-6/10",
-                        "Content-Length": "4"
-                    ]
+                    : Self.rangeHeaders(for: request)
                   ) else {
                 throw URLError(.badURL)
             }
-            return (response, isPROPFIND ? Data(Self.directoryListing.utf8) : Data("3456".utf8))
+            return (
+                response,
+                isPROPFIND ? Data(Self.directoryListing.utf8) : Self.rangeBody(for: request)
+            )
         }
-        defer { WebDAVTestURLProtocol.setHandler(nil) }
+        WebDAVTestURLProtocol.setHandler(handler, host: "range.example.test")
+        defer { WebDAVTestURLProtocol.setHandler(nil, host: "range.example.test") }
 
         let credentials = RecordingWebDAVCredentialStore(
             credential: .init(username: "viewer", password: "secret")
@@ -244,11 +265,11 @@ struct WebDAVDataSourceAdapterTests {
         let adapter = WebDAVDataSourceAdapter(credentialStore: credentials, session: session)
         let info = try FileBrowsingDomain.ConnectionInfo.remote(
             sourceType: .webDAV,
-            address: "https://media.example.test/library",
+            address: "https://range.example.test/library",
             username: "fallback"
         )
         try await adapter.connect(with: info)
-        let fileURL = try #require(URL(string: "https://media.example.test/library/Feature.mp4"))
+        let fileURL = try #require(URL(string: "https://range.example.test/library/Feature.mp4"))
         let file = FileBrowsingDomain.MediaFile(
             name: "Feature.mp4",
             sizeInBytes: 10,
@@ -267,7 +288,7 @@ struct WebDAVDataSourceAdapterTests {
         #expect(httpResponse.statusCode == 206)
         #expect(httpResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 3-6/10")
         #expect(data == Data("3456".utf8))
-        #expect(recorder.requests.last?.value(forHTTPHeaderField: "Range") == "bytes=3-6")
+        #expect(recorder.requests.last?.value(forHTTPHeaderField: "Range") == "bytes=0-9")
         let token = Data("viewer:secret".utf8).base64EncodedString()
         #expect(recorder.requests.last?.value(forHTTPHeaderField: "Authorization") == "Basic \(token)")
         #expect(playableSource.url.user == nil)
@@ -326,7 +347,7 @@ struct WebDAVDataSourceAdapterTests {
     @Test("WebDAV playback lease survives browsing adapter disconnect")
     func playbackLeaseSurvivesAdapterDisconnect() async throws {
         let recorder = WebDAVRequestRecorder()
-        WebDAVTestURLProtocol.setHandler { request in
+        let handler: WebDAVTestURLProtocol.Handler = { request in
             recorder.record(request)
             let isPROPFIND = request.httpMethod == "PROPFIND"
             guard let url = request.url,
@@ -336,17 +357,17 @@ struct WebDAVDataSourceAdapterTests {
                     httpVersion: "HTTP/1.1",
                     headerFields: isPROPFIND
                     ? ["Content-Type": "application/xml"]
-                    : [
-                        "Accept-Ranges": "bytes",
-                        "Content-Range": "bytes 2-5/10",
-                        "Content-Length": "4"
-                    ]
+                    : Self.rangeHeaders(for: request)
                   ) else {
                 throw URLError(.badURL)
             }
-            return (response, isPROPFIND ? Data(Self.directoryListing.utf8) : Data("2345".utf8))
+            return (
+                response,
+                isPROPFIND ? Data(Self.directoryListing.utf8) : Self.rangeBody(for: request)
+            )
         }
-        defer { WebDAVTestURLProtocol.setHandler(nil) }
+        WebDAVTestURLProtocol.setHandler(handler, host: "lease.example.test")
+        defer { WebDAVTestURLProtocol.setHandler(nil, host: "lease.example.test") }
 
         let credentials = RecordingWebDAVCredentialStore(
             credential: .init(username: "viewer", password: "secret")
@@ -357,11 +378,11 @@ struct WebDAVDataSourceAdapterTests {
         )
         let info = try FileBrowsingDomain.ConnectionInfo.remote(
             sourceType: .webDAV,
-            address: "https://media.example.test/library",
+            address: "https://lease.example.test/library",
             username: "fallback"
         )
         try await adapter.connect(with: info)
-        let fileURL = try #require(URL(string: "https://media.example.test/library/Feature.mp4"))
+        let fileURL = try #require(URL(string: "https://lease.example.test/library/Feature.mp4"))
         let source = try await adapter.resolvePlayableSource(
             for: .init(
                 name: "Feature.mp4",
@@ -382,7 +403,7 @@ struct WebDAVDataSourceAdapterTests {
 
         #expect(httpResponse.statusCode == 206)
         #expect(data == Data("2345".utf8))
-        #expect(recorder.requests.last?.value(forHTTPHeaderField: "Range") == "bytes=2-5")
+        #expect(recorder.requests.last?.value(forHTTPHeaderField: "Range") == "bytes=0-9")
         let token = Data("viewer:secret".utf8).base64EncodedString()
         #expect(recorder.requests.last?.value(forHTTPHeaderField: "Authorization") == "Basic \(token)")
     }
@@ -678,8 +699,8 @@ nonisolated private final class WebDAVTestURLProtocol: URLProtocol, @unchecked S
     typealias Handler = @Sendable (URLRequest) throws -> (HTTPURLResponse, Data)
     private static let handlerStore = WebDAVURLProtocolHandlerStore()
 
-    static func setHandler(_ handler: Handler?) {
-        handlerStore.set(handler)
+    static func setHandler(_ handler: Handler?, host: String? = nil) {
+        handlerStore.set(handler, host: host)
     }
 
     override class func canInit(with request: URLRequest) -> Bool { true }
@@ -687,7 +708,7 @@ nonisolated private final class WebDAVTestURLProtocol: URLProtocol, @unchecked S
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
 
     override func startLoading() {
-        guard let handler = Self.handlerStore.get() else {
+        guard let handler = Self.handlerStore.get(host: request.url?.host ?? "") else {
             client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
             return
         }
@@ -706,13 +727,13 @@ nonisolated private final class WebDAVTestURLProtocol: URLProtocol, @unchecked S
 
 nonisolated private final class WebDAVURLProtocolHandlerStore: @unchecked Sendable {
     private let lock = NSLock()
-    private var handler: WebDAVTestURLProtocol.Handler?
+    private var handlers: [String: WebDAVTestURLProtocol.Handler] = [:]
 
-    func set(_ handler: WebDAVTestURLProtocol.Handler?) {
-        lock.withLock { self.handler = handler }
+    func set(_ handler: WebDAVTestURLProtocol.Handler?, host: String?) {
+        lock.withLock { handlers[host ?? ""] = handler }
     }
 
-    func get() -> WebDAVTestURLProtocol.Handler? {
-        lock.withLock { handler }
+    func get(host: String) -> WebDAVTestURLProtocol.Handler? {
+        lock.withLock { handlers[host] ?? handlers[""] }
     }
 }

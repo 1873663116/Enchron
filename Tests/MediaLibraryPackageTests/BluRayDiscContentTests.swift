@@ -99,9 +99,8 @@ struct BluRayDiscContentTests {
             BluRayDiscCatalog(titles: [split, original]), sourceName: "Film"
         )
 
-        #expect(content.primaryTitles.map(\.playlistID.rawValue) == [1])
-        #expect(content.groups.map(\.kind) == [.additional])
-        #expect(content.groups.flatMap(\.titles).map(\.playlistID.rawValue) == [2])
+        #expect(content.primaryTitles.map(\.playlistID.rawValue) == [1, 2])
+        #expect(content.groups.isEmpty)
     }
 
     @Test("repeating one partial interval cannot count the same footage twice")
@@ -323,10 +322,11 @@ struct BluRayDiscContentTests {
             BluRayDiscCatalog(titles: [french, english]), sourceName: "Film"
         )
 
-        #expect(content.primaryTitles.map(\.playlistID.rawValue) == [1])
-        #expect(content.primaryTitles.map(\.displayName) == ["Film"])
-        #expect(content.groups.map(\.kind) == [.additional])
-        #expect(content.groups.flatMap(\.titles).map(\.playlistID.rawValue) == [2])
+        #expect(content.primaryTitles.map(\.playlistID.rawValue) == [1, 2])
+        #expect(content.primaryTitles.map(\.displayName) == [
+            "1m 40s · Version 1 · Film", "1m 40s · Version 2 · Film"
+        ])
+        #expect(content.groups.isEmpty)
     }
 
     @Test("interactive graphics alone do not demote a long movie with audio")

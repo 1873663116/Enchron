@@ -30,42 +30,20 @@ public final class FileBrowsingViewModel {
     public private(set) var fileViewingStates: [UUID: VideoCardViewingState] = [:]
 
     public var currentBluRayTitles: [BluRayTitleItem] {
-        guard let level = currentBluRayLevel else { return [] }
-        let programs = currentBluRayGroup.map { kind in
-            level.content.groups.first { $0.kind == kind }?.titles ?? []
-        } ?? level.content.primaryTitles
-        let ids = Set(programs.map(\.playlistID))
-        return level.titles.filter { ids.contains($0.playlistID) }
+        currentBluRayLevel?.titles ?? []
     }
 
     public var displayedBluRayTitles: [BluRayTitleItem] {
-        let titles = currentBluRayGroup != nil || searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? currentBluRayTitles : currentBluRayLevel?.titles ?? []
-        return titles.filter { MediaLibrarySearch.matches($0, query: searchText) }
+        currentBluRayTitles.filter { MediaLibrarySearch.matches($0, query: searchText) }
     }
 
     public private(set) var currentBluRayGroup: BluRayContentGroupKind?
 
-    public var currentBluRayGroups: [BluRayContentGroup] {
-        guard currentBluRayGroup == nil else { return [] }
-        return currentBluRayLevel?.content.groups ?? []
-    }
+    public var currentBluRayGroups: [BluRayContentGroup] { [] }
 
-    public var displayedBluRayGroups: [BluRayContentGroup] {
-        currentBluRayGroups.filter {
-            searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || $0.kind.displayName.localizedCaseInsensitiveContains(searchText)
-        }
-    }
+    public var displayedBluRayGroups: [BluRayContentGroup] { [] }
 
-    public func openBluRayGroup(_ kind: BluRayContentGroupKind) {
-        guard currentBluRayGroups.contains(where: { $0.kind == kind }) else { return }
-        currentBluRayGroup = kind
-        forwardBluRayGroup = nil
-        searchText = ""
-        canNavigateForward = false
-        settleCurrentLevel()
-    }
+    public func openBluRayGroup(_ kind: BluRayContentGroupKind) {}
 
     public var isBrowsingBluRayDisc: Bool { currentBluRayLevel != nil }
 
@@ -585,6 +563,8 @@ public final class FileBrowsingViewModel {
     public func openBluRayDisc(
         for file: FileBrowsingDomain.MediaFile
     ) async {
+        let openStartedAt = Date()
+        logger.info("disc.open.start name=\(file.name, privacy: .public)")
         bluRayOpenGeneration &+= 1
         let openGeneration = bluRayOpenGeneration
         let parentFiles = files
@@ -601,6 +581,19 @@ public final class FileBrowsingViewModel {
             } else {
                 resolved = try await localDataSource.resolvePlayableSource(for: file)
             }
+            logger.info(
+                "disc.open.resolved ms=\(Int(Date().timeIntervalSince(openStartedAt) * 1000), privacy: .public)"
+            )
+            if let handle = resolved.byteStreamHandle {
+                await handle.setSpeculativePrefetch(enabled: false)
+                let block = await handle.prefetchBlockSize()
+                if block > 0 {
+                    try? await handle.prewarm(byteCount: block)
+                }
+                logger.info(
+                    "disc.open.prewarm ms=\(Int(Date().timeIntervalSince(openStartedAt) * 1000), privacy: .public) bytes=\(block, privacy: .public)"
+                )
+            }
             let source = BluRayBrowseLevel.Source.image(file: file, resolved: resolved)
             let presentation = try await catalogTitles(
                 source: source,
@@ -611,6 +604,13 @@ public final class FileBrowsingViewModel {
                 resolved.byteStreamHandle?.release()
                 return
             }
+            if let handle = resolved.byteStreamHandle {
+                await handle.setSpeculativePrefetch(enabled: true)
+            }
+            resolved.byteStreamHandle?.retain()
+            logger.info(
+                "disc.open.ready ms=\(Int(Date().timeIntervalSince(openStartedAt) * 1000), privacy: .public) titles=\(presentation.titles.count, privacy: .public)"
+            )
             currentBluRayLevel = BluRayBrowseLevel(
                 source: source,
                 content: presentation.content,
@@ -690,7 +690,20 @@ public final class FileBrowsingViewModel {
         source: BluRayBrowseLevel.Source,
         identity: BluRayDiscIdentityBasis
     ) async throws -> (content: BluRayDiscContent, titles: [BluRayTitleItem]) {
-        let loaded = try await bluRayCatalog(source.discSource)
+        let catalogStartedAt = Date()
+        let loaded: LoadedBluRayCatalog
+        if case .versioned(let versioned?) = identity,
+           let cached = await BluRayCatalogCache.shared.value(for: versioned) {
+            loaded = cached
+        } else {
+            loaded = try await bluRayCatalog(source.discSource)
+            if case .versioned(let versioned?) = identity {
+                await BluRayCatalogCache.shared.store(loaded, for: versioned)
+            }
+        }
+        logger.info(
+            "disc.catalog.loaded ms=\(Int(Date().timeIntervalSince(catalogStartedAt) * 1000), privacy: .public)"
+        )
         let discIdentity: VersionedMediaIdentity? = switch identity {
         case .versioned(let identity): identity
         case .directory(let mediaIdentity):
@@ -927,7 +940,14 @@ public final class FileBrowsingViewModel {
         reference: FileBrowsingDomain.MediaReference
     ) async throws -> ResolvedMediaSource {
         if dataSourceID == localDataSourceID {
-            guard let url = URL(string: path) else { throw LocalDataSourceError.itemNotReachable }
+            let url: URL
+            if let parsed = URL(string: path), parsed.scheme != nil {
+                url = parsed
+            } else if path.hasPrefix("/") {
+                url = URL(fileURLWithPath: path)
+            } else {
+                throw LocalDataSourceError.itemNotReachable
+            }
             return ResolvedMediaSource(url: url)
         }
         guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
@@ -1323,7 +1343,7 @@ public final class FileBrowsingViewModel {
 
     public func selectLocalFolder(_ folderURL: URL) async {
         let generation = beginSourceGeneration()
-        let normalizedURL = folderURL.standardizedFileURL
+        let normalizedURL = folderURL.resolvingSymlinksInPath().standardizedFileURL
         activeDataSource = nil
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil

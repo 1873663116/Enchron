@@ -597,6 +597,7 @@ private nonisolated final class WebDAVBluRayDiscFileSystem:
     private let rootURL: URL
     private let authorizationHeader: String?
     private let session: URLSession
+    private var listingSeconds: Double = 0.5
 
     init(rootURL: URL, authorizationHeader: String?, session: URLSession) {
         self.rootURL = rootURL
@@ -629,7 +630,10 @@ private nonisolated final class WebDAVBluRayDiscFileSystem:
             request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
         }
         request.httpBody = Self.propfindBody.data(using: .utf8)
+        request.timeoutInterval = min(30, max(2, listingSeconds * 6))
+        let listingStartedAt = Date()
         let (data, response) = try await session.data(for: request)
+        listingSeconds = Date().timeIntervalSince(listingStartedAt)
         guard let response = response as? HTTPURLResponse else {
             throw WebDAVError.invalidResponse
         }

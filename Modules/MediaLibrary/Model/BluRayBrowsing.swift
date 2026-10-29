@@ -32,6 +32,105 @@ enum BluRayDiscErrorPresentation {
     }
 }
 
+actor BluRayCatalogCache {
+    static let shared = BluRayCatalogCache()
+
+    private struct PersistedCatalog: Codable {
+        let catalog: BluRayDiscCatalog
+        let manifest: Data
+    }
+
+    private var entries: [VersionedMediaIdentity: LoadedBluRayCatalog] = [:]
+    private var order: [VersionedMediaIdentity] = []
+    private let limit = 8
+    private let directory: URL?
+
+    init() {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+        let target = base?.appendingPathComponent("BluRayCatalogs", isDirectory: true)
+        if let target {
+            try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        }
+        directory = target
+    }
+
+    func value(for identity: VersionedMediaIdentity) -> LoadedBluRayCatalog? {
+        if let catalog = entries[identity] {
+            touch(identity)
+            return catalog
+        }
+        guard let catalog = loadFromDisk(identity) else { return nil }
+        entries[identity] = catalog
+        touch(identity)
+        return catalog
+    }
+
+    func store(_ catalog: LoadedBluRayCatalog, for identity: VersionedMediaIdentity) {
+        entries[identity] = catalog
+        touch(identity)
+        while order.count > limit, let oldest = order.first {
+            order.removeFirst()
+            entries.removeValue(forKey: oldest)
+        }
+        persist(catalog, for: identity)
+    }
+
+    private func touch(_ identity: VersionedMediaIdentity) {
+        if let index = order.firstIndex(of: identity) {
+            order.remove(at: index)
+        }
+        order.append(identity)
+    }
+
+    private func fileURL(for identity: VersionedMediaIdentity) -> URL? {
+        guard let directory else { return nil }
+        let digest = SHA256.hash(data: Data(String(describing: identity).utf8))
+        let name = digest.map { String(format: "%02x", $0) }.joined()
+        return directory.appendingPathComponent(name).appendingPathExtension("json")
+    }
+
+    private func persist(_ catalog: LoadedBluRayCatalog, for identity: VersionedMediaIdentity) {
+        guard let url = fileURL(for: identity) else { return }
+        let payload = PersistedCatalog(catalog: catalog.catalog, manifest: catalog.manifest)
+        guard let data = try? JSONEncoder().encode(payload) else { return }
+        try? data.write(to: url, options: .atomic)
+        pruneDiskCache()
+    }
+
+    private func pruneDiskCache() {
+        guard let directory else { return }
+        let keys: [URLResourceKey] = [.contentModificationDateKey]
+        guard let listing = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: keys,
+            options: .skipsHiddenFiles
+        ) else { return }
+        let dated = listing.compactMap { file -> (URL, Date)? in
+            let values = try? file.resourceValues(forKeys: Set(keys))
+            guard let date = values?.contentModificationDate else { return nil }
+            return (file, date)
+        }
+        let ordered = dated.sorted { $0.1 > $1.1 }
+        for (file, _) in ordered.dropFirst(limit) {
+            try? FileManager.default.removeItem(at: file)
+        }
+    }
+
+    private func loadFromDisk(_ identity: VersionedMediaIdentity) -> LoadedBluRayCatalog? {
+        guard let url = fileURL(for: identity),
+              let data = try? Data(contentsOf: url),
+              let payload = try? JSONDecoder().decode(PersistedCatalog.self, from: data) else {
+            return nil
+        }
+        let now = Date()
+        try? FileManager.default.setAttributes(
+            [.modificationDate: now],
+            ofItemAtPath: url.path
+        )
+        return LoadedBluRayCatalog(catalog: payload.catalog, manifest: payload.manifest)
+    }
+}
+
 nonisolated struct LoadedBluRayCatalog: Sendable {
     let catalog: BluRayDiscCatalog
     let manifest: Data
@@ -41,14 +140,33 @@ nonisolated struct LoadedBluRayCatalog: Sendable {
         identity: VersionedMediaIdentity?
     ) throws -> (content: BluRayDiscContent, titles: [BluRayTitleItem]) {
         let content = try BluRayDiscContent.project(catalog, sourceName: sourceName)
-        let programs = content.primaryTitles + content.groups.flatMap(\.titles)
+        let cloneIDs = BluRayDiscContent.exactDuplicateIDs(in: catalog.titles)
+        let byID = Dictionary(
+            catalog.titles.map { ($0.playlistID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let programs = (content.primaryTitles + content.groups.flatMap(\.titles))
+            .filter { program in
+                guard !cloneIDs.contains(program.playlistID),
+                      let title = byID[program.playlistID] else { return false }
+                return isPlayable(title, among: catalog.titles)
+            }
+            .sorted { lhs, rhs in
+                let leftMain = byID[lhs.playlistID]?.isMain ?? lhs.isMain
+                let rightMain = byID[rhs.playlistID]?.isMain ?? rhs.isMain
+                if leftMain != rightMain { return leftMain }
+                if lhs.durationSeconds != rhs.durationSeconds {
+                    return lhs.durationSeconds > rhs.durationSeconds
+                }
+                return lhs.playlistID.rawValue < rhs.playlistID.rawValue
+            }
         let titles = programs.enumerated().map { ordinal, program in
             BluRayTitleItem(
                 playlistID: program.playlistID,
                 ordinal: ordinal,
                 displayName: program.displayName,
                 durationSeconds: program.durationSeconds,
-                isMain: program.isMain,
+                isMain: byID[program.playlistID]?.isMain ?? program.isMain,
                 versionedIdentity: identity.map {
                     .bluRayPlaylist(disc: $0, playlistID: program.playlistID.rawValue)
                 },
@@ -56,6 +174,22 @@ nonisolated struct LoadedBluRayCatalog: Sendable {
             )
         }
         return (content, titles)
+    }
+
+    private func isPlayable(_ title: BluRayDiscTitle, among titles: [BluRayDiscTitle]) -> Bool {
+        guard title.durationSeconds >= 20 else { return false }
+        guard title.clips.contains(where: { clip in
+            clip.streams.contains { $0.kind == .video }
+        }) else { return false }
+        guard !title.clips.allSatisfy({ $0.stillMode != 0 }) else { return false }
+        let clipIDs = Set(title.clips.map(\.clipID))
+        if clipIDs.count <= 4 && title.clips.count >= 8 { return false }
+        guard title.clips.count > 1 else { return true }
+        let contained = titles.filter { other in
+            guard other.playlistID != title.playlistID, !other.clips.isEmpty else { return false }
+            return Set(other.clips.map(\.clipID)).isSubset(of: clipIDs)
+        }
+        return contained.count < 2
     }
 }
 

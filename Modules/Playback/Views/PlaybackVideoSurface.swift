@@ -957,6 +957,9 @@ public struct PlaybackVideoSurface: View {
         let displayedFrameObservationCount = (
             rendererState?.displayedFrameObservationCount
         ).map(String.init) ?? "none"
+        MediaFirstFrameProbe.report(
+            displayedFrames: rendererState?.displayedFrameObservationCount.map(Int.init)
+        )
         let timelineConfigured = rendererState.map { String($0.timelineConfigured) } ?? "none"
         let synchronizerTime = rendererState.map { String($0.currentTimeSeconds) } ?? "none"
         let synchronizerRate = rendererState.map { String($0.rate) } ?? "none"
@@ -1070,6 +1073,10 @@ public struct PlaybackVideoSurface: View {
             heartbeat: 2
         ) {
             appModel.recordSurfaceInputProbe("windowSettlement \(breakdown)")
+            MediaFirstFrameProbe.report(
+                displayedFrames: playbackRuntime.debugSnapshot()?
+                    .rendererState?.displayedFrameObservationCount.map(Int.init)
+            )
         }
 #endif
         return isSettled ? .settled : .surfaceAttached

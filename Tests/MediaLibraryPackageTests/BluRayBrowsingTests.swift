@@ -183,8 +183,8 @@ struct BluRayBrowsingTests {
     }
 
     @MainActor
-    @Test("a film disc exposes its film and places independent short content behind a group")
-    func isoOpensAsVirtualFolder() async throws {
+    @Test("a film disc exposes its playable titles as items")
+    func isoOpensAsTitleItems() async throws {
         let source = TestBluRayFileSource()
         let captured = CapturedPlaybackItem()
         let viewModel = makeViewModel(source: source, captured: captured) { _ in
@@ -198,11 +198,10 @@ struct BluRayBrowsingTests {
         await viewModel.loadFiles()
         await viewModel.openBluRayDisc(for: image)
 
-        #expect(viewModel.currentBluRayTitles.map(\.playlistID.rawValue) == [8])
-        #expect(viewModel.currentBluRayTitles.map(\.durationSeconds) == [6_005.25])
-        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Feature"])
-        #expect(viewModel.currentBluRayGroups.map(\.kind) == [.additional])
-        #expect(viewModel.currentBluRayGroups.first?.titles.map(\.displayName) == ["Behind the scenes"])
+        #expect(viewModel.currentBluRayTitles.map(\.playlistID.rawValue) == [8, 42])
+        #expect(viewModel.currentBluRayTitles.map(\.durationSeconds) == [6_005.25, 602.5])
+        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Feature", "Behind the scenes"])
+        #expect(viewModel.currentBluRayGroups.isEmpty)
         #expect(viewModel.isBrowsingBluRayDisc)
         #expect(viewModel.canNavigateUp)
         #expect(viewModel.currentLevelHasSettled)
@@ -214,29 +213,79 @@ struct BluRayBrowsingTests {
         viewModel.searchText = "unavailable title"
         #expect(viewModel.displayedBluRayTitles.isEmpty)
         viewModel.searchText = " "
-        #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [8])
+        #expect(viewModel.displayedBluRayTitles.map(\.playlistID.rawValue) == [8, 42])
 
         viewModel.openBluRayGroup(.additional)
-        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Behind the scenes"])
+        #expect(viewModel.currentBluRayTitles.map(\.playlistID.rawValue) == [8, 42])
         #expect(viewModel.currentBluRayGroups.isEmpty)
-        #expect(viewModel.breadcrumbSegments.last?.name == "Additional content")
-        viewModel.searchText = "Feature"
-        #expect(viewModel.displayedBluRayTitles.isEmpty)
-        viewModel.searchText = "BEHIND"
-        #expect(viewModel.displayedBluRayTitles.map(\.displayName) == ["Behind the scenes"])
-        await viewModel.navigateUp()
-        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Feature"])
-        #expect(viewModel.canNavigateForward)
-        await viewModel.navigateForward()
-        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Behind the scenes"])
-        await viewModel.navigateUp()
+
         await viewModel.navigateUp()
         #expect(!viewModel.isBrowsingBluRayDisc)
         await viewModel.navigateForward()
-        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Feature"])
-        #expect(viewModel.canNavigateForward)
-        await viewModel.navigateForward()
-        #expect(viewModel.currentBluRayTitles.map(\.displayName) == ["Behind the scenes"])
+        #expect(viewModel.currentBluRayTitles.map(\.playlistID.rawValue) == [8, 42])
+    }
+
+    @MainActor
+    @Test("a local source item resolves an absolute path to a file URL")
+    func localSourceItemResolvesFilePath() async throws {
+        let source = TestBluRayFileSource()
+        let sourceID = UUID()
+        let browser = FileBrowsingViewModel(
+            localDataSource: source,
+            localDataSourceID: sourceID,
+            onPlayFile: { _ in }
+        )
+        let reference = FileBrowsingDomain.MediaReference(
+            name: "Disc.iso",
+            locator: .sourceItem(dataSourceID: sourceID, path: "/Volumes/media/Disc.iso"),
+            content: .bluRayDisc
+        )
+
+        let resolved = try await browser.resolveSourceItem(
+            dataSourceID: sourceID,
+            path: "/Volumes/media/Disc.iso",
+            reference: reference
+        )
+
+        #expect(resolved.url.isFileURL)
+        #expect(resolved.url.path == "/Volumes/media/Disc.iso")
+    }
+
+    @Test("a looping play-all route is excluded while a stream variant stays listed")
+    func playAllExcluded() throws {
+        func clip(_ id: String, _ seconds: Double, audio: UInt16? = nil) -> BluRayClip {
+            var streams = [BluRayStream(pid: 4113, codingType: 27, kind: .video, language: nil)]
+            if let audio {
+                streams.append(BluRayStream(pid: audio, codingType: 129, kind: .audio, language: nil))
+            }
+            return BluRayClip(
+                clipID: id, startTimeSeconds: 0, inTimeSeconds: 0, outTimeSeconds: seconds,
+                byteStart: 0, byteEnd: 192, packetCount: 1, streams: streams
+            )
+        }
+        let movie = BluRayDiscTitle(
+            playlistID: .init(rawValue: 800), ordinal: 0, optionalName: nil,
+            durationSeconds: 8_862, isMain: true, clips: [clip("00340", 8_862)]
+        )
+        let variant = BluRayDiscTitle(
+            playlistID: .init(rawValue: 801), ordinal: 1, optionalName: nil,
+            durationSeconds: 8_862, isMain: false,
+            clips: [clip("00340", 8_862, audio: 4353)]
+        )
+        let loop = BluRayDiscTitle(
+            playlistID: .init(rawValue: 20), ordinal: 2, optionalName: nil,
+            durationSeconds: 13_346, isMain: false,
+            clips: (0..<8).map { index in
+                clip(index.isMultiple(of: 2) ? "00336" : "00337", 1_668)
+            }
+        )
+        let loaded = LoadedBluRayCatalog(
+            catalog: BluRayDiscCatalog(titles: [movie, variant, loop]),
+            manifest: Data()
+        )
+        let (_, titles) = try loaded.present(sourceName: "Disc.iso", identity: nil)
+
+        #expect(titles.map(\.playlistID.rawValue) == [800, 801])
     }
 
     @MainActor

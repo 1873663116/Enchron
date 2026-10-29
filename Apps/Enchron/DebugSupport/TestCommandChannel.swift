@@ -1,5 +1,6 @@
 #if DEBUG
 import AVFoundation
+import BluRayDisc
 import DesignSystem
 import CryptoKit
 import GameStreaming
@@ -1812,6 +1813,128 @@ final class TestCommandChannel {
                     "result=\(result)"
                 ] + fileBrowser.files.map(\.name)
             )
+        case "selectLocalFolder":
+            guard let path = request.args["path"], path.hasPrefix("/") else {
+                throw CommandError(message: "selectLocalFolder requires an absolute path argument.")
+            }
+            let started = Date()
+            await fileBrowser.selectLocalFolder(
+                URL(fileURLWithPath: path, isDirectory: true)
+            )
+            return Response(
+                id: request.id,
+                ok: fileBrowser.lastErrorMessage == nil,
+                detail: fileBrowser.lastErrorMessage,
+                payload: ["seconds=\(String(format: "%.2f", Date().timeIntervalSince(started)))"]
+                    + fileBrowserState()
+            )
+        case "addLibraryFile":
+            guard let path = request.args["path"], path.hasPrefix("/") else {
+                throw CommandError(message: "addLibraryFile requires an absolute path argument.")
+            }
+            mediaLibrary.addFiles([URL(fileURLWithPath: path)])
+            return Response(
+                id: request.id,
+                ok: mediaLibrary.lastErrorMessage == nil,
+                detail: mediaLibrary.lastErrorMessage,
+                payload: ["path=\(path)"]
+            )
+        case "openSourceFile":
+            guard let relativePath = request.args["path"] else {
+                throw CommandError(message: "openSourceFile requires a path argument.")
+            }
+            let sourceName = request.args["source"]
+            let started = Date()
+            if let sourceName, sourceName != "current" {
+                guard let source = fileBrowser.savedDataSources.first(where: {
+                    $0.name == sourceName
+                }) else {
+                    throw CommandError(
+                        message: "openSourceFile found no saved source named \(sourceName)."
+                    )
+                }
+                let connection = await fileBrowser.connectToDataSource(source)
+                guard connection == .connected else {
+                    throw CommandError(
+                        message: "openSourceFile connection returned \(connection)."
+                    )
+                }
+            }
+            let components = relativePath.split(separator: "/").map(String.init)
+            guard let fileName = components.last else {
+                throw CommandError(message: "openSourceFile requires a non-empty path.")
+            }
+            for component in components.dropLast() {
+                guard let folder = fileBrowser.folders.first(where: {
+                    $0.name == component
+                }) else {
+                    throw CommandError(
+                        message: "openSourceFile found no folder \(component) under "
+                            + "\(fileBrowser.currentRootDisplayName); "
+                            + "visible=\(fileBrowser.folders.map(\.name))."
+                    )
+                }
+                await fileBrowser.navigateToFolder(folder)
+                if let error = fileBrowser.lastErrorMessage {
+                    throw CommandError(
+                        message: "openSourceFile navigation failed at \(component): \(error)"
+                    )
+                }
+            }
+            guard let file = fileBrowser.files.first(where: { $0.name == fileName }) else {
+                throw CommandError(
+                    message: "openSourceFile found no file \(fileName); "
+                        + "visible=\(fileBrowser.files.map(\.name))."
+                )
+            }
+            fileBrowser.selectFile(file)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "seconds=\(String(format: "%.2f", Date().timeIntervalSince(started)))",
+                    "file=\(file.name)",
+                    "size=\(file.sizeInBytes)"
+                ] + fileBrowserState()
+            )
+        case "fileBrowserState":
+            return Response(
+                id: request.id,
+                ok: fileBrowser.lastErrorMessage == nil,
+                detail: fileBrowser.lastErrorMessage,
+                payload: fileBrowserState()
+            )
+        case "playDiscTitle":
+            guard let raw = request.args["playlist"], let playlist = UInt32(raw) else {
+                throw CommandError(message: "playDiscTitle requires a playlist argument.")
+            }
+            if let group = request.args["group"] {
+                guard let kind = BluRayContentGroupKind(rawValue: group) else {
+                    throw CommandError(message: "playDiscTitle group= must be a group kind.")
+                }
+                fileBrowser.openBluRayGroup(kind)
+            }
+            guard let title = fileBrowser.currentBluRayTitles.first(where: {
+                $0.playlistID.rawValue == playlist
+            }) else {
+                throw CommandError(
+                    message: "playDiscTitle found no title \(playlist); "
+                        + "visible=\(fileBrowser.currentBluRayTitles.map { String($0.playlistID.rawValue) })."
+                )
+            }
+            MediaFirstFrameProbe.markCommand()
+            fileBrowser.selectBluRayTitle(title)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    "playlist=\(playlist)",
+                    "name=\(title.displayName)",
+                    "duration=\(String(format: "%.1f", title.durationSeconds))"
+                ]
+            )
         case "scrollEmby":
             return try scrollEmby(request)
         case "showPlaybackIssue":
@@ -1820,8 +1943,49 @@ final class TestCommandChannel {
             return try showFileBrowserError(request)
         case "setFileBrowserAlertField":
             return try setFileBrowserAlertField(request)
+        case "resetFirstFrameProbe":
+            MediaFirstFrameProbe.reset()
+            return Response(id: request.id, ok: true, detail: nil, payload: [])
         case "seekNormalized":
             return try seekNormalized(request)
+        case "playbackProbe":
+            return playbackProbe(request)
+        case "streamStats":
+            return streamStats(request)
+        case "pipelineStats":
+            return await pipelineStats(request)
+        case "probeSamples":
+            return await probeSamples(request)
+        case "probeCapacity":
+            return await probeCapacity(request)
+        case "probeLatency":
+            return await probeLatency(request)
+        case "throttle":
+            return await throttle(request)
+        case "answerResumePrompt":
+            MediaFirstFrameProbe.markCommand()
+            return try answerResumePrompt(request)
+        case "libraryReferences":
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: allReferences.map { "\($0.name)|\(String(describing: $0.locator))" }
+            )
+        case "playLibraryTitle":
+            guard let raw = request.args["playlist"], let playlist = UInt32(raw) else {
+                throw CommandError(message: "playLibraryTitle requires a playlist argument.")
+            }
+            guard let title = mediaLibrary.currentBluRayTitles.first(where: {
+                $0.playlistID.rawValue == playlist
+            }) else {
+                throw CommandError(
+                    message: "playLibraryTitle found no title \(playlist); "
+                        + "visible=\(mediaLibrary.currentBluRayTitles.map { String($0.playlistID.rawValue) })."
+                )
+            }
+            mediaLibrary.selectBluRayTitle(title)
+            return Response(id: request.id, ok: true, detail: nil, payload: ["playlist=\(playlist)"])
         case "frameStep":
             return try frameStep(request)
         case "primaryTransport":
@@ -2505,6 +2669,78 @@ final class TestCommandChannel {
         )
     }
 
+    private func playbackProbe(_ request: Request) -> Response {
+        let position = playbackRuntime.playbackPosition
+        let lifecycle = String(describing: playbackRuntime.productLifecycle)
+        let speed = String(describing: playbackRuntime.currentPlaybackSpeed)
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [
+                "position=\(String(format: "%.3f", position.seconds))",
+                "duration=\(String(format: "%.3f", position.duration))",
+                "speed=\(speed)",
+                "lifecycle=\(lifecycle)",
+                "resumePrompt=\(playbackLauncher.pendingResumeDecision != nil)"
+            ]
+        )
+    }
+
+    private func answerResumePrompt(_ request: Request) throws -> Response {
+        let choice = request.args["choice"] ?? "start"
+        guard playbackLauncher.pendingResumeDecision != nil else {
+            return Response(id: request.id, ok: true, detail: "no pending resume prompt", payload: [])
+        }
+        if choice == "resume" {
+            playbackLauncher.resumePendingPlayback()
+        } else {
+            playbackLauncher.startPendingPlaybackFromBeginning()
+        }
+        return Response(id: request.id, ok: true, detail: nil, payload: ["choice=\(choice)"])
+    }
+
+    private func throttle(_ request: Request) async -> Response {
+        let mbps = request.args["mbps"].flatMap(Double.init) ?? 0
+        DebugThrottle.shared.set(mbps * 1_000_000)
+        return Response(id: request.id, ok: true, detail: nil, payload: ["mbps=\(mbps)"])
+    }
+
+    private func probeLatency(_ request: Request) async -> Response {
+        let seconds = await MediaByteStreamServer.debugMeasureLatency()
+        return Response(id: request.id, ok: true, detail: nil, payload: ["ms=\(Int((seconds ?? 0) * 1000))"])
+    }
+
+    private func probeCapacity(_ request: Request) async -> Response {
+        let blocks = request.args["blocks"].flatMap(Int.init) ?? 4
+        let rate = await MediaByteStreamServer.debugMeasureCapacity(blocks: blocks)
+        return Response(id: request.id, ok: true, detail: nil, payload: ["mbps=\(rate ?? 0)"])
+    }
+
+    private func probeSamples(_ request: Request) async -> Response {
+        let rows = await MediaByteStreamServer.debugProbeSamples()
+        return Response(id: request.id, ok: true, detail: nil, payload: rows)
+    }
+
+    private func pipelineStats(_ request: Request) async -> Response {
+        let rows = await MediaByteStreamServer.debugPipelineSnapshots()
+        return Response(id: request.id, ok: true, detail: nil, payload: rows)
+    }
+
+    private func streamStats(_ request: Request) -> Response {
+        let stats = MediaByteStreamServer.debugStatisticsSnapshot()
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [
+                "bytes=\(stats.bytes)",
+                "requests=\(stats.requests)",
+                "block=\(stats.block)"
+            ]
+        )
+    }
+
     private func seekNormalized(_ request: Request) throws -> Response {
         guard let positionText = request.args["position"],
               let position = Double(positionText),
@@ -2875,6 +3111,26 @@ final class TestCommandChannel {
     private var libraryState: [String] {
         mediaLibrary.allFolders.map { "folder=\($0.name)" }
             + allReferenceNames.map { "reference=\($0)" }
+    }
+
+    private func fileBrowserState() -> [String] {
+        [
+            "loading=\(fileBrowser.isLoading)",
+            "root=\(fileBrowser.currentRootDisplayName)",
+            "source=\(fileBrowser.activeDataSource?.name ?? "local")",
+            "files=\(fileBrowser.files.count)",
+            "folders=\(fileBrowser.folders.count)",
+            "titles=\(fileBrowser.currentBluRayTitles.count)"
+        ]
+            + fileBrowser.folders.prefix(40).map { "folder=\($0.name)" }
+            + fileBrowser.files.prefix(40).map { "file=\($0.name)|\($0.sizeInBytes)" }
+            + fileBrowser.currentBluRayGroups.map {
+                "group=\($0.kind.rawValue)|\($0.titles.count)"
+            }
+            + fileBrowser.currentBluRayTitles.prefix(60).map {
+                "title=\($0.playlistID.rawValue)|\($0.displayName)"
+                    + "|\(Int($0.durationSeconds.rounded()))|\($0.isMain ? "main" : "extra")"
+            }
     }
 }
 

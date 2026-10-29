@@ -203,15 +203,19 @@ func makeCallbacks(_ box: CallbackBox) -> PBBlurayIOCallbacks {
 actor HTTPRangeFile: BluRayDiscRandomAccessFile {
     private let url: URL
     private var knownSize: Int64?
+    private var readAhead: Int64 = 1_048_576
+    private var buffer: (range: Range<Int64>, data: Data)?
+    private var lastReadEnd: Int64?
 
     init(url: URL) { self.url = url }
 
     var size: Int64 {
         get async throws {
             if let knownSize { return knownSize }
-            _ = try await read(at: 0, count: 1)
-            guard let knownSize else { throw BluRayDiscError.io("Range response has no size.") }
-            return knownSize
+            let response = try await HTTPRangeFile.fetch(url: url, range: 0..<1)
+            knownSize = response.total
+            readAhead = response.readAhead
+            return response.total
         }
     }
 
@@ -221,23 +225,61 @@ actor HTTPRangeFile: BluRayDiscRandomAccessFile {
             throw BluRayDiscError.io("Invalid image range.")
         }
         if count == 0 { return Data() }
+        let requested = offset..<(offset + Int64(count))
+        if let buffer, buffer.range.clamped(to: requested) == requested {
+            let lower = Int(requested.lowerBound - buffer.range.lowerBound)
+            let upper = Int(requested.upperBound - buffer.range.lowerBound)
+            return buffer.data.subdata(in: lower..<upper)
+        }
+        let sequential = lastReadEnd == offset
+        let window = min(max(readAhead, 262_144), 1_048_576)
+        let desiredEnd = offset + (sequential ? max(Int64(count), window) : Int64(count))
+        let upper = knownSize.map { min(desiredEnd, $0) } ?? desiredEnd
+        guard upper > offset else { throw BluRayDiscError.io("Invalid image range.") }
+        let response = try await HTTPRangeFile.fetch(url: url, range: offset..<upper)
+        knownSize = response.total
+        readAhead = response.readAhead
+        let range = offset..<(offset + Int64(response.data.count))
+        buffer = (range, response.data)
+        lastReadEnd = offset + Int64(count)
+        guard range.clamped(to: requested) == requested else {
+            throw BluRayDiscError.io("The disc source returned a short range.")
+        }
+        let sliceLower = Int(requested.lowerBound - range.lowerBound)
+        let sliceUpper = Int(requested.upperBound - range.lowerBound)
+        return response.data.subdata(in: sliceLower..<sliceUpper)
+    }
+
+    private struct RangeResponse {
+        let data: Data
+        let total: Int64
+        let readAhead: Int64
+    }
+
+    private static func fetch(
+        url: URL,
+        range: Range<Int64>
+    ) async throws -> RangeResponse {
         var request = URLRequest(url: url)
-        request.setValue("bytes=\(offset)-\(offset + Int64(count) - 1)",
-                         forHTTPHeaderField: "Range")
+        request.setValue(
+            "bytes=\(range.lowerBound)-\(range.upperBound - 1)",
+            forHTTPHeaderField: "Range"
+        )
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 206,
-              let range = response.value(forHTTPHeaderField: "Content-Range"),
-              range.hasPrefix("bytes "),
-              let dash = range.firstIndex(of: "-"),
-              let slash = range.lastIndex(of: "/"), dash < slash,
-              let start = Int64(range[range.index(range.startIndex, offsetBy: 6)..<dash]),
-              let end = Int64(range[range.index(after: dash)..<slash]),
-              let total = Int64(range[range.index(after: slash)...]),
-              start == offset, end >= start, end < total,
-              end - start + 1 == Int64(data.count), data.count <= count else {
+              let header = response.value(forHTTPHeaderField: "Content-Range"),
+              header.hasPrefix("bytes "),
+              let dash = header.firstIndex(of: "-"),
+              let slash = header.lastIndex(of: "/"), dash < slash,
+              let start = Int64(header[header.index(header.startIndex, offsetBy: 6)..<dash]),
+              let end = Int64(header[header.index(after: dash)..<slash]),
+              let total = Int64(header[header.index(after: slash)...]),
+              start == range.lowerBound, end >= start, end < total,
+              end - start + 1 == Int64(data.count), data.count <= range.count else {
             throw BluRayDiscError.io("Disc source did not honor the byte range request.")
         }
-        knownSize = total
-        return data
+        let readAhead = Int64(response.value(forHTTPHeaderField: "X-Enchron-Read-Ahead") ?? "")
+            .map { max(262_144, min(16_777_216, $0)) } ?? 1_048_576
+        return RangeResponse(data: data, total: total, readAhead: readAhead)
     }
 }

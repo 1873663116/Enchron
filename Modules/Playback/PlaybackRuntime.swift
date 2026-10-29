@@ -1445,6 +1445,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         try rendererTransferCoordinator.playWithExternallyManagedFirstVideoFrameDeadline()
     }
 
+    private static let seekLogger = Logger(
+        subsystem: "app.enchron",
+        category: "Playback"
+    )
+
     public func seek(
         to seconds: Double,
         event: PlaybackSeekEvent = .progressBar
@@ -1470,12 +1475,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let seekGeneration = seekIntentGeneration
         let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
+        let seekStartedAt = Date()
+        PlaybackRuntime.seekLogger.info(
+            "playback.seek.start target=\(target, privacy: .public)"
+        )
         beginSeekIndication(targetSeconds: target, seekGeneration: seekGeneration)
         holdPosition(at: target)
         Task { [weak self] in
             guard let self else { return }
             defer {
                 if self.seekIntentGeneration == seekGeneration {
+                    PlaybackRuntime.seekLogger.info(
+                        "playback.seek.ready ms=\(Int(Date().timeIntervalSince(seekStartedAt) * 1000), privacy: .public)"
+                    )
                     self.seekIsInProgress = false
                     self.endSeekIndication(seekGeneration: seekGeneration)
                     self.releasePositionHoldIfIdle()
@@ -1539,12 +1551,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let seekGeneration = seekIntentGeneration
         let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
+        let seekStartedAt = Date()
+        PlaybackRuntime.seekLogger.info(
+            "playback.seek.start target=\(target, privacy: .public)"
+        )
         beginSeekIndication(targetSeconds: target, seekGeneration: seekGeneration)
         holdPosition(at: target)
         Task { [weak self] in
             guard let self else { return }
             defer {
                 if self.seekIntentGeneration == seekGeneration {
+                    PlaybackRuntime.seekLogger.info(
+                        "playback.seek.ready ms=\(Int(Date().timeIntervalSince(seekStartedAt) * 1000), privacy: .public)"
+                    )
                     self.seekIsInProgress = false
                     self.endSeekIndication(seekGeneration: seekGeneration)
                     self.releasePositionHoldIfIdle()

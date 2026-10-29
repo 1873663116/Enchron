@@ -9,13 +9,13 @@ public struct BluRayPlaylistID: RawRepresentable, Hashable, Codable, Sendable {
     }
 }
 
-public enum BluRayStreamKind: Sendable, Equatable {
+public enum BluRayStreamKind: Sendable, Equatable, Codable {
     case video
     case audio
     case subtitle
 }
 
-public struct BluRayStream: Sendable, Equatable {
+public struct BluRayStream: Sendable, Equatable, Codable {
     public let pid: UInt16
     public let codingType: UInt8
     public let kind: BluRayStreamKind
@@ -40,7 +40,7 @@ public struct BluRayStream: Sendable, Equatable {
     }
 }
 
-public struct BluRayClip: Sendable, Equatable {
+public struct BluRayClip: Sendable, Equatable, Codable {
     public let clipID: String
     public let startTimeSeconds: Double
     public let inTimeSeconds: Double
@@ -80,7 +80,7 @@ public struct BluRayClip: Sendable, Equatable {
     }
 }
 
-public struct BluRayDiscTitle: Sendable, Equatable, Identifiable {
+public struct BluRayDiscTitle: Sendable, Equatable, Codable, Identifiable {
     public var id: BluRayPlaylistID { playlistID }
     public let playlistID: BluRayPlaylistID
     public let ordinal: Int
@@ -109,7 +109,7 @@ public struct BluRayDiscTitle: Sendable, Equatable, Identifiable {
     }
 }
 
-public struct BluRayDiscCatalog: Sendable, Equatable {
+public struct BluRayDiscCatalog: Sendable, Equatable, Codable {
     public let titles: [BluRayDiscTitle]
     public let optionalName: String?
 
@@ -284,7 +284,7 @@ public enum BluRayDiscSource: @unchecked Sendable, Equatable {
     }
 }
 
-public enum BluRayDiscError: LocalizedError, Sendable, Equatable {
+public enum BluRayDiscError: LocalizedError, Sendable, Equatable, Codable {
     case encrypted
     case corrupt(String)
     case unsupported(String)

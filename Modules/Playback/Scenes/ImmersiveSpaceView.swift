@@ -1801,6 +1801,7 @@ public struct ImmersiveSpaceView: View {
         let displayedFrameObservationCount = (
             rendererState?.displayedFrameObservationCount
         ).map(String.init) ?? "none"
+        MediaFirstFrameProbe.report(displayedFrames: rendererState?.displayedFrameObservationCount.map(Int.init))
         let surfaceOpacity = videoEntity.components[OpacityComponent.self]?.opacity ?? 1
 #endif
         let viewingModeMatches =

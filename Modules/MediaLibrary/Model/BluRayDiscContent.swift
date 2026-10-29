@@ -93,7 +93,7 @@ public enum BluRayDiscContent: Sendable, Equatable {
 
         let name = discName(authored: catalog.optionalName, source: sourceName)
         let ordered = catalog.titles.sorted(by: titlePrecedes)
-        let duplicateIDs = duplicateRouteIDs(in: ordered)
+        let duplicateIDs = exactDuplicateIDs(in: ordered)
         let candidates = ordered.filter {
             guard !duplicateIDs.contains($0.playlistID) else { return false }
             let category = kind(for: $0)
@@ -140,7 +140,7 @@ public enum BluRayDiscContent: Sendable, Equatable {
     }
 }
 
-private extension BluRayDiscContent {
+extension BluRayDiscContent {
     static func cleaned(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty else { return nil }
@@ -181,12 +181,12 @@ private extension BluRayDiscContent {
         }.joined(separator: "|")
     }
 
-    static func duplicateRouteIDs(in titles: [BluRayDiscTitle]) -> Set<BluRayPlaylistID> {
+    static func exactDuplicateIDs(in titles: [BluRayDiscTitle]) -> Set<BluRayPlaylistID> {
         var representatives: [BluRayDiscTitle] = []
         var duplicates: Set<BluRayPlaylistID> = []
         for title in titles {
             guard let index = representatives.firstIndex(where: {
-                sameVideoRoute(title, $0)
+                exactClone(title, $0)
             }) else {
                 representatives.append(title)
                 continue
@@ -204,6 +204,7 @@ private extension BluRayDiscContent {
     static func isEdition(_ title: BluRayDiscTitle, of anchor: BluRayDiscTitle) -> Bool {
         guard !title.clips.isEmpty, !anchor.clips.isEmpty,
               title.durationSeconds > 0, anchor.durationSeconds > 0 else { return false }
+        if sameVideoRoute(title, anchor) { return true }
         let (left, right) = atomized(title.clips, anchor.clips)
         guard left != right else { return false }
         let shared = orderedSharedTicks(left, right)
@@ -217,6 +218,28 @@ private extension BluRayDiscContent {
         else { return false }
         let (left, right) = atomized(lhs.clips, rhs.clips)
         return !left.isEmpty && left == right
+    }
+
+    static func exactClone(_ lhs: BluRayDiscTitle, _ rhs: BluRayDiscTitle) -> Bool {
+        guard lhs.durationSeconds == rhs.durationSeconds,
+              sameVideoRoute(lhs, rhs) else { return false }
+        return streamSignature(lhs) == streamSignature(rhs)
+    }
+
+    static func streamSignature(_ title: BluRayDiscTitle) -> [String] {
+        title.clips.map { clip in
+            clip.streams
+                .map { stream in
+                    let kind = switch stream.kind {
+                    case .video: "v"
+                    case .audio: "a"
+                    case .subtitle: "s"
+                    }
+                    return "\(kind)|\(stream.pid)|\(stream.codingType)|\(stream.language ?? "")"
+                }
+                .sorted()
+                .joined(separator: ",")
+        }
     }
 
     struct ClipKey: Hashable {
