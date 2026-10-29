@@ -105,6 +105,16 @@
 - **一次静默的读按固定预算重试，预算用尽后转入降档读**。`silentReadTimeout` 30 s、`silentReadRetryLimit` 1：一次读在 30 s 内没有产出就被取消并重试一次；重试仍然没有产出，这个登记进入降档模式，之后每次读改用 `degradedReadTimeout` 10 s 且不再重试，demux 的重连因此快速失败，而不是各等满一整个窗口。任何一次成功的读都恢复常规模式。三个值都是 `MediaByteStreamServer` 的初始化参数，默认值即产品取值。
 - **App 挂起不得取消来源解析，只要还有会话持有那条流**。`preparation.suspend()` 取消解析，而取消解析会拆掉它已经交给播放器的那条流；已暂停的播放器仍然持有那条流，`resume()` 只清一个标志、不重启任何东西，所以带着会话挂起会让来源死掉、下一次重开报 "Connection refused"。`handleScenePhaseTransition` 因此只在 `holdsLivePlaybackSession` 为假时挂起。
 
+## 剧集级音轨与字幕轨偏好
+
+- **共享范围由媒体身份派生，不由文件夹单独决定**。Emby 条目按 `(provider, serverID, seriesID)` 归入剧集；文件系统条目按 `(来源, 目录, 归一化剧集名干)` 归入剧集；没有集号的命名退回该条目的 Media Identity。文件夹是存储布局，一个目录可以同时放正片、花絮与多部剧；名称解析覆盖 `S01E02`、`1x02`、`第05集`、`EP08`、`- 03`、`[07]` 六类集号写法，纯集号文件名（`01`、`E02`、`第03集`）把所在目录当作用域，四位年份与分辨率串不算集号。派生逻辑在 `Modules/MediaSource/TrackPreferenceScope.swift`。
+- **偏好记录的是轨道语义，不是流索引**。音轨描述为语言、编码、声道与名称；字幕描述为关闭、内封或外挂，附语言与名称。打开条目后按语言匹配，同语言再按名称、声道、编码排序，未命中保留该集自己的默认且不写入记录。流索引只属于单个文件，跨集没有意义。
+- **改轨写一条作用域记录**。用户选择写入作用域，Emby 的 `AudioTrackChange`／`SubtitleTrackChange` 上报路径不变；之后打开同作用域的另一集会按同样的描述解析。新增集、删除集与换压制组都不需要迁移已写记录。
+- **优先级是作用域记录、条目旧记录、来源默认**。条目旧记录用精确索引匹配，只为兼容这次改动之前写入的数据；Emby 的 `PlaybackInfo` 给出的 `DefaultAudioStreamIndex`／`DefaultSubtitleStreamIndex` 是来源默认，作用域记录命中语言时由它覆盖。
+- **内容修订不进作用域键**。同一路径的媒体重压制保留已有选择；记录键只取 Media Identity 与来源坐标。
+- **初始音轨在打开事务内选定，不在打开后换轨**。来源默认与作用域记录进入 `PlaybackLaunchRequest.initialAudioSelection`，由引擎在 `prepare` 的流列表就绪后解析为流索引并直接用于音频预备；`selectAudioTrack` 只承载播放中的用户操作。打开后换轨会做一次 demux seek 并停一次时间线，在远端字节流上表现为闪退或停在暂停。
+- 断言见 `Tests/PlaybackFeaturePackageTests/TrackSelectionPreferenceTests.swift` 的 `nextEpisodeInheritsSelectionByTrackMeaning`、`subtitlesOffCarriesToTheNextEpisode`、`unmatchedSelectionKeepsSourceDefault`、`mediaServerEpisodesShareSelectionWithinSeries`，以及 `Tests/MediaSourceTests/TrackPreferenceScopeTests.swift`。
+
 ## Emby 交给播放核心的只有字节
 
 - **服务器没标为可直接播放的 media source 整个进不了列表**。`mapMediaSource(_:item:server:)`（`Modules/MediaServer/MediaBrowserClient.swift:624`）第一步是 `guard source.supportsDirectPlay == true else { return nil }`，只支持转码或 direct stream 的版本在这里就被丢弃，播放核心永远看不到它们。`playbackInfo(for:on:)`（`Modules/MediaServer/MediaBrowserClient.swift:388`）用 `compactMap` 收集剩下的结果，全部被丢掉时（`mediaSources.isEmpty`）直接 `throw MediaServerError.directPlayUnavailable(itemID)`；这个错误没有专门的提示，跟其他播放请求失败一样被 `MainView` 通用捕获、设成 `.mediaRequestFailed`（`Apps/Enchron/MainView.swift:116`）——标题 "Unable to Play"，正文 "This item could not be prepared for playback."。

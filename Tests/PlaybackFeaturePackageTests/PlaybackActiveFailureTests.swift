@@ -643,13 +643,13 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
     var didEndNaturally = false
     let availableAudioTracks = [
         PlaybackModel.AudioTrack(
-            id: "audio-default",
+            id: "1",
             languageCode: "en",
             displayName: "English",
             isDefault: true
         ),
         PlaybackModel.AudioTrack(
-            id: "audio-selected",
+            id: "2",
             languageCode: "ja",
             displayName: "Japanese"
         )
@@ -766,6 +766,20 @@ private final class ActiveFailureRuntime: PlaybackRuntimeControlling {
         }
         selectedFormat = initialFormat
         currentAudioTrackID = availableAudioTracks[0].id
+        if let selection = request.initialAudioSelection {
+            switch selection {
+            case .streamIndex(let index):
+                if let track = availableAudioTracks.first(where: { $0.id == String(index) }) {
+                    currentAudioTrackID = track.id
+                }
+            case .preference(let preference):
+                if let track = availableAudioTracks.first(where: {
+                    $0.languageCode == preference.languageCode
+                }) {
+                    currentAudioTrackID = track.id
+                }
+            }
+        }
         currentSubtitleTrackID = availableSubtitleTracks[0].id
         openReturnCount += 1
     }

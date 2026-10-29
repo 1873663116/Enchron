@@ -616,6 +616,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
+        initialAudioSelection: PlaybackInitialAudioSelection? = nil,
         sourceTransport: PlaybackSourceTransport = .localFile,
         provenance: String = "appOpen",
         accessRequirement: String = "appAdapterManaged"
@@ -714,6 +715,29 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             audioTrackFailure = error
         }
         debugStore.recordAvailableAudioTracks(availableAudioTracks)
+        if let initialAudioSelection {
+            if let initialIndex = PlaybackAudioTrackMatcher.streamIndex(
+                for: initialAudioSelection,
+                in: availableAudioTracks
+            ) {
+                selectedAudioStreamIndex = initialIndex
+                debugStore.emit(
+                    mediaSessionID: traceID,
+                    node: .videoTrackModel,
+                    kind: "audioTrack.initialSelection",
+                    outcome: .succeeded,
+                    details: ["streamIndex": String(initialIndex)]
+                )
+            } else {
+                debugStore.emit(
+                    mediaSessionID: traceID,
+                    node: .videoTrackModel,
+                    kind: "audioTrack.initialSelectionUnresolved",
+                    outcome: .failed,
+                    details: ["tracks": String(availableAudioTracks.count)]
+                )
+            }
+        }
         var subtitleTracks: [PlaybackSubtitleTrack] = []
         var subtitleTrackFailure: Error?
         do {

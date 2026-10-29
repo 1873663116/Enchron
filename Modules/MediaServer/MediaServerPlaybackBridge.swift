@@ -469,6 +469,16 @@ public actor MediaServerPlaybackBridge {
             freshServerProgressTicks: freshServerProgressTicks,
             appliedStartTicks: appliedStartTicks
         ))
+        let trackPreferenceScope: TrackPreferenceScope? = {
+            if case .episode(let episode) = freshItem {
+                return .mediaServer(
+                    provider: server.kind.rawValue,
+                    serverID: server.id.rawValue,
+                    seriesID: episode.seriesID.rawValue
+                )
+            }
+            return source.versionedIdentity.map { .item($0.mediaIdentity) }
+        }()
         return PlaybackLaunchRequest(
             source: PlaybackAddress(byteStreamHandle: byteStreamHandle),
             displayName: freshItem.metadata.name,
@@ -478,6 +488,7 @@ public actor MediaServerPlaybackBridge {
             ),
             collectionOrigin: collectionOrigin,
             versionedIdentity: source.versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
             externalSubtitleSources: subtitles,
             viewingStateAuthority: .mediaServer,
             startPositionSeconds: startPosition,

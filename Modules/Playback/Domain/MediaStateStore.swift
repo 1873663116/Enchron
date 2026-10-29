@@ -214,6 +214,7 @@ nonisolated public struct ViewingStateDiagnosticSnapshot: Codable, Equatable, Se
 package actor MediaStateStore {
     private let defaults: UserDefaults
     private let keyPrefix = "enchron.media-state.v1."
+    private let trackPreferenceKeyPrefix = "enchron.track-preference.v1."
     #if DEBUG
     private let diagnosticStoreIdentity: String
     #endif
@@ -337,6 +338,35 @@ package actor MediaStateStore {
         saveOrRemoveEmpty(state)
     }
 
+    package func loadTrackPreference(
+        for scope: TrackPreferenceScope
+    ) -> PersistedTrackPreference? {
+        guard let data = defaults.data(forKey: trackPreferenceKey(for: scope)),
+              let preference = try? JSONDecoder().decode(
+                PersistedTrackPreference.self,
+                from: data
+              ) else { return nil }
+        return preference
+    }
+
+    package func saveAudioTrackDescriptor(
+        _ descriptor: AudioTrackDescriptor,
+        for scope: TrackPreferenceScope
+    ) {
+        var preference = loadTrackPreference(for: scope) ?? PersistedTrackPreference()
+        preference.audio = descriptor
+        saveTrackPreference(preference, for: scope)
+    }
+
+    package func saveSubtitleTrackDescriptor(
+        _ descriptor: SubtitleTrackDescriptor,
+        for scope: TrackPreferenceScope
+    ) {
+        var preference = loadTrackPreference(for: scope) ?? PersistedTrackPreference()
+        preference.subtitle = descriptor
+        saveTrackPreference(preference, for: scope)
+    }
+
     package func clearViewingStates() {
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(keyPrefix) {
             guard let data = defaults.data(forKey: key),
@@ -396,5 +426,21 @@ package actor MediaStateStore {
 
     private func storageKey(for identity: MediaIdentity) -> String {
         keyPrefix + identity.storageKey
+    }
+
+    private func trackPreferenceKey(for scope: TrackPreferenceScope) -> String {
+        trackPreferenceKeyPrefix + scope.storageKey
+    }
+
+    private func saveTrackPreference(
+        _ preference: PersistedTrackPreference,
+        for scope: TrackPreferenceScope
+    ) {
+        guard preference.audio != nil || preference.subtitle != nil else {
+            defaults.removeObject(forKey: trackPreferenceKey(for: scope))
+            return
+        }
+        guard let data = try? JSONEncoder().encode(preference) else { return }
+        defaults.set(data, forKey: trackPreferenceKey(for: scope))
     }
 }

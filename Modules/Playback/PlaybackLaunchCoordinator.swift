@@ -3,6 +3,7 @@ import MediaSource
 import Observation
 import DesignSystem
 import OSLog
+import PlaybackCore
 
 @MainActor
 public protocol PlaybackLaunching: AnyObject {
@@ -692,19 +693,28 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
         launchTask = Task { [weak self] in
             guard let self else { return }
+            let launchScopedTrackPreference = await scopedTrackPreference(
+                for: preparedRequest
+            )
+            guard generation == launchGeneration else { return }
+            var launchRequest = preparedRequest
+            launchRequest.initialAudioSelection = initialAudioSelection(
+                scoped: launchScopedTrackPreference,
+                fallback: trackSelectionPreference
+            )
             do {
                 let initialSpeed = PlaybackModel.PlaybackSpeed(
                     preferencesProvider.loadPlaybackPreferences().defaultSpeed
                 )
                 if startsPaused {
                     try await playbackRuntime.preparePaused(
-                        preparedRequest,
+                        launchRequest,
                         startTimeSeconds: seconds ?? 0,
                         initialFormat: savedFormat
                     )
                 } else {
                     try await playbackRuntime.open(
-                        preparedRequest,
+                        launchRequest,
                         startTimeSeconds: seconds ?? 0,
                         initialSpeed: initialSpeed,
                         initialFormat: savedFormat
@@ -712,10 +722,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 }
                 guard generation == launchGeneration else { return }
                 guard try await applyLaunchConfiguration(
-                    for: preparedRequest,
                     savedFormat: savedFormat,
                     formatWasAppliedDuringOpen: savedFormat != nil,
                     trackSelectionPreference: trackSelectionPreference,
+                    scopedTrackPreference: launchScopedTrackPreference,
                     expectedGeneration: launchGeneration
                 ) else { return }
                 savePlaybackMode(entryPlaybackMode)
@@ -846,13 +856,25 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             preference.audioTrackID = track.id
             lastResolvedLaunch?.trackSelectionPreference = preference
         }
+        let descriptor = TrackPreferenceDescriptor.audio(track)
         switch request.viewingStateAuthority {
         case .enchronPersistence:
+            if let scope = request.trackPreferenceScope {
+                await enqueueMediaStateMutation { store in
+                    await store.saveAudioTrackDescriptor(descriptor, for: scope)
+                }.value
+                return
+            }
             guard let identity = request.versionedIdentity else { return }
             await enqueueMediaStateMutation { store in
                 await store.saveAudioTrackSelection(id: track.id, for: identity)
             }.value
         case .mediaServer:
+            if let scope = request.trackPreferenceScope {
+                await enqueueMediaStateMutation { store in
+                    await store.saveAudioTrackDescriptor(descriptor, for: scope)
+                }.value
+            }
             reportImmediateMediaServerProgress(reason: .audioTrackChange)
         }
     }
@@ -874,8 +896,15 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             } ?? .off
             lastResolvedLaunch?.trackSelectionPreference = preference
         }
+        let descriptor = TrackPreferenceDescriptor.subtitle(track)
         switch request.viewingStateAuthority {
         case .enchronPersistence:
+            if let scope = request.trackPreferenceScope {
+                await enqueueMediaStateMutation { store in
+                    await store.saveSubtitleTrackDescriptor(descriptor, for: scope)
+                }.value
+                return
+            }
             guard let identity = request.versionedIdentity else { return }
             let selection: SubtitleTrackSelectionPreference = if let track {
                 .track(id: track.id)
@@ -886,6 +915,11 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 await store.saveSubtitleTrackSelection(selection, for: identity)
             }.value
         case .mediaServer:
+            if let scope = request.trackPreferenceScope {
+                await enqueueMediaStateMutation { store in
+                    await store.saveSubtitleTrackDescriptor(descriptor, for: scope)
+                }.value
+            }
             reportImmediateMediaServerProgress(reason: .subtitleTrackChange)
         }
     }
@@ -1392,17 +1426,28 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 let initialSpeed = PlaybackModel.PlaybackSpeed(
                     preferencesProvider.loadPlaybackPreferences().defaultSpeed
                 )
+                let retryScopedTrackPreference = await scopedTrackPreference(for: request)
+                guard Self.retryAttemptIsCurrent(
+                    expectedGeneration: generation,
+                    currentGeneration: self.generation,
+                    isCancelled: Task.isCancelled
+                ) else { return false }
+                var retryRequest = request
+                retryRequest.initialAudioSelection = initialAudioSelection(
+                    scoped: retryScopedTrackPreference,
+                    fallback: trackSelectionPreference
+                )
                 try await playbackRuntime.open(
-                    request,
+                    retryRequest,
                     startTimeSeconds: seconds ?? 0,
                     initialSpeed: initialSpeed,
                     initialFormat: savedFormat
                 )
                 guard try await applyLaunchConfiguration(
-                    for: request,
                     savedFormat: savedFormat,
                     formatWasAppliedDuringOpen: savedFormat != nil,
                     trackSelectionPreference: trackSelectionPreference,
+                    scopedTrackPreference: retryScopedTrackPreference,
                     expectedGeneration: generation
                 ) else { return false }
                 savePlaybackMode(playbackMode)
@@ -1424,27 +1469,60 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         expectedGeneration == currentGeneration && !isCancelled
     }
 
+    private func scopedTrackPreference(
+        for request: PlaybackLaunchRequest
+    ) async -> PersistedTrackPreference? {
+        guard let scope = request.trackPreferenceScope else { return nil }
+        return await mediaStateStore.loadTrackPreference(for: scope)
+    }
+
+    private func resolvedSubtitleSelection(
+        scoped: PersistedTrackPreference?,
+        fallback: TrackSelectionPreference?
+    ) -> SubtitleTrackSelectionPreference? {
+        if let descriptor = scoped?.subtitle,
+           let resolved = TrackPreferenceResolver.subtitleSelection(
+               descriptor,
+               in: playbackRuntime.availableSubtitleTracks
+           ) {
+            return resolved
+        }
+        return fallback?.subtitleTrack
+    }
+
+    private func initialAudioSelection(
+        scoped: PersistedTrackPreference?,
+        fallback: TrackSelectionPreference?
+    ) -> PlaybackInitialAudioSelection? {
+        if let audio = scoped?.audio {
+            return .preference(PlaybackAudioTrackPreference(
+                languageCode: audio.languageCode,
+                displayName: audio.displayName,
+                codecName: audio.codecName,
+                channelCount: audio.channelCount
+            ))
+        }
+        if let id = fallback?.audioTrackID, let index = Int(id) {
+            return .streamIndex(index)
+        }
+        return nil
+    }
+
     private func applyLaunchConfiguration(
-        for request: PlaybackLaunchRequest,
         savedFormat: MediaFormat?,
         formatWasAppliedDuringOpen: Bool = false,
         trackSelectionPreference: TrackSelectionPreference?,
+        scopedTrackPreference: PersistedTrackPreference?,
         expectedGeneration: Int
     ) async throws -> Bool {
         guard generation == expectedGeneration else { return false }
-        if let audioTrackID = trackSelectionPreference?.audioTrackID,
-           let track = playbackRuntime.availableAudioTracks.first(where: { $0.id == audioTrackID }) {
-            do {
-                try await playbackRuntime.selectAudioTrack(track)
-            } catch {
-                logger.error(
-                    "saved audio track could not be restored error=\(error.localizedDescription, privacy: .public)"
-                )
-            }
-        }
+        let resolvedTrackSelection = resolvedSubtitleSelection(
+            scoped: scopedTrackPreference,
+            fallback: trackSelectionPreference
+        )
         guard generation == expectedGeneration else { return false }
         do {
-            try await playbackRuntime.restoreSubtitleSelection(trackSelectionPreference?.subtitleTrack)
+            try await playbackRuntime.restoreSubtitleSelection(resolvedTrackSelection)
         } catch {
             logger.error(
                 "saved subtitle selection could not be restored error=\(error.localizedDescription, privacy: .public)"

@@ -192,12 +192,23 @@ nonisolated extension PlaybackModel {
         public let languageCode: String?
         public let displayName: String
         public let isDefault: Bool
+        public let codecName: String?
+        public let channelCount: Int?
 
-        public init(id: String, languageCode: String?, displayName: String, isDefault: Bool = false) {
+        public init(
+            id: String,
+            languageCode: String?,
+            displayName: String,
+            isDefault: Bool = false,
+            codecName: String? = nil,
+            channelCount: Int? = nil
+        ) {
             self.id = id
             self.languageCode = languageCode
             self.displayName = displayName
             self.isDefault = isDefault
+            self.codecName = codecName
+            self.channelCount = channelCount
         }
     }
 }
@@ -208,12 +219,23 @@ nonisolated extension PlaybackModel {
         public let languageCode: String?
         public let displayName: String
         public let isDefault: Bool
+        public let codecName: String?
+        public let isExternal: Bool
 
-        public init(id: String, languageCode: String?, displayName: String, isDefault: Bool = false) {
+        public init(
+            id: String,
+            languageCode: String?,
+            displayName: String,
+            isDefault: Bool = false,
+            codecName: String? = nil,
+            isExternal: Bool = false
+        ) {
             self.id = id
             self.languageCode = languageCode
             self.displayName = displayName
             self.isDefault = isDefault
+            self.codecName = codecName
+            self.isExternal = isExternal
         }
     }
 }
