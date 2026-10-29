@@ -756,6 +756,22 @@ public final class FileBrowsingViewModel {
         } else {
             versionedIdentity = nil
         }
+        let trackPreferenceScope: TrackPreferenceScope?
+        if let activeDataSource {
+            trackPreferenceScope = TrackPreferenceScope.file(
+                sourceKey: activeDataSource.connectionInfo.mediaIdentitySourceKey,
+                directoryPath: file.url.deletingLastPathComponent().path,
+                fileName: file.name,
+                itemIdentity: versionedIdentity?.mediaIdentity
+            )
+        } else {
+            trackPreferenceScope = TrackPreferenceScope.file(
+                sourceKey: "local",
+                directoryPath: file.url.deletingLastPathComponent().path,
+                fileName: file.name,
+                itemIdentity: versionedIdentity?.mediaIdentity
+            )
+        }
         return MediaPlaybackItem(
             id: file.id,
             url: playableURL,
@@ -764,6 +780,7 @@ public final class FileBrowsingViewModel {
             sizeInBytes: file.sizeInBytes,
             collectionOrigin: .sourceDirectory,
             versionedIdentity: versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
             accessLease: sourceAccess,
             byteStreamHandle: resolvedSource.byteStreamHandle,
             externalSubtitleDiscovery: discovery

@@ -29,6 +29,8 @@
 **Playback Queue**：从 Playback Collection 生成的本次播放顺序。它与之后继续变化的浏览结果分离。
 **Persistent Viewing State**：Enchron 为同一 Media Identity 保存的可恢复位置或已看完状态。它不是通用观看历史。
 **Viewing State Authority**：一次播放会话的观看状态权威，取值为 Enchron 持久化或媒体服务器之一。它决定播放结束时进度与观看状态写向何处。
+**Track Preference Scope**：音轨与字幕轨选择的共享范围，取值为媒体服务器的剧集、来源目录内的剧集名干，或单个 Media Identity。它决定一次改轨影响哪些媒体。
+**Track Preference Descriptor**：一条轨道选择的语义描述，记录语言、名称、编码、声道与内封／外挂，不记录流索引。它在打开条目之后解析成该条目的一条具体轨道。
 
 ## 空间环境
 

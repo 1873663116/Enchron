@@ -147,7 +147,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             contentSelection: refreshedSelection,
             displayName: displayName, fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata, collectionOrigin: collectionOrigin,
-            versionedIdentity: versionedIdentity, sourceAccess: sourceAccess,
+            versionedIdentity: versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
+            sourceAccess: sourceAccess,
             externalSubtitleSources: subtitles,
             externalSubtitleDiscovery: externalSubtitleDiscovery,
             viewingStateAuthority: viewingStateAuthority,
@@ -165,12 +167,14 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let initialMetadata: PlaybackMediaMetadata?
     public let collectionOrigin: PlaybackCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
+    public let trackPreferenceScope: TrackPreferenceScope?
     public let sourceAccess: MediaAccessLease?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
     public let externalSubtitleDiscovery: ExternalSubtitleDiscovery?
     public let viewingStateAuthority: ViewingStateAuthority
     public let startPositionSeconds: Double?
     public let initialTrackSelection: TrackSelectionPreference?
+    public var initialAudioSelection: PlaybackInitialAudioSelection?
     public let sessionReporter: (any PlaybackSessionReporting)?
 
     public init(
@@ -181,6 +185,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         initialMetadata: PlaybackMediaMetadata? = nil,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
+        trackPreferenceScope: TrackPreferenceScope? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
@@ -196,12 +201,14 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.initialMetadata = initialMetadata
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
+        self.trackPreferenceScope = trackPreferenceScope
         self.sourceAccess = nil
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleDiscovery = externalSubtitleDiscovery
         self.viewingStateAuthority = viewingStateAuthority
         self.startPositionSeconds = startPositionSeconds
         self.initialTrackSelection = initialTrackSelection
+        self.initialAudioSelection = nil
         self.sessionReporter = sessionReporter
     }
 
@@ -214,6 +221,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         initialMetadata: PlaybackMediaMetadata? = nil,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
+        trackPreferenceScope: TrackPreferenceScope? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
         viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
@@ -228,6 +236,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             initialMetadata: initialMetadata,
             collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
             externalSubtitleSources: externalSubtitleSources,
             externalSubtitleDiscovery: externalSubtitleDiscovery,
             viewingStateAuthority: viewingStateAuthority,
@@ -246,6 +255,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         initialMetadata: PlaybackMediaMetadata? = nil,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
+        trackPreferenceScope: TrackPreferenceScope? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
@@ -262,6 +272,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.initialMetadata = initialMetadata
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
+        self.trackPreferenceScope = trackPreferenceScope
         self.sourceAccess = sourceAccess
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleDiscovery = externalSubtitleDiscovery
@@ -280,6 +291,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         initialMetadata: PlaybackMediaMetadata? = nil,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
+        trackPreferenceScope: TrackPreferenceScope? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
@@ -295,6 +307,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             initialMetadata: initialMetadata,
             collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
             externalSubtitleDiscovery: externalSubtitleDiscovery,
@@ -315,6 +328,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
             collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity,
+            trackPreferenceScope: trackPreferenceScope,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
             externalSubtitleDiscovery: externalSubtitleDiscovery,
@@ -345,6 +359,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.initialMetadata == rhs.initialMetadata &&
             lhs.collectionOrigin == rhs.collectionOrigin &&
             lhs.versionedIdentity == rhs.versionedIdentity &&
+            lhs.trackPreferenceScope == rhs.trackPreferenceScope &&
             lhs.externalSubtitleSources == rhs.externalSubtitleSources &&
             lhs.externalSubtitleDiscovery == rhs.externalSubtitleDiscovery &&
             lhs.viewingStateAuthority == rhs.viewingStateAuthority &&

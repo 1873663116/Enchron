@@ -126,6 +126,7 @@ public final class PlaybackCoreController {
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
+        initialAudioSelection: PlaybackInitialAudioSelection? = nil,
         sourceTransport: PlaybackSourceTransport = .localFile,
         initialStereoLayout: VideoStereoLayout? = nil,
         initialProjectionOverride: VideoProjectionOverride? = nil,
@@ -212,6 +213,7 @@ public final class PlaybackCoreController {
                 startTime: startTime,
                 startsPaused: startsPaused,
                 initialRate: initialRate,
+                initialAudioSelection: initialAudioSelection,
                 sourceTransport: sourceTransport,
                 provenance: provenance,
                 accessRequirement: accessRequirement
