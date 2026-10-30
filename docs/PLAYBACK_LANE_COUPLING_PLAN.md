@@ -236,6 +236,28 @@ at=145  packetSpan=121.458..232.250  covered=121.458..148.833
 
 五，任取一分钟，按固定采样率检查：每次字幕查询的播放位置都落在当帧视频单元区间之内。
 
+重跑（裁剪版构建，本地三音轨 mkv）：
+
+```
+一，连续播放一分钟，81 次查询
+    以文件内 362 条字幕包的区间为真值
+    其中 21 次查询有字幕包覆盖
+    21 次全部有产出帧覆盖      → 违反 0 次
+
+二，跳转到 711.028 秒
+    video.firstUnitAtTarget pts=711.044 target=711.028 delta=0.016
+    audio.firstUnit         pts=711.082 delta=0.054
+    subtitle.lane.attached  at=711.028 cues=2
+
+三，切换音轨三次（2、3、1）
+    audio.out lane=1 pts=858.965 → 859.989 → 860.928，时钟 853 → 855
+
+裁剪生效的旁证：同次跳转的接管记录
+    audio.attach.open queuedBefore=141 headBefore=709.120
+    首个交付单元 pts=711.082，早于 711.028 的部分被丢弃
+```
+
+
 形式化检查（`Scripts/playback/formal/run.sh`，约一秒）：
 
 ```
