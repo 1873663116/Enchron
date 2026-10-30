@@ -1259,7 +1259,6 @@ uint64_t PBFFmpegDemuxSourceTakeOverStream(
         (unsigned int)streamIndex >= source->queueCount) return 0;
     pthread_mutex_lock(&source->lock);
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
-    clear_packet_queue(source, queue);
     source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
     source->replayThroughTimestamps[streamIndex] = AV_NOPTS_VALUE;
     source->replayCaughtUp[streamIndex] = true;
