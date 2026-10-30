@@ -915,8 +915,8 @@ JELLYFIN_*                           无；本机 8096/8097/8920/8921 端口均�
 | WebDAV | 已接入，回归目录可用 | 无 |
 | SMB | 已接入 | 无 |
 | Emby | 已接入，`http://Mac-mini.local:8096` | 无 |
-| Plex | 未接入 | 应用内 Plex 登录未验证；接口层已确认可用 |
-| Jellyfin | 未接入 | 本机无服务，端口探测见上 |
+| Plex | 未接入 | 客户端代码存在（`Modules/MediaServer/PlexClient.swift`），命令通道无对应动词，登录须走界面 |
+| Jellyfin | 未接入 | 本机无服务；客户端代码存在 |
 
 Plex 与 Jellyfin 的客户端已安装在本机。接入通过客户端与上文的凭据完成，完成后用 `libraryReferences` 确认源列表中同时存在两个源。
 
@@ -927,6 +927,16 @@ Plex 与 Jellyfin 的客户端已安装在本机。接入通过客户端与上�
 待做：将 12.2 资产映射引用的文件与目录导入 `Documents/LocalMedia`，导入后条目数与映射表一致。
 
 验证：列出 `Documents/LocalMedia`，与 12.2 资产映射逐一对照。缺失时该行判定为不通过，报告列出缺失文件与补齐命令。补齐之前，该行不计入通过数。
+
+**命令通道的登录能力。**
+
+```
+embySignIn          已有
+Plex 登录           无专用动词，须经界面
+Jellyfin 登录       无专用动词，须经界面
+```
+
+因此 Plex 与 Jellyfin 的应用内登录不在本轮的自动验证范围内。三档验证使用 Emby 与 WebDAV 两个源完成，与 12.1 的主档源描述一致（主档源含 Emby）。
 
 **就绪核对。**
 
