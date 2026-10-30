@@ -4949,6 +4949,70 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(event.details["videoAcceptedCount"] == "2")
 }
 
+
+@Test func subtitleLaneCoversTheSeekTargetAfterASeek() async throws {
+    let fixture = try #require(
+        Bundle.module.url(
+            forResource: "subtitle-subrip",
+            withExtension: "mkv",
+            subdirectory: "Fixtures"
+        )
+    )
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-lane-seek-target",
+        provider: FFmpegSampleProvider(sourceReadMeter: meter, demuxSession: demuxSession),
+        audioProvider: FFmpegAudioSampleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        subtitleProvider: FFmpegSubtitleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession,
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    try await session.prepare(url: fixture)
+    try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1")
+    try session.start()
+
+    let seekTarget = CMTime(seconds: 2, preferredTimescale: 600)
+    let cueProbeTime = CMTime(seconds: 3.5, preferredTimescale: 600)
+    try await session.seek(to: seekTarget, startsPaused: false)
+
+    var reachedCues: [PlaybackSubtitleCue] = []
+    let deadline = ContinuousClock.now + .seconds(6)
+    while ContinuousClock.now < deadline, reachedCues.isEmpty {
+        reachedCues = session.activeSubtitleCues(at: cueProbeTime)
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    let texts = reachedCues.map(\.text)
+    #expect(
+        texts.isEmpty == false,
+        "no subtitle cue covered 3.5 s after seeking to 2 s"
+    )
+    let targetSeconds = String(format: "%.3f", seekTarget.seconds)
+    let cueText = texts.joined(separator: " | ")
+    let fields = [
+        "\"assertion\":\"subtitle-follows-seek\"",
+        "\"check\":\"subtitle-lane-seek\"",
+        "\"seekTargetSeconds\":\(targetSeconds)",
+        "\"cueCount\":\(reachedCues.count)",
+        "\"cueText\":\"\(cueText)\"",
+    ]
+    print("ENCHRON_ASSERTION {\(fields.joined(separator: ","))}")
+    await session.closeAndWait()
+}
+
 @Test func audioOpenFailureRetiresAudioButVideoStillDelivers() async throws {
     let session = SampleBufferPlaybackSession(
         traceID: "audio-open-error-session",

@@ -63,7 +63,27 @@ subtitle.frame.produced at=114.000 range=112.946-114.364
 
 ## 四、目标三：回归目录
 
-字幕在两个验收目标完成后更新回归目录：新增或改写覆盖「跳转后字幕跟随」的场景，并把结构化断言接入现有测试。执行时机在目标一、目标二之后。
+行为。回归目录里有一个场景覆盖「跳转之后字幕继续跟随」，结构测试指向上面的会话级测试。
+
+观测。`materialize_catalog_v2.py --check Regression` 通过；场景计数从 69 变为 70、rubric 从 106 变为 107、静态用例从 118 变为 119。
+
+失败。场景存在但结构测试名不在允许清单里；或目录与蓝图不一致。
+
+结构。场景只引用已存在的操作与判定；结构化断言字段与测试打印的字段一致。
+
+现状。未完成。会话级测试已就位并打印结构化断言：
+
+```
+ENCHRON_ASSERTION {"assertion":"subtitle-follows-seek","check":"subtitle-lane-seek","seekTargetSeconds":2.000,"cueCount":1,"cueText":"再见"}
+```
+
+目录写入被三处固定计数挡住，改动它们是受评审的契约变更，本轮未做：
+
+```
+Scripts/regression/materialize_catalog_v2.py:1331   64 Promises / 69 Scenarios
+Scripts/regression/completion.py:74,77              69 scenarios / 106 rubrics
+Scripts/rules/tests/test_regression_catalog_v2_materializer.py   69 / 118 等五处
+```
 
 ## 五、不变量
 
