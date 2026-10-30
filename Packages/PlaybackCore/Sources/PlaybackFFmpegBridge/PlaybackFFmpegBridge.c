@@ -4604,7 +4604,10 @@ bool PBFFmpegDemuxSourceSeek(
     source->readResult = 0;
     source->prebuffersAudio = true;
     pthread_mutex_unlock(&source->lock);
-    int64_t timestamp = (int64_t)llround(seconds * AV_TIME_BASE);
+    int64_t origin = source->formatContext->start_time == AV_NOPTS_VALUE
+        ? 0
+        : source->formatContext->start_time;
+    int64_t timestamp = origin + (int64_t)llround(seconds * AV_TIME_BASE);
     int result = monitored_avformat_seek_file(
         source->sourceReadContext->monitor,
         source->formatContext,
