@@ -484,6 +484,12 @@ D8  撤销。曾记为「视频交付每四帧只交一帧」
     成因   区间表按到达顺序追加，B 帧使相邻条目起点来回跳，诊断日志误报
     处置   撤销；区间表改为按呈现顺序插入
 
+D12 控制台档位偶发挂起
+    观测   tier unit 重复运行二十分钟无输出、无 xcodebuild 子进程
+           此前 tier e2e --full 亦在第十个单元后停住
+    复现   未稳定复现；同一命令先前两次分别在 185 秒与 902 秒完成
+    处置   登记；与用例内容无关，表现为命令不再推进
+
 D11 跳转后立即选字幕，前几秒的单元不渲染
     观测   跳转至 163.5 秒并在跳转后四秒选择字幕轨
            车道在 163.58 前后挂载，首个产出帧在 169.300，间隔约 5.7 秒
@@ -1323,7 +1329,11 @@ ffmpeg -i /tmp/pgs-in-mkv.mkv -i FATE/MPEG2/dvd_single_frame.vob \
 tier static   通过   （36339 毫秒，最近一次）
 tier build    通过   （102368 毫秒，最近一次，写出六份 spec）
 tier e2e      通过   12 个单元全过（reused 0, ran 12），每个单元终态产物齐全
-tier unit     不通过  六项失败，均不在播放车道范围内
+tier unit     不通过  最近一次完整运行：794 个用例，21 项失败
+              其中 6 项为此前已知的 SMB 读取区间与失败分类用例
+              另有 5 项以 signal kill 结束（Tidal、TrackSelection、ByteStream、Residency、Presentation）
+              1 项为测试运行器未建立连接
+              重复运行一次后挂起二十分钟无进展，已终止
 ```
 
 `tier e2e` 的默认选择是十二个单元，全过。全量选择（`--full`）执行到第十个单元后停住，停在 `unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1`，日志不再增长，已终止。
