@@ -253,7 +253,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     let description = try #require(session.sourceDescription)
     #expect(loader.loadCount == 1)
     #expect(description.information == information)
-    #expect(description.audioTracks == session.availableAudioTracks)
+    #expect(description.audioTracks == information.playbackAudioTracks)
     #expect(description.subtitleTracks == session.availableSubtitleTracks)
     #expect(description.mediaKind == session.mediaKind)
 }
@@ -5022,7 +5022,11 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     session.startStallLimit = .milliseconds(150)
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/start-gate-stall.mp4"))
     try session.start()
-    try await Task.sleep(for: .milliseconds(600))
+    let deadline = ContinuousClock.now + .seconds(3)
+    while ContinuousClock.now < deadline,
+          session.readinessState != .stalled {
+        try await Task.sleep(for: .milliseconds(10))
+    }
 
     #expect(session.readinessState == .stalled)
     #expect(session.debugSnapshot().lastFailure?.stage == "startGate.failed.videoContinues")
@@ -6032,12 +6036,12 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackAudioTrack] {
-        sourceInformationReceived = sourceInformation
+        sourceInformationReceived = description?.information
         if let trackListError { throw trackListError }
-        if let sourceInformation {
-            return sourceInformation.playbackAudioTracks
+        if let information = description?.information {
+            return information.playbackAudioTracks
         }
         return try await tracks(in: url, asset: asset)
     }
@@ -6110,10 +6114,10 @@ private final class MediaInformationRecordingSubtitleProvider: SubtitleProvider 
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackSubtitleTrack] {
-        sourceInformationReceived = sourceInformation
-        return sourceInformation?.playbackSubtitleTracks ?? []
+        sourceInformationReceived = description?.information
+        return description?.subtitleTracks ?? []
     }
 
     func cues(

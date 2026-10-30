@@ -92,7 +92,7 @@ protocol SubtitleProvider: AnyObject {
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackSubtitleTrack]
     func cues(
         in url: URL,
@@ -130,7 +130,7 @@ extension SubtitleProvider {
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackSubtitleTrack] {
         try await tracks(in: url, asset: asset)
     }
@@ -230,9 +230,9 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackSubtitleTrack] {
-        if let sourceInformation { return sourceInformation.playbackSubtitleTracks }
+        if let description { return description.subtitleTracks }
         return try await tracks(in: url, asset: asset)
     }
 

@@ -659,7 +659,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 availableAudioTracks = try await audioProvider.tracks(
                     in: url,
                     asset: asset,
-                    sourceInformation: description.information
+                    description: description
                 )
             } else if mediaSourceInformationLoader != nil {
                 logger.info("source.description.fallback lane=audio reason=loaderReturnedNothing")
@@ -681,7 +681,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 subtitleTracks = try await subtitleProvider.tracks(
                     in: url,
                     asset: asset,
-                    sourceInformation: description.information
+                    description: description
                 )
             } else if mediaSourceInformationLoader == nil {
                 logger.info("source.description.fallback lane=subtitle reason=noLoader")

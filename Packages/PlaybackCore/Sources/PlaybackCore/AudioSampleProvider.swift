@@ -172,7 +172,7 @@ protocol AudioSampleProvider: AnyObject {
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackAudioTrack]
     func prepare(
         url: URL,
@@ -188,7 +188,7 @@ extension AudioSampleProvider {
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackAudioTrack] {
         try await tracks(in: url, asset: asset)
     }
@@ -433,9 +433,9 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
-        sourceInformation: MediaSourceInformation?
+        description: PlaybackSourceDescription?
     ) async throws -> [PlaybackAudioTrack] {
-        if let sourceInformation { return sourceInformation.playbackAudioTracks }
+        if let description { return description.audioTracks }
         return try await tracks(in: url, asset: asset)
     }
 
