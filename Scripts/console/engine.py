@@ -129,7 +129,11 @@ def run_plan(
 
 
 def _capture_device_logs(
-    run_directory: Path, started: float, finished: float
+    run_directory: Path,
+    started: float,
+    finished: float,
+    runner=None,
+    timeout_error: type[BaseException] | None = None,
 ) -> None:
     udid = _device_target()
     if not udid:
@@ -151,9 +155,11 @@ def _capture_device_logs(
         "--style",
         "compact",
     ]
+    execute = runner or subprocess.run
+    expired = timeout_error or subprocess.TimeoutExpired
     try:
-        result = subprocess.run(command, capture_output=True, text=True, timeout=180)
-    except subprocess.TimeoutExpired:
+        result = execute(command, capture_output=True, text=True, timeout=180)
+    except expired:
         (run_directory / "logs.txt").write_text("log show timed out\n", encoding="utf-8")
         return
     (run_directory / "logs.txt").write_text(result.stdout, encoding="utf-8")

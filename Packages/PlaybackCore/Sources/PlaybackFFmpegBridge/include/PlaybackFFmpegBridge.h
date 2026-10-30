@@ -508,6 +508,7 @@ typedef struct PBSubtitleFrameRendererState {
     uint64_t decodeCursor;
     double firstPacketSeconds;
     double lastPacketSeconds;
+    double lastConsumedStartSeconds;
     double coveredStartSeconds;
     double coveredEndSeconds;
     int lastPacketSize;

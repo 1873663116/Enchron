@@ -204,6 +204,7 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
             + " cursor=\(state.decodeCursor)"
             + " packetSpan=\(seconds(state.firstPacketSeconds))..\(seconds(state.lastPacketSeconds))"
             + " covered=\(seconds(state.coveredStartSeconds))..\(seconds(state.coveredEndSeconds))"
+            + " consumed=\(seconds(state.lastConsumedStartSeconds))"
             + " lastPacket=size:\(state.lastPacketSize)"
             + ",pts:\(state.lastPacketHasPresentationTime != 0)"
             + ",segment:\(state.lastPacketSegmentType)/\(state.lastPacketSegmentLength)"

@@ -47,6 +47,7 @@ struct PBSubtitleFrameRenderer {
     PBSubtitleBitmapEntry *bitmapEntries;
     size_t bitmapEntryCount;
     size_t bitmapEntryBytes;
+    double lastConsumedStartSeconds;
     double coveredStartSeconds;
     int sourceWidth;
     int sourceHeight;
@@ -190,6 +191,7 @@ static void clear_bitmap_cache(PBSubtitleFrameRenderer *renderer) {
     renderer->bitmapEntries = NULL;
     renderer->bitmapEntryCount = 0;
     renderer->bitmapEntryBytes = 0;
+    renderer->lastConsumedStartSeconds = NAN;
     renderer->coveredStartSeconds = INFINITY;
 }
 
@@ -1052,6 +1054,7 @@ PBSubtitleFrameRendererState PBSubtitleFrameRendererCopyState(
     state.lastPacketSeconds = renderer->packetCount > 0
         ? renderer->packets[renderer->packetCount - 1].startSeconds
         : NAN;
+    state.lastConsumedStartSeconds = renderer->lastConsumedStartSeconds;
     state.coveredStartSeconds = renderer->coveredStartSeconds;
     state.coveredEndSeconds = renderer->bitmapEntryCount > 0
         ? renderer->bitmapEntries[renderer->bitmapEntryCount - 1].endSeconds
@@ -1301,6 +1304,7 @@ static PBSubtitleFrameResult copy_bitmap_frame(
         if (budget <= 0 && startsDisplaySet) break;
         budget--;
         PBSubtitlePacket *item = &renderer->packets[renderer->nextPacketIndex++];
+        renderer->lastConsumedStartSeconds = item->startSeconds;
         renderer->decodedPacketCount++;
         AVSubtitle subtitle = {0};
         int produced = 0;
