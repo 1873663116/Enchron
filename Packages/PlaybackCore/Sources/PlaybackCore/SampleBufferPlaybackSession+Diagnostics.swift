@@ -720,7 +720,10 @@ extension SampleBufferPlaybackSession {
     }
 
     func videoPrerollGateIsSatisfied() -> Bool {
-        videoPrerollDisplayIsReady()
+        if videoPrerollDisplayIsReady() { return true }
+        guard let started = videoDeliveryStartHostSeconds else { return false }
+        let elapsed = CMClockGetTime(CMClockGetHostTimeClock()).seconds - started
+        return elapsed >= 1.0
     }
 
     func videoPrerollDisplayIsReady() -> Bool {
