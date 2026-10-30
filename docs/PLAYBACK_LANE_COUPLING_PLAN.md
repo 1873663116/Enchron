@@ -155,19 +155,74 @@
 | Plex | 媒体服务器 | 由 `Modules/MediaServer/PlexClient.swift` 接入，地址取自应用内已配置源 |
 | Jellyfin | 媒体服务器 | 由 `Modules/MediaServer/MediaBrowserClient.swift` 以 `dialect == .jellyfin` 接入，地址取自应用内已配置源 |
 
-### 11.2 媒体选择
+### 11.2 覆盖设计
 
-选择依据是实测字幕密度，不是片名。
+不采用「每个视频在每个源上各测一遍」。全组合为 5 类容器 × 3 类字幕表示 × 8 类音频 × 6 个源，共 720 组，不可执行。
 
-一，对候选文件取字幕流，按一分钟窗口统计每个窗口内的字幕单元数量。
+采用因子覆盖：每个因子水平至少测一次，每对可能相互作用的因子组合至少测一次。
 
-二，取单元数最多的窗口，记为 `W`。
+#### 因子与影响
 
-三，在 `W` 起点播放，观察一分钟。
+| 因子 | 为什么是因子 | 水平 |
+| --- | --- | --- |
+| 容器 | 决定每条流的时间戳起点与流交错方式。缺陷形态是「流起点与文件起点不一致」 | mkv、mp4、mov、ts、m2ts、Blu-ray ISO |
+| 字幕表示 | 决定字典如何被填充。位图用显示集合解码，文字用行解析，外挂单独路径 | 位图（PGS）、文字内嵌（ASS/SRT）、外挂文件 |
+| 音频编码 | 切换音轨时重新打开解码器。延迟与帧长随编码不同 | aac、ac3、eac3、dts、dts-hd ma、truehd、flac、pcm |
+| 源传输 | 决定跳转后重新取数的代价，影响接上时间 | 本地、WebDAV、SMB、Emby、Plex、Jellyfin |
 
-四，同一部片子在所有源上使用同一个 `W`。
+视频编码不作为对齐因子：它不改变时间戳来源。仅在有专用时间戳语义时单独取一组，例如 MVC 三维、ProRes。
 
-候选文件必须同时满足：含至少一条内嵌字幕轨、含至少两条音轨、时长大于 `W` 终点加一分钟。
+#### 相互作用对
+
+三对必须同时出现，其余按单因子覆盖。
+
+一，容器 × 字幕表示。时间戳起点与字典填充方式组合，是本次缺陷的核心。
+
+二，容器 × 音频编码。切换时的解码器重建与容器时间戳起点组合。
+
+三，源 × 容器。跳转后重新取数的方式与容器内偏移的组合。
+
+#### 资产映射
+
+下表每一行是一次执行。容器、字幕、音频列取实际文件。
+
+| 编号 | 文件 | 容器 | 视频 | 音频 | 字幕 |
+| --- | --- | --- | --- | --- | --- |
+| C1 | `SDR/[MAI] EIGHTY SIX ... x265_flac_ass.mkv` | mkv | hevc | flac | ass |
+| C2 | `SDR/少女终末旅行 - S01E01 ... .mkv` | mkv | hevc | aac, flac | ass |
+| C3 | `DynamicRange/HLG/LG_Cymatic_Jazz_HLG_Astra_teststream.ts` | ts | hevc | aac | 无 |
+| C4 | `DynamicRange/HDR10/HDR10.MP4` | mp4 | hevc | aac | 无 |
+| C5 | `CameraOriginals/Apple/IMG_6340.MOV` | mov | h264 | aac, apple_apac | 无 |
+| C6 | `Professional/ProRes/ARRI-AMIRA/B001C001_140702_R3VJ.mov` | mov | prores | pcm_s24le | 无 |
+| C7 | `DiscImages/Sintel/Sintel-Bluray/BDMV/STREAM/00000.m2ts` | m2ts | h264 | ac3 | PGS |
+| C8 | `DiscImages/Sintel/Sintel-Bluray` 整盘 | Blu-ray | h264 | ac3 | PGS |
+| C9 | `DiscImages/Captain.America.Civil.War...iso` | Blu-ray 3D | MVC | dts-hd ma | PGS |
+| C10 | `DiscImages/DolbyVision-Profile7-FEL` 整盘 | Blu-ray | hevc | 无 | 无 |
+| C11 | 外挂 `Fixtures/subtitle-en.srt` 加载到 C1 | mkv | hevc | flac | 外挂文字 |
+
+#### 源分配
+
+C9 在六个源上各执行一次，用于覆盖「源 × 容器」的相互作用，并作为字幕密度选段的主用例。
+
+其余每一行在本地与 WebDAV 两个源上执行，用于覆盖「源 × 容器」与「源 × 字幕表示」。SMB、Emby、Plex、Jellyfin 只出现在 C9 一行。
+
+执行总数：C9 六次，其余十行各两次，共 26 次。
+
+#### 选段
+
+每次执行前按 11.2.1 选段。
+
+##### 11.2.1 选段规则
+
+一，取该文件字幕流，按一分钟窗口统计单元数量。
+
+二，取单元数最多的窗口 `W`。
+
+三，在 `W` 起点播放一分钟。
+
+四，同一文件在不同源上使用同一个 `W`。
+
+无字幕的文件改用音频包密度选段。
 
 ### 11.3 执行步骤
 
@@ -226,3 +281,7 @@ xcrun simctl spawn <UDID> log show --info --last <窗口>   --predicate 'subsyst
 二，磁盘镜像测试只用过一部影片。按 11.2 选择后，至少再补一部字幕密度不同的影片。
 
 三，Plex 与 Jellyfin 的实际可用性未验证。接入代码存在，服务器是否在线未确认。
+
+四，资产缺口。语料中无位图字幕的 mkv、无 mov_text、无 VobSub、无外挂位图字幕用例。位图字幕只出现在 m2ts 与 Blu-ray 容器中，因此「容器 × 位图字幕」这一对只有 m2ts 与 Blu-ray 两个水平，mkv 与 mp4 位图缺失。
+
+五，语料中无 truehd 与 dts-hd ma 的本地文件，两种编码只出现在 C9。音频编码 × 源 的组合因此不完整。
