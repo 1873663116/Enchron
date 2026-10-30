@@ -1,5 +1,6 @@
 import CoreMedia
 import Foundation
+import OSLog
 import PlaybackFFmpegBridge
 
 public enum PlaybackSubtitleFrameKind: String, Sendable, Equatable {
@@ -58,6 +59,11 @@ extension SubtitleFrameRendering {
     var holdsUndecodablePackets: Bool { false }
 }
 
+private let logger = Logger(
+    subsystem: "com.xiongzhipeng.PlaybackCore",
+    category: "Playback"
+)
+
 final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Sendable {
     private let renderer: OpaquePointer
     private let lock = NSLock()
@@ -88,6 +94,8 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         self.renderer = renderer
         demuxSession = nil
         boundEpoch = nil
+        let start = PBSubtitleFrameRendererGetStartSeconds(renderer)
+        logger.info("subtitle.renderer.open path start=\(String(format: "%.3f", start))")
     }
 
     init(
@@ -109,6 +117,8 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         }
         self.renderer = renderer
         self.demuxSession = demuxSession
+        let start = PBSubtitleFrameRendererGetStartSeconds(renderer)
+        logger.info("subtitle.renderer.open shared start=\(String(format: "%.3f", start))")
         self.boundEpoch = demuxSession.currentEpoch()
     }
 
@@ -142,6 +152,10 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
                     throw SubtitleProviderError.read("Subtitle frame data is unavailable")
                 }
                 let bytes = data.takeRetainedValue() as Data
+                let rangeSummary = "subtitle.frame.produced at="
+                    + String(format: "%.3f", time.seconds)
+                    + " range=" + String(format: "%.3f-%.3f", info.startSeconds, info.endSeconds)
+                logger.info("\(rangeSummary, privacy: .public)")
                 return PlaybackSubtitleFrame(
                     kind: info.kind == PBSubtitleFrameKindBitmap ? .bitmap : .libass,
                     canvasWidth: Int(info.canvasWidth),

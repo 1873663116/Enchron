@@ -152,6 +152,11 @@ static int64_t stream_start_timestamp(
     return 0;
 }
 
+double PBSubtitleFrameRendererGetStartSeconds(PBSubtitleFrameRenderer *renderer) {
+    if (!renderer || renderer->streamTimeBase.den <= 0) return -1.0;
+    return (double)renderer->streamStartTimestamp * av_q2d(renderer->streamTimeBase);
+}
+
 static uint64_t fnv1a(const uint8_t *bytes, size_t count, uint64_t seed) {
     uint64_t hash = seed;
     for (size_t index = 0; index < count; index++) {
@@ -232,6 +237,8 @@ static bool append_bitmap_entry(
     } else {
         renderer->coveredStartSeconds = startSeconds;
     }
+    info.startSeconds = startSeconds;
+    info.endSeconds = endSeconds;
     renderer->bitmapEntries[renderer->bitmapEntryCount++] = (PBSubtitleBitmapEntry) {
         .startSeconds = startSeconds,
         .endSeconds = endSeconds,

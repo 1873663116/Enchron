@@ -2021,6 +2021,11 @@ static CMTime cm_time(int64_t value, AVRational timeBase) {
     return CMTimeMake(value * (int64_t)timeBase.num, timeBase.den);
 }
 
+double PBFFmpegReaderGetStartSeconds(PBFFmpegReader *reader) {
+    if (!reader || reader->timeBase.den <= 0) return -1.0;
+    return (double)reader->startTimestamp * av_q2d(reader->timeBase);
+}
+
 static int64_t stream_start_timestamp(AVFormatContext *context, AVStream *stream) {
     if (context->start_time != AV_NOPTS_VALUE) {
         return av_rescale_q(context->start_time, AV_TIME_BASE_Q, stream->time_base);
@@ -7507,6 +7512,12 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
         return NULL;
     }
     return reader;
+}
+
+double PBFFmpegSubtitleReaderGetStartTimestampSeconds(PBFFmpegSubtitleReader *reader) {
+    if (!reader || !reader->formatContext) return AV_NOPTS_VALUE;
+    if (reader->startTimestamp == AV_NOPTS_VALUE) return AV_NOPTS_VALUE;
+    return (double)reader->startTimestamp * av_q2d(reader->timeBase);
 }
 
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(

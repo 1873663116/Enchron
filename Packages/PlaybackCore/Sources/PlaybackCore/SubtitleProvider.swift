@@ -1,6 +1,12 @@
 import CoreMedia
 import Foundation
+import OSLog
 import PlaybackFFmpegBridge
+
+private let logger = Logger(
+    subsystem: "com.xiongzhipeng.PlaybackCore",
+    category: "Playback"
+)
 
 public struct PlaybackSubtitleTrack: Identifiable, Sendable, Equatable, Codable {
     public let id: String
@@ -283,6 +289,10 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
             throw SubtitleProviderError.open(Self.errorMessage(error))
         }
         defer { PBFFmpegSubtitleReaderDestroy(reader) }
+        let subtitleStart = PBFFmpegSubtitleReaderGetStartTimestampSeconds(reader)
+        let openSummary = "subtitle.reader.open track=\(track.id) stream=\(track.streamIndex)"
+            + " start=\(String(format: "%.3f", subtitleStart))"
+        logger.info("\(openSummary, privacy: .public)")
 
         var cues: [PlaybackSubtitleCue] = []
         while true {
@@ -315,6 +325,13 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
                     text: text
                 ))
             case PBFFmpegReadResultEnd:
+                if let first = cues.first {
+                    let start = String(format: "%.3f", first.timeRange.start.seconds)
+                    let end = String(format: "%.3f", first.timeRange.end.seconds)
+                    let summary = "subtitle.cues.first track=\(track.id) count=\(cues.count)"
+                        + " start=\(start) end=\(end)"
+                    logger.info("\(summary, privacy: .public)")
+                }
                 return cues
             default:
                 try Task.checkCancellation()

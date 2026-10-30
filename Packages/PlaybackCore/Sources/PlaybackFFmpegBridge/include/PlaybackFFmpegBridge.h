@@ -277,6 +277,8 @@ typedef struct PBSubtitleFrameInfo {
     int contentHeight;
     int bytesPerRow;
     uint64_t changeIdentifier;
+    double startSeconds;
+    double endSeconds;
 } PBSubtitleFrameInfo;
 
 PBFFmpegReader *PBFFmpegReaderCreate(
@@ -417,6 +419,9 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
     PBFFmpegSourceReadMonitor *monitor,
     PBFFmpegReadCancellation *cancellation
 );
+double PBFFmpegSubtitleReaderGetStartTimestampSeconds(PBFFmpegSubtitleReader *reader);
+double PBSubtitleFrameRendererGetStartSeconds(PBSubtitleFrameRenderer *renderer);
+double PBFFmpegReaderGetStartSeconds(PBFFmpegReader *reader);
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(
     PBFFmpegDemuxSource *source,
     int streamIndex,

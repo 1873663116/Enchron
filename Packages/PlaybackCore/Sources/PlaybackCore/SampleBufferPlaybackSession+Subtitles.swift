@@ -492,10 +492,17 @@ extension SampleBufferPlaybackSession {
         }
         if frame == nil, let renderer = snapshot.0 {
             let description = renderer.stateDescription
+            let second = Int(time.seconds.isFinite ? time.seconds : 0)
+            let lastEmpty = lastReportedEmptySubtitleSecond ?? -5
+            if second / 5 != lastEmpty / 5 {
+                lastReportedEmptySubtitleSecond = second
+                let idleSummary = "subtitle.frame.idle at=\(second) renderer=\(description)"
+                logger.info("\(idleSummary, privacy: .public)")
+            }
             if renderer.holdsUndecodablePackets {
                 noteSubtitleOutcome(.producedNothing, generation: snapshot.1)
                 let second = Int(time.seconds.isFinite ? time.seconds : 0)
-                if second != lastReportedEmptySubtitleSecond {
+                if second != (lastReportedEmptySubtitleSecond ?? -1) {
                     lastReportedEmptySubtitleSecond = second
                     logger.info(
                         "subtitle.frame.empty at=\(second, privacy: .public) renderer=\(description, privacy: .public)"
