@@ -338,6 +338,48 @@ subtitle  subtitle.lane.attached at=119.995
 
 五，Plex 与 Jellyfin 未接入，本地媒体未导入 `TestMedia/Samples`。两项为验证前置准备，见 12.0。
 
+### 11.1 缺陷清单
+
+每项含观测、复现方法与处置。处置为「已修」「登记」「移交」之一。
+
+```
+D1  库条目失效后播放静默失败
+    观测   失效书签的条目 playMedia 返回 ok=false，界面无提示
+    复现   向库中加入一个已被移动的文件，再播放该条目
+    处置   已定位，未修；缺界面提示
+
+D2  远程 mkv 播放进程中止
+    观测   SIGABRT，栈 matroska_parse_cluster ← demux_source_read_loop
+    复现   未稳定复现；重连路径无法刻意触发（20 秒读取延迟与五分钟长跑均未触发）
+    处置   登记，机制假设与取证方法见第七节七之六
+
+D3  WebDAV 播放报 5XX
+    观测   demux.open.failed Server returned 5XX Server Error reply (-1482175992)
+    复现   同一文件在 Emby 上正常，在 WebDAV 源上播放即失败
+    处置   登记；服务随单位结束而停止，需在服务存活期间复测
+
+D4  10 位 h264（Hi10P）不可播放
+    观测   三个 Hi10P 片源在四至五秒处解码失败，首帧从未显示
+    复现   Emby 上播放 Ghost in the Shell、2.0、2: Innocence 任一片源
+    处置   已修行为：播放前判为不支持，界面提示「Unable to Play」并说明编码
+
+D5  SMB 读取区间用例五项失败
+    观测   Tests/MediaLibraryPackageTests/SMBDataSourceAdapterTests.swift 断言区间序列不符
+    复现   console tier unit
+    处置   登记；不在播放车道范围
+
+D6  未分类失败进入公开类别
+    观测   PlaybackActiveFailureTests：MediaSourceReadFailure(httpStatusCode: 500) 应为 nil
+    复现   console tier unit
+    处置   登记；不在播放车道范围
+
+D7  故障注入后未出现 Playback Error
+    观测   unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1
+           第十一步等待「Playback Error」四十五秒未出现
+    复现   python3 Scripts/console/cli.py run "unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1"
+    处置   登记；待判定是产品未提示还是故障注入未生效
+```
+
 六，已修复：跳转后字幕车道重新挂载时，挂载位置取到 0，而非跳转目标。修复为把跳转目标传入挂载入口。修复后实测，本地 `00000.m2ts`，跳转目标 119.995：
 
 ```
