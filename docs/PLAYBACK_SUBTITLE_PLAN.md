@@ -99,7 +99,7 @@ Scripts/rules/tests/test_regression_catalog_v2_materializer.py   69 / 118 等五
 
 四，音视频：字幕改动不影响起播、跳转、换音轨、停顿恢复。起播、跳转、换音轨在实机上成立。停顿恢复以两个看门狗单元测试为准：`displayStallRebuffersTheTimelineWithStarvedContinuity` 与 `aSourceThatNeverAdvancesFailsFromLoadingAsStalled`，本轮两项通过。实机复现受阻的原因见第六节第一条。
 
-五，失败归属：字幕读取失败不使会话失败；音频或视频失败仍按既有归属处理。
+五，失败归属：字幕读取失败不使会话失败；音频或视频失败仍按既有归属处理。本轮跑 `failedExternalSubtitleSourceLeavesTheCurrentSelectionAndSessionUntouched`、`anExternalSubtitleWhoseCuePreparationFailsNeverBecomesAvailable`、`aSubtitleDocumentCutOffMidReadFailsInsteadOfReturningAShorterTrack` 三项，全部通过。
 
 ## 六、未决
 
