@@ -629,6 +629,34 @@ static void release_packet_queue_bytes(
     if (queue->bufferedByteCount < 0) queue->bufferedByteCount = 0;
 }
 
+static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue);
+
+static void trim_packet_queue_before_timestamp(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue,
+    int64_t minimumTimestampMicroseconds
+) {
+    if (!queue || minimumTimestampMicroseconds == AV_NOPTS_VALUE) return;
+    int64_t droppedBytes = 0;
+    while (queue->head &&
+           queue->head->timestampMicroseconds != AV_NOPTS_VALUE &&
+           queue->head->timestampMicroseconds < minimumTimestampMicroseconds) {
+        PBFFmpegPacketNode *node = queue->head;
+        queue->head = node->next;
+        if (!queue->head) queue->tail = NULL;
+        queue->summedDurationMicroseconds -= node->durationMicroseconds;
+        if (queue->summedDurationMicroseconds < 0) {
+            queue->summedDurationMicroseconds = 0;
+        }
+        droppedBytes += node->byteCount;
+        return_packet_node(source, node);
+    }
+    if (droppedBytes > 0) {
+        release_packet_queue_bytes(source, queue, droppedBytes);
+    }
+    update_packet_queue_buffered_duration(queue);
+}
+
 static void clear_packet_queue(
     PBFFmpegDemuxSource *source,
     PBFFmpegPacketQueue *queue
@@ -1202,7 +1230,8 @@ static void stop_demux_source_read_thread(PBFFmpegDemuxSource *source) {
 
 static bool subscribe_to_demux_stream(
     PBFFmpegDemuxSource *source,
-    int streamIndex
+    int streamIndex,
+    int64_t minimumTimestampMicroseconds
 ) {
     if (!source || streamIndex < 0 ||
         (unsigned int)streamIndex >= source->queueCount) return false;
@@ -1214,6 +1243,11 @@ static bool subscribe_to_demux_stream(
         if (source->retainedByteCount < 0) source->retainedByteCount = 0;
         queue->subscribers = 1;
         *packet_queue_byte_pool(source, queue) += queue->bufferedByteCount;
+        trim_packet_queue_before_timestamp(
+            source,
+            queue,
+            minimumTimestampMicroseconds
+        );
     }
     pthread_mutex_unlock(&source->lock);
     return subscribed;
@@ -1538,7 +1572,7 @@ bool PBFFmpegDemuxSourceSubscribe(
     PBFFmpegDemuxSource *source,
     int streamIndex
 ) {
-    return subscribe_to_demux_stream(source, streamIndex);
+    return subscribe_to_demux_stream(source, streamIndex, AV_NOPTS_VALUE);
 }
 
 void PBFFmpegDemuxSourceUnsubscribe(
@@ -4954,7 +4988,11 @@ static bool configure_video_reader(
         return false;
     }
     if (reader->demuxSource &&
-        !subscribe_to_demux_stream(reader->demuxSource, reader->videoStreamIndex)) {
+        !subscribe_to_demux_stream(
+            reader->demuxSource,
+            reader->videoStreamIndex,
+            (int64_t)llround(startSeconds * AV_TIME_BASE)
+        )) {
         set_error(errorBuffer, errorBufferSize, "The shared video stream already has a reader");
         return false;
     }
@@ -6020,7 +6058,11 @@ static bool configure_audio_reader(
         return false;
     }
     if (reader->demuxSource &&
-        !subscribe_to_demux_stream(reader->demuxSource, reader->audioStreamIndex)) {
+        !subscribe_to_demux_stream(
+            reader->demuxSource,
+            reader->audioStreamIndex,
+            (int64_t)llround(startSeconds * AV_TIME_BASE)
+        )) {
         set_error(errorBuffer, errorBufferSize, "The shared audio stream already has a reader");
         return false;
     }
@@ -7514,7 +7556,7 @@ static bool configure_subtitle_reader(
         return false;
     }
     if (reader->demuxSource &&
-        !subscribe_to_demux_stream(reader->demuxSource, streamIndex)) {
+        !subscribe_to_demux_stream(reader->demuxSource, streamIndex, AV_NOPTS_VALUE)) {
         set_error(errorBuffer, errorBufferSize, "The shared subtitle stream already has a reader");
         return false;
     }
