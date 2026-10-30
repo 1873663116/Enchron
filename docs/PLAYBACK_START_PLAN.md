@@ -1,120 +1,96 @@
-# 播放起播的执行与验收方案
+# 播放车道的目标与验收
 
-本文规定「远程源起播不可用」这组缺陷的目标状态、判据与剩余工作。
+本文定义播放车道解耦的目标、验收方法与不变项。它是本次工作的唯一验收依据。任何一条判据没有证据，该条不算完成。
 
-## 一、目标状态
+## 一、当前成立的事实
 
-一个会话、一份描述、一个就绪状态机。
+以下每一条都有运行或测试证据。
 
-```
-SourceSession（唯一 AVFormatContext，纪元 E）
-  ├─ 源描述：容器事实、流表（语言按 PID 合并）、缺省选择
-  └─ 就绪状态：loading / playable / stalled / failed
-
-video attachment   audio attachment   subtitle attachment
-  按 (E, streamIndex) 绑定，只取包，不单独失败
-```
-
-四条不变量。
-
-一，可播性是联合判据。存在视频则必须有被接受的视频样本；存在音频则必须攒到预滚呈现时间。无音轨文件退化为仅视频。
-
-二，数据状态与传输意图分离。数据未就绪时界面显示加载中，不显示暂停。
-
-三，失败属于会话。单个消费者不因等待而被撤除。
-
-四，判据用呈现时间与源侧字节进展，不用某一次实测的字节常数。
-
-## 二、当前实现
-
-源纪元。解复用会话在创建源时递增纪元。视频读取器、音频读取器、字幕渲染器在打开时记录绑定的纪元，读取前核对。
-
-```
-epoch 一致  -> 继续读取
-epoch 不符  -> 抛错，报出旧值与新值
-```
-
-日志：`video.reader.bind epoch=`、`audio.reader.bind epoch=`、`video.read.staleEpoch`、`audio.read.staleEpoch`、`subtitle source epoch moved`。
-
-源描述。会话在打开后创建一次 `PlaybackSourceDescription`：纪元、容器事实、流表、可用音轨与字幕轨。打开、seek、切换都读这一份值，不重新派生。
+源信息归属。会话打开时创建一次 `PlaybackSourceDescription`：纪元、容器事实、流表、可用音轨与字幕轨。音频与字幕 provider 的轨道枚举收这个值。探测入口单独命名 `probeTracks`，播放路径不调用；测试 `aSessionDescribesItsSourceExactlyOnce` 断言探测计数为零。
 
 ```
 source.description epoch=1 streams=11 audio=4 subtitles=6
 ```
 
-描述缺失时（加载器不存在或返回空）音轨枚举走兜底路径，并记录 `source.description.fallback lane=audio|subtitle reason=`。
+时钟。视频渲染器与音频渲染器挂在同一个 `AVSampleBufferRenderSynchronizer` 上。三条车道按呈现时间戳交付，字幕按时间查询。
 
-起播闸门。会话进入 playable 的条件是联合判据成立。
+起播闸门。进入 playable 的条件是联合判据：视频样本已被接受，且描述中存在音频时音频已攒到预滚呈现时间。等待期间是 loading，不撤音轨。慢速首字节实测：限速 0.05 Mbps 起播，十五秒内三次探测都是 `loading/waiting=true`，解除后 `playable`，位置从 2 秒推进到 19 秒。
 
-```
-视频样本已被接受
-  且（描述中没有音频 或 音频已攒到预滚呈现时间）
-```
+停顿。播放期看门狗跟踪源字节与已接受视频样本，两者都停住超过阈值进入 `stalled`，任一恢复回到 `playable`。源读完后不再误判。
 
-闸门没有墙钟期限。等待期间会话保持 loading，音频轨道不被撤除。
+失败归属。音频读取失败、seek 后音频重开失败、音频渲染器失败、音频渲染器投递失败都是会话级失败：会话进入 failed，两条车道一起停。prepare 阶段音频打不开仍是能力事实：撤轨，界面显示原因。
 
-```
-源字节持续增长        -> 继续等
-字节与视频样本都停住  -> stalled，抛 sourceStalled，整场失败
-视频投递结束          -> 不再判定停顿
-```
+换音轨。在共享源上不再移动容器，不再停视频或刷新视频渲染器。实测：位置从 8.5 秒连续推进到 18.0 秒，日志中没有视频刷新记录，音频在新轨道上恢复交付。
 
-日志：`readiness.state state=playable reason=startGate`、`state=stalled reason=playbackStall`、`state=playable reason=sourceResumed`。
+界面。等待数据时播放键不变形，点击被丢弃（`primaryActionEnabled` 为假）。
 
-稳态停顿。播放期间每五百毫秒检查源字节与已接受视频样本的推进情况，两者都停住超过停顿阈值即进入 stalled，任一恢复即回到 playable。
+## 二、目标一：换音轨后音频快速恢复
 
-界面映射。产品生命周期为 loading 或会话就绪为 stalled 时，播放键位置渲染进度指示。窗口与浮动条用的是同一个播放键实现。
+行为。切换音轨后，音频在一秒内恢复出声。视频在同一时间段内连续推进，不回跳。
 
-seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定为整场失败，音频未到时音轨保留并记录 `audioRenderer.seekPrerollDeferred`。
+观测。`playbackProbe` 每两秒取一次位置；`audio.deliver` 的时间戳给出恢复时刻。恢复时刻取切换请求与下一条 `audio.deliver` 的差。
 
-切换路径。音频切换与字幕切换落在当前会话上，不重建会话、不换源。实测证据：播放中切字幕 `success`，音频投递继续；切音频后 `audio.select.opened index=2 codec=ac3`，随后 `audio.deliver track=…audio.2` 继续，位置从 61.5 秒推进到 63.0 秒，两个读取器重新绑定时 `video.reader.bind epoch=1`、`audio.reader.bind epoch=1` 与切换前同源。
+失败。静默超过一秒；位置回跳或停住；出现视频刷新记录。
 
-## 三、剩余工作
+结构。阈值过滤在包层完成：读取器在解码之前按时间戳跳过整包。过滤器不得出现在解码之后。
 
-一、源描述。`PlaybackSourceDescription` 是值类型，由会话创建一次，音频与字幕 provider 的轨道枚举直接收这个值。探测入口单独命名为 `probeTracks`，只有两处会调用：描述缺失时的兜底，以及外部字幕文件。播放路径不探测，测试 `aSessionDescribesItsSourceExactlyOnce` 断言探测计数为零。
+现状。功能已成立，静默约五秒。原因是过滤在解码之后，被丢弃的样本已经解过码。
 
-二，失败范围。音频读取失败、seek 后音频重开失败、音频渲染器失败、音频渲染器投递失败都已改为会话级失败：会话进入 failed，两条车道一起停，音轨不被撤除。prepare 阶段的音频打开失败仍是能力事实：音轨撤除，界面显示原因（例如无解码器）。音频轨道切换回滚失败仍撤轨继续，归入阶段四。
+## 三、目标二：车道执行器唯一
 
-三，回归目录的语义债。`promise:track-selection:c02` 与 `scenario:format-coverage:audio-retirement-on-failure` 断言的是旧语义（撤轨后继续），与当前实现相反；rubric 文本里还按旧测试名引用。退役它们不只是改计数：该 promise 还被 `scenario:dynamic-range-interpretation:docked-hlg-audio-integrity` 引用，`manifest` 历史评审包也按 promise id 记录，改动要走回归评审流程重新生成并评审。这条债留给回归侧，不在本次播放改动内处理。
+行为。播放器 seek 后，视频与音频都从目标时间重新交付，画面与声音都正确。
 
-四，切换路径。音频挂载的打开只有一处实现：初始打开、seek、音轨切换、切换回滚都调用 `openAudioAttachment`，它负责重开、核对源纪元并记录 `audio.attach.open reason=`。
+观测。seek 后 `audio.deliver` 与视频样本的呈现时间从目标时间开始；位置单调推进；`playbackProbe` 报告 `lifecycle=playing`。
 
-换音轨在共享源上不再移动容器，也不再停视频或刷新视频渲染器。音频读取器接受一个起始阈值，丢弃阈值之前的样本后开始交付，时间线保持运行。
+失败。seek 后任一车道无声；位置回跳；两条车道的时间戳相差超过一帧。
+
+结构。视频车道有与音频车道对称的执行器：负责重开、核对纪元、从指定时间开始交付。seek 与换音轨都调用执行器，不内联重开、取消、刷新视频读取器的语句。检查方式：这些调用只应出现在执行器内部。
+
+现状。音频执行器是 `openAudioAttachment`。视频的重开、刷新、重置仍内联在 seek 里。换音轨路径已经不再碰视频。
 
 ```
-audio.select.request index=2
-audio.read.threshold seconds=9.580
-audio.select.opened index=2 got=2 codec=ac3 sr=48000 ch=2
-position 8.500 -> 12.000 -> 15.100 -> 18.000   时间线未停
-audio.deliver track=….audio.2 buffers=841
+会话（协调者）
+  seek(T)
+    容器移动到 ≤T 的关键帧
+    视频执行器::position(T)
+    音频执行器::position(T)
+    恢复速率
+  switchAudioTrack(i)
+    音频执行器::position(T)      容器不动，视频不参与
+  switchSubtitle
+    只换查询源
 ```
 
-代价是音频回位前有一段静默：实测约五秒。原因是阈值过滤发生在解码之后，被丢弃的样本已经解过码。把过滤下移到包层（按时间戳跳过整包）可以缩短这段静默。
+两条执行器内部的差异是必须保留的：视频要求关键帧、必须重置解码器；音频两者都不要求。差异留在执行器内部，调用处只有一句。
 
-播放器 seek 仍走原来的整场编排：移动容器、两条车道重开、恢复速率。
+## 四、目标三：回归目录语义更新
 
-## 四、验收矩阵
+行为。回归目录中的承诺与场景描述当前行为：音轨数据未到达时保持加载，音轨自身出错时整场失败。
 
-结构层。`demux.open` 一次；`source.description` 每次打开一行；三个读取器各有一行绑定日志；代码中不存在按文件实测的字节常数。
+观测。`Config/regression/catalog-v2.json` 中的承诺文字、场景与 rubric 与本文第三节的行为一致；结构测试的允许清单指向存在的测试；测试产出恰好一条 `ENCHRON_ASSERTION` 结构化证据。
 
-场景层。远程冷启动不 seek 出声；seek 后音频持续投递；限速导致的停顿显示为等待并自动恢复；无音轨文件正常播放。
+结构。旧测试名引用不存在；旧语义描述不存在。
 
-否定层。音频延迟不触发撤轨；音频队列停住必须报停顿；交织较差的文件不误报；「视频在播、音频缺失」不由等待触发。
+时机。本目标在目标一与目标二完成之后执行。
 
-界面证据（模拟器截图）。起播等待期间控件隐藏，播放面中央显示旋转指示与 `0 B/s`。播放中途把环路限速压到 0.05 Mbps 后，探测报告 `lifecycle=playing`、`waiting=true`，截图里播放键位置是旋转指示而不是暂停图标；这组截图同时暴露过一个缺陷：窗口与浮动条各有一个播放键实现，先前只改了后者。
+## 五、不变项
 
-起播慢速证据（远程 ISO，把环路限速压到 0.05 Mbps 后开始播放）。起播期间连续三次探测都是 `lifecycle=loading`、`waiting=true`，持续十几秒，没有失败记录、没有撤轨。解除限速后 `readiness.state state=playable reason=startGate`，`lifecycle=playing`、`waiting=false`，位置从 2 秒推进到 19 秒，`audio.deliver` 连续增长。这组数据同时覆盖了方案要求的「首次音频数据延迟超过旧常数仍不出错」与「数据到达后进入 playable 并出声」。
+以下行为在本轮任一改动之后必须仍然成立。每次改动重跑一次，结果随改动一起报告。
 
-已有运行证据。远程 ISO 冷启动 `start.firstUnit` 两条车道与 `readiness.state state=playable reason=startGate`；限速 0.05 Mbps 时 `state=stalled reason=playbackStall` 且 `waiting=true`，解除后 `state=playable reason=sourceResumed` 且 `waiting=false`；seek 后 `audio.deliver` 持续增长且无 `seekPrerollFailed`。
+```
+起播      远程冷启动出声，且不撤音轨
+seek      任意位置跳转后两条车道都出声
+字幕      切换字幕不打断音频
+停顿      限速导致的停顿显示为等待，解除后自动恢复
+失败      音轨读取失败导致整场失败，不是静音继续
+```
 
-## 五、风险与未决
+## 六、未决
 
-一，停顿阈值取自 `transportBoundStallLimit`（120 秒），在真实远程源上未实测。
+一，停顿阈值取自 `transportBoundStallLimit`（120 秒），真实远程源上未实测。
 
-二，纪元轮换由测试钩子触发，真实的源重建与回环端口刷新路径没有端到端证据。
+二，纪元轮换由测试钩子触发；源重建与回环端口刷新的真实路径没有端到端证据。
 
-三，Emby 路径中音频包未到达的具体归属（纪元错配或队列未填充）仍未定位。
+三，Emby 路径中音频包未到达的具体归属未定位。
 
 四，字幕帧时间基与音视频时间基是否一致未验证。
-
-五，`retireAudio` 仍由音频打开失败与读取失败调用，界面以「Sound. Playing silently.」呈现；这条路径是否属于能力事实需要在阶段三一并裁定。
