@@ -5032,7 +5032,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     } == false)
 }
 
-@Test func audioReadFailureRetiresAudioButVideoStillDelivers() async throws {
+@Test func audioReadFailureFailsTheWholeSession() async throws {
     let session = SampleBufferPlaybackSession(
         traceID: "audio-read-error-session",
         provider: FakeVideoSampleProvider(
@@ -5049,21 +5049,17 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-read-error.mp4"))
     try session.start()
-    try await waitForSampleCount(1, in: session)
+    try await Task.sleep(for: .milliseconds(400))
 
     let snapshot = session.debugSnapshot()
-    #expect(snapshot.lifecycle != .failed)
-    #expect(snapshot.lastFailure?.stage == "audioProvider.readFailed.videoContinues")
+    #expect(snapshot.lifecycle == .failed)
+    #expect(snapshot.lastFailure?.stage == "audioProvider.readFailed")
     #expect(snapshot.lastFailure?.message == FakeSampleError.audioRead.localizedDescription)
-    #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
-    try await expectRetiredAudioAllowsSeek(
-        in: session,
-        check: "audio-retirement-playback",
-        expectedStage: "audioProvider.readFailed.videoContinues"
-    )
+    #expect(snapshot.lastFailure?.recoverability == "notRecoverableWithinMediaSession")
+    #expect(session.diagnostics.audioRetired == false)
 }
 
-@Test func audioSeekOpenFailureRetiresAudioButVideoStillDelivers() async throws {
+@Test func audioSeekOpenFailureFailsTheWholeSession() async throws {
     let audioSample = try makeAudioSample(durationSeconds: 5)
     let session = SampleBufferPlaybackSession(
         traceID: "audio-seek-open-error-session",
@@ -5088,12 +5084,16 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     try await waitForSampleCount(1, in: session)
     try await waitForAudioSampleCount(1, in: session)
 
-    try await expectRetiredAudioAllowsSeek(
-        in: session,
-        check: "audio-retirement-seek",
-        expectedStage: "audioProvider.seekOpenFailed.videoContinues",
-        retirementOccursDuringSeek: true
-    )
+    await #expect(throws: FakeSampleError.self) {
+        try await session.seek(
+            to: CMTime(seconds: 30, preferredTimescale: 600),
+            startsPaused: true
+        )
+    }
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lastFailure?.stage == "audioProvider.seekOpenFailed")
+    #expect(snapshot.lastFailure?.recoverability == "notRecoverableWithinMediaSession")
+    #expect(session.diagnostics.audioRetired == false)
 }
 
 @Test func missingFirstDisplayedFrameFailsWithoutGuessingTheCause() async throws {

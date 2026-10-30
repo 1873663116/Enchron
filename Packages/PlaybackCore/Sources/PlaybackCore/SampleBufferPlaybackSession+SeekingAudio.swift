@@ -155,11 +155,12 @@ extension SampleBufferPlaybackSession {
                     if error is CancellationError || Task.isCancelled {
                         throw error
                     }
-                    retireAudio(
-                        after: error,
+                    recordFailure(
+                        error,
                         node: .providerOpen,
-                        kind: "audioProvider.seekOpenFailed.videoContinues"
+                        kind: "audioProvider.seekOpenFailed"
                     )
+                    throw error
                 }
             }
         } catch {
@@ -175,7 +176,11 @@ extension SampleBufferPlaybackSession {
                 finishActiveOperation(.terminatedByCleanup)
                 throw CorePlaybackError.seekSuperseded(target)
             }
-            recordFailure(error, node: .providerOpen, kind: "control.seek.failed")
+            let alreadyFailed = debugStore.snapshot().lastFailure?.recoverability
+                == "notRecoverableWithinMediaSession"
+            if alreadyFailed == false {
+                recordFailure(error, node: .providerOpen, kind: "control.seek.failed")
+            }
             finishActiveOperation(.failed, failure: error.localizedDescription)
             onStatusChange?(.failed(error.localizedDescription))
             throw error

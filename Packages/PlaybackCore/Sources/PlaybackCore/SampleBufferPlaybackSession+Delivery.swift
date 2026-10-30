@@ -952,10 +952,16 @@ extension SampleBufferPlaybackSession {
                         )
                         return
                     }
-                    retireAudio(
-                        after: error,
+                    recordFailure(
+                        error,
                         node: .mediaEventStream,
-                        kind: "audioProvider.readFailed.videoContinues"
+                        kind: "audioProvider.readFailed"
+                    )
+                    publishFailureStatus(
+                        error,
+                        context: .sourceRead(
+                            (error as? PlaybackProviderError)?.activeFailureCause
+                        )
                     )
                     return
                 }
