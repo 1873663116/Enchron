@@ -1477,20 +1477,7 @@ public struct FusedPlayerPanel: View {
     }
 
     private var windowPlayButton: some View {
-        CircleIconButton(
-            systemName: primaryPlayIcon,
-            accessibilityLabel: primaryPlayLabel,
-            action: {
-                live?.onReachabilityAction("playPause")
-                live?.onPlayPause()
-            },
-            accessibilityIdentifier: "PlayerPanel-button-play",
-            visualSize: DesignTokens.Interactive.regular,
-            targetSize: DesignTokens.Interactive.large,
-            iconTier: .standard
-        )
-        .keyboardShortcut(.space, modifiers: [])
-        .disabled(live?.primaryActionEnabled == false)
+        playButton
     }
 
     private var rewindButton: some View {

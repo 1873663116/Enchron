@@ -63,7 +63,7 @@ source.description epoch=1 streams=11 audio=4 subtitles=6
 
 稳态停顿。播放期间每五百毫秒检查源字节与已接受视频样本的推进情况，两者都停住超过停顿阈值即进入 stalled，任一恢复即回到 playable。
 
-界面映射。产品生命周期为 loading 或会话就绪为 stalled 时，播放键位置渲染进度指示。
+界面映射。产品生命周期为 loading 或会话就绪为 stalled 时，播放键位置渲染进度指示。窗口与浮动条用的是同一个播放键实现。
 
 seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定为整场失败，音频未到时音轨保留并记录 `audioRenderer.seekPrerollDeferred`。
 
@@ -86,6 +86,8 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 场景层。远程冷启动不 seek 出声；seek 后音频持续投递；限速导致的停顿显示为等待并自动恢复；无音轨文件正常播放。
 
 否定层。音频延迟不触发撤轨；音频队列停住必须报停顿；交织较差的文件不误报；「视频在播、音频缺失」不由等待触发。
+
+界面证据（模拟器截图）。起播等待期间控件隐藏，播放面中央显示旋转指示与 `0 B/s`。播放中途把环路限速压到 0.05 Mbps 后，探测报告 `lifecycle=playing`、`waiting=true`，截图里播放键位置是旋转指示而不是暂停图标；这组截图同时暴露过一个缺陷：窗口与浮动条各有一个播放键实现，先前只改了后者。
 
 起播慢速证据（远程 ISO，把环路限速压到 0.05 Mbps 后开始播放）。起播期间连续三次探测都是 `lifecycle=loading`、`waiting=true`，持续十几秒，没有失败记录、没有撤轨。解除限速后 `readiness.state state=playable reason=startGate`，`lifecycle=playing`、`waiting=false`，位置从 2 秒推进到 19 秒，`audio.deliver` 连续增长。这组数据同时覆盖了方案要求的「首次音频数据延迟超过旧常数仍不出错」与「数据到达后进入 playable 并出声」。
 
