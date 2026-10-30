@@ -42,6 +42,7 @@ public struct PlaybackDemuxBufferDiagnostics: Sendable, Equatable {
     public let backwardBufferedBytes: Int64
     public let backwardLimitBytes: Int64
     public let reconnectAttemptCount: UInt32
+    public let subscriberCount: UInt32
     public let readFrameCount: UInt64
 }
 

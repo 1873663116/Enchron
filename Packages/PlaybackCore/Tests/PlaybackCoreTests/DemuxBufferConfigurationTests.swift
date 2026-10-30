@@ -42,6 +42,7 @@ import Testing
         backwardBufferedBytes: 0,
         backwardLimitBytes: 52_428_800,
         reconnectAttemptCount: 2,
+        subscriberCount: 1,
         readFrameCount: 99
     )
 

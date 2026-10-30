@@ -4845,6 +4845,19 @@ uint64_t PBFFmpegDemuxSourceGetReadFrameCount(
     return count;
 }
 
+uint32_t PBFFmpegDemuxSourceGetSubscriberCount(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    uint32_t count = 0;
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        if (source->queues[index].subscribers > 0) count++;
+    }
+    pthread_mutex_unlock(&source->lock);
+    return count;
+}
+
 unsigned int PBFFmpegDemuxSourceGetReconnectAttemptCount(
     PBFFmpegDemuxSource *source
 ) {

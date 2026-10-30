@@ -158,6 +158,10 @@ double PBFFmpegDemuxSourceGetBufferedDurationSeconds(
 double PBFFmpegDemuxSourceGetBufferTargetDurationSeconds(
     PBFFmpegDemuxSource *source
 );
+uint32_t PBFFmpegDemuxSourceGetSubscriberCount(
+    PBFFmpegDemuxSource *source
+);
+
 int64_t PBFFmpegDemuxSourceGetForwardBufferedByteCount(
     PBFFmpegDemuxSource *source
 );

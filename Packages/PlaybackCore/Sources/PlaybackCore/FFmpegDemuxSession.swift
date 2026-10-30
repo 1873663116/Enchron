@@ -181,6 +181,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             backwardBufferedBytes: PBFFmpegDemuxSourceGetRetainedByteCount(source),
             backwardLimitBytes: PBFFmpegDemuxSourceGetBackwardBufferByteLimit(source),
             reconnectAttemptCount: PBFFmpegDemuxSourceGetReconnectAttemptCount(source),
+            subscriberCount: PBFFmpegDemuxSourceGetSubscriberCount(source),
             readFrameCount: PBFFmpegDemuxSourceGetReadFrameCount(source)
         )
     }

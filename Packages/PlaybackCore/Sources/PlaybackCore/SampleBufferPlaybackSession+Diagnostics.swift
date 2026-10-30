@@ -113,6 +113,7 @@ extension SampleBufferPlaybackSession {
             + "demuxBackwardBytes=\(buffer.backwardBufferedBytes) "
             + "demuxBackwardLimitBytes=\(buffer.backwardLimitBytes) "
             + "demuxReconnects=\(buffer.reconnectAttemptCount) "
+            + "demuxSubscribers=\(buffer.subscriberCount) "
             + "demuxReadFrames=\(buffer.readFrameCount)"
     }
 
