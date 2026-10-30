@@ -189,6 +189,75 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(subtitleProvider.sourceInformationReceived == information)
 }
 
+@Test func aSessionDescribesItsSourceExactlyOnce() async throws {
+    let information = MediaSourceInformation(
+        containerFormat: "matroska,webm",
+        durationSeconds: 480,
+        streams: [
+            MediaSourceStreamInformation(
+                streamIndex: 0,
+                category: .video,
+                codecID: 27,
+                codecName: "h264",
+                codecTag: 0x31637661,
+                language: nil,
+                title: "Main",
+                disposition: 1,
+                video: MediaSourceVideoInformation(
+                    width: 1_920,
+                    height: 1_080,
+                    nominalFrameRate: 24,
+                    colorPrimaries: "bt709",
+                    transferFunction: "bt709",
+                    yCbCrMatrix: "bt709",
+                    colorRange: "tv",
+                    projectionKind: "rectilinear"
+                ),
+                audio: nil
+            ),
+            MediaSourceStreamInformation(
+                streamIndex: 1,
+                category: .audio,
+                codecID: 86_019,
+                codecName: "ac3",
+                codecTag: 0x2000,
+                language: "eng",
+                title: "English",
+                disposition: 1,
+                video: nil,
+                audio: MediaSourceAudioInformation(
+                    sampleRate: 48_000,
+                    channelCount: 6
+                )
+            )
+        ]
+    )
+    let loader = FixedMediaSourceInformationLoader(information)
+    let session = SampleBufferPlaybackSession(
+        traceID: "single-description-session",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        audioProvider: FakeAudioSampleProvider(),
+        subtitleProvider: MediaInformationRecordingSubtitleProvider(),
+        mediaSourceInformationLoader: loader,
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/source.mp4"),
+        startsPaused: true
+    )
+
+    let description = try #require(session.sourceDescription)
+    #expect(loader.loadCount == 1)
+    #expect(description.information == information)
+    #expect(description.audioTracks == session.availableAudioTracks)
+    #expect(description.subtitleTracks == session.availableSubtitleTracks)
+    #expect(description.mediaKind == session.mediaKind)
+}
+
 @MainActor
 @Test func everySnapshotCarriesTheFFmpegBuildItWasProducedBy() async throws {
     let controller = PlaybackCoreController(
@@ -5049,7 +5118,11 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-read-error.mp4"))
     try session.start()
-    try await Task.sleep(for: .milliseconds(400))
+    let deadline = ContinuousClock.now + .seconds(3)
+    while ContinuousClock.now < deadline,
+          session.debugSnapshot().lifecycle != .failed {
+        try await Task.sleep(for: .milliseconds(10))
+    }
 
     let snapshot = session.debugSnapshot()
     #expect(snapshot.lifecycle == .failed)

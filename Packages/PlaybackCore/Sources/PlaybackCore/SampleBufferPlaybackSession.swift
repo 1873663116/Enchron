@@ -408,6 +408,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var projectionOverride: VideoProjectionOverride?
     var dynamicRangeOverride: VideoDynamicRangeOverride?
     var hasRequestedVideoData = false
+    var sourceDescription: PlaybackSourceDescription?
     var hasAudio = false
     var audioSampleBufferCount: UInt64 = 0
     var audioFrameCount: UInt64 = 0
@@ -627,13 +628,22 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         let sourceInformation = loadedInformation?
             .fillingStreamLanguages(discStreamLanguages)
         if let sourceInformation {
-            let epoch = demuxSession?.currentEpoch().map(String.init) ?? "none"
-            let streams = sourceInformation.streams.count
-            let audio = sourceInformation.playbackAudioTracks.count
-            let subtitles = sourceInformation.playbackSubtitleTracks.count
-            logger.info(
-                "source.description epoch=\(epoch, privacy: .public) streams=\(streams, privacy: .public) audio=\(audio, privacy: .public) subtitles=\(subtitles, privacy: .public)"
+            let description = PlaybackSourceDescription(
+                epoch: demuxSession?.currentEpoch(),
+                information: sourceInformation,
+                audioTracks: sourceInformation.playbackAudioTracks,
+                subtitleTracks: sourceInformation.playbackSubtitleTracks
             )
+            sourceDescription = description
+            let epoch = description.epoch.map(String.init) ?? "none"
+            let streams = description.streamCount
+            let audioCount = description.audioTracks.count
+            let subtitleCount = description.subtitleTracks.count
+            let summary = "source.description epoch=\(epoch) streams=\(streams)"
+                + " audio=\(audioCount) subtitles=\(subtitleCount)"
+            logger.info("\(summary, privacy: .public)")
+        } else {
+            sourceDescription = nil
         }
         if let sourceInformation {
             mediaKind = sourceInformation.playbackMediaKind
@@ -645,15 +655,17 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         }
         var audioTrackFailure: Error?
         do {
-            if let sourceInformation {
+            if let description = sourceDescription {
                 availableAudioTracks = try await audioProvider.tracks(
                     in: url,
                     asset: asset,
-                    sourceInformation: sourceInformation
+                    sourceInformation: description.information
                 )
             } else if mediaSourceInformationLoader != nil {
+                logger.info("source.description.fallback lane=audio reason=loaderReturnedNothing")
                 availableAudioTracks = []
             } else {
+                logger.info("source.description.fallback lane=audio reason=noLoader")
                 availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
             }
         } catch {
@@ -665,13 +677,14 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var subtitleTracks: [PlaybackSubtitleTrack] = []
         var subtitleTrackFailure: Error?
         do {
-            if let sourceInformation {
+            if let description = sourceDescription {
                 subtitleTracks = try await subtitleProvider.tracks(
                     in: url,
                     asset: asset,
-                    sourceInformation: sourceInformation
+                    sourceInformation: description.information
                 )
             } else if mediaSourceInformationLoader == nil {
+                logger.info("source.description.fallback lane=subtitle reason=noLoader")
                 subtitleTracks = try await subtitleProvider.tracks(in: url, asset: asset)
             }
         } catch {

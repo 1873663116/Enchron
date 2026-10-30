@@ -36,11 +36,13 @@ epoch 不符  -> 抛错，报出旧值与新值
 
 日志：`video.reader.bind epoch=`、`audio.reader.bind epoch=`、`video.read.staleEpoch`、`audio.read.staleEpoch`、`subtitle source epoch moved`。
 
-源描述。会话在打开后记录一次描述事实。
+源描述。会话在打开后创建一次 `PlaybackSourceDescription`：纪元、容器事实、流表、可用音轨与字幕轨。打开、seek、切换都读这一份值，不重新派生。
 
 ```
-source.description epoch= streams= audio= subtitles=
+source.description epoch=1 streams=11 audio=4 subtitles=6
 ```
+
+描述缺失时（加载器不存在或返回空）音轨枚举走兜底路径，并记录 `source.description.fallback lane=audio|subtitle reason=`。
 
 起播闸门。会话进入 playable 的条件是联合判据成立。
 
@@ -69,7 +71,7 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 
 ## 三、剩余工作
 
-一，源描述仍是记录而非值类型。音频与字幕的 `tracks(...)` 仍保留各自的加载器，播放路径靠调用方传入描述来绕过它们。外部字幕文件是独立源，必须自己探测；播放路径与外部路径尚未在类型上分开。
+一，源描述。`PlaybackSourceDescription` 已是值类型并由会话创建一次；音频与字幕 provider 仍以 `MediaSourceInformation` 为入参，尚未改收描述本身。外部字幕文件是独立源，必须自己探测；播放路径与外部路径尚未在类型上分开。
 
 二，失败范围。音频读取失败、seek 后音频重开失败、音频渲染器失败、音频渲染器投递失败都已改为会话级失败：会话进入 failed，两条车道一起停，音轨不被撤除。prepare 阶段的音频打开失败仍是能力事实：音轨撤除，界面显示原因（例如无解码器）。音频轨道切换回滚失败仍撤轨继续，归入阶段四。
 
