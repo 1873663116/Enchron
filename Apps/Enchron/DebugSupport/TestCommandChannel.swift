@@ -1733,6 +1733,15 @@ final class TestCommandChannel {
                 "testcmd playMedia name=\(name) started=\(started)",
                 retention: .evidence
             )
+            if !started, let issue = playbackRuntime.userVisibleIssue {
+                let refusedAs = String(describing: issue)
+                return Response(
+                    id: request.id,
+                    ok: true,
+                    detail: "the item was refused and the app showed: \(refusedAs)",
+                    payload: [name, refusedAs]
+                )
+            }
             return Response(
                 id: request.id,
                 ok: started,
