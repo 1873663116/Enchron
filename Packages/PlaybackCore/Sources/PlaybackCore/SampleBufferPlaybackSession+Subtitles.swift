@@ -408,6 +408,23 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    func recordVideoCoverageClock(at time: CMTime) {
+        let clockSecond = Int(time.seconds.isFinite ? time.seconds : 0)
+        if clockSecond != (lastReportedVideoClockSecond ?? -1) {
+            lastReportedVideoClockSecond = clockSecond
+            let seconds = time.seconds
+            let covering = recentVideoFrameIntervals.last { $0.start <= seconds }
+            let coveringLabel = covering.map {
+                String(format: "%.3f-%.3f", $0.start, $0.end)
+            } ?? "none"
+            let clockLabel = String(format: "%.3f", seconds)
+            let verdict = covering.map { seconds < $0.end ? "covered" : "past" } ?? "none"
+            logger.info(
+                "video.clock clock=\(clockLabel, privacy: .public) covering=\(coveringLabel, privacy: .public) verdict=\(verdict, privacy: .public)"
+            )
+        }
+    }
+
     func recordAudioOutputClock(at time: CMTime) {
         let clockSecond = Int(time.seconds.isFinite ? time.seconds : 0)
         if clockSecond != (lastReportedAudioClockSecond ?? -1) {

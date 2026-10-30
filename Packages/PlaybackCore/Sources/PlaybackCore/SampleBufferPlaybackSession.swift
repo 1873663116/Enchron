@@ -438,9 +438,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let externalSubtitlePreparationDeadline: Duration
     var lastReportedEmptySubtitleSecond: Int?
     var lastVideoPresentationSeconds: Double?
+    var recentVideoFrameIntervals: [(start: Double, end: Double)] = []
     var lastReportedSubtitleClockSecond: Int?
     var lastAudioPresentationSeconds: Double?
     var lastReportedAudioClockSecond: Int?
+    var lastReportedVideoClockSecond: Int?
     var lastReportedProducedSubtitleSecond: Int?
     var startStallLimit: Duration = PlaybackBufferingPolicy.transportBoundStallLimit
     let sourceProgressLock = NSLock()

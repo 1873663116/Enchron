@@ -361,6 +361,15 @@ extension SampleBufferPlaybackSession {
                         let sampleSeconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
                         if sampleSeconds.isFinite {
                             lastVideoPresentationSeconds = sampleSeconds
+                            let duration = CMSampleBufferGetDuration(sample).seconds
+                            let frameEnd = sampleSeconds
+                                + (duration.isFinite && duration > 0 ? duration : 1.0 / 24.0)
+                            recentVideoFrameIntervals.append((sampleSeconds, frameEnd))
+                            if recentVideoFrameIntervals.count > 240 {
+                                recentVideoFrameIntervals.removeFirst(
+                                    recentVideoFrameIntervals.count - 240
+                                )
+                            }
                         }
                         setPendingVideoSample(sample)
                     case .formatChanged:
