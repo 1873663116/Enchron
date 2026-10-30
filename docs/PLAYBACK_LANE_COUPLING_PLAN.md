@@ -56,11 +56,9 @@
 
 `selected(L)` 车道已被用户选中。
 
-车道类型。视频与音频是调度式车道：单元按呈现时间排队，由时钟依次送出。字幕是查询式车道：不存在送出队列，按当前播放位置查询字典，取覆盖该位置的单元绘制。字幕读取器的作用是补全字典，不是送出画面。
+车道类型。视频与音频是调度式车道：单元按呈现时间排队，由时钟依次送出。字幕是查询式车道：不存在送出队列。
 
 `playing` 会话状态。呈现继续推进的状态。
-
-不使用容差，不使用时间阈值。
 
 ## 五、目标一：交付的单元属于当前区间
 
@@ -108,7 +106,7 @@
 
 结构。查询时钟与呈现时钟同源。字幕绘制在视频帧边界上取样，不按独立节拍取样。
 
-说明。字幕是查询式车道，不参与排队与调度。对齐由查询时钟保证：查询位置等于呈现位置时，覆盖该位置的单元即为应当显示的内容。本目标因此不比较三条车道的呈现区间，只比较查询位置与呈现位置。
+说明。查询位置等于呈现位置时，覆盖该位置的单元即为应当显示的内容。本目标因此不比较三条车道的呈现区间，只比较查询位置与呈现位置。
 
 现状。未实现，未测量。现有日志只记录查询位置，不记录当帧视频区间，因此本目标当前无法判定。补测是执行目标四的第一步。
 
@@ -142,8 +140,89 @@
 
 三，加载态的进入与退出目前由就绪门决定，不含时间阈值。是否需要时间阈值以处理读取线程卡死，未定。读取线程卡死属于源的问题，由看门狗处理。
 
-## 十一、验证入口
+## 十一、验证策略
 
-模型检查。`Scripts/playback/formal/run.sh`。检查接管协议中「车道从播放位置开始」这一性质。当前结果为：设计方案成立，现行代码可复现过期交付。
+### 11.1 源矩阵
 
-实机路径。模拟器 UDID `7619BD56-B81A-44E1-B3DC-912FB3019E7E`，通过应用命令通道执行 `selectAudioTrack`、`selectSubtitleTrack`、`seekNormalized`、`playbackProbe`，再用 `log show` 读取 `audio.attach.open`、`subtitle.lane.attached`、`readiness.state` 日志。
+每种源各跑一遍。同一部片子在各源上使用同一个文件，以便比较。源不可用时记录为不可用，不用其他源顶替。
+
+| 源 | 接入方式 | 地址 |
+| --- | --- | --- |
+| 本地 | 应用内本地媒体目录 | `TestMedia/Samples`，已链接至应用容器 `Documents/LocalMedia` |
+| WebDAV | 回归用 dav 目录 | `https://Mac-mini.local:8443/dav/regression/` |
+| SMB | 共享 | `smb://Mac-mini.local` |
+| Emby | 媒体服务器 | `http://Mac-mini.local:8096` |
+| Plex | 媒体服务器 | 由 `Modules/MediaServer/PlexClient.swift` 接入，地址取自应用内已配置源 |
+| Jellyfin | 媒体服务器 | 由 `Modules/MediaServer/MediaBrowserClient.swift` 以 `dialect == .jellyfin` 接入，地址取自应用内已配置源 |
+
+### 11.2 媒体选择
+
+选择依据是实测字幕密度，不是片名。
+
+一，对候选文件取字幕流，按一分钟窗口统计每个窗口内的字幕单元数量。
+
+二，取单元数最多的窗口，记为 `W`。
+
+三，在 `W` 起点播放，观察一分钟。
+
+四，同一部片子在所有源上使用同一个 `W`。
+
+候选文件必须同时满足：含至少一条内嵌字幕轨、含至少两条音轨、时长大于 `W` 终点加一分钟。
+
+### 11.3 执行步骤
+
+每个源、每种检查各执行一次。步骤如下，全部通过应用命令通道执行，命令见 11.5。
+
+一，打开源，播放标题。
+
+二，选中第一条字幕轨。记录 `subtitle.lane.attached`。
+
+三，跳转到 `W` 起点。记录跳转后的 `subtitle.lane.attached` 与 `subtitle.frame.idle`。
+
+四，连续播放一分钟。采样子幕查询与交付日志。
+
+五，切换音轨一次，观察十秒。记录 `audio.attach.open`、`audio.select.opened`、`readiness.state`。
+
+六，切换字幕轨一次，观察十秒。记录 `subtitle.lane.attached`。
+
+七，再次跳转，重复步骤四至六。
+
+### 11.4 判据与证据
+
+| 性质 | 证据 | 失败条件 |
+| --- | --- | --- |
+| 挂载位置等于播放位置 | `audio.attach.open` 的 `headBefore` 与同一行播放位置；`subtitle.lane.attached` 的 `at` 与接管时的播放位置 | 交付单元 `start(u) < A(L)` |
+| 字幕查询覆盖 | `subtitle.frame.idle` 的 `covered` 与查询位置 | 查询位置在 `covered` 区间内而返回空 |
+| 查询与就绪 | `readiness.state` 迁移与 `covered` | 查询位置在 `covered` 区间外且状态为 `playing` |
+| 切换 | `audio.select.opened`、`readiness.state` | `playing` 期间零条或两条音轨车道交付覆盖 `P` 的单元 |
+| 单一时钟 | 查询位置与当帧视频单元区间 | 查询位置落在当帧区间之外 |
+
+### 11.5 执行入口
+
+端到端单位。`console run <unit>`，每个单位一条命令，证据落盘。与字幕相关的既有单位：
+
+```
+Config/console/units/catalog-scenario-local-media-lifecycle-subtitle-switch-and-off.md
+Config/console/units/catalog-scenario-presentation-tour-track-selection-survives-seek-and-presentation.md
+Config/console/units/catalog-scenario-presentation-tour-track-selection-survives-seek-and-presentation-part2.md
+```
+
+设备命令通道动词：`openSourceFile`、`playDiscTitle`、`selectSubtitleTrack`、`selectAudioTrack`、`seekNormalized`、`playbackProbe`、`answerResumePrompt`。
+
+日志读取：
+
+```
+xcrun simctl spawn <UDID> log show --info --last <窗口>   --predicate 'subsystem == "com.xiongzhipeng.PlaybackCore"' --style compact
+```
+
+### 11.6 证据记录
+
+每个源、每个步骤保存三样：命令与响应原文、`log show` 原文、判据计算表。判据计算表列出每条证据的字段值与成立与否。三项齐全才算该源通过或失败；缺一项记为未执行。
+
+### 11.7 当前缺口
+
+一，`subtitle.frame.idle` 未记录当帧视频单元区间，判据「单一时钟」当前无法判定。补该字段是执行本策略的前置改动。
+
+二，磁盘镜像测试只用过一部影片。按 11.2 选择后，至少再补一部字幕密度不同的影片。
+
+三，Plex 与 Jellyfin 的实际可用性未验证。接入代码存在，服务器是否在线未确认。
