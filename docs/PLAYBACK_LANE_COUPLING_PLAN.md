@@ -229,7 +229,18 @@ current code: stale delivery reproduced, as the code stands
 
 裁剪改动因此没有可测收益，已回退（提交 `da7f607f`）。
 
-形式化检查仍报 `finding open: attach does not trim packets older than the playhead`。原因：模型把「接管」映射到 `PBFFmpegDemuxSourceTakeOverStream`，该函数无调用者；模型对代码的映射与本条结论均需修正后才能作为判据。
+形式化检查仍报 `finding open: attach does not trim packets older than the playhead`。该判定对应字幕车道的接管路径，不是音频路径：
+
+```
+音频、视频接管   subscribe_to_demux_stream
+                 非订阅流的队列为空（实测 queuedBefore=0），接管时无旧包
+字幕接管         PBFFmpegDemuxSourceTakeOverStream（由 SubtitleFrameRenderer 调用）
+                 保留队列，因字幕按时间区间查询，旧包不进入输出
+```
+
+因此模型的反例（预缓冲旧包被车道播出）在音频路径上不成立，在字幕路径上也不产生可见结果。对照实验的结论与此一致：开启或关闭裁剪，首个输出无差异。
+
+模型的判据价值限于「接管时队列不清空」这一结构事实，不能直接推出用户可见的静音。
 
 ### 测量方法
 
