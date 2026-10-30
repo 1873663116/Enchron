@@ -82,30 +82,27 @@
 
 说明。判定只看单元自身的区间与挂载位置，不看队列中其他单元，因此对音频、字幕、视频使用同一形式。跨越挂载位置的单元属于当前内容，必须交付；`start(u) ≥ A(L)` 会把这类单元误判为过期。
 
-结构已实施。两个挂载入口都在交出流之前丢弃 `end(u) ≤ A(L)` 的单元：
+结构未实施。裁剪版实现过两次，两次都因实测失败而回退。
+
+第一次按 `start(u) < A(L)` 裁剪。跳转用例立即失败，因为跨越挂载位置的字幕单元被删除：
 
 ```
-subscribe_to_demux_stream(source, streamIndex, minimumTimestampMicroseconds)
-    音频与视频读取器传入各自的起始时间
-
-PBFFmpegDemuxSourceTakeOverStream(source, streamIndex, minimumTimestampMicroseconds)
-    字幕帧渲染器传入它被创建时对应的位置
+Test subtitleLaneCoversTheSeekTargetAfterASeek  Expectation failed: texts.isEmpty == false
 ```
 
-裁剪条件是 `start(u) + duration(u) ≤ A(L)`，因此跨越挂载位置的单元保留。首版按 `start(u) < A(L)` 裁剪，跳转用例 `subtitleLaneCoversTheSeekTargetAfterASeek` 立即失败（`texts.isEmpty == false`），因为覆盖挂载位置的字幕单元被误删。
-
-形式化检查（`Scripts/playback/formal/run.sh`）：
+第二次按 `end(u) ≤ A(L)` 裁剪，与本节条文一致，单元测试通过（77 项），形式化检查的两个配置都成立。但应用内三音轨切换实测暴露音频冻结：
 
 ```
-guard present: take-over drops units that end before the attach position
-guard present: subscribe drops units that end before the reader's start
-== design: a lane trims its queue at attach ==
-design: all invariants hold
-== current code: attach trims units that end before the attach position ==
-current code: no stale delivery found (the defect is fixed)
+裁剪版    第三次切换后 audio.out 停在 pts=626.347，时钟继续到 659
+          即音频落后 33 秒且不再前进
+
+回退版    同一序列 audio.out 为 pts=629.931 → 630.955 → 631.979
+          时钟 624 → 626，按一倍速推进
 ```
 
-单元测试：字幕、HTTP 范围、晚起始共 77 项通过。
+原因未查明。观测指向：被裁剪的流保留队列很大（`queuedBefore=1196`，最早 62 秒），裁剪后该车道不再产出新样帧。
+
+因此本节的结构要求与当前实现不一致，且已实测到裁剪会破坏音频连续性。在本节条文与实现之间确认取舍之前，代码保持不裁剪。
 
 ## 六、目标二：查询与就绪
 
