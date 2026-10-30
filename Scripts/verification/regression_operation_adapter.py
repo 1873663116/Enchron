@@ -2675,16 +2675,16 @@ STRUCTURAL_CHECKS = MappingProxyType(
             "audioOpenFailureRetiresAudioButVideoStillDelivers"
         ),
         "audio-retirement-prewarm": _playback_core_test(
-            "audioPrerollFailureRetiresAudioButVideoStillDelivers"
+            "audioThatNeverPrerollsKeepsTheSessionLoadingWithoutRetiringAudio"
         ),
         "audio-retirement-playback": _playback_core_test(
-            "audioReadFailureRetiresAudioButVideoStillDelivers"
+            "audioReadFailureFailsTheWholeSession"
         ),
         "audio-retirement-seek": _playback_core_test(
-            "audioSeekOpenFailureRetiresAudioButVideoStillDelivers"
+            "audioSeekOpenFailureFailsTheWholeSession"
         ),
         "audio-retirement-renderer": _playback_core_test(
-            "audioRendererFailureRetiresAudioAndVideoContinues"
+            "audioRendererFailureFailsTheWholeSession"
         ),
         "regression-core": (
             "python3",
