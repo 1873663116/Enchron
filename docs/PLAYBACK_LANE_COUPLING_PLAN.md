@@ -476,7 +476,25 @@ static int matroska_parse_cluster(MatroskaDemuxContext *matroska)
 
 修复方向：远程重连不依赖字节级跳转。关闭并重新打开输入上下文，再按时间戳调用解复用器自身的跳转接口，使解析状态从头建立。
 
-验证方式：修复后重复播放同一远程文件四分钟以上，确认 `demuxReconnects` 增长时进程不退出，且位置连续。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
+已验证的第二种表现（同一文件，本轮）：
+
+```
+video.reader.bind epoch=1 start=0.000
+attach.firstUnit lane=video epoch=2 pts=0.000 raw=same
+session.heartbeat time=4.000 rendererStatus=readyWithDecodeFailures
+                           rendererError=The operation could not be completed
+                           demuxReconnects=0 demuxReadFrames=41178
+session.videoDelivery.stop by=failIfFirstVideoFrameIsStillMissing()
+session.close.begin displayed=false
+```
+
+解复用侧正常：首个视频单元在 0.000，读取帧数持续增长，无重连。失败在渲染侧：样本已交付但解码失败，首帧从未显示，会话在四秒处结束。
+
+因此该文件有两种表现，成因不同：一为远程重连后解析器断言的进程中止，二为视频解码失败导致会话终止。第二种先于第一种发生，四秒内即终止，使第一种无法靠长跑复现。
+
+已实施但未验证的改动：远程重连的跳转目标改为预约时间戳之前十秒，目的是避开簇中间落点。该改动无法在第二种表现存在时验证。
+
+验证方式：先解决解码失败，使远程文件能连续播放四分钟以上，再确认 `demuxReconnects` 增长时进程不退出且位置连续。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
 ## 十二、验证策略
 
