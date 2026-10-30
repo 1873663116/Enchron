@@ -524,12 +524,23 @@ session.close.begin displayed=false
 
 未解释：为何四秒失败、为何曾有一次成功。失败时 `rendererStatus=readyWithDecodeFailures`、`rendererError=The operation could not be completed`、首帧从未显示。
 
-分离两个变量的方法：
+分离实验已执行，结论为编码因素。
+
+同一服务器上三个 Hi10P 片源，各自重新启动应用后播放：
 
 ```
-一  同一服务器上另取一个 Hi10P 片源，若同样失败，编码因素成立
-二  用 WebDAV 直接服务该文件的本地缓存副本，若成功，挂载因素成立
+Ghost in the Shell          t+10s position=5.000 lifecycle=failed
+Ghost in the Shell 2.0      t+10s position=5.000 lifecycle=failed
+Ghost in the Shell 2: Innocence  t+10s position=4.000 lifecycle=failed
 ```
+
+三个文件均在四至五秒处失败，与文件名无关。
+
+对照：`Alien: Covenant`（HEVC Main 10，3840x2160）连续播放四十秒以上，`rendererStatus=ready`。
+
+服务器片源统计（60 部）：`hevc Main 10` 占多数并可播放；`h264 High 10` 共四部，已测三部全部失败。
+
+结论：H.264 High 10（Hi10P）在当前解码路径上不可播放。云盘挂载不成立为成因，因为同源同挂载下的 HEVC 片源可播放。
 
 本地语料没有 H.264 10 位片源（两部 mkv 均为 HEVC Main 10），因此本地档无法分离这两个变量。
 
