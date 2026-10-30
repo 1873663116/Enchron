@@ -77,7 +77,8 @@ private func fixtureMediaURL() throws -> URL {
     let renderer = try FFmpegSubtitleFrameRenderer(
         demuxSession: session,
         source: source,
-        track: track
+        track: track,
+        startSeconds: 0
     )
     session.rotateEpochForTesting()
     #expect(throws: SubtitleProviderError.self) {

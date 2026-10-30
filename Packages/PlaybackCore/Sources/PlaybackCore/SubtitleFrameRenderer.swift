@@ -101,13 +101,15 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
     init(
         demuxSession: FFmpegDemuxSession,
         source: String,
-        track: PlaybackSubtitleTrack
+        track: PlaybackSubtitleTrack,
+        startSeconds: Double
     ) throws {
         var error = [CChar](repeating: 0, count: 512)
         let renderer = try demuxSession.withSource(argument: source) {
             PBSubtitleFrameRendererCreateWithDemuxSource(
                 $0,
                 Int32(track.streamIndex),
+                startSeconds,
                 &error,
                 error.count
             )
@@ -118,7 +120,7 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         self.renderer = renderer
         self.demuxSession = demuxSession
         let start = PBSubtitleFrameRendererGetStartSeconds(renderer)
-        logger.info("subtitle.renderer.open shared start=\(String(format: "%.3f", start))")
+        logger.info("subtitle.renderer.open shared start=\(String(format: "%.3f", start)) at=\(String(format: "%.3f", startSeconds))")
         self.boundEpoch = demuxSession.currentEpoch()
     }
 
@@ -152,10 +154,6 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
                     throw SubtitleProviderError.read("Subtitle frame data is unavailable")
                 }
                 let bytes = data.takeRetainedValue() as Data
-                let rangeSummary = "subtitle.frame.produced at="
-                    + String(format: "%.3f", time.seconds)
-                    + " range=" + String(format: "%.3f-%.3f", info.startSeconds, info.endSeconds)
-                logger.info("\(rangeSummary, privacy: .public)")
                 return PlaybackSubtitleFrame(
                     kind: info.kind == PBSubtitleFrameKindBitmap ? .bitmap : .libass,
                     canvasWidth: Int(info.canvasWidth),
@@ -190,8 +188,11 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         func seconds(_ value: Double) -> String {
             value.isFinite ? String(format: "%.3f", value) : "none"
         }
-        return "ingested=\(state.ingestedPacketCount)"
+        let queueState = state.queueHasPackets == 0 ? "empty" : "full"
+        let base = "ingested=\(state.ingestedPacketCount)"
             + " polls=\(state.ingestPollCount)"
+        let queue = base + " queue=\(queueState)/\(state.queueSubscribers)"
+        return queue
             + " dropped=\(state.droppedPacketCount)"
             + " held=\(state.heldPacketCount)"
             + " decoded=\(state.decodedPacketCount)"

@@ -110,10 +110,31 @@ protocol SubtitleProvider: AnyObject {
         asset: PlaybackAsset?,
         track: PlaybackSubtitleTrack
     ) async throws -> SubtitleFrameRendering?
+    func discardFrameRenderer(trackID: String)
     func cancel()
 }
 
 extension SubtitleProvider {
+    func cues(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack,
+        startSeconds: Double
+    ) async throws -> [PlaybackSubtitleCue] {
+        try await cues(in: url, asset: asset, track: track)
+    }
+
+    func frameRenderer(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack,
+        startSeconds: Double
+    ) async throws -> SubtitleFrameRendering? {
+        try await frameRenderer(in: url, asset: asset, track: track)
+    }
+
+    func discardFrameRenderer(trackID: String) {}
+
     func prepareExternalSource(
         _ source: PlaybackExternalSubtitleSource
     ) async throws -> PreparedExternalSubtitleSource {
@@ -125,8 +146,18 @@ extension SubtitleProvider {
         for track in tracks {
             try Task.checkCancellation()
             let externalTrack = track.externalTrack(in: source)
-            let cues = try await cues(in: source.url, asset: nil, track: externalTrack)
-            let renderer = try await frameRenderer(in: source.url, asset: nil, track: externalTrack)
+            let cues = try await cues(
+                in: source.url,
+                asset: nil,
+                track: externalTrack,
+                startSeconds: 0
+            )
+            let renderer = try await frameRenderer(
+                in: source.url,
+                asset: nil,
+                track: externalTrack,
+                startSeconds: 0
+            )
             prepared.append(PreparedSubtitleTrack(track: externalTrack, cues: cues, renderer: renderer))
         }
         try Task.checkCancellation()
@@ -247,13 +278,23 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         asset: PlaybackAsset?,
         track: PlaybackSubtitleTrack
     ) async throws -> [PlaybackSubtitleCue] {
+        try await cues(in: url, asset: asset, track: track, startSeconds: 0)
+    }
+
+    func cues(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack,
+        startSeconds: Double
+    ) async throws -> [PlaybackSubtitleCue] {
         let source = FFmpegSourceLocator.argument(for: url)
         if let demuxSession, demuxSession.isOpen(for: source) {
             let existing = rendererLock.withLock { sharedRenderers[track.id] }
             let renderer = try existing ?? FFmpegSubtitleFrameRenderer(
                 demuxSession: demuxSession,
                 source: source,
-                track: track
+                track: track,
+                startSeconds: startSeconds
             )
             rendererLock.withLock {
                 sharedRenderers[track.id] = renderer
@@ -340,6 +381,10 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         }
     }
 
+    func discardFrameRenderer(trackID: String) {
+        rendererLock.withLock { sharedRenderers[trackID] = nil }
+    }
+
     func cancel() {
         rendererLock.withLock { sharedRenderers.removeAll() }
     }
@@ -349,10 +394,31 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         asset: PlaybackAsset?,
         track: PlaybackSubtitleTrack
     ) async throws -> SubtitleFrameRendering? {
+        try await frameRenderer(in: url, asset: asset, track: track, startSeconds: 0)
+    }
+
+    func frameRenderer(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack,
+        startSeconds: Double
+    ) async throws -> SubtitleFrameRendering? {
         let source = FFmpegSourceLocator.argument(for: url)
         let renderer: FFmpegSubtitleFrameRenderer?
         if let demuxSession, demuxSession.isOpen(for: source) {
-            renderer = rendererLock.withLock { sharedRenderers[track.id] }
+            let existing = rendererLock.withLock { sharedRenderers[track.id] }
+            if let existing {
+                renderer = existing
+            } else {
+                let created = try FFmpegSubtitleFrameRenderer(
+                    demuxSession: demuxSession,
+                    source: source,
+                    track: track,
+                    startSeconds: startSeconds
+                )
+                rendererLock.withLock { sharedRenderers[track.id] = created }
+                renderer = created
+            }
         } else {
             let cancellation = FFmpegReadCancellation()
             renderer = try await withTaskCancellationHandler {

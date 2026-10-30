@@ -254,15 +254,18 @@ extension SampleBufferPlaybackSession {
                 cues = ready.cues
                 frameRenderer = ready.renderer
             } else {
+                let subtitleStartSeconds = synchronizer.currentTime().seconds
                 cues = try await subtitleProvider.cues(
                     in: selection.1,
                     asset: sourceAsset,
-                    track: selection.0
+                    track: selection.0,
+                    startSeconds: subtitleStartSeconds
                 )
                 frameRenderer = try await subtitleProvider.frameRenderer(
                     in: selection.1,
                     asset: sourceAsset,
-                    track: selection.0
+                    track: selection.0,
+                    startSeconds: subtitleStartSeconds
                 )
             }
             try Task.checkCancellation()
@@ -343,13 +346,64 @@ extension SampleBufferPlaybackSession {
     }
 
     func completeSubtitleTimelineDiscontinuity(epoch: UInt64) {
-        subtitleStateLock.withLock {
+        let rebuilt = subtitleStateLock.withLock {
             guard !subtitleState.isClosed,
-                  subtitleState.streamEpoch == epoch else { return }
+                  subtitleState.streamEpoch == epoch else { return false }
             subtitleState.suppressesActiveCues = false
+            guard subtitleState.selectedTrackID != nil else { return false }
+            subtitleState.cues = []
+            subtitleState.activeFrame = nil
+            return true
+        }
+        if rebuilt {
+            refreshSubtitleLane(at: synchronizer.currentTime())
         }
         recordSubtitleState(at: synchronizer.currentTime())
         publishSubtitleCues(at: synchronizer.currentTime())
+    }
+
+    private func refreshSubtitleLane(at time: CMTime) {
+        let pending: (String, URL, PlaybackSubtitleTrack)? = subtitleStateLock.withLock {
+            guard let trackID = subtitleState.selectedTrackID,
+                  let track = subtitleState.availableTracks.first(where: { $0.id == trackID }),
+                  let url = subtitleState.sourceURLByTrackID[track.id] ?? sourceURL else {
+                return nil
+            }
+            return (trackID, url, track)
+        }
+        guard let pending else { return }
+        let seconds = time.seconds
+        Task { [self] in
+            subtitleProvider.discardFrameRenderer(trackID: pending.0)
+            let renderer = try? await subtitleProvider.frameRenderer(
+                in: pending.1,
+                asset: sourceAsset,
+                track: pending.2,
+                startSeconds: seconds
+            )
+            let cues = (try? await subtitleProvider.cues(
+                in: pending.1,
+                asset: sourceAsset,
+                track: pending.2,
+                startSeconds: seconds
+            )) ?? []
+            let installed = subtitleStateLock.withLock {
+                guard !subtitleState.isClosed,
+                      subtitleState.selectedTrackID == pending.0 else { return false }
+                subtitleState.frameRenderer = renderer
+                subtitleState.cues = cues.sorted {
+                    CMTimeCompare($0.timeRange.start, $1.timeRange.start) < 0
+                }
+                subtitleState.activeFrame = nil
+                return true
+            }
+            guard installed else { return }
+            let summary = "subtitle.lane.attached track=\(pending.0)"
+                + " at=\(String(format: "%.3f", seconds))"
+                + " cues=\(cues.count) renderer=\(renderer != nil)"
+            logger.info("\(summary, privacy: .public)")
+            publishSubtitleCues(at: synchronizer.currentTime())
+        }
     }
 
     func recordSubtitleState(at time: CMTime) {

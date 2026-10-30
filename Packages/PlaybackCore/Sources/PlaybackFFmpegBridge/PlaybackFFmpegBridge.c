@@ -77,6 +77,7 @@ typedef struct {
     int64_t bufferedByteCount;
     bool isAuxiliary;
     uint64_t droppedPacketCount;
+    uint64_t ownerToken;
 } PBFFmpegPacketQueue;
 
 struct PBFFmpegDemuxSource {
@@ -113,6 +114,7 @@ struct PBFFmpegDemuxSource {
     int64_t *historyByteCounts;
     unsigned int reconnectAttemptCount;
     uint64_t readFrameCount;
+    uint64_t nextSubscriptionToken;
 };
 
 static const int64_t PB_DEMUX_DEFAULT_FORWARD_BYTE_LIMIT = 150LL * 1024 * 1024;
@@ -1225,6 +1227,18 @@ static bool begin_demux_source_prefetch(PBFFmpegDemuxSource *source) {
     return started;
 }
 
+static void release_stream_locked(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue
+) {
+    if (queue->bufferedByteCount > 0) {
+        source->retainedByteCount += queue->bufferedByteCount;
+        trim_retained_packet_queue(source, queue);
+    }
+    queue->subscribers = 0;
+    queue->ownerToken = 0;
+}
+
 static void unsubscribe_from_demux_stream(
     PBFFmpegDemuxSource *source,
     int streamIndex
@@ -1232,14 +1246,85 @@ static void unsubscribe_from_demux_stream(
     if (!source || streamIndex < 0 ||
         (unsigned int)streamIndex >= source->queueCount) return;
     pthread_mutex_lock(&source->lock);
-    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
-    if (queue->bufferedByteCount > 0) {
-        source->retainedByteCount += queue->bufferedByteCount;
-        trim_retained_packet_queue(source, queue);
-    }
-    queue->subscribers = 0;
+    release_stream_locked(source, &source->queues[streamIndex]);
     pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
+}
+
+uint64_t PBFFmpegDemuxSourceTakeOverStream(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return 0;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    clear_packet_queue(source, queue);
+    source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
+    source->replayThroughTimestamps[streamIndex] = AV_NOPTS_VALUE;
+    source->replayCaughtUp[streamIndex] = true;
+    source->nextSubscriptionToken += 1;
+    uint64_t token = source->nextSubscriptionToken;
+    queue->ownerToken = token;
+    queue->subscribers = 1;
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+    return token;
+}
+
+void PBFFmpegDemuxSourceReleaseStream(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    uint64_t token
+) {
+    if (!source || token == 0 || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    if (queue->ownerToken == token) {
+        release_stream_locked(source, queue);
+        pthread_cond_broadcast(&source->changed);
+    }
+    pthread_mutex_unlock(&source->lock);
+}
+
+void PBFFmpegDemuxSourceGetQueueState(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    int *hasPackets,
+    int *subscribers,
+    long long *bufferedBytes,
+    unsigned long long *droppedPackets
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    if (hasPackets) *hasPackets = queue->head != NULL ? 1 : 0;
+    if (subscribers) *subscribers = (int)queue->subscribers;
+    if (bufferedBytes) *bufferedBytes = (long long)queue->bufferedByteCount;
+    if (droppedPackets) *droppedPackets = queue->droppedPacketCount;
+    pthread_mutex_unlock(&source->lock);
+}
+
+bool PBFFmpegDemuxSourceReplayHistoryFrom(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    double seconds
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount ||
+        !isfinite(seconds) || seconds < 0) return false;
+    int64_t threshold = (int64_t)llround(seconds * (double)AV_TIME_BASE);
+    pthread_mutex_lock(&source->lock);
+    bool replayed = replay_stream_history_locked(
+        source,
+        (unsigned int)streamIndex,
+        threshold
+    );
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+    return replayed;
 }
 
 static void dequeue_demux_packet_locked(

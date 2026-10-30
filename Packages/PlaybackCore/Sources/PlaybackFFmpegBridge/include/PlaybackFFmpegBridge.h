@@ -277,8 +277,6 @@ typedef struct PBSubtitleFrameInfo {
     int contentHeight;
     int bytesPerRow;
     uint64_t changeIdentifier;
-    double startSeconds;
-    double endSeconds;
 } PBSubtitleFrameInfo;
 
 PBFFmpegReader *PBFFmpegReaderCreate(
@@ -446,9 +444,32 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     char *errorBuffer,
     size_t errorBufferSize
 );
+uint64_t PBFFmpegDemuxSourceTakeOverStream(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+);
+void PBFFmpegDemuxSourceReleaseStream(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    uint64_t token
+);
+void PBFFmpegDemuxSourceGetQueueState(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    int *hasPackets,
+    int *subscribers,
+    long long *bufferedBytes,
+    unsigned long long *droppedPackets
+);
+bool PBFFmpegDemuxSourceReplayHistoryFrom(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    double seconds
+);
 PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
     PBFFmpegDemuxSource *source,
     int streamIndex,
+    double startSeconds,
     char *errorBuffer,
     size_t errorBufferSize
 );
@@ -467,6 +488,8 @@ uint64_t PBSubtitleFrameRendererGetDecodedPacketCount(
 );
 
 typedef struct PBSubtitleFrameRendererState {
+    int queueHasPackets;
+    int queueSubscribers;
     uint64_t ingestedPacketCount;
     uint64_t ingestPollCount;
     uint64_t droppedPacketCount;

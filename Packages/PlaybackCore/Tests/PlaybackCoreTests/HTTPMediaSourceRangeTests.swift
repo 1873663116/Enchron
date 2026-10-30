@@ -265,6 +265,7 @@ struct DemuxNetworkResilienceTests {
             PBSubtitleFrameRendererCreateWithDemuxSource(
                 openedSource,
                 bitmapSubtitleStreamIndex,
+                0,
                 &error,
                 error.count
             ),

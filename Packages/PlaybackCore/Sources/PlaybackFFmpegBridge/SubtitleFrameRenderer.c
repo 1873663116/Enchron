@@ -68,10 +68,13 @@ struct PBSubtitleFrameRenderer {
     unsigned int lastSubtitleEndDisplayTime;
     bool hadFrame;
     PBFFmpegDemuxSource *demuxSource;
+    uint64_t subscriptionToken;
     int streamIndex;
     AVRational streamTimeBase;
     int64_t streamStartTimestamp;
     uint64_t ingestPollCount;
+    int lastQueueHasPackets;
+    int lastQueueSubscribers;
     uint64_t droppedPacketCount;
     AVPacket *ingestPacket;
     AVCodecParserContext *parser;
@@ -237,8 +240,6 @@ static bool append_bitmap_entry(
     } else {
         renderer->coveredStartSeconds = startSeconds;
     }
-    info.startSeconds = startSeconds;
-    info.endSeconds = endSeconds;
     renderer->bitmapEntries[renderer->bitmapEntryCount++] = (PBSubtitleBitmapEntry) {
         .startSeconds = startSeconds,
         .endSeconds = endSeconds,
@@ -744,6 +745,20 @@ static int ingest_available_packets(
         renderer->demuxSource,
         renderer->streamIndex
     );
+    int hasPackets = 0;
+    int subscribers = 0;
+    long long bufferedBytes = 0;
+    unsigned long long droppedPackets = 0;
+    PBFFmpegDemuxSourceGetQueueState(
+        renderer->demuxSource,
+        renderer->streamIndex,
+        &hasPackets,
+        &subscribers,
+        &bufferedBytes,
+        &droppedPackets
+    );
+    renderer->lastQueueSubscribers = subscribers;
+    renderer->lastQueueHasPackets = hasPackets;
     return ingested;
 }
 
@@ -926,6 +941,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
 PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
     PBFFmpegDemuxSource *source,
     int streamIndex,
+    double startSeconds,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -934,10 +950,16 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
         set_error(errorBuffer, errorBufferSize, "Invalid shared subtitle frame renderer call");
         return NULL;
     }
-    if (!PBFFmpegDemuxSourceSubscribe(source, streamIndex)) {
-        set_error(errorBuffer, errorBufferSize, "The shared subtitle stream already has a reader");
+    uint64_t token = PBFFmpegDemuxSourceTakeOverStream(source, streamIndex);
+    if (token == 0) {
+        set_error(errorBuffer, errorBufferSize, "The shared subtitle stream has no queue");
         return NULL;
     }
+    PBFFmpegDemuxSourceReplayHistoryFrom(
+        source,
+        streamIndex,
+        isfinite(startSeconds) && startSeconds > 0 ? startSeconds : 0
+    );
     PBSubtitleFrameRenderer *renderer = create_subtitle_frame_renderer(
         format,
         source,
@@ -945,7 +967,11 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
         errorBuffer,
         errorBufferSize
     );
-    if (!renderer) PBFFmpegDemuxSourceUnsubscribe(source, streamIndex);
+    if (!renderer) {
+        PBFFmpegDemuxSourceReleaseStream(source, streamIndex, token);
+        return NULL;
+    }
+    renderer->subscriptionToken = token;
     return renderer;
 }
 
@@ -964,7 +990,11 @@ int PBSubtitleFrameRendererIngestAvailablePackets(
 void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer) {
     if (!renderer) return;
     if (renderer->demuxSource) {
-        PBFFmpegDemuxSourceUnsubscribe(renderer->demuxSource, renderer->streamIndex);
+        PBFFmpegDemuxSourceReleaseStream(
+            renderer->demuxSource,
+            renderer->streamIndex,
+            renderer->subscriptionToken
+        );
     }
     av_parser_close(renderer->parser);
     renderer->parser = NULL;
@@ -998,6 +1028,8 @@ PBSubtitleFrameRendererState PBSubtitleFrameRendererCopyState(
 ) {
     PBSubtitleFrameRendererState state = {0};
     if (!renderer) return state;
+    state.queueHasPackets = renderer->lastQueueHasPackets;
+    state.queueSubscribers = renderer->lastQueueSubscribers;
     state.ingestedPacketCount = renderer->ingestedPacketCount;
     state.ingestPollCount = renderer->ingestPollCount;
     state.droppedPacketCount = renderer->droppedPacketCount;
