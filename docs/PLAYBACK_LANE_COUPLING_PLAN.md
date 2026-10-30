@@ -82,6 +82,31 @@
 
 说明。判定只看单元自身的区间与挂载位置，不看队列中其他单元，因此对音频、字幕、视频使用同一形式。跨越挂载位置的单元属于当前内容，必须交付；`start(u) ≥ A(L)` 会把这类单元误判为过期。
 
+结构已实施。两个挂载入口都在交出流之前丢弃 `end(u) ≤ A(L)` 的单元：
+
+```
+subscribe_to_demux_stream(source, streamIndex, minimumTimestampMicroseconds)
+    音频与视频读取器传入各自的起始时间
+
+PBFFmpegDemuxSourceTakeOverStream(source, streamIndex, minimumTimestampMicroseconds)
+    字幕帧渲染器传入它被创建时对应的位置
+```
+
+裁剪条件是 `start(u) + duration(u) ≤ A(L)`，因此跨越挂载位置的单元保留。首版按 `start(u) < A(L)` 裁剪，跳转用例 `subtitleLaneCoversTheSeekTargetAfterASeek` 立即失败（`texts.isEmpty == false`），因为覆盖挂载位置的字幕单元被误删。
+
+形式化检查（`Scripts/playback/formal/run.sh`）：
+
+```
+guard present: take-over drops units that end before the attach position
+guard present: subscribe drops units that end before the reader's start
+== design: a lane trims its queue at attach ==
+design: all invariants hold
+== current code: attach trims units that end before the attach position ==
+current code: no stale delivery found (the defect is fixed)
+```
+
+单元测试：字幕、HTTP 范围、晚起始共 77 项通过。
+
 ## 六、目标二：查询与就绪
 
 性质一。字幕为查询式车道。状态为 `playing` 且字幕已选中时，对播放位置 `P` 的查询必须返回覆盖 `P` 的单元。流中不存在覆盖 `P` 的单元时，查询返回空，该情形不构成失败。
