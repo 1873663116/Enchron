@@ -53,6 +53,71 @@ EXEMPT_VERBS = {
         "destruction state. A reading taken by hand while probing wearer-close "
         "and restored-scene behavior; no operation asserts against it."
     ),
+    "addLibraryFile": (
+        "Adds a file to the media library by absolute path so a person can "
+        "play a sample the library does not hold yet; no operation asserts "
+        "against it."
+    ),
+    "answerResumePrompt": (
+        "Answers the resume prompt from the command channel so a person can "
+        "continue an interrupted run without touching the screen; no "
+        "operation asserts against it."
+    ),
+    "fileBrowserState": (
+        "Reports the file browser's root, source and entry counts. A reading "
+        "taken by hand while checking a source connection; no operation "
+        "asserts against it."
+    ),
+    "libraryReferences": (
+        "Lists the library's references with their locators. A reading taken "
+        "by hand while checking which entries a run left behind; no operation "
+        "asserts against it."
+    ),
+    "openSourceFile": (
+        "Opens a file inside the connected source so a person can start "
+        "playback of a chosen sample; no operation asserts against it."
+    ),
+    "pipelineStats": (
+        "Reports the demux and delivery counters. A reading taken by hand "
+        "while checking a pipeline by eye; no operation asserts against it."
+    ),
+    "playDiscTitle": (
+        "Starts a disc title by playlist and title index so a person can check "
+        "a disc's structure by hand; no operation asserts against it."
+    ),
+    "playLibraryTitle": (
+        "Starts a library entry by reference so a person can check an imported "
+        "file by hand; no operation asserts against it."
+    ),
+    "playServerItem": (
+        "Starts a title held by the signed-in media server so a person can "
+        "check remote playback by hand; no operation asserts against it."
+    ),
+    "probeCapacity": (
+        "Measures the output route's capacity by hand while checking an audio "
+        "path; no operation asserts against it."
+    ),
+    "probeLatency": (
+        "Measures the output route's latency by hand while checking an audio "
+        "path; no operation asserts against it."
+    ),
+    "probeSamples": (
+        "Reports sample counts from the output route by hand while checking an "
+        "audio path; no operation asserts against it."
+    ),
+    "resetFirstFrameProbe": (
+        "Clears the first frame probe so a run can watch the next start from "
+        "the beginning. A knob turned by hand while measuring; no operation "
+        "asserts against it."
+    ),
+    "streamStats": (
+        "Reports the stream server's counters. A reading taken by hand while "
+        "checking a source connection; no operation asserts against it."
+    ),
+    "throttle": (
+        "Shapes the stream server's throughput so a person can watch a "
+        "buffering path by hand; no operation asserts against it."
+    ),
 }
 
 def failures() -> list[str]:
