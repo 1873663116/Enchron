@@ -408,6 +408,19 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    func recordAudioOutputClock(at time: CMTime) {
+        let clockSecond = Int(time.seconds.isFinite ? time.seconds : 0)
+        if clockSecond != (lastReportedAudioClockSecond ?? -1) {
+            lastReportedAudioClockSecond = clockSecond
+            let lane = selectedAudioStreamIndex.map(String.init) ?? "none"
+            let pts = lastAudioPresentationSeconds.map { String(format: "%.3f", $0) } ?? "none"
+            let clock = String(format: "%.3f", time.seconds)
+            logger.info(
+                "audio.out lane=\(lane, privacy: .public) pts=\(pts, privacy: .public) clock=\(clock, privacy: .public)"
+            )
+        }
+    }
+
     func recordSubtitleState(at time: CMTime) {
         let clockSecond = Int(time.seconds.isFinite ? time.seconds : 0)
         if clockSecond != (lastReportedSubtitleClockSecond ?? -1) {

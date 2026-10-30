@@ -1155,6 +1155,9 @@ extension SampleBufferPlaybackSession {
                     decodeTime: decodeTime
                 )
                 outcome = try audioRendererSink.enqueueImmediately(input)
+                if presentationTime.isNumeric {
+                    lastAudioPresentationSeconds = presentationTime.seconds
+                }
                 emitPlaybackDeliveryStage(
                     lane: "audio",
                     stage: "enqueueImmediately.returned",

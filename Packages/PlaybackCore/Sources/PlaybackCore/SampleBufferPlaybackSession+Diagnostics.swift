@@ -21,6 +21,7 @@ extension SampleBufferPlaybackSession {
     func updatePresentationStatus(at time: CMTime) {
         publishAudioSpectrumFrame(at: time)
         recordSubtitleState(at: time)
+        recordAudioOutputClock(at: time)
         publishSubtitleCues(at: time)
         publishDiagnostics(at: time)
         switch claimEndIfReady(at: time) {
