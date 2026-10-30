@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
+import OSLog
 import PlaybackFFmpegBridge
 
 public struct PlaybackAudioTrack: Identifiable, Sendable, Equatable, Codable {
@@ -212,16 +213,25 @@ final class NoAudioSampleProvider: AudioSampleProvider {
 }
 
 final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable {
+    private let logger = Logger(
+        subsystem: "com.xiongzhipeng.PlaybackCore",
+        category: "Playback"
+    )
     var info: AudioSampleProviderInfo? {
         readerLock.withLock { storedInfo }
     }
 
     private let readerLock = NSLock()
+    private let demuxSession: FFmpegDemuxSession?
     private let readerQueue: DispatchQueue
     private let sourceReadMeter: PlaybackSourceReadMeter
     private let operations: any FFmpegAudioReaderOperations
     private let informationLoader: SystemMediaSourceInformationLoader
     private var storedInfo: AudioSampleProviderInfo?
+    private let stallLock = NSLock()
+    private var pendingReadStart: Date?
+    private var lastStallReport: Date?
+    private var stallMonitor: Task<Void, Never>?
     private var reader: FFmpegAudioReaderHandle?
     private var generation: UInt64 = 0
 
@@ -235,6 +245,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
         )
     ) {
         self.sourceReadMeter = sourceReadMeter
+        self.demuxSession = demuxSession
         informationLoader = SystemMediaSourceInformationLoader(
             sourceReadMeter: sourceReadMeter,
             demuxSession: demuxSession
@@ -245,6 +256,50 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
                 demuxSession: demuxSession
             )
         self.readerQueue = readerQueue
+    }
+
+    private func beginReadWatch() {
+        stallLock.lock()
+        pendingReadStart = Date()
+        if stallMonitor == nil {
+            stallMonitor = Task { [weak self] in
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 1_000_000_000)
+                    guard let self else { return }
+                    self.reportReadStallIfNeeded()
+                }
+            }
+        }
+        stallLock.unlock()
+    }
+
+    private func endReadWatch() {
+        stallLock.lock()
+        pendingReadStart = nil
+        stallMonitor?.cancel()
+        stallMonitor = nil
+        stallLock.unlock()
+    }
+
+    private func reportReadStallIfNeeded() {
+        let now = Date()
+        stallLock.lock()
+        let started = pendingReadStart
+        let lastReport = lastStallReport
+        let shouldReport = started.map { now.timeIntervalSince($0) >= 2 } == true
+            && (lastReport.map { now.timeIntervalSince($0) >= 2 } ?? true)
+        if shouldReport { lastStallReport = now }
+        stallLock.unlock()
+        guard shouldReport, let started else { return }
+        let info = self.info
+        let streamIndex = info?.streamIndex ?? -1
+        let queued = demuxSession?.queuedPacketCount(streamIndex: streamIndex) ?? -1
+        let seconds = String(format: "%.1f", now.timeIntervalSince(started))
+        let codec = info?.codecName ?? "unknown"
+        let channels = info?.channelCount ?? 0
+        let summary = "audio.read.stall seconds=\(seconds) codec=\(codec)"
+            + " channels=\(channels) index=\(streamIndex) queued=\(queued)"
+        logger.info("\(summary, privacy: .public)")
     }
 
     func prepare(
@@ -313,6 +368,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
         guard let operation = readerLock.withLock({ reader.map { ($0, generation) } }) else {
             return nil
         }
+        beginReadWatch()
         let outcome: FFmpegAudioReadOutcome = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 readerQueue.async { [self] in
@@ -320,6 +376,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
                         continuation.resume(throwing: CancellationError())
                         return
                     }
+                    defer { endReadWatch() }
                     do {
                         let outcome = try operations.copyNextSample(from: operation.0)
                         guard isCurrent(operation.1, reader: operation.0) else {

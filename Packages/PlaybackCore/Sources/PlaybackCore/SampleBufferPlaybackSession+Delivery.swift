@@ -491,6 +491,7 @@ extension SampleBufferPlaybackSession {
                 if outcome != .cancelledByFlush, isCurrentVideoDelivery(generation) {
                     recordVideoFrameInFlight(presentationEnd: presentationEnd)
                     recordVideoEnqueueLead(presentationTime: presentationTime)
+                    recordStartMilestone(lane: "video", presentationTime: presentationTime)
                 }
                 emitPlaybackDeliveryStage(
                     lane: "video",
@@ -1113,6 +1114,7 @@ extension SampleBufferPlaybackSession {
                 )
                 audioSampleBufferCount += 1
                 audioFrameCount += UInt64(max(0, record.sampleCount))
+                recordStartMilestone(lane: "audio", presentationTime: presentationTime)
                 if audioSampleBufferCount % 120 == 1 {
                     let error = audioRenderer.error?.localizedDescription ?? "none"
                     let buffers = audioSampleBufferCount

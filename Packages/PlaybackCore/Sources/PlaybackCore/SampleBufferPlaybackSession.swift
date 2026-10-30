@@ -265,6 +265,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var sourceReadPending: Bool {
         sourceReadMeter?.hasPendingSourceRead ?? false
     }
+
     let demuxSession: FFmpegDemuxSession?
     let sourceReadObservationLock = NSLock()
     var sourceReadRateSampler: PlaybackSourceReadRateSampler
@@ -430,6 +431,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let externalSubtitlePreparationDeadline: Duration
     var lastReportedEmptySubtitleSecond: Int?
     var lastReportedProducedSubtitleSecond: Int?
+    let startObservationLock = NSLock()
+    var startObservationInstant = ContinuousClock.now
+    var startMilestones: [String: Double] = [:]
+    var startFirstPresentationTimes: [String: Double] = [:]
     let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
     let activationReapplyVerificationConfiguration:
         PlaybackActivationReapplyVerificationConfiguration
@@ -586,6 +591,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         sourceURL = url
         sourceAsset = asset
         sourceIsRemote = sourceTransport.isRemote
+        beginStartObservation()
         try await demuxSession?.configureSource(
             transport: sourceTransport, selection: contentSelection
         )

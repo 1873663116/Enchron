@@ -133,6 +133,11 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         }
     }
 
+    func queuedPacketCount(streamIndex: Int) -> Int64 {
+        guard let source = sourceLock.withLock({ source }) else { return -1 }
+        return PBFFmpegDemuxSourceGetQueuedPacketCount(source, Int32(streamIndex))
+    }
+
     func bufferDiagnostics() -> PlaybackDemuxBufferDiagnostics? {
         guard let source = sourceLock.withLock({ source }) else { return nil }
         let mode = switch PBFFmpegDemuxSourceGetBufferMode(source) {

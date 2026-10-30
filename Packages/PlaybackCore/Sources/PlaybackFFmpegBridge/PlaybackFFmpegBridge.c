@@ -4453,6 +4453,22 @@ int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
     return count;
 }
 
+int64_t PBFFmpegDemuxSourceGetQueuedPacketCount(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return 0;
+    pthread_mutex_lock(&source->lock);
+    int64_t count = 0;
+    for (PBFFmpegPacketNode *node = source->queues[streamIndex].head;
+         node != NULL; node = node->next) {
+        count++;
+    }
+    pthread_mutex_unlock(&source->lock);
+    return count;
+}
+
 uint64_t PBFFmpegDemuxSourceGetDroppedPacketCount(
     PBFFmpegDemuxSource *source,
     int streamIndex
