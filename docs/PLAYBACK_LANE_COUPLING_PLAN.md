@@ -956,30 +956,29 @@ WebDAV  同一文件                        demux.open.failed error=Open demux m
 | 切换 | `audio.select.opened`、`readiness.state` | `playing` 期间零条或两条音轨车道交付覆盖 `P` 的单元 |
 | 单一时钟 | 查询位置与当帧视频单元区间 | 查询位置落在当帧区间之外 |
 
-### 12.4 静态档现状
-
-`python3 Scripts/console/cli.py tier static` 当前不通过。逐项：
+### 12.4 控制台各档现状
 
 ```
-通过     orphan-verbs
-通过     test-orphan-verbs
-通过     test-rubric-predicate-coverage
-失败     scripts-inventory
-失败     test-regression-catalog-materialized
-失败     test-regression-operation-adapter
-失败     test-regression-review-stage
-失败     Structure checks
+tier static   通过   （33979 毫秒）
+tier build    通过   （66734 毫秒）
 ```
 
-`test-rubric-predicate-coverage` 的修法：目录实为 107 条 rubric、覆盖率 18/19，测试常数停在 106，基线停在 17/18。常数与基线已更新到实测值，17 项测试通过。这项上涨来自提交 `c3c66038` 新增的「字幕跟随跳转」场景。
+静态档此前的八项失败已逐项修完：
 
-余下失败同源于该提交：它把场景、rubric、oracle 的固定数目改了部分位置，材料化流水线产出的数目与已提交目录不一致（场景 70 对 69，oracle 119 对 118）。修法是把蓝图与已提交目录对齐后重新材料化，属该流水线自身的工作，不在本方案范围内。
+```
+orphan-verbs                         十五个手工动词登记
+test-orphan-verbs                    同上
+test-rubric-predicate-coverage       rubric 107，覆盖率基线 18/19
+scripts-inventory                    两个无归属检查器注册进验证表
+test-regression-catalog-materialized 场景 70、静态度量 119、义务 158
+test-regression-operation-adapter    音轨退役检查的测试名对齐现有用例
+test-regression-review-stage         场景常数 70
+test-run-verification                新注册项补齐三项标签
+```
 
-其中前三项曾同时失败；`orphan-verbs` 与 `test-orphan-verbs` 已修：十五个手工调试动词在 `Scripts/rules/check_orphan_verbs.py` 的 `EXEMPT_VERBS` 中登记，并各附一句用途说明。这些动词正是本文档 12.5 与各节实测所用的命令通道词汇。
+以上数字偏差同源于提交 `c3c66038`：它新增「字幕跟随跳转」场景并更新了材料化器与完成报告，另外四处固定数目未同步。
 
-`test-rubric-predicate-coverage` 的失败是基线漂移：目录中有 107 条 rubric，测试断言 106。`test-regression-catalog-materialized` 与 `test-regression-operation-adapter` 同属基线类。
-
-静态档是构建阶段的一道脚本，它不通过则 `tier build` 与依赖构建的 `tier e2e` 均不通过。因此控制台证据链当前只能跑到已有构建产物的单位，不能重跑全档。
+自定义单位（`catalog.remote-playback-emby-item-opens`）因未被目录引用而被可达性检查拒绝（C013），已删除。控制的单位必须由 `Config/regression/catalog-v2.json` 引用才可执行。
 
 ### 12.5 执行入口
 
