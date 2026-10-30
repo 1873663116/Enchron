@@ -21,7 +21,6 @@ public struct FusedPlayerPanelLive {
     var sourceMediaFormatSummary: String
     var primaryAction: PlaybackPrimaryTransportAction
     var primaryActionEnabled: Bool
-    var isWaitingForData: Bool = false
     var canSkipForward: Bool
     var canStepForward: Bool
     var playbackShortcutsEnabled: Bool
@@ -76,7 +75,6 @@ public struct FusedPlayerPanelLive {
         sourceMediaFormatSummary: String,
         primaryAction: PlaybackPrimaryTransportAction,
         primaryActionEnabled: Bool,
-        isWaitingForData: Bool = false,
         canSkipForward: Bool,
         canStepForward: Bool,
         playbackShortcutsEnabled: Bool = true,
@@ -126,7 +124,6 @@ public struct FusedPlayerPanelLive {
         self.sourceMediaFormatSummary = sourceMediaFormatSummary
         self.primaryAction = primaryAction
         self.primaryActionEnabled = primaryActionEnabled
-        self.isWaitingForData = isWaitingForData
         self.canSkipForward = canSkipForward
         self.canStepForward = canStepForward
         self.playbackShortcutsEnabled = playbackShortcutsEnabled
@@ -1622,23 +1619,7 @@ public struct FusedPlayerPanel: View {
         progress = CGFloat(nextTime / duration)
     }
 
-    @ViewBuilder
     private var playButton: some View {
-        if live?.isWaitingForData == true {
-            ProgressView()
-                .progressViewStyle(.circular)
-                .frame(
-                    width: DesignTokens.Interactive.regular,
-                    height: DesignTokens.Interactive.regular
-                )
-                .accessibilityIdentifier("PlayerPanel-progress-loading")
-                .accessibilityLabel("Loading")
-        } else {
-            primaryPlayButton
-        }
-    }
-
-    private var primaryPlayButton: some View {
         CircleIconButton(
             systemName: primaryPlayIcon,
             accessibilityLabel: primaryPlayLabel,

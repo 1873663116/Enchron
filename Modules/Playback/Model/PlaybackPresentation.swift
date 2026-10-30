@@ -145,32 +145,35 @@ public struct PlaybackTransportAvailability: Equatable, Sendable {
 
     public init(
         lifecycle: ProductPlaybackLifecycle,
-        endedAffordance: PlaybackEndedAffordance = .replay
+        endedAffordance: PlaybackEndedAffordance = .replay,
+        dataIsReady: Bool = true
     ) {
-        isWaitingForData = lifecycle == .loading
+        isWaitingForData = lifecycle == .loading || dataIsReady == false
+        var enabled = true
         switch lifecycle {
         case .playing:
             primaryAction = .pause
-            primaryActionEnabled = true
+            enabled = true
             canSkipForward = true
             canStepForward = true
         case .ended:
             switch endedAffordance {
             case .replay:
                 primaryAction = .replay
-                primaryActionEnabled = true
+                enabled = true
             case .playNext(let available):
                 primaryAction = .playNext
-                primaryActionEnabled = available
+                enabled = available
             }
             canSkipForward = false
             canStepForward = false
         case .idle, .loading, .ready, .paused, .failed:
             primaryAction = .play
-            primaryActionEnabled = true
+            enabled = true
             canSkipForward = true
             canStepForward = true
         }
+        primaryActionEnabled = enabled && isWaitingForData == false
     }
 }
 

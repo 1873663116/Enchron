@@ -100,7 +100,8 @@ public struct WindowPlayerDeckView: View {
         let duration = position.duration
         let transport = PlaybackTransportAvailability(
             lifecycle: playbackRuntime.productLifecycle,
-            endedAffordance: playbackLauncher.endedAffordance
+            endedAffordance: playbackLauncher.endedAffordance,
+            dataIsReady: playbackRuntime.isWaitingForData == false
         )
         return FusedPlayerPanelLive(
             presentation: resolvedPresentation,
@@ -123,7 +124,6 @@ public struct WindowPlayerDeckView: View {
             sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
             primaryAction: transport.primaryAction,
             primaryActionEnabled: transport.primaryActionEnabled,
-            isWaitingForData: playbackRuntime.isWaitingForData,
             canSkipForward: transport.canSkipForward,
             canStepForward: transport.canStepForward && playbackRuntime.mediaKind == .video,
             playbackShortcutsEnabled: appModel.playbackShortcutsEnabled,

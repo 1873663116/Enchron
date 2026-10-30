@@ -3438,6 +3438,22 @@ struct PlaybackPresentationStateTests {
         #expect(!unavailableNextTransport.primaryActionEnabled)
     }
 
+    @Test("a transport whose data is not ready discards the primary action")
+    func waitingTransportDiscardsPrimaryAction() {
+        let waiting = PlaybackTransportAvailability(
+            lifecycle: .playing,
+            dataIsReady: false
+        )
+        #expect(waiting.primaryAction == .pause)
+        #expect(!waiting.primaryActionEnabled)
+        #expect(waiting.isWaitingForData)
+
+        let ready = PlaybackTransportAvailability(lifecycle: .playing)
+        #expect(ready.primaryAction == .pause)
+        #expect(ready.primaryActionEnabled)
+        #expect(!ready.isWaitingForData)
+    }
+
     @Test("seek events preserve the specified lifecycle intent")
     func seekIntentMatrix() {
         let cases: [(PlaybackSeekEvent, ProductPlaybackLifecycle, PlaybackAfterSeekIntent)] = [
