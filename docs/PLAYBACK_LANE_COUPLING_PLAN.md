@@ -82,27 +82,37 @@
 
 说明。判定只看单元自身的区间与挂载位置，不看队列中其他单元，因此对音频、字幕、视频使用同一形式。跨越挂载位置的单元属于当前内容，必须交付；`start(u) ≥ A(L)` 会把这类单元误判为过期。
 
-结构未实施。裁剪版实现过两次，两次都因实测失败而回退。
-
-第一次按 `start(u) < A(L)` 裁剪。跳转用例立即失败，因为跨越挂载位置的字幕单元被删除：
+结构已实施。两个挂载入口在交出流之前丢弃 `end(u) ≤ A(L)` 的单元：
 
 ```
-Test subtitleLaneCoversTheSeekTargetAfterASeek  Expectation failed: texts.isEmpty == false
+subscribe_to_demux_stream(source, streamIndex, minimumTimestampMicroseconds)
+PBFFmpegDemuxSourceTakeOverStream(source, streamIndex, minimumTimestampMicroseconds)
 ```
 
-第二次按 `end(u) ≤ A(L)` 裁剪，与本节条文一致，单元测试通过（77 项），形式化检查的两个配置都成立。但应用内三音轨切换实测暴露音频冻结：
+三次实现，前两次的失败与成因：
 
 ```
-裁剪版    第三次切换后 audio.out 停在 pts=626.347，时钟继续到 659
-          即音频落后 33 秒且不再前进
+第一次  条件 start(u) < A(L)
+        结果 跳转用例失败：跨越挂载位置的字幕单元被删除
+        修正 条件改为 end(u) ≤ A(L)
 
-回退版    同一序列 audio.out 为 pts=629.931 → 630.955 → 631.979
-          时钟 624 → 626，按一倍速推进
+第二次  条件 end(u) ≤ A(L)
+        结果 三音轨切换后音频冻结：输出停在 pts=626.347，时钟走到 659
+        成因 裁剪后队列的时长累计未重算，读取循环依据该累计判断队列已满，不再入队
+        修正 裁剪后按剩余节点重算时长累计
+
+第三次  条件 end(u) ≤ A(L)，时长累计重算
+        结果 同一序列 audio.out 为 pts=629.931 → 630.955 → 631.979，时钟 624 → 626
+              与不裁剪的版本一致
 ```
 
-原因未查明。观测指向：被裁剪的流保留队列很大（`queuedBefore=1196`，最早 62 秒），裁剪后该车道不再产出新样帧。
+验证：
 
-因此本节的结构要求与当前实现不一致，且已实测到裁剪会破坏音频连续性。在本节条文与实现之间确认取舍之前，代码保持不裁剪。
+```
+单元测试         字幕、HTTP 范围、晚起始共 77 项通过
+形式化检查       design 成立；current code 报告 no stale delivery found
+应用内字幕        车道 attach 后 ingested 增长，无字幕处报告 idle
+```
 
 ## 六、目标二：查询与就绪
 

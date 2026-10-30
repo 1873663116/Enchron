@@ -37,7 +37,7 @@ else
     status=1
 fi
 
-echo "== current code: attach keeps whatever the queue holds =="
+echo "== current code: attach trims units that end before the attach position =="
 if "$java_command" -cp "$jar" tlc2.TLC -metadir "$meta/current" -config "$here/PlaybackLanesCurrent.cfg" "$here/PlaybackLanes.tla" 2>&1 | tee "$here/states/current.log" |
         grep -q "No error has been found"; then
     echo "current code: no stale delivery found (the defect is fixed)" >&2
