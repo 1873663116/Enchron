@@ -63,6 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--reuse", action="store_true")
     run.add_argument("--assume", action="append", default=[], dest="assume")
     run.add_argument("--force", action="store_true")
+    run.add_argument("--capture-logs", action="store_true", dest="capture_logs")
 
     inspect = commands.add_parser("inspect")
     inspect.add_argument("unit")
@@ -617,7 +618,12 @@ def _run(root: Path, arguments, profile) -> int:
         return EXIT_USAGE
     assumed = requested
     report = engine.run_plan(
-        plan, root, evidence_root(root), arguments.timeout_scale, assumed
+        plan,
+        root,
+        evidence_root(root),
+        arguments.timeout_scale,
+        assumed,
+        capture_logs=arguments.capture_logs,
     )
     if arguments.as_json:
         print(json.dumps(engine_report(report), indent=1))

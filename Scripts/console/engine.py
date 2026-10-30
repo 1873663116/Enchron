@@ -7,6 +7,7 @@ import re
 import getpass
 import os
 import shutil
+import datetime
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,7 @@ def run_plan(
     evidence_root: Path,
     budget_scale: float,
     assumed_preconditions: tuple[dict[str, Any], ...] | set[str] = frozenset(),
+    capture_logs: bool = False,
 ) -> Report:
     run_directory = _run_directory(evidence_root, plan.unit)
     steps_directory = run_directory / "steps"
@@ -120,8 +122,41 @@ def run_plan(
         preconditions=tuple(precondition_outcomes),
     )
     write_json(run_directory / "report.json", report_payload(report))
+    if capture_logs:
+        _capture_device_logs(run_directory, started, time.monotonic())
     _append_index(evidence_root, report)
     return report
+
+
+def _capture_device_logs(
+    run_directory: Path, started: float, finished: float
+) -> None:
+    udid = _device_target()
+    if not udid:
+        return
+    stamp = datetime.datetime.fromtimestamp
+    command = [
+        "xcrun",
+        "simctl",
+        "spawn",
+        udid,
+        "log",
+        "show",
+        "--start",
+        stamp(started).strftime("%Y-%m-%d %H:%M:%S"),
+        "--end",
+        stamp(finished).strftime("%Y-%m-%d %H:%M:%S"),
+        "--predicate",
+        'subsystem == "com.xiongzhipeng.PlaybackCore"',
+        "--style",
+        "compact",
+    ]
+    try:
+        result = subprocess.run(command, capture_output=True, text=True, timeout=180)
+    except subprocess.TimeoutExpired:
+        (run_directory / "logs.txt").write_text("log show timed out\n", encoding="utf-8")
+        return
+    (run_directory / "logs.txt").write_text(result.stdout, encoding="utf-8")
 
 
 DEFERRED_FAILURES = (
