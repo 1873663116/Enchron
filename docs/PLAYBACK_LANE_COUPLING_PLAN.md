@@ -151,6 +151,19 @@ clock= 25.000  lane=1  pts=30.976    切换 3→1
 
 说明。查询位置等于呈现位置时，覆盖该位置的单元即为应当显示的内容。本目标因此不比较三条车道的呈现区间，只比较查询位置与呈现位置。
 
+控制台执行记录（字幕切换与关闭单位）：
+
+```
+python3 Scripts/console/cli.py run "unit:catalog.scenario-local-media-lifecycle-subtitle-switch-and-off@1"
+
+verdict=passed  steps=21  durationMs=33678
+preconditions  emby: found    media-source: started
+terminal artifact ok  frames.json
+evidence TestEvidence/console/unit-catalog.scenario-local-media-lifecycle-subtitle-switch-and-off@1/20261030T180654Z
+```
+
+该单位以控制台证据形式覆盖字幕轨切换与关闭，属第五节至第八节之外的可复跑证据。
+
 现状。部分可测。已记录查询位置与最近交付的视频样帧时间，实测两者相差约 1.31 秒且恒定：
 
 ```
