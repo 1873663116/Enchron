@@ -209,27 +209,27 @@ current code: stale delivery reproduced, as the code stands
 
 与实测一致：目标三的 2 至 3 次切换中，起始单元比播放位置早 4.71 秒（见第七节）。
 
-已实施（逐包裁剪）：订阅共享流时按读取器的起始时间丢弃更早的包。改动落在 `subscribe_to_demux_stream`，即三条车道实际的接管点；`PBFFmpegDemuxSourceTakeOverStream` 在代码中没有调用者，不承担该职责。
+裁剪已实现并做了对照实验，结论为无可测差异，改动已回退。
 
-实测（本地三音轨 mkv，`少女终末旅行 S01E01`，跳转到 603 秒后依次切换）：
+实现：订阅共享流时按读取器的起始时间丢弃更早的包，落点在 `subscribe_to_demux_stream`，即三条车道实际的接管点。`PBFFmpegDemuxSourceTakeOverStream` 在代码中没有调用者。
+
+对照实验：同一文件（本地三音轨 mkv），同一跳转目标 603 秒，同一切换序列（2、3、1），各取切换后该车道首个 `audio.out`。
 
 ```
-切换记录
-  lane 2 首个输出  pts=615.083  clock=609.100   领先 5.98 秒（渲染预读）
-  lane 3 首个输出  pts=622.998  clock=617.000   领先 5.99 秒
-  lane 1 首个输出  pts=630.955  clock=625.000   领先 5.96 秒
+开启裁剪      lane 2  pts=615.083  clock=609.100   领先 5.98 秒
+              lane 3  pts=622.998  clock=617.000   领先 5.99 秒
+              lane 1  pts=630.955  clock=625.000   领先 5.96 秒
 
-接管记录
-  index=2 reason=selection queuedBefore=0   headBefore=none
-  index=3 reason=selection queuedBefore=0   headBefore=none
-  index=1 reason=selection queuedBefore=12  headBefore=614.569
+关闭裁剪      lane 2  pts=609.131  clock=604.000   领先 5.13 秒
+              lane 3  pts=617.985  clock=612.000   领先 5.99 秒
+              lane 1  pts=625.920  clock=620.000   领先 5.92 秒
 ```
 
-三条车道接管后的首个输出均领先播放位置约六秒，即渲染预读量，没有回退到队列最早的包。第三次接管时队列中有十二个旧包（最早 614.569，播放位置 625），首个输出为 630.955，说明旧包已被丢弃。
+两种构型下首个输出均领先播放位置约六秒，没有回退到队列最早的包。关闭裁剪时第三次接管队列里有十二个旧包（最早 610.210，播放位置 620），首个输出仍为 625.920。因此旧包没有进入输出，音频渲染器丢弃了播放位置之前的缓冲。
 
-对比：同一测量方式下，改动前的第二至三次切换起始单元比播放位置早 4.71 秒（见第七节）。
+裁剪改动因此没有可测收益，已回退（提交 `<REVERT>`）。
 
-形式化检查仍报 `finding open: attach does not trim packets older than the playhead`，原因是模型把「接管」映射到 `PBFFmpegDemuxSourceTakeOverStream`，而该函数无调用者。模型与代码的映射须改为 `subscribe_to_demux_stream`，同时把 `PlaybackLanesCurrent.cfg` 的 `TrimOnAttach` 置为 TRUE 并同步 `check_sync.py`。在此之前模型对该项的判定不可信。
+形式化检查仍报 `finding open: attach does not trim packets older than the playhead`。原因：模型把「接管」映射到 `PBFFmpegDemuxSourceTakeOverStream`，该函数无调用者；模型对代码的映射与本条结论均需修正后才能作为判据。
 
 ### 测量方法
 
