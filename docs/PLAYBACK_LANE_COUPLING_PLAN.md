@@ -500,7 +500,15 @@ D10 PlaybackCore 测试全集以信号 11 结束
            末两条 started 为 interruptUnblocksRemoteCallbackAndAllowsFreshOperation
            与 metadataParserRejectsExternalEntities，日志中无对应的 passed
     复现   在干净工作树上同样出现（git stash 后重跑，结果一致）
-    处置   登记；与车道改动无关，成因未查
+           串行执行（--no-parallel）同样出现，末条 started 为 malformedBDMVIndexIsReportedAsCorrupt，
+           该用例单独运行通过
+    归因   崩溃报告 swiftpm-testing-helper-2026-10-31-064847.ips
+           EXC_BAD_ACCESS，subtype KERN_INVALID_ADDRESS at 0x469
+           栈顶 PBFFmpegReaderGetStartSeconds，调用方 FFmpegSampleProvider.prepare
+           该 getter 有空指针判断，因此传入的 reader 指针已释放，属释放后使用
+    试过   把读取改为使用本块内分配并打开的 newReader，并在发布前读取
+           两次修改后全集仍在同一符号处崩溃，均已回退
+    处置   登记；与车道改动无关，成因待查
 
 
 D9  长时间播放后解复用读取停止
