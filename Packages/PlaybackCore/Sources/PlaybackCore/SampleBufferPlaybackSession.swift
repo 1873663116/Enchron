@@ -453,6 +453,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var startMilestones: [String: Double] = [:]
     var startFirstPresentationTimes: [String: Double] = [:]
     let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
+
+    let attachFirstUnitEpochsLock = NSLock()
+    var attachFirstUnitEpochs: [String: UInt64] = [:]
+
     let activationReapplyVerificationConfiguration:
         PlaybackActivationReapplyVerificationConfiguration
     let activationReapplyVerificationHooks: PlaybackActivationReapplyVerificationHooks

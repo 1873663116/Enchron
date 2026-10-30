@@ -48,101 +48,48 @@ extension SampleBufferPlaybackSession {
 
         let teardownStarted = ContinuousClock.now
         var videoProviderReopened: ContinuousClock.Instant?
-        let framesInFlightAtTeardown = videoFramesInFlightLock.withLock {
-            videoFramesInFlight.count(timelineSeconds: timelineClockReading().mediaTime.seconds)
-        }
-        stopVideoDelivery()
         stopAudioDelivery()
-        discardPendingVideoSample()
         setTimelineStopped(reason: .seek)
-        let deliveryStopped = ContinuousClock.now
-        deliveryQueue.sync {
-            isResetting = true
-            provider.cancel()
-        }
-        let videoProviderCancelled = ContinuousClock.now
         audioDeliveryQueue.sync {
             audioProvider.cancel()
         }
         let audioProviderCancelled = ContinuousClock.now
-        await rendererSink.flush(removingDisplayedImage: removingDisplayedImage)
-        clearRendererFlushRecovery()
-        discardVideoFramesInFlight()
-        let rendererFlushed = ContinuousClock.now
-        debugStore.emit(
-            mediaSessionID: traceID,
-            node: .rendererInputCoordination,
-            kind: "control.seek.teardownStages",
-            outcome: .succeeded,
-            details: [
-                "stopDeliveryMilliseconds":
-                    Self.milliseconds(from: teardownStarted, to: deliveryStopped),
-                "videoProviderCancelMilliseconds":
-                    Self.milliseconds(from: deliveryStopped, to: videoProviderCancelled),
-                "audioProviderCancelMilliseconds":
-                    Self.milliseconds(from: videoProviderCancelled, to: audioProviderCancelled),
-                "rendererFlushMilliseconds":
-                    Self.milliseconds(from: audioProviderCancelled, to: rendererFlushed),
-                "totalMilliseconds":
-                    Self.milliseconds(from: teardownStarted, to: rendererFlushed),
-                "leadFrames": String(videoLeadFrames),
-                "framesInFlight": String(framesInFlightAtTeardown)
-            ]
-        )
-        diagnostics.lastSeekFlushMilliseconds = Self.milliseconds(from: teardownStarted, to: rendererFlushed)
-        diagnostics.lastSeekFramesInFlight = framesInFlightAtTeardown
-        resetDecoderBootstrap()
         audioRendererSink.flush()
         resetEndState(requiresAudio: hasAudio)
-
-        streamEpoch += 1
         audioStreamEpoch += 1
-        flushCount += 1
-        recordRendererState(at: currentTime())
-        sourceEventSequence += 1
-        let flushEvent = MediaEventRecord(
-            eventID: "\(traceID).event.\(sourceEventSequence)",
-            mediaSessionID: traceID,
-            videoTrackID: videoTrackID,
-            streamEpoch: streamEpoch,
-            formatRevision: formatRevision,
-            kind: .flush,
-            providerProvenance: provider.info.providerKind
-        )
-        debugStore.recordMediaEvent(flushEvent)
-        debugStore.emit(
-            mediaSessionID: traceID,
-            node: .rendererInputCoordination,
-            kind: "renderer.flushedForSeek",
-            outcome: .succeeded,
-            details: [
-                "streamEpoch": String(streamEpoch),
-                "audioStreamEpoch": String(audioStreamEpoch),
-                "audioRendererStatus": audioRendererStatusLabel,
-                "audioRendererError": audioRenderer.error?.localizedDescription
-                    ?? currentAudioRendererError
-                    ?? "none"
-            ]
-        )
 
         let seeksToKnownEnd = endsPlayback
             || (diagnostics.durationSeconds > 0
                 && abs(target - diagnostics.durationSeconds) <= 1.0 / 60_000)
         if seeksToKnownEnd {
+            let reset = await resetVideoLane(
+                removingDisplayedImage: removingDisplayedImage,
+                reason: "seekEnd"
+            )
+            recordSeekTeardown(
+                started: teardownStarted,
+                audioProviderCancelled: audioProviderCancelled,
+                reset: reset
+            )
             completeSeekAtEnd(target: target, subtitleSeekEpoch: subtitleSeekEpoch)
             return
         }
 
         do {
             try demuxSession?.seek(to: target)
-            try await provider.prepare(
+            let attachment = try await openVideoAttachment(
                 url: sourceURL,
                 asset: sourceAsset,
-                startTime: CMTime(seconds: target, preferredTimescale: 60_000)
+                seconds: target,
+                removingDisplayedImage: removingDisplayedImage,
+                reason: "seek"
             )
-            try Task.checkCancellation()
-            try provider.start()
-            videoProviderReopened = ContinuousClock.now
+            videoProviderReopened = attachment.providerReopened
+            recordSeekTeardown(
+                started: teardownStarted,
+                audioProviderCancelled: audioProviderCancelled,
+                reset: attachment.reset
+            )
             if hasAudio {
                 do {
                     try await openAudioAttachment(
@@ -167,7 +114,7 @@ extension SampleBufferPlaybackSession {
         } catch {
             deliveryQueue.sync { isResetting = false }
             if error is CancellationError || Task.isCancelled {
-                provider.cancel()
+                abandonVideoAttachment()
                 debugStore.emit(
                     mediaSessionID: traceID,
                     kind: "control.seek.superseded",
@@ -720,42 +667,14 @@ extension SampleBufferPlaybackSession {
         } else if let demuxSession {
             try demuxSession.seek(to: time.seconds)
             if mediaKind == .video {
-                if rearmsVideoDelivery {
-                    stopVideoDelivery()
-                    discardPendingVideoSample()
-                    deliveryQueue.sync {
-                        isResetting = true
-                        provider.cancel()
-                    }
-                    await rendererSink.flush(removingDisplayedImage: false)
-                    discardVideoFramesInFlight()
-                    resetDecoderBootstrap()
-                    streamEpoch += 1
-                    flushCount += 1
-                    recordRendererState(at: time)
-                    debugStore.emit(
-                        mediaSessionID: traceID,
-                        node: .rendererInputCoordination,
-                        kind: "renderer.flushedForAudioTrackSelection",
-                        outcome: .succeeded,
-                        details: ["streamEpoch": String(streamEpoch)]
-                    )
-                } else {
-                    deliveryQueue.sync { provider.cancel() }
-                }
-                do {
-                    try await provider.prepare(
-                        url: sourceURL,
-                        asset: sourceAsset,
-                        startTime: time
-                    )
-                    if rearmsVideoDelivery {
-                        try provider.start()
-                    }
-                } catch {
-                    deliveryQueue.sync { isResetting = false }
-                    throw error
-                }
+                try await openVideoAttachment(
+                    url: sourceURL,
+                    asset: sourceAsset,
+                    seconds: time.seconds,
+                    removingDisplayedImage: false,
+                    reason: "selection",
+                    startsProvider: rearmsVideoDelivery
+                )
             }
         }
         do {
@@ -871,6 +790,39 @@ extension SampleBufferPlaybackSession {
             outcome: .succeeded,
             details: ["streamIndex": String(streamIndex)]
         )
+    }
+
+    func recordSeekTeardown(
+        started: ContinuousClock.Instant,
+        audioProviderCancelled: ContinuousClock.Instant,
+        reset: VideoLaneResetTimings
+    ) {
+        let audioTeardown = Self.millisecondValue(from: started, to: audioProviderCancelled)
+        let total = audioTeardown
+            + reset.deliveryStoppedMilliseconds
+            + reset.providerCancelMilliseconds
+            + reset.flushMilliseconds
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "control.seek.teardownStages",
+            outcome: .succeeded,
+            details: [
+                "audioTeardownMilliseconds":
+                    String(format: "%.2f", audioTeardown),
+                "videoStopDeliveryMilliseconds":
+                    String(format: "%.2f", reset.deliveryStoppedMilliseconds),
+                "videoProviderCancelMilliseconds":
+                    String(format: "%.2f", reset.providerCancelMilliseconds),
+                "videoFlushMilliseconds":
+                    String(format: "%.2f", reset.flushMilliseconds),
+                "totalMilliseconds": String(format: "%.2f", total),
+                "leadFrames": String(videoLeadFrames),
+                "framesInFlight": String(reset.framesInFlight)
+            ]
+        )
+        diagnostics.lastSeekFlushMilliseconds = String(format: "%.2f", total)
+        diagnostics.lastSeekFramesInFlight = reset.framesInFlight
     }
 
     private func rearmTimelineAfterAudioTrackChange(

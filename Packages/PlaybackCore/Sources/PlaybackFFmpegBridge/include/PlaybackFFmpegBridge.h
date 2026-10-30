@@ -166,6 +166,10 @@ int64_t PBFFmpegDemuxSourceGetForwardBufferByteLimit(
 int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
     PBFFmpegDemuxSource *source
 );
+double PBFFmpegDemuxSourceGetQueueHeadSeconds(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+);
 int64_t PBFFmpegDemuxSourceGetQueuedPacketCount(
     PBFFmpegDemuxSource *source,
     int streamIndex

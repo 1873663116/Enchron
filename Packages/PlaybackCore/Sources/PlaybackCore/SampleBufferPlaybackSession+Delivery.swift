@@ -229,6 +229,23 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    func emitAttachFirstUnit(
+        lane: String,
+        epoch: UInt64,
+        presentationTime: CMTime
+    ) {
+        let key = "\(lane)"
+        let alreadyLogged = attachFirstUnitEpochsLock.withLock { () -> Bool in
+            if attachFirstUnitEpochs[key] == epoch { return true }
+            attachFirstUnitEpochs[key] = epoch
+            return false
+        }
+        guard alreadyLogged == false, presentationTime.isNumeric else { return }
+        let seconds = String(format: "%.3f", presentationTime.seconds)
+        let summary = "attach.firstUnit lane=\(lane) epoch=\(epoch) pts=\(seconds)"
+        logger.info("\(summary, privacy: .public)")
+    }
+
     func startAudioDelivery() {
         audioRendererSink.stopRenderingEventObservation()
         let task = Task.detached { [weak self] in
@@ -635,6 +652,11 @@ extension SampleBufferPlaybackSession {
                 )
             }
             clearPendingVideoSample(sourceSample)
+            emitAttachFirstUnit(
+                lane: "video",
+                epoch: streamEpoch,
+                presentationTime: CMSampleBufferGetPresentationTimeStamp(formatSignaledSample)
+            )
             let sourceEventID = recordVideoSample(formatSignaledSample)
             updateCompressedDiagnostics(sample: formatSignaledSample)
             lastSourceEventID = sourceEventID
@@ -1050,6 +1072,11 @@ extension SampleBufferPlaybackSession {
                         timestampsMonotonic: timestampObservation.monotonic,
                         timestampObservationCount: timestampObservation.count
                     )
+                )
+                emitAttachFirstUnit(
+                    lane: "audio",
+                    epoch: audioStreamEpoch,
+                    presentationTime: presentationTime
                 )
                 debugStore.recordAudioSample(record)
                 if sampleOrdinal <= 64 {

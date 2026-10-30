@@ -12,6 +12,9 @@ extension SampleBufferPlaybackSession {
     ) async throws -> AudioSampleProviderInfo? {
         let startTime = CMTime(seconds: seconds, preferredTimescale: 60_000)
         let queuedBefore = streamIndex.map { demuxSession?.queuedPacketCount(streamIndex: $0) ?? -1 } ?? -1
+        let headBefore = streamIndex.flatMap { index in
+            demuxSession.map { String(format: "%.3f", $0.queueHeadSeconds(streamIndex: index)) }
+        } ?? "none"
         let epochBefore = demuxSession?.currentEpoch()
         try await audioProvider.prepare(
             url: url,
@@ -30,7 +33,7 @@ extension SampleBufferPlaybackSession {
         let queuedAfter = demuxSession?.queuedPacketCount(streamIndex: info.streamIndex) ?? -1
         let summary = "audio.attach.open reason=\(reason) index=\(info.streamIndex)"
             + " codec=\(info.codecName) epoch=\(epochLabel)"
-            + " queuedBefore=\(queuedBefore) queuedAfter=\(queuedAfter)"
+            + " queuedBefore=\(queuedBefore) queuedAfter=\(queuedAfter) headBefore=\(headBefore)"
         logger.info("\(summary, privacy: .public)")
         return info
     }

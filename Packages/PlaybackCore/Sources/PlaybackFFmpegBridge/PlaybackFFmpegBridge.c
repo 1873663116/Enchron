@@ -4602,6 +4602,20 @@ int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
     return count;
 }
 
+double PBFFmpegDemuxSourceGetQueueHeadSeconds(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return AV_NOPTS_VALUE;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketNode *head = source->queues[streamIndex].head;
+    int64_t timestamp = head ? head->timestampMicroseconds : AV_NOPTS_VALUE;
+    pthread_mutex_unlock(&source->lock);
+    if (timestamp == AV_NOPTS_VALUE) return AV_NOPTS_VALUE;
+    return (double)timestamp / (double)AV_TIME_BASE;
+}
+
 int64_t PBFFmpegDemuxSourceGetQueuedPacketCount(
     PBFFmpegDemuxSource *source,
     int streamIndex

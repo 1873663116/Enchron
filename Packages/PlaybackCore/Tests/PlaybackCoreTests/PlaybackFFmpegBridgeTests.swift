@@ -2583,6 +2583,65 @@ func highEfficiencyAACProfilesDecodeToPCM(
     )
 }
 
+@Test func audioReaderAfterASeekStartsAtTheSeekTarget() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+    )
+    try #require(FileManager.default.fileExists(atPath: fixture.path))
+    var error = [CChar](repeating: 0, count: 512)
+    let source = try #require(
+        fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+                nil,
+                &error,
+                error.count
+            )
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegDemuxSourceDestroy(source) }
+
+    let first = try #require(PBFFmpegAudioReaderAllocate())
+    #expect(
+        PBFFmpegAudioReaderOpenWithDemuxSource(first, source, -1, 0, &error, error.count),
+        Comment(rawValue: cString(error))
+    )
+    for _ in 0..<100 {
+        var reference: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        if PBFFmpegAudioReaderCopyNextSample(
+            first, &reference, &metadata, &error, error.count
+        ) != PBFFmpegReadResultSample { break }
+        _ = reference?.takeRetainedValue()
+    }
+    PBFFmpegAudioReaderDestroy(first)
+
+    let target = 20.0
+    #expect(PBFFmpegDemuxSourceSeek(source, target, &error, error.count), Comment(rawValue: cString(error)))
+    let second = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(second) }
+    #expect(
+        PBFFmpegAudioReaderOpenWithDemuxSource(second, source, -1, target, &error, error.count),
+        Comment(rawValue: cString(error))
+    )
+    var reference: Unmanaged<CMSampleBuffer>?
+    var metadata = PBFFmpegAudioSampleMetadata()
+    let result = PBFFmpegAudioReaderCopyNextSample(
+        second, &reference, &metadata, &error, error.count
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+    let sample = try #require(reference?.takeRetainedValue())
+    let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+    #expect(
+        presentationTime >= target - 1.0 && presentationTime <= target + 1.5,
+        Comment(rawValue: "presentationTime=\(presentationTime)")
+    )
+}
+
 @Test(arguments: [Int32(-1), Int32(1)])
 func lateStartAudioOpensOnASharedDemuxSource(preferredStreamIndex: Int32) throws {
     silenceFFmpegDiagnostics()
