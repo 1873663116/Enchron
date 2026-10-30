@@ -980,6 +980,21 @@ test-run-verification                新注册项补齐三项标签
 
 自定义单位（`catalog.remote-playback-emby-item-opens`）因未被目录引用而被可达性检查拒绝（C013），已删除。控制的单位必须由 `Config/regression/catalog-v2.json` 引用才可执行。
 
+`tier unit` 当前不通过，五项失败与播放车道无关：
+
+```
+SMB playback bridge serves only the requested byte range
+SMB playback bridge applies backpressure-sized source reads
+playback bridge supports open-ended seek ranges
+unknown source length uses chunked transfer and disables seeking
+container index cache reuses bytes for the same content revision
+unclassified failures do not become a public active category
+```
+
+前五项位于 `Tests/MediaLibraryPackageTests/SMBDataSourceAdapterTests.swift`，断言的是 SMB 读取请求区间序列；第六项位于 `PlaybackActiveFailureTests.swift`，断言未分类失败不进入公开的活动故障类别。两处均不在本次改动范围内。
+
+e2e 档已具备执行条件（静态与构建均通过），运行中。
+
 ### 12.5 执行入口
 
 端到端单位。`console run <unit>`，每个单位一条命令，证据落盘。与字幕相关的既有单位：
