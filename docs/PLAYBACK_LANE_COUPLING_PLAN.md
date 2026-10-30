@@ -1289,13 +1289,15 @@ ffmpeg -i /tmp/pgs-in-mkv.mkv -i FATE/MPEG2/dvd_single_frame.vob \
      subtitle.frame kind=bitmap at=0 size=720x573
 ```
 
-余下缺口：
+外挂位图字幕：产品不支持，不属覆盖缺口。
 
 ```
-外挂位图字幕    无。需要独立 .sup 文件与外部字幕源配置
+外挂字幕的扩展名白名单为 srt、vtt、ass、ssa（FileFilter.externalSubtitles）
+实测：extsup.mkv 与同目录 extsup.sup 同时存在时，会话报告 subtitles=1
+      即只有内嵌轨，旁挂的 .sup 未被发现
 ```
 
-因此「容器 × 位图字幕」的组合覆盖 m2ts、光盘、mkv 与 vobsub；mp4 的位图字幕不成立（mov_text 是文本格式）。
+因此「容器 × 位图字幕」的组合覆盖 m2ts、光盘、mkv 与 vobsub；mp4 的位图字幕不成立（mov_text 是文本格式）；旁挂位图字幕不在产品范围。
 
 ### 12.4 判据与证据
 
