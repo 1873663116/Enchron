@@ -973,6 +973,19 @@ exit=0
 
 该单位通过，WebDAV 源可添加、可列出文件、可抓取界面状态。首次失败的原因为前置条件中 Emby 服务身份核对未通过，属瞬时故障。
 
+三档在当前构建上的复跑（2026-10-31，裁剪版）：
+
+```
+可行性档   本地 mkv、m2ts、mp4、ts 五片，播放与跳转正常
+主档       sdr-bframe-aggregate-30s  时长 30.021   位置 10.000  playing
+           Alien: Covenant（4K）    时长 7323.467 跳转 0.5 后 3664.500
+                                    二十秒后 3685.000，一倍速推进
+归因档     同一文件 sdr-bframe-aggregate-30s.mkv 经 WebDAV 播放
+           position=6.500 lifecycle=playing
+```
+
+同一文件在 Emby 与 WebDAV 上均可播放，传输层不构成差异来源。
+
 同文件跨档对照（本轮首次取得）：
 
 ```
