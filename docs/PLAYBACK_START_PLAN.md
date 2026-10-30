@@ -73,7 +73,7 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 
 二，失败范围。音频读取失败、seek 后音频重开失败、音频渲染器失败、音频渲染器投递失败都已改为会话级失败：会话进入 failed，两条车道一起停，音轨不被撤除。prepare 阶段的音频打开失败仍是能力事实：音轨撤除，界面显示原因（例如无解码器）。音频轨道切换回滚失败仍撤轨继续，归入阶段四。
 
-三，回归目录。`Config/regression/catalog-v2.json` 中的 `scenario:format-coverage:audio-retirement-on-failure` 与其 rubric 断言的是旧语义（撤轨后继续），与当前实现相反。该场景需要退役或改写，它的测试名引用（`audioReadFailureRetiresAudioButVideoStillDelivers` 等）已随实现重命名而失效。
+三，回归目录的语义债。`Config/regression/catalog-v2.json` 中的 `scenario:format-coverage:audio-retirement-on-failure` 与其 rubric 断言的是旧语义（撤轨后继续），与当前实现相反；它的 criteria 文本里按旧测试名引用（`audioReadFailureRetiresAudioButVideoStillDelivers` 等）。目录本身自洽（materializer 校验通过），这笔债只在语义与文档。退役它要同步 `Scripts/regression/materialize_catalog_v2.py` 的计数守卫、`Scripts/regression/completion.py` 与两份测试里的硬编码计数。
 
 四，切换路径。三条路径的行为已符合重新绑定语义，但实现上仍各写一份停止、flush、seek、重开序列，未抽成同一个函数。
 

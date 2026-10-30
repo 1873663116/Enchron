@@ -33,6 +33,11 @@ EXEMPT_VERBS = {
         "facts a probe reads by hand while checking disc track mapping; no "
         "operation asserts against it."
     ),
+    "setStallLimit": (
+        "Shortens the stall limit so a run can observe the stalled state and "
+        "its recovery inside one experiment. A knob turned by hand while "
+        "measuring; no operation asserts against it."
+    ),
     "selectAudioTrack": (
         "Switches the playing audio track so a person can check a disc's track "
         "mapping by ear and by the probe journal; no operation asserts against "

@@ -144,6 +144,7 @@ $(SRCROOT)/Modules/Playback/Domain/PlaybackSurfaceSeekTravel.swift
 $(SRCROOT)/Modules/Playback/Domain/PlaybackUserVisibleIssue.swift
 $(SRCROOT)/Modules/Playback/Domain/TrackSelectionPreference.swift
 $(SRCROOT)/Modules/Playback/Domain/ViewingState.swift
+$(SRCROOT)/Modules/Playback/MediaFirstFrameProbe.swift
 $(SRCROOT)/Modules/Playback/Model/CinemaEnvironment.swift
 $(SRCROOT)/Modules/Playback/Model/MediaProfile.swift
 $(SRCROOT)/Modules/Playback/Model/PlaybackPanelExpansion.swift
