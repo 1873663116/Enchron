@@ -492,16 +492,25 @@ session.close.begin displayed=false
 
 因此该文件有两种表现，成因不同：一为远程重连后解析器断言的进程中止，二为视频解码失败导致会话终止。第二种先于第一种发生，四秒内即终止，使第一种无法靠长跑复现。
 
-第二种表现的测量（本轮）：`video.reader.bind` 新增 `extradata` 字段，记录视频流的解码器配置数据字节数。
+第二种表现的根因（本轮）：片源的视频编码为 `h264 High 10`，位深 10 位，分辨率 1864x1008。
+
+取证：用 Emby 的流接口取回该文件前 4 MB，直接测量：
 
 ```
-远程 Ghost in the Shell（Emby）   extradata=47    四秒处解码失败
-本地 [MAI] EIGHTY SIX（4K）      extradata=133   正常播放，位置 9.500
+GET /Videos/10028/stream?static=true   Range: 0-4194303   206
+0,h264,High 10,1864,1008,47
+1,flac,unknown,34
+2,dts,DTS-ES
+3,ac3,unknown
 ```
 
-两者同为 4K HEVC，配置数据相差约三倍。47 字节通常不足以容纳 VPS、SPS、PPS 三组参数集，解码器缺少参数集时无法建立解码会话，表现即 `readyWithDecodeFailures`。
+文件头的 `extradata_size` 为 47，与应用内 `video.reader.bind extradata=47` 一致。因此应用读取的配置数据完整，问题不在截断。
 
-待区分：该文件的 `hvcC` 本身如此（参数集随码流内传输），还是远程读取路径截断了配置数据。区分方法为直接取回该文件头部并测其 `extradata_size`。
+先前记录的「同为 4K HEVC，配置数据相差三倍」有误：本地对照文件是 HEVC，远程文件是 H.264，两者编码不同，字节数不可比。该错误已更正。
+
+解码失败的原因判断：10 位 H.264（High 10）不在本平台视频解码路径支持的编码集合内，解码器无法建立会话。表现与日志一致：样本已交付，`rendererStatus=readyWithDecodeFailures`，首帧从未显示。
+
+待定：应用应当把该编码判为不支持并在开始播放前拒绝，还是应当增加软件解码路径。
 
 已实施但未验证的改动：远程重连的跳转目标改为预约时间戳之前十秒，目的是避开簇中间落点。该改动无法在第二种表现存在时验证。
 
