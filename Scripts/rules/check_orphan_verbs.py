@@ -28,6 +28,21 @@ EXEMPT_VERBS = {
         "host's reachability. Driven by hand when preparing a streaming "
         "probe; no operation asserts against it."
     ),
+    "playbackProbe": (
+        "Reports the current audio and subtitle track labels with the playback "
+        "facts a probe reads by hand while checking disc track mapping; no "
+        "operation asserts against it."
+    ),
+    "selectAudioTrack": (
+        "Switches the playing audio track so a person can check a disc's track "
+        "mapping by ear and by the probe journal; no operation asserts against "
+        "it."
+    ),
+    "selectSubtitleTrack": (
+        "Selects or clears the playing subtitle track so a person can check a "
+        "disc's subtitle mapping by eye and by the probe journal; no operation "
+        "asserts against it."
+    ),
     "sceneSessions": (
         "Lists the app's live UIScene sessions with their activation and "
         "destruction state. A reading taken by hand while probing wearer-close "

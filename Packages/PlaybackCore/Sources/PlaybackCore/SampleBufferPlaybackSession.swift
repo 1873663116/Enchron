@@ -423,11 +423,13 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var lastRecordedAudioRendererStatus: String?
     var lastRecordedAudioRendererError: String?
     public internal(set) var selectedAudioStreamIndex: Int?
+    public internal(set) var discStreamLanguages: [Int: String] = [:]
     public private(set) var availableAudioTracks: [PlaybackAudioTrack] = []
     let subtitleStateLock = NSLock()
     var subtitleState = SubtitleState()
     let externalSubtitlePreparationDeadline: Duration
     var lastReportedEmptySubtitleSecond: Int?
+    var lastReportedProducedSubtitleSecond: Int?
     let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
     let activationReapplyVerificationConfiguration:
         PlaybackActivationReapplyVerificationConfiguration
@@ -587,19 +589,21 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         try await demuxSession?.configureSource(
             transport: sourceTransport, selection: contentSelection
         )
-        let sourceInformation: MediaSourceInformation?
+        let loadedInformation: MediaSourceInformation?
         if let mediaSourceInformationLoader {
-            sourceInformation = if demuxSession != nil {
+            loadedInformation = if demuxSession != nil {
                 try await mediaSourceInformationLoader.load(from: url)
             } else {
                 try? await mediaSourceInformationLoader.load(from: url)
             }
         } else {
-            sourceInformation = nil
+            loadedInformation = nil
         }
         if let demuxSession, startTime.isNumeric, startTime.seconds > 0 {
             try demuxSession.seek(to: startTime.seconds)
         }
+        let sourceInformation = loadedInformation?
+            .fillingStreamLanguages(discStreamLanguages)
         if let sourceInformation {
             mediaKind = sourceInformation.playbackMediaKind
             guard mediaKind != .unsupported else {

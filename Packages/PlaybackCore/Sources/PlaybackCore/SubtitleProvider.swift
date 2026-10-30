@@ -24,7 +24,9 @@ public struct PlaybackSubtitleTrack: Identifiable, Sendable, Equatable, Codable 
     }
 
     public var label: String {
-        title ?? language ?? "Subtitle \(streamIndex)"
+        title
+            ?? language.flatMap(PlaybackLanguageName.display)
+            ?? "Subtitle \(streamIndex)"
     }
 }
 

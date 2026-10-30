@@ -174,6 +174,8 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
             value.isFinite ? String(format: "%.3f", value) : "none"
         }
         return "ingested=\(state.ingestedPacketCount)"
+            + " polls=\(state.ingestPollCount)"
+            + " dropped=\(state.droppedPacketCount)"
             + " held=\(state.heldPacketCount)"
             + " decoded=\(state.decodedPacketCount)"
             + " displaySets=\(state.displaySetCount)"

@@ -673,6 +673,7 @@ extension SampleBufferPlaybackSession {
 
     func selectAudioTrack(streamIndex: Int) async throws {
         guard let sourceURL else { throw PlaybackControlError.noActiveMediaSession }
+        logger.info("audio.select.request index=\(streamIndex, privacy: .public)")
         guard availableAudioTracks.contains(where: { $0.streamIndex == streamIndex }) else {
             throw PlaybackControlError.invalidAudioTrack(streamIndex)
         }
@@ -743,8 +744,19 @@ extension SampleBufferPlaybackSession {
                 startTime: time,
                 streamIndex: streamIndex
             )
+            let info = audioProvider.info
+            let opened = info?.streamIndex ?? -1
+            let codec = info?.codecName ?? "?"
+            let rate = info?.sampleRate ?? 0
+            let channels = info?.channelCount ?? 0
+            let summary = "audio.select.opened index=\(streamIndex) got=\(opened)"
+                + " codec=\(codec) sr=\(rate) ch=\(channels)"
+            logger.info("\(summary, privacy: .public)")
         } catch {
             let replacementError = error
+            logger.info(
+                "audio.select.failed index=\(streamIndex, privacy: .public) error=\(String(describing: error), privacy: .public)"
+            )
             do {
                 try await audioProvider.prepare(
                     url: sourceURL,

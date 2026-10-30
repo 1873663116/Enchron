@@ -22,6 +22,7 @@ class PlaybackMediaSessionDriver {
     struct OpenRequest {
         let url: URL
         let contentSelection: PlaybackContentSelection
+        let discStreamLanguages: [Int: String]
         let startTime: CMTime
         let startsPaused: Bool
         let initialRate: Float?
@@ -36,6 +37,7 @@ class PlaybackMediaSessionDriver {
         init(
             url: URL,
             contentSelection: PlaybackContentSelection = .file,
+            discStreamLanguages: [Int: String] = [:],
             startTime: CMTime = .zero,
             startsPaused: Bool = false,
             initialRate: Float? = nil,
@@ -49,6 +51,7 @@ class PlaybackMediaSessionDriver {
         ) {
             self.url = url
             self.contentSelection = contentSelection
+            self.discStreamLanguages = discStreamLanguages
             self.startTime = startTime
             self.startsPaused = startsPaused
             self.initialRate = initialRate
@@ -207,6 +210,7 @@ class PlaybackMediaSessionDriver {
             startsPaused: request.startsPaused,
             initialRate: request.initialRate,
             sourceTransport: request.sourceTransport,
+            discStreamLanguages: request.discStreamLanguages,
             initialStereoLayout: Self.engineStereoLayout(for: request.stereoOverride),
             initialProjectionOverride: request.projectionOverride.map {
                 Self.engineProjectionOverride(

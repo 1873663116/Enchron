@@ -1113,6 +1113,14 @@ extension SampleBufferPlaybackSession {
                 )
                 audioSampleBufferCount += 1
                 audioFrameCount += UInt64(max(0, record.sampleCount))
+                if audioSampleBufferCount % 120 == 1 {
+                    let error = audioRenderer.error?.localizedDescription ?? "none"
+                    let buffers = audioSampleBufferCount
+                    let frames = audioFrameCount
+                    logger.info(
+                        "audio.deliver track=\(trackID, privacy: .public) buffers=\(buffers, privacy: .public) frames=\(frames, privacy: .public) err=\(error, privacy: .public)"
+                    )
+                }
                 recordAudioPresentationEnd(presentationEnd)
                 recordAudioRendererState()
                 if shouldAnchorAudioTimeline {
@@ -1245,6 +1253,13 @@ extension SampleBufferPlaybackSession {
     }
 
     func handleAudioEnqueueOutcome(_ outcome: RendererEnqueueOutcome) -> Bool {
+        if case .accepted = outcome {
+        } else {
+            let description = String(describing: outcome)
+            logger.info(
+                "audio.enqueue.notAccepted \(description, privacy: .public)"
+            )
+        }
         switch outcome {
         case .accepted:
             setAudioRendererError(nil)

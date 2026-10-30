@@ -63,6 +63,7 @@ public struct MediaSourceAudioInformation: Codable, Equatable, Sendable {
 
 public struct MediaSourceStreamInformation: Codable, Equatable, Identifiable, Sendable {
     public let streamIndex: Int
+    public let streamID: Int?
     public let category: MediaSourceStreamCategory
     public let codecID: Int32
     public let codecName: String
@@ -75,8 +76,25 @@ public struct MediaSourceStreamInformation: Codable, Equatable, Identifiable, Se
 
     public var id: Int { streamIndex }
 
+    func replacingLanguage(_ language: String) -> MediaSourceStreamInformation {
+        MediaSourceStreamInformation(
+            streamIndex: streamIndex,
+            streamID: streamID,
+            category: category,
+            codecID: codecID,
+            codecName: codecName,
+            codecTag: codecTag,
+            language: language,
+            title: title,
+            disposition: disposition,
+            video: video,
+            audio: audio
+        )
+    }
+
     public init(
         streamIndex: Int,
+        streamID: Int? = nil,
         category: MediaSourceStreamCategory,
         codecID: Int32,
         codecName: String,
@@ -88,6 +106,7 @@ public struct MediaSourceStreamInformation: Codable, Equatable, Identifiable, Se
         audio: MediaSourceAudioInformation?
     ) {
         self.streamIndex = streamIndex
+        self.streamID = streamID
         self.category = category
         self.codecID = codecID
         self.codecName = codecName
@@ -116,6 +135,28 @@ public struct MediaSourceInformation: Codable, Equatable, Sendable {
     public let dolbyVisionCrossCompatibilityID: Int
     public let dolbyVisionHasEnhancementLayer: Bool
     public let hasStereoVideoEnhancementLayer: Bool
+
+    public func fillingStreamLanguages(
+        _ languages: [Int: String]
+    ) -> MediaSourceInformation {
+        guard languages.isEmpty == false else { return self }
+        return MediaSourceInformation(
+            containerFormat: containerFormat,
+            durationSeconds: durationSeconds,
+            streams: streams.map { stream in
+                guard stream.language == nil,
+                      stream.category == .audio || stream.category == .subtitle,
+                      let streamID = stream.streamID,
+                      let language = languages[streamID] else { return stream }
+                return stream.replacingLanguage(language)
+            },
+            containerSupportsSourceFormatDescription: containerSupportsSourceFormatDescription,
+            dolbyVisionProfile: dolbyVisionProfile,
+            dolbyVisionCrossCompatibilityID: dolbyVisionCrossCompatibilityID,
+            dolbyVisionHasEnhancementLayer: dolbyVisionHasEnhancementLayer,
+            hasStereoVideoEnhancementLayer: hasStereoVideoEnhancementLayer
+        )
+    }
 
     public var playbackMediaKind: PlaybackMediaKind {
         if streams.contains(where: { $0.category == .video }) {
@@ -341,6 +382,7 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
                 : nil
             streams.append(MediaSourceStreamInformation(
                 streamIndex: Int(raw.streamIndex),
+                streamID: raw.streamID > 0 ? Int(raw.streamID) : nil,
                 category: category,
                 codecID: Int32(raw.codecID),
                 codecName: string(codecName) ?? "unknown",
@@ -442,7 +484,7 @@ private extension MediaSourceStreamInformation {
         guard let audio, audio.sampleRate > 0, audio.channelCount > 0 else { return false }
         return [
             "aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "vorbis", "flac",
-            "dca", "truehd", "apac"
+            "dca", "dts", "truehd", "apac"
         ].contains(codecName) || codecName.hasPrefix("pcm_")
     }
 

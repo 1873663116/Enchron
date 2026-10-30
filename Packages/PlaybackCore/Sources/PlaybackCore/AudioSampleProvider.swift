@@ -12,7 +12,9 @@ public struct PlaybackAudioTrack: Identifiable, Sendable, Equatable, Codable {
 
     public var id: Int { streamIndex }
     public var label: String {
-        let name = title ?? language ?? "Track \(streamIndex)"
+        let name = title
+            ?? language.flatMap(PlaybackLanguageName.display)
+            ?? "Track \(streamIndex)"
         return "\(name) · \(codecName) · \(channelCount)ch"
     }
 }

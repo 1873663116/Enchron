@@ -874,6 +874,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     .init(
                         url: request.url,
                         contentSelection: request.contentSelection,
+                        discStreamLanguages: request.discStreamLanguages,
                         startTime: CMTime(
                             seconds: startTimeSeconds,
                             preferredTimescale: 60_000
@@ -2170,6 +2171,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 .init(
                     url: request.url,
                     contentSelection: request.contentSelection,
+                    discStreamLanguages: request.discStreamLanguages,
                     startTime: CMTime(
                         seconds: startTimeSeconds,
                         preferredTimescale: 60_000

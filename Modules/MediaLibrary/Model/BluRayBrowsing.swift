@@ -397,6 +397,25 @@ public nonisolated struct BluRayTitleItem: Identifiable, Sendable, Equatable {
     }
 }
 
+extension BluRayDiscCatalog {
+    var streamLanguagesByPlaylist: [BluRayPlaylistID: [Int: String]] {
+        var result: [BluRayPlaylistID: [Int: String]] = [:]
+        for title in titles {
+            var languages: [Int: String] = [:]
+            for clip in title.clips {
+                for stream in clip.streams where stream.kind != .video {
+                    guard let language = stream.language, language.isEmpty == false else { continue }
+                    languages[Int(stream.pid)] = language
+                }
+            }
+            if languages.isEmpty == false {
+                result[title.playlistID] = languages
+            }
+        }
+        return result
+    }
+}
+
 nonisolated struct BluRayBrowseLevel: @unchecked Sendable {
     nonisolated enum Source: @unchecked Sendable {
         case image(
@@ -464,6 +483,7 @@ nonisolated struct BluRayBrowseLevel: @unchecked Sendable {
     let source: Source
     let content: BluRayDiscContent
     let titles: [BluRayTitleItem]
+    let streamLanguages: [BluRayPlaylistID: [Int: String]]
     let parentFiles: [FileBrowsingDomain.MediaFile]
     let parentFolders: [FileBrowsingDomain.MediaFolder]
     let parentCanNavigateUp: Bool
@@ -480,4 +500,5 @@ nonisolated struct LibraryBluRayBrowseLevel: @unchecked Sendable {
     let source: BluRayDiscSource
     let content: BluRayDiscContent
     let titles: [BluRayTitleItem]
+    let streamLanguages: [BluRayPlaylistID: [Int: String]]
 }

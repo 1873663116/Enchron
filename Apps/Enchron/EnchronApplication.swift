@@ -1078,6 +1078,7 @@ private extension MediaPlaybackItem {
         return PlaybackLaunchRequest(
             source: playbackAddress,
             contentSelection: contentSelection,
+            discStreamLanguages: streamLanguages,
             displayName: displayName,
             fileIdentifier: stableIdentifier.map(PlaybackFileIdentifier.init(rawValue:)),
             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),

@@ -33,6 +33,7 @@ typedef struct PBSubtitleBitmapEntry {
 typedef struct PBSubtitlePacketIdentity {
     int64_t timestamp;
     int size;
+    uint64_t checksum;
 } PBSubtitlePacketIdentity;
 
 struct PBSubtitleFrameRenderer {
@@ -70,7 +71,16 @@ struct PBSubtitleFrameRenderer {
     int streamIndex;
     AVRational streamTimeBase;
     int64_t streamStartTimestamp;
+    uint64_t ingestPollCount;
+    uint64_t droppedPacketCount;
     AVPacket *ingestPacket;
+    AVCodecParserContext *parser;
+    uint8_t *displaySet;
+    size_t displaySetSize;
+    size_t displaySetCapacity;
+    size_t displaySetScanOffset;
+    double displaySetStartSeconds;
+    int64_t displaySetPTS;
     PBSubtitlePacketIdentity *ingestedPackets;
     size_t ingestedPacketCount;
 };
@@ -368,6 +378,22 @@ static bool make_bitmap_frame(
     return append_bitmap_entry(renderer, pixels, info, startSeconds, endSeconds);
 }
 
+static double subtitle_end_seconds(
+    const PBSubtitleFrameRenderer *renderer,
+    double startSeconds,
+    unsigned int endDisplayTime
+) {
+    double declared = endDisplayTime == UINT32_MAX
+        ? INFINITY
+        : startSeconds + endDisplayTime / 1000.0;
+    if (declared > startSeconds && declared < startSeconds + 3600.0) return declared;
+    if (renderer->nextPacketIndex < renderer->packetCount) {
+        double nextStart = renderer->packets[renderer->nextPacketIndex].startSeconds;
+        if (nextStart > startSeconds) return nextStart;
+    }
+    return startSeconds + 5.0;
+}
+
 static bool append_packet(
     PBSubtitleFrameRenderer *renderer,
     const AVPacket *packet,
@@ -399,14 +425,27 @@ static bool append_packet(
     return true;
 }
 
+static uint64_t subtitle_packet_checksum(const AVPacket *packet) {
+    uint64_t hash = 1469598103934665603ULL;
+    for (int index = 0; index < packet->size; index++) {
+        hash ^= packet->data[index];
+        hash *= 1099511628211ULL;
+    }
+    return hash;
+}
+
 static bool packet_was_ingested(
     const PBSubtitleFrameRenderer *renderer,
     int64_t timestamp,
-    int size
+    int size,
+    uint64_t checksum
 ) {
     for (size_t index = 0; index < renderer->ingestedPacketCount; index++) {
         const PBSubtitlePacketIdentity *identity = &renderer->ingestedPackets[index];
-        if (identity->timestamp == timestamp && identity->size == size) return true;
+        if (identity->timestamp == timestamp && identity->size == size &&
+            identity->checksum == checksum) {
+            return true;
+        }
     }
     return false;
 }
@@ -414,7 +453,8 @@ static bool packet_was_ingested(
 static bool remember_ingested_packet(
     PBSubtitleFrameRenderer *renderer,
     int64_t timestamp,
-    int size
+    int size,
+    uint64_t checksum
 ) {
     PBSubtitlePacketIdentity *identities = realloc(
         renderer->ingestedPackets,
@@ -423,7 +463,11 @@ static bool remember_ingested_packet(
     if (!identities) return false;
     renderer->ingestedPackets = identities;
     renderer->ingestedPackets[renderer->ingestedPacketCount++] =
-        (PBSubtitlePacketIdentity) { .timestamp = timestamp, .size = size };
+        (PBSubtitlePacketIdentity) {
+            .timestamp = timestamp,
+            .size = size,
+            .checksum = checksum,
+        };
     return true;
 }
 
@@ -530,13 +574,11 @@ static bool process_text_packet(
     if (result < 0) return false;
     if (!produced) return true;
     double startSeconds = packetStartSeconds + subtitle.start_display_time / 1000.0;
-    double endSeconds = packetStartSeconds + subtitle.end_display_time / 1000.0;
-    if (endSeconds <= startSeconds) {
-        double packetDuration = packet->duration > 0
-            ? packet->duration * av_q2d(renderer->decoder->pkt_timebase)
-            : 5.0;
-        endSeconds = startSeconds + packetDuration;
-    }
+    double endSeconds = subtitle_end_seconds(
+        renderer,
+        startSeconds,
+        subtitle.end_display_time
+    );
     long long startMilliseconds = llround(startSeconds * 1000.0);
     long long durationMilliseconds = llround((endSeconds - startSeconds) * 1000.0);
     for (unsigned int index = 0; index < subtitle.num_rects; index++) {
@@ -560,6 +602,86 @@ static bool process_text_packet(
     return storedCue;
 }
 
+static void reset_pgs_display_set(PBSubtitleFrameRenderer *renderer) {
+    renderer->displaySetSize = 0;
+    renderer->displaySetScanOffset = 0;
+    renderer->displaySetPTS = AV_NOPTS_VALUE;
+}
+
+static bool append_pgs_display_set(
+    PBSubtitleFrameRenderer *renderer,
+    size_t length
+) {
+    AVPacket *assembled = av_packet_alloc();
+    if (!assembled) return false;
+    if (av_new_packet(assembled, (int)length) < 0) {
+        av_packet_free(&assembled);
+        return false;
+    }
+    memcpy(assembled->data, renderer->displaySet, length);
+    assembled->pts = renderer->displaySetPTS;
+    assembled->dts = renderer->displaySetPTS;
+    assembled->stream_index = renderer->streamIndex;
+    bool appended = append_packet(
+        renderer,
+        assembled,
+        renderer->displaySetStartSeconds
+    );
+    av_packet_free(&assembled);
+    return appended;
+}
+
+static bool append_pgs_segments(
+    PBSubtitleFrameRenderer *renderer,
+    const AVPacket *packet,
+    double startSeconds
+) {
+    if (renderer->displaySetSize == 0) {
+        renderer->displaySetStartSeconds = startSeconds;
+        renderer->displaySetPTS = packet->pts != AV_NOPTS_VALUE
+            ? packet->pts
+            : packet->dts;
+    }
+    size_t required = renderer->displaySetSize + (size_t)packet->size;
+    if (required > renderer->displaySetCapacity) {
+        size_t grown = FFMAX(required, renderer->displaySetCapacity * 2);
+        uint8_t *buffer = realloc(renderer->displaySet, grown);
+        if (!buffer) return false;
+        renderer->displaySet = buffer;
+        renderer->displaySetCapacity = grown;
+    }
+    memcpy(
+        renderer->displaySet + renderer->displaySetSize,
+        packet->data,
+        (size_t)packet->size
+    );
+    renderer->displaySetSize = required;
+
+    while (renderer->displaySetScanOffset + 3 <= renderer->displaySetSize) {
+        size_t offset = renderer->displaySetScanOffset;
+        uint8_t type = renderer->displaySet[offset];
+        size_t payload = ((size_t)renderer->displaySet[offset + 1] << 8) |
+            renderer->displaySet[offset + 2];
+        size_t segment = 3 + payload;
+        if (offset + segment > renderer->displaySetSize) break;
+        renderer->displaySetScanOffset = offset + segment;
+        if (type != 0x80) continue;
+        size_t length = renderer->displaySetScanOffset;
+        bool appended = append_pgs_display_set(renderer, length);
+        size_t remaining = renderer->displaySetSize - length;
+        if (remaining > 0) {
+            memmove(renderer->displaySet, renderer->displaySet + length, remaining);
+        }
+        renderer->displaySetSize = remaining;
+        renderer->displaySetScanOffset = 0;
+        renderer->displaySetPTS = AV_NOPTS_VALUE;
+        if (!appended) return false;
+        if (remaining == 0) break;
+        renderer->displaySetStartSeconds = startSeconds;
+    }
+    return true;
+}
+
 static bool ingest_packet(
     PBSubtitleFrameRenderer *renderer,
     AVPacket *packet
@@ -567,15 +689,21 @@ static bool ingest_packet(
     if (packet->stream_index != renderer->streamIndex ||
         packet->size <= 0 || !packet->data) return true;
     int64_t timestamp = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
-    if (packet_was_ingested(renderer, timestamp, packet->size)) return true;
+    const uint64_t checksum = subtitle_packet_checksum(packet);
+    if (packet_was_ingested(renderer, timestamp, packet->size, checksum)) return true;
     double startSeconds = timestamp != AV_NOPTS_VALUE
         ? (timestamp - renderer->streamStartTimestamp) * av_q2d(renderer->streamTimeBase)
         : 0;
-    bool succeeded = is_text_codec(renderer->codecID)
-        ? process_text_packet(renderer, packet, startSeconds)
-        : append_packet(renderer, packet, startSeconds);
+    bool succeeded;
+    if (is_text_codec(renderer->codecID)) {
+        succeeded = process_text_packet(renderer, packet, startSeconds);
+    } else if (renderer->codecID == AV_CODEC_ID_HDMV_PGS_SUBTITLE) {
+        succeeded = append_pgs_segments(renderer, packet, startSeconds);
+    } else {
+        succeeded = append_packet(renderer, packet, startSeconds);
+    }
     if (!succeeded) return false;
-    return remember_ingested_packet(renderer, timestamp, packet->size);
+    return remember_ingested_packet(renderer, timestamp, packet->size, checksum);
 }
 
 static int ingest_available_packets(
@@ -584,6 +712,7 @@ static int ingest_available_packets(
     size_t errorBufferSize
 ) {
     if (!renderer->demuxSource || !renderer->ingestPacket) return 0;
+    renderer->ingestPollCount++;
     int ingested = 0;
     while (true) {
         int result = PBFFmpegDemuxSourceCopyNextPacketIfAvailable(
@@ -604,6 +733,10 @@ static int ingest_available_packets(
         }
         ingested++;
     }
+    renderer->droppedPacketCount = PBFFmpegDemuxSourceGetDroppedPacketCount(
+        renderer->demuxSource,
+        renderer->streamIndex
+    );
     return ingested;
 }
 
@@ -661,6 +794,11 @@ static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
         return NULL;
     }
 
+    renderer->parser = format->iformat && format->iformat->name &&
+        (strstr(format->iformat->name, "mpegts") != NULL ||
+         strstr(format->iformat->name, "mpegps") != NULL)
+        ? av_parser_init(codecID)
+        : NULL;
     renderer->sourceWidth = renderer->decoder->width;
     renderer->sourceHeight = renderer->decoder->height;
     if (renderer->sourceWidth <= 0 || renderer->sourceHeight <= 0) {
@@ -821,6 +959,9 @@ void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer) {
     if (renderer->demuxSource) {
         PBFFmpegDemuxSourceUnsubscribe(renderer->demuxSource, renderer->streamIndex);
     }
+    av_parser_close(renderer->parser);
+    renderer->parser = NULL;
+    free(renderer->displaySet);
     av_packet_free(&renderer->ingestPacket);
     free(renderer->ingestedPackets);
     clear_bitmap_cache(renderer);
@@ -851,6 +992,8 @@ PBSubtitleFrameRendererState PBSubtitleFrameRendererCopyState(
     PBSubtitleFrameRendererState state = {0};
     if (!renderer) return state;
     state.ingestedPacketCount = renderer->ingestedPacketCount;
+    state.ingestPollCount = renderer->ingestPollCount;
+    state.droppedPacketCount = renderer->droppedPacketCount;
     state.heldPacketCount = renderer->packetCount;
     state.decodedPacketCount = renderer->decodedPacketCount;
     state.displaySetCount = renderer->bitmapEntryCount;
@@ -1119,13 +1262,11 @@ static PBSubtitleFrameResult copy_bitmap_frame(
             clear_bitmap_cache(renderer);
         }
         double startSeconds = item->startSeconds + subtitle.start_display_time / 1000.0;
-        double endSeconds = item->startSeconds + subtitle.end_display_time / 1000.0;
-        if (endSeconds <= startSeconds) {
-            double packetDuration = item->packet->duration > 0
-                ? item->packet->duration * av_q2d(renderer->decoder->pkt_timebase)
-                : 60.0;
-            endSeconds = startSeconds + packetDuration;
-        }
+        double endSeconds = subtitle_end_seconds(
+            renderer,
+            startSeconds,
+            subtitle.end_display_time
+        );
         bool succeeded = make_bitmap_frame(renderer, &subtitle, startSeconds, endSeconds);
         avsubtitle_free(&subtitle);
         if (!succeeded) {

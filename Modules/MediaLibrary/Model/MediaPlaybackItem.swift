@@ -26,6 +26,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
     public let externalSubtitleDiscovery: ExternalSubtitleDiscovery?
     public let selection: MediaPlaybackSelection
+    public let streamLanguages: [Int: String]
 
     public init(
         id: UUID,
@@ -39,7 +40,8 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         byteStreamHandle: MediaByteStreamHandle? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleDiscovery: ExternalSubtitleDiscovery? = nil,
-        selection: MediaPlaybackSelection = .file
+        selection: MediaPlaybackSelection = .file,
+        streamLanguages: [Int: String] = [:]
     ) {
         self.id = id
         self.url = url
@@ -53,6 +55,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleDiscovery = externalSubtitleDiscovery
         self.selection = selection
+        self.streamLanguages = streamLanguages
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {

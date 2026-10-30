@@ -38,6 +38,7 @@ typedef enum PBFFmpegMediaStreamCategory {
 } PBFFmpegMediaStreamCategory;
 typedef struct PBFFmpegMediaStreamInfo {
     int streamIndex;
+    int streamID;
     PBFFmpegMediaStreamCategory category;
     int codecID;
     uint32_t codecTag;
@@ -452,6 +453,8 @@ uint64_t PBSubtitleFrameRendererGetDecodedPacketCount(
 
 typedef struct PBSubtitleFrameRendererState {
     uint64_t ingestedPacketCount;
+    uint64_t ingestPollCount;
+    uint64_t droppedPacketCount;
     uint64_t heldPacketCount;
     uint64_t decodedPacketCount;
     uint64_t displaySetCount;

@@ -615,6 +615,7 @@ public final class FileBrowsingViewModel {
                 source: source,
                 content: presentation.content,
                 titles: presentation.titles,
+                streamLanguages: presentation.streamLanguages,
                 parentFiles: parentFiles,
                 parentFolders: parentFolders,
                 parentCanNavigateUp: parentCanNavigateUp,
@@ -658,7 +659,8 @@ public final class FileBrowsingViewModel {
             selection: .bluRayPlaylist(
                 title.playlistID,
                 source: level.source.discSource
-            )
+            ),
+            streamLanguages: level.streamLanguages[title.playlistID] ?? [:]
         )
         if let onPrepareFile {
             detailNavigationRequest = item
@@ -689,7 +691,11 @@ public final class FileBrowsingViewModel {
     private func catalogTitles(
         source: BluRayBrowseLevel.Source,
         identity: BluRayDiscIdentityBasis
-    ) async throws -> (content: BluRayDiscContent, titles: [BluRayTitleItem]) {
+    ) async throws -> (
+        content: BluRayDiscContent,
+        titles: [BluRayTitleItem],
+        streamLanguages: [BluRayPlaylistID: [Int: String]]
+    ) {
         let catalogStartedAt = Date()
         let loaded: LoadedBluRayCatalog
         if case .versioned(let versioned?) = identity,
@@ -712,7 +718,15 @@ public final class FileBrowsingViewModel {
                 contentRevision: .directoryManifest(loaded.manifest)
             )
         }
-        return try loaded.present(sourceName: source.displayName, identity: discIdentity)
+        let presentation = try loaded.present(
+            sourceName: source.displayName,
+            identity: discIdentity
+        )
+        return (
+            presentation.content,
+            presentation.titles,
+            loaded.catalog.streamLanguagesByPlaylist
+        )
     }
 
     private func versionedDiscIdentity(
@@ -1133,6 +1147,7 @@ public final class FileBrowsingViewModel {
                 source: discSource,
                 content: presentation.content,
                 titles: presentation.titles,
+                streamLanguages: presentation.streamLanguages,
                 parentFiles: parentFiles,
                 parentFolders: parentFolders,
                 parentCanNavigateUp: parentCanNavigateUp,

@@ -553,7 +553,8 @@ public final class MediaLibraryViewModel {
             versionedIdentity: title.versionedIdentity,
             accessLease: level.resolved.accessLease,
             byteStreamHandle: level.resolved.byteStreamHandle,
-            selection: .bluRayPlaylist(title.playlistID, source: level.source)
+            selection: .bluRayPlaylist(title.playlistID, source: level.source),
+            streamLanguages: level.streamLanguages[title.playlistID] ?? [:]
         ))
     }
 

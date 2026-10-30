@@ -145,6 +145,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         return PlaybackLaunchRequest(
             source: PlaybackAddress(byteStreamHandle: refreshed[0]),
             contentSelection: refreshedSelection,
+            discStreamLanguages: discStreamLanguages,
             displayName: displayName, fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata, collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity, sourceAccess: sourceAccess,
@@ -159,6 +160,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let id: URL
     public let source: PlaybackAddress
     public let contentSelection: PlaybackContentSelection
+    public let discStreamLanguages: [Int: String]
     public var url: URL { source.url }
     public let displayName: String
     public let fileIdentifier: PlaybackFileIdentifier?
@@ -176,6 +178,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public init(
         source: PlaybackAddress,
         contentSelection: PlaybackContentSelection = .file,
+        discStreamLanguages: [Int: String] = [:],
         displayName: String,
         fileIdentifier: PlaybackFileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil,
@@ -191,6 +194,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.id = Self.requestIdentity(source: source, selection: contentSelection)
         self.source = source
         self.contentSelection = contentSelection
+        self.discStreamLanguages = discStreamLanguages
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
@@ -241,6 +245,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public init(
         source: PlaybackAddress,
         contentSelection: PlaybackContentSelection = .file,
+        discStreamLanguages: [Int: String] = [:],
         displayName: String,
         fileIdentifier: PlaybackFileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil,
@@ -257,6 +262,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.id = Self.requestIdentity(source: source, selection: contentSelection)
         self.source = source
         self.contentSelection = contentSelection
+        self.discStreamLanguages = discStreamLanguages
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
@@ -310,6 +316,7 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         PlaybackLaunchRequest(
             source: source,
             contentSelection: contentSelection,
+            discStreamLanguages: discStreamLanguages,
             displayName: displayName,
             fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,

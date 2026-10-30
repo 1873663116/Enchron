@@ -1950,6 +1950,10 @@ final class TestCommandChannel {
             return try seekNormalized(request)
         case "playbackProbe":
             return playbackProbe(request)
+        case "selectAudioTrack":
+            return await selectAudioTrack(request)
+        case "selectSubtitleTrack":
+            return await selectSubtitleTrack(request)
         case "streamStats":
             return streamStats(request)
         case "pipelineStats":
@@ -2682,9 +2686,46 @@ final class TestCommandChannel {
                 "duration=\(String(format: "%.3f", position.duration))",
                 "speed=\(speed)",
                 "lifecycle=\(lifecycle)",
-                "resumePrompt=\(playbackLauncher.pendingResumeDecision != nil)"
+                "resumePrompt=\(playbackLauncher.pendingResumeDecision != nil)",
+                "audio=\(playbackRuntime.availableAudioTracks.map(\.displayName).joined(separator: " | "))",
+                "subtitles=\(playbackRuntime.availableSubtitleTracks.map(\.displayName).joined(separator: " | "))"
             ]
         )
+    }
+
+    private func selectAudioTrack(_ request: Request) async -> Response {
+        guard let raw = request.args["stream"], let stream = Int(raw),
+              let track = playbackRuntime.availableAudioTracks.first(where: {
+                  $0.id == String(stream)
+              }) else {
+            return Response(id: request.id, ok: false, detail: "unknown audio stream", payload: [])
+        }
+        do {
+            try await playbackRuntime.selectAudioTrack(track)
+            return Response(id: request.id, ok: true, detail: nil, payload: ["track=\(track.displayName)"])
+        } catch {
+            return Response(id: request.id, ok: false, detail: String(describing: error), payload: [])
+        }
+    }
+
+    private func selectSubtitleTrack(_ request: Request) async -> Response {
+        guard let raw = request.args["stream"] else {
+            return Response(id: request.id, ok: false, detail: "stream required", payload: [])
+        }
+        let track = raw == "off"
+            ? nil
+            : playbackRuntime.availableSubtitleTracks.first { $0.id.contains("\(raw)") }
+        do {
+            try await playbackRuntime.selectSubtitleTrack(track)
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: ["track=\(track?.displayName ?? "off")"]
+            )
+        } catch {
+            return Response(id: request.id, ok: false, detail: String(describing: error), payload: [])
+        }
     }
 
     private func answerResumePrompt(_ request: Request) throws -> Response {

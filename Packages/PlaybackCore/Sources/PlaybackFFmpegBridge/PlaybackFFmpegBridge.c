@@ -239,6 +239,8 @@ struct PBFFmpegAudioReader {
     PBFFmpegPacketNode *consumedDemuxPacketBatch;
     AVPacket *packet;
     AVPacket *decoderBatchPacket;
+    AVPacket *parsedPacket;
+    AVCodecParserContext *parser;
     AVCodecContext *decoder;
     AVFrame *decodedFrame;
     SwrContext *resampler;
@@ -3859,6 +3861,7 @@ static void fill_media_stream_storage(
 ) {
     const AVCodecParameters *parameters = stream->codecpar;
     storage->info.streamIndex = stream->index;
+    storage->info.streamID = stream->id;
     storage->info.category = media_stream_category(parameters->codec_type);
     storage->info.codecID = parameters->codec_id;
     storage->info.codecTag = parameters->codec_tag;
@@ -5566,6 +5569,87 @@ static int supported_audio_stream_index(AVFormatContext *context) {
     return -1;
 }
 
+static bool demuxer_fragments_frames(const AVFormatContext *format) {
+    if (!format || !format->iformat || !format->iformat->name) return false;
+    const char *name = format->iformat->name;
+    return strstr(name, "mpegts") != NULL || strstr(name, "mpegps") != NULL;
+}
+
+static int send_parsed_audio_packets(
+    PBFFmpegAudioReader *reader,
+    const uint8_t *data,
+    int size,
+    int64_t pts,
+    int64_t dts
+) {
+    int sent = 0;
+    if (data == NULL && size == 0) {
+        uint8_t *outData = NULL;
+        int outSize = 0;
+        int used = av_parser_parse2(
+            reader->parser,
+            reader->decoder,
+            &outData,
+            &outSize,
+            NULL,
+            0,
+            AV_NOPTS_VALUE,
+            AV_NOPTS_VALUE,
+            AV_NOPTS_VALUE
+        );
+        if (used < 0) return sent;
+        if (outSize > 0) {
+            av_packet_unref(reader->parsedPacket);
+            int allocate = av_new_packet(reader->parsedPacket, outSize);
+            if (allocate < 0) return allocate;
+            memcpy(reader->parsedPacket->data, outData, (size_t)outSize);
+            reader->parsedPacket->pts = reader->parser->pts;
+            reader->parsedPacket->dts = reader->parser->dts;
+            int result = avcodec_send_packet(reader->decoder, reader->parsedPacket);
+            if (result < 0 && result != AVERROR_INVALIDDATA &&
+                result != AVERROR(EINVAL)) {
+                return result;
+            }
+            sent += 1;
+        }
+        return sent;
+    }
+    while (size > 0) {
+        uint8_t *outData = NULL;
+        int outSize = 0;
+        int used = av_parser_parse2(
+            reader->parser,
+            reader->decoder,
+            &outData,
+            &outSize,
+            data,
+            size,
+            pts,
+            dts,
+            AV_NOPTS_VALUE
+        );
+        if (used < 0) return sent;
+        data += used;
+        size -= used;
+        if (outSize > 0) {
+            av_packet_unref(reader->parsedPacket);
+            int allocate = av_new_packet(reader->parsedPacket, outSize);
+            if (allocate < 0) return allocate;
+            memcpy(reader->parsedPacket->data, outData, (size_t)outSize);
+            reader->parsedPacket->pts = reader->parser->pts;
+            reader->parsedPacket->dts = reader->parser->dts;
+            int result = avcodec_send_packet(reader->decoder, reader->parsedPacket);
+            if (result < 0 && result != AVERROR_INVALIDDATA &&
+                result != AVERROR(EINVAL)) {
+                return result;
+            }
+            sent += 1;
+        }
+        if (used == 0 && outSize == 0) break;
+    }
+    return sent;
+}
+
 static bool configure_audio_reader(
     PBFFmpegAudioReader *reader,
     double startSeconds,
@@ -5691,8 +5775,12 @@ static bool configure_audio_reader(
         reader->decoder = avcodec_alloc_context3(decoder);
         reader->decodedFrame = av_frame_alloc();
         reader->decoderBatchPacket = av_packet_alloc();
+        reader->parsedPacket = av_packet_alloc();
+        reader->parser = demuxer_fragments_frames(reader->formatContext)
+            ? av_parser_init(stream->codecpar->codec_id)
+            : NULL;
         if (!reader->decoder || !reader->decodedFrame ||
-            !reader->decoderBatchPacket) {
+            !reader->decoderBatchPacket || !reader->parsedPacket) {
             set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio decoder");
             return false;
         }
@@ -5733,6 +5821,15 @@ static bool configure_audio_reader(
         }
         if (cancellation_requested(&reader->cancelled)) return false;
         if (reader->decoder) avcodec_flush_buffers(reader->decoder);
+        if (reader->parser) {
+            const enum AVCodecID codecID = reader->decoder
+                ? reader->decoder->codec_id
+                : AV_CODEC_ID_NONE;
+            av_parser_close(reader->parser);
+            reader->parser = codecID == AV_CODEC_ID_NONE
+                ? NULL
+                : av_parser_init(codecID);
+        }
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     return true;
@@ -5850,6 +5947,9 @@ void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     av_frame_free(&reader->decodedFrame);
     avcodec_free_context(&reader->decoder);
     avcodec_parameters_free(&reader->codecParameters);
+    av_parser_close(reader->parser);
+    reader->parser = NULL;
+    av_packet_free(&reader->parsedPacket);
     av_packet_free(&reader->decoderBatchPacket);
     av_packet_free(&reader->packet);
     if (reader->demuxSource) {
@@ -6913,6 +7013,18 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
             }
             if (reader->inputEnded) {
                 if (!reader->decoderDrained) {
+                    if (reader->parser) {
+                        int flush = send_parsed_audio_packets(reader, NULL, 0, 0, 0);
+                        if (flush < 0) {
+                            set_av_error(
+                                errorBuffer,
+                                errorBufferSize,
+                                "Flush FFmpeg audio parser",
+                                flush
+                            );
+                            return PBFFmpegReadResultError;
+                        }
+                    }
                     result = avcodec_send_packet(reader->decoder, NULL);
                     reader->decoderDrained = true;
                     if (result < 0 && result != AVERROR_EOF) {
@@ -6961,6 +7073,30 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                 reader->lastActiveFailureCause =
                     active_failure_cause_for_av_error(result);
                 return PBFFmpegReadResultError;
+            }
+            if (reader->parser) {
+                result = send_parsed_audio_packets(
+                    reader,
+                    reader->packet->data,
+                    reader->packet->size,
+                    reader->packet->pts,
+                    reader->packet->dts
+                );
+                av_packet_unref(reader->packet);
+                if (result < 0) {
+                    char operation[128];
+                    snprintf(
+                        operation,
+                        sizeof(operation),
+                        "Parse packet for FFmpeg audio codec %s decoder",
+                        reader->codecName
+                    );
+                    set_av_error(errorBuffer, errorBufferSize, operation, result);
+                    reader->lastActiveFailureCause =
+                        active_failure_cause_for_decoder_error(result);
+                    return PBFFmpegReadResultError;
+                }
+                continue;
             }
             result = avcodec_send_packet(reader->decoder, reader->packet);
             av_packet_unref(reader->packet);

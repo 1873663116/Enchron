@@ -284,6 +284,10 @@ extension SampleBufferPlaybackSession {
                 return true
             }
             guard committed else { throw CancellationError() }
+            let hasRenderer = frameRenderer != nil
+            logger.info(
+                "subtitle.select.completed cues=\(cues.count, privacy: .public) renderer=\(hasRenderer, privacy: .public)"
+            )
             recordSubtitleState(at: synchronizer.currentTime())
             publishSubtitleCues(at: synchronizer.currentTime())
             debugStore.emit(
@@ -298,6 +302,8 @@ extension SampleBufferPlaybackSession {
                 ]
             )
         } catch {
+            let message = String(describing: error)
+            logger.info("subtitle.select.failed error=\(message, privacy: .public)")
             subtitleStateLock.withLock {
                 guard subtitleState.selectionGeneration == selection.2 else { return }
                 subtitleState.selectedTrackID = nil
@@ -471,8 +477,18 @@ extension SampleBufferPlaybackSession {
             )
             frame = nil
         }
-        if frame != nil {
+        if let frame {
             noteSubtitleOutcome(.producing, generation: snapshot.1)
+            let second = Int(time.seconds.isFinite ? time.seconds : 0)
+            if second != lastReportedProducedSubtitleSecond {
+                lastReportedProducedSubtitleSecond = second
+                let kind = String(describing: frame.kind)
+                let width = frame.contentWidth
+                let height = frame.contentHeight
+                logger.info(
+                    "subtitle.frame kind=\(kind, privacy: .public) at=\(second, privacy: .public) size=\(width, privacy: .public)x\(height, privacy: .public)"
+                )
+            }
         }
         if frame == nil, let renderer = snapshot.0 {
             let description = renderer.stateDescription
@@ -481,6 +497,9 @@ extension SampleBufferPlaybackSession {
                 let second = Int(time.seconds.isFinite ? time.seconds : 0)
                 if second != lastReportedEmptySubtitleSecond {
                     lastReportedEmptySubtitleSecond = second
+                    logger.info(
+                        "subtitle.frame.empty at=\(second, privacy: .public) renderer=\(description, privacy: .public)"
+                    )
                     debugStore.emit(
                         mediaSessionID: traceID,
                         kind: "subtitle.frame.empty",

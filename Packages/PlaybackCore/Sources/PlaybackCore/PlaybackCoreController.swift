@@ -127,6 +127,7 @@ public final class PlaybackCoreController {
         startsPaused: Bool = false,
         initialRate: Float? = nil,
         sourceTransport: PlaybackSourceTransport = .localFile,
+        discStreamLanguages: [Int: String] = [:],
         initialStereoLayout: VideoStereoLayout? = nil,
         initialProjectionOverride: VideoProjectionOverride? = nil,
         initialDynamicRangeOverride: VideoDynamicRangeOverride? = nil,
@@ -169,6 +170,7 @@ public final class PlaybackCoreController {
         deliveryContinuity = nil
         setStatus(.loading)
         let session = sessionFactory(sessionID)
+        session.discStreamLanguages = discStreamLanguages
         if initialStereoLayout != nil || initialProjectionOverride != nil
             || initialDynamicRangeOverride != nil {
             _ = try await session.setFormatOverrides(
