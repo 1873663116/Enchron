@@ -1280,14 +1280,22 @@ mov_text
   实测 subtitle.frame kind=coreText at=16 size=1168x124
 ```
 
+vobsub
+
+```
+ffmpeg -i /tmp/pgs-in-mkv.mkv -i FATE/MPEG2/dvd_single_frame.vob \
+       -map 0:v:0 -map 0:a:0 -map 1:s:0 -c copy /tmp/vobsub-in-mkv.mkv
+实测 subtitle.frame.produced at=0.000 range=0.000-5.000
+     subtitle.frame kind=bitmap at=0 size=720x573
+```
+
 余下缺口：
 
 ```
-vobsub          无。需要 DVD 片源，本机语料没有
 外挂位图字幕    无。需要独立 .sup 文件与外部字幕源配置
 ```
 
-因此「容器 × 位图字幕」的组合现在覆盖 m2ts、光盘与 mkv；mp4 的位图字幕不成立（mov_text 是文本格式）。
+因此「容器 × 位图字幕」的组合覆盖 m2ts、光盘、mkv 与 vobsub；mp4 的位图字幕不成立（mov_text 是文本格式）。
 
 ### 12.4 判据与证据
 
