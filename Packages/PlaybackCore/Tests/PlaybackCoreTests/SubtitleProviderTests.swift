@@ -9,8 +9,8 @@ import Testing
     let fixture = try subtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
 
-    let firstTracks = try await provider.tracks(in: fixture, asset: nil)
-    let secondTracks = try await provider.tracks(in: fixture, asset: nil)
+    let firstTracks = try await provider.probeTracks(in: fixture, asset: nil)
+    let secondTracks = try await provider.probeTracks(in: fixture, asset: nil)
 
     #expect(firstTracks == secondTracks)
     #expect(firstTracks.map(\.id) == ["ffmpeg.subtitle.1", "ffmpeg.subtitle.2"])
@@ -525,7 +525,7 @@ private final class SettledFlag: @unchecked Sendable {
 @Test func libassRendererProducesPremultipliedSubtitleFrameAtCueTime() async throws {
     let fixture = try subtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
-    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let track = try #require(try await provider.probeTracks(in: fixture, asset: nil).first)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
         asset: nil,
@@ -558,7 +558,7 @@ private final class SettledFlag: @unchecked Sendable {
 @Test func textSubtitleRendererDrawsDistinctCJKCharactersInsteadOfMissingGlyphBoxes() async throws {
     let fixture = try cjkSubtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
-    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let track = try #require(try await provider.probeTracks(in: fixture, asset: nil).first)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
         asset: nil,
@@ -674,7 +674,7 @@ private final class SettledFlag: @unchecked Sendable {
 @Test func assSubtitleRendererDrawsHanCharactersInsteadOfMissingGlyphBoxes() async throws {
     let fixture = try hanASSSubtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
-    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let track = try #require(try await provider.probeTracks(in: fixture, asset: nil).first)
     #expect(track.codecName == "ass")
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
@@ -746,7 +746,7 @@ private final class SettledFlag: @unchecked Sendable {
 @Test func bitmapSubtitleRendererPreservesDecodedPixelsAndCanvasPlacement() async throws {
     let fixture = try bitmapSubtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
-    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let track = try #require(try await provider.probeTracks(in: fixture, asset: nil).first)
     #expect(track.codecName == "dvb_subtitle")
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
@@ -1709,7 +1709,7 @@ private final class GatedExternalSubtitlePreparationProvider: SubtitleProvider {
         self.gates = gates
     }
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
         [PlaybackSubtitleTrack(id: "ffmpeg.subtitle.1", streamIndex: 1, codecName: "subrip", language: nil, title: nil)]
     }
 
@@ -1738,7 +1738,7 @@ private final class FailingExternalSubtitleFrameRenderer: SubtitleFrameRendering
 }
 
 private final class FailingExternalSubtitlePreparationProvider: SubtitleProvider {
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
         [PlaybackSubtitleTrack(
             id: "ffmpeg.subtitle.1",
             streamIndex: 1,
@@ -1831,7 +1831,7 @@ private final class DelayedSubtitleTestProvider: SubtitleProvider {
         title: "简体中文"
     )
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
         [track]
     }
 
@@ -2058,7 +2058,7 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
 @Test func presentationGraphicRendererDrawsTheDisplaySetThatCoversTheTime() async throws {
     let fixture = try presentationGraphicFixtureURL(displaySetCount: 8)
     let provider = FFmpegSubtitleProvider()
-    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let track = try #require(try await provider.probeTracks(in: fixture, asset: nil).first)
     #expect(track.codecName == "hdmv_pgs_subtitle")
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
@@ -2112,7 +2112,7 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
     let displaySets = 1_200
     let fixture = try presentationGraphicFixtureURL(displaySetCount: displaySets)
     let provider = FFmpegSubtitleProvider()
-    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let track = try #require(try await provider.probeTracks(in: fixture, asset: nil).first)
     let renderer = try #require(
         try await provider.frameRenderer(in: fixture, asset: nil, track: track)
             as? FFmpegSubtitleFrameRenderer
@@ -2160,7 +2160,7 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
 @Test func aBitmapSubtitleDocumentKeepsTheTimesItWasAuthoredWith() async throws {
     let fixture = try presentationGraphicFixtureURL(displaySetCount: 8)
     let provider = FFmpegSubtitleProvider()
-    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let track = try #require(try await provider.probeTracks(in: fixture, asset: nil).first)
     let renderer = try #require(try await provider.frameRenderer(
         in: fixture,
         asset: nil,
@@ -2184,7 +2184,7 @@ private func presentationGraphicFixtureURL(displaySetCount: Int) throws -> URL {
     let fixture = try ultraHighDefinitionBitmapSubtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
     let track = try #require(
-        try await provider.tracks(in: fixture, asset: nil)
+        try await provider.probeTracks(in: fixture, asset: nil)
             .first { $0.codecName == "hdmv_pgs_subtitle" }
     )
     let renderer = try #require(try await provider.frameRenderer(

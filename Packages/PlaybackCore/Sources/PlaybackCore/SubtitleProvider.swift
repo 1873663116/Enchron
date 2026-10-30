@@ -88,7 +88,7 @@ protocol SubtitleProvider: AnyObject {
     func prepareExternalSource(
         _ source: PlaybackExternalSubtitleSource
     ) async throws -> PreparedExternalSubtitleSource
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack]
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack]
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
@@ -111,7 +111,7 @@ extension SubtitleProvider {
     func prepareExternalSource(
         _ source: PlaybackExternalSubtitleSource
     ) async throws -> PreparedExternalSubtitleSource {
-        let tracks = try await tracks(in: source.url, asset: nil)
+        let tracks = try await probeTracks(in: source.url, asset: nil)
         guard !tracks.isEmpty else {
             throw PlaybackControlError.externalSubtitleHasNoSupportedTracks(source.displayName)
         }
@@ -132,7 +132,7 @@ extension SubtitleProvider {
         asset: PlaybackAsset?,
         description: PlaybackSourceDescription?
     ) async throws -> [PlaybackSubtitleTrack] {
-        try await tracks(in: url, asset: asset)
+        try await probeTracks(in: url, asset: asset)
     }
 
     func frameRenderer(
@@ -143,7 +143,7 @@ extension SubtitleProvider {
 }
 
 final class NoSubtitleProvider: SubtitleProvider {
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] { [] }
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] { [] }
 
     func cues(
         in url: URL,
@@ -164,7 +164,7 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
     func prepareExternalSource(
         _ source: PlaybackExternalSubtitleSource
     ) async throws -> PreparedExternalSubtitleSource {
-        let tracks = try await tracks(in: source.url, asset: nil)
+        let tracks = try await probeTracks(in: source.url, asset: nil)
         try Task.checkCancellation()
         guard !tracks.isEmpty else {
             throw PlaybackControlError.externalSubtitleHasNoSupportedTracks(source.displayName)
@@ -223,7 +223,7 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         )
     }
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
         (try? await informationLoader.load(from: url))?.playbackSubtitleTracks ?? []
     }
 
@@ -233,7 +233,7 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         description: PlaybackSourceDescription?
     ) async throws -> [PlaybackSubtitleTrack] {
         if let description { return description.subtitleTracks }
-        return try await tracks(in: url, asset: asset)
+        return try await probeTracks(in: url, asset: asset)
     }
 
     func cues(

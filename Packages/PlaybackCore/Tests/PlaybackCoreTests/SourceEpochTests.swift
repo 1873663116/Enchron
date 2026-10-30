@@ -72,7 +72,7 @@ private func fixtureMediaURL() throws -> URL {
     try await session.configureSource(transport: .localFile)
     let source = FFmpegSourceLocator.argument(for: url)
     let provider = FFmpegSubtitleProvider(sourceReadMeter: meter, demuxSession: session)
-    let tracks = try await provider.tracks(in: url, asset: nil)
+    let tracks = try await provider.probeTracks(in: url, asset: nil)
     let track = try #require(tracks.first)
     let renderer = try FFmpegSubtitleFrameRenderer(
         demuxSession: session,

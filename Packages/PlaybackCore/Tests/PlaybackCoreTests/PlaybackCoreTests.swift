@@ -233,11 +233,13 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
         ]
     )
     let loader = FixedMediaSourceInformationLoader(information)
+    let audioProvider = FakeAudioSampleProvider()
+    let subtitleProvider = MediaInformationRecordingSubtitleProvider()
     let session = SampleBufferPlaybackSession(
         traceID: "single-description-session",
         provider: FakeVideoSampleProvider(events: [.end]),
-        audioProvider: FakeAudioSampleProvider(),
-        subtitleProvider: MediaInformationRecordingSubtitleProvider(),
+        audioProvider: audioProvider,
+        subtitleProvider: subtitleProvider,
         mediaSourceInformationLoader: loader,
         rendererSink: FakeRendererInputSink(),
         videoPrerollDisplayObservation: { true },
@@ -252,6 +254,8 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
 
     let description = try #require(session.sourceDescription)
     #expect(loader.loadCount == 1)
+    #expect(audioProvider.probeCallCount == 0)
+    #expect(subtitleProvider.probeCallCount == 0)
     #expect(description.information == information)
     #expect(description.audioTracks == information.playbackAudioTracks)
     #expect(description.subtitleTracks == session.availableSubtitleTracks)
@@ -6019,7 +6023,10 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         self.trackListError = trackListError
     }
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
+    private(set) var probeCallCount = 0
+
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
+        probeCallCount += 1
         if let trackListError { throw trackListError }
         return [
             PlaybackAudioTrack(
@@ -6043,7 +6050,7 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         if let information = description?.information {
             return information.playbackAudioTracks
         }
-        return try await tracks(in: url, asset: asset)
+        return try await probeTracks(in: url, asset: asset)
     }
 
     func prepare(
@@ -6104,11 +6111,14 @@ private final class FixedMediaSourceInformationLoader:
 private final class MediaInformationRecordingSubtitleProvider: SubtitleProvider {
     private(set) var sourceInformationReceived: MediaSourceInformation?
 
-    func tracks(
+    private(set) var probeCallCount = 0
+
+    func probeTracks(
         in url: URL,
         asset: PlaybackAsset?
     ) async throws -> [PlaybackSubtitleTrack] {
-        []
+        probeCallCount += 1
+        return []
     }
 
     func tracks(
@@ -6170,7 +6180,7 @@ private final class StubSubtitleProvider: SubtitleProvider {
         self.renderer = renderer
     }
 
-    func tracks(
+    func probeTracks(
         in url: URL,
         asset: PlaybackAsset?
     ) async throws -> [PlaybackSubtitleTrack] {
@@ -6199,7 +6209,7 @@ private final class StubSubtitleProvider: SubtitleProvider {
 private final class TrackListFailingSubtitleProvider: SubtitleProvider {
     private(set) var cancelCount = 0
 
-    func tracks(
+    func probeTracks(
         in url: URL,
         asset: PlaybackAsset?
     ) async throws -> [PlaybackSubtitleTrack] {
@@ -6258,7 +6268,7 @@ private final class FakeAudioRendererInputSink: AudioRendererInputSink, @uncheck
 private final class FailingAudioOpenProvider: AudioSampleProvider {
     var info: AudioSampleProviderInfo? { nil }
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
         [
             PlaybackAudioTrack(
                 streamIndex: 1, codecName: "aac", sampleRate: 0,

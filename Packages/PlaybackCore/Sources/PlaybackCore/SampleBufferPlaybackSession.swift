@@ -666,7 +666,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 availableAudioTracks = []
             } else {
                 logger.info("source.description.fallback lane=audio reason=noLoader")
-                availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
+                availableAudioTracks = try await audioProvider.probeTracks(in: url, asset: asset)
             }
         } catch {
             if error is CancellationError || Task.isCancelled { throw error }
@@ -685,7 +685,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 )
             } else if mediaSourceInformationLoader == nil {
                 logger.info("source.description.fallback lane=subtitle reason=noLoader")
-                subtitleTracks = try await subtitleProvider.tracks(in: url, asset: asset)
+                subtitleTracks = try await subtitleProvider.probeTracks(in: url, asset: asset)
             }
         } catch {
             if error is CancellationError || Task.isCancelled { throw error }

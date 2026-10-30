@@ -168,7 +168,7 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
 protocol AudioSampleProvider: AnyObject {
     var info: AudioSampleProviderInfo? { get }
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack]
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack]
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
@@ -190,14 +190,14 @@ extension AudioSampleProvider {
         asset: PlaybackAsset?,
         description: PlaybackSourceDescription?
     ) async throws -> [PlaybackAudioTrack] {
-        try await tracks(in: url, asset: asset)
+        try await probeTracks(in: url, asset: asset)
     }
 }
 
 final class NoAudioSampleProvider: AudioSampleProvider {
     var info: AudioSampleProviderInfo? { nil }
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] { [] }
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] { [] }
 
     func prepare(
         url: URL,
@@ -426,7 +426,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
         cancel()
     }
 
-    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
+    func probeTracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
         (try? await informationLoader.load(from: url))?.playbackAudioTracks ?? []
     }
 
@@ -436,7 +436,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
         description: PlaybackSourceDescription?
     ) async throws -> [PlaybackAudioTrack] {
         if let description { return description.audioTracks }
-        return try await tracks(in: url, asset: asset)
+        return try await probeTracks(in: url, asset: asset)
     }
 
     private func cancel(generation expectedGeneration: UInt64?) {

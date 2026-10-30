@@ -23,7 +23,7 @@ private struct SubtitleHarness {
         let argument = FFmpegSourceLocator.argument(for: url)
         try session.withSource(argument: argument) { _ in () }
         let provider = FFmpegSubtitleProvider(sourceReadMeter: meter, demuxSession: session)
-        let tracks = try await provider.tracks(in: url, asset: nil)
+        let tracks = try await provider.probeTracks(in: url, asset: nil)
         let track = try #require(tracks.first { $0.codecName.contains("pgs") } ?? tracks.first)
         return SubtitleHarness(session: session, provider: provider, url: url, track: track)
     }
