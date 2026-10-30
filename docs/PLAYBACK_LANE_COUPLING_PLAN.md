@@ -1227,16 +1227,28 @@ WebDAV  同一文件                        demux.open.failed error=Open demux m
            pgs 位图 本地 m2ts、光盘                第五节、第七节
 ```
 
-缺口，本语料没有可用样本：
+补充覆盖（本轮由现成片源转封装产生，命令可复跑）：
 
 ```
-mov_text        无
-vobsub          无
-外挂位图字幕    无
-mkv 内位图字幕  测试夹具在仓库内为 base64 编码，解码后为空文件；Emby 语料无此组合
+mkv 内位图字幕
+  ffmpeg -ss 100 -t 60 -i Sintel-Bluray/BDMV/STREAM/00000.m2ts \
+         -map 0:v:0 -map 0:a:0 -map 0:s:0 -c copy /tmp/pgs-in-mkv.mkv
+  实测 subtitle.frame kind=bitmap at=21 size=1920x109
+
+mov_text
+  ffmpeg -ss 180 -t 60 -i 少女终末旅行…mkv \
+         -map 0:v:0 -map 0:a:0 -map 0:s:0 -c:v copy -c:a aac -c:s mov_text /tmp/movtext.mp4
+  实测 subtitle.frame kind=coreText at=16 size=1168x124
 ```
 
-因此「容器 × 位图字幕」的组合只覆盖 m2ts 与光盘，mkv 与 mp4 缺失。
+余下缺口：
+
+```
+vobsub          无。需要 DVD 片源，本机语料没有
+外挂位图字幕    无。需要独立 .sup 文件与外部字幕源配置
+```
+
+因此「容器 × 位图字幕」的组合现在覆盖 m2ts、光盘与 mkv；mp4 的位图字幕不成立（mov_text 是文本格式）。
 
 ### 12.4 判据与证据
 
