@@ -17,6 +17,14 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    func noteVideoDeliveryFinished() {
+        sourceProgressLock.withLock { videoDeliveryFinished = true }
+    }
+
+    func resetVideoDeliveryFinished() {
+        sourceProgressLock.withLock { videoDeliveryFinished = false }
+    }
+
     func startSourceProgressWatchdog() {
         sourceProgressLock.withLock {
             guard sourceProgressWatchdog == nil else { return }
@@ -45,9 +53,15 @@ extension SampleBufferPlaybackSession {
 
     private func evaluateSourceProgress() {
         noteSourceBytesForWatchdog()
-        let (bytesInstant, sampleInstant, bytes) = sourceProgressLock.withLock {
-            (sourceProgressInstant, lastAcceptedVideoSampleInstant, sourceProgressBytes)
+        let (bytesInstant, sampleInstant, bytes, finished) = sourceProgressLock.withLock {
+            (
+                sourceProgressInstant,
+                lastAcceptedVideoSampleInstant,
+                sourceProgressBytes,
+                videoDeliveryFinished
+            )
         }
+        guard finished == false else { return }
         let now = ContinuousClock.now
         let newest = max(bytesInstant, sampleInstant)
         let limit = PlaybackBufferingPolicy.effectiveStallLimit

@@ -443,6 +443,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var sourceProgressInstant = ContinuousClock.now
     var lastAcceptedVideoSampleInstant = ContinuousClock.now
     var sourceProgressWatchdog: Task<Void, Never>?
+    var videoDeliveryFinished = false
     let readinessLock = NSLock()
     var readinessState: PlaybackReadinessState = .loading
     var videoSamplesAccepted: UInt64 = 0

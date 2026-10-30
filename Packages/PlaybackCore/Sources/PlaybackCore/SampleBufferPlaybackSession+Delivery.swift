@@ -136,6 +136,7 @@ extension SampleBufferPlaybackSession {
 
     func startVideoDelivery() {
         guard mediaKind == .video else { return }
+        resetVideoDeliveryFinished()
         videoDeliveryStartHostSeconds = CMClockGetTime(CMClockGetHostTimeClock()).seconds
         let start = deliveryTaskLock.withLock { () -> (UInt64, Task<Void, Never>?)? in
             guard videoSampleDeliverySuspended == false else { return nil }
@@ -319,6 +320,7 @@ extension SampleBufferPlaybackSession {
                         await handleProviderControlEvent(.flush)
                         return
                     case .end:
+                        noteVideoDeliveryFinished()
                         await finishDelivery()
                         return
                     }

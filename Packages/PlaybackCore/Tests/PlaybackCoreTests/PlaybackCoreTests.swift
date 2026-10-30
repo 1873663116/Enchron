@@ -4960,6 +4960,27 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(session.diagnostics.audioRetired == false)
 }
 
+@Test func aSourceThatFinishedIsNotReportedAsStalled() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "stall-after-end-session",
+        provider: FakeVideoSampleProvider(events: []),
+        audioProvider: FakeAudioSampleProvider(),
+        rendererSink: FakeRendererInputSink(),
+        audioRendererSink: FakeAudioRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+
+    session.startStallLimit = .milliseconds(150)
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/stall-after-end.mp4"))
+    try session.start()
+    try await Task.sleep(for: .milliseconds(600))
+
+    #expect(session.readinessState != .stalled)
+}
+
 @Test func retiredAudioStaysNonfatalAcrossRepeatedSeeks() async throws {
     let fixture = try unsupportedAC4Fixture()
     defer { try? FileManager.default.removeItem(at: fixture) }
