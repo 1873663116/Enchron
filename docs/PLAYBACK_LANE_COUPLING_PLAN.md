@@ -175,8 +175,6 @@ clock= 25.000  lane=1  pts=30.976    切换 3→1
 
 四，切换字幕三次：每次满足第二条，且同一单元不重复交付。
 
-四，切换字幕三次：每次满足第二条，且同一单元不重复交付。
-
 已成立。本地 `00000.m2ts`，跳转到 119.995 秒后依次切换到德语、英语、西班牙语，每次间隔七秒：
 
 ```
@@ -192,6 +190,26 @@ at=145  packetSpan=121.458..232.250  covered=121.458..148.833
 判据二，不重复交付：`covered` 的起点恒为 121.458，终点单调不减，没有回退。
 
 五，任取一分钟，按固定采样率检查：每次字幕查询的播放位置都落在当帧视频单元区间之内。
+
+形式化检查（`Scripts/playback/formal/run.sh`，约一秒）：
+
+```
+guard present: take-over marks the stream subscribed
+guard present: release compares the owner token before releasing
+guard present: seek clears every queue
+guard present: history replay keeps only packets at or after the requested time
+finding open: attach does not trim packets older than the playhead
+== design: a lane trims its queue at attach ==
+design: all invariants hold
+== current code: attach keeps whatever the queue holds ==
+current code: stale delivery reproduced, as the code stands
+```
+
+该检查对第三条不成立：车道接管流时不裁剪早于播放位置的包，反例路径为「读取循环预缓冲 → 播放位置前进 → 接管 → 取出旧包」。
+
+与实测一致：目标三的 2 至 3 次切换中，起始单元比播放位置早 4.71 秒（见第七节）。
+
+待修改：`PBFFmpegDemuxSourceTakeOverStream` 增加播放位置参数，接管时丢弃早于该位置的包。修改后须把 `PlaybackLanesCurrent.cfg` 的 `TrimOnAttach` 置为 TRUE，并同步 `check_sync.py`。
 
 ### 测量方法
 
