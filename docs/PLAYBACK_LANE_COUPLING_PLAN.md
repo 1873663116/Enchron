@@ -453,10 +453,13 @@ subtitle  subtitle.lane.attached at=119.995
 每项含观测、复现方法与处置。处置为「已修」「登记」「移交」之一。
 
 ```
-D1  库条目失效后播放静默失败
-    观测   失效书签的条目 playMedia 返回 ok=false，界面无提示
-    复现   向库中加入一个已被移动的文件，再播放该条目
-    处置   已定位，未修；缺界面提示
+D1  撤销。曾记为「库条目失效后播放静默失败」
+    复测   加入 /tmp/d1-entry.mkv，移动到另一路径，再播放该条目
+           系统日志中的告警控制器原文：
+           Title: `Media Library Error`
+           message: `The original file is unavailable. Choose it again to restore access.`
+    成因   先前只依据 playMedia 的返回值判断，未检查界面
+    处置   撤销；界面已给出可操作的提示
 
 D2  远程 mkv 播放进程中止
     观测   SIGABRT，栈 matroska_parse_cluster ← demux_source_read_loop
@@ -866,7 +869,7 @@ Alien: Covenant（HEVC 4K）    playServerItem ok=true   position=10.500 lifecyc
 发现。本次验证发现九项，其中两项经复测撤回。
 
 ```
-D1  库条目失效后播放静默失败          未修
+D1  库条目失效后播放静默失败          撤回，界面已提示
 D2  远程 mkv 播放进程中止              未修，无法稳定复现
 D3  openSourceFile 打开 WebDAV 报 5XX  撤回，服务正在停止
 D4  10 位 h264 不可播放                已修行为，播放前拒绝并提示
