@@ -946,6 +946,41 @@ WebDAV  同一文件                        demux.open.failed error=Open demux m
 
 七，再次跳转，重复步骤四至六。
 
+#### 12.3.1 因子覆盖
+
+执行过的因子组合与证据位置。
+
+```
+容器       mkv     本地 SDR 两片、Emby 四片        第七节、第九节
+           m2ts    本地 00000.m2ts                  第五节、第七节
+           mp4     本地 DolbyVision 两片            可行性档
+           ts      本地 HLG 测试流                   可行性档
+           光盘    BDMV 目录                        可行性档、第七节
+视频编码   h264 8 位 本地测试片段                  可行性档
+           hevc 8 位 本地部分片源                  可行性档
+           hevc 10 位 本地两片、Emby 多数片源       主档，连续五分钟
+           h264 10 位 Emby 四片                    判为不支持，播放前拒绝
+音频编码   aac      本地三音轨 mkv 第二、三轨       第七节音频切换
+           ac3      本地 mkv、Emby 部分片源        第七节
+           flac     本地 mkv 第一轨、Emby          第七节
+           dts      本地 m2ts、Emby                第七节
+           dts-hd ma Emby Alien: Covenant          主档
+           truehd   Emby Alien: Covenant           主档
+字幕       ass 文本 本地 mkv、Emby                 第五节
+           pgs 位图 本地 m2ts、光盘                第五节、第七节
+```
+
+缺口，本语料没有可用样本：
+
+```
+mov_text        无
+vobsub          无
+外挂位图字幕    无
+mkv 内位图字幕  测试夹具在仓库内为 base64 编码，解码后为空文件；Emby 语料无此组合
+```
+
+因此「容器 × 位图字幕」的组合只覆盖 m2ts 与光盘，mkv 与 mp4 缺失。
+
 ### 12.4 判据与证据
 
 | 性质 | 证据 | 失败条件 |
