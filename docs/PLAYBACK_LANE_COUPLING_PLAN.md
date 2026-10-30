@@ -146,6 +146,19 @@
 
 五，Plex 与 Jellyfin 未接入，本地媒体未导入 `TestMedia/Samples`。两项为验证前置准备，见 12.0。
 
+六，实测发现：跳转后字幕车道在解复用跳转之前重新挂载，挂载位置取到 0，而非跳转目标。证据如下，取自本地 `00000.m2ts`，跳转目标 119.995：
+
+```
+00:03:53.710  attach.firstUnitAtTarget lane=video epoch=2 pts=120.000 target=119.995 delta=0.005
+00:03:53.710  subtitle.lane.attached track=ffmpeg.subtitle.2 at=0.000 cues=0 renderer=true
+00:03:53.774  demux.seek.begin seconds=119.956343106
+00:03:53.776  demux.seek.end ok=true
+```
+
+字幕车道在 `demux.seek.begin` 之前 64 毫秒挂载，因此传入的位置仍是跳转前的位置 0。修复方向：挂载在 `demux.seek.end` 之后执行，并且位置取跳转目标。
+
+七，实测发现：`subtitle.frame.idle` 的 `covered=none..none` 无法区分「该区间没有字幕单元」与「读取器尚未读到该区间」。第一分钟日志显示 `packetSpan=107.250..126.292` 而 `covered=none..none`，两种含义在日志上相同，目标二的判据因此不可判定。修复方向：读取器额外报告已扫描到的区间。
+
 ## 十二、验证策略
 
 ### 12.0 验证的产出
