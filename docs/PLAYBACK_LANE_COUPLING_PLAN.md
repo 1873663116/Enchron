@@ -1334,6 +1334,9 @@ tier unit     不通过  最近一次完整运行：794 个用例，21 项失败
               另有 5 项以 signal kill 结束（Tidal、TrackSelection、ByteStream、Residency、Presentation）
               1 项为测试运行器未建立连接
               重复运行一次后挂起二十分钟无进展，已终止
+              隔离复测：TidalEnvironmentTests/appearanceRoundTrip 与
+              PlaybackLoadingStateTests/aCompletedSeekClearsTheSeekingStage 单独运行时均 TEST SUCCEEDED
+              因此这些失败只在全集运行中出现，属用例间干扰或运行器不稳
 ```
 
 `tier e2e` 的默认选择是十二个单元，全过。全量选择（`--full`）执行到第十个单元后停住，停在 `unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1`，日志不再增长，已终止。
