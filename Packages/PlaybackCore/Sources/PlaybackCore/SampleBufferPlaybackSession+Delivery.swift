@@ -364,17 +364,13 @@ extension SampleBufferPlaybackSession {
                             let duration = CMSampleBufferGetDuration(sample).seconds
                             let frameEnd = sampleSeconds
                                 + (duration.isFinite && duration > 0 ? duration : 1.0 / 24.0)
-                            if let previous = recentVideoFrameIntervals.last,
-                               sampleSeconds - previous.end > 0.06 {
-                                let gapSummary = "video.gap previousEnd="
-                                    + String(format: "%.3f", previous.end)
-                                    + " start="
-                                    + String(format: "%.3f", sampleSeconds)
-                                    + " delta="
-                                    + String(format: "%.3f", sampleSeconds - previous.end)
-                                logger.info("\(gapSummary, privacy: .public)")
-                            }
-                            recentVideoFrameIntervals.append((sampleSeconds, frameEnd))
+                            let insertion = recentVideoFrameIntervals.firstIndex {
+                                $0.start > sampleSeconds
+                            } ?? recentVideoFrameIntervals.count
+                            recentVideoFrameIntervals.insert(
+                                (sampleSeconds, frameEnd),
+                                at: insertion
+                            )
                             if recentVideoFrameIntervals.count > 240 {
                                 recentVideoFrameIntervals.removeFirst(
                                     recentVideoFrameIntervals.count - 240
