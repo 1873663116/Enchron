@@ -1352,7 +1352,7 @@ extension SampleBufferPlaybackSession {
                     target: activationTime,
                     durationSeconds: diagnostics.durationSeconds
                 )
-            try await waitForAudioPreroll(
+            try await awaitStartReadiness(
                 through: audioRequirement.audioEnd,
                 after: audioRequirement.timelineStart
             )
@@ -1363,11 +1363,12 @@ extension SampleBufferPlaybackSession {
             }
             if isClosed { return }
             guard !(error is CancellationError), !Task.isCancelled else { return }
-            retireAudio(
-                after: error,
+            recordFailure(
+                error,
                 node: .rendererInputCoordination,
-                kind: "audioRenderer.prerollFailed.videoContinues"
+                kind: "startGate.failed.videoContinues"
             )
+            return
         }
         let activationSequence = activationObservation.beginActivation(
             requestedRate: timelineStartRate,
@@ -1998,19 +1999,27 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func waitForAudioPreroll(
+    func startReadiness(
+        through requiredEnd: CMTime,
+        after timelineStart: CMTime
+    ) -> PlaybackReadinessState {
+        let accepted = readinessLock.withLock { videoSamplesAccepted }
+        guard accepted > 0 else { return .loading }
+        guard hasAudio else { return .playable }
+        return audioHasPrerolled(through: requiredEnd, after: timelineStart)
+            ? .playable
+            : .loading
+    }
+
+    func awaitStartReadiness(
         through requiredEnd: CMTime,
         after timelineStart: CMTime
     ) async throws {
-        guard hasAudio, requiredEnd.isNumeric, timelineStart.isNumeric else { return }
-        let waitStarted = ContinuousClock.now
-        let deadline = waitStarted + PlaybackBufferingPolicy.audioPrerollTimeout
-        let hardLimit = waitStarted + PlaybackBufferingPolicy.transportBoundStallLimit
+        guard requiredEnd.isNumeric, timelineStart.isNumeric else { return }
         while true {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
-            guard hasAudio else { return }
-            if audioHasPrerolled(through: requiredEnd, after: timelineStart) {
+            if startReadiness(through: requiredEnd, after: timelineStart) == .playable {
                 let accumulatedPresentationEnd = endStateLock.withLock {
                     endState.audioPresentationEnd
                 }
@@ -2033,18 +2042,29 @@ extension SampleBufferPlaybackSession {
                             ?? "none"
                     ]
                 )
+                updateReadiness(.playable, reason: "startGate")
                 return
-            }
-            if mediaSessionRecord?.lifecycle == .failed {
-                throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
-            }
-            let now = ContinuousClock.now
-            if (now >= deadline && sourceReadPending == false)
-                || now >= hardLimit {
-                throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
             }
             try await Task.sleep(for: PlaybackBufferingPolicy.audioPrerollPollInterval)
         }
+    }
+
+    func updateReadiness(_ state: PlaybackReadinessState, reason: String) {
+        let changed: Bool = readinessLock.withLock {
+            guard readinessState != state else { return false }
+            readinessState = state
+            return true
+        }
+        guard changed else { return }
+        let label = state.rawValue
+        logger.info("readiness.state state=\(label, privacy: .public) reason=\(reason, privacy: .public)")
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "session.readiness",
+            outcome: .succeeded,
+            details: ["state": label, "reason": reason]
+        )
     }
 
     func retireAudio(

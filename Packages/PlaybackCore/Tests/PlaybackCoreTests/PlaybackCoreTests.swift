@@ -4907,9 +4907,9 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     )
 }
 
-@Test func audioPrerollFailureRetiresAudioButVideoStillDelivers() async throws {
+@Test func audioThatNeverPrerollsKeepsTheSessionLoadingWithoutRetiringAudio() async throws {
     let session = SampleBufferPlaybackSession(
-        traceID: "audio-preroll-error-session",
+        traceID: "audio-preroll-loading-session",
         provider: FakeVideoSampleProvider(
             events: try audioRetirementVideoEvents(),
             eventDelay: .milliseconds(25)
@@ -4923,16 +4923,14 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     )
     defer { session.close() }
 
-    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-preroll-error.mp4"))
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-preroll-loading.mp4"))
     try session.start()
-    try await waitForAudioRetirement(in: session)
-    try await waitForSampleCount(1, in: session)
+    try await Task.sleep(for: .milliseconds(500))
 
-    try await expectRetiredAudioAllowsSeek(
-        in: session,
-        check: "audio-retirement-prewarm",
-        expectedStage: "audioRenderer.prerollFailed.videoContinues"
-    )
+    #expect(session.readinessState == .loading)
+    #expect(session.hasAudio)
+    #expect(session.diagnostics.audioRetired == false)
+    #expect(session.debugSnapshot().lastFailure == nil)
 }
 
 @Test func retiredAudioStaysNonfatalAcrossRepeatedSeeks() async throws {

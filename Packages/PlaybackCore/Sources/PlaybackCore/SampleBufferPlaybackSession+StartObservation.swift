@@ -24,6 +24,9 @@ extension SampleBufferPlaybackSession {
             return true
         }
         guard recorded else { return }
+        if lane == "video" {
+            readinessLock.withLock { videoSamplesAccepted &+= 1 }
+        }
         let laneName = lane
         let atMilliseconds = String(format: "%.0f", milliseconds)
         let pts = String(format: "%.3f", seconds)

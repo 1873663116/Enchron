@@ -431,6 +431,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let externalSubtitlePreparationDeadline: Duration
     var lastReportedEmptySubtitleSecond: Int?
     var lastReportedProducedSubtitleSecond: Int?
+    let readinessLock = NSLock()
+    var readinessState: PlaybackReadinessState = .loading
+    var videoSamplesAccepted: UInt64 = 0
     let startObservationLock = NSLock()
     var startObservationInstant = ContinuousClock.now
     var startMilestones: [String: Double] = [:]
