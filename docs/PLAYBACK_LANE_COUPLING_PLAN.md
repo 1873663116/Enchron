@@ -175,7 +175,7 @@
 
 以下四项全部完成，然后开始执行验证。任一项未完成，对应档位判定为不通过，报告列出未完成项与补齐步骤。
 
-#### 12.0.1.1 凭据
+**凭据。**
 
 仓库根目录 `.env` 保存设备测试凭据，明文，不提交。现有键：`WEBDAV_USER`、`WEBDAV_PASSWORD`、`EMBY_USER`、`EMBY_PASSWORD`、`SMB_USER`、`SMB_PASSWORD`。
 
@@ -189,7 +189,7 @@ JELLYFIN_USER=<redacted>
 JELLYFIN_PASSWORD=<redacted>
 ```
 
-#### 12.0.1.2 源接入
+**源接入。**
 
 | 源 | 现状 | 待做 |
 | --- | --- | --- |
@@ -197,12 +197,12 @@ JELLYFIN_PASSWORD=<redacted>
 | WebDAV | 已接入，回归目录可用 | 无 |
 | SMB | 已接入 | 无 |
 | Emby | 已接入，`http://Mac-mini.local:8096` | 无 |
-| Plex | 未接入 | 用 12.0.1.1 的 `PLEX_URL` 与 `PLEX_TOKEN` 接入 |
-| Jellyfin | 未接入 | 用 12.0.1.1 的 `JELLYFIN_URL` 与账号密码接入 |
+| Plex | 未接入 | 用上文 `PLEX_URL` 与 `PLEX_TOKEN` 接入 |
+| Jellyfin | 未接入 | 用上文 `JELLYFIN_URL` 与账号密码接入 |
 
-Plex 与 Jellyfin 的客户端已安装在本机。接入通过客户端与 12.0.1.1 的凭据完成，完成后用 `libraryReferences` 确认源列表中同时存在两个源。
+Plex 与 Jellyfin 的客户端已安装在本机。接入通过客户端与上文的凭据完成，完成后用 `libraryReferences` 确认源列表中同时存在两个源。
 
-#### 12.0.1.3 本地媒体导入
+**本地媒体导入。**
 
 现状：应用容器 `Documents/LocalMedia` 只含两个条目（`AVS-HD-709` 与一个 ISO）。`TestMedia/Samples` 中的 `SDR`、`DynamicRange`、`Professional`、`Spatial`、`CameraOriginals` 未导入。
 
@@ -210,7 +210,7 @@ Plex 与 Jellyfin 的客户端已安装在本机。接入通过客户端与 12.0
 
 验证：列出 `Documents/LocalMedia`，与 12.2 资产映射逐一对照。缺失时该行判定为不通过，报告列出缺失文件与补齐命令。补齐之前，该行不计入通过数。
 
-#### 12.0.1.4 就绪核对
+**就绪核对。**
 
 执行验证之前，逐项记录一次，共三项：
 
