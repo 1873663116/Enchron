@@ -1871,6 +1871,49 @@ final class TestCommandChannel {
                 detail: mediaLibrary.lastErrorMessage,
                 payload: ["path=\(path)"]
             )
+        case "playServerItem":
+            guard let name = request.args["name"], name.isEmpty == false else {
+                throw CommandError(message: "playServerItem requires a name argument.")
+            }
+            guard let server = embySession.server else {
+                throw CommandError(message: "playServerItem needs a signed in media server.")
+            }
+            let page = try await embySession.client.search(
+                name,
+                on: server,
+                query: MediaServerItemQuery(limit: 20)
+            )
+            guard let hit = page.items.first(where: {
+                $0.metadata.name.localizedCaseInsensitiveContains(name)
+            }) ?? page.items.first else {
+                throw CommandError(
+                    message: "playServerItem found no item for \(name); "
+                        + "total=\(page.totalRecordCount)."
+                )
+            }
+            let selection = MediaServerPlaybackSelection(
+                item: hit,
+                startAction: .fromBeginning
+            )
+            let beforeServer = playbackRuntime.playbackPosition
+            playbackLauncher.requestPlayback {
+                try await self.embySession.playbackRequest(for: selection)
+            }
+            var startedServer = false
+            for _ in 0 ..< 200 {
+                try await Task.sleep(for: .milliseconds(100))
+                let now = playbackRuntime.playbackPosition
+                if now.duration != beforeServer.duration || now.seconds < beforeServer.seconds {
+                    startedServer = true
+                    break
+                }
+            }
+            return Response(
+                id: request.id,
+                ok: startedServer,
+                detail: startedServer ? nil : "the server item did not start within twenty seconds",
+                payload: [hit.metadata.name]
+            )
         case "openSourceFile":
             guard let relativePath = request.args["path"] else {
                 throw CommandError(message: "openSourceFile requires a path argument.")
