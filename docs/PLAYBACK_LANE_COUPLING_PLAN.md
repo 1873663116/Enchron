@@ -492,31 +492,30 @@ session.close.begin displayed=false
 
 因此该文件有两种表现，成因不同：一为远程重连后解析器断言的进程中止，二为视频解码失败导致会话终止。第二种先于第一种发生，四秒内即终止，使第一种无法靠长跑复现。
 
-第二种表现的根因（本轮）：片源的视频编码为 `h264 High 10`，位深 10 位，分辨率 1864x1008。
+第二种表现的结论：起始失败是间歇性的，原因未定。
 
-取证：用 Emby 的流接口取回该文件前 4 MB，直接测量：
+片源参数：`h264 High 10`，1864x1008，`extradata_size=47`（从 Emby 流接口取回文件头实测，与应用内 `video.reader.bind extradata=47` 一致）。
+
+同一文件、同一构建，五次观察：
 
 ```
-GET /Videos/10028/stream?static=true   Range: 0-4194303   206
-0,h264,High 10,1864,1008,47
-1,flac,unknown,34
-2,dts,DTS-ES
-3,ac3,unknown
+失败    4.500 秒处 lifecycle=failed   4 次
+成功    21.0 → 53.0 秒连续播放        1 次，期间无 readyWithDecodeFailures
 ```
 
-文件头的 `extradata_size` 为 47，与应用内 `video.reader.bind extradata=47` 一致。因此应用读取的配置数据完整，问题不在截断。
+已排除：
 
-先前记录的「同为 4K HEVC，配置数据相差三倍」有误：本地对照文件是 HEVC，远程文件是 H.264，两者编码不同，字节数不可比。该错误已更正。
+```
+配置数据完整       应用读取的字节数与文件一致
+编码支持           同一次会话内该文件曾连续播放 53 秒
+解码预热           加入 VTDecompressionSessionCreate 预热后 status=0，两次运行仍失败
+远程源             同会话内 Alien: Covenant（4K HEVC）连续播放 40 秒以上
+```
 
-解码失败的原因判断：10 位 H.264（High 10）不在本平台视频解码路径支持的编码集合内，解码器无法建立会话。表现与日志一致：样本已交付，`rendererStatus=readyWithDecodeFailures`，首帧从未显示。
+未解释：同一文件为何有时四秒失败、有时正常。失败时 `rendererStatus=readyWithDecodeFailures`、`rendererError=The operation could not be completed`、首帧从未显示。
 
-待定：应用应当把该编码判为不支持并在开始播放前拒绝，还是应当增加软件解码路径。
+八，已解决，属判据缺陷，非观测缺陷。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，位置 20 已被扫过且无单元，属正常。
 
-对照：同一次会话中 `Alien: Covenant`（4K HEVC Main 10）正常播放，位置 12.500，`rendererStatus=ready`。因此失败与编码有关，与远程源、与 2160p、与 10 位均无关。
-
-已实施但未验证的改动：远程重连的跳转目标改为预约时间戳之前十秒，目的是避开簇中间落点。该改动无法在第二种表现存在时验证。
-
-验证方式：先解决解码失败，使远程文件能连续播放四分钟以上，再确认 `demuxReconnects` 增长时进程不退出且位置连续。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
 ## 十二、验证策略
 
