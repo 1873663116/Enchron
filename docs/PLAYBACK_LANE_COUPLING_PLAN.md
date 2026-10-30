@@ -448,7 +448,23 @@ Enchron.debug.dylib     demux_source_read_loop
 
 影响：主档的 MKV 片源当前不可用。远程 MP4 尚未出现该问题。
 
-待定：断言来自读取路径返回的短读或截断数据，还是来自解析器对该文件结构的处理。修复方向二选一，需先取证：一是在远程读取路径上补齐短读与重连的处理；二是在构建时关闭断言并改为可诊断的错误返回。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
+断言位置已确定。`libavformat/matroskadec.c` 第 4431 行：
+
+```c
+static int matroska_parse_cluster(MatroskaDemuxContext *matroska)
+{
+    av_assert0(matroska->num_levels <= 2U);
+```
+
+`num_levels` 在进入元素时自增（第 1126 行），在元素长度耗尽时自减（第 1199、1294、1321 行）。断言触发表示解析器持有三层以上未闭合的元素，即读取位置与 EBML 结构失去同步。
+
+两种可能来源，均与远程读取相关：
+
+一，重连路径 `reopen_demux_source` 在读取线程内以 `demux_source_resume_timestamp` 为起点调用 `avformat_seek_file`。远程文件无完整索引时，该跳转可能落在簇中间；解析器从非边界位置继续解析，元素层级无法配对。
+
+二，远程读取返回的短读被当作正常数据继续解析，元素长度字段跨越两次读取时层级错位。
+
+取证方式：在 `matroska_parse_cluster` 前打印 `num_levels`、当前字节位置与 `avio_tell`，在远程复现时抓取崩溃前最后一次取值。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
 ## 十二、验证策略
 
