@@ -358,6 +358,10 @@ extension SampleBufferPlaybackSession {
                     switch event {
                     case .sample(let sample):
                         sourceSample = sample
+                        let sampleSeconds = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+                        if sampleSeconds.isFinite {
+                            lastVideoPresentationSeconds = sampleSeconds
+                        }
                         setPendingVideoSample(sample)
                     case .formatChanged:
                         await handleProviderControlEvent(.formatChanged)

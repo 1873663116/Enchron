@@ -409,6 +409,17 @@ extension SampleBufferPlaybackSession {
     }
 
     func recordSubtitleState(at time: CMTime) {
+        let clockSecond = Int(time.seconds.isFinite ? time.seconds : 0)
+        if clockSecond != (lastReportedSubtitleClockSecond ?? -1) {
+            lastReportedSubtitleClockSecond = clockSecond
+            let videoLabel = lastVideoPresentationSeconds.map {
+                String(format: "%.3f", $0)
+            } ?? "none"
+            let queryLabel = String(format: "%.3f", time.seconds)
+            logger.info(
+                "subtitle.query.clock at=\(queryLabel, privacy: .public) videoAt=\(videoLabel, privacy: .public)"
+            )
+        }
         let record = subtitleStateLock.withLock {
             return SubtitleStateRecord(
                 availableTracks: subtitleState.availableTracks,
