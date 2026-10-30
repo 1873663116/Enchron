@@ -1718,12 +1718,27 @@ final class TestCommandChannel {
                     message: "playMedia found no library reference named \(name)."
                 )
             }
+            let before = playbackRuntime.playbackPosition
             mediaLibrary.play(reference)
+            var started = false
+            for _ in 0 ..< 120 {
+                try await Task.sleep(for: .milliseconds(100))
+                let now = playbackRuntime.playbackPosition
+                if now.duration != before.duration || now.seconds < before.seconds {
+                    started = true
+                    break
+                }
+            }
             SurfaceInputProbes.record(
-                "testcmd playMedia name=\(name)",
+                "testcmd playMedia name=\(name) started=\(started)",
                 retention: .evidence
             )
-            return Response(id: request.id, ok: true, detail: nil, payload: [name])
+            return Response(
+                id: request.id,
+                ok: started,
+                detail: started ? nil : "the media session did not change within twelve seconds",
+                payload: [name]
+            )
         case "enterSpatial":
             guard let target = playbackSession.playbackPresentation.enterImmersiveTarget else {
                 throw CommandError(message: "enterSpatial requires window playback.")

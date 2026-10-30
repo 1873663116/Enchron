@@ -366,6 +366,20 @@ clock 185  packetSpan=207.250..268.250    covered=none..none  produced=0
 
 修复方向。共享源已保留每条流的历史包。接管的入口应接收请求起点，并从历史中重放请求起点之后的包，而不是从队首开始。入口为 `PBFFmpegDemuxSourceTakeOverStream` 与其历史重放入口 `PBFFmpegDemuxSourceReplayHistoryFrom`。
 
+七之五，未修复：`eighty-six-2160p.mkv`（4K HEVC，ASS 字幕）无法打开，且无错误日志。
+
+复现：应用内选择该文件。
+
+```
+playMedia ok=false  detail=the media session did not change within twelve seconds
+```
+
+证据：期间心跳的会话标识保持不变（`B8AB594C-46AA-4DF1-846D-E1992E86F9AD`，观察四分钟），说明旧会话仍在播放，新文件从未建立会话。应用日志在该时段没有错误记录，失败是静默的。
+
+对照：同一次会话中，`LG_Cymatic_Jazz_HLG_Astra_teststream.ts` 与 `少女终末旅行 …mkv` 均在十二秒内建立会话（`playMedia ok=true`）。
+
+影响：4K 素材无法用于可行性档与主档，12.3 中 2160p 因子的执行单元缺一条。
+
 八，已解决，属判据缺陷，非观测缺陷。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
 ## 十二、验证策略
