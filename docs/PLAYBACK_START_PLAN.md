@@ -75,7 +75,7 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 
 二，失败范围。音频读取失败、seek 后音频重开失败、音频渲染器失败、音频渲染器投递失败都已改为会话级失败：会话进入 failed，两条车道一起停，音轨不被撤除。prepare 阶段的音频打开失败仍是能力事实：音轨撤除，界面显示原因（例如无解码器）。音频轨道切换回滚失败仍撤轨继续，归入阶段四。
 
-三，回归目录的语义债。`Config/regression/catalog-v2.json` 中的 `scenario:format-coverage:audio-retirement-on-failure` 与其 rubric 断言的是旧语义（撤轨后继续），与当前实现相反；它的 criteria 文本里按旧测试名引用（`audioReadFailureRetiresAudioButVideoStillDelivers` 等）。目录本身自洽（materializer 校验通过），这笔债只在语义与文档。退役它要同步 `Scripts/regression/materialize_catalog_v2.py` 的计数守卫、`Scripts/regression/completion.py` 与两份测试里的硬编码计数。
+三，回归目录的语义债。`promise:track-selection:c02` 与 `scenario:format-coverage:audio-retirement-on-failure` 断言的是旧语义（撤轨后继续），与当前实现相反；rubric 文本里还按旧测试名引用。退役它们不只是改计数：该 promise 还被 `scenario:dynamic-range-interpretation:docked-hlg-audio-integrity` 引用，`manifest` 历史评审包也按 promise id 记录，改动要走回归评审流程重新生成并评审。这条债留给回归侧，不在本次播放改动内处理。
 
 四，切换路径。音频挂载的打开只有一处实现：初始打开、seek、音轨切换、切换回滚都调用 `openAudioAttachment`，它负责重开、核对源纪元并记录 `audio.attach.open reason=`。三条路径的停止、刷新、seek 编排序列仍各写一份。
 
@@ -86,6 +86,8 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 场景层。远程冷启动不 seek 出声；seek 后音频持续投递；限速导致的停顿显示为等待并自动恢复；无音轨文件正常播放。
 
 否定层。音频延迟不触发撤轨；音频队列停住必须报停顿；交织较差的文件不误报；「视频在播、音频缺失」不由等待触发。
+
+起播慢速证据（远程 ISO，把环路限速压到 0.05 Mbps 后开始播放）。起播期间连续三次探测都是 `lifecycle=loading`、`waiting=true`，持续十几秒，没有失败记录、没有撤轨。解除限速后 `readiness.state state=playable reason=startGate`，`lifecycle=playing`、`waiting=false`，位置从 2 秒推进到 19 秒，`audio.deliver` 连续增长。这组数据同时覆盖了方案要求的「首次音频数据延迟超过旧常数仍不出错」与「数据到达后进入 playable 并出声」。
 
 已有运行证据。远程 ISO 冷启动 `start.firstUnit` 两条车道与 `readiness.state state=playable reason=startGate`；限速 0.05 Mbps 时 `state=stalled reason=playbackStall` 且 `waiting=true`，解除后 `state=playable reason=sourceResumed` 且 `waiting=false`；seek 后 `audio.deliver` 持续增长且无 `seekPrerollFailed`。
 
