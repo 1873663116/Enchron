@@ -1,6 +1,1 @@
-{
-  "criteriaYieldingPredicates": 17,
-  "predicateCount": 18,
-  "schema": "enchron.regression.rubric-predicate-coverage",
-  "schemaVersion": 1
-}
+{"criteriaYieldingPredicates": 18, "predicateCount": 19, "schema": "enchron.regression.rubric-predicate-coverage", "schemaVersion": 1}

@@ -963,13 +963,17 @@ WebDAV  同一文件                        demux.open.failed error=Open demux m
 ```
 通过     orphan-verbs
 通过     test-orphan-verbs
+通过     test-rubric-predicate-coverage
 失败     scripts-inventory
 失败     test-regression-catalog-materialized
-失败     test-rubric-predicate-coverage
 失败     test-regression-operation-adapter
 失败     test-regression-review-stage
 失败     Structure checks
 ```
+
+`test-rubric-predicate-coverage` 的修法：目录实为 107 条 rubric、覆盖率 18/19，测试常数停在 106，基线停在 17/18。常数与基线已更新到实测值，17 项测试通过。这项上涨来自提交 `c3c66038` 新增的「字幕跟随跳转」场景。
+
+余下失败同源于该提交：它把场景、rubric、oracle 的固定数目改了部分位置，材料化流水线产出的数目与已提交目录不一致（场景 70 对 69，oracle 119 对 118）。修法是把蓝图与已提交目录对齐后重新材料化，属该流水线自身的工作，不在本方案范围内。
 
 其中前三项曾同时失败；`orphan-verbs` 与 `test-orphan-verbs` 已修：十五个手工调试动词在 `Scripts/rules/check_orphan_verbs.py` 的 `EXEMPT_VERBS` 中登记，并各附一句用途说明。这些动词正是本文档 12.5 与各节实测所用的命令通道词汇。
 
