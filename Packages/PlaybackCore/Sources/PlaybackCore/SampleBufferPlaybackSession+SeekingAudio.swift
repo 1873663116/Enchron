@@ -213,6 +213,7 @@ extension SampleBufferPlaybackSession {
         var lastProgress = seekProgressSignal()
         var lastProgressAt = waitStarted
         var stallWasTraced = false
+        var exitedOnStall = false
         var videoReachedTarget = false
         do {
             while true {
@@ -326,10 +327,13 @@ extension SampleBufferPlaybackSession {
                 }
                 let flatDuration = now - lastProgressAt
                 if flatDuration
-                    >= PlaybackBufferingPolicy.transportBoundStallLimit ||
-                    (flatDuration
-                        >= PlaybackBufferingPolicy.seekProgressStallTimeout
-                        && sourceReadPending == false) {
+                    >= PlaybackBufferingPolicy.transportBoundStallLimit {
+                    exitedOnStall = true
+                    break
+                }
+                if flatDuration
+                    >= PlaybackBufferingPolicy.seekProgressStallTimeout,
+                   sourceReadPending == false {
                     break
                 }
                 if stallWasTraced == false,
@@ -357,12 +361,16 @@ extension SampleBufferPlaybackSession {
             }
             throw error
         }
+        if exitedOnStall {
+            updateReadiness(.stalled, reason: "seekSourceStall")
+            throw CorePlaybackError.sourceStalled(target)
+        }
         if videoReachedTarget, requiresAudioTarget, hasAudio {
-            let error = CorePlaybackError.audioPrerollTimedOut(target)
-            retireAudio(
-                after: error,
-                node: .rendererInputCoordination,
-                kind: "audioRenderer.seekPrerollFailed.videoContinues"
+            debugStore.emit(
+                mediaSessionID: traceID,
+                kind: "audioRenderer.seekPrerollDeferred",
+                outcome: .succeeded,
+                details: ["targetSeconds": String(target)]
             )
             debugStore.emit(
                 mediaSessionID: traceID,
