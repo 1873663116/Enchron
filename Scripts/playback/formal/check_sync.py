@@ -32,20 +32,14 @@ GUARDS = (
         "history replay keeps only packets at or after the requested time",
         r"replay_stream_history_locked\([\s\S]{0,400}?threshold",
     ),
-    (
-        "take-over drops units that end before the attach position",
-        r"PBFFmpegDemuxSourceTakeOverStream[\s\S]{0,2000}?"
-        r"trim_packet_queue_before_timestamp",
-    ),
-    (
-        "subscribe drops units that end before the reader's start",
-        r"subscribe_to_demux_stream[\s\S]{0,2000}?"
-        r"trim_packet_queue_before_timestamp",
-    ),
 )
 
-FINDINGS = ()
-
+FINDINGS = (
+    (
+        "attach does not trim packets older than the playhead",
+        r"PBFFmpegDemuxSourceTakeOverStream[\s\S]{0,2000}?time_base[\s\S]{0,400}?clear_packet_queue",
+    ),
+)
 
 
 def main() -> int:

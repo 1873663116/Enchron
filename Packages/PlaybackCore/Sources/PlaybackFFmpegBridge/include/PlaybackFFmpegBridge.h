@@ -450,8 +450,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
 );
 uint64_t PBFFmpegDemuxSourceTakeOverStream(
     PBFFmpegDemuxSource *source,
-    int streamIndex,
-    int64_t minimumTimestampMicroseconds
+    int streamIndex
 );
 void PBFFmpegDemuxSourceReleaseStream(
     PBFFmpegDemuxSource *source,
