@@ -5364,28 +5364,20 @@ func terminalRendererFailurePublishesFailedOnce(
     } == 1)
 }
 
-@Test func audioRendererFailureRetiresAudioAndVideoContinues() async throws {
+@Test func audioRendererFailureFailsTheWholeSession() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
     let audioSample = try makeAudioSample(durationSeconds: 5)
     let sink = FakeRendererInputSink()
     let monitor = FakeRendererFailureMonitor()
     let session = SampleBufferPlaybackSession(
-        traceID: "audio-renderer-retirement-session",
-        provider: FakeVideoSampleProvider(
-            events: try audioRetirementVideoEvents(),
-            eventDelay: .milliseconds(25)
-        ),
+        traceID: "audio-renderer-failure-session",
+        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
         rendererSink: sink,
-        audioRendererSink: FakeAudioRendererInputSink(),
         rendererFailureMonitor: monitor,
-        firstVideoFrameObservation: { true },
         videoPrerollDisplayObservation: { true },
         videoRendererReadyObservation: { true }
     )
-    let statuses = LockedBox<[PlaybackStatus]>([])
-    session.onStatusChange = { status in
-        statuses.withLock { $0.append(status) }
-    }
     defer { session.close() }
 
     try await session.prepare(
@@ -5393,8 +5385,6 @@ func terminalRendererFailurePublishesFailedOnce(
     )
     try session.start()
     try await waitForSampleCount(1, in: session)
-    try await waitForAudioSampleCount(1, in: session)
-    let samplesBeforeFailure = sink.enqueuedSampleCount
     let fact = RendererFailureFact(
         rendererKind: .audio,
         errorType: "InjectedAudioRendererError",
@@ -5406,30 +5396,17 @@ func terminalRendererFailurePublishesFailedOnce(
 
     let deadline = ContinuousClock.now + .seconds(2)
     while ContinuousClock.now < deadline,
-        session.debugSnapshot().audioRendererState?.error != fact.message {
+          session.debugSnapshot().lifecycle != .failed {
         try await Task.sleep(for: .milliseconds(10))
     }
-    try await waitForSampleCount(UInt64(samplesBeforeFailure + 1), in: session)
 
     let snapshot = session.debugSnapshot()
-    #expect(session.hasAudio == false)
-    #expect(snapshot.lifecycle != .failed)
-    #expect(snapshot.lastFailure?.stage == "audioRenderer.failed.videoContinues")
-    #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
-    #expect(snapshot.lastFailure?.rendererKind == RendererFailureKind.audio.rawValue)
+    #expect(snapshot.lifecycle == .failed)
+    #expect(snapshot.lastFailure?.stage == "audioRenderer.failed")
+    #expect(snapshot.lastFailure?.recoverability == "notRecoverableWithinMediaSession")
     #expect(snapshot.lastFailure?.errorType == fact.errorType)
-    #expect(snapshot.audioRendererState?.error == fact.message)
-    #expect(snapshot.lastError == nil)
-    try await expectRetiredAudioAllowsSeek(
-        in: session,
-        check: "audio-retirement-renderer",
-        expectedStage: "audioRenderer.failed.videoContinues"
-    )
-    #expect(statuses.withLock { values in
-        values.contains { status in
-            if case .failed = status { true } else { false }
-        }
-    } == false)
+    #expect(snapshot.lastFailure?.rendererKind == RendererFailureKind.audio.rawValue)
+    #expect(session.diagnostics.audioRetired == false)
 }
 
 @Test func receiverDecodeWarningsAcceptTheVideoSample() async throws {

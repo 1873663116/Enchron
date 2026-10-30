@@ -949,6 +949,28 @@ extension SampleBufferPlaybackSession {
         )
     }
 
+    func recordRendererSessionFailure(_ fact: RendererFailureFact, kind: String) {
+        debugStore.recordFailure(PlaybackFailureRecord(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            stage: kind,
+            errorType: fact.errorType,
+            message: fact.message,
+            recoverability: "notRecoverableWithinMediaSession",
+            rendererKind: fact.rendererKind.rawValue,
+            requiresFlushToResumeDecoding: fact.requiresFlushToResumeDecoding
+        ))
+        updateLifecycle(.failed)
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: kind,
+            outcome: .failed,
+            details: ["error": fact.message, "rendererKind": fact.rendererKind.rawValue]
+        )
+        onStatusChange?(.failed(fact.message))
+    }
+
     func publishRendererFailure(_ fact: RendererFailureFact) {
         if fact.rendererKind == .video, fact.requiresFlushToResumeDecoding == true {
             guard !isClosed, !isResetting else { return }
@@ -969,14 +991,15 @@ extension SampleBufferPlaybackSession {
         }
         if fact.rendererKind == .audio {
             guard hasAudio else { return }
-            retireAudio(
-                after: AudioRendererRetirementError(message: fact.message),
-                node: .rendererInputCoordination,
-                kind: "audioRenderer.failed.videoContinues",
-                rendererFailure: fact
-            )
+            guard claimRendererFailure() else { return }
+            rendererFailureMonitor?.stop()
+            closeEndState()
+            setTimelineStopped(reason: .rendererFailure)
+            stopAudioDelivery()
+            stopVideoDelivery()
+            recordRendererSessionFailure(fact, kind: "audioRenderer.failed")
             logger.error(
-                "Audio renderer retired error=\(fact.message, privacy: .public)"
+                "Audio renderer failed session error=\(fact.message, privacy: .public)"
             )
             return
         }

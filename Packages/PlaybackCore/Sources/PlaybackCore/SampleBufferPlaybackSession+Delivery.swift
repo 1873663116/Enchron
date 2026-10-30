@@ -1180,11 +1180,13 @@ extension SampleBufferPlaybackSession {
                     onStatusChange?(.failed(error.localizedDescription))
                     return
                 }
-                retireAudio(
-                    after: error,
+                recordFailure(
+                    error,
                     node: .rendererInputCoordination,
-                    kind: "audioRenderer.deliveryFailed.videoContinues"
+                    kind: "audioRenderer.deliveryFailed"
                 )
+                onStatusChange?(.failed(error.localizedDescription))
+                stopVideoDelivery()
                 return
             }
         }
