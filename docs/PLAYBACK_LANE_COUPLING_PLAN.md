@@ -446,7 +446,24 @@ Enchron.debug.dylib     demux_source_read_loop
 
 对照：同一次会话中 `sdr-bframe-aggregate-30s`（远程，30 秒）可播放并跳转；本地 `mkv` 同样可播放。差别在远程读取与片源规模。
 
-影响：主档的 MKV 片源当前不可用。远程 MP4 尚未出现该问题。
+影响：主档的 MKV 片源当前不可用。远程 MP4 尚未出现该问题。片源 `Ghost in the Shell` 的起始失败已单独处理：该文件为 Hi10P，现在播放前即被拒绝，见七之六之二。
+
+重连路径的验证尝试（本轮）：
+
+```
+一  应用内注入 20 秒读取延迟（setSourceReadDelay ms=20000）
+    demuxReconnects 保持 0，播放继续到 367.5 秒，未触发重连
+二  连续播放远程 4K 五分钟
+    demuxReconnects=0（689 次采样一致），未触发重连
+三  单元测试 HTTPMediaSourceRangeTests 含断连重连用例
+    去掉任一候选改动前后均通过，无法判别
+```
+
+结论：远程重连路径在当前条件下无法被刻意触发，针对它的改动无法验证。
+
+处理：曾加入「重连跳转回退十秒」，因无法验证而删除（提交 `1444709d`）。删除后远程 4K 仍可播放（位置 15.500，`lifecycle=playing`），`HTTPMediaSourceRangeTests` 与字幕用例共 25 项通过。
+
+本缺陷保持未修复。触发条件推断与取证方法记录在上文。
 
 断言位置已确定。`libavformat/matroskadec.c` 第 4431 行：
 
