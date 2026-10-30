@@ -584,15 +584,17 @@ Alien: Covenant（HEVC 4K）    playServerItem ok=true   position=10.500 lifecyc
 
 仓库根目录 `.env` 保存设备测试凭据，明文，不提交。现有键：`WEBDAV_USER`、`WEBDAV_PASSWORD`、`EMBY_USER`、`EMBY_PASSWORD`、`SMB_USER`、`SMB_PASSWORD`。
 
-缺 Plex 与 Jellyfin 的凭据键。补入后两个源才能接入：
+现状：
 
 ```
-PLEX_URL=<redacted>
-PLEX_TOKEN=<redacted>
-JELLYFIN_URL=<redacted>
-JELLYFIN_USER=<redacted>
-JELLYFIN_PASSWORD=<redacted>
+EMBY_USER / EMBY_PASSWORD            已有，Emby 已在应用内登录并完成播放验证
+PLEX_URL / PLEX_TOKEN                已有，接口层可用（8 个库、14 个验证片源），应用内登录未验证
+WEBDAV_USER / WEBDAV_PASSWORD        已有，归因档可用
+SMB_USER / SMB_PASSWORD              已有
+JELLYFIN_*                           无；本机 8096/8097/8920/8921 端口均无 Jellyfin 服务
 ```
+
+`.env` 为明文且不入版本控制。
 
 **源接入。**
 
@@ -602,8 +604,8 @@ JELLYFIN_PASSWORD=<redacted>
 | WebDAV | 已接入，回归目录可用 | 无 |
 | SMB | 已接入 | 无 |
 | Emby | 已接入，`http://Mac-mini.local:8096` | 无 |
-| Plex | 未接入 | 用上文 `PLEX_URL` 与 `PLEX_TOKEN` 接入 |
-| Jellyfin | 未接入 | 用上文 `JELLYFIN_URL` 与账号密码接入 |
+| Plex | 未接入 | 应用内 Plex 登录未验证；接口层已确认可用 |
+| Jellyfin | 未接入 | 本机无服务，端口探测见上 |
 
 Plex 与 Jellyfin 的客户端已安装在本机。接入通过客户端与上文的凭据完成，完成后用 `libraryReferences` 确认源列表中同时存在两个源。
 
@@ -682,6 +684,22 @@ Alien: Covenant            播放成功  时长 7323.467  位置 12.500 lifecycl
 ```
 
 `Alien: Covenant` 覆盖本地语料缺失的三项：2160p、TrueHD、DTS-HD MA。
+
+连续播放实测（同一构建，单次会话，每三十秒取一次状态）：
+
+```
+t+30    position=30.500   lifecycle=playing
+t+60    position=61.500   lifecycle=playing
+t+90    position=92.000   lifecycle=playing
+t+120   position=122.500  lifecycle=playing
+t+150   position=154.000  lifecycle=playing
+t+180   position=185.000  lifecycle=playing
+t+210   position=216.000  lifecycle=playing
+t+240   position=247.500  lifecycle=playing
+t+270   position=278.500  lifecycle=playing
+```
+
+进程全程存活，位置按一倍速推进，期间 `demuxReconnects=0` 六百八十九次采样一致。因此重连路径在该次运行中未被触发，第十一节第六条的重连缓解改动仍未验证。
 
 会话恢复：应用内 Emby 登录可由仓库内的身份文件恢复，无需界面操作。
 
