@@ -110,6 +110,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var rendererStatus = "unknown"
     public var rendererError = "none"
     public var rendererInputIsMultiview: Bool?
+    public var readinessState = "loading"
     public var audioRetired = false
     public var audioRetirementReason: String?
     public var subtitlesRetired = false

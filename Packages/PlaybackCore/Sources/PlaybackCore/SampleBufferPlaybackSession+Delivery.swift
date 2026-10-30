@@ -2067,6 +2067,8 @@ extension SampleBufferPlaybackSession {
             return true
         }
         guard changed else { return }
+        diagnostics.readinessState = state.rawValue
+        onDiagnosticsChange?(diagnostics)
         let label = state.rawValue
         logger.info("readiness.state state=\(label, privacy: .public) reason=\(reason, privacy: .public)")
         debugStore.emit(

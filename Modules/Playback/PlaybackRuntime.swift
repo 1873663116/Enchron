@@ -382,6 +382,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var displayFileSizeInBytes: Int64? { prefetchedMetadata?.fileSizeInBytes }
     public var isHDRContent: Bool { displayMediaProfile?.hdrType != .sdr }
 
+    public var isWaitingForData: Bool {
+        productLifecycle == .loading
+    }
+
     private let audioSessionLifecycle: PlaybackAudioSessionLifecycle
     let rendererTransferCoordinator = RendererTransferCoordinator()
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackRuntime")

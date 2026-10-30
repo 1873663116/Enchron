@@ -123,6 +123,7 @@ public struct WindowPlayerDeckView: View {
             sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
             primaryAction: transport.primaryAction,
             primaryActionEnabled: transport.primaryActionEnabled,
+            isWaitingForData: transport.isWaitingForData,
             canSkipForward: transport.canSkipForward,
             canStepForward: transport.canStepForward && playbackRuntime.mediaKind == .video,
             playbackShortcutsEnabled: appModel.playbackShortcutsEnabled,

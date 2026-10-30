@@ -141,11 +141,13 @@ public struct PlaybackTransportAvailability: Equatable, Sendable {
     public let primaryActionEnabled: Bool
     public let canSkipForward: Bool
     public let canStepForward: Bool
+    public let isWaitingForData: Bool
 
     public init(
         lifecycle: ProductPlaybackLifecycle,
         endedAffordance: PlaybackEndedAffordance = .replay
     ) {
+        isWaitingForData = lifecycle == .loading
         switch lifecycle {
         case .playing:
             primaryAction = .pause

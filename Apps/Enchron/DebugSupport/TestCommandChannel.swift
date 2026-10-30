@@ -2686,6 +2686,7 @@ final class TestCommandChannel {
                 "duration=\(String(format: "%.3f", position.duration))",
                 "speed=\(speed)",
                 "lifecycle=\(lifecycle)",
+                "waiting=\(playbackRuntime.isWaitingForData)",
                 "resumePrompt=\(playbackLauncher.pendingResumeDecision != nil)",
                 "audio=\(playbackRuntime.availableAudioTracks.map(\.displayName).joined(separator: " | "))",
                 "subtitles=\(playbackRuntime.availableSubtitleTracks.map(\.displayName).joined(separator: " | "))"
