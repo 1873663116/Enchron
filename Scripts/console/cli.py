@@ -623,7 +623,7 @@ def _run(root: Path, arguments, profile) -> int:
         evidence_root(root),
         arguments.timeout_scale,
         assumed,
-        capture_logs=arguments.capture_logs,
+        capture_logs=getattr(arguments, "capture_logs", False),
     )
     if arguments.as_json:
         print(json.dumps(engine_report(report), indent=1))

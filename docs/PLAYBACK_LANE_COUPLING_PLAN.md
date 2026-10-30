@@ -484,14 +484,11 @@ D8  撤销。曾记为「视频交付每四帧只交一帧」
     成因   区间表按到达顺序追加，B 帧使相邻条目起点来回跳，诊断日志误报
     处置   撤销；区间表改为按呈现顺序插入
 
-D13 以媒体服务器启动路由启动时命令通道不响应
-    观测   带 ENCHRON_MEDIA_SERVER_* 环境变量启动后
-           playbackProbe 在 15 秒与 45 秒两次均无响应
-           同一构建不带该组变量启动，playbackProbe 立即返回
-    复现   固定，两次一致
-    影响   以启动路由完成 Plex 登录后，该进程不能再用命令通道驱动
-           登录结果已写入钥匙串，重启后不带变量即可继续测试
-    处置   登记；成因未查
+D13 撤销。曾记为「以媒体服务器启动路由启动时命令通道不响应」
+    复测   终止残留的 com.xiongzhipeng.EnchronAppUITests.xctrunner 进程后
+           同一构建带 ENCHRON_MEDIA_SERVER_* 变量启动
+           playbackProbe 立即返回
+    成因   界面测试运行器进程残留并占据应用，与启动路由无关
 
 D12 控制台档位偶发挂起
     观测   tier unit 重复运行二十分钟无输出、无 xcodebuild 子进程
@@ -1359,7 +1356,10 @@ tier unit     不通过  最近一次完整运行：794 个用例，21 项失败
               因此这些失败只在全集运行中出现，属用例间干扰或运行器不稳
 ```
 
-`tier e2e` 的默认选择是十二个单元，全过。全量选择（`--full`）执行到第十个单元后停住，停在 `unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1`，日志不再增长，已终止。
+`tier e2e` 的默认选择是十二个单元。
+
+命令通道无响应时先查是否有残留的 `com.xiongzhipeng.EnchronAppUITests.xctrunner` 进程：
+该进程占用应用时，通道不响应，与启动参数无关。全量选择（`--full`）执行到第十个单元后停住，停在 `unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1`，日志不再增长，已终止。
 
 该单位单独执行的结果：
 
