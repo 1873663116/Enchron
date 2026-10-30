@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import sys
 import tempfile
 import unittest
@@ -33,7 +34,11 @@ class CaptureDeviceLogsTests(unittest.TestCase):
 
         with mock.patch.object(engine, "_device_target", return_value="UDID"):
             engine._capture_device_logs(
-                self.directory, 0.0, 1.0, runner=runner, timeout_error=Expired
+                self.directory,
+                datetime.datetime(2026, 10, 31, 6, 0, 0),
+                datetime.datetime(2026, 10, 31, 6, 0, 5),
+                runner=runner,
+                timeout_error=Expired,
             )
         self.assertEqual(
             (self.directory / "logs.txt").read_text(encoding="utf-8"),
@@ -50,7 +55,11 @@ class CaptureDeviceLogsTests(unittest.TestCase):
 
         with mock.patch.object(engine, "_device_target", return_value=None):
             engine._capture_device_logs(
-                self.directory, 0.0, 1.0, runner=runner, timeout_error=Expired
+                self.directory,
+                datetime.datetime(2026, 10, 31, 6, 0, 0),
+                datetime.datetime(2026, 10, 31, 6, 0, 5),
+                runner=runner,
+                timeout_error=Expired,
             )
         self.assertFalse((self.directory / "logs.txt").exists())
 
@@ -60,7 +69,11 @@ class CaptureDeviceLogsTests(unittest.TestCase):
 
         with mock.patch.object(engine, "_device_target", return_value="UDID"):
             engine._capture_device_logs(
-                self.directory, 0.0, 1.0, runner=runner, timeout_error=Expired
+                self.directory,
+                datetime.datetime(2026, 10, 31, 6, 0, 0),
+                datetime.datetime(2026, 10, 31, 6, 0, 5),
+                runner=runner,
+                timeout_error=Expired,
             )
         self.assertIn(
             "timed out", (self.directory / "logs.txt").read_text(encoding="utf-8")

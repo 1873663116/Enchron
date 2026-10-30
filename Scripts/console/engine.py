@@ -47,6 +47,7 @@ def run_plan(
     write_json(run_directory / "plan.json", _plan_snapshot(plan))
     supervisor = Supervisor(plan.guardrails, budget_scale)
     started = time.monotonic()
+    wall_started = datetime.datetime.now()
     outcomes: list[StepOutcome] = []
     verdict = "passed"
     exit_code = EXIT_OK
@@ -123,22 +124,21 @@ def run_plan(
     )
     write_json(run_directory / "report.json", report_payload(report))
     if capture_logs:
-        _capture_device_logs(run_directory, started, time.monotonic())
+        _capture_device_logs(run_directory, wall_started, datetime.datetime.now())
     _append_index(evidence_root, report)
     return report
 
 
 def _capture_device_logs(
     run_directory: Path,
-    started: float,
-    finished: float,
+    started: datetime.datetime,
+    finished: datetime.datetime,
     runner=None,
     timeout_error: type[BaseException] | None = None,
 ) -> None:
     udid = _device_target()
     if not udid:
         return
-    stamp = datetime.datetime.fromtimestamp
     command = [
         "xcrun",
         "simctl",
@@ -147,9 +147,9 @@ def _capture_device_logs(
         "log",
         "show",
         "--start",
-        stamp(started).strftime("%Y-%m-%d %H:%M:%S"),
+        started.strftime("%Y-%m-%d %H:%M:%S"),
         "--end",
-        stamp(finished).strftime("%Y-%m-%d %H:%M:%S"),
+        finished.strftime("%Y-%m-%d %H:%M:%S"),
         "--predicate",
         'subsystem == "com.xiongzhipeng.PlaybackCore"',
         "--style",

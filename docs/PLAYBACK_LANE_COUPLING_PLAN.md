@@ -505,6 +505,10 @@ D7  故障注入后未出现 Playback Error
            第十一步等待「Playback Error」四十五秒未出现
     复现   python3 Scripts/console/cli.py run "unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1"
     处置   登记；待判定是产品未提示还是故障注入未生效
+    复核   以 --capture-logs 运行，取得注入后的设备日志
+           事件序列为 demux.seek.begin seconds=27.618、demux.seek.end ok=true
+           其后无读取失败事件；全部日志行中不含 read.failed 一类记录
+    判定   注入未到达读取路径。缺陷本身（读取失败是否到达界面）仍未验证
 ```
 
 六，已修复：跳转后字幕车道重新挂载时，挂载位置取到 0，而非跳转目标。修复为把跳转目标传入挂载入口。修复后实测，本地 `00000.m2ts`，跳转目标 119.995：
@@ -1079,6 +1083,21 @@ exit=0
                                     二十秒后 3685.000，一倍速推进
 归因档     同一文件 sdr-bframe-aggregate-30s.mkv 经 WebDAV 播放
            position=6.500 lifecycle=playing
+```
+
+三样证据齐全的单位（`--capture-logs`，证据目录给出）：
+
+```
+unit:catalog.scenario-webdav-source-lifecycle-webdav-add-source@1
+  TestEvidence/console/unit-catalog.scenario-webdav-source-lifecycle-webdav-add-source@1/20261030T213402Z
+  steps/    命令与响应原文      31 个步骤文件
+  logs.txt  log show 原文       31 行，覆盖运行起止
+  report.json 判据计算表        verdict=passed
+
+unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1
+  TestEvidence/console/unit-catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1/20261030T213447Z
+  steps/、logs.txt、report.json 三样齐备
+  verdict=failed，失败步骤的 detail 为 never reached 'Playback Error'
 ```
 
 同一文件在 Emby 与 WebDAV 上均可播放，传输层不构成差异来源。
