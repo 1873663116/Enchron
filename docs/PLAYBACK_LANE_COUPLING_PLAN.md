@@ -742,6 +742,21 @@ embySignIn identityDigest=sha256:<该文件的 SHA-256>
 
 执行时机：主档出现失败时。常规执行不包含本档。
 
+现状：该档尚未产出有效证据。执行入口为控制台单位 `unit:catalog.scenario-webdav-source-lifecycle-webdav-add-source@1`。
+
+实测（2026-10-31）：
+
+```
+python3 Scripts/console/cli.py run "unit:catalog.scenario-webdav-source-lifecycle-webdav-add-source@1"
+  ok   pre media-source  started                 ← WebDAV 服务由前置条件启动
+  ok   01 device.app-command  38812 ms
+  terminal artifact FAIL  expected evidence probe.json was never written
+```
+
+前置条件能够启动 WebDAV 服务，因此该档的源可用。单位在一号步骤之后未继续，终态证据 `probe.json` 未生成，证据目录仅有 `01-device.app-command.json`。
+
+因此归因档当前不具备执行条件，阻塞点在该单位自身，不在源。
+
 ### 12.2.0 片源挑选
 
 片源不按片名挑，按下列规则挑。
