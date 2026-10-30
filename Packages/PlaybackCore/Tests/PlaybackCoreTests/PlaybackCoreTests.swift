@@ -4950,6 +4950,70 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 }
 
 
+
+@Test func subtitleLaneProducesAFrameAfterATrackSwitchMidPlayback() async throws {
+    let encoded = try #require(
+        Bundle.module.url(
+            forResource: "uhd-with-1080p-bitmap-subtitle.mkv",
+            withExtension: "base64",
+            subdirectory: "Fixtures"
+        )
+    )
+    let encodedData = try Data(contentsOf: encoded)
+    let data = try #require(Data(base64Encoded: encodedData, options: .ignoreUnknownCharacters))
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("uhd-with-1080p-bitmap-subtitle.mkv")
+    try data.write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-lane-switch-playhead",
+        provider: FFmpegSampleProvider(sourceReadMeter: meter, demuxSession: demuxSession),
+        audioProvider: FFmpegAudioSampleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        subtitleProvider: FFmpegSubtitleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession,
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    try await session.prepare(url: url)
+    try session.start()
+    try await session.seek(to: CMTime(seconds: 120, preferredTimescale: 600), startsPaused: false)
+
+    let switchDeadline = ContinuousClock.now + .seconds(8)
+    while ContinuousClock.now < switchDeadline, session.currentTime().seconds < 121.0 {
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    let switchSeconds = session.currentTime().seconds
+    try await session.selectSubtitleTrack(id: "ffmpeg.subtitle.1")
+
+    var frame: PlaybackSubtitleFrame?
+    let deadline = ContinuousClock.now + .seconds(3)
+    while ContinuousClock.now < deadline, frame == nil {
+        frame = session.activeSubtitleFrame
+        try await Task.sleep(for: .milliseconds(50))
+    }
+    try session.pause()
+    let switchLabel = String(format: "%.3f", switchSeconds)
+    #expect(
+        frame != nil,
+        "no bitmap subtitle frame was produced after selecting a track at \(switchLabel) s"
+    )
+}
+
 @Test func subtitleLaneCoversTheSeekTargetAfterASeek() async throws {
     let fixture = try #require(
         Bundle.module.url(
