@@ -154,6 +154,10 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
                     throw SubtitleProviderError.read("Subtitle frame data is unavailable")
                 }
                 let bytes = data.takeRetainedValue() as Data
+                let produced = "subtitle.frame.produced at="
+                    + String(format: "%.3f", time.seconds)
+                    + " range=" + String(format: "%.3f-%.3f", info.startSeconds, info.endSeconds)
+                logger.info("\(produced, privacy: .public)")
                 return PlaybackSubtitleFrame(
                     kind: info.kind == PBSubtitleFrameKindBitmap ? .bitmap : .libass,
                     canvasWidth: Int(info.canvasWidth),

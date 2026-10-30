@@ -240,6 +240,8 @@ static bool append_bitmap_entry(
     } else {
         renderer->coveredStartSeconds = startSeconds;
     }
+    info.startSeconds = startSeconds;
+    info.endSeconds = endSeconds;
     renderer->bitmapEntries[renderer->bitmapEntryCount++] = (PBSubtitleBitmapEntry) {
         .startSeconds = startSeconds,
         .endSeconds = endSeconds,

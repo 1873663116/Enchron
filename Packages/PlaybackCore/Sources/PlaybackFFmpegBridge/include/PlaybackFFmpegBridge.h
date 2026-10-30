@@ -277,6 +277,8 @@ typedef struct PBSubtitleFrameInfo {
     int contentHeight;
     int bytesPerRow;
     uint64_t changeIdentifier;
+    double startSeconds;
+    double endSeconds;
 } PBSubtitleFrameInfo;
 
 PBFFmpegReader *PBFFmpegReaderCreate(
