@@ -366,19 +366,27 @@ clock 185  packetSpan=207.250..268.250    covered=none..none  produced=0
 
 修复方向。共享源已保留每条流的历史包。接管的入口应接收请求起点，并从历史中重放请求起点之后的包，而不是从队首开始。入口为 `PBFFmpegDemuxSourceTakeOverStream` 与其历史重放入口 `PBFFmpegDemuxSourceReplayHistoryFrom`。
 
-七之五，未修复：`eighty-six-2160p.mkv`（4K HEVC，ASS 字幕）无法打开，且无错误日志。
+七之五，已定位，未修复：库条目失效后播放静默失败。
 
-复现：应用内选择该文件。
+现象：库条目 `eighty-six-2160p.mkv` 选择后无反应，无错误日志，旧会话继续播放：
 
 ```
 playMedia ok=false  detail=the media session did not change within twelve seconds
+心跳会话标识 B8AB594C-46AA-4DF1-846D-E1992E86F9AD 四分钟未变
 ```
 
-证据：期间心跳的会话标识保持不变（`B8AB594C-46AA-4DF1-846D-E1992E86F9AD`，观察四分钟），说明旧会话仍在播放，新文件从未建立会话。应用日志在该时段没有错误记录，失败是静默的。
+定位：同一文件用绝对路径重新加入库后可正常播放。
 
-对照：同一次会话中，`LG_Cymatic_Jazz_HLG_Astra_teststream.ts` 与 `少女终末旅行 …mkv` 均在十二秒内建立会话（`playMedia ok=true`）。
+```
+addLibraryFile path=/Volumes/…/SDR/[MAI] EIGHTY SIX [15][Ma10p_2160p][x265_flac_ass].mkv  ok=true
+playMedia name=[MAI] EIGHTY SIX …mkv  ok=true
+position=3.000 duration=1421.088 lifecycle=playing
+subtitle.frame.produced at=173.800 range=170.610-173.850
+```
 
-影响：4K 素材无法用于可行性档与主档，12.3 中 2160p 因子的执行单元缺一条。
+两个条目并列存在，旧条目 `eighty-six-2160p.mkv` 的书签指向已失效位置，新条目 `[MAI] EIGHTY SIX …mkv` 正常。
+
+结论：媒体本身可播，2160p 因子成立。缺陷在于失效书签的失败是静默的：无提示、无错误、界面无反馈。
 
 八，已解决，属判据缺陷，非观测缺陷。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
@@ -470,7 +478,8 @@ HDR10.MP4                         播放成功  时长 83.083  跳转 0.3 后位
 LG_Cymatic_Jazz_HLG_Astra_teststream.ts  播放成功  时长 297.533 跳转 0.3 后位置 97.500  t+8s
 00000.m2ts                        播放成功  时长 888.032 跳转 0.13513 后位置 126.000 t+6s
 少女终末旅行 - S01E01 …mkv          播放成功  时长 1422.058 跳转 0.8439 后位置 1206.100 t+6s
-eighty-six-2160p.mkv              未确认    载入十二秒后位置仍为前一文件的数值，判定为未进入新会话
+[MAI] EIGHTY SIX …mkv（2160p）     成功    时长 1421.088 跳转 0.12 后位置 176.500 t+6s，ASS 字幕产出
+eighty-six-2160p.mkv              失败    书签失效，见第十一节第七条
 ```
 
 判定依据：跳转后位置按一倍速推进，说明时间线在走；未检测到 `session.seek.stalled`。
