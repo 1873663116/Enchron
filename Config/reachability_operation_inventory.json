@@ -2383,9 +2383,6 @@
       "sources": [
         {
           "path": "Modules/Playback/Views/PlaybackPanel.swift"
-        },
-        {
-          "path": "Modules/Playback/Views/PlaybackPanel.swift"
         }
       ],
       "template": "PlayerPanel-button-play"

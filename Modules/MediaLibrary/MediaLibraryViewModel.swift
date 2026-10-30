@@ -591,7 +591,8 @@ public final class MediaLibraryViewModel {
                 resolved: resolved,
                 source: source,
                 content: presentation.content,
-                titles: presentation.titles
+                titles: presentation.titles,
+                streamLanguages: [:]
             )
             currentBluRayGroup = nil
             forwardBluRayGroup = nil
