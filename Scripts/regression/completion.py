@@ -71,10 +71,10 @@ PREDICATE_NAMES = (
 EXPECTED_COUNTS = {
     "promises": 64,
     "journeys": 14,
-    "scenarios": 69,
+    "scenarios": 70,
     "operations": 35,
     "oracles": 11,
-    "rubrics": 106,
+    "rubrics": 107,
     "preparations": 18,
 }
 

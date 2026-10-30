@@ -27,6 +27,7 @@ CODE_ONLY_CHECKERS = (
     "harness_primitives_gate.py",
     "check_no_literal_rfc1918.py",
     "check_ats_cleartext_policy.py",
+    "check_media_source_resolution.py",
 )
 
 

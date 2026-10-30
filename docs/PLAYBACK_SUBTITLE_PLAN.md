@@ -71,7 +71,9 @@ subtitle.frame.produced at=114.000 range=112.946-114.364
 
 结构。场景只引用已存在的操作与判定；结构化断言字段与测试打印的字段一致。
 
-现状。未完成。会话级测试已就位并打印结构化断言：
+现状。成立。目录已更新并校验通过：场景计数 69 → 70，rubric 106 → 107，静态用例 118 → 119，`materialize_catalog_v2.py --check Regression` 通过，目录自检 49 项通过，四条回归规则通过，`console tier static --code-only` 通过。
+
+会话级测试打印的结构化断言：
 
 ```
 ENCHRON_ASSERTION {"assertion":"subtitle-follows-seek","check":"subtitle-lane-seek","seekTargetSeconds":2.000,"cueCount":1,"cueText":"再见"}
@@ -95,13 +97,13 @@ Scripts/rules/tests/test_regression_catalog_v2_materializer.py   69 / 118 等五
 
 三，切换字幕轨：切换后字幕按新轨显示，播放不中断。实测切到法语轨后字幕在 300.900 秒出现，`lifecycle=playing`。
 
-四，音视频：字幕改动不影响起播、跳转、换音轨、停顿恢复。本轮实测起播、跳转、换音轨成立。停顿恢复本轮未在实机上复现：限速到 0.01 与 0.001 Mbps、看门狗阈值 300 毫秒，位置仍持续推进，没有进入 `stalled`。该路径本轮未改动。
+四，音视频：字幕改动不影响起播、跳转、换音轨、停顿恢复。起播、跳转、换音轨在实机上成立。停顿恢复以两个看门狗单元测试为准：`displayStallRebuffersTheTimelineWithStarvedContinuity` 与 `aSourceThatNeverAdvancesFailsFromLoadingAsStalled`，本轮两项通过。实机复现受阻的原因见第六节第一条。
 
 五，失败归属：字幕读取失败不使会话失败；音频或视频失败仍按既有归属处理。
 
 ## 六、未决
 
-一，停顿恢复未在实机上复现，原因未查：限速不再触发 `stalled`。合流前需要确认这是限速通道的问题还是看门狗的问题。
+一，停顿恢复未在实机上复现。`throttle` 与 `setSourceReadDelay` 对这条播放路径都不生效：限速 0.001 Mbps 时管线吞吐仍是 1.22 MB/s，读取延迟 20 秒时位置照常推进；看门狗阈值降到 1 毫秒也不进入 `stalled`。停顿恢复因此以单元测试为准，见第五节第四条。需要一条能真正中断管线读取的钩子，或者一个真正慢的源，才能做实机复现。
 
 二，位图轨的三维左右眼映射未验证。
 

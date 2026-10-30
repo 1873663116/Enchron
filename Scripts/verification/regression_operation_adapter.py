@@ -2671,6 +2671,9 @@ STRUCTURAL_CHECKS = MappingProxyType(
             "--filter",
             "HTTPMediaSourceRangeTests",
         ),
+        "subtitle-lane-seek": _playback_core_test(
+            "subtitleLaneCoversTheSeekTargetAfterASeek"
+        ),
         "audio-retirement-open": _playback_core_test(
             "audioOpenFailureRetiresAudioButVideoStillDelivers"
         ),

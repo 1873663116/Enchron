@@ -8,7 +8,8 @@
     "scenario:format-coverage:audio-retirement-on-failure",
     "scenario:format-coverage:audio-delivery-codec-matrix",
     "scenario:format-coverage:signalled-media-classification",
-    "scenario:format-coverage:unsupported-codec-guidance"
+    "scenario:format-coverage:unsupported-codec-guidance",
+    "scenario:format-coverage:subtitle-follows-seek"
   ],
   "ordering": [],
   "sharedState": [

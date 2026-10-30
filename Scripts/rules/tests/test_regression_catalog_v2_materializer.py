@@ -354,14 +354,14 @@ class CatalogV2MaterializerTests(unittest.TestCase):
                 "promises": 64,
                 "operations": 35,
                 "oracles": 11,
-                "rubrics": 106,
+                "rubrics": 107,
                 "preparations": 18,
                 "journeys": 14,
-                "scenarios": 69,
-                "staticCases": 118,
+                "scenarios": 70,
+                "staticCases": 119,
             },
         )
-        self.assertEqual(report["obligationCount"], 157)
+        self.assertEqual(report["obligationCount"], 158)
         expected_call_count = sum(
             len(
                 preparation_adapter.build_plan(
@@ -378,7 +378,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         self.assertEqual(report["callCount"], expected_call_count)
         self.assertEqual(
             report["scenarioReadiness"],
-            {"ready": 69},
+            {"ready": 70},
         )
         self.assertEqual(
             report["preparationReadiness"],
@@ -392,7 +392,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             },
         )
         self.assertEqual(report["coreAnalysis"]["status"], "loaded-and-analyzed")
-        self.assertEqual(report["coreAnalysis"]["selectedScenarios"], 69)
+        self.assertEqual(report["coreAnalysis"]["selectedScenarios"], 70)
 
         self.assertEqual(
             {
@@ -434,7 +434,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             )
         )
 
-    def test_rejects_internally_consistent_156_obligation_blueprint(self) -> None:
+    def test_rejects_internally_consistent_incomplete_obligation_blueprint(self) -> None:
         tampered = copy.deepcopy(self.blueprint)
         scenario = next(
             item
@@ -450,7 +450,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
         ]
         self.assertEqual(
             sum(len(item["obligations"]) for item in tampered["scenarios"]),
-            156,
+            157,
         )
         self.assertEqual(
             {term["observation"] for term in scenario["success"]["all"]},
@@ -587,7 +587,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             self.assertTrue(STATIC_ROOT_PATHS <= set(report["expectedPaths"]))
             self.assertFalse(any(path.startswith("reviews/") for path in report["expectedPaths"]))
             self.assertNotIn("human-coverage-questions.md", report["expectedPaths"])
-            self.assertEqual(len(load_catalog(catalog).scenarios), 69)
+            self.assertEqual(len(load_catalog(catalog).scenarios), 70)
             self.assertIsNotNone(load_review_policy(catalog / "review-policy.md"))
 
             authority_payload = json.loads(
@@ -1780,9 +1780,12 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             operations = {item["operation"] for item in scenario["operations"]}
             structural_only = operations == {"operation:evidence.structural-test@1"}
             if structural_only and not prerequisites:
-                self.assertEqual(
+                self.assertIn(
                     scenario["id"],
-                    "scenario:format-coverage:audio-retirement-on-failure",
+                    {
+                        "scenario:format-coverage:audio-retirement-on-failure",
+                        "scenario:format-coverage:subtitle-follows-seek",
+                    },
                 )
             else:
                 self.assertTrue(shared <= prerequisites, scenario["id"])
@@ -1797,7 +1800,7 @@ class CatalogV2MaterializerTests(unittest.TestCase):
             if item["readiness"] == "implementation-gap"
         }
         self.assertEqual(gaps, set(GAP_SCENARIO_CAPABILITIES))
-        self.assertEqual(len(ready), 69)
+        self.assertEqual(len(ready), 70)
         operation_shapes = {
             item["id"]: item for item in operation_adapter.catalog_operation_shapes()
         }
