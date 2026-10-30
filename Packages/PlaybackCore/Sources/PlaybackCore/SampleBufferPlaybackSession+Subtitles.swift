@@ -452,8 +452,16 @@ extension SampleBufferPlaybackSession {
             }).map {
                 String(format: "%.3f-%.3f", $0.start, $0.end)
             } ?? "none"
+            let spanLabel = recentVideoFrameIntervals.first.map { first in
+                String(
+                    format: "%.3f-%.3f",
+                    first.start,
+                    recentVideoFrameIntervals.last?.end ?? first.end
+                )
+            } ?? "none"
             let querySummary = "subtitle.query.clock at=" + queryLabel
                 + " frame=" + frameLabel
+                + " span=" + spanLabel
                 + " videoAt=" + videoLabel
             logger.info("\(querySummary, privacy: .public)")
         }
