@@ -715,6 +715,7 @@ static bool ingest_packet(
         succeeded = append_packet(renderer, packet, startSeconds);
     }
     if (!succeeded) return false;
+    renderer->lastConsumedStartSeconds = startSeconds;
     return remember_ingested_packet(renderer, timestamp, packet->size, checksum);
 }
 

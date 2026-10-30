@@ -126,7 +126,25 @@ PBFFmpegDemuxSourceTakeOverStream(source, streamIndex, minimumTimestampMicroseco
 
 结构。查询时钟只有一个来源：会话的播放位置。字典由字幕读取器补全。读取器的起始时间等于挂载位置，见目标一。
 
-现状。本地两段各一分钟实测：无一次查询位置超出扫描头。文字字幕 13 个空闲样本，位图字幕 16 个空闲样本，均落在已知区间内。
+现状。成立。日志记录的扫描头为 `consumed=`，取值是读取器最近一次从队列取出并处理的包的时间。
+
+本地 mkv（文字字幕），跳转至 163.5 秒后连续播放：
+
+```
+subtitle.frame.idle at=185 renderer=ingested=53 … covered=none..none consumed=257.320
+subtitle.frame.produced at=186.100 range=186.040-187.110
+subtitle.frame.produced at=186.200 range=186.040-187.110
+```
+
+判据核对：
+
+```
+播放位置 P = 185       处于已知区间 [A(L), S(L)] 之内（S(L)=257.320）
+查询返回空             P 处无字幕单元，属正常结果
+有单元处               produced 的区间覆盖 P
+```
+
+读取器领先播放位置约七十二秒，因此扫描头不构成查询的上界。
 
 ## 七、目标三：音轨切换是同一采样边界上的交换
 
