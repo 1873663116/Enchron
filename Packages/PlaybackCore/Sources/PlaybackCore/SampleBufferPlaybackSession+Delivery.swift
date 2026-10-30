@@ -367,6 +367,13 @@ extension SampleBufferPlaybackSession {
                             let insertion = recentVideoFrameIntervals.firstIndex {
                                 $0.start > sampleSeconds
                             } ?? recentVideoFrameIntervals.count
+                            if insertion > 0 {
+                                let previous = recentVideoFrameIntervals[insertion - 1]
+                                recentVideoFrameIntervals[insertion - 1] = (
+                                    previous.start,
+                                    max(previous.end, sampleSeconds)
+                                )
+                            }
                             recentVideoFrameIntervals.insert(
                                 (sampleSeconds, frameEnd),
                                 at: insertion
