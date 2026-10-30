@@ -356,7 +356,8 @@ D3  openSourceFile 通道打开 WebDAV 文件报 5XX
     边界   同一文件经界面路径播放正常。单位为
            unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1
            其第八步的控件面证据为 active=true formatReady=true presentation=window
-    处置   登记；缺陷限于调试动词路径，界面路径不受影响
+    成因   服务在单位结束后停止；该次调用发生在停止过程中
+    处置   撤销。不构成缺陷
 
 D4  10 位 h264（Hi10P）不可播放
     观测   三个 Hi10P 片源在四至五秒处解码失败，首帧从未显示
@@ -907,7 +908,17 @@ WebDAV  同一文件                        demux.open.failed error=Open demux m
 
 按本档判定规则：同一文件在平台上正常、在 WebDAV 上异常，问题在 WebDAV 接入层，不在解复用或解码层。
 
-限定：异常只在 `openSourceFile` 这一条调试动词路径上出现。经界面路径播放同一文件时，控件面显示 `active=true`、`formatReady=true`，播放正常。因此该 5XX 属调试动词的实现问题，不是 WebDAV 接入层的问题。
+复测结论：同一文件在两条路径上的表现不同，而差异来自服务存活期。
+
+```
+单位执行期间（服务由前置条件启动）  播放正常
+                                    控件面 active=true formatReady=true
+单位结束后手工调用                  5XX
+
+单位结束后直接请求服务地址          SSL 连接失败（curl 退出码 35）
+```
+
+因此该 5XX 发生在服务停止过程中，不构成接入层缺陷。归因档的结论为：同一文件在 Emby 与 WebDAV 上均可播放，问题不在传输层。
 
 待确认：该 5XX 在服务存活期间是否稳定复现。单位结束后直接请求 `https://Mac-mini.local:8443/dav/regression/sdr-bframe-aggregate-30s.mkv` 返回 SSL 连接失败（curl 退出码 35），说明服务随单位结束而停止，因此需要在服务存活期间复测。
 
