@@ -772,14 +772,16 @@ extension SampleBufferPlaybackSession {
             ))
         }
         audioStreamEpoch += 1
-        if deliveryHasStarted {
+        let startRequestedDuringSelection = deliveryQueue.sync { hasRequestedVideoData }
+        if deliveryHasStarted || startRequestedDuringSelection {
             if keepsVideoLane {
                 startAudioDelivery()
             } else {
+                let rearmsVideo = rearmsVideoDelivery || startRequestedDuringSelection
                 rearmTimelineAfterAudioTrackChange(
                     rate: rate,
                     at: time,
-                    rearmsVideoDelivery: rearmsVideoDelivery
+                    rearmsVideoDelivery: rearmsVideo
                 )
             }
         }

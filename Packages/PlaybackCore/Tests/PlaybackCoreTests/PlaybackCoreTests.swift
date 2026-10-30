@@ -6879,6 +6879,57 @@ private let audioSwitchTestMedia = URL(fileURLWithPath: #filePath)
     await session.closeAndWait()
 }
 
+@Test func aStartThatArrivesDuringAudioTrackSelectionStillPlays() async throws {
+    let fixture = audioSwitchTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+    )
+    try #require(FileManager.default.fileExists(atPath: fixture.path))
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-selection-start-race",
+        provider: FFmpegSampleProvider(sourceReadMeter: meter, demuxSession: demuxSession),
+        audioProvider: FFmpegAudioSampleProvider(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+            sourceReadMeter: meter,
+            demuxSession: demuxSession
+        ),
+        sourceReadMeter: meter,
+        demuxSession: demuxSession,
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    try await session.prepare(
+        url: fixture,
+        startTime: CMTime(seconds: 8, preferredTimescale: 600),
+        initialRate: 1
+    )
+    let replacement = try #require(
+        session.availableAudioTracks.first { $0.streamIndex != session.selectedAudioStreamIndex }
+    )
+
+    async let selection: Void = session.selectAudioTrack(streamIndex: replacement.streamIndex)
+    try session.start()
+    try await selection
+
+    func actualTimebaseRate() -> Float {
+        session.debugSnapshot().rendererState?.actualTimebaseRate ?? 0
+    }
+    let deadline = ContinuousClock.now + .seconds(6)
+    while ContinuousClock.now < deadline, actualTimebaseRate() <= 0 {
+        try await Task.sleep(for: .milliseconds(20))
+    }
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.rendererState?.actualTimebaseRate ?? 0 > 0.4)
+    #expect(snapshot.rendererState?.currentTimeSeconds ?? 0 >= 7.9)
+    #expect(session.selectedAudioStreamIndex == replacement.streamIndex)
+    await session.closeAndWait()
+}
+
 @Test func audioTrackRestoreWhileOpeningKeepsTheRequestedStartRateAndPosition() async throws {
     let fixture = audioSwitchTestMedia.appendingPathComponent(
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
