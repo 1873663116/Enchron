@@ -1345,7 +1345,11 @@ ffmpeg -i /tmp/pgs-in-mkv.mkv -i FATE/MPEG2/dvd_single_frame.vob \
 ```
 tier static   通过   （36339 毫秒，最近一次）
 tier build    通过   （102368 毫秒，最近一次，写出六份 spec）
-tier e2e      通过   12 个单元全过（reused 0, ran 12），每个单元终态产物齐全
+tier e2e      最近一次 10/12
+              unit:playback.window-open@1        device.app-command 60726 毫秒，预算 60000
+              unit:playback.format-apply@1       命令批次 30 秒无响应
+              两个单元在同一会话稍早的运行中均通过；同期应用侧命令往返实测 0.245 秒
+              因此这两项超时属控制台传输层，与应用无关
 tier unit     不通过  最近一次完整运行：794 个用例，21 项失败
               其中 6 项为此前已知的 SMB 读取区间与失败分类用例
               另有 5 项以 signal kill 结束（Tidal、TrackSelection、ByteStream、Residency、Presentation）
