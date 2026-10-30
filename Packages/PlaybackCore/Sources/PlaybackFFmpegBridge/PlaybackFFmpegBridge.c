@@ -4118,6 +4118,7 @@ static void fill_media_stream_storage(
     storage->info.decodedBytesPerPixel = decoded_bytes_per_pixel(parameters);
     storage->info.sampleRate = parameters->sample_rate;
     storage->info.channelCount = parameters->ch_layout.nb_channels;
+    storage->info.bitsPerRawSample = parameters->bits_per_raw_sample;
 
     const AVCodecDescriptor *descriptor = avcodec_descriptor_get(parameters->codec_id);
     copy_media_information_text(

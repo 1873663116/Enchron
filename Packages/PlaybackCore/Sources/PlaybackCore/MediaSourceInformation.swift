@@ -20,6 +20,7 @@ public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
     public let nominalFrameRate: Double
     public let reorderDepth: Int
     public let decodedBytesPerPixel: Double
+    public let bitsPerRawSample: Int
     public let colorPrimaries: String
     public let transferFunction: String
     public let yCbCrMatrix: String
@@ -32,6 +33,7 @@ public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
         nominalFrameRate: Double,
         reorderDepth: Int = 0,
         decodedBytesPerPixel: Double = 0,
+        bitsPerRawSample: Int = 0,
         colorPrimaries: String,
         transferFunction: String,
         yCbCrMatrix: String,
@@ -43,6 +45,7 @@ public struct MediaSourceVideoInformation: Codable, Equatable, Sendable {
         self.nominalFrameRate = nominalFrameRate
         self.reorderDepth = reorderDepth
         self.decodedBytesPerPixel = decodedBytesPerPixel
+        self.bitsPerRawSample = bitsPerRawSample
         self.colorPrimaries = colorPrimaries
         self.transferFunction = transferFunction
         self.yCbCrMatrix = yCbCrMatrix
@@ -156,6 +159,14 @@ public struct MediaSourceInformation: Codable, Equatable, Sendable {
             dolbyVisionHasEnhancementLayer: dolbyVisionHasEnhancementLayer,
             hasStereoVideoEnhancementLayer: hasStereoVideoEnhancementLayer
         )
+    }
+
+    public var firstUnsupportedVideoStream: MediaSourceStreamInformation? {
+        streams.first { stream in
+            stream.category == .video &&
+                stream.codecName == "h264" &&
+                (stream.video?.bitsPerRawSample ?? 0) > 8
+        }
     }
 
     public var playbackMediaKind: PlaybackMediaKind {
@@ -367,6 +378,7 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
                     nominalFrameRate: raw.nominalFrameRate,
                     reorderDepth: Int(raw.reorderDepth),
                     decodedBytesPerPixel: raw.decodedBytesPerPixel,
+                    bitsPerRawSample: Int(raw.bitsPerRawSample),
                     colorPrimaries: string(colorPrimaries) ?? "unknown",
                     transferFunction: string(transferFunction) ?? "unknown",
                     yCbCrMatrix: string(yCbCrMatrix) ?? "unknown",

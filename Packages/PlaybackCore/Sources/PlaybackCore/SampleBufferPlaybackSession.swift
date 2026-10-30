@@ -656,6 +656,16 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             sourceDescription = nil
         }
         if let sourceInformation {
+            if let unsupported = sourceInformation.firstUnsupportedVideoStream {
+                let unsupportedBits = unsupported.video?.bitsPerRawSample ?? 0
+                let unsupportedSummary = "source.unsupported codec="
+                    + "\(unsupported.codecName) bits=\(unsupportedBits)"
+                logger.info("\(unsupportedSummary, privacy: .public)")
+                throw CorePlaybackError.unsupportedVideoEncoding(
+                    codec: unsupported.codecName,
+                    bitsPerRawSample: unsupported.video?.bitsPerRawSample ?? 0
+                )
+            }
             mediaKind = sourceInformation.playbackMediaKind
             guard mediaKind != .unsupported else {
                 throw CorePlaybackError.noPlayableMediaStream

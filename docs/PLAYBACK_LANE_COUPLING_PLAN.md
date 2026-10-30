@@ -542,6 +542,23 @@ Ghost in the Shell 2: Innocence  t+10s position=4.000 lifecycle=failed
 
 结论：H.264 High 10（Hi10P）在当前解码路径上不可播放。云盘挂载不成立为成因，因为同源同挂载下的 HEVC 片源可播放。
 
+已修复的行为部分：该编码现在在开始播放前被拒绝，不再出现「播放四秒后黑屏退出」。
+
+```
+流信息比对   codec=h264 且 bits_per_raw_sample=10 → 判为不支持
+用户可见     立即失败，不再进入解码
+日志         source.unsupported codec=h264 bits=10
+```
+
+实测：
+
+```
+Ghost in the Shell（Hi10P）   playServerItem ok=false  position=0.000 lifecycle=failed
+Alien: Covenant（HEVC 4K）    playServerItem ok=true   position=10.500 lifecycle=playing
+```
+
+未实现部分：支持 Hi10P 的软件解码路径。当前行为是拒绝，不是播放。
+
 本地语料没有 H.264 10 位片源（两部 mkv 均为 HEVC Main 10），因此本地档无法分离这两个变量。
 
 八，已解决，属判据缺陷，非观测缺陷。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，位置 20 已被扫过且无单元，属正常。

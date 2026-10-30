@@ -50,6 +50,7 @@ typedef struct PBFFmpegMediaStreamInfo {
     double decodedBytesPerPixel;
     int sampleRate;
     int channelCount;
+    int bitsPerRawSample;
 } PBFFmpegMediaStreamInfo;
 typedef enum PBFFmpegAudioCookieSource {
     PBFFmpegAudioCookieSourceUnavailable = 0,

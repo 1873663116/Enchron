@@ -8,6 +8,7 @@ struct AudioRendererRetirementError: LocalizedError {
 
 enum CorePlaybackError: LocalizedError {
     case noPlayableMediaStream
+    case unsupportedVideoEncoding(codec: String, bitsPerRawSample: Int)
     case mediaInputTruncated(deliveredEndSeconds: Double?, declaredDurationSeconds: Double)
     case audioPrerollTimedOut(Double)
     case sourceStalled(Double)
@@ -24,6 +25,9 @@ enum CorePlaybackError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .unsupportedVideoEncoding(let codec, let bitsPerRawSample):
+            "This file uses \(codec) at \(bitsPerRawSample) bits per sample, "
+                + "which this device cannot decode."
         case .noPlayableMediaStream:
             "The selected source has no playable audio or video stream."
         case .mediaInputTruncated(let deliveredEndSeconds, let declaredDurationSeconds):
