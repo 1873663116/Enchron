@@ -926,9 +926,6 @@ static int64_t demux_source_resume_timestamp(
     return resume;
 }
 
-static const int64_t PB_DEMUX_REMOTE_RESUME_BACKSTEP_MICROSECONDS =
-    10LL * AV_TIME_BASE;
-
 static int reopen_demux_source(PBFFmpegDemuxSource *source) {
     int64_t resumeTimestamp = demux_source_resume_timestamp(source);
     if (source->sourceReadContext->disc) {
@@ -981,10 +978,6 @@ static int reopen_demux_source(PBFFmpegDemuxSource *source) {
     }
     if (result >= 0 && resumeTimestamp != AV_NOPTS_VALUE) {
         int64_t seekTarget = resumeTimestamp;
-        if (source->isRemote) {
-            seekTarget -= PB_DEMUX_REMOTE_RESUME_BACKSTEP_MICROSECONDS;
-            if (seekTarget < 0) seekTarget = 0;
-        }
         result = avformat_seek_file(
             replacement,
             -1,
