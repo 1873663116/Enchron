@@ -481,6 +481,15 @@ D8  撤销。曾记为「视频交付每四帧只交一帧」
     成因   区间表按到达顺序追加，B 帧使相邻条目起点来回跳，诊断日志误报
     处置   撤销；区间表改为按呈现顺序插入
 
+D9  长时间播放后解复用读取停止
+    观测   播放四十分钟、经多次音轨切换后，audio.out 停在 pts=304.214
+           时钟继续到 325，位置继续到 333，lifecycle=playing
+           心跳显示 demuxBufferedSeconds=0.0，demuxReadFrames 停在 42107 不增长
+           切回另一条音轨同样停在 304.214，非单条车道问题
+    复现   未稳定复现；本轮在运行约四十分钟的会话上首次出现
+    关联   裁剪每次订阅都会调整队列与字节池计数，多次切换后的计数漂移是候选成因
+    处置   登记；下一轮用「反复切换至停住」作为复现实验
+
 D7  故障注入后未出现 Playback Error
     观测   unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1
            第十一步等待「Playback Error」四十五秒未出现
