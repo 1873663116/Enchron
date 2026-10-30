@@ -755,7 +755,30 @@ python3 Scripts/console/cli.py run "unit:catalog.scenario-webdav-source-lifecycl
 
 前置条件能够启动 WebDAV 服务，因此该档的源可用。单位在一号步骤之后未继续，终态证据 `probe.json` 未生成，证据目录仅有 `01-device.app-command.json`。
 
-因此归因档当前不具备执行条件，阻塞点在该单位自身，不在源。
+复跑结果（清除服务缓存后）：
+
+```
+ok   27 device.command   Element tapped.
+ok   28 device.await     'FileBrowsing-FilesScreen'
+ok   29 device.await     'FileBrowsing-grid-video-sdr-bframe-aggregate-30s.mkv'
+ok   30 device.probe     Current UI state captured.
+terminal artifact ok     probe.json present
+exit=0
+```
+
+该单位通过，WebDAV 源可添加、可列出文件、可抓取界面状态。首次失败的原因为前置条件中 Emby 服务身份核对未通过，属瞬时故障。
+
+同文件跨档对照（本轮首次取得）：
+
+```
+Emby    sdr-bframe-aggregate-30s.mkv   播放成功，时长 30.021，跳转 0.5 后位置 21.000
+WebDAV  同一文件                        demux.open.failed error=Open demux media source:
+                                        Server returned 5XX Server Error reply (-1482175992)
+```
+
+按本档判定规则：同一文件在平台上正常、在 WebDAV 上异常，问题在 WebDAV 接入层，不在解复用或解码层。
+
+待确认：该 5XX 在服务存活期间是否稳定复现。单位结束后直接请求 `https://Mac-mini.local:8443/dav/regression/sdr-bframe-aggregate-30s.mkv` 返回 SSL 连接失败（curl 退出码 35），说明服务随单位结束而停止，因此需要在服务存活期间复测。
 
 ### 12.2.0 片源挑选
 
