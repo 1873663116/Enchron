@@ -145,11 +145,12 @@ extension SampleBufferPlaybackSession {
             videoProviderReopened = ContinuousClock.now
             if hasAudio {
                 do {
-                    try await audioProvider.prepare(
+                    try await openAudioAttachment(
                         url: sourceURL,
                         asset: sourceAsset,
-                        startTime: CMTime(seconds: target, preferredTimescale: 60_000),
-                        streamIndex: selectedAudioStreamIndex
+                        seconds: target,
+                        streamIndex: selectedAudioStreamIndex,
+                        reason: "seek"
                     )
                 } catch {
                     if error is CancellationError || Task.isCancelled {
@@ -463,11 +464,12 @@ extension SampleBufferPlaybackSession {
         let targetTime = CMTime(seconds: target, preferredTimescale: 60_000)
         do {
             try demuxSession?.seek(to: target)
-            try await audioProvider.prepare(
+            try await openAudioAttachment(
                 url: sourceURL,
                 asset: sourceAsset,
-                startTime: targetTime,
-                streamIndex: selectedAudioStreamIndex
+                seconds: target,
+                streamIndex: selectedAudioStreamIndex,
+                reason: "audioOnlySeek"
             )
         } catch {
             recordFailure(error, node: .providerOpen, kind: "audioProvider.seekOpenFailed")
@@ -751,13 +753,14 @@ extension SampleBufferPlaybackSession {
             }
         }
         do {
-            try await audioProvider.prepare(
+            let openedInfo = try await openAudioAttachment(
                 url: sourceURL,
                 asset: sourceAsset,
-                startTime: time,
-                streamIndex: streamIndex
+                seconds: time.seconds,
+                streamIndex: streamIndex,
+                reason: "selection"
             )
-            let info = audioProvider.info
+            let info = openedInfo ?? audioProvider.info
             let opened = info?.streamIndex ?? -1
             let codec = info?.codecName ?? "?"
             let rate = info?.sampleRate ?? 0
@@ -771,11 +774,12 @@ extension SampleBufferPlaybackSession {
                 "audio.select.failed index=\(streamIndex, privacy: .public) error=\(String(describing: error), privacy: .public)"
             )
             do {
-                try await audioProvider.prepare(
+                try await openAudioAttachment(
                     url: sourceURL,
                     asset: sourceAsset,
-                    startTime: time,
-                    streamIndex: previousStreamIndex
+                    seconds: time.seconds,
+                    streamIndex: previousStreamIndex,
+                    reason: "selectionRollback"
                 )
             } catch {
                 hasAudio = false

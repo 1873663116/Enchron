@@ -763,11 +763,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             }
         }
         do {
-            try await audioProvider.prepare(
+            try await openAudioAttachment(
                 url: url,
                 asset: asset,
-                startTime: startTime,
-                streamIndex: selectedAudioStreamIndex
+                seconds: startTime.seconds,
+                streamIndex: selectedAudioStreamIndex,
+                reason: "open"
             )
             hasAudio = true
             if let info = audioProvider.info {

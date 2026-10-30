@@ -75,7 +75,7 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 
 三，回归目录的语义债。`Config/regression/catalog-v2.json` 中的 `scenario:format-coverage:audio-retirement-on-failure` 与其 rubric 断言的是旧语义（撤轨后继续），与当前实现相反；它的 criteria 文本里按旧测试名引用（`audioReadFailureRetiresAudioButVideoStillDelivers` 等）。目录本身自洽（materializer 校验通过），这笔债只在语义与文档。退役它要同步 `Scripts/regression/materialize_catalog_v2.py` 的计数守卫、`Scripts/regression/completion.py` 与两份测试里的硬编码计数。
 
-四，切换路径。三条路径的行为已符合重新绑定语义，但实现上仍各写一份停止、flush、seek、重开序列，未抽成同一个函数。
+四，切换路径。音频挂载的打开只有一处实现：初始打开、seek、音轨切换、切换回滚都调用 `openAudioAttachment`，它负责重开、核对源纪元并记录 `audio.attach.open reason=`。三条路径的停止、刷新、seek 编排序列仍各写一份。
 
 ## 四、验收矩阵
 
