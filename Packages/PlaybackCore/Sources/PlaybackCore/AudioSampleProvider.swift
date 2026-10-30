@@ -233,6 +233,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     private var lastStallReport: Date?
     private var stallMonitor: Task<Void, Never>?
     private var reader: FFmpegAudioReaderHandle?
+    private var boundEpoch: UInt64?
     private var generation: UInt64 = 0
 
     init(
@@ -347,6 +348,10 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
                             continuation.resume(throwing: CancellationError())
                             return
                         }
+                        let epoch = demuxSession?.currentEpoch()
+                        readerLock.withLock { boundEpoch = epoch }
+                        let epochLabel = epoch.map(String.init) ?? "none"
+                        logger.info("audio.reader.bind epoch=\(epochLabel, privacy: .public)")
                         continuation.resume()
                     } catch {
                         guard removeIfCurrent(newReader, generation: operationGeneration) else {
@@ -365,6 +370,12 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     }
 
     func copyNextSample() async throws -> CMSampleBuffer? {
+        let bound = readerLock.withLock { boundEpoch }
+        if let bound, let current = demuxSession?.currentEpoch(), current != bound {
+            let message = "source epoch moved from \(bound) to \(current)"
+            logger.error("audio.read.staleEpoch \(message, privacy: .public)")
+            throw AudioSampleProviderError.read(message)
+        }
         guard let operation = readerLock.withLock({ reader.map { ($0, generation) } }) else {
             return nil
         }

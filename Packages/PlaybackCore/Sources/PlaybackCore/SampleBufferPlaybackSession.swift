@@ -611,6 +611,15 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         let sourceInformation = loadedInformation?
             .fillingStreamLanguages(discStreamLanguages)
         if let sourceInformation {
+            let epoch = demuxSession?.currentEpoch().map(String.init) ?? "none"
+            let streams = sourceInformation.streams.count
+            let audio = sourceInformation.playbackAudioTracks.count
+            let subtitles = sourceInformation.playbackSubtitleTracks.count
+            logger.info(
+                "source.description epoch=\(epoch, privacy: .public) streams=\(streams, privacy: .public) audio=\(audio, privacy: .public) subtitles=\(subtitles, privacy: .public)"
+            )
+        }
+        if let sourceInformation {
             mediaKind = sourceInformation.playbackMediaKind
             guard mediaKind != .unsupported else {
                 throw CorePlaybackError.noPlayableMediaStream

@@ -8,6 +8,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
     private let sourceLock = NSLock()
     private let sourceReadMeter: PlaybackSourceReadMeter
     private var source: OpaquePointer?
+    private var sourceEpochCounter: UInt64 = 0
     private var sourceArgument: String?
     private var sourceTransport: PlaybackSourceTransport = .localFile
     private var contentSelection: PlaybackContentSelection = .file
@@ -75,6 +76,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
                 return try body(source)
             }
             var error = [CChar](repeating: 0, count: 512)
+            sourceLock.withLock { sourceEpochCounter &+= 1 }
             PlaybackTrace.event("demux.open.begin remote=\(sourceTransport.isRemote)")
             let opened = argument.withCString { path in
                 if let disc = pendingDiscReader {
@@ -126,6 +128,16 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         PlaybackTrace.event("demux.interrupt")
         PBFFmpegDemuxSourceInterrupt(source)
     }
+
+    func currentEpoch() -> UInt64? {
+        sourceLock.withLock { source == nil ? nil : sourceEpochCounter }
+    }
+
+#if DEBUG
+    func rotateEpochForTesting() {
+        sourceLock.withLock { sourceEpochCounter &+= 1 }
+    }
+#endif
 
     func isOpen(for argument: String) -> Bool {
         operationLock.withLock {
