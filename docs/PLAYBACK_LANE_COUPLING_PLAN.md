@@ -961,7 +961,11 @@ WebDAV  同一文件                        demux.open.failed error=Open demux m
 ```
 tier static   通过   （33979 毫秒）
 tier build    通过   （66734 毫秒）
+tier e2e      通过   12 个单元全过（reused 0, ran 12），每个单元终态产物齐全
+tier unit     不通过  六项失败，均不在播放车道范围内
 ```
+
+`tier e2e` 的默认选择是十二个单元。全量选择（`--full`）尚未执行。
 
 静态档此前的八项失败已逐项修完：
 
