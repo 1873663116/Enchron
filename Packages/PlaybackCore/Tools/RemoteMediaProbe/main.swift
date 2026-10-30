@@ -268,6 +268,7 @@ func openSharedSession(source: String, monitor: OpaquePointer) throws -> String 
         audioReader,
         demuxSource,
         -1,
+        0,
         &error,
         error.count
     ) else {
@@ -564,6 +565,7 @@ func measurePlayback(
             audioReader,
             demuxSource,
             -1,
+            0,
             &error,
             error.count
         )

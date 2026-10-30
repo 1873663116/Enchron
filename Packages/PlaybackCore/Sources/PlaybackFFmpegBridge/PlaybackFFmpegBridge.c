@@ -248,6 +248,8 @@ struct PBFFmpegAudioReader {
     int audioStreamIndex;
     AVRational timeBase;
     int64_t startTimestamp;
+    int64_t skipUntilTimestamp;
+    int64_t skippedPacketCount;
     int sampleRate;
     int channelCount;
     bool inputEnded;
@@ -1102,11 +1104,11 @@ static void unsubscribe_from_demux_stream(
         (unsigned int)streamIndex >= source->queueCount) return;
     pthread_mutex_lock(&source->lock);
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
-    clear_packet_queue(source, queue);
+    if (queue->bufferedByteCount > 0) {
+        source->retainedByteCount += queue->bufferedByteCount;
+        trim_retained_packet_queue(source, queue);
+    }
     queue->subscribers = 0;
-    source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
-    source->replayThroughTimestamps[streamIndex] = AV_NOPTS_VALUE;
-    source->replayCaughtUp[streamIndex] = true;
     pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
 }
@@ -5565,7 +5567,10 @@ int PBFFmpegReaderGetTimeBaseDenominator(const PBFFmpegReader *reader) {
 
 PBFFmpegAudioReader *PBFFmpegAudioReaderAllocate(void) {
     PBFFmpegAudioReader *reader = calloc(1, sizeof(PBFFmpegAudioReader));
-    if (reader) atomic_init(&reader->cancelled, false);
+    if (reader) {
+        atomic_init(&reader->cancelled, false);
+        reader->skipUntilTimestamp = INT64_MIN;
+    }
     return reader;
 }
 
@@ -5887,6 +5892,7 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
     PBFFmpegAudioReader *reader,
     PBFFmpegDemuxSource *source,
     int preferredStreamIndex,
+    double startSeconds,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -5898,13 +5904,17 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
     reader->formatContext = source->formatContext;
     bool opened = configure_audio_reader(
         reader,
-        0,
+        startSeconds,
         preferredStreamIndex,
         false,
         source->path,
         errorBuffer,
         errorBufferSize
     );
+    if (opened && startSeconds > 0) {
+        reader->skipUntilTimestamp = reader->startTimestamp +
+            (int64_t)(startSeconds / av_q2d(reader->timeBase));
+    }
     if (opened) {
         pthread_mutex_lock(&source->lock);
         source->prebuffersAudio = false;
@@ -5994,22 +6004,29 @@ static int read_next_audio_packet(
     PBFFmpegAudioReader *reader,
     AVPacket *packet
 ) {
-    int result = reader->demuxSource
-        ? copy_next_demux_packet_batch(
-            reader->demuxSource,
-            reader->audioStreamIndex,
-            &reader->cancelled,
-            &reader->demuxPacketBatch,
-            &reader->consumedDemuxPacketBatch,
-            packet
-        )
-        : monitored_av_read_frame(
-            reader->sourceReadContext.monitor,
-            reader->formatContext,
-            packet
-        );
-    if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
-    return result;
+    while (true) {
+        int result = reader->demuxSource
+            ? copy_next_demux_packet_batch(
+                reader->demuxSource,
+                reader->audioStreamIndex,
+                &reader->cancelled,
+                &reader->demuxPacketBatch,
+                &reader->consumedDemuxPacketBatch,
+                packet
+            )
+            : monitored_av_read_frame(
+                reader->sourceReadContext.monitor,
+                reader->formatContext,
+                packet
+            );
+        if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
+        if (result < 0) return result;
+        if (packet->pts == AV_NOPTS_VALUE || packet->pts >= reader->skipUntilTimestamp) {
+            return result;
+        }
+        reader->skippedPacketCount++;
+        av_packet_unref(packet);
+    }
 }
 
 static int aggregate_truehd_decoder_packet(PBFFmpegAudioReader *reader) {

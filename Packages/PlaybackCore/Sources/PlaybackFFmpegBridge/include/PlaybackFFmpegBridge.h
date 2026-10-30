@@ -382,6 +382,7 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
     PBFFmpegAudioReader *reader,
     PBFFmpegDemuxSource *source,
     int preferredStreamIndex,
+    double startSeconds,
     char *errorBuffer,
     size_t errorBufferSize
 );

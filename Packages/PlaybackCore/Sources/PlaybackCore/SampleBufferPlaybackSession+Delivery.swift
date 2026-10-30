@@ -243,6 +243,10 @@ extension SampleBufferPlaybackSession {
         previousTask?.cancel()
     }
 
+    var isAudioDeliveryRunning: Bool {
+        deliveryTaskLock.withLock { audioDeliveryTask != nil }
+    }
+
     func stopAudioDelivery() {
         let task = deliveryTaskLock.withLock {
             let task = audioDeliveryTask

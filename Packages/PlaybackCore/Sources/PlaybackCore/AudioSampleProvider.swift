@@ -88,6 +88,7 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
                     reader.pointer,
                     $0,
                     Int32(streamIndex ?? -1),
+                    0,
                     &error,
                     error.count
                 )
@@ -381,6 +382,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     }
 
     func copyNextSample() async throws -> CMSampleBuffer? {
+        var dropped = 0
         while true {
             guard let sample = try await readNextSampleOnce() else { return nil }
             let threshold = readerLock.withLock { playbackStartThreshold }
@@ -388,8 +390,14 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
             let start = CMSampleBufferGetPresentationTimeStamp(sample).seconds
             let duration = CMSampleBufferGetDuration(sample).seconds
             let end = duration.isFinite ? start + duration : start
-            if end <= threshold { continue }
+            if end <= threshold {
+                dropped += 1
+                continue
+            }
             readerLock.withLock { playbackStartThreshold = nil }
+            let summary = "audio.read.thresholdCleared dropped=\(dropped)"
+                + " pts=\(String(format: "%.3f", start))"
+            logger.info("\(summary, privacy: .public)")
             return sample
         }
     }

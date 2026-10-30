@@ -103,8 +103,9 @@ import Testing
         audioReader,
         openedSource,
         -1,
+        0,
         &error,
-        error.count
+        error.count,
     )
     try #require(audioOpened)
     defer { PBFFmpegAudioReaderDestroy(audioReader) }

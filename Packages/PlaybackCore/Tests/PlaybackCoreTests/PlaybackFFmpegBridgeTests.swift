@@ -2547,8 +2547,9 @@ func lateStartAudioOpensOnASharedDemuxSource(preferredStreamIndex: Int32) throws
         reader,
         source,
         preferredStreamIndex,
+        0,
         &error,
-        error.count
+        error.count,
     )
 
     #expect(opened, Comment(rawValue: cString(error)))
@@ -2598,7 +2599,14 @@ func lateStartAudioOpensOnASharedDemuxSource(preferredStreamIndex: Int32) throws
     let shared = try #require(PBFFmpegAudioReaderAllocate())
     defer { PBFFmpegAudioReaderDestroy(shared) }
     #expect(
-        PBFFmpegAudioReaderOpenWithDemuxSource(shared, source, 1, &error, error.count),
+        PBFFmpegAudioReaderOpenWithDemuxSource(
+        shared,
+        source,
+        1,
+        0,
+        &error,
+        error.count,
+    ),
         Comment(rawValue: cString(error))
     )
 
@@ -2632,7 +2640,14 @@ func lateStartAudioOpensOnASharedDemuxSource(preferredStreamIndex: Int32) throws
     let reader = try #require(PBFFmpegAudioReaderAllocate())
     defer { PBFFmpegAudioReaderDestroy(reader) }
 
-    let opened = PBFFmpegAudioReaderOpenWithDemuxSource(reader, source, 1, &error, error.count)
+    let opened = PBFFmpegAudioReaderOpenWithDemuxSource(
+        reader,
+        source,
+        1,
+        0,
+        &error,
+        error.count,
+    )
 
     #expect(opened == false)
     #expect(cString(error) == "Audio stream parameters are unavailable after extended probe")

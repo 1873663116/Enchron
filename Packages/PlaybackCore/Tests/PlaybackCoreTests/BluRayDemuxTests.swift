@@ -100,8 +100,13 @@ func selectedDiscAudioUsesTheSameZeroBasedTitleClock(_ path: String) throws {
         let reader = try #require(PBFFmpegAudioReaderAllocate())
         defer { PBFFmpegAudioReaderDestroy(reader) }
         try #require(PBFFmpegAudioReaderOpenWithDemuxSource(
-            reader, source, -1, &error, error.count
-        ))
+        reader,
+        source,
+        -1,
+        0,
+        &error,
+        error.count,
+    ))
         #expect(PBFFmpegAudioReaderGetSampleRate(reader) == 48_000)
         #expect(PBFFmpegAudioReaderGetChannelCount(reader) == 2)
         var reference: Unmanaged<CMSampleBuffer>?
@@ -125,8 +130,13 @@ func selectedDiscAudioDoesNotRepeatTheTimestampAtAClipBoundary(_ path: String) t
         let reader = try #require(PBFFmpegAudioReaderAllocate())
         defer { PBFFmpegAudioReaderDestroy(reader) }
         try #require(PBFFmpegAudioReaderOpenWithDemuxSource(
-            reader, source, -1, &error, error.count
-        ))
+        reader,
+        source,
+        -1,
+        0,
+        &error,
+        error.count,
+    ))
 
         var times: [Double] = []
         while true {

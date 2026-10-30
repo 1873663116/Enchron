@@ -684,7 +684,12 @@ struct DemuxNetworkResilienceTests {
     defer { PBFFmpegAudioReaderDestroy(audioReader) }
     try #require(
         PBFFmpegAudioReaderOpenWithDemuxSource(
-            audioReader, openedSource, -1, &error, error.count
+            audioReader,
+            openedSource,
+            -1,
+            0,
+            &error,
+            error.count
         ),
         Comment(rawValue: reportedError(error))
     )
@@ -882,12 +887,13 @@ private final class DrainOutcome: @unchecked Sendable {
 
     let audioReader = try #require(PBFFmpegAudioReaderAllocate())
     let audioOpened = PBFFmpegAudioReaderOpenWithDemuxSource(
-        audioReader,
-        openedSource,
-        -1,
-        &error,
-        error.count
-    )
+            audioReader,
+            openedSource,
+            -1,
+            0,
+            &error,
+            error.count
+        )
     try #require(audioOpened, Comment(rawValue: reportedError(error)))
     defer { PBFFmpegAudioReaderDestroy(audioReader) }
 
