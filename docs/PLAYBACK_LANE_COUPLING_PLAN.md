@@ -512,6 +512,8 @@ GET /Videos/10028/stream?static=true   Range: 0-4194303   206
 
 待定：应用应当把该编码判为不支持并在开始播放前拒绝，还是应当增加软件解码路径。
 
+对照：同一次会话中 `Alien: Covenant`（4K HEVC Main 10）正常播放，位置 12.500，`rendererStatus=ready`。因此失败与编码有关，与远程源、与 2160p、与 10 位均无关。
+
 已实施但未验证的改动：远程重连的跳转目标改为预约时间戳之前十秒，目的是避开簇中间落点。该改动无法在第二种表现存在时验证。
 
 验证方式：先解决解码失败，使远程文件能连续播放四分钟以上，再确认 `demuxReconnects` 增长时进程不退出且位置连续。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
@@ -627,9 +629,23 @@ eighty-six-2160p.mkv              失败    书签失效，见第十一节第七
 已执行单元（2026-10-31，Emby）：
 
 ```
-sdr-bframe-aggregate-30s   播放成功  时长 30.021   跳转 0.5 后位置 21.000   t+6s
-Ghost in the Shell         播放成功  时长 4989.945 跳转 0.5 后位置 2499.500 t+8s
+sdr-bframe-aggregate-30s   播放成功  时长 30.021    跳转 0.5 后位置 21.000    t+6s
+Ghost in the Shell         播放成功  时长 4989.945  跳转 0.5 后位置 2499.500  t+8s
+Alien: Covenant            播放成功  时长 7323.467  位置 12.500 lifecycle=playing  4K HEVC + TrueHD Atmos
+5 Centimeters per Second   已确认素材  1080p HEVC Main 10 + DTS + AC3
 ```
+
+`Alien: Covenant` 覆盖本地语料缺失的三项：2160p、TrueHD、DTS-HD MA。
+
+会话恢复：应用内 Emby 登录可由仓库内的身份文件恢复，无需界面操作。
+
+```
+cp Tests/EmbyPackageTests/Fixtures/EmbyServerCredentials.local.json \
+   <容器>/Documents/Regression/emby-runtime-identity.json   并置为 0600
+embySignIn identityDigest=sha256:<该文件的 SHA-256>
+```
+
+回执为 `enchron.regression.emby-sign-in@1`，`persisted=true`。
 
 平台可用性：Emby 已登录（`embyServerIdentityDigest` 返回摘要，服务器返回条目）。Plex 令牌可用（`.env` 的 `PLEX_TOKEN`，接口返回 8 个库、14 个验证片源），应用内的 Plex 登录未验证。Jellyfin 在本机无服务。
 
