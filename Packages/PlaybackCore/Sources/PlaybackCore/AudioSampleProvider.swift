@@ -88,7 +88,7 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
                     reader.pointer,
                     $0,
                     Int32(streamIndex ?? -1),
-                    0,
+                    startSeconds,
                     &error,
                     error.count
                 )

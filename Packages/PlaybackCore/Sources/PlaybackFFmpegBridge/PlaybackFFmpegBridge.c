@@ -108,6 +108,9 @@ struct PBFFmpegDemuxSource {
     int64_t auxiliaryBufferedByteCount;
     PBFFmpegPacketNode *freePacketNodes;
     PBFFmpegPacketNodePoolChunk *packetNodePoolChunks;
+    PBFFmpegPacketNode **historyHeads;
+    PBFFmpegPacketNode **historyTails;
+    int64_t *historyByteCounts;
     unsigned int reconnectAttemptCount;
     uint64_t readFrameCount;
 };
@@ -663,6 +666,123 @@ static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
 
 static const int64_t PB_DEMUX_AUXILIARY_BYTE_LIMIT = 16LL * 1024 * 1024;
 
+static const int64_t PB_DEMUX_HISTORY_BYTE_LIMIT = 24LL * 1024 * 1024;
+static const int64_t PB_DEMUX_HISTORY_WINDOW_MICROSECONDS = 60LL * AV_TIME_BASE;
+
+static void clear_stream_history_locked(
+    PBFFmpegDemuxSource *source,
+    unsigned int streamIndex
+) {
+    if (!source->historyHeads) return;
+    PBFFmpegPacketNode *node = source->historyHeads[streamIndex];
+    while (node) {
+        PBFFmpegPacketNode *next = node->next;
+        return_packet_node(source, node);
+        node = next;
+    }
+    source->historyHeads[streamIndex] = NULL;
+    source->historyTails[streamIndex] = NULL;
+    source->historyByteCounts[streamIndex] = 0;
+}
+
+static void record_stream_history_locked(
+    PBFFmpegDemuxSource *source,
+    unsigned int streamIndex,
+    const AVPacket *packet,
+    int64_t timestamp,
+    int64_t duration,
+    int64_t byteCount
+) {
+    if (!source->historyHeads || !packet) return;
+    if (streamIndex >= source->queueCount) return;
+    if ((int)streamIndex == source->videoStreamIndex) return;
+    if (timestamp == AV_NOPTS_VALUE) return;
+    PBFFmpegPacketNode *copy = take_packet_node(source);
+    if (!copy) return;
+    if (av_packet_ref(&copy->packet, packet) < 0) {
+        return_packet_node(source, copy);
+        return;
+    }
+    copy->timestampMicroseconds = timestamp;
+    copy->durationMicroseconds = duration;
+    copy->byteCount = byteCount;
+    copy->next = NULL;
+    if (source->historyTails[streamIndex]) {
+        source->historyTails[streamIndex]->next = copy;
+    } else {
+        source->historyHeads[streamIndex] = copy;
+    }
+    source->historyTails[streamIndex] = copy;
+    source->historyByteCounts[streamIndex] += copy->byteCount;
+    PBFFmpegPacketNode *head = source->historyHeads[streamIndex];
+    int64_t headTimestamp = head->timestampMicroseconds;
+    int64_t tailTimestamp = copy->timestampMicroseconds;
+    while ((head = source->historyHeads[streamIndex]) != NULL) {
+        bool overBudget =
+            source->historyByteCounts[streamIndex] >
+                PB_DEMUX_HISTORY_BYTE_LIMIT;
+        bool agedOut = head->timestampMicroseconds != AV_NOPTS_VALUE &&
+            headTimestamp != AV_NOPTS_VALUE &&
+            tailTimestamp - head->timestampMicroseconds >
+                PB_DEMUX_HISTORY_WINDOW_MICROSECONDS;
+        if (!overBudget && !agedOut) break;
+        source->historyHeads[streamIndex] = head->next;
+        if (!source->historyHeads[streamIndex]) {
+            source->historyTails[streamIndex] = NULL;
+        }
+        source->historyByteCounts[streamIndex] -= head->byteCount;
+        return_packet_node(source, head);
+    }
+}
+
+static bool replay_stream_history_locked(
+    PBFFmpegDemuxSource *source,
+    unsigned int streamIndex,
+    int64_t thresholdTimestamp
+) {
+    if (!source->historyHeads || streamIndex >= source->queueCount) return false;
+    PBFFmpegPacketNode *chainHead = NULL;
+    PBFFmpegPacketNode *chainTail = NULL;
+    int64_t chainBytes = 0;
+    int64_t chainDurationMicroseconds = 0;
+    for (PBFFmpegPacketNode *node = source->historyHeads[streamIndex];
+         node;
+         node = node->next) {
+        if (node->timestampMicroseconds == AV_NOPTS_VALUE) continue;
+        if (node->timestampMicroseconds < thresholdTimestamp) continue;
+        PBFFmpegPacketNode *copy = take_packet_node(source);
+        if (!copy) break;
+        if (av_packet_ref(&copy->packet, &node->packet) < 0) {
+            return_packet_node(source, copy);
+            break;
+        }
+        copy->timestampMicroseconds = node->timestampMicroseconds;
+        copy->durationMicroseconds = node->durationMicroseconds;
+        copy->byteCount = node->byteCount;
+        copy->next = NULL;
+        if (chainTail) {
+            chainTail->next = copy;
+        } else {
+            chainHead = copy;
+        }
+        chainTail = copy;
+        chainBytes += copy->byteCount;
+        chainDurationMicroseconds += copy->durationMicroseconds;
+    }
+    clear_stream_history_locked(source, streamIndex);
+    if (!chainHead) return false;
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    chainTail->next = queue->head;
+    queue->head = chainHead;
+    if (!queue->tail) queue->tail = chainTail;
+    queue->summedDurationMicroseconds += chainDurationMicroseconds;
+    queue->bufferedByteCount += chainBytes;
+    *packet_queue_byte_pool(source, queue) += chainBytes;
+    update_packet_queue_buffered_duration(queue);
+    pthread_cond_broadcast(&source->changed);
+    return true;
+}
+
 static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     if (source->forwardBufferedByteCount >=
         source->bufferConfiguration.forwardByteLimit) return false;
@@ -976,6 +1096,14 @@ static void *demux_source_read_loop(void *opaque) {
             (unsigned int)packet->stream_index < source->queueCount) {
             int64_t timestamp = packet_timestamp_microseconds(source, packet);
             unsigned int streamIndex = (unsigned int)packet->stream_index;
+            record_stream_history_locked(
+                source,
+                streamIndex,
+                packet,
+                timestamp,
+                packet_duration_microseconds(source, packet),
+                FFMAX(packet->size, 0)
+            );
             if (!source->replayCaughtUp[streamIndex]) {
                 int64_t replayThrough = source->replayThroughTimestamps[streamIndex];
                 if (timestamp != AV_NOPTS_VALUE && timestamp <= replayThrough) {
@@ -4229,10 +4357,24 @@ static PBFFmpegDemuxSource *create_demux_source(
             source->queueCount,
             sizeof(*source->replayCaughtUp)
         );
+        source->historyHeads = calloc(
+            source->queueCount,
+            sizeof(*source->historyHeads)
+        );
+        source->historyTails = calloc(
+            source->queueCount,
+            sizeof(*source->historyTails)
+        );
+        source->historyByteCounts = calloc(
+            source->queueCount,
+            sizeof(*source->historyByteCounts)
+        );
     }
     if (source->queueCount > 0 &&
         (!source->queues || !source->lastQueuedTimestamps ||
-         !source->replayThroughTimestamps || !source->replayCaughtUp)) {
+         !source->replayThroughTimestamps || !source->replayCaughtUp ||
+         !source->historyHeads || !source->historyTails ||
+         !source->historyByteCounts)) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg packet queues");
         PBFFmpegDemuxSourceDestroy(source);
         return NULL;
@@ -4310,6 +4452,7 @@ void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {
     stop_demux_source_read_thread(source);
     for (unsigned int index = 0; index < source->queueCount; index++) {
         clear_packet_queue(source, &source->queues[index]);
+        if (source->historyHeads) clear_stream_history_locked(source, index);
     }
     PBFFmpegPacketNodePoolChunk *chunk = source->packetNodePoolChunks;
     while (chunk) {
@@ -4318,6 +4461,9 @@ void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {
         chunk = next;
     }
     free(source->queues);
+    free(source->historyHeads);
+    free(source->historyTails);
+    free(source->historyByteCounts);
     free(source->lastQueuedTimestamps);
     free(source->replayThroughTimestamps);
     free(source->replayCaughtUp);
@@ -4358,6 +4504,7 @@ bool PBFFmpegDemuxSourceSeek(
     pthread_mutex_lock(&source->lock);
     for (unsigned int index = 0; index < source->queueCount; index++) {
         clear_packet_queue(source, &source->queues[index]);
+        clear_stream_history_locked(source, index);
         source->lastQueuedTimestamps[index] = AV_NOPTS_VALUE;
         source->replayThroughTimestamps[index] = AV_NOPTS_VALUE;
         source->replayCaughtUp[index] = true;
@@ -5914,6 +6061,17 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
     if (opened && startSeconds > 0) {
         reader->skipUntilTimestamp = reader->startTimestamp +
             (int64_t)(startSeconds / av_q2d(reader->timeBase));
+        int64_t containerStart = source->formatContext->start_time != AV_NOPTS_VALUE
+            ? source->formatContext->start_time
+            : 0;
+        int64_t threshold = containerStart + (int64_t)(startSeconds * AV_TIME_BASE);
+        pthread_mutex_lock(&source->lock);
+        replay_stream_history_locked(
+            source,
+            (unsigned int)reader->audioStreamIndex,
+            threshold
+        );
+        pthread_mutex_unlock(&source->lock);
     }
     if (opened) {
         pthread_mutex_lock(&source->lock);

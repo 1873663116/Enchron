@@ -2517,6 +2517,72 @@ func highEfficiencyAACProfilesDecodeToPCM(
     } == false)
 }
 
+@Test func audioReaderJoiningASharedSourceStartsAtTheRequestedTime() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+    )
+    try #require(FileManager.default.fileExists(atPath: fixture.path))
+    var error = [CChar](repeating: 0, count: 512)
+    let source = try #require(
+        fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+                nil,
+                &error,
+                error.count
+            )
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegDemuxSourceDestroy(source) }
+
+    let first = try #require(PBFFmpegAudioReaderAllocate())
+    #expect(
+        PBFFmpegAudioReaderOpenWithDemuxSource(
+            first, source, -1, 0, &error, error.count
+        ),
+        Comment(rawValue: cString(error))
+    )
+    var lastConsumedTime = -1.0
+    for _ in 0..<300 {
+        var reference: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        let result = PBFFmpegAudioReaderCopyNextSample(
+            first, &reference, &metadata, &error, error.count
+        )
+        if result != PBFFmpegReadResultSample { break }
+        guard let sample = reference?.takeRetainedValue() else { continue }
+        lastConsumedTime = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+    }
+    PBFFmpegAudioReaderDestroy(first)
+    #expect(lastConsumedTime > 5)
+
+    let target = 10.0
+    let second = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(second) }
+    #expect(
+        PBFFmpegAudioReaderOpenWithDemuxSource(
+            second, source, -1, target, &error, error.count
+        ),
+        Comment(rawValue: cString(error))
+    )
+    var reference: Unmanaged<CMSampleBuffer>?
+    var metadata = PBFFmpegAudioSampleMetadata()
+    let result = PBFFmpegAudioReaderCopyNextSample(
+        second, &reference, &metadata, &error, error.count
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+    let sample = try #require(reference?.takeRetainedValue())
+    let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+    #expect(
+        presentationTime >= target - 0.5 && presentationTime <= target + 1.5,
+        Comment(rawValue: "presentationTime=\(presentationTime)")
+    )
+}
+
 @Test(arguments: [Int32(-1), Int32(1)])
 func lateStartAudioOpensOnASharedDemuxSource(preferredStreamIndex: Int32) throws {
     silenceFFmpegDiagnostics()
