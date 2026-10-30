@@ -2568,6 +2568,11 @@ extension SampleBufferPlaybackSession {
             lastRecordedAudioRendererError = rendererError
             return changed
         }
+        let audioReadiness = audioRenderer.isReadyForMoreMediaData
+        let audioSufficiency =
+            audioRenderer.hasSufficientMediaDataForReliablePlaybackStart
+        cachedAudioReadyForMoreMediaData = audioReadiness
+        cachedAudioHasSufficientMediaData = audioSufficiency
         debugStore.recordAudioRendererState(AudioRendererStateRecord(
             mediaSessionID: traceID,
             graphID: "\(traceID).rendererGraph",
@@ -2578,9 +2583,8 @@ extension SampleBufferPlaybackSession {
             enqueuedSampleBufferCount: audioSampleBufferCount,
             enqueuedAudioFrameCount: audioFrameCount,
             status: rendererStatus,
-            isReadyForMoreMediaData: audioRenderer.isReadyForMoreMediaData,
-            hasSufficientMediaDataForReliablePlaybackStart:
-                audioRenderer.hasSufficientMediaDataForReliablePlaybackStart,
+            isReadyForMoreMediaData: audioReadiness,
+            hasSufficientMediaDataForReliablePlaybackStart: audioSufficiency,
             volume: audioRenderer.volume,
             muted: audioRenderer.isMuted,
             error: rendererError

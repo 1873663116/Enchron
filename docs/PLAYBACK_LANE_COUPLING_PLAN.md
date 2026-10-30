@@ -490,6 +490,18 @@ D13 撤销。曾记为「以媒体服务器启动路由启动时命令通道不�
            playbackProbe 立即返回
     成因   界面测试运行器进程残留并占据应用，与启动路由无关
 
+D14 诊断快照在主线程等待音频渲染器互斥，应用假死
+    观测   playbackProbe 与 playMedia 均无响应
+           进程采样：主线程与 PlaybackCore.PlaybackDebugRecorder 线程同时停在
+           SampleBufferPlaybackSession.debugSnapshot()
+           → -[AVSampleBufferAudioRenderer isReadyForMoreMediaData]
+           → audioRenderer_queueIsAboveHighWaterLevel
+           → _pthread_mutex_firstfit_lock_wait
+           同一时刻 AudioToolbox 的 UISoundStartPlayingWithSynchronizer 在等待队列
+    复现   本地 30 秒样本播放后必现，窗口打开阶段触发
+    修复   快照改读缓存字段，渲染器就绪状态只在后台记录函数中查询
+    验证   unit:playback.window-open@1 由 blocked（60707 毫秒超预算）转为 passed
+
 D12 控制台档位偶发挂起
     观测   tier unit 重复运行二十分钟无输出、无 xcodebuild 子进程
            此前 tier e2e --full 亦在第十个单元后停住

@@ -50,9 +50,9 @@ extension SampleBufferPlaybackSession {
         if var audioRendererState = snapshot.audioRendererState {
             audioRendererState.status = audioRendererStatusLabel
             audioRendererState.isReadyForMoreMediaData =
-                audioRenderer.isReadyForMoreMediaData
+                cachedAudioReadyForMoreMediaData
             audioRendererState.hasSufficientMediaDataForReliablePlaybackStart =
-                audioRenderer.hasSufficientMediaDataForReliablePlaybackStart
+                cachedAudioHasSufficientMediaData
             audioRendererState.error = audioRenderer.error?.localizedDescription
                 ?? currentAudioRendererError
             snapshot.audioRendererState = audioRendererState

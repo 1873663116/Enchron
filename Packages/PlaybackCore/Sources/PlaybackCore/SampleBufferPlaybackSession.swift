@@ -411,6 +411,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var sourceDescription: PlaybackSourceDescription?
     var hasAudio = false
     var audioSampleBufferCount: UInt64 = 0
+    var cachedAudioReadyForMoreMediaData = false
+    var cachedAudioHasSufficientMediaData = false
     var audioFrameCount: UInt64 = 0
     let audioTimestampOffsetLock = NSLock()
     var audioTimestampOffsetEpoch: UInt64 = 0
