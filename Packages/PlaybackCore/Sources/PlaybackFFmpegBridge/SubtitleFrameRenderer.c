@@ -952,7 +952,14 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
         set_error(errorBuffer, errorBufferSize, "Invalid shared subtitle frame renderer call");
         return NULL;
     }
-    uint64_t token = PBFFmpegDemuxSourceTakeOverStream(source, streamIndex);
+    double takeoverSeconds = isfinite(startSeconds) && startSeconds > 0
+        ? startSeconds
+        : 0;
+    uint64_t token = PBFFmpegDemuxSourceTakeOverStream(
+        source,
+        streamIndex,
+        (int64_t)llround(takeoverSeconds * AV_TIME_BASE)
+    );
     if (token == 0) {
         set_error(errorBuffer, errorBufferSize, "The shared subtitle stream has no queue");
         return NULL;
