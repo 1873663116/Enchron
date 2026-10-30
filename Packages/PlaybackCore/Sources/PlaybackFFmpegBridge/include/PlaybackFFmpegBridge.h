@@ -422,6 +422,7 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
 double PBFFmpegSubtitleReaderGetStartTimestampSeconds(PBFFmpegSubtitleReader *reader);
 double PBSubtitleFrameRendererGetStartSeconds(PBSubtitleFrameRenderer *renderer);
 double PBFFmpegReaderGetStartSeconds(PBFFmpegReader *reader);
+int PBFFmpegReaderGetExtradataSize(PBFFmpegReader *reader);
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(
     PBFFmpegDemuxSource *source,
     int streamIndex,

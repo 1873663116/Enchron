@@ -405,8 +405,12 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                         let epochLabel = epoch.map(String.init) ?? "none"
                         let origin = reader.map { PBFFmpegReaderGetStartSeconds($0.pointer) } ?? -1
                         let originLabel = String(format: "%.3f", origin)
+                        let extradataBytes = reader.map {
+                            PBFFmpegReaderGetExtradataSize($0.pointer)
+                        } ?? -1
                         let bindSummary = "video.reader.bind epoch=\(epochLabel)"
                             + " start=\(originLabel)"
+                            + " extradata=\(extradataBytes)"
                         logger.info("\(bindSummary, privacy: .public)")
                         continuation.resume(returning: sourceInformation)
                     } catch {

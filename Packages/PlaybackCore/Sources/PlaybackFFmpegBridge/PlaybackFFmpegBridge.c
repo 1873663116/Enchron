@@ -2113,6 +2113,13 @@ static CMTime cm_time(int64_t value, AVRational timeBase) {
     return CMTimeMake(value * (int64_t)timeBase.num, timeBase.den);
 }
 
+int PBFFmpegReaderGetExtradataSize(PBFFmpegReader *reader) {
+    if (!reader || !reader->formatContext || reader->videoStreamIndex < 0) return -1;
+    AVCodecParameters *parameters = reader->formatContext
+        ->streams[reader->videoStreamIndex]->codecpar;
+    return parameters && parameters->extradata ? parameters->extradata_size : 0;
+}
+
 double PBFFmpegReaderGetStartSeconds(PBFFmpegReader *reader) {
     if (!reader || reader->timeBase.den <= 0) return -1.0;
     return (double)reader->startTimestamp * av_q2d(reader->timeBase);
