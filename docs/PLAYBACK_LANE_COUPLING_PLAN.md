@@ -464,6 +464,15 @@ D8  撤销。曾记为「视频交付每四帧只交一帧」
     成因   区间表按到达顺序追加，B 帧使相邻条目起点来回跳，诊断日志误报
     处置   撤销；区间表改为按呈现顺序插入
 
+D10 PlaybackCore 测试全集以信号 11 结束
+    观测   swift test --package-path Packages/PlaybackCore 退出码 1
+           末行为 exited with unexpected signal code 11
+           末两条 started 为 interruptUnblocksRemoteCallbackAndAllowsFreshOperation
+           与 metadataParserRejectsExternalEntities，日志中无对应的 passed
+    复现   在干净工作树上同样出现（git stash 后重跑，结果一致）
+    处置   登记；与车道改动无关，成因未查
+
+
 D9  长时间播放后解复用读取停止
     观测   播放四十分钟、经多次音轨切换后，audio.out 停在 pts=304.214
            时钟继续到 325，位置继续到 333，lifecycle=playing
