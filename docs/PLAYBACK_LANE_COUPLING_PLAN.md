@@ -350,10 +350,13 @@ D2  远程 mkv 播放进程中止
     复现   未稳定复现；重连路径无法刻意触发（20 秒读取延迟与五分钟长跑均未触发）
     处置   登记，机制假设与取证方法见第七节七之六
 
-D3  WebDAV 播放报 5XX
+D3  openSourceFile 通道打开 WebDAV 文件报 5XX
     观测   demux.open.failed Server returned 5XX Server Error reply (-1482175992)
-    复现   同一文件在 Emby 上正常，在 WebDAV 源上播放即失败
-    处置   登记；服务随单位结束而停止，需在服务存活期间复测
+    复现   在 WebDAV 源上执行 openSourceFile path=sdr-bframe-aggregate-30s.mkv
+    边界   同一文件经界面路径播放正常。单位为
+           unit:catalog.scenario-issue-surface-behavior-typed-single-slot-contract@1
+           其第八步的控件面证据为 active=true formatReady=true presentation=window
+    处置   登记；缺陷限于调试动词路径，界面路径不受影响
 
 D4  10 位 h264（Hi10P）不可播放
     观测   三个 Hi10P 片源在四至五秒处解码失败，首帧从未显示
@@ -903,6 +906,8 @@ WebDAV  同一文件                        demux.open.failed error=Open demux m
 ```
 
 按本档判定规则：同一文件在平台上正常、在 WebDAV 上异常，问题在 WebDAV 接入层，不在解复用或解码层。
+
+限定：异常只在 `openSourceFile` 这一条调试动词路径上出现。经界面路径播放同一文件时，控件面显示 `active=true`、`formatReady=true`，播放正常。因此该 5XX 属调试动词的实现问题，不是 WebDAV 接入层的问题。
 
 待确认：该 5XX 在服务存活期间是否稳定复现。单位结束后直接请求 `https://Mac-mini.local:8443/dav/regression/sdr-bframe-aggregate-30s.mkv` 返回 SSL 连接失败（curl 退出码 35），说明服务随单位结束而停止，因此需要在服务存活期间复测。
 
