@@ -1320,8 +1320,8 @@ ffmpeg -i /tmp/pgs-in-mkv.mkv -i FATE/MPEG2/dvd_single_frame.vob \
 ### 12.4 控制台各档现状
 
 ```
-tier static   通过   （33979 毫秒）
-tier build    通过   （66734 毫秒）
+tier static   通过   （36339 毫秒，最近一次）
+tier build    通过   （102368 毫秒，最近一次，写出六份 spec）
 tier e2e      通过   12 个单元全过（reused 0, ran 12），每个单元终态产物齐全
 tier unit     不通过  六项失败，均不在播放车道范围内
 ```
