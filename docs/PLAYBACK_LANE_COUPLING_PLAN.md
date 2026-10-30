@@ -943,7 +943,7 @@ JELLYFIN_*                           无；本机 8096/8097/8920/8921 端口均�
 | WebDAV | 已接入，回归目录可用 | 无 |
 | SMB | 已接入 | 无 |
 | Emby | 已接入，`http://Mac-mini.local:8096` | 无 |
-| Plex | 未接入 | 客户端代码存在（`Modules/MediaServer/PlexClient.swift`），命令通道无对应动词，登录须走界面 |
+| Plex | 已接入 | 以启动路由注入客户端 token，应用写入钥匙串项 `com.enchron.plex.authenticated-server` |
 | Jellyfin | 未接入 | 本机无服务；客户端代码存在 |
 
 Plex 与 Jellyfin 的客户端已安装在本机。接入通过客户端与上文的凭据完成，完成后用 `libraryReferences` 确认源列表中同时存在两个源。
@@ -964,7 +964,18 @@ Plex 登录           无专用动词，须经界面
 Jellyfin 登录       无专用动词，须经界面
 ```
 
-因此 Plex 与 Jellyfin 的应用内登录不在本轮的自动验证范围内。三档验证使用 Emby 与 WebDAV 两个源完成，与 12.1 的主档源描述一致（主档源含 Emby）。
+Plex 的登录以启动路由完成，无需界面：
+
+```
+SIMCTL_CHILD_ENCHRON_MEDIA_SERVER_KIND=plex
+SIMCTL_CHILD_ENCHRON_MEDIA_SERVER_ADDRESS=http://127.0.0.1:32400
+SIMCTL_CHILD_ENCHRON_MEDIA_SERVER_USERNAME=<用户名>
+SIMCTL_CHILD_ENCHRON_MEDIA_SERVER_TOKEN=<token>
+```
+
+应用启动后读取该路由并认证，日志中可见钥匙串写入 `com.enchron.plex.authenticated-server`。
+
+Jellyfin 无本机服务，无法完成。三档验证使用 Emby、Plex 与 WebDAV 完成。
 
 **就绪核对。**
 
