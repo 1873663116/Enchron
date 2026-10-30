@@ -65,6 +65,8 @@ source.description epoch= streams= audio= subtitles=
 
 seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定为整场失败，音频未到时音轨保留并记录 `audioRenderer.seekPrerollDeferred`。
 
+切换路径。音频切换与字幕切换落在当前会话上，不重建会话、不换源。实测证据：播放中切字幕 `success`，音频投递继续；切音频后 `audio.select.opened index=2 codec=ac3`，随后 `audio.deliver track=…audio.2` 继续，位置从 61.5 秒推进到 63.0 秒，两个读取器重新绑定时 `video.reader.bind epoch=1`、`audio.reader.bind epoch=1` 与切换前同源。
+
 ## 三、剩余工作
 
 一，源描述仍是记录而非值类型。音频与字幕的 `tracks(...)` 仍保留各自的加载器，播放路径靠调用方传入描述来绕过它们。外部字幕文件是独立源，必须自己探测；播放路径与外部路径尚未在类型上分开。
@@ -73,7 +75,7 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 
 三，回归目录。`Config/regression/catalog-v2.json` 中的 `scenario:format-coverage:audio-retirement-on-failure` 与其 rubric 断言的是旧语义（撤轨后继续），与当前实现相反。该场景需要退役或改写，它的测试名引用（`audioReadFailureRetiresAudioButVideoStillDelivers` 等）已随实现重命名而失效。
 
-四，切换路径。音频切换、字幕切换、seek 三条路径尚未统一为「重新绑定 attachment」，其中 seek 已改为不撤音轨。
+四，切换路径。三条路径的行为已符合重新绑定语义，但实现上仍各写一份停止、flush、seek、重开序列，未抽成同一个函数。
 
 ## 四、验收矩阵
 
