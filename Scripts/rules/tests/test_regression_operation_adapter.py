@@ -1563,10 +1563,10 @@ class OperationAllowlistTests(unittest.TestCase):
             },
             {
                 "audio-retirement-open": "audioOpenFailureRetiresAudioButVideoStillDelivers",
-                "audio-retirement-prewarm": "audioPrerollFailureRetiresAudioButVideoStillDelivers",
-                "audio-retirement-playback": "audioReadFailureRetiresAudioButVideoStillDelivers",
-                "audio-retirement-seek": "audioSeekOpenFailureRetiresAudioButVideoStillDelivers",
-                "audio-retirement-renderer": "audioRendererFailureRetiresAudioAndVideoContinues",
+                "audio-retirement-playback": "audioReadFailureFailsTheWholeSession",
+                "audio-retirement-prewarm": "audioThatNeverPrerollsKeepsTheSessionLoadingWithoutRetiringAudio",
+                "audio-retirement-renderer": "audioRendererFailureFailsTheWholeSession",
+                "audio-retirement-seek": "audioSeekOpenFailureFailsTheWholeSession",
             },
         )
         with self.assertRaisesRegex(adapter.OperationAdapterError, "one of"):

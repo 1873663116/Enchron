@@ -74,7 +74,11 @@ AUTHORITIES = frozenset({"blocking", "reporting", "precondition"})
 ATTRIBUTIONS = frozenset({"product", "infrastructure", "release"})
 DISCOVERED_TAGS = ("text", "blocking", "infrastructure")
 
-SCRIPT_DIRECTORIES = ("Scripts/rules", "Scripts/verification")
+SCRIPT_DIRECTORIES = (
+    "Scripts/rules",
+    "Scripts/verification",
+    "Scripts/playback/formal",
+)
 MINIMUM_PYTHON = (3, 10)
 
 
@@ -101,6 +105,8 @@ STRUCTURE_CHECKS = (
         runs_in_quick_mode=False,
     ),
     StructureCheck("media-byte-stream", "verify_media_byte_stream.py"),
+    StructureCheck("media-source-resolution", "check_media_source_resolution.py"),
+    StructureCheck("lane-model-guards", "check_sync.py"),
     StructureCheck("demux-buffer-policy", "verify_demux_buffer_policy.py"),
     StructureCheck("subtitle-reads-interruptible", "verify_subtitle_reads_interruptible.py"),
     StructureCheck(
@@ -302,6 +308,8 @@ CHECK_TAGS: dict[str, tuple[str, str, str]] = {
     "episode-switch-captures-frames": ("simulator", "blocking", "product"),
     "preparation-no-judgement": ("text", "blocking", "infrastructure"),
     "readiness-gate-hidden-coverage": ("text", "blocking", "infrastructure"),
+    "media-source-resolution": ("text", "blocking", "product"),
+    "lane-model-guards": ("text", "blocking", "product"),
 }
 
 DISCOVERED_TAGS_OVERRIDES: dict[str, tuple[str, str, str]] = {
