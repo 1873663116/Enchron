@@ -464,7 +464,19 @@ static int matroska_parse_cluster(MatroskaDemuxContext *matroska)
 
 二，远程读取返回的短读被当作正常数据继续解析，元素长度字段跨越两次读取时层级错位。
 
-取证方式：在 `matroska_parse_cluster` 前打印 `num_levels`、当前字节位置与 `avio_tell`，在远程复现时抓取崩溃前最后一次取值。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
+机制推断（依据源码，未加打印验证）：
+
+一，读取返回负值且不是已知长度的结尾时，读取线程进入重连：`PBFFmpegDemuxSourceGetQueueState` 所在的同一循环里，`retries = source->isRemote && !reachedEnd`，随后调用 `reopen_demux_source`。
+
+二，`reopen_demux_source` 以 `demux_source_resume_timestamp`（各流最后入队时间戳的最小值）调用 `avformat_seek_file`。远程文件没有完整索引时，该调用只能近似定位，落点可能在簇中间。
+
+三，从非边界位置继续解析时，读取到的字节被当作元素头解释，簇尺寸字段被误读为「簇内的簇」，`num_levels` 由 2 增到 3。
+
+四，同一文件的正常路径有自愈机制：`matroska_resync`（第 866 行）在识别到顶层元素时调用 `matroska_reset_status` 把 `num_levels` 复位为 1。该复位只在解析失败后的重同步路径上发生，嵌套簇路径不会触发，于是断言生效。
+
+修复方向：远程重连不依赖字节级跳转。关闭并重新打开输入上下文，再按时间戳调用解复用器自身的跳转接口，使解析状态从头建立。
+
+验证方式：修复后重复播放同一远程文件四分钟以上，确认 `demuxReconnects` 增长时进程不退出，且位置连续。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
 ## 十二、验证策略
 
