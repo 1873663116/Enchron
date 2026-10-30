@@ -3,7 +3,7 @@
   "schema": "enchron.regression.scenario",
   "schemaVersion": 1,
   "id": "scenario:format-coverage:audio-retirement-on-failure",
-  "title": "音轨在各失败阶段退休后视频仍可继续",
+  "title": "音轨失败范围：打开时撤轨，其余阶段整场失败",
   "journey": "journey:format-coverage",
   "promiseRefs": [
     "promise:track-selection:c02"
@@ -141,6 +141,6 @@
   }
 }
 ---
-# 音轨在各失败阶段退休后视频仍可继续
+# 音轨失败范围：打开时撤轨，其余阶段整场失败
 
 Each ordered static case is an independent attempt. Evidence from another case, Scenario, lane, or attempt is inadmissible. Readiness records whether the approved Operation registry can execute the complete claim; prerequisite Preparation readiness is reported separately.

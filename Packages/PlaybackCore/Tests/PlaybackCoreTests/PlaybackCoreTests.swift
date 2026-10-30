@@ -5005,6 +5005,13 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(session.hasAudio)
     #expect(session.diagnostics.audioRetired == false)
     #expect(session.debugSnapshot().lastFailure == nil)
+    emitAudioFailureScopeAssertion(
+        check: "audio-retirement-prewarm",
+        stage: "none",
+        lifecycle: "loading",
+        audioRetired: session.diagnostics.audioRetired,
+        readiness: session.readinessState.rawValue
+    )
 }
 
 @Test func aSourceThatNeverAdvancesFailsFromLoadingAsStalled() async throws {
@@ -5138,6 +5145,13 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.message == FakeSampleError.audioRead.localizedDescription)
     #expect(snapshot.lastFailure?.recoverability == "notRecoverableWithinMediaSession")
     #expect(session.diagnostics.audioRetired == false)
+    emitAudioFailureScopeAssertion(
+        check: "audio-retirement-playback",
+        stage: snapshot.lastFailure?.stage ?? "none",
+        lifecycle: snapshot.lifecycle.rawValue,
+        audioRetired: session.diagnostics.audioRetired,
+        readiness: snapshot.readinessState ?? "none"
+    )
 }
 
 @Test func audioSeekOpenFailureFailsTheWholeSession() async throws {
@@ -5175,6 +5189,13 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.stage == "audioProvider.seekOpenFailed")
     #expect(snapshot.lastFailure?.recoverability == "notRecoverableWithinMediaSession")
     #expect(session.diagnostics.audioRetired == false)
+    emitAudioFailureScopeAssertion(
+        check: "audio-retirement-seek",
+        stage: snapshot.lastFailure?.stage ?? "none",
+        lifecycle: snapshot.lifecycle.rawValue,
+        audioRetired: session.diagnostics.audioRetired,
+        readiness: snapshot.readinessState ?? "none"
+    )
 }
 
 @Test func missingFirstDisplayedFrameFailsWithoutGuessingTheCause() async throws {
@@ -5488,6 +5509,13 @@ func terminalRendererFailurePublishesFailedOnce(
     #expect(snapshot.lastFailure?.errorType == fact.errorType)
     #expect(snapshot.lastFailure?.rendererKind == RendererFailureKind.audio.rawValue)
     #expect(session.diagnostics.audioRetired == false)
+    emitAudioFailureScopeAssertion(
+        check: "audio-retirement-renderer",
+        stage: snapshot.lastFailure?.stage ?? "none",
+        lifecycle: snapshot.lifecycle.rawValue,
+        audioRetired: session.diagnostics.audioRetired,
+        readiness: snapshot.readinessState ?? "none"
+    )
 }
 
 @Test func receiverDecodeWarningsAcceptTheVideoSample() async throws {
@@ -6298,6 +6326,24 @@ private enum MisleadingAudioOpenError: LocalizedError {
     }
 }
 
+private func emitAudioFailureScopeAssertion(
+    check: String,
+    stage: String,
+    lifecycle: String,
+    audioRetired: Bool,
+    readiness: String
+) {
+    let fields = [
+        "\"assertion\":\"audio-failure-scope\"",
+        "\"check\":\"\(check)\"",
+        "\"failureStage\":\"\(stage)\"",
+        "\"sessionLifecycle\":\"\(lifecycle)\"",
+        "\"audioRetired\":\(audioRetired)",
+        "\"readinessState\":\"\(readiness)\"",
+    ]
+    print("ENCHRON_ASSERTION {\(fields.joined(separator: ","))}")
+}
+
 private func unsupportedAC4Fixture() throws -> URL {
     let fixture = FileManager.default.temporaryDirectory
         .appendingPathComponent("playbackcore-unsupported-\(UUID().uuidString).ac4")
@@ -6364,26 +6410,13 @@ private func expectRetiredAudioAllowsSeek(
         .presentationTimeSeconds
     #expect((videoPresentationTimeSecondsAfterSeek ?? -.infinity) >= seekTargetSeconds)
 
-    let fields = [
-        "\"assertion\":\"audio-retirement-nonfatal-seek\"",
-        "\"check\":\"\(structuralCheck)\"",
-        "\"expectedStage\":\"\(expectedStage)\"",
-        "\"retirementOccursDuringSeek\":\(retirementOccursDuringSeek)",
-        "\"lifecycleBeforeSeek\":\"\(before.lifecycle.rawValue)\"",
-        "\"lifecycleAfterSeek\":\"\(after.lifecycle.rawValue)\"",
-        "\"audioRetiredBeforeSeek\":\(audioRetiredBeforeSeek)",
-        "\"audioRetiredAfterSeek\":\(audioRetiredAfterSeek)",
-        "\"mediaSessionIDBeforeSeek\":\"\(sessionID)\"",
-        "\"mediaSessionIDAfterSeek\":\"\(after.mediaSession?.mediaSessionID ?? "")\"",
-        "\"failureStageBeforeSeek\":\"\(before.lastFailure?.stage ?? "")\"",
-        "\"failureStageAfterSeek\":\"\(after.lastFailure?.stage ?? "")\"",
-        "\"failureRecoverabilityAfterSeek\":\"\(after.lastFailure?.recoverability ?? "")\"",
-        "\"seekTargetSeconds\":\(seekTargetSeconds)",
-        "\"videoPresentationTimeSecondsAfterSeek\":"
-            + (videoPresentationTimeSecondsAfterSeek.map { String($0) } ?? "null"),
-        "\"lastErrorPresentAfterSeek\":\(after.lastError != nil)",
-    ]
-    print("ENCHRON_ASSERTION {\(fields.joined(separator: ","))}")
+    emitAudioFailureScopeAssertion(
+        check: structuralCheck,
+        stage: after.lastFailure?.stage ?? expectedStage,
+        lifecycle: after.lifecycle.rawValue,
+        audioRetired: session.diagnostics.audioRetired,
+        readiness: after.readinessState ?? "none"
+    )
 }
 
 func makeCompressedH264Sample(

@@ -121,7 +121,23 @@ attach.firstUnit          lane=audio epoch=3 pts=5317.162     delta=0.000
 
 结构。旧测试名引用不存在；旧语义描述不存在。
 
-时机。本目标在目标一与目标二完成之后执行。
+现状。目录已按当前行为改写。
+
+承诺 `promise:track-selection:c02` 的表述改为：音轨在打开时不受支持则撤除轨道、视频继续播放；音轨在播放、跳转或渲染阶段失败时整场失败。
+
+场景 `scenario:format-coverage:audio-retirement-on-failure` 的标题改为「音轨失败范围：打开时撤轨，其余阶段整场失败」。五个用例沿用，但语义改为：
+
+```
+open       能力事实，撤轨，视频继续，会话不失败
+prewarm    数据未到，会话保持 loading，不撤轨
+playback   读取失败，整场失败
+seek       重开失败，整场失败
+renderer   渲染器失败，整场失败
+```
+
+结构测试的允许清单指向现存的测试名。五个测试各打印一条 `ENCHRON_ASSERTION`，字段为 assertion、check、failureStage、sessionLifecycle、audioRetired、readinessState。
+
+校验：目录重新生成后计数不变（64 条承诺、69 个场景、106 个 rubric、118 个静态用例），`materialize_catalog_v2.py --check Regression` 返回一致；`verify_regression_core_layering`、`element_targeting`、`fact_provenance`、`oracle_producers` 全部通过。
 
 ## 五、不变项
 
