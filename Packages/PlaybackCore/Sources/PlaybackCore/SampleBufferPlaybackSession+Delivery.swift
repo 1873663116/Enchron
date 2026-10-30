@@ -232,7 +232,8 @@ extension SampleBufferPlaybackSession {
     func emitAttachFirstUnit(
         lane: String,
         epoch: UInt64,
-        presentationTime: CMTime
+        presentationTime: CMTime,
+        rawPresentationTime: CMTime? = nil
     ) {
         let key = "\(lane)"
         let alreadyLogged = attachFirstUnitEpochsLock.withLock { () -> Bool in
@@ -242,7 +243,8 @@ extension SampleBufferPlaybackSession {
         }
         guard alreadyLogged == false, presentationTime.isNumeric else { return }
         let seconds = String(format: "%.3f", presentationTime.seconds)
-        let summary = "attach.firstUnit lane=\(lane) epoch=\(epoch) pts=\(seconds)"
+        let raw = rawPresentationTime.map { String(format: "%.3f", $0.seconds) } ?? "same"
+        let summary = "attach.firstUnit lane=\(lane) epoch=\(epoch) pts=\(seconds) raw=\(raw)"
         logger.info("\(summary, privacy: .public)")
     }
 
@@ -1076,7 +1078,8 @@ extension SampleBufferPlaybackSession {
                 emitAttachFirstUnit(
                     lane: "audio",
                     epoch: audioStreamEpoch,
-                    presentationTime: presentationTime
+                    presentationTime: presentationTime,
+                    rawPresentationTime: CMSampleBufferGetPresentationTimeStamp(sourceSample)
                 )
                 debugStore.recordAudioSample(record)
                 if sampleOrdinal <= 64 {

@@ -260,6 +260,7 @@ struct PBFFmpegAudioReader {
     bool decoderDrained;
     bool outputsPCM;
     int64_t nextPCMSample;
+    int64_t lastDecodeTimestamp;
     uint8_t *pendingPCMData;
     size_t pendingPCMByteCount;
     size_t pendingPCMCapacity;
@@ -4602,6 +4603,13 @@ int64_t PBFFmpegDemuxSourceGetAuxiliaryBufferedByteCount(
     return count;
 }
 
+double PBFFmpegDemuxSourceGetStartTimeSeconds(PBFFmpegDemuxSource *source) {
+    if (!source || !source->formatContext) return AV_NOPTS_VALUE;
+    int64_t start = source->formatContext->start_time;
+    if (start == AV_NOPTS_VALUE) return AV_NOPTS_VALUE;
+    return (double)start / (double)AV_TIME_BASE;
+}
+
 double PBFFmpegDemuxSourceGetQueueHeadSeconds(
     PBFFmpegDemuxSource *source,
     int streamIndex
@@ -5787,6 +5795,9 @@ static int send_parsed_audio_packets(
             memcpy(reader->parsedPacket->data, outData, (size_t)outSize);
             reader->parsedPacket->pts = reader->parser->pts;
             reader->parsedPacket->dts = reader->parser->dts;
+            if (reader->parsedPacket->pts != AV_NOPTS_VALUE) {
+                reader->lastDecodeTimestamp = reader->parsedPacket->pts;
+            }
             int result = avcodec_send_packet(reader->decoder, reader->parsedPacket);
             if (result < 0 && result != AVERROR_INVALIDDATA &&
                 result != AVERROR(EINVAL)) {
@@ -5820,6 +5831,9 @@ static int send_parsed_audio_packets(
             memcpy(reader->parsedPacket->data, outData, (size_t)outSize);
             reader->parsedPacket->pts = reader->parser->pts;
             reader->parsedPacket->dts = reader->parser->dts;
+            if (reader->parsedPacket->pts != AV_NOPTS_VALUE) {
+                reader->lastDecodeTimestamp = reader->parsedPacket->pts;
+            }
             int result = avcodec_send_packet(reader->decoder, reader->parsedPacket);
             if (result < 0 && result != AVERROR_INVALIDDATA &&
                 result != AVERROR(EINVAL)) {
@@ -5934,6 +5948,7 @@ static bool configure_audio_reader(
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
     reader->nextPCMSample = 0;
+    reader->lastDecodeTimestamp = AV_NOPTS_VALUE;
     reader->decodedInputFormat = AV_SAMPLE_FMT_NONE;
     reader->decodedFifoStartTimestamp = AV_NOPTS_VALUE;
     if (reader->packet == NULL) {
@@ -6075,6 +6090,10 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
     if (opened && startSeconds > 0) {
         reader->skipUntilTimestamp = reader->startTimestamp +
             (int64_t)(startSeconds / av_q2d(reader->timeBase));
+        if (reader->sampleRate > 0) {
+            reader->nextPCMSample =
+                (int64_t)llround(startSeconds * (double)reader->sampleRate);
+        }
         int64_t containerStart = source->formatContext->start_time != AV_NOPTS_VALUE
             ? source->formatContext->start_time
             : 0;
@@ -7062,7 +7081,13 @@ static PBFFmpegReadResult create_decoded_audio_sample(
 
     int64_t frameTimestamp = frame->pts != AV_NOPTS_VALUE
         ? frame->pts
-        : frame->best_effort_timestamp;
+        : (frame->best_effort_timestamp != AV_NOPTS_VALUE
+            ? frame->best_effort_timestamp
+            : reader->lastDecodeTimestamp);
+    if (frameTimestamp == 0 && reader->lastDecodeTimestamp != AV_NOPTS_VALUE &&
+        reader->lastDecodeTimestamp > reader->startTimestamp) {
+        frameTimestamp = reader->lastDecodeTimestamp;
+    }
     int64_t startSample = reader->nextPCMSample;
     if (frameTimestamp != AV_NOPTS_VALUE) {
         startSample = av_rescale_q(
@@ -7302,6 +7327,9 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                     return PBFFmpegReadResultError;
                 }
                 continue;
+            }
+            if (reader->packet->pts != AV_NOPTS_VALUE) {
+                reader->lastDecodeTimestamp = reader->packet->pts;
             }
             result = avcodec_send_packet(reader->decoder, reader->packet);
             av_packet_unref(reader->packet);
