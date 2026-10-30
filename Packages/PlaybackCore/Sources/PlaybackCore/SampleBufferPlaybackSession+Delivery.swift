@@ -248,6 +248,29 @@ extension SampleBufferPlaybackSession {
         logger.info("\(summary, privacy: .public)")
     }
 
+    func emitFirstUnitAtTarget(
+        lane: String,
+        epoch: UInt64,
+        presentationTime: CMTime,
+        target: CMTime
+    ) {
+        guard target.isNumeric, presentationTime.isNumeric else { return }
+        guard presentationTime.seconds >= target.seconds - 1e-6 else { return }
+        let key = "\(lane).target"
+        let alreadyLogged = attachFirstUnitEpochsLock.withLock { () -> Bool in
+            if attachFirstUnitEpochs[key] == epoch { return true }
+            attachFirstUnitEpochs[key] = epoch
+            return false
+        }
+        guard alreadyLogged == false else { return }
+        let points = String(format: "%.3f", presentationTime.seconds)
+        let targetSeconds = String(format: "%.3f", target.seconds)
+        let delta = String(format: "%.3f", presentationTime.seconds - target.seconds)
+        let summary = "attach.firstUnitAtTarget lane=\(lane) epoch=\(epoch)"
+            + " pts=\(points) target=\(targetSeconds) delta=\(delta)"
+        logger.info("\(summary, privacy: .public)")
+    }
+
     func startAudioDelivery() {
         audioRendererSink.stopRenderingEventObservation()
         let task = Task.detached { [weak self] in
@@ -654,10 +677,18 @@ extension SampleBufferPlaybackSession {
                 )
             }
             clearPendingVideoSample(sourceSample)
+            let acceptedPresentationTime =
+                CMSampleBufferGetPresentationTimeStamp(formatSignaledSample)
             emitAttachFirstUnit(
                 lane: "video",
                 epoch: streamEpoch,
-                presentationTime: CMSampleBufferGetPresentationTimeStamp(formatSignaledSample)
+                presentationTime: acceptedPresentationTime
+            )
+            emitFirstUnitAtTarget(
+                lane: "video",
+                epoch: streamEpoch,
+                presentationTime: acceptedPresentationTime,
+                target: requestedTimelineStart
             )
             let sourceEventID = recordVideoSample(formatSignaledSample)
             updateCompressedDiagnostics(sample: formatSignaledSample)
