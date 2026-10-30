@@ -35,6 +35,12 @@ enum PlaybackBufferingPolicy {
 
     static let seekProgressStallTimeout: Duration = .seconds(5)
     static let transportBoundStallLimit: Duration = .seconds(120)
+    static var effectiveStallLimit: Duration {
+#if DEBUG
+        if let override = PlaybackDebugTuning.stallLimitOverride { return override }
+#endif
+        return transportBoundStallLimit
+    }
 
     static let pendingReadPollInterval: Duration = .seconds(1)
 
@@ -432,6 +438,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var lastReportedEmptySubtitleSecond: Int?
     var lastReportedProducedSubtitleSecond: Int?
     var startStallLimit: Duration = PlaybackBufferingPolicy.transportBoundStallLimit
+    let sourceProgressLock = NSLock()
+    var sourceProgressBytes: UInt64 = 0
+    var sourceProgressInstant = ContinuousClock.now
+    var lastAcceptedVideoSampleInstant = ContinuousClock.now
+    var sourceProgressWatchdog: Task<Void, Never>?
     let readinessLock = NSLock()
     var readinessState: PlaybackReadinessState = .loading
     var videoSamplesAccepted: UInt64 = 0
@@ -915,6 +926,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         PlaybackTrace.event("session.start.begin id=\(traceID)")
         if mediaKind == .audioOnly {
             startAudioDelivery()
+            startSourceProgressWatchdog()
             PlaybackTrace.event("session.start.end id=\(traceID) kind=audioOnly")
             return
         } else {
@@ -929,6 +941,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             armFirstVideoFrameDeadline()
         }
         startVideoDelivery()
+        startSourceProgressWatchdog()
         PlaybackTrace.event("session.start.end id=\(traceID)")
     }
 

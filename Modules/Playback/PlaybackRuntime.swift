@@ -383,7 +383,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var isHDRContent: Bool { displayMediaProfile?.hdrType != .sdr }
 
     public var isWaitingForData: Bool {
-        productLifecycle == .loading
+        productLifecycle == .loading || diagnostics.readinessState == "stalled"
     }
 
     private let audioSessionLifecycle: PlaybackAudioSessionLifecycle

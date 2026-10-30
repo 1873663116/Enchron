@@ -33,6 +33,7 @@ extension SampleBufferPlaybackSession {
         closeLock.unlock()
 
         hush()
+        stopSourceProgressWatchdog()
         interruptSourceReadsForClose()
         stopRendererFailureMonitoring()
         cancelFirstVideoFrameDeadline()

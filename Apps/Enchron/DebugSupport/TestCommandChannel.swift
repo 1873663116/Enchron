@@ -984,6 +984,23 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [RendererLeadBudget.currentFixedFramesOverride.map(String.init) ?? "auto"]
             )
+        case "setStallLimit":
+            let milliseconds = request.args["ms"].flatMap(Int.init)
+            PlaybackDebugTuning.stallLimitOverride = milliseconds.map {
+                Duration.milliseconds($0)
+            }
+            SurfaceInputProbes.record(
+                "testcmd setStallLimit ms=\(milliseconds.map(String.init) ?? "none")",
+                retention: .evidence
+            )
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [
+                    String(describing: PlaybackDebugTuning.stallLimitOverride)
+                ]
+            )
         case "setSourceReadDelay":
             let milliseconds = request.args["ms"].flatMap(Int.init)
             MediaByteStreamServer.setDebugSourceReadDelay(milliseconds: milliseconds)
