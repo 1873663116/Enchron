@@ -345,7 +345,7 @@ extension SampleBufferPlaybackSession {
         return state.1
     }
 
-    func completeSubtitleTimelineDiscontinuity(epoch: UInt64) {
+    func completeSubtitleTimelineDiscontinuity(epoch: UInt64, target: Double) {
         let rebuilt = subtitleStateLock.withLock {
             guard !subtitleState.isClosed,
                   subtitleState.streamEpoch == epoch else { return false }
@@ -356,7 +356,9 @@ extension SampleBufferPlaybackSession {
             return true
         }
         if rebuilt {
-            refreshSubtitleLane(at: synchronizer.currentTime())
+            refreshSubtitleLane(
+                at: CMTime(seconds: target, preferredTimescale: 60_000)
+            )
         }
         recordSubtitleState(at: synchronizer.currentTime())
         publishSubtitleCues(at: synchronizer.currentTime())

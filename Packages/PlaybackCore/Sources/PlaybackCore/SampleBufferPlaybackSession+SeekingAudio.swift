@@ -230,7 +230,7 @@ extension SampleBufferPlaybackSession {
                         from: teardownStarted,
                         to: ContinuousClock.now
                     )
-                    completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+                    completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch, target: target)
                     finishActiveOperation(.completed)
                     if preservedRate == 0 {
                         publishTargetTimelineState(
@@ -257,7 +257,7 @@ extension SampleBufferPlaybackSession {
                                 "audioReady": String(audioReady)
                             ]
                         )
-                        completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+                        completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch, target: target)
                         finishActiveOperation(.completed)
                         if preservedRate == 0 {
                             publishTargetTimelineState(
@@ -348,7 +348,7 @@ extension SampleBufferPlaybackSession {
                 from: teardownStarted,
                 to: ContinuousClock.now
             )
-            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch, target: target)
             finishActiveOperation(.completed)
             return
         }
@@ -400,7 +400,7 @@ extension SampleBufferPlaybackSession {
             diagnostics.currentSeconds = diagnostics.durationSeconds
             updateLifecycle(.ended)
             publishDiagnostics(at: endTime, force: true)
-            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch, target: target)
             finishActiveOperation(.completed)
             onStatusChange?(.ended(PlaybackEndReceipt.seekToEnd(
                 endSeconds: diagnostics.durationSeconds
@@ -452,7 +452,7 @@ extension SampleBufferPlaybackSession {
                        target: target
                    )
                }) == true {
-                completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+                completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch, target: target)
                 finishActiveOperation(.completed)
                 return
             }
@@ -569,7 +569,7 @@ extension SampleBufferPlaybackSession {
                 )
             }
         }
-        completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+        completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch, target: target)
         debugStore.emit(
             mediaSessionID: traceID,
             node: .rendererInputCoordination,
