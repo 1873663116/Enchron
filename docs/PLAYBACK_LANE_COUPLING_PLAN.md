@@ -207,6 +207,23 @@ t+20s   position=119.995
 
 影响：跳转后画面冻结，状态仍报 `playing`，与用户描述的"跳转之后更糟"一致。
 
+七之三，未修复：`mkv` 内的文字字幕轨（ASS）选中后，读取器收不到任何包。
+
+复现：播放本地 `少女终末旅行 - S01E01 …mkv`，选中 `ffmpeg.subtitle.4`（`Kamigami.简日双语`，ASS），跳转到字幕最密区间（第 3 分钟），观察 15 秒。
+
+```
+at=20  ingested=0 polls=3    packetSpan=none..none
+at=25  ingested=0 polls=55   packetSpan=none..none
+at=30  ingested=0 polls=105  packetSpan=none..none
+at=35  ingested=0 polls=155  packetSpan=none..none
+```
+
+同期心跳：`demuxReadFrames` 持续增长（25879 → 26258），`demuxForwardBytes` 长期贴着 `demuxForwardLimitBytes`（157,328,886 对 157,286,400）。
+
+对照：同一次验证中，`m2ts` 的位图字幕轨选中后一秒内 `ingested` 增长（第 2 轮记录）。差别在字幕表示的格式：位图轨有包，文字轨无包。
+
+初步判断方向：读取线程对文字字幕流不入队，或其队列被前向缓冲上限阻塞。需在读取线程的入队判定处加按流的计数以确认。
+
 八，已解决，属判据缺陷，非观测缺陷。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
 ## 十二、验证策略
