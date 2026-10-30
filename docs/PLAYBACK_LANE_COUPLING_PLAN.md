@@ -496,12 +496,22 @@ session.close.begin displayed=false
 
 片源参数：`h264 High 10`，1864x1008，`extradata_size=47`（从 Emby 流接口取回文件头实测，与应用内 `video.reader.bind extradata=47` 一致）。
 
-同一文件、同一构建，五次观察：
+重复实验（每次重新启动应用，播放后第 8 秒与第 14 秒各取一次状态）：
 
 ```
-失败    4.500 秒处 lifecycle=failed   4 次
-成功    21.0 → 53.0 秒连续播放        1 次，期间无 readyWithDecodeFailures
+第 1 次  position=4.000  lifecycle=failed
+第 2 次  position=4.000  lifecycle=failed
+第 3 次  position=5.000  lifecycle=failed
+第 4 次  position=4.000  lifecycle=failed
+第 5 次  position=4.500  lifecycle=failed
+第 6 次  position=5.000  lifecycle=failed   （先播 Alien: Covenant 成功，再切到本片）
 ```
+
+累计七次运行，六次失败，一次曾在早期构建上连续播放 53 秒。失败率 6/7。
+
+文件来源：`[philosophy-raws][Ghost in the Shell][Movie][BDRIP][Hi10P FLAC][1864X1008].mkv`，10.3 GB，位于本机 rclone VFS 缓存目录（`/Volumes/Cortisol/rclone-cache/emby-media/vfs/...`），即由云盘挂载。
+
+因此「Hi10P 编码」与「云盘挂载读取」是两个未分离的变量。
 
 已排除：
 
@@ -512,7 +522,16 @@ session.close.begin displayed=false
 远程源             同会话内 Alien: Covenant（4K HEVC）连续播放 40 秒以上
 ```
 
-未解释：同一文件为何有时四秒失败、有时正常。失败时 `rendererStatus=readyWithDecodeFailures`、`rendererError=The operation could not be completed`、首帧从未显示。
+未解释：为何四秒失败、为何曾有一次成功。失败时 `rendererStatus=readyWithDecodeFailures`、`rendererError=The operation could not be completed`、首帧从未显示。
+
+分离两个变量的方法：
+
+```
+一  同一服务器上另取一个 Hi10P 片源，若同样失败，编码因素成立
+二  用 WebDAV 直接服务该文件的本地缓存副本，若成功，挂载因素成立
+```
+
+本地语料没有 H.264 10 位片源（两部 mkv 均为 HEVC Main 10），因此本地档无法分离这两个变量。
 
 八，已解决，属判据缺陷，非观测缺陷。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，位置 20 已被扫过且无单元，属正常。
 
