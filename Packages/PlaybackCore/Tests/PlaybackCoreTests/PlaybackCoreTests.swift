@@ -5013,6 +5013,63 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     await session.closeAndWait()
 }
 
+
+@Test func aSeekLandsAtTheTargetWhenTheContainerStartsLate() async throws {
+    let encoded = try #require(
+        Bundle.module.url(
+            forResource: "video-h264-late-start-600s.ts",
+            withExtension: "base64",
+            subdirectory: "Fixtures"
+        )
+    )
+    let encodedData = try Data(contentsOf: encoded)
+    let data = try #require(Data(base64Encoded: encodedData, options: .ignoreUnknownCharacters))
+    let url = FileManager.default.temporaryDirectory
+        .appendingPathComponent("late-start-600s.ts")
+    try data.write(to: url)
+    defer { try? FileManager.default.removeItem(at: url) }
+
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let information = try await SystemMediaSourceInformationLoader(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    ).load(from: url)
+    #expect(information.durationSeconds > 4)
+
+    let target = 3.0
+    try demuxSession.seek(to: target)
+    let provider = FFmpegSampleProvider(sourceReadMeter: meter, demuxSession: demuxSession)
+    try await provider.prepare(
+        url: url,
+        asset: nil,
+        startTime: CMTime(seconds: target, preferredTimescale: 600)
+    )
+    try provider.start()
+
+    var firstSeconds: Double?
+    let deadline = ContinuousClock.now + .seconds(8)
+    while ContinuousClock.now < deadline, firstSeconds == nil {
+        let event = try await provider.nextEvent()
+        switch event {
+        case .sample(let buffer):
+            firstSeconds = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+        case .formatChanged:
+            continue
+        case .flush:
+            continue
+        case .end:
+            break
+        }
+    }
+    provider.cancel()
+    let first = try #require(firstSeconds)
+    #expect(
+        first >= target - 0.1,
+        "the first sample after a seek to \(target) s sits at \(first) s, so the seek landed at the container start"
+    )
+}
+
 @Test func audioOpenFailureRetiresAudioButVideoStillDelivers() async throws {
     let session = SampleBufferPlaybackSession(
         traceID: "audio-open-error-session",
