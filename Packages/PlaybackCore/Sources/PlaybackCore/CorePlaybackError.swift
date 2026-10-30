@@ -10,6 +10,7 @@ enum CorePlaybackError: LocalizedError {
     case noPlayableMediaStream
     case mediaInputTruncated(deliveredEndSeconds: Double?, declaredDurationSeconds: Double)
     case audioPrerollTimedOut(Double)
+    case sourceStalled(Double)
     case firstVideoFrameTimedOut(Double, rendererError: String?)
     case videoDecoderStalled(attempts: Int)
     case seekTimedOut(Double)
@@ -32,6 +33,8 @@ enum CorePlaybackError: LocalizedError {
                 + "\(declaredDurationSeconds.formatted(.number.precision(.fractionLength(0...3)))) seconds."
         case .audioPrerollTimedOut(let seconds):
             "Audio did not preroll through the timeline start at \(seconds) seconds."
+        case .sourceStalled(let seconds):
+            "The source stopped delivering data before \(seconds) seconds of playback."
         case .firstVideoFrameTimedOut(let seconds, let rendererError):
             if let rendererError, rendererError.isEmpty == false {
                 rendererError

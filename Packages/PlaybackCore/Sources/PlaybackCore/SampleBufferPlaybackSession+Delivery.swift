@@ -2016,9 +2016,20 @@ extension SampleBufferPlaybackSession {
         after timelineStart: CMTime
     ) async throws {
         guard requiredEnd.isNumeric, timelineStart.isNumeric else { return }
+        var lastBytesRead = sourceReadMeter?.totalBytesRead ?? 0
+        var lastProgressInstant = ContinuousClock.now
         while true {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
+            let bytesRead = sourceReadMeter?.totalBytesRead ?? 0
+            if bytesRead != lastBytesRead {
+                lastBytesRead = bytesRead
+                lastProgressInstant = ContinuousClock.now
+            } else if sourceReadPending == false,
+                      ContinuousClock.now - lastProgressInstant >= startStallLimit {
+                updateReadiness(.stalled, reason: "noSourceProgress")
+                throw CorePlaybackError.sourceStalled(requiredEnd.seconds)
+            }
             if startReadiness(through: requiredEnd, after: timelineStart) == .playable {
                 let accumulatedPresentationEnd = endStateLock.withLock {
                     endState.audioPresentationEnd

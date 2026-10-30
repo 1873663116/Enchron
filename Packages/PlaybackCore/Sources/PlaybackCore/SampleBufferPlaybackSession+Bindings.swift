@@ -16,6 +16,7 @@ extension SampleBufferPlaybackSession {
 
     public func debugSnapshot() -> PlaybackDebugSnapshotV1 {
         var snapshot = debugStore.snapshot()
+        snapshot.readinessState = readinessLock.withLock { readinessState.rawValue }
         if var rendererState = snapshot.rendererState {
             let timebaseSource = CMTimebaseCopySource(synchronizer.timebase)
             let timebaseSourceType: String

@@ -182,6 +182,7 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var schemaVersion = 1
     public var generatedAt = Date()
     public var lifecycle = PlaybackLifecycle.idle
+    public var readinessState: String?
     public var mediaSession: MediaSessionDebugSummary?
     public var lastMediaSession: MediaSessionDebugSummary?
     public var lastOpenRejection: OpenRejectionRecord?

@@ -4923,6 +4923,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     )
     defer { session.close() }
 
+    session.startStallLimit = .seconds(30)
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-preroll-loading.mp4"))
     try session.start()
     try await Task.sleep(for: .milliseconds(500))
@@ -4931,6 +4932,32 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(session.hasAudio)
     #expect(session.diagnostics.audioRetired == false)
     #expect(session.debugSnapshot().lastFailure == nil)
+}
+
+@Test func aSourceThatNeverAdvancesFailsFromLoadingAsStalled() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "start-gate-stall-session",
+        provider: FakeVideoSampleProvider(
+            events: try audioRetirementVideoEvents(),
+            eventDelay: .milliseconds(25)
+        ),
+        audioProvider: FakeAudioSampleProvider(),
+        rendererSink: FakeRendererInputSink(),
+        audioRendererSink: FakeAudioRendererInputSink(),
+        firstVideoFrameObservation: { true },
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+
+    session.startStallLimit = .milliseconds(150)
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/start-gate-stall.mp4"))
+    try session.start()
+    try await Task.sleep(for: .milliseconds(600))
+
+    #expect(session.readinessState == .stalled)
+    #expect(session.debugSnapshot().lastFailure?.stage == "startGate.failed.videoContinues")
+    #expect(session.diagnostics.audioRetired == false)
 }
 
 @Test func retiredAudioStaysNonfatalAcrossRepeatedSeeks() async throws {
