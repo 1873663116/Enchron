@@ -1128,6 +1128,28 @@ static PBSubtitleFrameResult copy_empty_frame(
     return PBSubtitleFrameResultEmpty;
 }
 
+static void text_frame_interval(
+    const PBSubtitleFrameRenderer *renderer,
+    double timeSeconds,
+    double *startSecondsOut,
+    double *endSecondsOut
+) {
+    double start = 0.0;
+    double end = 0.0;
+    bool found = false;
+    for (size_t index = 0; index < renderer->textCueCount; index++) {
+        const PBSubtitleTextCue *cue = &renderer->textCues[index];
+        if (timeSeconds < cue->startSeconds) continue;
+        if (timeSeconds >= cue->startSeconds + cue->durationSeconds) continue;
+        double cueEnd = cue->startSeconds + cue->durationSeconds;
+        if (!found || cue->startSeconds < start) start = cue->startSeconds;
+        if (!found || cueEnd > end) end = cueEnd;
+        found = true;
+    }
+    *startSecondsOut = found ? start : 0.0;
+    *endSecondsOut = found ? end : 0.0;
+}
+
 static PBSubtitleFrameResult copy_ass_frame(
     PBSubtitleFrameRenderer *renderer,
     double timeSeconds,
@@ -1198,6 +1220,9 @@ static PBSubtitleFrameResult copy_ass_frame(
             }
         }
     }
+    double cueStart = 0.0;
+    double cueEnd = 0.0;
+    text_frame_interval(renderer, timeSeconds, &cueStart, &cueEnd);
     PBSubtitleFrameInfo info = {
         .kind = PBSubtitleFrameKindLibass,
         .canvasWidth = width,
@@ -1207,6 +1232,8 @@ static PBSubtitleFrameResult copy_ass_frame(
         .contentWidth = contentWidth,
         .contentHeight = contentHeight,
         .bytesPerRow = contentWidth * 4,
+        .startSeconds = cueStart,
+        .endSeconds = cueEnd,
     };
     PBSubtitleFrameResult result = copy_pixels(renderer, pixels, info, dataOut, infoOut);
     free(pixels);
