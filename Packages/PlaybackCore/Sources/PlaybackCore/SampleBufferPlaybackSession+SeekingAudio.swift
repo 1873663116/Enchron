@@ -701,56 +701,17 @@ extension SampleBufferPlaybackSession {
             ? currentTime()
             : requestedTimelineStart
         let rate = interruptionRecoveryRate()
-        if deliveryHasStarted {
+        let sharesDemuxSource = demuxSession != nil
+        if deliveryHasStarted, sharesDemuxSource == false {
             setTimelineStopped(reason: .audioTrackSelection)
         }
         stopAudioDelivery()
         audioDeliveryQueue.sync { audioProvider.cancel() }
         audioRendererSink.flush()
         resetAudioEndState(requiresAudio: previouslyHadAudio)
-        let rearmsVideoDelivery = deliveryHasStarted
-            && demuxSession != nil
-            && mediaKind == .video
-        if let demuxSession {
+        let rearmsVideoDelivery = false
+        if sharesDemuxSource == false, let demuxSession {
             try demuxSession.seek(to: time.seconds)
-            if mediaKind == .video {
-                if rearmsVideoDelivery {
-                    stopVideoDelivery()
-                    discardPendingVideoSample()
-                    deliveryQueue.sync {
-                        isResetting = true
-                        provider.cancel()
-                    }
-                    await rendererSink.flush(removingDisplayedImage: false)
-                    discardVideoFramesInFlight()
-                    resetDecoderBootstrap()
-                    streamEpoch += 1
-                    flushCount += 1
-                    recordRendererState(at: time)
-                    debugStore.emit(
-                        mediaSessionID: traceID,
-                        node: .rendererInputCoordination,
-                        kind: "renderer.flushedForAudioTrackSelection",
-                        outcome: .succeeded,
-                        details: ["streamEpoch": String(streamEpoch)]
-                    )
-                } else {
-                    deliveryQueue.sync { provider.cancel() }
-                }
-                do {
-                    try await provider.prepare(
-                        url: sourceURL,
-                        asset: sourceAsset,
-                        startTime: time
-                    )
-                    if rearmsVideoDelivery {
-                        try provider.start()
-                    }
-                } catch {
-                    deliveryQueue.sync { isResetting = false }
-                    throw error
-                }
-            }
         }
         do {
             let openedInfo = try await openAudioAttachment(
@@ -760,6 +721,9 @@ extension SampleBufferPlaybackSession {
                 streamIndex: streamIndex,
                 reason: "selection"
             )
+            if sharesDemuxSource {
+                audioProvider.setPlaybackStartThreshold(time.seconds)
+            }
             let info = openedInfo ?? audioProvider.info
             let opened = info?.streamIndex ?? -1
             let codec = info?.codecName ?? "?"
@@ -805,11 +769,16 @@ extension SampleBufferPlaybackSession {
             resetAudioEndState(requiresAudio: previouslyHadAudio)
             audioStreamEpoch += 1
             if deliveryHasStarted {
-                rearmTimelineAfterAudioTrackChange(
-                    rate: rate,
-                    at: time,
-                    rearmsVideoDelivery: rearmsVideoDelivery
-                )
+                if sharesDemuxSource {
+                    audioProvider.setPlaybackStartThreshold(time.seconds)
+                    startAudioDelivery()
+                } else {
+                    rearmTimelineAfterAudioTrackChange(
+                        rate: rate,
+                        at: time,
+                        rearmsVideoDelivery: rearmsVideoDelivery
+                    )
+                }
             }
             recordAudioRendererState()
             debugStore.emit(
@@ -843,11 +812,15 @@ extension SampleBufferPlaybackSession {
         }
         audioStreamEpoch += 1
         if deliveryHasStarted {
-            rearmTimelineAfterAudioTrackChange(
-                rate: rate,
-                at: time,
-                rearmsVideoDelivery: rearmsVideoDelivery
-            )
+            if sharesDemuxSource {
+                startAudioDelivery()
+            } else {
+                rearmTimelineAfterAudioTrackChange(
+                    rate: rate,
+                    at: time,
+                    rearmsVideoDelivery: rearmsVideoDelivery
+                )
+            }
         }
         recordAudioRendererState()
         debugStore.emit(

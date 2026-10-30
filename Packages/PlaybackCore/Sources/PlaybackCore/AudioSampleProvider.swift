@@ -182,9 +182,12 @@ protocol AudioSampleProvider: AnyObject {
     ) async throws
     func copyNextSample() async throws -> CMSampleBuffer?
     func cancel()
+    func setPlaybackStartThreshold(_ seconds: Double?)
 }
 
 extension AudioSampleProvider {
+    func setPlaybackStartThreshold(_ seconds: Double?) {}
+
     func tracks(
         in url: URL,
         asset: PlaybackAsset?,
@@ -210,6 +213,7 @@ final class NoAudioSampleProvider: AudioSampleProvider {
 
     func copyNextSample() async throws -> CMSampleBuffer? { nil }
     func cancel() {}
+    func setPlaybackStartThreshold(_ seconds: Double?) {}
 }
 
 final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable {
@@ -234,6 +238,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     private var stallMonitor: Task<Void, Never>?
     private var reader: FFmpegAudioReaderHandle?
     private var boundEpoch: UInt64?
+    private var playbackStartThreshold: Double?
     private var generation: UInt64 = 0
 
     init(
@@ -369,7 +374,27 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
         }
     }
 
+    func setPlaybackStartThreshold(_ seconds: Double?) {
+        readerLock.withLock { playbackStartThreshold = seconds }
+        let label = seconds.map { String(format: "%.3f", $0) } ?? "none"
+        logger.info("audio.read.threshold seconds=\(label, privacy: .public)")
+    }
+
     func copyNextSample() async throws -> CMSampleBuffer? {
+        while true {
+            guard let sample = try await readNextSampleOnce() else { return nil }
+            let threshold = readerLock.withLock { playbackStartThreshold }
+            guard let threshold else { return sample }
+            let start = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+            let duration = CMSampleBufferGetDuration(sample).seconds
+            let end = duration.isFinite ? start + duration : start
+            if end <= threshold { continue }
+            readerLock.withLock { playbackStartThreshold = nil }
+            return sample
+        }
+    }
+
+    private func readNextSampleOnce() async throws -> CMSampleBuffer? {
         let bound = readerLock.withLock { boundEpoch }
         if let bound, let current = demuxSession?.currentEpoch(), current != bound {
             let message = "source epoch moved from \(bound) to \(current)"

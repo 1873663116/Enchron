@@ -77,7 +77,21 @@ seek 路径。seek 等待不再因音频晚到而撤除音轨；源停顿判定�
 
 三，回归目录的语义债。`promise:track-selection:c02` 与 `scenario:format-coverage:audio-retirement-on-failure` 断言的是旧语义（撤轨后继续），与当前实现相反；rubric 文本里还按旧测试名引用。退役它们不只是改计数：该 promise 还被 `scenario:dynamic-range-interpretation:docked-hlg-audio-integrity` 引用，`manifest` 历史评审包也按 promise id 记录，改动要走回归评审流程重新生成并评审。这条债留给回归侧，不在本次播放改动内处理。
 
-四，切换路径。音频挂载的打开只有一处实现：初始打开、seek、音轨切换、切换回滚都调用 `openAudioAttachment`，它负责重开、核对源纪元并记录 `audio.attach.open reason=`。三条路径的停止、刷新、seek 编排序列仍各写一份。
+四，切换路径。音频挂载的打开只有一处实现：初始打开、seek、音轨切换、切换回滚都调用 `openAudioAttachment`，它负责重开、核对源纪元并记录 `audio.attach.open reason=`。
+
+换音轨在共享源上不再移动容器，也不再停视频或刷新视频渲染器。音频读取器接受一个起始阈值，丢弃阈值之前的样本后开始交付，时间线保持运行。
+
+```
+audio.select.request index=2
+audio.read.threshold seconds=9.580
+audio.select.opened index=2 got=2 codec=ac3 sr=48000 ch=2
+position 8.500 -> 12.000 -> 15.100 -> 18.000   时间线未停
+audio.deliver track=….audio.2 buffers=841
+```
+
+代价是音频回位前有一段静默：实测约五秒。原因是阈值过滤发生在解码之后，被丢弃的样本已经解过码。把过滤下移到包层（按时间戳跳过整包）可以缩短这段静默。
+
+播放器 seek 仍走原来的整场编排：移动容器、两条车道重开、恢复速率。
 
 ## 四、验收矩阵
 
