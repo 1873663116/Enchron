@@ -1000,7 +1000,23 @@ tier e2e      通过   12 个单元全过（reused 0, ran 12），每个单元�
 tier unit     不通过  六项失败，均不在播放车道范围内
 ```
 
-`tier e2e` 的默认选择是十二个单元。全量选择（`--full`）尚未执行。
+`tier e2e` 的默认选择是十二个单元，全过。全量选择（`--full`）执行到第十个单元后停住，停在 `unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1`，日志不再增长，已终止。
+
+该单位单独执行的结果：
+
+```
+failure  unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1  verdict=failed  25520 ms
+  step      09 device.app-command  13352 ms
+  actual    the media session did not change within twelve seconds
+  args      {"arguments": {"name": "packed_bframes.avi"}, "verb": "playMedia"}
+  terminal  artifact failed: expected evidence hierarchy.json was never written
+```
+
+片源为 `TestMedia/TestVectors/Upstream/FATE/MPEG4-Part2/packed_bframes.avi`，视频编码为 MPEG-4 Part 2。该单位在第九步之后期望界面上出现标签为 `Unable to Play` 的元素。
+
+观测：应用不为该文件建立会话，`playMedia` 返回 `ok=false`，第九步失败，第十步的界面断言因此未执行。
+
+待判定：应用是否在界面上给出了拒绝提示。若给出，该单位应把「会话未建立」视为期望结果并继续断言界面；若未给出，则是缺少提示的产品缺陷。
 
 静态档此前的八项失败已逐项修完：
 
