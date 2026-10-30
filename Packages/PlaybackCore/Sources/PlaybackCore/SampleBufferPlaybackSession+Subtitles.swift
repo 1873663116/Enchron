@@ -446,9 +446,16 @@ extension SampleBufferPlaybackSession {
                 String(format: "%.3f", $0)
             } ?? "none"
             let queryLabel = String(format: "%.3f", time.seconds)
-            logger.info(
-                "subtitle.query.clock at=\(queryLabel, privacy: .public) videoAt=\(videoLabel, privacy: .public)"
-            )
+            let querySecond = time.seconds
+            let frameLabel = recentVideoFrameIntervals.last(where: {
+                $0.start <= querySecond && querySecond < $0.end
+            }).map {
+                String(format: "%.3f-%.3f", $0.start, $0.end)
+            } ?? "none"
+            let querySummary = "subtitle.query.clock at=" + queryLabel
+                + " frame=" + frameLabel
+                + " videoAt=" + videoLabel
+            logger.info("\(querySummary, privacy: .public)")
         }
         let record = subtitleStateLock.withLock {
             return SubtitleStateRecord(
