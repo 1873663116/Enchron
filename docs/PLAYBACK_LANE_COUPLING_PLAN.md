@@ -106,6 +106,21 @@
 
 结构。交换由会话层执行：静音旧车道与启用新车道在同一步完成。不执行交叉淡入淡出。两条音轨内容不同，重叠会使两种内容同时可闻。
 
+现状。部分成立。本地 `mkv`（三条音轨：flac、aac、aac）连续切换三次，每条新车道首个音频单元的呈现时间等于切换时刻的播放位置：
+
+```
+00:44:03.391  audio.select.request index=2
+00:44:03.438  attach.firstUnit lane=audio epoch=2 pts=94.292
+00:44:08.981  audio.select.request index=3
+00:44:09.037  attach.firstUnit lane=audio epoch=3 pts=99.883
+00:44:14.573  audio.select.request index=1
+00:44:14.625  attach.firstUnit lane=audio epoch=4 pts=105.470
+```
+
+`audio.attach.open` 的 `headBefore=0.000` 是切换前该流已预缓冲的最老包，不是挂载位置，不能用于判断起点。判断起点用 `attach.firstUnit` 的 `pts`。
+
+未验证部分：切换期间是否出现零条或两条车道同时出声。现有日志没有音频输出电平或连续音频单元的时间序列，该项当前不可判定。所需字段为「音频输出的连续呈现时间」。
+
 ## 八、目标四：字幕查询使用与呈现相同的时钟
 
 性质。字幕查询所用的 `P`，与当前呈现在屏幕上的视频帧所覆盖的 `P`，是同一个值。
