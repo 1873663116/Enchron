@@ -417,7 +417,38 @@ libraryOnPlayReturned name=eighty-six-2160p.mkv     ← 已交给启动器
 
 边界：本轮确定了失败不在库解析层，未确定打开路径为何不报告错误。修复需要先在打开路径上补齐失败上报，再判断失效书签应产生哪一类用户可见问题。
 
-八，已解决，属判据缺陷，非观测缺陷。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
+七之六，未修复，严重：远程 `mkv` 播放崩溃。
+
+复现：Emby 上播放 `Ghost in the Shell`（MKV，4K HEVC，DTS，时长 4989.945 秒）。
+
+两种观察到的结局：
+
+```
+一  播放约三十秒后会话失败
+    rendererStatus=readyWithDecodeFailures rendererError=The operation could not be completed
+    session.videoDelivery.stop by=failIfFirstVideoFrameIsStillMissing()
+    session.close.begin displayed=false
+
+二  进程中止（SIGABRT）
+```
+
+崩溃栈（`Enchron-2026-10-31-013745.ips`，线程 17）：
+
+```
+libsystem_kernel.dylib  __pthread_kill
+libsystem_pthread.dylib pthread_kill
+libsystem_c.dylib       abort
+PlaybackFFmpeg          matroska_parse_cluster.cold.1
+Enchron.debug.dylib     demux_source_read_loop
+```
+
+崩溃发生在解复用读取线程内的 matroska 解析断言处。触发前日志末尾为 `demux.open.begin remote=true`、`demux.open.end ok=true`、`demux.seek.begin seconds=0.0`。
+
+对照：同一次会话中 `sdr-bframe-aggregate-30s`（远程，30 秒）可播放并跳转；本地 `mkv` 同样可播放。差别在远程读取与片源规模。
+
+影响：主档的 MKV 片源当前不可用。远程 MP4 尚未出现该问题。
+
+待定：断言来自读取路径返回的短读或截断数据，还是来自解析器对该文件结构的处理。修复方向二选一，需先取证：一是在远程读取路径上补齐短读与重连的处理；二是在构建时关闭断言并改为可诊断的错误返回。原判据用 `covered` 判定「字典落后」，而 `covered` 只表示已解码单元的区间。日志中已有的 `packetSpan` 就是已消费的包区间 `[A(L), S(L)]`，足以区分两种情况。判据已改写为使用 `S(L)`。实测：`at=20` 时 `packetSpan=107.250..126.292`，`P=20` 落在已知区间外的起点之前，因读取器从起点 0 向后消费，位置 20 已被扫过且无单元，属正常。
 
 ## 十二、验证策略
 
