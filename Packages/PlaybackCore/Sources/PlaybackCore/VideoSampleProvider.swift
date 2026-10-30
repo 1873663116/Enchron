@@ -1,5 +1,6 @@
 @preconcurrency import AVFoundation
 import Foundation
+import OSLog
 import PlaybackFFmpegBridge
 
 enum FFmpegSourceLocator {
@@ -306,12 +307,18 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
 
     private let readerLock = NSLock()
     private let readerQueue: DispatchQueue
+    private let demuxSession: FFmpegDemuxSession?
+    private let logger = Logger(
+        subsystem: "com.xiongzhipeng.PlaybackCore",
+        category: "Playback"
+    )
     private let operations: any FFmpegVideoReaderOperations
     private let formatSubstitution = VideoSampleFormatOverride()
     private var storedInfo = VideoSampleProviderInfo()
     private var bridgeFormatDescription: CMVideoFormatDescription?
     private var sourceFormatDescription: CMFormatDescription?
     private var reader: FFmpegVideoReaderHandle?
+    private var boundEpoch: UInt64?
     private var generation: UInt64 = 0
 
     init(
@@ -322,6 +329,7 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
             label: "com.enchron.playbackcore.ffmpeg-video-reader"
         )
     ) {
+        self.demuxSession = demuxSession
         self.operations = operations
             ?? SystemFFmpegVideoReaderOperations(
                 sourceReadMeter: sourceReadMeter,
@@ -392,6 +400,12 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                             continuation.resume(throwing: CancellationError())
                             return
                         }
+                        let epoch = demuxSession?.currentEpoch()
+                        readerLock.withLock { boundEpoch = epoch }
+                        let epochLabel = epoch.map(String.init) ?? "none"
+                        logger.info(
+                            "video.reader.bind epoch=\(epochLabel, privacy: .public)"
+                        )
                         continuation.resume(returning: sourceInformation)
                     } catch {
                         guard removeIfCurrent(newReader, generation: operationGeneration) else {
@@ -484,6 +498,12 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
     func start() throws {}
 
     func nextEvent() async throws -> VideoSampleProviderEvent {
+        let bound = readerLock.withLock { boundEpoch }
+        if let bound, let current = demuxSession?.currentEpoch(), current != bound {
+            let message = "source epoch moved from \(bound) to \(current)"
+            logger.error("video.read.staleEpoch \(message, privacy: .public)")
+            throw PlaybackProviderError.ffmpeg(message)
+        }
         guard let operation = readerLock.withLock({ reader.map { ($0, generation) } }) else {
             return .end
         }

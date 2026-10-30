@@ -62,6 +62,7 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
     private let renderer: OpaquePointer
     private let lock = NSLock()
     private let demuxSession: FFmpegDemuxSession?
+    private let boundEpoch: UInt64?
     private var exportedTextCueCount = 0
 
     init(
@@ -86,6 +87,7 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         }
         self.renderer = renderer
         demuxSession = nil
+        boundEpoch = nil
     }
 
     init(
@@ -107,6 +109,7 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         }
         self.renderer = renderer
         self.demuxSession = demuxSession
+        self.boundEpoch = demuxSession.currentEpoch()
     }
 
     deinit {
@@ -200,8 +203,21 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         }
     }
 
+    private func requireCurrentEpoch() throws {
+        guard let demuxSession, let boundEpoch else { return }
+        guard let current = demuxSession.currentEpoch() else {
+            throw SubtitleProviderError.read("subtitle source epoch is gone")
+        }
+        guard current == boundEpoch else {
+            throw SubtitleProviderError.read(
+                "subtitle source epoch moved from \(boundEpoch) to \(current)"
+            )
+        }
+    }
+
     func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
         guard demuxSession != nil else { return [] }
+        try requireCurrentEpoch()
         return try lock.withLock {
             var error = [CChar](repeating: 0, count: 512)
             guard PBSubtitleFrameRendererIngestAvailablePackets(
