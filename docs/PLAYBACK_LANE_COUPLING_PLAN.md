@@ -1016,7 +1016,28 @@ failure  unit:catalog.scenario-format-coverage-unsupported-codec-guidance@1  ver
 
 观测：应用不为该文件建立会话，`playMedia` 返回 `ok=false`，第九步失败，第十步的界面断言因此未执行。
 
-待判定：应用是否在界面上给出了拒绝提示。若给出，该单位应把「会话未建立」视为期望结果并继续断言界面；若未给出，则是缺少提示的产品缺陷。
+判定结果：应用给出了提示。系统日志中的告警控制器原文：
+
+```
+Title: `Unable to Play`
+message: `This video uses MPEG-4 Part 2 video, which Enchron does not support.`
+actions: [`Close` (cancel)]
+```
+
+因此是命令通道的判定问题，不是产品缺陷。`playMedia` 原本只按「会话是否变化」判定成败，无法区分「拒绝并提示」与「静默无动作」。
+
+已修：等待结束后读取运行时的用户可见问题；若有，命令以成功返回并在详情中带上该问题的描述，下一步的界面断言得以执行。
+
+复跑该单位：
+
+```
+ok   09 device.app-command
+ok   10 device.await   1 次探测，955 毫秒，字段 label = "Unable to Play"
+ok   11 device.snapshot
+terminal artifact ok  hierarchy.json present
+```
+
+静默无动作仍未被视为成功：无会话且无提示时，命令继续返回失败。
 
 静态档此前的八项失败已逐项修完：
 
