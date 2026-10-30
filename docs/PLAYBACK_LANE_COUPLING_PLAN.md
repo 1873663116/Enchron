@@ -227,7 +227,7 @@ current code: stale delivery reproduced, as the code stands
 
 两种构型下首个输出均领先播放位置约六秒，没有回退到队列最早的包。关闭裁剪时第三次接管队列里有十二个旧包（最早 610.210，播放位置 620），首个输出仍为 625.920。因此旧包没有进入输出，音频渲染器丢弃了播放位置之前的缓冲。
 
-裁剪改动因此没有可测收益，已回退（提交 `<REVERT>`）。
+裁剪改动因此没有可测收益，已回退（提交 `da7f607f`）。
 
 形式化检查仍报 `finding open: attach does not trim packets older than the playhead`。原因：模型把「接管」映射到 `PBFFmpegDemuxSourceTakeOverStream`，该函数无调用者；模型对代码的映射与本条结论均需修正后才能作为判据。
 
