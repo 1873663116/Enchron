@@ -41,6 +41,14 @@ XcodeBuildMCP 工具承担 Xcode IDE 的缺口：SwiftPM、代码覆盖率、mac
 - 禁止直接 `simctl install` 未经校验的包：模拟器构建是 ad-hoc 签名，而 `CODE_SIGNING_ALLOWED=NO` 产出的测试构建完全无签名，装上后应用丢失 keychain 身份，读写凭证报 OSStatus -34018，已存的 Emby 会话随之中断。
 - 测试产物复用于安装前，先跑 `install_to_simulator.sh --check` 确认签名。
 
+## Git 工作树与分支
+
+- 需要隔离的改动用 `git worktree add .scratch/worktrees/<name> -b <branch> origin/main` 创建；工作树只放在仓库内 `.scratch/worktrees/`，不建在仓库外、兄弟目录或缓存目录。
+- PR 合并后立刻回收该 PR 的分支与工作树：`python3 Scripts/prune-git-worktrees.py --pr <number> --apply`。不经过 PR 而直接合入 `main` 的分支用 `python3 Scripts/prune-git-worktrees.py --apply`。
+- 脚本默认 dry run，只回收已合并的工作树与分支（`--pr` 覆盖 squash 合并）；有本地改动的默认跳过，`--force` 先把 patch 归档到 `.scratch/git-cleanup/<UTC>` 再删除。
+- 交付前 `git worktree list` 必须只剩主工作树，`git branch` 不保留已合并分支；`origin/HEAD` 指向已删除分支时用 `--repair-origin-head` 修正。
+- 远端分支由 GitHub 的 delete_branch_on_merge 自动删除；本地分支引用、工作树注册与检出目录由上面的步骤回收。
+
 ## 真机安装
 
 - 真机可用性以 Scripts/build/device_status.sh 的输出为准；它只读 devicectl，判为 installable 表示可安装，构建走 Scripts/build/build_to_device.sh（ENCHRON_DEVICE_UDID）；
