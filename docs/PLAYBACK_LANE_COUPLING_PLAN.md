@@ -156,7 +156,7 @@ subtitle.frame.produced at=186.200 range=186.040-187.110
 
 结构。交换由会话层执行：静音旧车道与启用新车道在同一步完成。不执行交叉淡入淡出。两条音轨内容不同，重叠会使两种内容同时可闻。
 
-现状。部分成立。本地 `mkv`（三条音轨：flac、aac、aac）连续切换三次，每条新车道首个音频单元的呈现时间等于切换时刻的播放位置：
+现状。成立。本地 `mkv`（三条音轨：flac、aac、aac）连续切换三次，每条新车道首个音频单元的呈现时间等于切换时刻的播放位置：
 
 ```
 00:44:03.391  audio.select.request index=2
@@ -168,6 +168,34 @@ subtitle.frame.produced at=186.200 range=186.040-187.110
 ```
 
 `audio.attach.open` 的 `headBefore=0.000` 是切换前该流已预缓冲的最老包，不是挂载位置，不能用于判断起点。判断起点用 `attach.firstUnit` 的 `pts`。
+
+快路成立的条件是目标流的队列或流历史覆盖播放位置。共享源为未选中音频流保留六十秒流历史，读线程按字节预算领先播放位置；远程 `mkv`（三条音轨，4K HEVC）实测该领先为 73.3 秒与 84.7 秒，超过历史窗口。目标流不覆盖播放位置时，快路会从领先位置开始交付，声音要等时钟追上才响。
+
+结构。会话在切换前用 `PBFFmpegDemuxSourceGetDeliveryStartSeconds` 查询目标流首个可交付单元的呈现时间。该时间不晚于播放位置 0.1 秒时走快路：不重建视频车道，直接接管音频流。该时间晚于播放位置时走慢路：停时间线、把共享源 seek 到播放位置、重建视频与音频车道、恢复时间线。慢路同时服务暂停中的切换。
+
+实测（同一台模拟器，同一媒体；序列为 seek 到 162 秒后播放 6 秒、切到 index 3、再切回 index 1）：
+
+修复前，两次切换都走快路，首个音频单元的呈现时间分别领先播放位置 9.239 秒与 8.003 秒：
+
+```
+11:33:34.707  audio.select.request index=3  playhead=169.000
+              first audio unit pts=178.239   delta=+9.239
+11:33:38.820  audio.select.request index=1  playhead=173.500
+              first audio unit pts=181.503   delta=+8.003
+```
+
+修复后，两次切换都走慢路，首个音频单元落在播放位置：
+
+```
+11:29:40.576  audio.select.request index=3  playhead=169.500
+              demux.seek.begin seconds=169.546
+              first audio unit pts=169.557   delta=+0.011
+11:29:44.850  audio.select.request index=1  playhead=173.000
+              demux.seek.begin seconds=173.463
+              first audio unit pts=173.482   delta=+0.019
+```
+
+切换后 `audio.out` 的呈现时间持续前进，两次切换前后字幕产出不中断。
 
 未验证部分已补测量。新增每秒一行 `audio.out`，记录当前选中的音频流编号与最近入队音频单元的呈现时间。连续切换三次的完整序列（44 个样本）：
 

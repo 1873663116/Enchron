@@ -4767,6 +4767,42 @@ double PBFFmpegDemuxSourceGetQueueHeadSeconds(
     return (double)timestamp / (double)AV_TIME_BASE;
 }
 
+double PBFFmpegDemuxSourceGetDeliveryStartSeconds(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    double minimumSeconds
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount ||
+        !isfinite(minimumSeconds)) return NAN;
+    int64_t minimumTimestamp =
+        (int64_t)llround(minimumSeconds * (double)AV_TIME_BASE);
+    int64_t found = AV_NOPTS_VALUE;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    for (PBFFmpegPacketNode *node = queue->head; node != NULL; node = node->next) {
+        if (node->timestampMicroseconds == AV_NOPTS_VALUE) continue;
+        if (node->timestampMicroseconds + node->durationMicroseconds
+            > minimumTimestamp) {
+            found = node->timestampMicroseconds;
+            break;
+        }
+    }
+    if (found == AV_NOPTS_VALUE && source->historyHeads) {
+        for (PBFFmpegPacketNode *node = source->historyHeads[streamIndex];
+             node != NULL; node = node->next) {
+            if (node->timestampMicroseconds == AV_NOPTS_VALUE) continue;
+            if (node->timestampMicroseconds >= minimumTimestamp) {
+                found = node->timestampMicroseconds;
+                break;
+            }
+        }
+    }
+    pthread_mutex_unlock(&source->lock);
+    if (found == AV_NOPTS_VALUE) return NAN;
+    return (double)found / (double)AV_TIME_BASE;
+}
+
 int64_t PBFFmpegDemuxSourceGetQueuedPacketCount(
     PBFFmpegDemuxSource *source,
     int streamIndex

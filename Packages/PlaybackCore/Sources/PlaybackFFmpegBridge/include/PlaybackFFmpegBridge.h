@@ -176,6 +176,11 @@ double PBFFmpegDemuxSourceGetQueueHeadSeconds(
     PBFFmpegDemuxSource *source,
     int streamIndex
 );
+double PBFFmpegDemuxSourceGetDeliveryStartSeconds(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    double minimumSeconds
+);
 int64_t PBFFmpegDemuxSourceGetQueuedPacketCount(
     PBFFmpegDemuxSource *source,
     int streamIndex

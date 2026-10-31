@@ -160,6 +160,15 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         return PBFFmpegDemuxSourceGetQueueHeadSeconds(source, Int32(streamIndex))
     }
 
+    func deliveryStartSeconds(streamIndex: Int, minimum: Double) -> Double {
+        guard let source = sourceLock.withLock({ source }) else { return .nan }
+        return PBFFmpegDemuxSourceGetDeliveryStartSeconds(
+            source,
+            Int32(streamIndex),
+            minimum
+        )
+    }
+
     func bufferDiagnostics() -> PlaybackDemuxBufferDiagnostics? {
         guard let source = sourceLock.withLock({ source }) else { return nil }
         let mode = switch PBFFmpegDemuxSourceGetBufferMode(source) {

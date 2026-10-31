@@ -648,7 +648,19 @@ extension SampleBufferPlaybackSession {
             ? currentTime()
             : requestedTimelineStart
         let rate = interruptionRecoveryRate()
-        let keepsVideoLane = demuxSession != nil
+        let streamDeliveryStart = demuxSession.flatMap { session -> Double? in
+            guard time.isNumeric else { return nil }
+            let start = session.deliveryStartSeconds(
+                streamIndex: streamIndex,
+                minimum: time.seconds
+            )
+            return start.isFinite ? start : nil
+        }
+        let streamReachesPlayhead = streamDeliveryStart.map {
+            $0 <= time.seconds + 0.1
+        } ?? false
+        let keepsVideoLane = streamReachesPlayhead
+            && demuxSession != nil
             && mediaKind == .video
             && CMTimebaseGetRate(synchronizer.timebase) > 0
         if deliveryHasStarted, keepsVideoLane == false {
