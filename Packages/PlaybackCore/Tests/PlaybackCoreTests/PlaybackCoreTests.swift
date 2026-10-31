@@ -399,6 +399,84 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(session.debugSnapshot().subtitleState?.outcome == .producing)
 }
 
+@Test func aStoppedTimelineKeepsRecomputingTheSubtitleFrame() async throws {
+    let track = PlaybackSubtitleTrack(
+        id: "stub.subtitle.beat",
+        streamIndex: 1,
+        codecName: "subrip",
+        language: "eng",
+        title: "English"
+    )
+    let frame = PlaybackSubtitleFrame(
+        kind: .coreText,
+        canvasWidth: 1_920,
+        canvasHeight: 1_080,
+        contentX: 0,
+        contentY: 0,
+        contentWidth: 4,
+        contentHeight: 1,
+        bytesPerRow: 16,
+        premultipliedBGRA: Data(repeating: 0xFF, count: 16),
+        changeIdentifier: 1
+    )
+    let renderer = CountingSubtitleFrameRenderer(frame: frame)
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-publication-beat",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        subtitleProvider: StubSubtitleProvider(tracks: [track], renderer: renderer),
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/subtitle-publication-beat.mov"),
+        startsPaused: true
+    )
+    try await session.selectSubtitleTrack(id: track.id)
+    session.setTimelineStopped(reason: .pause)
+    try await Task.sleep(for: .milliseconds(150))
+    let settled = renderer.frameCallCount
+    try await Task.sleep(for: .milliseconds(600))
+    let recomputedWhileStopped = renderer.frameCallCount - settled
+    #expect(
+        recomputedWhileStopped >= 3,
+        "a stopped timeline recomputed the subtitle frame \(recomputedWhileStopped) times in 600 ms"
+    )
+}
+
+@Test func aTimelineDiscontinuityReleasesTheSubtitleLaneItReplaces() async throws {
+    let track = PlaybackSubtitleTrack(
+        id: "stub.subtitle.handover",
+        streamIndex: 1,
+        codecName: "subrip",
+        language: "eng",
+        title: "English"
+    )
+    let renderer = CountingSubtitleFrameRenderer(frame: nil)
+    let session = SampleBufferPlaybackSession(
+        traceID: "subtitle-discontinuity-handover",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        subtitleProvider: StubSubtitleProvider(tracks: [track], renderer: renderer),
+        rendererSink: FakeRendererInputSink(),
+        videoPrerollDisplayObservation: { true },
+        videoRendererReadyObservation: { true }
+    )
+    defer { session.close() }
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/subtitle-discontinuity-handover.mov"),
+        startsPaused: true
+    )
+    try await session.selectSubtitleTrack(id: track.id)
+    _ = session.beginSubtitleTimelineDiscontinuity()
+    let settled = renderer.ingestCallCount
+    session.publishSubtitleCues(at: .zero)
+    #expect(
+        renderer.ingestCallCount == settled,
+        "publishing during a timeline discontinuity pumped the replaced subtitle lane"
+    )
+}
+
 @Test func aSourceWhoseSubtitleListCannotBeReadStillPlaysItsVideo() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 1)
     let subtitleProvider = TrackListFailingSubtitleProvider()
@@ -6352,6 +6430,39 @@ private final class MediaInformationRecordingSubtitleProvider: SubtitleProvider 
     }
 
     func cancel() {}
+}
+
+private final class CountingSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Sendable {
+    private let lock = NSLock()
+    private let producedFrame: PlaybackSubtitleFrame?
+    private var frames = 0
+    private var ingests = 0
+
+    init(frame: PlaybackSubtitleFrame?) {
+        producedFrame = frame
+    }
+
+    var frameCallCount: Int {
+        lock.withLock { frames }
+    }
+
+    var ingestCallCount: Int {
+        lock.withLock { ingests }
+    }
+
+    func frame(
+        at time: CMTime,
+        viewportWidth: Int,
+        viewportHeight: Int
+    ) throws -> PlaybackSubtitleFrame? {
+        lock.withLock { frames += 1 }
+        return producedFrame
+    }
+
+    func ingestPendingCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
+        lock.withLock { ingests += 1 }
+        return []
+    }
 }
 
 private final class StubSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Sendable {
