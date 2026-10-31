@@ -2674,6 +2674,11 @@ STRUCTURAL_CHECKS = MappingProxyType(
         "subtitle-lane-seek": _playback_core_test(
             "subtitleLaneCoversTheSeekTargetAfterASeek"
         ),
+        "audio-history-continuity": _playback_core_test(
+            "switchingBackToAPartiallyBufferedAudioStreamKeepsSamplesContinuous|"
+            "anAudioStreamThatWasNotBufferedIsReplayedFromItsHistory|"
+            "audioReaderAfterASeekStartsAtTheSeekTarget"
+        ),
         "audio-retirement-open": _playback_core_test(
             "audioOpenFailureRetiresAudioButVideoStillDelivers"
         ),

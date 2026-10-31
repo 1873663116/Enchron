@@ -775,20 +775,26 @@ static bool replay_stream_history_locked(
 ) {
     if (!source->historyHeads || streamIndex >= source->queueCount) return false;
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
-    int64_t queueHeadTimestamp = queue->head
-        ? queue->head->timestampMicroseconds
-        : AV_NOPTS_VALUE;
-    PBFFmpegPacketNode *chainHead = NULL;
-    PBFFmpegPacketNode *chainTail = NULL;
-    int64_t chainBytes = 0;
-    int64_t chainDurationMicroseconds = 0;
+    PBFFmpegPacketNode **position = &queue->head;
+    int64_t previousTimestamp = AV_NOPTS_VALUE;
+    bool replayed = false;
     for (PBFFmpegPacketNode *node = source->historyHeads[streamIndex];
          node;
          node = node->next) {
         if (node->timestampMicroseconds == AV_NOPTS_VALUE) continue;
         if (node->timestampMicroseconds < thresholdTimestamp) continue;
-        if (queueHeadTimestamp != AV_NOPTS_VALUE &&
-            node->timestampMicroseconds >= queueHeadTimestamp) continue;
+        if (previousTimestamp != AV_NOPTS_VALUE &&
+            node->timestampMicroseconds < previousTimestamp) {
+            position = &queue->head;
+        }
+        previousTimestamp = node->timestampMicroseconds;
+        while (*position &&
+               ((*position)->timestampMicroseconds == AV_NOPTS_VALUE ||
+                (*position)->timestampMicroseconds < node->timestampMicroseconds)) {
+            position = &(*position)->next;
+        }
+        if (*position &&
+            (*position)->timestampMicroseconds == node->timestampMicroseconds) continue;
         PBFFmpegPacketNode *copy = take_packet_node(source);
         if (!copy) break;
         if (av_packet_ref(&copy->packet, &node->packet) < 0) {
@@ -798,23 +804,15 @@ static bool replay_stream_history_locked(
         copy->timestampMicroseconds = node->timestampMicroseconds;
         copy->durationMicroseconds = node->durationMicroseconds;
         copy->byteCount = node->byteCount;
-        copy->next = NULL;
-        if (chainTail) {
-            chainTail->next = copy;
-        } else {
-            chainHead = copy;
-        }
-        chainTail = copy;
-        chainBytes += copy->byteCount;
-        chainDurationMicroseconds += copy->durationMicroseconds;
+        copy->next = *position;
+        *position = copy;
+        if (!copy->next) queue->tail = copy;
+        queue->summedDurationMicroseconds += copy->durationMicroseconds;
+        queue->bufferedByteCount += copy->byteCount;
+        *packet_queue_byte_pool(source, queue) += copy->byteCount;
+        replayed = true;
     }
-    if (!chainHead) return false;
-    chainTail->next = queue->head;
-    queue->head = chainHead;
-    if (!queue->tail) queue->tail = chainTail;
-    queue->summedDurationMicroseconds += chainDurationMicroseconds;
-    queue->bufferedByteCount += chainBytes;
-    *packet_queue_byte_pool(source, queue) += chainBytes;
+    if (!replayed) return false;
     update_packet_queue_buffered_duration(queue);
     pthread_cond_broadcast(&source->changed);
     return true;

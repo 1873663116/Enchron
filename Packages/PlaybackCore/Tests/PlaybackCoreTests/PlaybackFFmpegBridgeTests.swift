@@ -2670,6 +2670,102 @@ func highEfficiencyAACProfilesDecodeToPCM(
     )
 }
 
+@Test func switchingBackToAPartiallyBufferedAudioStreamKeepsSamplesContinuous() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-120s.mp4"
+    )
+    try #require(FileManager.default.fileExists(atPath: fixture.path))
+    var error = [CChar](repeating: 0, count: 512)
+    let source = try #require(
+        fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeNone, 0),
+                nil,
+                &error,
+                error.count
+            )
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegDemuxSourceDestroy(source) }
+
+    let video = try #require(PBFFmpegReaderAllocate())
+    defer { PBFFmpegReaderDestroy(video) }
+    try #require(
+        PBFFmpegReaderOpenWithDemuxSource(
+            video, source, PBFFmpegModeCompressed, &error, error.count
+        ),
+        Comment(rawValue: cString(error))
+    )
+    func readVideo(through target: Double) throws {
+        while true {
+            var reference: Unmanaged<CMSampleBuffer>?
+            let result = PBFFmpegReaderCopyNextSample(
+                video, &reference, &error, error.count
+            )
+            try #require(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+            let sample = try #require(reference?.takeRetainedValue())
+            if CMSampleBufferGetPresentationTimeStamp(sample).seconds >= target { return }
+        }
+    }
+    try readVideo(through: 5)
+    do {
+        let firstAudio = try #require(PBFFmpegAudioReaderAllocate())
+        defer { PBFFmpegAudioReaderDestroy(firstAudio) }
+        try #require(
+            PBFFmpegAudioReaderOpenWithDemuxSource(
+                firstAudio, source, 1, 0, &error, error.count
+            ),
+            Comment(rawValue: cString(error))
+        )
+    }
+    try readVideo(through: 30)
+
+    var queueHead = Double.nan
+    var queueTail = Double.nan
+    var historyTail = Double.nan
+    PBFFmpegDemuxSourceGetStreamCoverage(
+        source, 1, &queueHead, &queueTail, nil, &historyTail
+    )
+    try #require(queueHead.isFinite && queueTail > queueHead)
+    try #require(historyTail > queueTail + 5)
+    let target = (queueHead + queueTail) / 2
+    let restoredAudio = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(restoredAudio) }
+    try #require(
+        PBFFmpegAudioReaderOpenWithDemuxSource(
+            restoredAudio, source, 1, target, &error, error.count
+        ),
+        Comment(rawValue: cString(error))
+    )
+    var previousEnd: Double?
+    while true {
+        var reference: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        let result = PBFFmpegAudioReaderCopyNextSample(
+            restoredAudio, &reference, &metadata, &error, error.count
+        )
+        try #require(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+        let sample = try #require(reference?.takeRetainedValue())
+        let time = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+        let tolerance = 1 / Double(PBFFmpegAudioReaderGetSampleRate(restoredAudio))
+        if let previousEnd {
+            try #require(
+                abs(time - previousEnd) <= tolerance,
+                Comment(rawValue: "previousEnd=\(previousEnd) nextStart=\(time)")
+            )
+        } else {
+            try #require(time >= target - tolerance)
+            try #require(time <= target + CMSampleBufferGetDuration(sample).seconds)
+        }
+        previousEnd = time + CMSampleBufferGetDuration(sample).seconds
+        if time > queueTail + 1 { break }
+    }
+}
+
 @Test func audioReaderAfterASeekStartsAtTheSeekTarget() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
