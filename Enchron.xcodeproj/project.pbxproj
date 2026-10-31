@@ -872,7 +872,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/Enchron.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = JFLYK8F636;
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=xrsimulator*]" = x86_64;
@@ -912,7 +912,7 @@
 				CODE_SIGN_ENTITLEMENTS = Config/Enchron.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 6;
 				DEVELOPMENT_TEAM = JFLYK8F636;
 				ENABLE_PREVIEWS = YES;
 				"EXCLUDED_ARCHS[sdk=xrsimulator*]" = x86_64;
