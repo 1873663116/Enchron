@@ -423,6 +423,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     static let recoveryVerificationTimeout: Duration = .seconds(12)
     @ObservationIgnored
     private var seekIndicationTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var audioTrackSwitchRebuildToken: UInt64 = 0
+    @ObservationIgnored
+    private var audioTrackSwitchRebuildStartedAtMillis: UInt64?
+    @ObservationIgnored
+    private var audioTrackSwitchRebuildTimeoutTask: Task<Void, Never>?
 
     private struct Attachment {
         let entityID: String
@@ -485,6 +491,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 onAudioSpectrumFrameChange: { [weak self] frame in
                     guard let self, self.mediaKind == .audioOnly else { return }
                     audioSpectrumFrame = frame
+                },
+                onAudioTrackSwitchRebuild: { [weak self, weak driver] phase in
+                    guard let self, let driver,
+                          rendererTransferCoordinator.isActive(driver) else { return }
+                    switch phase {
+                    case .began(let targetSeconds, let token):
+                        beginAudioTrackSwitchIndication(
+                            targetSeconds: targetSeconds,
+                            token: token
+                        )
+                    case .ended(let token):
+                        endAudioTrackSwitchIndication(token: token)
+                    }
                 }
             )
         )
@@ -493,6 +512,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
         deferredNaturalEndSessionID = nil
         sharedSurfaceGestureController?.cancel()
+        audioTrackSwitchRebuildTimeoutTask?.cancel()
+        audioTrackSwitchRebuildTimeoutTask = nil
+        audioTrackSwitchRebuildToken = 0
         seekIntentGeneration &+= 1
         seekIsInProgress = false
         surfaceTransportTask?.cancel()
@@ -3607,6 +3629,73 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    private func beginAudioTrackSwitchIndication(
+        targetSeconds: Double,
+        token: UInt64
+    ) {
+        switch productLifecycle {
+        case .ready, .playing, .paused:
+            break
+        case .idle, .loading, .ended, .failed:
+            return
+        }
+        guard let activeTechnicalSessionID else { return }
+        audioTrackSwitchRebuildToken = token
+        audioTrackSwitchRebuildStartedAtMillis =
+            DispatchTime.now().uptimeNanoseconds / 1_000_000
+        updateLoadingState { stateMachine in
+            stateMachine.beginAudioTrackSwitch(
+                fromTrackID: currentAudioTrackID,
+                targetSeconds: targetSeconds,
+                technicalSessionID: activeTechnicalSessionID,
+                runtimeGeneration: observationGeneration
+            )
+        }
+        audioTrackSwitchRebuildTimeoutTask?.cancel()
+        audioTrackSwitchRebuildTimeoutTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(8))
+            guard Task.isCancelled == false, let self else { return }
+            guard self.audioTrackSwitchRebuildToken == token else { return }
+            self.endAudioTrackSwitchIndication(token: token)
+            SurfaceInputProbes.record(
+                "audioTrackSwitch loading timedOut token=\(token)",
+                retention: .evidence
+            )
+        }
+        SurfaceInputProbes.record(
+            "audioTrackSwitch loading began"
+                + " from=\(currentAudioTrackID ?? "none")"
+                + " targetSeconds=\(targetSeconds) token=\(token)",
+            retention: .evidence
+        )
+    }
+
+    private func endAudioTrackSwitchIndication(token: UInt64) {
+        guard token == audioTrackSwitchRebuildToken else { return }
+        audioTrackSwitchRebuildToken = 0
+        audioTrackSwitchRebuildTimeoutTask?.cancel()
+        audioTrackSwitchRebuildTimeoutTask = nil
+        let startedAt = audioTrackSwitchRebuildStartedAtMillis
+        audioTrackSwitchRebuildStartedAtMillis = nil
+        let elapsedMillis = startedAt.map {
+            (DispatchTime.now().uptimeNanoseconds / 1_000_000) - $0
+        } ?? 0
+        guard let activeTechnicalSessionID else {
+            updateLoadingState { $0.clearStage() }
+            return
+        }
+        updateLoadingState { stateMachine in
+            stateMachine.endAudioTrackSwitch(
+                technicalSessionID: activeTechnicalSessionID,
+                runtimeGeneration: observationGeneration
+            )
+        }
+        SurfaceInputProbes.record(
+            "audioTrackSwitch loading ended elapsedMs=\(elapsedMillis) token=\(token)",
+            retention: .evidence
+        )
+    }
+
     private func beginSeekIndication(targetSeconds: Double, seekGeneration: UInt64) {
         seekIndicationTask?.cancel()
         let delay = seekIndicationDelay
@@ -3742,7 +3831,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         lifecycle = status
         emitPlaybackObservation(.lifecycle(productLifecycle))
         switch status {
-        case .idle, .loading:
+        case .idle:
+            if audioTrackSwitchRebuildToken != 0 {
+                audioTrackSwitchRebuildToken = 0
+                audioTrackSwitchRebuildTimeoutTask?.cancel()
+                audioTrackSwitchRebuildTimeoutTask = nil
+                updateLoadingState { $0.clearStage() }
+            }
+        case .loading:
             break
         case .ready, .playing:
             didEndNaturally = false

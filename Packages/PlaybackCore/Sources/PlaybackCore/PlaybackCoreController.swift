@@ -18,6 +18,11 @@ enum PlaybackDebugRecorderMode: Equatable, Sendable {
 #endif
 }
 
+public enum PlaybackAudioTrackSwitchRebuildPhase: Sendable, Equatable {
+    case began(targetSeconds: Double, token: UInt64)
+    case ended(token: UInt64)
+}
+
 @MainActor
 public final class PlaybackCoreController {
     public private(set) var activeSession: SampleBufferPlaybackSession?
@@ -41,6 +46,9 @@ public final class PlaybackCoreController {
     public var onSubtitleCuesChange: (([PlaybackSubtitleCue]) -> Void)?
     public var onSubtitleFrameChange: ((PlaybackSubtitleFrame?) -> Void)?
     public var onAudioSpectrumFrameChange: ((AudioSpectrumFrame) -> Void)?
+    public var onAudioTrackSwitchRebuild: ((
+        PlaybackAudioTrackSwitchRebuildPhase
+    ) -> Void)?
 
 #if DEBUG
     public var debugDirectoryURL: URL? {
@@ -1171,6 +1179,16 @@ public final class PlaybackCoreController {
                     return
                 }
                 self.onSubtitleFrameChange?(frame)
+            }
+        }
+        session.onAudioTrackSwitchRebuild = { [weak self, weak session] phase in
+            Task { @MainActor in
+                guard let self, let session else { return }
+                guard self.activeSession === session else {
+                    self.recordStaleCallback(from: session, kind: "audioTrackSwitchRebuild")
+                    return
+                }
+                self.onAudioTrackSwitchRebuild?(phase)
             }
         }
         session.onAudioSpectrumFrameChange = { [weak self, weak session] frame in

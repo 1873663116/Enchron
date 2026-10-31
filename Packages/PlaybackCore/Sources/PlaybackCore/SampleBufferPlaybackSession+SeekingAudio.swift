@@ -667,10 +667,52 @@ extension SampleBufferPlaybackSession {
         let streamReachesPlayhead = streamDeliveryStart.map {
             $0 <= time.seconds + 0.1
         } ?? false
-        let keepsVideoLane = streamReachesPlayhead
+        #if DEBUG
+            let forcesRebuild = ProcessInfo.processInfo.environment[
+                "ENCHRON_FORCE_AUDIO_SWITCH_REBUILD"
+            ] == "1"
+        #else
+            let forcesRebuild = false
+        #endif
+        let keepsVideoLane = keepsVideoLaneForSelection(
+            streamReachesPlayhead: streamReachesPlayhead,
+            forcesRebuild: forcesRebuild
+        )
+        let rebuildToken = nextAudioTrackSwitchRebuildToken()
+        let timelineWasRunning = CMTimebaseGetRate(synchronizer.timebase) > 0
+        let announcesRebuild = deliveryHasStarted
+            && keepsVideoLane == false
             && demuxSession != nil
             && mediaKind == .video
-            && CMTimebaseGetRate(synchronizer.timebase) > 0
+        var completedBody = false
+        if announcesRebuild {
+            if timelineWasRunning {
+                setPendingAudioTrackSwitchRebuildToken(rebuildToken)
+            }
+            onAudioTrackSwitchRebuild?(.began(
+                targetSeconds: time.seconds,
+                token: rebuildToken
+            ))
+            #if DEBUG
+                if let rawHold = ProcessInfo.processInfo.environment[
+                    "ENCHRON_DEBUG_AUDIO_SWITCH_REBUILD_HOLD_MILLISECONDS"
+                ], let holdMilliseconds = Int(rawHold), holdMilliseconds > 0 {
+                    try? await Task.sleep(for: .milliseconds(holdMilliseconds))
+                }
+            #endif
+        }
+        defer {
+            if announcesRebuild {
+                if timelineWasRunning {
+                    if completedBody == false,
+                       let token = takePendingAudioTrackSwitchRebuildToken() {
+                        onAudioTrackSwitchRebuild?(.ended(token: token))
+                    }
+                } else {
+                    onAudioTrackSwitchRebuild?(.ended(token: rebuildToken))
+                }
+            }
+        }
         let subtitleSelectionEpoch: UInt64? = keepsVideoLane || !deliveryHasStarted
             ? nil
             : beginSubtitleTimelineDiscontinuity()
@@ -817,6 +859,7 @@ extension SampleBufferPlaybackSession {
             }
         }
         recordAudioRendererState()
+        completedBody = true
         debugStore.emit(
             mediaSessionID: traceID,
             kind: "control.audioTrack.completed",
@@ -856,6 +899,38 @@ extension SampleBufferPlaybackSession {
         )
         diagnostics.lastSeekFlushMilliseconds = String(format: "%.2f", total)
         diagnostics.lastSeekFramesInFlight = reset.framesInFlight
+    }
+
+    func keepsVideoLaneForSelection(
+        streamReachesPlayhead: Bool,
+        forcesRebuild: Bool
+    ) -> Bool {
+        guard forcesRebuild == false else { return false }
+        return streamReachesPlayhead
+            && demuxSession != nil
+            && mediaKind == .video
+            && CMTimebaseGetRate(synchronizer.timebase) > 0
+    }
+
+    func nextAudioTrackSwitchRebuildToken() -> UInt64 {
+        audioTrackSwitchRebuildLock.lock()
+        defer { audioTrackSwitchRebuildLock.unlock() }
+        audioTrackSwitchRebuildTokenCounter &+= 1
+        return audioTrackSwitchRebuildTokenCounter
+    }
+
+    func setPendingAudioTrackSwitchRebuildToken(_ token: UInt64) {
+        audioTrackSwitchRebuildLock.lock()
+        defer { audioTrackSwitchRebuildLock.unlock() }
+        pendingAudioTrackSwitchRebuildToken = token
+    }
+
+    func takePendingAudioTrackSwitchRebuildToken() -> UInt64? {
+        audioTrackSwitchRebuildLock.lock()
+        defer { audioTrackSwitchRebuildLock.unlock() }
+        let token = pendingAudioTrackSwitchRebuildToken
+        pendingAudioTrackSwitchRebuildToken = nil
+        return token
     }
 
     private func rearmTimelineAfterAudioTrackChange(

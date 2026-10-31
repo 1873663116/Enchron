@@ -113,6 +113,9 @@ class PlaybackMediaSessionDriver {
         var onSubtitleCuesChange: (([PlaybackSubtitleCue]) -> Void)?
         var onSubtitleFrameChange: ((PlaybackSubtitleFrame?) -> Void)?
         var onAudioSpectrumFrameChange: ((AudioSpectrumFrame) -> Void)?
+        var onAudioTrackSwitchRebuild: ((
+            PlaybackAudioTrackSwitchRebuildPhase
+        ) -> Void)?
     }
 
     private let controller: PlaybackCoreController
@@ -514,6 +517,9 @@ class PlaybackMediaSessionDriver {
         controller.onAudioSpectrumFrameChange = { [weak self] frame in
             self?.callbacks.onAudioSpectrumFrameChange?(frame)
         }
+        controller.onAudioTrackSwitchRebuild = { [weak self] phase in
+            self?.callbacks.onAudioTrackSwitchRebuild?(phase)
+        }
     }
 
     private func unbindControllerCallbacks() {
@@ -525,6 +531,7 @@ class PlaybackMediaSessionDriver {
         controller.onSubtitleCuesChange = nil
         controller.onSubtitleFrameChange = nil
         controller.onAudioSpectrumFrameChange = nil
+        controller.onAudioTrackSwitchRebuild = nil
     }
 
     static func capabilityFacts(from diagnostics: PlaybackDiagnostics) -> PlaybackCapabilityFacts {

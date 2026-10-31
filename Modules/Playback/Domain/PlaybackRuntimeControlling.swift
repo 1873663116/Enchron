@@ -18,6 +18,7 @@ public enum PlaybackLoadingStage: String, CaseIterable, Codable, Sendable, Equat
     case seeking
     case recovering
     case starved
+    case switchingAudioTrack
 }
 
 public enum PlaybackSeekIndicationDelay {
@@ -96,11 +97,34 @@ public struct PlaybackRecoveryEvidence: Codable, Sendable, Equatable {
     }
 }
 
+public struct PlaybackAudioTrackSwitchEvidence: Codable, Sendable, Equatable {
+    public var runtimeGeneration: UInt64
+    public var technicalSessionID: String
+    public var fromTrackID: String?
+    public var targetSeconds: Double
+    public var startedAtMillis: UInt64
+
+    public init(
+        runtimeGeneration: UInt64,
+        technicalSessionID: String,
+        fromTrackID: String?,
+        targetSeconds: Double,
+        startedAtMillis: UInt64
+    ) {
+        self.runtimeGeneration = runtimeGeneration
+        self.technicalSessionID = technicalSessionID
+        self.fromTrackID = fromTrackID
+        self.targetSeconds = targetSeconds
+        self.startedAtMillis = startedAtMillis
+    }
+}
+
 public enum PlaybackLoadingCausalEvidence: Codable, Sendable, Equatable {
     case opening(PlaybackOpeningEvidence)
     case seeking(PlaybackSeekingEvidence)
     case recovering(PlaybackRecoveryEvidence)
     case starved(PlaybackStarvationEvidence)
+    case switchingAudioTrack(PlaybackAudioTrackSwitchEvidence)
 
     public var stage: PlaybackLoadingStage {
         switch self {
@@ -112,6 +136,8 @@ public enum PlaybackLoadingCausalEvidence: Codable, Sendable, Equatable {
             .recovering
         case .starved:
             .starved
+        case .switchingAudioTrack:
+            .switchingAudioTrack
         }
     }
 }
@@ -223,6 +249,33 @@ struct PlaybackLoadingStateMachine {
         state = .none
     }
 
+    mutating func beginAudioTrackSwitch(
+        fromTrackID: String?,
+        targetSeconds: Double,
+        technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID else { return }
+        state = .loading(.switchingAudioTrack(PlaybackAudioTrackSwitchEvidence(
+            runtimeGeneration: runtimeGeneration,
+            technicalSessionID: technicalSessionID,
+            fromTrackID: fromTrackID,
+            targetSeconds: targetSeconds,
+            startedAtMillis: DispatchTime.now().uptimeNanoseconds / 1_000_000
+        )))
+    }
+
+    mutating func endAudioTrackSwitch(
+        technicalSessionID: String,
+        runtimeGeneration: UInt64
+    ) {
+        guard self.runtimeGeneration == runtimeGeneration,
+              self.technicalSessionID == technicalSessionID,
+              state.stage == .switchingAudioTrack else { return }
+        state = .none
+    }
+
     mutating func presentationBecameUsable(
         technicalSessionID: String,
         runtimeGeneration: UInt64
@@ -244,6 +297,7 @@ struct PlaybackLoadingStateMachine {
         switch observation.phase {
         case .starved:
             guard state.stage != .seeking,
+                  state.stage != .switchingAudioTrack,
                   lifecycle == .playing,
                   let evidence = observation.evidence else { return }
             state = .loading(.starved(PlaybackStarvationEvidence(

@@ -238,6 +238,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
     var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
     var onAudioSpectrumFrameChange: (@Sendable (AudioSpectrumFrame) -> Void)?
+    var onAudioTrackSwitchRebuild: (@Sendable (
+        PlaybackAudioTrackSwitchRebuildPhase
+    ) -> Void)?
+    let audioTrackSwitchRebuildLock = NSLock()
+    var audioTrackSwitchRebuildTokenCounter: UInt64 = 0
+    var pendingAudioTrackSwitchRebuildToken: UInt64?
     private let activeFailureContextLock = NSLock()
     private var storedActiveFailureContext: PlaybackCoreActiveFailureContext?
 
@@ -1044,6 +1050,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             publishDeliveryContinuity(continuityObservation)
         }
         debugStore.recordTimelineRateActivationReturned(sequence: activationSequence)
+        if rate > 0, let token = takePendingAudioTrackSwitchRebuildToken() {
+            onAudioTrackSwitchRebuild?(.ended(token: token))
+        }
     }
 
     func setTimelineStopped(

@@ -2,6 +2,7 @@ import Foundation
 import PlaybackCore
 import Testing
 
+@testable import Enchron
 @testable import Playback
 
 @MainActor
@@ -458,6 +459,114 @@ import Testing
             lifecycle: .playing
         )
         #expect(stateMachine.state.stage == .starved)
+    }
+
+    @Test("an audio track rebuild shows loading until it ends")
+    func audioTrackRebuildShowsLoadingUntilItEnds() {
+        var stateMachine = activeLoadingStateMachine()
+        stateMachine.beginAudioTrackSwitch(
+            fromTrackID: "1",
+            targetSeconds: 42,
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+
+        #expect(stateMachine.state.visibility == .loading)
+        #expect(stateMachine.state.stage == .switchingAudioTrack)
+        guard case .switchingAudioTrack(let evidence) =
+            stateMachine.state.causalEvidence else {
+            Issue.record("expected switchingAudioTrack evidence")
+            return
+        }
+        #expect(evidence.runtimeGeneration == 1)
+        #expect(evidence.technicalSessionID == "session")
+        #expect(evidence.fromTrackID == "1")
+        #expect(evidence.targetSeconds == 42)
+        #expect(evidence.startedAtMillis > 0)
+        for presentation in PlaybackPresentation.allCases where presentation.usesImmersiveSpace {
+            #expect(
+                ImmersivePlaybackStallIndicatorPlacement.isVisible(
+                    loadingStage: stateMachine.state.stage,
+                    presentation: presentation,
+                    transitionIsActive: false
+                )
+            )
+        }
+        #expect(
+            WindowPlaybackLoadingVisibility.shouldShow(
+                hasPlaybackError: false,
+                loadingVisibility: stateMachine.state.visibility,
+                isPresentationTransitionActive: false
+            )
+        )
+
+        stateMachine.endAudioTrackSwitch(
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        #expect(stateMachine.state == .none)
+    }
+
+    @Test("starvation cannot replace an audio track rebuild stage")
+    func starvationDoesNotReplaceAudioTrackRebuild() {
+        var stateMachine = activeLoadingStateMachine()
+        stateMachine.beginAudioTrackSwitch(
+            fromTrackID: "2",
+            targetSeconds: 7,
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+
+        stateMachine.receive(
+            deliveryContinuityObservation(.starved, incidentID: 41),
+            technicalSessionID: "session",
+            runtimeGeneration: 1,
+            lifecycle: .playing
+        )
+        #expect(stateMachine.state.stage == .switchingAudioTrack)
+
+        stateMachine.endAudioTrackSwitch(
+            technicalSessionID: "session",
+            runtimeGeneration: 1
+        )
+        #expect(stateMachine.state == .none)
+    }
+
+    @Test("the runtime maps audio track rebuild phases to the switching stage")
+    func runtimeMapsAudioTrackRebuildPhases() async throws {
+        let controller = PlaybackCoreController()
+        let runtime = PlaybackRuntime(controller: controller)
+        let request = PlaybackLaunchRequest(
+            source: try PlaybackAddress(localFileURL: audioFixtureURL()),
+            displayName: audioFixtureURL().lastPathComponent
+        )
+        runtime.prepareForPlayback(request)
+        try await runtime.open(
+            request,
+            startTimeSeconds: 0,
+            initialSpeed: .default,
+            initialFormat: nil
+        )
+        defer { Task { await runtime.leavePlaybackAndWait(reason: .backButton) } }
+
+        controller.onAudioTrackSwitchRebuild?(.began(
+            targetSeconds: 3,
+            token: 7
+        ))
+        #expect(runtime.loadingState.stage == .switchingAudioTrack)
+        #expect(runtime.loadingState.visibility == .loading)
+
+        controller.onAudioTrackSwitchRebuild?(.ended(token: 6))
+        #expect(runtime.loadingState.stage == .switchingAudioTrack)
+
+        controller.onStatusChange?(.playing)
+        controller.onDeliveryContinuityChange?(
+            deliveryContinuityObservation(.starved, incidentID: 42)
+        )
+        #expect(runtime.loadingState.stage == .switchingAudioTrack)
+
+        controller.onAudioTrackSwitchRebuild?(.ended(token: 7))
+        #expect(runtime.loadingState == .none)
     }
 
     @Test("session teardown unbinds the machine so stale indications cannot attach")

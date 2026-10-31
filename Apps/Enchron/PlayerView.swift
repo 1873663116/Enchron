@@ -773,6 +773,10 @@ private struct WindowControlPlaneStateModifier: ViewModifier {
             loadingCausalRuntimeGeneration = String(evidence.runtimeGeneration)
             loadingCausalRequestID = "none"
             loadingCausalTechnicalSessionID = evidence.technicalSessionID
+        case .switchingAudioTrack(let evidence):
+            loadingCausalRuntimeGeneration = String(evidence.runtimeGeneration)
+            loadingCausalRequestID = "none"
+            loadingCausalTechnicalSessionID = evidence.technicalSessionID
         case nil:
             loadingCausalRuntimeGeneration = "none"
             loadingCausalRequestID = "none"
