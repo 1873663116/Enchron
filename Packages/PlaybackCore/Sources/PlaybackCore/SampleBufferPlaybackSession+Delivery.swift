@@ -32,6 +32,7 @@ extension SampleBufferPlaybackSession {
         isClosing = true
         closeLock.unlock()
 
+        stopSubtitlePublicationBeat()
         hush()
         stopSourceProgressWatchdog()
         interruptSourceReadsForClose()

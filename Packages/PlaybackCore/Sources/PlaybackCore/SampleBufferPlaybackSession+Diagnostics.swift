@@ -23,7 +23,6 @@ extension SampleBufferPlaybackSession {
         recordSubtitleState(at: time)
         recordAudioOutputClock(at: time)
         recordVideoCoverageClock(at: time)
-        publishSubtitleCues(at: time)
         publishDiagnostics(at: time)
         switch claimEndIfReady(at: time) {
         case .completed(let receipt):

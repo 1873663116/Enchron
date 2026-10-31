@@ -446,6 +446,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var lastReportedAudioClockSecond: Int?
     var lastReportedVideoClockSecond: Int?
     var lastReportedProducedSubtitleSecond: Int?
+    let subtitlePublicationQueue = DispatchQueue(
+        label: "PlaybackCore.subtitle-publication",
+        qos: .userInitiated
+    )
+    let subtitlePublicationLock = NSLock()
+    var subtitlePublicationTimer: DispatchSourceTimer?
     var startStallLimit: Duration = PlaybackBufferingPolicy.transportBoundStallLimit
     let sourceProgressLock = NSLock()
     var sourceProgressBytes: UInt64 = 0
@@ -471,6 +477,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     var isCloseInProgress: Bool {
         closeLock.withLock { isClosing }
+    }
+
+    deinit {
+        subtitlePublicationTimer?.cancel()
+        subtitlePublicationTimer = nil
     }
 
     convenience init(traceID: String = UUID().uuidString) {
@@ -587,6 +598,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             #endif
             self?.updatePresentationStatus(at: time)
         }
+        startSubtitlePublicationBeat()
         activationObservation.start()
         recordTimelineControlState()
     }

@@ -1092,7 +1092,15 @@ private final class SettledFlag: @unchecked Sendable {
     try await second.value
 
     #expect(controller.selectedSubtitleTrackID == "ffmpeg.subtitle.1")
-    #expect(controller.activeSubtitleCues.map(\.text) == ["再见"])
+    let handoverDeadline = ContinuousClock.now + .seconds(2)
+    var publishedTexts: [[String]] = []
+    while ContinuousClock.now < handoverDeadline {
+        publishedTexts.append(controller.activeSubtitleCues.map(\.text))
+        if publishedTexts.last == ["再见"] { break }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    #expect(publishedTexts.last == ["再见"])
+    #expect(!publishedTexts.contains(["第一行\n第二行"]))
     await controller.closeAndWait()
 }
 

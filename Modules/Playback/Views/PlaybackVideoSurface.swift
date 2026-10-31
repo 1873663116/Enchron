@@ -307,6 +307,9 @@ public struct PlaybackVideoSurface: View {
         .onChange(of: playbackRuntime.videoComponentRevision) {
             surfaceRefreshTick &+= 1
         }
+        .onChange(of: playbackRuntime.activeSubtitleFrame?.changeIdentifier) {
+            surfaceRefreshTick &+= 1
+        }
         .onChange(of: appModel.windowChromeOcclusion) {
             surfaceRefreshTick &+= 1
         }

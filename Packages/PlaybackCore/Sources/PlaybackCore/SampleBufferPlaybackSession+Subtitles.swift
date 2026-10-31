@@ -328,6 +328,7 @@ extension SampleBufferPlaybackSession {
             subtitleState.selectionGeneration &+= 1
             subtitleState.streamEpoch &+= 1
             subtitleState.pendingSelectionTrackID = nil
+            subtitleState.frameRenderer = nil
             subtitleState.suppressesActiveCues = true
             return (subtitleState.selectionGeneration, subtitleState.streamEpoch)
         }
@@ -346,25 +347,27 @@ extension SampleBufferPlaybackSession {
     }
 
     func completeSubtitleTimelineDiscontinuity(epoch: UInt64, target: Double) {
-        let rebuilt = subtitleStateLock.withLock {
+        let generation = subtitleStateLock.withLock { () -> UInt64? in
             guard !subtitleState.isClosed,
-                  subtitleState.streamEpoch == epoch else { return false }
-            subtitleState.suppressesActiveCues = false
-            guard subtitleState.selectedTrackID != nil else { return false }
+                  subtitleState.streamEpoch == epoch else { return nil }
+            guard subtitleState.selectedTrackID != nil else {
+                subtitleState.suppressesActiveCues = false
+                return nil
+            }
             subtitleState.cues = []
             subtitleState.activeFrame = nil
-            return true
+            return subtitleState.selectionGeneration
         }
-        if rebuilt {
+        if let generation {
             refreshSubtitleLane(
-                at: CMTime(seconds: target, preferredTimescale: 60_000)
+                at: CMTime(seconds: target, preferredTimescale: 60_000),
+                generation: generation
             )
         }
         recordSubtitleState(at: synchronizer.currentTime())
-        publishSubtitleCues(at: synchronizer.currentTime())
     }
 
-    private func refreshSubtitleLane(at time: CMTime) {
+    private func refreshSubtitleLane(at time: CMTime, generation: UInt64) {
         let pending: (String, URL, PlaybackSubtitleTrack)? = subtitleStateLock.withLock {
             guard let trackID = subtitleState.selectedTrackID,
                   let track = subtitleState.availableTracks.first(where: { $0.id == trackID }),
@@ -391,12 +394,15 @@ extension SampleBufferPlaybackSession {
             )) ?? []
             let installed = subtitleStateLock.withLock {
                 guard !subtitleState.isClosed,
+                      subtitleState.selectionGeneration == generation,
                       subtitleState.selectedTrackID == pending.0 else { return false }
                 subtitleState.frameRenderer = renderer
                 subtitleState.cues = cues.sorted {
                     CMTimeCompare($0.timeRange.start, $1.timeRange.start) < 0
                 }
                 subtitleState.activeFrame = nil
+                subtitleState.suppressesActiveCues = false
+                subtitleState.selectionGeneration &+= 1
                 return true
             }
             guard installed else { return }
@@ -537,7 +543,33 @@ extension SampleBufferPlaybackSession {
         )
     }
 
+    func startSubtitlePublicationBeat() {
+        let timer = DispatchSource.makeTimerSource(queue: subtitlePublicationQueue)
+        timer.schedule(
+            deadline: .now() + .milliseconds(100),
+            repeating: .milliseconds(100),
+            leeway: .milliseconds(20)
+        )
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            publishSubtitleCues(at: synchronizer.currentTime())
+        }
+        timer.resume()
+        subtitlePublicationTimer = timer
+    }
+
+    func stopSubtitlePublicationBeat() {
+        subtitlePublicationTimer?.cancel()
+        subtitlePublicationTimer = nil
+    }
+
     func publishSubtitleCues(at time: CMTime) {
+        subtitlePublicationLock.withLock {
+            publishSubtitleCuesLocked(at: time)
+        }
+    }
+
+    private func publishSubtitleCuesLocked(at time: CMTime) {
         ingestPendingSubtitleCues()
         let published = subtitleStateLock.withLock {
             () -> ([PlaybackSubtitleCue], UInt64)? in
