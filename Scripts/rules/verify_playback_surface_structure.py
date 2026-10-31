@@ -918,6 +918,12 @@ def main() -> int:
         "the controls attachment does not derive its visibility from the attachment policy",
     )
     require(
+        immersive.count(
+            "ImmersivePlaybackControlsAttachmentPolicy.breakthroughEffect"
+        ) == 2,
+        "the immersive controls or their menu can be occluded by scene entities",
+    )
+    require(
         ".allowsHitTesting(controlsAcceptInput)" in spatial_controls,
         "attached controls do not disable hit testing while inactive",
     )

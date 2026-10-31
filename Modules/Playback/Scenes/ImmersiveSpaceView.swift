@@ -699,9 +699,15 @@ public struct ImmersiveSpaceView: View {
                     presentation: controlsAttachmentPresentation
                 )
                 .environment(\.immersivePlaybackMenu, playbackMenu)
+                .breakthroughEffect(
+                    ImmersivePlaybackControlsAttachmentPolicy.breakthroughEffect
+                )
             }
             Attachment(id: ImmersivePlaybackMenu.attachmentID) {
                 ImmersivePlaybackMenuView(menu: playbackMenu)
+                    .breakthroughEffect(
+                        ImmersivePlaybackControlsAttachmentPolicy.breakthroughEffect
+                    )
             }
 #if DEBUG
             Attachment(id: DeveloperOverlayFollower.attachmentID) {
