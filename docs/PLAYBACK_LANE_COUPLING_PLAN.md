@@ -508,15 +508,35 @@ D12 控制台档位偶发挂起
     复现   未稳定复现；同一命令先前两次分别在 185 秒与 902 秒完成
     处置   登记；与用例内容无关，表现为命令不再推进
 
-D11 跳转后立即选字幕，前几秒的单元不渲染
-    观测   跳转至 163.5 秒并在跳转后四秒选择字幕轨
-           车道在 163.58 前后挂载，首个产出帧在 169.300，间隔约 5.7 秒
-           期间的单元 165.780-166.620 未被渲染，166.0 的查询返回空
-           同一会话中不跳转直接切换字幕轨时，挂载后约 1.5 秒产出首帧
-    复现   播放本地 mkv，seekNormalized 0.115，随后 selectSubtitleTrack
-    归因   呈现层。车道已挂载并已摄取包（ingested=10），但查询入口 frame(at:) 未被调用
-           （poll 计数在约四秒内只增加两次）。抽帧由界面按帧驱动，跳转后该驱动暂停约五秒
-    处置   登记；与跳转后的缓冲重建同时发生，属启动瞬态，未修
+D11 字幕重算没有自己的节拍，跳转重建期间两代渲染器互抢包，窗口平面不随帧更新
+    观测   同一次播放内 subtitle.frame.produced 间隔 0.1 秒
+           第 71 轮跳转后四秒内 publishSubtitleCues 只被调用两次，首个产出帧晚 5.7 秒
+           单元 165.780-166.620 从未渲染
+    复现   播放本地 mkv，连续 seekNormalized 到 162.1、164.96、167.09 秒
+           每轮跳转后记录 publishSubtitleCues 调用、subtitle.frame.produced、subtitlePixelMapping
+    归因   三项缺陷叠加
+           发布节拍挂在视频交付上。updatePresentationStatus 由每 100 毫秒的周期观察者驱动，
+           该观察者的间隔按媒体时间计，rate 为 0 时不回调；交付停顿就没有字幕重算
+           跳转重建期间旧渲染器仍挂在会话状态上。beginSubtitleTimelineDiscontinuity 只置抑制位，
+           旧渲染器保留，发布路径先摄取包再判定抑制，把新渲染器需要的历史包排干
+           窗口呈现只观察 activeSubtitleCues。帧变化不触发窗口重绘，
+           短单元落在两次偶然重绘之间时整段错过，更长单元停留到下一次重绘
+    修复   SampleBufferPlaybackSession 增加独立一百毫秒挂钟节拍，在专用串行队列按
+           synchronizer.currentTime() 发布，close 与 deinit 取消
+           publishSubtitleCues 用 subtitlePublicationLock 串行化全部发布者
+           beginSubtitleTimelineDiscontinuity 释放旧渲染器，重建完成前保持抑制
+           refreshSubtitleLane 安装时清除抑制并递增 selectionGeneration，过期重建被丢弃
+           PlaybackVideoSurface 对 activeSubtitleFrame.changeIdentifier 增加 onChange
+    验证   单元 aStoppedTimelineKeepsRecomputingTheSubtitleFrame 修复前 600 毫秒零次重算，
+           修复后通过；aTimelineDiscontinuityReleasesTheSubtitleLaneItReplaces 修复前
+           抑制期内仍向旧车道摄取，修复后通过；字幕相关 151 项单元通过
+           模拟器连续跳转三轮，发布间隔中位数 0.100 秒，最大 0.406 秒（跳转拆建期间）
+           rate 为 0 的窗口内间隔 0.100 至 0.107 秒
+           每轮跳转后车道在目标位置挂载（cues=6、8、2），单元 165.780-166.620 在跳转后产出
+           subtitlePixelMapping 在每个帧回调后 0.00 至 0.04 秒应用
+           截图显示单元 165.780-166.620 的文本，下一张已清除，画面持续播放
+           对照移除 PlaybackVideoSurface 的帧监听后重跑：两个单元产出但未上屏，
+           另一单元呈现延迟 1.64 秒；恢复监听后全部单元上屏
 
 D10 PlaybackCore 测试全集以信号 11 结束
     观测   swift test --package-path Packages/PlaybackCore 退出码 1

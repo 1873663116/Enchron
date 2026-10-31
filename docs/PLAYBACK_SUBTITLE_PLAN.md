@@ -28,6 +28,10 @@ subtitle.frame.idle at=115 ingested=12 covered=110.505..119.364
 
 字幕出现时刻与显示区间的起点相差不超过 0.09 秒。连续播放取样八段字幕，差值依次为 0.07、0.02、0.02、0.04、0.09、0.00、0.03、0.05 秒。
 
+字幕重算有独立节拍。会话以一百毫秒挂钟周期按时间线位置重算并发布，节拍不取视频交付事件。实测连续播放发布间隔中位数 0.100 秒；跳转后 rate 为 0 的窗口内间隔 0.100 至 0.107 秒，仅跳转拆建期间出现一次 0.406 秒的间隔。
+
+字幕帧到达窗口平面。窗口表面与沉浸表面都显式监听帧标识变化。实测连续跳转三轮，十个单元各在帧回调后 0.00 至 0.04 秒应用到实体平面；去掉该监听后同一场景有两个单元只产出未上屏，另一单元的呈现延迟为 1.64 秒。
+
 ## 二、目标一：字幕的挂载点等于请求时间
 
 行为。选中字幕、恢复播放、跳转之后，字幕读取器持有的包覆盖请求时间，不从订阅时刻开始。
@@ -48,9 +52,9 @@ subtitle.frame.idle at=115 ingested=12 covered=110.505..119.364
 
 失败。跳转后十秒内 `ingested` 不增长。或 `covered` 不与时钟同步移动。
 
-结构。跳转只移动源的位置，不改变订阅关系：一条流在跳转前后属于同一个主人。
+结构。跳转开始时会话释放旧的字幕读取器并置抑制位；重建完成后新的读取器以目标时间为起点接管同一条流，安装时清除抑制并递增选择代次，过期重建被丢弃。
 
-现状。成立。
+现状。成立。跳转后字幕随播放显示，窗口平面在帧变化后更新。
 
 ```
 subtitle.lane.attached track=ffmpeg.subtitle.10 at=112.195 cues=0 renderer=true
@@ -104,3 +108,5 @@ ENCHRON_ASSERTION {"assertion":"subtitle-follows-seek","check":"subtitle-lane-se
 单元档。`console tier unit`。当前该档为红，三条失败与字幕无关，见第六节第四条。
 
 实机路径。模拟器 UDID `7619BD56-B81A-44E1-B3DC-912FB3019E7E`。通过应用命令通道执行 `openSourceFile`、`playDiscTitle`、`answerResumePrompt`、`selectSubtitleTrack`、`seekNormalized`、`playbackProbe`，再用 `log show` 读取 `subtitle.*` 日志。
+
+呈现实测。`log show` 同时取 `com.xiongzhipeng.PlaybackCore` 与 `app.enchron` 两个子系统。`subtitle.frame.produced` 给出产出时刻与显示区间，`subtitlePixelMapping` 给出帧应用到实体平面的时刻，两者按相邻时间配对得到应用延迟。截图给出像素证据。只统计产出的日志不能判定呈现。
