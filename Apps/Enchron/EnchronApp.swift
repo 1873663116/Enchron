@@ -99,6 +99,7 @@ struct EnchronApp: App {
             ).systemOverlays
         )
         .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
 
         WindowGroup(
             "Player",
