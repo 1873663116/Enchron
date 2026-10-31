@@ -181,6 +181,14 @@ double PBFFmpegDemuxSourceGetDeliveryStartSeconds(
     int streamIndex,
     double minimumSeconds
 );
+void PBFFmpegDemuxSourceGetStreamCoverage(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    double *queueHeadSeconds,
+    double *queueTailSeconds,
+    double *historyHeadSeconds,
+    double *historyTailSeconds
+);
 int64_t PBFFmpegDemuxSourceGetQueuedPacketCount(
     PBFFmpegDemuxSource *source,
     int streamIndex

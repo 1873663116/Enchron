@@ -169,6 +169,25 @@ final class FFmpegDemuxSession: @unchecked Sendable {
         )
     }
 
+    func streamCoverage(
+        streamIndex: Int
+    ) -> (queueHead: Double, queueTail: Double, historyHead: Double, historyTail: Double)? {
+        guard let source = sourceLock.withLock({ source }) else { return nil }
+        var queueHead = Double.nan
+        var queueTail = Double.nan
+        var historyHead = Double.nan
+        var historyTail = Double.nan
+        PBFFmpegDemuxSourceGetStreamCoverage(
+            source,
+            Int32(streamIndex),
+            &queueHead,
+            &queueTail,
+            &historyHead,
+            &historyTail
+        )
+        return (queueHead, queueTail, historyHead, historyTail)
+    }
+
     func bufferDiagnostics() -> PlaybackDemuxBufferDiagnostics? {
         guard let source = sourceLock.withLock({ source }) else { return nil }
         let mode = switch PBFFmpegDemuxSourceGetBufferMode(source) {

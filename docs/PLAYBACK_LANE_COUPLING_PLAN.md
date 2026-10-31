@@ -169,33 +169,28 @@ subtitle.frame.produced at=186.200 range=186.040-187.110
 
 `audio.attach.open` 的 `headBefore=0.000` 是切换前该流已预缓冲的最老包，不是挂载位置，不能用于判断起点。判断起点用 `attach.firstUnit` 的 `pts`。
 
-快路成立的条件是目标流的队列或流历史覆盖播放位置。共享源为未选中音频流保留六十秒流历史，读线程按字节预算领先播放位置；远程 `mkv`（三条音轨，4K HEVC）实测该领先为 73.3 秒与 84.7 秒，超过历史窗口。目标流不覆盖播放位置时，快路会从领先位置开始交付，声音要等时钟追上才响。
+快路成立的条件是目标流的队列或流历史覆盖播放位置。未选中音频流在首个共享音频读取器打开后不再入队，切换所需覆盖由流历史提供。流历史窗口三百秒、每流字节上限 24 MB；读线程被 150 MB 前向字节预算停在播放位置之前约 73–85 秒处，历史覆盖该领先量。回放把播放位置之后的历史包并入目标流队列，并保留历史，使后续切换可以再次补齐。回放只并入时间戳早于队列头的历史包。音频读取器的渲染预读使队列头领先播放位置约四秒；此时覆盖播放位置的包在历史里，查询与回放都以历史为准。
 
-结构。会话在切换前用 `PBFFmpegDemuxSourceGetDeliveryStartSeconds` 查询目标流首个可交付单元的呈现时间。该时间不晚于播放位置 0.1 秒时走快路：不重建视频车道，直接接管音频流。该时间晚于播放位置时走慢路：停时间线、把共享源 seek 到播放位置、重建视频与音频车道、恢复时间线。慢路同时服务暂停中的切换。
+结构。会话在切换前用 `PBFFmpegDemuxSourceGetDeliveryStartSeconds` 查询目标流（队列与流历史）首个可交付单元的呈现时间。该时间不晚于播放位置 0.1 秒时走快路：不重建视频车道，直接接管音频流。该时间晚于播放位置时走慢路：释放字幕车道、停时间线、把共享源 seek 到播放位置、重建视频与音频车道、恢复时间线。慢路同时服务暂停中的切换。释放字幕车道使读线程在重建间隙停止抢读；读线程继续读入会把解复用位置推离目标，新视频车道首帧因此领先或落后目标数秒，时间线预卷期间呈现冻结或灰帧。
 
-实测（同一台模拟器，同一媒体；序列为 seek 到 162 秒后播放 6 秒、切到 index 3、再切回 index 1）：
-
-修复前，两次切换都走快路，首个音频单元的呈现时间分别领先播放位置 9.239 秒与 8.003 秒：
+实测（同一台模拟器，同一媒体；序列为 seek 到 162 秒后播放、连续切换五次）：
 
 ```
-11:33:34.707  audio.select.request index=3  playhead=169.000
-              first audio unit pts=178.239   delta=+9.239
-11:33:38.820  audio.select.request index=1  playhead=173.500
-              first audio unit pts=181.503   delta=+8.003
+12:31:18.814  audio.select.request index=3  playhead=168.500
+              audio.select.coverage index=3 start=168.896 queueHead=156.416 historyHead=156.416
+              attach.firstUnit lane=audio pts=168.917   delta=+0.417
+12:31:21.391  audio.select.request index=1  playhead=171.000
+              audio.select.coverage index=1 start=171.433 queueHead=175.102 historyHead=156.415
+              attach.firstUnit lane=audio pts=171.518   delta=+0.518
+12:31:23.966  audio.select.request index=2  playhead=174.000
+              attach.firstUnit lane=audio pts=174.078   delta=+0.078
+12:31:26.544  audio.select.request index=1  playhead=176.500
+              attach.firstUnit lane=audio pts=176.724   delta=+0.224
+12:31:29.128  audio.select.request index=3  playhead=179.000
+              attach.firstUnit lane=audio pts=179.242   delta=+0.242
 ```
 
-修复后，两次切换都走慢路，首个音频单元落在播放位置：
-
-```
-11:29:40.576  audio.select.request index=3  playhead=169.500
-              demux.seek.begin seconds=169.546
-              first audio unit pts=169.557   delta=+0.011
-11:29:44.850  audio.select.request index=1  playhead=173.000
-              demux.seek.begin seconds=173.463
-              first audio unit pts=173.482   delta=+0.019
-```
-
-切换后 `audio.out` 的呈现时间持续前进，两次切换前后字幕产出不中断。
+五次切换都走快路：没有 `demux.seek.begin`，没有 `videoDelivery.stop`。期间唯一的视频车道重建是切换前的 seek。切换后 `audio.out` 的呈现时间持续前进，字幕产出不中断。
 
 未验证部分已补测量。新增每秒一行 `audio.out`，记录当前选中的音频流编号与最近入队音频单元的呈现时间。连续切换三次的完整序列（44 个样本）：
 

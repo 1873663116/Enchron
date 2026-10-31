@@ -700,7 +700,7 @@ static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
 static const int64_t PB_DEMUX_AUXILIARY_BYTE_LIMIT = 16LL * 1024 * 1024;
 
 static const int64_t PB_DEMUX_HISTORY_BYTE_LIMIT = 24LL * 1024 * 1024;
-static const int64_t PB_DEMUX_HISTORY_WINDOW_MICROSECONDS = 60LL * AV_TIME_BASE;
+static const int64_t PB_DEMUX_HISTORY_WINDOW_MICROSECONDS = 300LL * AV_TIME_BASE;
 
 static void clear_stream_history_locked(
     PBFFmpegDemuxSource *source,
@@ -774,6 +774,10 @@ static bool replay_stream_history_locked(
     int64_t thresholdTimestamp
 ) {
     if (!source->historyHeads || streamIndex >= source->queueCount) return false;
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    int64_t queueHeadTimestamp = queue->head
+        ? queue->head->timestampMicroseconds
+        : AV_NOPTS_VALUE;
     PBFFmpegPacketNode *chainHead = NULL;
     PBFFmpegPacketNode *chainTail = NULL;
     int64_t chainBytes = 0;
@@ -783,6 +787,8 @@ static bool replay_stream_history_locked(
          node = node->next) {
         if (node->timestampMicroseconds == AV_NOPTS_VALUE) continue;
         if (node->timestampMicroseconds < thresholdTimestamp) continue;
+        if (queueHeadTimestamp != AV_NOPTS_VALUE &&
+            node->timestampMicroseconds >= queueHeadTimestamp) continue;
         PBFFmpegPacketNode *copy = take_packet_node(source);
         if (!copy) break;
         if (av_packet_ref(&copy->packet, &node->packet) < 0) {
@@ -802,9 +808,7 @@ static bool replay_stream_history_locked(
         chainBytes += copy->byteCount;
         chainDurationMicroseconds += copy->durationMicroseconds;
     }
-    clear_stream_history_locked(source, streamIndex);
     if (!chainHead) return false;
-    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
     chainTail->next = queue->head;
     queue->head = chainHead;
     if (!queue->tail) queue->tail = chainTail;
@@ -4788,19 +4792,65 @@ double PBFFmpegDemuxSourceGetDeliveryStartSeconds(
             break;
         }
     }
-    if (found == AV_NOPTS_VALUE && source->historyHeads) {
+    if (source->historyHeads) {
         for (PBFFmpegPacketNode *node = source->historyHeads[streamIndex];
              node != NULL; node = node->next) {
             if (node->timestampMicroseconds == AV_NOPTS_VALUE) continue;
-            if (node->timestampMicroseconds >= minimumTimestamp) {
+            if (node->timestampMicroseconds + node->durationMicroseconds
+                <= minimumTimestamp) continue;
+            if (found == AV_NOPTS_VALUE ||
+                node->timestampMicroseconds < found) {
                 found = node->timestampMicroseconds;
-                break;
             }
+            break;
         }
     }
     pthread_mutex_unlock(&source->lock);
     if (found == AV_NOPTS_VALUE) return NAN;
     return (double)found / (double)AV_TIME_BASE;
+}
+
+void PBFFmpegDemuxSourceGetStreamCoverage(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    double *queueHeadSeconds,
+    double *queueTailSeconds,
+    double *historyHeadSeconds,
+    double *historyTailSeconds
+) {
+    if (queueHeadSeconds) *queueHeadSeconds = NAN;
+    if (queueTailSeconds) *queueTailSeconds = NAN;
+    if (historyHeadSeconds) *historyHeadSeconds = NAN;
+    if (historyTailSeconds) *historyTailSeconds = NAN;
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    if (queue->head && queue->head->timestampMicroseconds != AV_NOPTS_VALUE &&
+        queueHeadSeconds) {
+        *queueHeadSeconds =
+            (double)queue->head->timestampMicroseconds / (double)AV_TIME_BASE;
+    }
+    if (queue->tail && queue->tail->timestampMicroseconds != AV_NOPTS_VALUE &&
+        queueTailSeconds) {
+        *queueTailSeconds =
+            (double)queue->tail->timestampMicroseconds / (double)AV_TIME_BASE;
+    }
+    if (source->historyHeads) {
+        PBFFmpegPacketNode *head = source->historyHeads[streamIndex];
+        PBFFmpegPacketNode *tail = source->historyTails[streamIndex];
+        if (head && head->timestampMicroseconds != AV_NOPTS_VALUE &&
+            historyHeadSeconds) {
+            *historyHeadSeconds =
+                (double)head->timestampMicroseconds / (double)AV_TIME_BASE;
+        }
+        if (tail && tail->timestampMicroseconds != AV_NOPTS_VALUE &&
+            historyTailSeconds) {
+            *historyTailSeconds =
+                (double)tail->timestampMicroseconds / (double)AV_TIME_BASE;
+        }
+    }
+    pthread_mutex_unlock(&source->lock);
 }
 
 int64_t PBFFmpegDemuxSourceGetQueuedPacketCount(

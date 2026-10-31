@@ -2583,6 +2583,93 @@ func highEfficiencyAACProfilesDecodeToPCM(
     )
 }
 
+@Test func anAudioStreamThatWasNotBufferedIsReplayedFromItsHistory() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-120s.mp4"
+    )
+    try #require(FileManager.default.fileExists(atPath: fixture.path))
+    var error = [CChar](repeating: 0, count: 512)
+    let source = try #require(
+        fixture.path.withCString {
+            PBFFmpegDemuxSourceCreate(
+                $0,
+                false,
+                PBFFmpegDemuxBufferConfigurationMake(PBFFmpegDemuxBufferModeAutomatic, 0),
+                nil,
+                &error,
+                error.count
+            )
+        },
+        Comment(rawValue: cString(error))
+    )
+    defer { PBFFmpegDemuxSourceDestroy(source) }
+
+    let firstAudio = try #require(PBFFmpegAudioReaderAllocate())
+    #expect(
+        PBFFmpegAudioReaderOpenWithDemuxSource(
+            firstAudio, source, 1, 0, &error, error.count
+        ),
+        Comment(rawValue: cString(error))
+    )
+    for _ in 0..<100 {
+        var reference: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        let result = PBFFmpegAudioReaderCopyNextSample(
+            firstAudio, &reference, &metadata, &error, error.count
+        )
+        if result != PBFFmpegReadResultSample { break }
+        _ = reference?.takeRetainedValue()
+    }
+    PBFFmpegAudioReaderDestroy(firstAudio)
+
+    let videoReader = try #require(PBFFmpegReaderAllocate())
+    defer { PBFFmpegReaderDestroy(videoReader) }
+    #expect(
+        PBFFmpegReaderOpenWithDemuxSource(
+            videoReader, source, PBFFmpegModeCompressed, &error, error.count
+        ),
+        Comment(rawValue: cString(error))
+    )
+    for _ in 0..<20_000 {
+        var reference: Unmanaged<CMSampleBuffer>?
+        let result = PBFFmpegReaderCopyNextSample(
+            videoReader, &reference, &error, error.count
+        )
+        if result != PBFFmpegReadResultSample { break }
+        _ = reference?.takeRetainedValue()
+    }
+
+    let target = 10.0
+    let deliveryStart = PBFFmpegDemuxSourceGetDeliveryStartSeconds(
+        source, 2, target
+    )
+    #expect(
+        deliveryStart.isFinite && abs(deliveryStart - target) < 1.0,
+        Comment(rawValue: "deliveryStart=\(deliveryStart)")
+    )
+    let secondAudio = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(secondAudio) }
+    #expect(
+        PBFFmpegAudioReaderOpenWithDemuxSource(
+            secondAudio, source, 2, target, &error, error.count
+        ),
+        Comment(rawValue: cString(error))
+    )
+    var reference: Unmanaged<CMSampleBuffer>?
+    var metadata = PBFFmpegAudioSampleMetadata()
+    let result = PBFFmpegAudioReaderCopyNextSample(
+        secondAudio, &reference, &metadata, &error, error.count
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+    let sample = try #require(reference?.takeRetainedValue())
+    let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample).seconds
+    #expect(
+        presentationTime >= target - 1.0 && presentationTime <= target + 1.5,
+        Comment(rawValue: "presentationTime=\(presentationTime)")
+    )
+}
+
 @Test func audioReaderAfterASeekStartsAtTheSeekTarget() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(

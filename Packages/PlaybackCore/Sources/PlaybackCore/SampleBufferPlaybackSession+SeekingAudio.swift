@@ -656,6 +656,14 @@ extension SampleBufferPlaybackSession {
             )
             return start.isFinite ? start : nil
         }
+        if let coverage = demuxSession?.streamCoverage(streamIndex: streamIndex) {
+            let summary = "index=\(streamIndex) playhead=\(time.seconds)"
+                + " start=\(streamDeliveryStart ?? .nan)"
+                + " queueHead=\(coverage.queueHead) queueTail=\(coverage.queueTail)"
+                + " historyHead=\(coverage.historyHead)"
+                + " historyTail=\(coverage.historyTail)"
+            logger.info("audio.select.coverage \(summary, privacy: .public)")
+        }
         let streamReachesPlayhead = streamDeliveryStart.map {
             $0 <= time.seconds + 0.1
         } ?? false
@@ -663,6 +671,17 @@ extension SampleBufferPlaybackSession {
             && demuxSession != nil
             && mediaKind == .video
             && CMTimebaseGetRate(synchronizer.timebase) > 0
+        let subtitleSelectionEpoch: UInt64? = keepsVideoLane || !deliveryHasStarted
+            ? nil
+            : beginSubtitleTimelineDiscontinuity()
+        defer {
+            if let subtitleSelectionEpoch {
+                completeSubtitleTimelineDiscontinuity(
+                    epoch: subtitleSelectionEpoch,
+                    target: time.seconds
+                )
+            }
+        }
         if deliveryHasStarted, keepsVideoLane == false {
             setTimelineStopped(reason: .audioTrackSelection)
         }
