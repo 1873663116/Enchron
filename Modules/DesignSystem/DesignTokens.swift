@@ -604,6 +604,7 @@ public enum DesignTokens {
         public static let sourceGap: CGFloat = Spacing.sm
         public static let submenuOverlap: CGFloat = Spacing.xs
         public static let layerDepth: CGFloat = Spacing.xs
+        static let selectedNumberFill: Color = .primary.opacity(0.20)
         public static let maximumContentHeight: CGFloat = Layout.expandedMediaInformationMaximumHeight
         public static let videoFormatContentWidth: CGFloat = Layout.videoFormatEditorWidth - glassPadding * 2
         public static let environmentContentWidth: CGFloat = Layout.environmentMenuWidth - glassPadding * 2
