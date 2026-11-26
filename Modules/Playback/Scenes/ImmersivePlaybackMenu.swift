@@ -121,7 +121,7 @@ private struct ImmersiveMenuOptions: View {
     let category: PlaybackMenuCategory
     let live: FusedPlayerPanelLive
     let presentation: AnchoredMenuPresentation
-    @State private var episodeLayout = 0
+    @AppStorage("playback.immersive.episodeLayout") private var episodeLayout = 0
 
     private var items: [DeckMenuItem] { category.items(in: live) }
 

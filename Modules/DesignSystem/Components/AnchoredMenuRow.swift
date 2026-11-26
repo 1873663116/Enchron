@@ -87,7 +87,7 @@ public struct AnchoredMenuNumber: View {
                 .font(DesignTokens.Typography.selectionHeader)
                 .lineLimit(1)
                 .frame(width: DesignTokens.Interactive.regular, height: DesignTokens.Interactive.regular)
-                .background(isSelected ? DesignTokens.Surface.selected : DesignTokens.Surface.elevated,
+                .background(isSelected ? DesignTokens.Menu.selectedNumberFill : DesignTokens.Surface.elevated,
                             in: DesignTokens.ShapeToken.menuNumber)
                 .enchronHoverTarget(visual: DesignTokens.ShapeToken.menuNumber,
                                     interaction: DesignTokens.ShapeToken.menuNumberTarget,
