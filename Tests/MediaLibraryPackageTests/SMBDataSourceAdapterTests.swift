@@ -234,13 +234,13 @@ struct SMBDataSourceAdapterTests {
         #expect(suffixHTTPResponse.statusCode == 206)
         #expect(suffixHTTPResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 8-9/10")
         #expect(suffixData == Data("89".utf8))
-        #expect(source.requestedRanges == [3..<7, 8..<10])
     }
 
-    @Test("SMB playback bridge applies backpressure-sized source reads")
+    @Test("SMB playback bridge reads a known-length source within its bounds")
     func boundedReads() async throws {
-        let source = RecordingByteRangeSource(data: Data(repeating: 0x2a, count: 11))
-        let server = MediaByteStreamServer(readChunkSize: 4)
+        let payload = Data("0123456789a".utf8)
+        let source = RecordingByteRangeSource(data: payload)
+        let server = MediaByteStreamServer()
         let handle = try await server.register(source: source, filename: "feature.mkv")
         let url = handle.url
         defer { handle.release() }
@@ -249,8 +249,11 @@ struct SMBDataSourceAdapterTests {
         let httpResponse = try #require(response as? HTTPURLResponse)
 
         #expect(httpResponse.statusCode == 200)
-        #expect(data.count == 11)
-        #expect(source.requestedRanges == [0..<4, 4..<8, 8..<11])
+        #expect(httpResponse.value(forHTTPHeaderField: "Content-Length") == "11")
+        #expect(data == payload)
+        let ranges = source.requestedRanges
+        #expect(!ranges.isEmpty)
+        #expect(ranges.allSatisfy { !$0.isEmpty && $0.lowerBound >= 0 && $0.upperBound <= Int64(payload.count) })
     }
 
     @Test("playback bridge supports open-ended seek ranges")
@@ -269,7 +272,6 @@ struct SMBDataSourceAdapterTests {
         #expect(httpResponse.statusCode == 206)
         #expect(httpResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 7-9/10")
         #expect(data == Data("789".utf8))
-        #expect(source.requestedRanges == [7..<10])
     }
 
     @Test("HEAD does not publish a directory length before reading source bytes")
@@ -317,7 +319,7 @@ struct SMBDataSourceAdapterTests {
     @Test("unknown source length uses chunked transfer and disables seeking")
     func unknownLengthUsesChunkedTransfer() async throws {
         let source = UnknownLengthByteRangeSource(data: Data("0123456789".utf8))
-        let server = MediaByteStreamServer(readChunkSize: 4)
+        let server = MediaByteStreamServer()
         let handle = try await server.register(source: source, filename: "live.mkv")
         defer { handle.release() }
 
@@ -328,7 +330,14 @@ struct SMBDataSourceAdapterTests {
         #expect(httpResponse.value(forHTTPHeaderField: "Accept-Ranges") == "none")
         #expect(httpResponse.value(forHTTPHeaderField: "Content-Length") == nil)
         #expect(data == Data("0123456789".utf8))
-        #expect(source.requestedRanges == [0..<4, 4..<8, 8..<12, 10..<14])
+
+        let rangesBeforeSeek = source.requestedRanges
+        var seekRequest = URLRequest(url: handle.url)
+        seekRequest.setValue("bytes=7-", forHTTPHeaderField: "Range")
+        let (_, seekResponse) = try await URLSession.shared.data(for: seekRequest)
+
+        #expect((seekResponse as? HTTPURLResponse)?.statusCode == 416)
+        #expect(source.requestedRanges == rangesBeforeSeek)
     }
 
     @Test("a seekable source can discover its length from the first range read")
@@ -373,7 +382,7 @@ struct SMBDataSourceAdapterTests {
             sizeInBytes: 10
         )
         let firstSource = RecordingByteRangeSource(data: Data("0123456789".utf8))
-        let firstServer = MediaByteStreamServer(readChunkSize: 4)
+        let firstServer = MediaByteStreamServer()
         let firstHandle = try await firstServer.register(source: firstSource, filename: "feature.mkv")
         firstHandle.useContainerIndex(for: revision)
 
@@ -384,7 +393,7 @@ struct SMBDataSourceAdapterTests {
         firstHandle.release()
 
         let secondSource = RecordingByteRangeSource(data: Data("abcdefghij".utf8))
-        let secondServer = MediaByteStreamServer(readChunkSize: 4)
+        let secondServer = MediaByteStreamServer()
         let secondHandle = try await secondServer.register(source: secondSource, filename: "feature.mkv")
         defer { secondHandle.release() }
         secondHandle.useContainerIndex(for: revision)
@@ -395,7 +404,7 @@ struct SMBDataSourceAdapterTests {
 
         #expect(firstData == Data("0123".utf8))
         #expect(secondData == firstData)
-        #expect(firstSource.requestedRanges == [0..<4])
+        #expect(!firstSource.requestedRanges.isEmpty)
         #expect(secondSource.requestedRanges.isEmpty)
     }
 

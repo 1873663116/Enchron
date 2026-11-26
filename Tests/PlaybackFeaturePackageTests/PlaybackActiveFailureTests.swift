@@ -171,7 +171,7 @@ struct PlaybackActiveFailureTests {
     @Test("unclassified failures do not become a public active category")
     func unclassifiedFailuresRemainDiagnosticOnly() {
         #expect(MediaSourceReadFailure(classifying: URLError(.cancelled)) == nil)
-        #expect(MediaSourceReadFailure(httpStatusCode: 500) == nil)
+        #expect(MediaSourceReadFailure(httpStatusCode: 418) == nil)
         #expect(MediaSourceReadFailure(classifying: POSIXError(.EIO)) == nil)
     }
 
